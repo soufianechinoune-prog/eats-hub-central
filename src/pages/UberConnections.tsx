@@ -64,17 +64,9 @@ const UberConnections = () => {
   });
 
   const handleConnectUber = () => {
-    if (!selectedRestaurant) {
-      toast({
-        title: "Erreur",
-        description: "Veuillez sélectionner un restaurant",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const authUrl = getUberAuthUrl(selectedRestaurant);
-
+    // Nouveau processus : on se connecte d'abord à Uber, puis on nommera la connexion
+    const authUrl = getUberAuthUrl("temp"); // ID temporaire
+    
     // Tente d'ouvrir dans l'onglet principal; si bloqué, fallback onglet courant puis nouvel onglet
     try {
       if (window.top && window.top !== window) {
@@ -188,32 +180,14 @@ const UberConnections = () => {
               <DialogTitle>Connecter à Uber Eats</DialogTitle>
             </DialogHeader>
             <p id="uber-connect-description" className="text-sm text-muted-foreground pb-2">
-              Sélectionnez un restaurant et autorisez l'accès via votre compte Uber Eats
+              Vous allez être redirigé vers Uber Eats pour autoriser l'accès. Une fois connecté, vous pourrez nommer cette connexion.
             </p>
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="restaurant">Sélectionnez un restaurant</Label>
-                <Select
-                  value={selectedRestaurant}
-                  onValueChange={setSelectedRestaurant}
-                >
-                  <SelectTrigger id="restaurant">
-                    <SelectValue placeholder="Choisir un restaurant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableRestaurants?.map((restaurant) => (
-                      <SelectItem key={restaurant.id} value={restaurant.id}>
-                        {restaurant.name} - {restaurant.city}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <Button onClick={handleConnectUber} className="w-full">
                 Continuer vers Uber Eats
               </Button>
               <p className="text-xs text-muted-foreground">
-                Vous serez redirigé vers Uber Eats pour autoriser l'accès à ce restaurant.
+                Après autorisation, vous reviendrez ici pour associer la connexion à un restaurant.
               </p>
               <p className="text-xs text-muted-foreground break-all">
                 URL de redirection utilisée: <code>{redirectUri}</code>

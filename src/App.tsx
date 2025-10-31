@@ -14,6 +14,7 @@ import Exports from "./pages/Exports";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { AppLayout } from "./components/layout/AppLayout";
+import UberNaming from "./pages/UberNaming";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,22 @@ const App = () => {
                 <ProtectedRoute session={session}>
                   <AppLayout>
                     <UberConnections />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/uber-callback"
+              element={
+                <UberCallback />
+              }
+            />
+            <Route
+              path="/uber-naming"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <UberNaming />
                   </AppLayout>
                 </ProtectedRoute>
               }

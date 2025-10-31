@@ -46,44 +46,22 @@ const UberCallback = () => {
         // Calculate expiration date
         const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
-        // Check if connection already exists
-        const { data: existingConnection } = await supabase
+        // Create new connection without restaurant_id (will be assigned later)
+        const { data: newConnection, error: insertError } = await supabase
           .from("uber_connections")
+          .insert({
+            restaurant_id: null, // Sera assigné plus tard
+            access_token: tokenData.access_token,
+            refresh_token: tokenData.refresh_token,
+            token_type: tokenData.token_type,
+            expires_at: expiresAt,
+            scopes: tokenData.scope,
+            raw_payload: tokenData,
+          })
           .select("id")
-          .eq("restaurant_id", state)
           .single();
 
-        if (existingConnection) {
-          // Update existing connection
-          const { error: updateError } = await supabase
-            .from("uber_connections")
-            .update({
-              access_token: tokenData.access_token,
-              refresh_token: tokenData.refresh_token,
-              token_type: tokenData.token_type,
-              expires_at: expiresAt,
-              scopes: tokenData.scope,
-              raw_payload: tokenData,
-            })
-            .eq("restaurant_id", state);
-
-          if (updateError) throw updateError;
-        } else {
-          // Create new connection
-          const { error: insertError } = await supabase
-            .from("uber_connections")
-            .insert({
-              restaurant_id: state,
-              access_token: tokenData.access_token,
-              refresh_token: tokenData.refresh_token,
-              token_type: tokenData.token_type,
-              expires_at: expiresAt,
-              scopes: tokenData.scope,
-              raw_payload: tokenData,
-            });
-
-          if (insertError) throw insertError;
-        }
+        if (insertError) throw insertError;
 
         // Fetch stores and activate integration
         try {
@@ -91,15 +69,8 @@ const UberCallback = () => {
           
           if (storesData.stores && storesData.stores.length > 0) {
             const firstStore = storesData.stores[0];
-            
             // Activate integration for the first store
             await activateStoreIntegration(tokenData.access_token, firstStore.id);
-            
-            // Save store ID to restaurant
-            await supabase
-              .from("restaurants")
-              .update({ uber_store_id: firstStore.id })
-              .eq("id", state);
           }
         } catch (storeError) {
           console.error("Error fetching/activating stores:", storeError);
@@ -109,10 +80,13 @@ const UberCallback = () => {
         setStatus("success");
         toast({
           title: "Connexion réussie",
-          description: "Le restaurant a été connecté à Uber Eats avec succès",
+          description: "Vous allez maintenant nommer cette connexion",
         });
 
-        setTimeout(() => navigate("/uber-connections"), 2000);
+        // Redirect to naming page with connection ID
+        setTimeout(() => {
+          navigate(`/uber-naming?connection=${newConnection.id}`);
+        }, 2000);
       } catch (error) {
         console.error("Error handling Uber callback:", error);
         setStatus("error");
