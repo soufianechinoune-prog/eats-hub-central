@@ -14,48 +14,26 @@ const getUberConfig = () => ({
 /**
  * Generate the OAuth URL for Uber authentication
  */
-export const getUberAuthUrl = (restaurantId: string): string => {
-  const config = getUberConfig();
-  const scopes = [
-    "eats.pos_provisioning",
-    "eats.store",
-    "eats.orders",
-    "eats.report",
-  ].join(" ");
-
-  const params = new URLSearchParams({
-    response_type: "code",
-    client_id: config.clientId,
-    redirect_uri: config.redirectUri,
-    scope: scopes,
-    state: restaurantId, // Pass restaurant ID as state
-  });
-
-  return `${UBER_AUTH_URL}?${params.toString()}`;
+export const getUberAuthUrl = (state: string): string => {
+  const functionsUrl = import.meta.env.VITE_SUPABASE_URL;
+  return `${functionsUrl}/functions/v1/uber-auth?state=${encodeURIComponent(state)}`;
 };
 
 /**
  * Exchange authorization code for access token
  */
 export const exchangeCodeForToken = async (code: string) => {
-  const config = getUberConfig();
+  const functionsUrl = import.meta.env.VITE_SUPABASE_URL;
 
-  const response = await fetch(UBER_TOKEN_URL, {
+  const response = await fetch(`${functionsUrl}/functions/v1/uber-token`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-      redirect_uri: config.redirectUri,
-      code,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to exchange code: ${response.statusText}`);
+    const err = await response.json().catch(() => ({}));
+    throw new Error(`Failed to exchange code: ${response.statusText} ${err?.error ?? ""}`);
   }
 
   return await response.json();
