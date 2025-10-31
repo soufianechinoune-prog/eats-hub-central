@@ -1,1 +1,7 @@
 project_id = "akcicojkrzeirffefdet"
+
+[functions.uber-auth]
+verify_jwt = false
+
+[functions.uber-token]
+verify_jwt = false
