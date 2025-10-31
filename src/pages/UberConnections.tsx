@@ -35,6 +35,7 @@ const UberConnections = () => {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>("");
+  const redirectUri = (import.meta.env.VITE_UBER_REDIRECT_URI as string) || `${window.location.origin}/auth/uber/callback`;
 
   const { data: connections, refetch } = useQuery({
     queryKey: ["uber-connections"],
@@ -176,8 +177,19 @@ const UberConnections = () => {
                 Continuer vers Uber Eats
               </Button>
               <p className="text-xs text-muted-foreground">
-                Vous serez redirigé vers Uber Eats pour autoriser l'accès à ce
-                restaurant.
+                Vous serez redirigé vers Uber Eats pour autoriser l'accès à ce restaurant.
+              </p>
+              <p className="text-xs text-muted-foreground break-all">
+                URL de redirection utilisée: <code>{redirectUri}</code>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-2 h-6 px-2"
+                  onClick={() => {
+                    navigator.clipboard.writeText(redirectUri);
+                    toast({ title: "Copié", description: "URL de redirection copiée" });
+                  }}
+                >Copier</Button>
               </p>
             </div>
           </DialogContent>
