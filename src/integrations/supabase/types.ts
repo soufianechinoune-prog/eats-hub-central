@@ -216,6 +216,8 @@ export type Database = {
       order_errors: {
         Row: {
           created_at: string
+          customer_id: string | null
+          customer_name: string | null
           error_category: string | null
           error_date: string | null
           error_description: string | null
@@ -230,6 +232,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
           error_category?: string | null
           error_date?: string | null
           error_description?: string | null
@@ -244,6 +248,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
           error_category?: string | null
           error_date?: string | null
           error_description?: string | null

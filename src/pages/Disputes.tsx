@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertCircle,
@@ -15,6 +16,9 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  BarChart3,
+  Search,
+  User,
 } from "lucide-react";
 import {
   Select,
@@ -38,6 +42,8 @@ const Disputes = () => {
   const [generatedDisputes, setGeneratedDisputes] = useState<
     Record<string, DisputeData>
   >({});
+  const [customerFilter, setCustomerFilter] = useState<string>("");
+  const [showAnalytics, setShowAnalytics] = useState<boolean>(false);
   const { toast } = useToast();
 
   // Fetch restaurants
@@ -89,6 +95,39 @@ const Disputes = () => {
       return data || [];
     },
   });
+
+  // Filter by customer name
+  const filteredErrors = orderErrors?.filter((error: any) => {
+    if (!customerFilter) return true;
+    return error.customer_name?.toLowerCase().includes(customerFilter.toLowerCase());
+  });
+
+  // Calculate customer analytics
+  const customerAnalytics = orderErrors?.reduce((acc: any, error: any) => {
+    if (!error.customer_name) return acc;
+    
+    if (!acc[error.customer_name]) {
+      acc[error.customer_name] = {
+        name: error.customer_name,
+        customerId: error.customer_id,
+        errorCount: 0,
+        totalImpact: 0,
+        errors: [],
+      };
+    }
+    
+    acc[error.customer_name].errorCount += 1;
+    acc[error.customer_name].totalImpact += error.financial_impact || 0;
+    acc[error.customer_name].errors.push(error);
+    
+    return acc;
+  }, {});
+
+  const topCustomers = customerAnalytics
+    ? Object.values(customerAnalytics)
+        .sort((a: any, b: any) => b.errorCount - a.errorCount)
+        .slice(0, 10)
+    : [];
 
   const handleGenerateDispute = async (errorId: string) => {
     setGeneratingFor(errorId);
@@ -160,7 +199,7 @@ const Disputes = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">
             Contestations IA
@@ -170,19 +209,28 @@ const Disputes = () => {
             remboursements Uber Eats
           </p>
         </div>
-        <Select value={selectedRestaurant} onValueChange={setSelectedRestaurant}>
-          <SelectTrigger className="w-[250px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les restaurants</SelectItem>
-            {restaurants?.map((r) => (
-              <SelectItem key={r.id} value={r.id}>
-                {r.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Button
+            variant={showAnalytics ? "default" : "outline"}
+            onClick={() => setShowAnalytics(!showAnalytics)}
+          >
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Analytics clients
+          </Button>
+          <Select value={selectedRestaurant} onValueChange={setSelectedRestaurant}>
+            <SelectTrigger className="w-[250px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les restaurants</SelectItem>
+              {restaurants?.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Info Card */}
@@ -223,14 +271,83 @@ const Disputes = () => {
         </CardContent>
       </Card>
 
+      {/* Customer Analytics Section */}
+      {showAnalytics && topCustomers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Top 10 - Clients avec le plus d'erreurs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {topCustomers.map((customer: any, idx: number) => (
+                <div
+                  key={customer.customerId || idx}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                  onClick={() => setCustomerFilter(customer.name)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        {customer.name}
+                      </p>
+                      {customer.customerId && (
+                        <p className="text-xs text-muted-foreground">
+                          ID: {customer.customerId}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant="destructive" className="mb-1">
+                      {customer.errorCount} erreur{customer.errorCount > 1 ? "s" : ""}
+                    </Badge>
+                    <p className="text-sm text-muted-foreground">
+                      Impact: {formatCurrency(customer.totalImpact)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Customer Filter */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Rechercher par nom de client..."
+          value={customerFilter}
+          onChange={(e) => setCustomerFilter(e.target.value)}
+          className="pl-10"
+        />
+        {customerFilter && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-2 top-1/2 transform -translate-y-1/2"
+            onClick={() => setCustomerFilter("")}
+          >
+            Effacer
+          </Button>
+        )}
+      </div>
+
       {/* Error List */}
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : orderErrors && orderErrors.length > 0 ? (
+      ) : filteredErrors && filteredErrors.length > 0 ? (
         <div className="space-y-4">
-          {orderErrors.map((error: any) => {
+          {filteredErrors.map((error: any) => {
             const dispute = generatedDisputes[error.id];
             const isGenerating = generatingFor === error.id;
             const errorDate = new Date(error.error_date);
@@ -257,6 +374,15 @@ const Disputes = () => {
                           <>
                             <span>•</span>
                             <span>{error.item_title}</span>
+                          </>
+                        )}
+                        {error.customer_name && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              {error.customer_name}
+                            </span>
                           </>
                         )}
                       </div>
@@ -397,6 +523,20 @@ const Disputes = () => {
             );
           })}
         </div>
+      ) : customerFilter ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Aucune erreur trouvée pour "{customerFilter}".</p>
+            <Button
+              variant="outline"
+              onClick={() => setCustomerFilter("")}
+              className="mt-4"
+            >
+              Effacer le filtre
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
