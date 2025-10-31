@@ -819,3 +819,147 @@ export const ingestCourierLiveLocation = async (
 
   return await response.json();
 };
+
+/**
+ * Create a promotion for a store
+ */
+export const createPromotion = async (
+  restaurantId: string,
+  promotionData: any
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("uber_store_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.uber_store_id) {
+    throw new Error("No Uber store ID found for this restaurant");
+  }
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/stores/${restaurant.uber_store_id}/promotion`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(promotionData),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to create promotion: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json();
+};
+
+/**
+ * Revoke a promotion
+ */
+export const revokePromotion = async (
+  restaurantId: string,
+  promotionId: string
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/promotions/${promotionId}/revoke`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to revoke promotion: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json().catch(() => ({}));
+};
+
+/**
+ * Get a single promotion by ID
+ */
+export const getPromotion = async (
+  restaurantId: string,
+  promotionId: string
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/promotions/${promotionId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to get promotion: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+/**
+ * Get all promotions for a store
+ */
+export const getPromotions = async (
+  restaurantId: string,
+  params?: {
+    state?: "active" | "pending" | "completed" | "revoked" | "expired" | "deleted";
+    time_range?: {
+      start_time: string;
+      end_time: string;
+    };
+  }
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("uber_store_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.uber_store_id) {
+    throw new Error("No Uber store ID found for this restaurant");
+  }
+
+  const url = new URL(
+    `${UBER_API_BASE}/v1/delivery/stores/${restaurant.uber_store_id}/promotions`
+  );
+
+  if (params?.state) {
+    url.searchParams.append("state", params.state);
+  }
+
+  if (params?.time_range) {
+    url.searchParams.append("time_range", JSON.stringify(params.time_range));
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get promotions: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
