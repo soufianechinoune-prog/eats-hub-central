@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.uber-token]
 verify_jwt = false
+
+[functions.uber-menu-refresh-webhook]
+verify_jwt = false
