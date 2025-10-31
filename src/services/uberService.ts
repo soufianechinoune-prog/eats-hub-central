@@ -774,3 +774,48 @@ export const updateDeliveryPartnerCount = async (
 
   return await response.json().catch(() => ({}));
 };
+
+/**
+ * Ingest courier live location for BYOC (Bring Your Own Courier) orders
+ */
+export const ingestCourierLiveLocation = async (
+  restaurantId: string,
+  locationData: {
+    order_workflow_uuid: string;
+    restaurant_uuid: string;
+    is_batched_order: boolean;
+    location_events: Array<{
+      eta_in_minutes?: number;
+      position_event: {
+        point: {
+          latitude: number;
+          longitude: number;
+        };
+        time: {
+          epochMillis: number;
+        };
+      };
+    }>;
+  }
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/eats/byoc/restaurants/orders/event/location`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ location_request: locationData }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to ingest courier location: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json();
+};
