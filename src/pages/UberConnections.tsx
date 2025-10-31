@@ -72,22 +72,29 @@ const UberConnections = () => {
       return;
     }
 
-    try {
-      // Génère l'URL OAuth Uber
-      const authUrl = getUberAuthUrl(selectedRestaurant);
+    const authUrl = getUberAuthUrl(selectedRestaurant);
 
-      // Force une redirection en dehors de l'iframe de prévisualisation
-      if (window.top) {
-        (window.top as Window).location.href = authUrl;
-      } else {
-        window.location.href = authUrl;
+    // Tente d'ouvrir dans l'onglet principal; si bloqué, fallback onglet courant puis nouvel onglet
+    try {
+      if (window.top && window.top !== window) {
+        (window.top as Window).location.assign(authUrl);
+        return;
       }
-    } catch (e) {
-      toast({
-        title: "Configuration manquante",
-        description: "Vérifiez l'identifiant client et l'URL de redirection Uber.",
-        variant: "destructive",
-      });
+      window.location.assign(authUrl);
+    } catch (err) {
+      const w = window.open(authUrl, "_blank", "noopener,noreferrer");
+      if (!w) {
+        toast({
+          title: "Redirection bloquée",
+          description: "Autorisez les pop-ups puis réessayez.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Ouverture dans un nouvel onglet",
+          description: "Terminez l'autorisation Uber puis revenez ici.",
+        });
+      }
     }
   };
 
