@@ -110,7 +110,7 @@ const UberConnections = () => {
 
   const handleToggleStatus = async (restaurantId: string, currentStatus: string) => {
     try {
-      const newStatus = currentStatus === "ONLINE" ? "PAUSED" : "ONLINE";
+      const newStatus = currentStatus === "ONLINE" ? "OFFLINE" : "ONLINE";
       await setStoreStatus(restaurantId, newStatus);
       toast({
         title: "Succès",

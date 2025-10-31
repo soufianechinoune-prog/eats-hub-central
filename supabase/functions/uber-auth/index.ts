@@ -8,17 +8,21 @@ Deno.serve((req) => {
   const clientId = Deno.env.get("VITE_UBER_CLIENT_ID") ?? "";
   const redirectUri = Deno.env.get("VITE_UBER_REDIRECT_URI") ?? "";
 
+  console.log("Uber Auth - clientId exists:", !!clientId, "redirectUri:", redirectUri);
+
   // Required minimal scopes for activation + store access
   const scopes = [
     "eats.pos_provisioning",
     "eats.store",
-    "eats.orders",
-    "eats.report",
   ].join(" ");
 
   if (!clientId || !redirectUri) {
+    console.error("Missing Uber config:", { clientId: !!clientId, redirectUri: !!redirectUri });
     return new Response(
-      JSON.stringify({ error: "Missing Uber config", details: { clientId: !!clientId, redirectUri: !!redirectUri } }),
+      JSON.stringify({ 
+        error: "Missing Uber config", 
+        details: { clientId: !!clientId, redirectUri: !!redirectUri } 
+      }),
       { status: 500, headers: { "content-type": "application/json" } },
     );
   }
@@ -31,5 +35,8 @@ Deno.serve((req) => {
     state,
   });
 
-  return Response.redirect(`${UBER_AUTH_URL}?${params.toString()}`, 302);
+  const authUrl = `${UBER_AUTH_URL}?${params.toString()}`;
+  console.log("Redirecting to:", authUrl);
+
+  return Response.redirect(authUrl, 302);
 });

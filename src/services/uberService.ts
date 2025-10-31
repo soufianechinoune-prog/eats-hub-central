@@ -125,10 +125,10 @@ export const getValidAccessToken = async (restaurantId: string): Promise<string>
 };
 
 /**
- * Fetch stores from Uber Eats API
+ * Fetch stores from Uber Eats API (correct endpoint)
  */
 export const fetchStores = async (accessToken: string) => {
-  const response = await fetch(`${UBER_API_BASE}/v1/eats/stores`, {
+  const response = await fetch(`${UBER_API_BASE}/v1/delivery/stores`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
@@ -274,7 +274,7 @@ export const fetchRestaurantPromotions = async (restaurantId: string) => {
 };
 
 /**
- * Get store status (online/offline)
+ * Get store status (online/offline) - correct endpoint
  */
 export const getStoreStatus = async (restaurantId: string) => {
   const accessToken = await getValidAccessToken(restaurantId);
@@ -290,7 +290,7 @@ export const getStoreStatus = async (restaurantId: string) => {
   }
 
   const response = await fetch(
-    `${UBER_API_BASE}/v1/eats/stores/${restaurant.uber_store_id}/status`,
+    `${UBER_API_BASE}/v1/delivery/store/${restaurant.uber_store_id}/status`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -307,11 +307,11 @@ export const getStoreStatus = async (restaurantId: string) => {
 };
 
 /**
- * Set store status (online/offline)
+ * Set store status (online/offline) - correct endpoint
  */
 export const setStoreStatus = async (
   restaurantId: string,
-  status: "ONLINE" | "PAUSED"
+  status: "ONLINE" | "OFFLINE"
 ) => {
   const accessToken = await getValidAccessToken(restaurantId);
 
@@ -326,7 +326,7 @@ export const setStoreStatus = async (
   }
 
   const response = await fetch(
-    `${UBER_API_BASE}/v1/eats/stores/${restaurant.uber_store_id}/status`,
+    `${UBER_API_BASE}/v1/delivery/store/${restaurant.uber_store_id}/update-store-status`,
     {
       method: "POST",
       headers: {
