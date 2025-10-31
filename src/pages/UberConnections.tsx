@@ -125,10 +125,13 @@ const UberConnections = () => {
               Connecter un restaurant
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent aria-describedby="uber-connect-description">
             <DialogHeader>
               <DialogTitle>Connecter à Uber Eats</DialogTitle>
             </DialogHeader>
+            <p id="uber-connect-description" className="text-sm text-muted-foreground pb-2">
+              Sélectionnez un restaurant et autorisez l'accès via votre compte Uber Eats
+            </p>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="restaurant">Sélectionnez un restaurant</Label>
