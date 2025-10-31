@@ -72,9 +72,23 @@ const UberConnections = () => {
       return;
     }
 
-    // Redirect to Uber OAuth
-    const authUrl = getUberAuthUrl(selectedRestaurant);
-    window.location.href = authUrl;
+    try {
+      // Génère l'URL OAuth Uber
+      const authUrl = getUberAuthUrl(selectedRestaurant);
+
+      // Force une redirection en dehors de l'iframe de prévisualisation
+      if (window.top) {
+        (window.top as Window).location.href = authUrl;
+      } else {
+        window.location.href = authUrl;
+      }
+    } catch (e) {
+      toast({
+        title: "Configuration manquante",
+        description: "Vérifiez l'identifiant client et l'URL de redirection Uber.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRefreshToken = async (restaurantId: string) => {
