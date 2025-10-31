@@ -11,6 +11,8 @@ import { ArrowLeft, Plus, Trash2, Upload, FileJson, BookOpen } from "lucide-reac
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ValidationErrors } from "@/components/dashboard/ValidationErrors";
+import { useMenuValidation } from "@/hooks/useMenuValidation";
 import type { MenuItem, MenuCategory, Menu, MenuConfiguration } from "@/types";
 
 const EXAMPLE_MENUS = {
@@ -216,11 +218,13 @@ const EXAMPLE_MENUS = {
 export default function MenuEditor() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { validateMenu } = useMenuValidation();
   const [loading, setLoading] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState("");
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [loadingRestaurants, setLoadingRestaurants] = useState(true);
   const [activeTab, setActiveTab] = useState("simple");
+  const [validationErrors, setValidationErrors] = useState<any[]>([]);
   
   // Menu structure
   const [menuData, setMenuData] = useState<MenuConfiguration>({
@@ -329,12 +333,27 @@ export default function MenuEditor() {
   const handleParseJson = () => {
     try {
       const parsed = JSON.parse(jsonInput);
+      
+      // Validate the parsed JSON
+      const errors = validateMenu(parsed);
+      setValidationErrors(errors);
+      
+      const criticalErrors = errors.filter(e => e.type === 'error');
+      if (criticalErrors.length > 0) {
+        toast({
+          title: "Validation Warning",
+          description: `JSON parsed successfully but found ${criticalErrors.length} validation error(s). Please review before uploading.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "JSON parsed and validated successfully",
+        });
+      }
+      
       setMenuData(parsed);
       setJsonError("");
-      toast({
-        title: "Success",
-        description: "JSON parsed successfully",
-      });
       setActiveTab("simple");
     } catch (error: any) {
       setJsonError(error.message);
@@ -360,6 +379,20 @@ export default function MenuEditor() {
       toast({
         title: "Error",
         description: "Please add at least one item to the menu",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate menu before upload
+    const errors = validateMenu(menuData);
+    setValidationErrors(errors);
+    
+    const criticalErrors = errors.filter(e => e.type === 'error');
+    if (criticalErrors.length > 0) {
+      toast({
+        title: "Validation Failed",
+        description: `Found ${criticalErrors.length} error(s) that must be fixed before uploading.`,
         variant: "destructive",
       });
       return;
@@ -669,6 +702,11 @@ export default function MenuEditor() {
               </Card>
             </TabsContent>
           </Tabs>
+
+          {/* Validation Errors */}
+          {validationErrors.length > 0 && (
+            <ValidationErrors errors={validationErrors} />
+          )}
 
           {/* Upload Button */}
           <Button
