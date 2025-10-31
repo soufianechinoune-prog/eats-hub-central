@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.auto-generate-reports]
 verify_jwt = false
+
+[functions.generate-dispute]
+verify_jwt = false

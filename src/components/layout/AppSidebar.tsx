@@ -7,6 +7,7 @@ import {
   LogOut,
   Menu,
   FileText,
+  AlertCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -47,6 +48,11 @@ const menuItems = [
     title: "Rapports",
     url: "/reports",
     icon: FileText,
+  },
+  {
+    title: "Contestations",
+    url: "/disputes",
+    icon: AlertCircle,
   },
   {
     title: "Exports",

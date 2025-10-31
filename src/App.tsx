@@ -13,6 +13,7 @@ import UberConnections from "./pages/UberConnections";
 import UberCallback from "./pages/UberCallback";
 import Exports from "./pages/Exports";
 import Reports from "./pages/Reports";
+import Disputes from "./pages/Disputes";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { AppLayout } from "./components/layout/AppLayout";
@@ -130,6 +131,16 @@ const App = () => {
               element={
                 <ProtectedRoute session={session}>
                   <MenuEditor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/disputes"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <Disputes />
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />
