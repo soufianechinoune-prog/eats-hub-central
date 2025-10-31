@@ -258,19 +258,78 @@ export const fetchRestaurantOrders = async (
 
   const orders = await response.json();
 
-  // Store orders in database
+  // Store orders in database with detailed parsing
   for (const order of orders.data || []) {
-    await supabase.from("orders").upsert({
+    // Extract order-level data
+    const orderData: any = {
       restaurant_id: restaurantId,
       uber_order_id: order.id,
       status: order.status,
       order_datetime: order.created_at,
-      gross_amount: order.gross_amount / 100, // Convert cents to euros
-      net_amount: order.net_amount / 100,
-      service_fee: order.service_fee / 100,
+      gross_amount: order.gross_amount ? order.gross_amount / 100 : null,
+      net_amount: order.net_amount ? order.net_amount / 100 : null,
+      service_fee: order.service_fee ? order.service_fee / 100 : null,
       currency: order.currency || "EUR",
       raw_payload: order,
-    }, { onConflict: "uber_order_id" });
+    };
+
+    // Extract additional financial details
+    if (order.payment) {
+      orderData.payment_method = order.payment.method;
+      orderData.tip_amount = order.payment.tip ? order.payment.tip / 100 : null;
+    }
+
+    if (order.delivery_fee) {
+      orderData.delivery_fee = order.delivery_fee / 100;
+    }
+
+    if (order.tax) {
+      orderData.tax_amount = order.tax / 100;
+    }
+
+    // Check for promotion
+    if (order.promotions && order.promotions.length > 0) {
+      const promotion = order.promotions[0];
+      orderData.promotion_id = promotion.id;
+      orderData.promotion_discount = promotion.discount_amount ? promotion.discount_amount / 100 : null;
+    }
+
+    // Upsert order
+    const { data: insertedOrder, error: orderError } = await supabase
+      .from("orders")
+      .upsert(orderData, { onConflict: "uber_order_id" })
+      .select()
+      .single();
+
+    if (orderError) {
+      console.error("Error inserting order:", orderError);
+      continue;
+    }
+
+    // Parse and store order items
+    if (order.cart && order.cart.items) {
+      const items = order.cart.items;
+      
+      for (const item of items) {
+        const itemData = {
+          order_id: insertedOrder.id,
+          item_id: item.id || item.external_data || `item-${Math.random()}`,
+          item_title: item.title || item.name || "Unknown Item",
+          quantity: item.quantity || 1,
+          unit_price: item.price ? item.price / 100 : 0,
+          total_price: item.total ? item.total / 100 : (item.price ? (item.price * (item.quantity || 1)) / 100 : 0),
+          tax_amount: item.tax ? item.tax / 100 : null,
+          tax_rate: item.tax_rate || null,
+          modifiers: item.selected_modifier_groups || null,
+          category: item.category || null,
+        };
+
+        await supabase.from("order_items").upsert(itemData, {
+          onConflict: "order_id,item_id",
+          ignoreDuplicates: false,
+        });
+      }
+    }
   }
 
   return orders;

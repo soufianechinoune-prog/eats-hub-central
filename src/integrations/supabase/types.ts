@@ -35,44 +35,115 @@ export type Database = {
         }
         Relationships: []
       }
+      order_items: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          item_id: string
+          item_title: string
+          modifiers: Json | null
+          order_id: string
+          quantity: number
+          tax_amount: number | null
+          tax_rate: number | null
+          total_price: number
+          unit_price: number
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          item_title: string
+          modifiers?: Json | null
+          order_id: string
+          quantity: number
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_price: number
+          unit_price: number
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_title?: string
+          modifiers?: Json | null
+          order_id?: string
+          quantity?: number
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_price?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string
           currency: string | null
+          delivery_fee: number | null
           gross_amount: number | null
           id: string
           net_amount: number | null
           order_datetime: string | null
+          payment_method: string | null
+          promotion_discount: number | null
+          promotion_id: string | null
           raw_payload: Json | null
           restaurant_id: string
           service_fee: number | null
           status: string | null
+          tax_amount: number | null
+          tip_amount: number | null
           uber_order_id: string
         }
         Insert: {
           created_at?: string
           currency?: string | null
+          delivery_fee?: number | null
           gross_amount?: number | null
           id?: string
           net_amount?: number | null
           order_datetime?: string | null
+          payment_method?: string | null
+          promotion_discount?: number | null
+          promotion_id?: string | null
           raw_payload?: Json | null
           restaurant_id: string
           service_fee?: number | null
           status?: string | null
+          tax_amount?: number | null
+          tip_amount?: number | null
           uber_order_id: string
         }
         Update: {
           created_at?: string
           currency?: string | null
+          delivery_fee?: number | null
           gross_amount?: number | null
           id?: string
           net_amount?: number | null
           order_datetime?: string | null
+          payment_method?: string | null
+          promotion_discount?: number | null
+          promotion_id?: string | null
           raw_payload?: Json | null
           restaurant_id?: string
           service_fee?: number | null
           status?: string | null
+          tax_amount?: number | null
+          tip_amount?: number | null
           uber_order_id?: string
         }
         Relationships: [
