@@ -87,12 +87,6 @@ const App = () => {
               }
             />
             <Route
-              path="/uber-callback"
-              element={
-                <UberCallback />
-              }
-            />
-            <Route
               path="/uber-naming"
               element={
                 <ProtectedRoute session={session}>
@@ -114,11 +108,7 @@ const App = () => {
             />
             <Route
               path="/auth/uber/callback"
-              element={
-                <ProtectedRoute session={session}>
-                  <UberCallback />
-                </ProtectedRoute>
-              }
+              element={<UberCallback />}
             />
             <Route path="*" element={<NotFound />} />
           </Routes>
