@@ -6,6 +6,7 @@ import {
   Download,
   LogOut,
   Menu,
+  FileText,
 } from "lucide-react";
 import {
   Sidebar,
@@ -41,6 +42,11 @@ const menuItems = [
     title: "Connexions Uber",
     url: "/uber-connections",
     icon: LinkIcon,
+  },
+  {
+    title: "Rapports",
+    url: "/reports",
+    icon: FileText,
   },
   {
     title: "Exports",

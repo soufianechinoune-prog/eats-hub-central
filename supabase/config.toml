@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.uber-menu-refresh-webhook]
 verify_jwt = false
+
+[functions.uber-report-webhook]
+verify_jwt = false

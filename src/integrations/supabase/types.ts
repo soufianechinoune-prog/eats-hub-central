@@ -126,6 +126,57 @@ export type Database = {
           },
         ]
       }
+      reports: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          end_date: string
+          end_time_ms: number | null
+          error_message: string | null
+          id: string
+          job_id: string | null
+          report_type: string
+          restaurant_id: string
+          sections: Json | null
+          start_date: string
+          start_time_ms: number | null
+          status: string
+          workflow_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          end_date: string
+          end_time_ms?: number | null
+          error_message?: string | null
+          id?: string
+          job_id?: string | null
+          report_type: string
+          restaurant_id: string
+          sections?: Json | null
+          start_date: string
+          start_time_ms?: number | null
+          status?: string
+          workflow_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          end_date?: string
+          end_time_ms?: number | null
+          error_message?: string | null
+          id?: string
+          job_id?: string | null
+          report_type?: string
+          restaurant_id?: string
+          sections?: Json | null
+          start_date?: string
+          start_time_ms?: number | null
+          status?: string
+          workflow_id?: string | null
+        }
+        Relationships: []
+      }
       restaurants: {
         Row: {
           chain_id: string
@@ -207,6 +258,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      webhook_logs: {
+        Row: {
+          event_type: string
+          id: string
+          payload: Json | null
+          processed_at: string
+          store_id: string | null
+          webhook_uuid: string | null
+        }
+        Insert: {
+          event_type: string
+          id?: string
+          payload?: Json | null
+          processed_at?: string
+          store_id?: string | null
+          webhook_uuid?: string | null
+        }
+        Update: {
+          event_type?: string
+          id?: string
+          payload?: Json | null
+          processed_at?: string
+          store_id?: string | null
+          webhook_uuid?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {

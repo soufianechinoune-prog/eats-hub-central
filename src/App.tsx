@@ -12,6 +12,7 @@ import RestaurantMenu from "./pages/RestaurantMenu";
 import UberConnections from "./pages/UberConnections";
 import UberCallback from "./pages/UberCallback";
 import Exports from "./pages/Exports";
+import Reports from "./pages/Reports";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { AppLayout } from "./components/layout/AppLayout";
@@ -113,6 +114,14 @@ const App = () => {
                   <AppLayout>
                     <Exports />
                   </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute session={session}>
+                  <Reports />
                 </ProtectedRoute>
               }
             />
