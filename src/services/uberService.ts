@@ -143,7 +143,7 @@ export const fetchStores = async (accessToken: string) => {
 };
 
 /**
- * Activate POS integration for a store
+ * Activate POS integration for a store - correct endpoint from documentation
  */
 export const activateStoreIntegration = async (
   accessToken: string,
@@ -158,16 +158,23 @@ export const activateStoreIntegration = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        external_reference_id: storeId,
+        integrator_store_id: storeId,
+        is_order_manager: true,
+        require_manual_acceptance: false,
+        allowed_customer_requests: {
+          allow_single_use_items_requests: true,
+          allow_special_instruction_requests: true,
+        },
       }),
     }
   );
 
   if (!response.ok) {
-    throw new Error(`Failed to activate integration: ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`Failed to activate integration: ${response.statusText} - ${errorText}`);
   }
 
-  return await response.json();
+  return await response.json().catch(() => ({})); // Some endpoints return empty body on success
 };
 
 /**
