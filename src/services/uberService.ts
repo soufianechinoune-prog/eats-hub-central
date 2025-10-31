@@ -97,6 +97,27 @@ export const refreshAccessToken = async (restaurantId: string) => {
 };
 
 /**
+ * Upload menu to Uber Eats
+ */
+export const uploadMenu = async (
+  restaurantId: string,
+  menuConfiguration: any
+): Promise<void> => {
+  const { data, error } = await supabase.functions.invoke("uber-menu-upload", {
+    body: {
+      restaurantId,
+      menuConfiguration,
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+/**
  * Get valid access token for a restaurant (refresh if needed)
  */
 export const getValidAccessToken = async (restaurantId: string): Promise<string> => {

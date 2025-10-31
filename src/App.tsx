@@ -16,6 +16,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { AppLayout } from "./components/layout/AppLayout";
 import UberNaming from "./pages/UberNaming";
+import MenuEditor from "./pages/MenuEditor";
 
 const queryClient = new QueryClient();
 
@@ -112,6 +113,14 @@ const App = () => {
                   <AppLayout>
                     <Exports />
                   </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/menu-editor"
+              element={
+                <ProtectedRoute session={session}>
+                  <MenuEditor />
                 </ProtectedRoute>
               }
             />

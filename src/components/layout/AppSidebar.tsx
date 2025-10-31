@@ -5,6 +5,7 @@ import {
   Link as LinkIcon,
   Download,
   LogOut,
+  Menu,
 } from "lucide-react";
 import {
   Sidebar,
@@ -30,6 +31,11 @@ const menuItems = [
     title: "Restaurants",
     url: "/restaurants",
     icon: Store,
+  },
+  {
+    title: "Éditeur de Menu",
+    url: "/menu-editor",
+    icon: Menu,
   },
   {
     title: "Connexions Uber",
