@@ -28,6 +28,7 @@ const REPORT_TYPES = [
 export default function Reports() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [loadingAuto, setLoadingAuto] = useState(false);
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState("");
@@ -111,6 +112,34 @@ export default function Reports() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAutoGenerateReports = async () => {
+    setLoadingAuto(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("auto-generate-reports", {
+        body: {},
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Generated ${data.total_reports} reports for all restaurants. They will be parsed automatically when ready.`,
+      });
+
+      // Refresh reports list
+      setTimeout(fetchReports, 3000);
+    } catch (error: any) {
+      console.error("Auto-generate error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to auto-generate reports",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAuto(false);
     }
   };
 
@@ -213,6 +242,15 @@ export default function Reports() {
             <Button onClick={handleCreateReport} disabled={loading} className="w-full">
               <FileText className="mr-2 h-4 w-4" />
               {loading ? "Creating Report..." : "Create Report"}
+            </Button>
+            
+            <Button 
+              onClick={handleAutoGenerateReports} 
+              disabled={loadingAuto}
+              variant="secondary"
+              className="w-full"
+            >
+              {loadingAuto ? "Generating All Reports..." : "Auto-Generate All Data Reports (7 days)"}
             </Button>
           </CardContent>
         </Card>

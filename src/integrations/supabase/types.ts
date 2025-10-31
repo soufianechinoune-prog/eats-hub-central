@@ -35,6 +35,229 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_reviews: {
+        Row: {
+          created_at: string
+          customer_comment: string | null
+          delivery_rating: number | null
+          food_rating: number | null
+          id: string
+          order_id: string | null
+          overall_rating: number | null
+          restaurant_id: string
+          review_date: string | null
+          uber_order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_comment?: string | null
+          delivery_rating?: number | null
+          food_rating?: number | null
+          id?: string
+          order_id?: string | null
+          overall_rating?: number | null
+          restaurant_id: string
+          review_date?: string | null
+          uber_order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_comment?: string | null
+          delivery_rating?: number | null
+          food_rating?: number | null
+          id?: string
+          order_id?: string | null
+          overall_rating?: number | null
+          restaurant_id?: string
+          review_date?: string | null
+          uber_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_stats: {
+        Row: {
+          courier_id: string | null
+          courier_name: string | null
+          created_at: string
+          delay_minutes: number | null
+          delivery_date: string | null
+          delivery_status: string | null
+          delivery_time_minutes: number | null
+          estimated_time_minutes: number | null
+          id: string
+          order_id: string | null
+          preparation_time_minutes: number | null
+          restaurant_id: string
+          total_time_minutes: number | null
+          uber_order_id: string | null
+        }
+        Insert: {
+          courier_id?: string | null
+          courier_name?: string | null
+          created_at?: string
+          delay_minutes?: number | null
+          delivery_date?: string | null
+          delivery_status?: string | null
+          delivery_time_minutes?: number | null
+          estimated_time_minutes?: number | null
+          id?: string
+          order_id?: string | null
+          preparation_time_minutes?: number | null
+          restaurant_id: string
+          total_time_minutes?: number | null
+          uber_order_id?: string | null
+        }
+        Update: {
+          courier_id?: string | null
+          courier_name?: string | null
+          created_at?: string
+          delay_minutes?: number | null
+          delivery_date?: string | null
+          delivery_status?: string | null
+          delivery_time_minutes?: number | null
+          estimated_time_minutes?: number | null
+          id?: string
+          order_id?: string | null
+          preparation_time_minutes?: number | null
+          restaurant_id?: string
+          total_time_minutes?: number | null
+          uber_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_stats_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      downtime_logs: {
+        Row: {
+          created_at: string
+          downtime_end: string | null
+          downtime_start: string
+          downtime_type: string | null
+          duration_minutes: number | null
+          id: string
+          reason: string | null
+          restaurant_id: string
+        }
+        Insert: {
+          created_at?: string
+          downtime_end?: string | null
+          downtime_start: string
+          downtime_type?: string | null
+          duration_minutes?: number | null
+          id?: string
+          reason?: string | null
+          restaurant_id: string
+        }
+        Update: {
+          created_at?: string
+          downtime_end?: string | null
+          downtime_start?: string
+          downtime_type?: string | null
+          duration_minutes?: number | null
+          id?: string
+          reason?: string | null
+          restaurant_id?: string
+        }
+        Relationships: []
+      }
+      menu_item_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          item_id: string
+          item_title: string
+          rating: number
+          restaurant_id: string
+          review_date: string | null
+          thumb_down: number | null
+          thumb_up: number | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          item_title: string
+          rating: number
+          restaurant_id: string
+          review_date?: string | null
+          thumb_down?: number | null
+          thumb_up?: number | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_title?: string
+          rating?: number
+          restaurant_id?: string
+          review_date?: string | null
+          thumb_down?: number | null
+          thumb_up?: number | null
+        }
+        Relationships: []
+      }
+      order_errors: {
+        Row: {
+          created_at: string
+          error_category: string | null
+          error_date: string | null
+          error_description: string | null
+          error_type: string
+          financial_impact: number | null
+          id: string
+          item_id: string | null
+          item_title: string | null
+          order_id: string | null
+          restaurant_id: string
+          uber_order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_category?: string | null
+          error_date?: string | null
+          error_description?: string | null
+          error_type: string
+          financial_impact?: number | null
+          id?: string
+          item_id?: string | null
+          item_title?: string | null
+          order_id?: string | null
+          restaurant_id: string
+          uber_order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_category?: string | null
+          error_date?: string | null
+          error_description?: string | null
+          error_type?: string
+          financial_impact?: number | null
+          id?: string
+          item_id?: string | null
+          item_title?: string | null
+          order_id?: string | null
+          restaurant_id?: string
+          uber_order_id?: string | null
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           category: string | null

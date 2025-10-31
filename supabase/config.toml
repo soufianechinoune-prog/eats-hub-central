@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.uber-report-webhook]
 verify_jwt = false
+
+[functions.parse-report-csv]
+verify_jwt = true
+
+[functions.auto-generate-reports]
+verify_jwt = false

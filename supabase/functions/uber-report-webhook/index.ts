@@ -119,6 +119,46 @@ Deno.serve(async (req) => {
         console.error('Failed to update report:', updateError);
       } else {
         console.log('Report updated successfully');
+        
+        // Parse CSV automatically if it's a data report
+        const parseableReports = [
+          'CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT',
+          'MENU_ITEM_FEEDBACK_REPORT',
+          'ORDER_HISTORY_REPORT',
+          'ORDER_ERRORS_MENU_ITEM_REPORT',
+          'ORDER_ERRORS_TRANSACTION_REPORT',
+          'DOWNTIME_REPORT',
+        ];
+        
+        if (parseableReports.includes(body.report_type)) {
+          console.log('Auto-parsing report:', body.report_type);
+          
+          // Get restaurant_id from report
+          const { data: reportData } = await supabase
+            .from('reports')
+            .select('restaurant_id')
+            .eq('id', report.id)
+            .maybeSingle();
+          
+          if (reportData && body.report_metadata.sections.length > 0) {
+            // Parse first section (main data)
+            const section = body.report_metadata.sections[0];
+            
+            try {
+              await supabase.functions.invoke('parse-report-csv', {
+                body: {
+                  reportId: report.id,
+                  downloadUrl: section.download_url,
+                  reportType: body.report_type,
+                  restaurantId: reportData.restaurant_id,
+                },
+              });
+              console.log('Report parsed successfully');
+            } catch (parseError) {
+              console.error('Failed to parse report:', parseError);
+            }
+          }
+        }
       }
     } else {
       console.log('Report not found in database, creating new entry');
