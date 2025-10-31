@@ -281,6 +281,40 @@ export const fetchRestaurantPromotions = async (restaurantId: string) => {
 };
 
 /**
+ * Get menu for a store
+ */
+export const getMenu = async (restaurantId: string) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("uber_store_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.uber_store_id) {
+    throw new Error("No Uber store ID found for this restaurant");
+  }
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v2/eats/stores/${restaurant.uber_store_id}/menus`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "Accept-Encoding": "gzip, deflate",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch menu: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+/**
  * Get store status (online/offline) - correct endpoint
  */
 export const getStoreStatus = async (restaurantId: string) => {

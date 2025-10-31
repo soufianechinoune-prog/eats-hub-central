@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Dialog,
@@ -195,13 +195,17 @@ const Restaurants = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate(`/restaurants/${restaurant.id}`)}
-                    >
-                      Voir détails
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/restaurants/${restaurant.id}/menu`)}
+                        disabled={!restaurant.uber_store_id || !Array.isArray(restaurant.uber_connections) || restaurant.uber_connections.length === 0}
+                      >
+                        <Menu className="w-4 h-4 mr-2" />
+                        Menu
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import Dashboard from "./pages/Dashboard";
 import Restaurants from "./pages/Restaurants";
+import RestaurantMenu from "./pages/RestaurantMenu";
 import UberConnections from "./pages/UberConnections";
 import UberCallback from "./pages/UberCallback";
 import Exports from "./pages/Exports";
@@ -73,6 +74,14 @@ const App = () => {
                   <AppLayout>
                     <Restaurants />
                   </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/restaurants/:restaurantId/menu"
+              element={
+                <ProtectedRoute session={session}>
+                  <RestaurantMenu />
                 </ProtectedRoute>
               }
             />
