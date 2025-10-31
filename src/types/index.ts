@@ -128,6 +128,7 @@ export interface PriceRules {
 export interface QuantityConstraint {
   min_permitted?: number;
   max_permitted?: number;
+  default_quantity?: number;
   is_min_permitted_optional?: boolean;
   charge_above?: number;
   refund_under?: number;
@@ -285,7 +286,9 @@ export interface VisibilityHours {
 }
 
 export interface VisibilityInfo {
-  hours: VisibilityHours;
+  start_date?: string;
+  end_date?: string;
+  hours: VisibilityHours[];
 }
 
 export interface TaxLabelsInfo {
@@ -298,7 +301,7 @@ export interface TaxLabelsRuleSet {
 }
 
 export interface ProductInfo {
-  target_market?: number;
+  target_market?: string;
   gtin?: string;
   plu?: string;
   merchant_id?: string;
@@ -325,6 +328,7 @@ export interface BeverageInfo {
 
 export interface PhysicalPropertiesInfo {
   reusable_packaging?: boolean;
+  storage_instructions?: string;
 }
 
 export interface MedicationInfo {
@@ -391,9 +395,15 @@ export interface ModifierGroup {
   display_type?: 'expanded' | 'collapsed';
 }
 
+export interface DisplayOptions {
+  disable_item_instructions?: boolean;
+}
+
 export interface MenuConfiguration {
+  menu_type?: 'MENU_TYPE_FULFILLMENT_DELIVERY' | 'MENU_TYPE_FULFILLMENT_PICK_UP' | 'MENU_TYPE_FULFILLMENT_DINE_IN';
   menus: Menu[];
   categories: MenuCategory[];
   items: MenuItem[];
   modifier_groups: ModifierGroup[];
+  display_options?: DisplayOptions;
 }
