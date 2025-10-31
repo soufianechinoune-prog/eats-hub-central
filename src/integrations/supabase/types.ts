@@ -172,7 +172,7 @@ export type Database = {
           id: string
           raw_payload: Json | null
           refresh_token: string | null
-          restaurant_id: string
+          restaurant_id: string | null
           scopes: string | null
           token_type: string | null
         }
@@ -183,7 +183,7 @@ export type Database = {
           id?: string
           raw_payload?: Json | null
           refresh_token?: string | null
-          restaurant_id: string
+          restaurant_id?: string | null
           scopes?: string | null
           token_type?: string | null
         }
@@ -194,7 +194,7 @@ export type Database = {
           id?: string
           raw_payload?: Json | null
           refresh_token?: string | null
-          restaurant_id?: string
+          restaurant_id?: string | null
           scopes?: string | null
           token_type?: string | null
         }
