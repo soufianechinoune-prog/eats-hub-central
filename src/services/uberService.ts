@@ -294,3 +294,148 @@ export const fetchRestaurantPromotions = async (restaurantId: string) => {
 
   return promotions;
 };
+
+/**
+ * Get store status (online/offline)
+ */
+export const getStoreStatus = async (restaurantId: string) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("uber_store_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.uber_store_id) {
+    throw new Error("No Uber store ID found for this restaurant");
+  }
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/eats/stores/${restaurant.uber_store_id}/status`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch store status: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+/**
+ * Set store status (online/offline)
+ */
+export const setStoreStatus = async (
+  restaurantId: string,
+  status: "ONLINE" | "PAUSED"
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("uber_store_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.uber_store_id) {
+    throw new Error("No Uber store ID found for this restaurant");
+  }
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/eats/stores/${restaurant.uber_store_id}/status`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to set store status: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+/**
+ * Get holiday hours for a store
+ */
+export const getHolidayHours = async (restaurantId: string) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("uber_store_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.uber_store_id) {
+    throw new Error("No Uber store ID found for this restaurant");
+  }
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/eats/stores/${restaurant.uber_store_id}/holiday-hours`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch holiday hours: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+/**
+ * Set holiday hours for a store
+ */
+export const setHolidayHours = async (
+  restaurantId: string,
+  holidayHours: Array<{
+    date: string;
+    open_time_periods?: Array<{ start_time: string; end_time: string }>;
+  }>
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("uber_store_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.uber_store_id) {
+    throw new Error("No Uber store ID found for this restaurant");
+  }
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/eats/stores/${restaurant.uber_store_id}/holiday-hours`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ holiday_hours: holidayHours }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to set holiday hours: ${response.statusText}`);
+  }
+
+  return await response.json();
+};

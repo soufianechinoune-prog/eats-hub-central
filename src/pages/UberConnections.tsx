@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getUberAuthUrl, refreshAccessToken } from "@/services/uberService";
+import { getUberAuthUrl, refreshAccessToken, getStoreStatus, setStoreStatus } from "@/services/uberService";
 
 const UberConnections = () => {
   const { toast } = useToast();
@@ -44,7 +44,7 @@ const UberConnections = () => {
         .from("uber_connections")
         .select(`
           *,
-          restaurants (name, city)
+          restaurants (name, city, uber_store_id)
         `)
         .order("created_at", { ascending: false });
       return data || [];
@@ -115,6 +115,42 @@ const UberConnections = () => {
       });
     }
   };
+
+  const handleToggleStatus = async (restaurantId: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === "ONLINE" ? "PAUSED" : "ONLINE";
+      await setStoreStatus(restaurantId, newStatus);
+      toast({
+        title: "Succès",
+        description: `Restaurant ${newStatus === "ONLINE" ? "en ligne" : "hors ligne"}`,
+      });
+      refetch();
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de changer le statut",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const { data: storeStatuses } = useQuery({
+    queryKey: ["store-statuses", connections],
+    queryFn: async () => {
+      if (!connections) return {};
+      const statuses: Record<string, any> = {};
+      for (const conn of connections) {
+        try {
+          const status = await getStoreStatus(conn.restaurant_id);
+          statuses[conn.restaurant_id] = status;
+        } catch (error) {
+          console.error(`Failed to fetch status for ${conn.restaurant_id}:`, error);
+        }
+      }
+      return statuses;
+    },
+    enabled: !!connections && connections.length > 0,
+  });
 
   const isTokenExpired = (expiresAt: string | null) => {
     if (!expiresAt) return true;
@@ -206,48 +242,78 @@ const UberConnections = () => {
               <TableRow>
                 <TableHead>Restaurant</TableHead>
                 <TableHead>Ville</TableHead>
+                <TableHead>Store ID</TableHead>
+                <TableHead>Statut Store</TableHead>
                 <TableHead>Scopes</TableHead>
                 <TableHead>Date de création</TableHead>
                 <TableHead className="text-center">Statut Token</TableHead>
-                <TableHead></TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {connections?.map((connection) => (
-                <TableRow key={connection.id}>
-                  <TableCell className="font-medium">
-                    {connection.restaurants?.name}
-                  </TableCell>
-                  <TableCell>{connection.restaurants?.city}</TableCell>
-                  <TableCell>
-                    <span className="text-xs text-muted-foreground">
-                      {connection.scopes || "N/A"}
-                    </span>
-                  </TableCell>
-                  <TableCell>{formatDate(connection.created_at)}</TableCell>
-                  <TableCell className="text-center">
-                    {isTokenExpired(connection.expires_at) ? (
-                      <Badge variant="destructive">Expiré</Badge>
-                    ) : (
-                      <Badge className="bg-accent">Valide</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        handleRefreshToken(connection.restaurant_id)
-                      }
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {connections?.map((connection) => {
+                const storeStatus = storeStatuses?.[connection.restaurant_id];
+                return (
+                  <TableRow key={connection.id}>
+                    <TableCell className="font-medium">
+                      {connection.restaurants?.name}
+                    </TableCell>
+                    <TableCell>{connection.restaurants?.city}</TableCell>
+                    <TableCell>
+                      <span className="text-xs font-mono">
+                        {connection.restaurants?.uber_store_id || "N/A"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {storeStatus ? (
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant={storeStatus.status === "ONLINE" ? "default" : "secondary"}
+                          >
+                            {storeStatus.status === "ONLINE" ? "En ligne" : "Hors ligne"}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleStatus(connection.restaurant_id, storeStatus.status)}
+                          >
+                            {storeStatus.status === "ONLINE" ? "Mettre hors ligne" : "Mettre en ligne"}
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Chargement...</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {connection.scopes || "N/A"}
+                      </span>
+                    </TableCell>
+                    <TableCell>{formatDate(connection.created_at)}</TableCell>
+                    <TableCell className="text-center">
+                      {isTokenExpired(connection.expires_at) ? (
+                        <Badge variant="destructive">Expiré</Badge>
+                      ) : (
+                        <Badge className="bg-accent">Valide</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleRefreshToken(connection.restaurant_id)
+                        }
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {(!connections || connections.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     Aucune connexion pour le moment
                   </TableCell>
                 </TableRow>
