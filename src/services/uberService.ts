@@ -17,10 +17,10 @@ const getUberConfig = () => ({
 export const getUberAuthUrl = (restaurantId: string): string => {
   const config = getUberConfig();
   const scopes = [
+    "eats.pos_provisioning",
     "eats.store",
     "eats.orders",
     "eats.report",
-    "eats.promotions.readonly",
   ].join(" ");
 
   const params = new URLSearchParams({
@@ -147,6 +147,52 @@ export const getValidAccessToken = async (restaurantId: string): Promise<string>
 };
 
 /**
+ * Fetch stores from Uber Eats API
+ */
+export const fetchStores = async (accessToken: string) => {
+  const response = await fetch(`${UBER_API_BASE}/v1/eats/stores`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch stores: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+/**
+ * Activate POS integration for a store
+ */
+export const activateStoreIntegration = async (
+  accessToken: string,
+  storeId: string
+) => {
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/eats/stores/${storeId}/pos_data`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        external_reference_id: storeId,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to activate integration: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+/**
  * Fetch orders from Uber Eats API
  */
 export const fetchRestaurantOrders = async (
@@ -156,9 +202,19 @@ export const fetchRestaurantOrders = async (
 ) => {
   const accessToken = await getValidAccessToken(restaurantId);
 
-  // Note: This is a placeholder - actual Uber Eats API endpoint may differ
+  // Get store ID
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("uber_store_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.uber_store_id) {
+    throw new Error("No Uber store ID found for this restaurant");
+  }
+
   const response = await fetch(
-    `${UBER_API_BASE}/v1/eats/stores/orders?from=${from}&to=${to}`,
+    `${UBER_API_BASE}/v1/eats/stores/${restaurant.uber_store_id}/orders?from=${from}&to=${to}`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -197,12 +253,26 @@ export const fetchRestaurantOrders = async (
 export const fetchRestaurantPromotions = async (restaurantId: string) => {
   const accessToken = await getValidAccessToken(restaurantId);
 
-  const response = await fetch(`${UBER_API_BASE}/v1/eats/stores/promotions`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-  });
+  // Get store ID
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("uber_store_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.uber_store_id) {
+    throw new Error("No Uber store ID found for this restaurant");
+  }
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/eats/stores/${restaurant.uber_store_id}/promotions`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch promotions: ${response.statusText}`);
@@ -223,32 +293,4 @@ export const fetchRestaurantPromotions = async (restaurantId: string) => {
   }
 
   return promotions;
-};
-
-/**
- * Fetch store details from Uber Eats API
- */
-export const fetchStoreDetails = async (restaurantId: string) => {
-  const accessToken = await getValidAccessToken(restaurantId);
-
-  const response = await fetch(`${UBER_API_BASE}/v1/eats/store`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch store details: ${response.statusText}`);
-  }
-
-  const storeData = await response.json();
-
-  // Update restaurant with store ID
-  await supabase
-    .from("restaurants")
-    .update({ uber_store_id: storeData.id })
-    .eq("id", restaurantId);
-
-  return storeData;
 };

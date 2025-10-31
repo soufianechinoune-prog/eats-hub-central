@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { exchangeCodeForToken } from "@/services/uberService";
+import { exchangeCodeForToken, fetchStores, activateStoreIntegration } from "@/services/uberService";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -83,6 +83,27 @@ const UberCallback = () => {
             });
 
           if (insertError) throw insertError;
+        }
+
+        // Fetch stores and activate integration
+        try {
+          const storesData = await fetchStores(tokenData.access_token);
+          
+          if (storesData.stores && storesData.stores.length > 0) {
+            const firstStore = storesData.stores[0];
+            
+            // Activate integration for the first store
+            await activateStoreIntegration(tokenData.access_token, firstStore.id);
+            
+            // Save store ID to restaurant
+            await supabase
+              .from("restaurants")
+              .update({ uber_store_id: firstStore.id })
+              .eq("id", state);
+          }
+        } catch (storeError) {
+          console.error("Error fetching/activating stores:", storeError);
+          // Continue anyway, we can fetch stores later
         }
 
         setStatus("success");
