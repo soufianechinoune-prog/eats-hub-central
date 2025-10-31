@@ -9,6 +9,7 @@ import { Session } from "@supabase/supabase-js";
 import Dashboard from "./pages/Dashboard";
 import Restaurants from "./pages/Restaurants";
 import UberConnections from "./pages/UberConnections";
+import UberCallback from "./pages/UberCallback";
 import Exports from "./pages/Exports";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -91,6 +92,14 @@ const App = () => {
                   <AppLayout>
                     <Exports />
                   </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/auth/uber/callback"
+              element={
+                <ProtectedRoute session={session}>
+                  <UberCallback />
                 </ProtectedRoute>
               }
             />
