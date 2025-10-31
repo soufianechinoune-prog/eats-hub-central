@@ -424,3 +424,318 @@ export const setHolidayHours = async (
 
   return await response.json();
 };
+
+/**
+ * Get order details
+ */
+export const getOrderDetails = async (
+  restaurantId: string,
+  orderId: string,
+  expand?: string
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const url = new URL(`${UBER_API_BASE}/v1/delivery/order/${orderId}`);
+  if (expand) {
+    url.searchParams.append("expand", expand);
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch order details: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+/**
+ * List orders for a store
+ */
+export const listOrders = async (
+  restaurantId: string,
+  params?: {
+    expand?: string;
+    state?: string;
+    status?: string;
+    start_time?: string;
+    end_time?: string;
+    next_page_token?: string;
+    page_size?: number;
+  }
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("uber_store_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.uber_store_id) {
+    throw new Error("No Uber store ID found for this restaurant");
+  }
+
+  const url = new URL(
+    `${UBER_API_BASE}/v1/delivery/store/${restaurant.uber_store_id}/orders`
+  );
+
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        url.searchParams.append(key, value.toString());
+      }
+    });
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to list orders: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+/**
+ * Accept an order
+ */
+export const acceptOrder = async (
+  restaurantId: string,
+  orderId: string,
+  params?: {
+    ready_for_pickup_time?: string;
+    external_reference_id?: string;
+    accepted_by?: string;
+  }
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/order/${orderId}/accept`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(params || {}),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to accept order: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json().catch(() => ({}));
+};
+
+/**
+ * Deny an order
+ */
+export const denyOrder = async (
+  restaurantId: string,
+  orderId: string,
+  denyReason: {
+    info?: string;
+    type: string;
+    client_error_code?: string;
+  }
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/order/${orderId}/deny`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ deny_reason: denyReason }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to deny order: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json().catch(() => ({}));
+};
+
+/**
+ * Cancel an order
+ */
+export const cancelOrder = async (
+  restaurantId: string,
+  orderId: string,
+  cancellationReason: {
+    info?: string;
+    type: string;
+  }
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/order/${orderId}/cancel`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ cancellation_reason: cancellationReason }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to cancel order: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json().catch(() => ({}));
+};
+
+/**
+ * Mark order as ready for pickup
+ */
+export const markOrderReady = async (
+  restaurantId: string,
+  orderId: string
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/order/${orderId}/ready`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to mark order ready: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json().catch(() => ({}));
+};
+
+/**
+ * Adjust order price
+ */
+export const adjustOrderPrice = async (
+  restaurantId: string,
+  orderId: string,
+  adjustment: {
+    amount_e5: number;
+    tax_rate?: string;
+    reason: string;
+    custom_reason?: string;
+  }
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/order/${orderId}/adjust-price`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(adjustment),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to adjust order price: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json();
+};
+
+/**
+ * Update order ready time
+ */
+export const updateOrderReadyTime = async (
+  restaurantId: string,
+  orderId: string,
+  readyForPickupTime: string
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/order/${orderId}/update-ready-time`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ready_for_pickup_time: readyForPickupTime }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to update order ready time: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json().catch(() => ({}));
+};
+
+/**
+ * Resolve fulfillment issues
+ */
+export const resolveFulfillmentIssues = async (
+  restaurantId: string,
+  orderId: string,
+  fulfillmentIssues: Array<{
+    issue_type: string;
+    action_type: string;
+    item: { cart_item_id: string };
+    suspend_until?: string;
+    store_response?: string;
+    item_availability?: any;
+    item_substitute?: any;
+  }>
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/order/${orderId}/resolve-fulfillment-issues`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fulfillment_issues: fulfillmentIssues }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to resolve fulfillment issues: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json();
+};
