@@ -739,3 +739,38 @@ export const resolveFulfillmentIssues = async (
 
   return await response.json();
 };
+
+/**
+ * Update delivery partner count for an order (Dispatch Multiple Courier - DMC)
+ * Allows requesting 2-5 couriers for large orders
+ */
+export const updateDeliveryPartnerCount = async (
+  restaurantId: string,
+  orderId: string,
+  deliveryPartnerCount: number
+) => {
+  const accessToken = await getValidAccessToken(restaurantId);
+
+  if (deliveryPartnerCount < 2 || deliveryPartnerCount > 5) {
+    throw new Error("Delivery partner count must be between 2 and 5");
+  }
+
+  const response = await fetch(
+    `${UBER_API_BASE}/v1/delivery/order/${orderId}/update-delivery-partner-count`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ delivery_partner_count: deliveryPartnerCount }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to update delivery partner count: ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json().catch(() => ({}));
+};
