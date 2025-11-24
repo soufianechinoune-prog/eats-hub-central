@@ -8,6 +8,7 @@ import {
   Menu,
   FileText,
   AlertCircle,
+  Shield,
 } from "lucide-react";
 import {
   Sidebar,
@@ -111,6 +112,28 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup className="mt-auto">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  className={
+                    location.pathname === "/privacy-policy"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : ""
+                  }
+                >
+                  <NavLink to="/privacy-policy">
+                    <Shield className="h-4 w-4" />
+                    {!collapsed && <span>Confidentialité</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout}>
                   <LogOut className="h-4 w-4" />
