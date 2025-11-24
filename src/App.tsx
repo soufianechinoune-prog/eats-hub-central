@@ -16,6 +16,7 @@ import Reports from "./pages/Reports";
 import Disputes from "./pages/Disputes";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import { AppLayout } from "./components/layout/AppLayout";
 import UberNaming from "./pages/UberNaming";
 import MenuEditor from "./pages/MenuEditor";
@@ -148,6 +149,7 @@ const App = () => {
               path="/auth/uber/callback"
               element={<UberCallback />}
             />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
