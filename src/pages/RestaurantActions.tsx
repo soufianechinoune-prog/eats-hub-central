@@ -1167,14 +1167,14 @@ export default function RestaurantActions() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Plateforme</TableHead>
-                    <TableHead>Catégorie</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Période</TableHead>
-                    <TableHead>Impact / Valeur</TableHead>
-                    <TableHead>Produits</TableHead>
-                    <TableHead>Restaurant</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-[90px]">Plateforme</TableHead>
+                    <TableHead className="w-[100px]">Catégorie</TableHead>
+                    <TableHead className="min-w-[200px]">Action</TableHead>
+                    <TableHead className="w-[160px]">Période</TableHead>
+                    <TableHead className="w-[80px]">Impact</TableHead>
+                    <TableHead className="w-[120px]">Produits</TableHead>
+                    <TableHead className="w-[140px]">Restaurant</TableHead>
+                    <TableHead className="text-right w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1231,15 +1231,15 @@ export default function RestaurantActions() {
                             <Badge 
                               variant="outline" 
                               className={cn(
-                                "text-[10px] px-1.5 py-0 h-5",
+                                "text-[10px] px-1.5 py-0 h-5 whitespace-nowrap shrink-0",
                                 status === "en_cours" && "text-emerald-600 border-emerald-200 bg-emerald-50",
                                 status === "programmee" && "text-blue-600 border-blue-200 bg-blue-50",
                                 status === "terminee" && "text-muted-foreground border-muted bg-muted/30"
                               )}
                             >
-                              {status === "en_cours" && "En cours"}
-                              {status === "programmee" && "Programmée"}
-                              {status === "terminee" && "Terminée"}
+                              {status === "en_cours" && "Actif"}
+                              {status === "programmee" && "Prévu"}
+                              {status === "terminee" && "Fini"}
                             </Badge>
                           </div>
                         </TableCell>
@@ -1292,9 +1292,9 @@ export default function RestaurantActions() {
                               </div>
                             </div>
                           ) : action.change_context?.scope === "all" ? (
-                            <Badge variant="outline" className="text-xs bg-primary/5 border-primary/20 text-primary">
+                            <Badge variant="outline" className="text-xs bg-primary/5 border-primary/20 text-primary whitespace-nowrap">
                               <UtensilsCrossed className="h-3 w-3 mr-1" />
-                              Toute la carte
+                              Carte
                             </Badge>
                           ) : targetItems.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
@@ -1315,11 +1315,11 @@ export default function RestaurantActions() {
                         </TableCell>
                         <TableCell>
                           {restaurantName ? (
-                            <Badge variant="outline" className="text-xs">
+                            <span className="text-xs truncate max-w-[130px] block">
                               {restaurantName}
-                            </Badge>
+                            </span>
                           ) : (
-                            <span className="text-muted-foreground text-sm">Tous</span>
+                            <span className="text-muted-foreground text-xs">Tous</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right">
