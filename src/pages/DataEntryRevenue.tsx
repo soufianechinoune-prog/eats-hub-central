@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -23,7 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Pencil, Trash2, ArrowLeft } from "lucide-react";
+import { Loader2, Save, Pencil, Trash2, ArrowLeft, AlertTriangle } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 
 const MONTHS = [
@@ -79,6 +90,7 @@ export default function DataEntryRevenue() {
   const [workingDays, setWorkingDays] = useState<string>("");
   const [averageBasket, setAverageBasket] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Update selectedRestaurant when URL param changes
   useEffect(() => {
@@ -117,6 +129,30 @@ export default function DataEntryRevenue() {
     },
     enabled: !!selectedRestaurant,
   });
+
+  // Check if entry already exists for selected period
+  const existingEntry = useMemo(() => {
+    if (!entries || editingId) return null;
+    return entries.find(
+      (e) => e.year === selectedYear && e.month === selectedMonth
+    );
+  }, [entries, selectedYear, selectedMonth, editingId]);
+
+  const getMonthLabel = (month: number) => MONTHS.find(m => m.value === month)?.label || "";
+
+  // Handle save with confirmation
+  const handleSave = () => {
+    if (existingEntry && !editingId) {
+      setShowConfirmDialog(true);
+    } else {
+      saveMutation.mutate();
+    }
+  };
+
+  const confirmSave = () => {
+    setShowConfirmDialog(false);
+    saveMutation.mutate();
+  };
 
   // Save mutation
   const saveMutation = useMutation({
@@ -215,7 +251,6 @@ export default function DataEntryRevenue() {
     ? (parseFloat(revenueTtc || "0") / parseFloat(workingDays)).toFixed(2) 
     : "0.00";
 
-  const getMonthLabel = (month: number) => MONTHS.find(m => m.value === month)?.label || "";
   const getPlatformBadge = (platform: string) => {
     const p = PLATFORMS.find(pl => pl.value === platform);
     return p ? (
@@ -385,6 +420,29 @@ export default function DataEntryRevenue() {
               </p>
             </div>
 
+            {/* Warning for existing entry */}
+            {existingEntry && !editingId && (
+              <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800 dark:text-amber-200">
+                  <span className="font-medium">Des données existent déjà pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
+                  <div className="mt-1 text-sm">
+                    CA: {Number(existingEntry.revenue_ttc).toLocaleString("fr-FR")} € • 
+                    Commandes: {existingEntry.order_count} • 
+                    Panier: {Number(existingEntry.average_basket).toFixed(2)} €
+                  </div>
+                  <Button 
+                    variant="link" 
+                    size="sm" 
+                    className="h-auto p-0 mt-1 text-amber-700 dark:text-amber-300"
+                    onClick={() => handleEdit(existingEntry)}
+                  >
+                    Modifier cette entrée
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Preview calculations */}
             <div className="bg-muted/50 rounded-lg p-4 space-y-2">
               <p className="text-sm font-medium">Calculs automatiques :</p>
@@ -398,7 +456,7 @@ export default function DataEntryRevenue() {
 
             <div className="flex gap-2">
               <Button
-                onClick={() => saveMutation.mutate()}
+                onClick={handleSave}
                 disabled={!selectedRestaurant || saveMutation.isPending}
                 className="flex-1"
               >
@@ -407,7 +465,7 @@ export default function DataEntryRevenue() {
                 ) : (
                   <Save className="h-4 w-4 mr-2" />
                 )}
-                {editingId ? "Mettre à jour" : "Enregistrer"}
+                {editingId ? "Mettre à jour" : existingEntry ? "Remplacer les données" : "Enregistrer"}
               </Button>
               {editingId && (
                 <Button variant="outline" onClick={resetForm}>
@@ -505,6 +563,45 @@ export default function DataEntryRevenue() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remplacer les données existantes ?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Des données existent déjà pour {getMonthLabel(selectedMonth)} {selectedYear}.</p>
+                
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <p className="font-medium mb-2 text-foreground">Données actuelles</p>
+                    <div className="space-y-1 text-muted-foreground">
+                      <p>CA: {existingEntry ? Number(existingEntry.revenue_ttc).toLocaleString("fr-FR") : 0} €</p>
+                      <p>Commandes: {existingEntry?.order_count || 0}</p>
+                      <p>Panier: {existingEntry ? Number(existingEntry.average_basket).toFixed(2) : "0.00"} €</p>
+                    </div>
+                  </div>
+                  <div className="bg-primary/10 rounded-lg p-3 border border-primary/20">
+                    <p className="font-medium mb-2 text-foreground">Nouvelles données</p>
+                    <div className="space-y-1 text-muted-foreground">
+                      <p>CA: {parseFloat(revenueTtc || "0").toLocaleString("fr-FR")} €</p>
+                      <p>Commandes: {orderCount || 0}</p>
+                      <p>Panier: {previewBasket} €</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmSave}>
+              Remplacer les données
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
