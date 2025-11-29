@@ -20,6 +20,9 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import { AppLayout } from "./components/layout/AppLayout";
 import UberNaming from "./pages/UberNaming";
 import MenuEditor from "./pages/MenuEditor";
+import DataEntryRevenue from "./pages/DataEntryRevenue";
+import DataEntryConversion from "./pages/DataEntryConversion";
+import DataEntryFees from "./pages/DataEntryFees";
 
 const queryClient = new QueryClient();
 
@@ -148,6 +151,36 @@ const App = () => {
             <Route
               path="/auth/uber/callback"
               element={<UberCallback />}
+            />
+            <Route
+              path="/data-entry/revenue"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <DataEntryRevenue />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/data-entry/conversion"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <DataEntryConversion />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/data-entry/fees"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <DataEntryFees />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
             />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="*" element={<NotFound />} />

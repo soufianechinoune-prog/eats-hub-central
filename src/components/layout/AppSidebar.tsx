@@ -9,6 +9,9 @@ import {
   FileText,
   AlertCircle,
   Shield,
+  PenLine,
+  TrendingUp,
+  Receipt,
 } from "lucide-react";
 import {
   Sidebar,
@@ -62,6 +65,24 @@ const menuItems = [
   },
 ];
 
+const dataEntryItems = [
+  {
+    title: "CA & Commandes",
+    url: "/data-entry/revenue",
+    icon: PenLine,
+  },
+  {
+    title: "Conversion",
+    url: "/data-entry/conversion",
+    icon: TrendingUp,
+  },
+  {
+    title: "Frais & Marketing",
+    url: "/data-entry/fees",
+    icon: Receipt,
+  },
+];
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
@@ -106,6 +127,33 @@ export function AppSidebar() {
                     }
                   >
                     <NavLink to={item.url} end={item.url === "/"}>
+                      <item.icon className="h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
+            {collapsed ? "📝" : "Saisie de données"}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {dataEntryItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    className={
+                      isActive(item.url)
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : ""
+                    }
+                  >
+                    <NavLink to={item.url}>
                       <item.icon className="h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
