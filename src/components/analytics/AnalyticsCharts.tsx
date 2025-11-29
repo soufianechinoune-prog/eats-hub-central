@@ -278,22 +278,23 @@ function ActionMarkerLabel({
         {actions.length > 1 ? actions.length : "⚡"}
       </text>
       
-      {/* Tooltip */}
+      {/* Tooltip - positioned to the left to avoid overlap with chart tooltip */}
       {isHovered && (
         <foreignObject
-          x={x - 120}
+          x={x - 220}
           y={y + 14}
-          width={240}
-          height={Math.min(actions.length * 70 + 20, 220)}
-          style={{ overflow: "visible" }}
+          width={210}
+          height={Math.min(actions.length * 70 + 30, 220)}
+          style={{ overflow: "visible", pointerEvents: "none" }}
         >
           <div
-            className="bg-popover border border-border rounded-lg shadow-lg p-2 text-xs"
+            className="bg-popover border border-border rounded-lg shadow-xl p-2.5 text-xs pointer-events-auto"
+            style={{ zIndex: 9999 }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
           >
-            <div className="font-medium text-foreground mb-1.5 flex items-center gap-1">
-              <Zap className="h-3 w-3" style={{ color }} />
+            <div className="font-medium text-foreground mb-2 flex items-center gap-1.5 pb-1.5 border-b border-border">
+              <Zap className="h-3.5 w-3.5" style={{ color }} />
               {actions.length} action{actions.length > 1 ? "s" : ""}
             </div>
             <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
