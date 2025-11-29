@@ -42,6 +42,9 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   Plus, 
   Pencil, 
@@ -54,6 +57,10 @@ import {
   ArrowUpDown,
   TrendingUp,
   Info,
+  Filter,
+  ChevronDown,
+  ChevronRight,
+  X,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 
@@ -99,7 +106,8 @@ export default function MenuItems() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -300,11 +308,11 @@ export default function MenuItems() {
     fetchMenuItems();
   };
 
-  // Filter and sort items
+  // Filter items
   const filteredItems = menuItems
     .filter((item) => {
       const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
+      const matchesCategory = categoryFilters.length === 0 || categoryFilters.includes(item.category || "");
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
@@ -325,6 +333,52 @@ export default function MenuItems() {
         return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
       }
     });
+
+  // Group items by category
+  const groupedItems = filteredItems.reduce((acc, item) => {
+    const category = item.category || "Sans catégorie";
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(item);
+    return acc;
+  }, {} as Record<string, MenuItem[]>);
+
+  // Sort categories based on CATEGORIES order
+  const sortedCategories = Object.keys(groupedItems).sort((a, b) => {
+    const indexA = CATEGORIES.indexOf(a);
+    const indexB = CATEGORIES.indexOf(b);
+    if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+    return indexA - indexB;
+  });
+
+  const toggleCategoryExpanded = (category: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllCategories = (expand: boolean) => {
+    if (expand) {
+      setExpandedCategories(new Set(sortedCategories));
+    } else {
+      setExpandedCategories(new Set());
+    }
+  };
+
+  const toggleCategoryFilter = (category: string) => {
+    setCategoryFilters(prev => 
+      prev.includes(category) 
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
+  };
 
   // Get unique categories from items
   const existingCategories = [...new Set(menuItems.map(item => item.category).filter(Boolean))];
@@ -464,19 +518,68 @@ export default function MenuItems() {
                   className="pl-9"
                 />
               </div>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Catégorie" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes catégories</SelectItem>
-                  {existingCategories.map((cat) => (
-                    <SelectItem key={cat} value={cat!}>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[200px] justify-between">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4" />
+                      {categoryFilters.length === 0 
+                        ? "Toutes catégories" 
+                        : `${categoryFilters.length} catégorie${categoryFilters.length > 1 ? 's' : ''}`
+                      }
+                    </div>
+                    <ChevronDown className="h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[250px] p-0 bg-popover" align="start">
+                  <div className="p-2 border-b">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Filtrer par catégorie</span>
+                      {categoryFilters.length > 0 && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 px-2 text-xs"
+                          onClick={() => setCategoryFilters([])}
+                        >
+                          Effacer
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="max-h-[300px] overflow-y-auto p-2">
+                    {existingCategories.map((cat) => (
+                      <div 
+                        key={cat} 
+                        className="flex items-center space-x-2 py-1.5 px-2 hover:bg-muted rounded cursor-pointer"
+                        onClick={() => toggleCategoryFilter(cat!)}
+                      >
+                        <Checkbox 
+                          checked={categoryFilters.includes(cat!)}
+                          onCheckedChange={() => toggleCategoryFilter(cat!)}
+                        />
+                        <span className="text-sm flex-1">{cat}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {menuItems.filter(i => i.category === cat).length}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {categoryFilters.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {categoryFilters.map(cat => (
+                    <Badge key={cat} variant="secondary" className="gap-1">
                       {cat}
-                    </SelectItem>
+                      <X 
+                        className="h-3 w-3 cursor-pointer hover:text-destructive" 
+                        onClick={() => toggleCategoryFilter(cat)}
+                      />
+                    </Badge>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -503,161 +606,193 @@ export default function MenuItems() {
               }
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleSort("name")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Nom
-                        <ArrowUpDown className="h-3 w-3" />
+            <div className="space-y-2">
+              {/* Expand/Collapse all */}
+              <div className="flex justify-end gap-2 mb-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => toggleAllCategories(true)}
+                  className="text-xs"
+                >
+                  Tout déplier
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => toggleAllCategories(false)}
+                  className="text-xs"
+                >
+                  Tout replier
+                </Button>
+              </div>
+
+              {sortedCategories.map((category) => {
+                const categoryItems = groupedItems[category];
+                const isExpanded = expandedCategories.has(category);
+                
+                return (
+                  <Collapsible 
+                    key={category} 
+                    open={isExpanded}
+                    onOpenChange={() => toggleCategoryExpanded(category)}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                        <span className="font-semibold">{category}</span>
+                        <Badge variant="secondary">{categoryItems.length} produit{categoryItems.length > 1 ? 's' : ''}</Badge>
                       </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleSort("category")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Catégorie
-                        <ArrowUpDown className="h-3 w-3" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="overflow-x-auto mt-1 border rounded-lg">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead 
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => handleSort("name")}
+                              >
+                                <div className="flex items-center gap-1">
+                                  Nom
+                                  <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="cursor-pointer hover:bg-muted/50 text-right"
+                                onClick={() => handleSort("price_uber")}
+                              >
+                                <div className="flex items-center gap-1 justify-end">
+                                  <UberEatsIcon className="h-4 w-4" />
+                                  Prix Uber
+                                  <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="cursor-pointer hover:bg-muted/50 text-right"
+                                onClick={() => handleSort("price_deliveroo")}
+                              >
+                                <div className="flex items-center gap-1 justify-end">
+                                  <DeliverooIcon className="h-4 w-4" />
+                                  Prix Deliveroo
+                                  <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="cursor-pointer hover:bg-muted/50 text-right"
+                                onClick={() => handleSort("food_cost")}
+                              >
+                                <div className="flex items-center gap-1 justify-end">
+                                  Food Cost
+                                  <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                              </TableHead>
+                              <TableHead className="text-right">Marge Uber</TableHead>
+                              <TableHead className="text-right">Marge Deliveroo</TableHead>
+                              <TableHead className="text-center">Statut</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {categoryItems.map((item) => {
+                              const marginUber = calculateMargin(item.price_uber, item.food_cost);
+                              const marginDeliveroo = calculateMargin(item.price_deliveroo, item.food_cost);
+                              
+                              return (
+                                <TableRow key={item.id}>
+                                  <TableCell className="font-medium">
+                                    <div className="flex items-center gap-1">
+                                      {item.name}
+                                      {item.description && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent className="max-w-xs">
+                                              <p className="text-sm">{item.description}</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right font-mono">
+                                    {formatPrice(item.price_uber)}
+                                  </TableCell>
+                                  <TableCell className="text-right font-mono">
+                                    {formatPrice(item.price_deliveroo)}
+                                  </TableCell>
+                                  <TableCell className="text-right font-mono">
+                                    {item.food_cost ? formatPrice(item.food_cost) : (
+                                      <span className="text-muted-foreground">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {marginUber !== null ? (
+                                      <Badge 
+                                        variant={marginUber >= 70 ? "default" : marginUber >= 50 ? "secondary" : "destructive"}
+                                        className={marginUber >= 70 ? "bg-emerald-500" : ""}
+                                      >
+                                        {marginUber.toFixed(1)}%
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {marginDeliveroo !== null ? (
+                                      <Badge 
+                                        variant={marginDeliveroo >= 70 ? "default" : marginDeliveroo >= 50 ? "secondary" : "destructive"}
+                                        className={marginDeliveroo >= 70 ? "bg-emerald-500" : ""}
+                                      >
+                                        {marginDeliveroo.toFixed(1)}%
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <Switch
+                                      checked={item.is_active}
+                                      onCheckedChange={() => toggleItemActive(item)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex justify-end gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => openEditDialog(item)}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                          setItemToDelete(item);
+                                          setIsDeleteDialogOpen(true);
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
                       </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 text-right"
-                      onClick={() => handleSort("price_uber")}
-                    >
-                      <div className="flex items-center gap-1 justify-end">
-                        <UberEatsIcon className="h-4 w-4" />
-                        Prix Uber
-                        <ArrowUpDown className="h-3 w-3" />
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 text-right"
-                      onClick={() => handleSort("price_deliveroo")}
-                    >
-                      <div className="flex items-center gap-1 justify-end">
-                        <DeliverooIcon className="h-4 w-4" />
-                        Prix Deliveroo
-                        <ArrowUpDown className="h-3 w-3" />
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 text-right"
-                      onClick={() => handleSort("food_cost")}
-                    >
-                      <div className="flex items-center gap-1 justify-end">
-                        Food Cost
-                        <ArrowUpDown className="h-3 w-3" />
-                      </div>
-                    </TableHead>
-                    <TableHead className="text-right">Marge Uber</TableHead>
-                    <TableHead className="text-right">Marge Deliveroo</TableHead>
-                    <TableHead className="text-center">Statut</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredItems.map((item) => {
-                    const marginUber = calculateMargin(item.price_uber, item.food_cost);
-                    const marginDeliveroo = calculateMargin(item.price_deliveroo, item.food_cost);
-                    
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-1">
-                            {item.name}
-                            {item.description && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">
-                                    <p className="text-sm">{item.description}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {item.category ? (
-                            <Badge variant="secondary">{item.category}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatPrice(item.price_uber)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatPrice(item.price_deliveroo)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {item.food_cost ? formatPrice(item.food_cost) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {marginUber !== null ? (
-                            <Badge 
-                              variant={marginUber >= 70 ? "default" : marginUber >= 50 ? "secondary" : "destructive"}
-                              className={marginUber >= 70 ? "bg-emerald-500" : ""}
-                            >
-                              {marginUber.toFixed(1)}%
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {marginDeliveroo !== null ? (
-                            <Badge 
-                              variant={marginDeliveroo >= 70 ? "default" : marginDeliveroo >= 50 ? "secondary" : "destructive"}
-                              className={marginDeliveroo >= 70 ? "bg-emerald-500" : ""}
-                            >
-                              {marginDeliveroo.toFixed(1)}%
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Switch
-                            checked={item.is_active}
-                            onCheckedChange={() => toggleItemActive(item)}
-                          />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditDialog(item)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setItemToDelete(item);
-                                setIsDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })}
             </div>
           )}
         </CardContent>
