@@ -238,16 +238,15 @@ export function RestaurantShareActions({ selectedRestaurants, onClear, onDelete 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer {selectedRestaurants.length} restaurant{selectedRestaurants.length > 1 ? 's' : ''} ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action est irréversible. Les restaurants suivants seront définitivement supprimés :
-              <ul className="mt-2 list-disc list-inside text-sm">
-                {selectedRestaurants.slice(0, 5).map(r => (
-                  <li key={r.id}>{r.name}</li>
-                ))}
-                {selectedRestaurants.length > 5 && (
-                  <li>...et {selectedRestaurants.length - 5} autres</li>
-                )}
-              </ul>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="mb-2">Cette action est irréversible. Les restaurants suivants seront définitivement supprimés :</p>
+                <ul className="list-disc list-inside text-sm space-y-1">
+                  {selectedRestaurants.map(r => (
+                    <li key={r.id} className="font-medium">{r.name} {r.city && <span className="text-muted-foreground font-normal">({r.city})</span>}</li>
+                  ))}
+                </ul>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
