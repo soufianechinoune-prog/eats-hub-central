@@ -89,9 +89,11 @@ export default function DataEntryFees() {
   const [uberFee, setUberFee] = useState<string>("");
   const [marketingFee, setMarketingFee] = useState<string>("");
   const [offersCost, setOffersCost] = useState<string>("");
+  const [offerUsageFee, setOfferUsageFee] = useState<string>("");
   const [adsCost, setAdsCost] = useState<string>("");
+  const [orderError, setOrderError] = useState<string>("");
   const [errorAdjustments, setErrorAdjustments] = useState<string>("");
-  const [otherFees, setOtherFees] = useState<string>("");
+  const [ecoContribution, setEcoContribution] = useState<string>("");
   const [netPayout, setNetPayout] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -189,9 +191,11 @@ export default function DataEntryFees() {
         uber_fee: parseFloat(uberFee) || 0,
         marketing_fee: parseFloat(marketingFee) || 0,
         offers_cost: parseFloat(offersCost) || 0,
+        offer_usage_fee: parseFloat(offerUsageFee) || 0,
         ads_cost: parseFloat(adsCost) || 0,
+        order_error: parseFloat(orderError) || 0,
         error_adjustments: parseFloat(errorAdjustments) || 0,
-        other_fees: parseFloat(otherFees) || 0,
+        eco_contribution: parseFloat(ecoContribution) || 0,
         net_payout: parseFloat(netPayout) || 0,
         notes: notes || null,
       };
@@ -249,9 +253,11 @@ export default function DataEntryFees() {
     setUberFee("");
     setMarketingFee("");
     setOffersCost("");
+    setOfferUsageFee("");
     setAdsCost("");
+    setOrderError("");
     setErrorAdjustments("");
-    setOtherFees("");
+    setEcoContribution("");
     setNetPayout("");
     setNotes("");
     setEditingId(null);
@@ -264,9 +270,11 @@ export default function DataEntryFees() {
     setUberFee(entry.uber_fee?.toString() || "");
     setMarketingFee(entry.marketing_fee?.toString() || "");
     setOffersCost(entry.offers_cost?.toString() || "");
+    setOfferUsageFee(entry.offer_usage_fee?.toString() || "");
     setAdsCost(entry.ads_cost?.toString() || "");
+    setOrderError(entry.order_error?.toString() || "");
     setErrorAdjustments(entry.error_adjustments?.toString() || "");
-    setOtherFees(entry.other_fees?.toString() || "");
+    setEcoContribution(entry.eco_contribution?.toString() || "");
     setNetPayout(entry.net_payout?.toString() || "");
     setNotes(entry.notes || "");
     setEditingId(entry.id);
@@ -277,9 +285,11 @@ export default function DataEntryFees() {
     (parseFloat(uberFee) || 0) +
     (parseFloat(marketingFee) || 0) +
     (parseFloat(offersCost) || 0) +
+    (parseFloat(offerUsageFee) || 0) +
     (parseFloat(adsCost) || 0) +
+    (parseFloat(orderError) || 0) +
     (parseFloat(errorAdjustments) || 0) +
-    (parseFloat(otherFees) || 0);
+    (parseFloat(ecoContribution) || 0);
 
   const revenue = revenueData?.revenue_ttc ? Number(revenueData.revenue_ttc) : 0;
   const feesPercentage = revenue > 0 ? ((totalFees / revenue) * 100).toFixed(1) : "0.0";
@@ -293,9 +303,6 @@ export default function DataEntryFees() {
       </Badge>
     ) : <Badge variant="outline">{platform}</Badge>;
   };
-
-  // Dynamic label for commission field
-  const commissionLabel = selectedPlatform === "deliveroo" ? "Commission Deliveroo (€)" : "Commission Uber (€)";
 
   return (
     <div className="space-y-6">
@@ -413,7 +420,7 @@ export default function DataEntryFees() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{commissionLabel}</Label>
+                <Label>Frais UBER (€)</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -424,7 +431,7 @@ export default function DataEntryFees() {
               </div>
 
               <div className="space-y-2">
-                <Label>Frais marketing (€)</Label>
+                <Label>Marketing UBER (€)</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -437,7 +444,7 @@ export default function DataEntryFees() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Coût des offres (€)</Label>
+                <Label className="italic">Offres sur les articles (€)</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -448,7 +455,20 @@ export default function DataEntryFees() {
               </div>
 
               <div className="space-y-2">
-                <Label>Publicité (€)</Label>
+                <Label className="italic">Frais d'utilisation de l'offre (€)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={offerUsageFee}
+                  onChange={(e) => setOfferUsageFee(e.target.value)}
+                  placeholder="Ex: 50.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="italic">Dépenses publicitaire (€)</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -457,11 +477,22 @@ export default function DataEntryFees() {
                   placeholder="Ex: 150.00"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label>Erreur de commande (€)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={orderError}
+                  onChange={(e) => setOrderError(e.target.value)}
+                  placeholder="Ex: 30.00"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Ajustements erreurs (€)</Label>
+                <Label>Ajustements liés aux erreurs (€)</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -472,19 +503,19 @@ export default function DataEntryFees() {
               </div>
 
               <div className="space-y-2">
-                <Label>Autres frais (€)</Label>
+                <Label>Eco contribution (€)</Label>
                 <Input
                   type="number"
                   step="0.01"
-                  value={otherFees}
-                  onChange={(e) => setOtherFees(e.target.value)}
+                  value={ecoContribution}
+                  onChange={(e) => setEcoContribution(e.target.value)}
                   placeholder="Ex: 25.00"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Versement net reçu (€)</Label>
+              <Label>Versement (€)</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -511,7 +542,7 @@ export default function DataEntryFees() {
                 <AlertDescription className="text-amber-800 dark:text-amber-200">
                   <span className="font-medium">Des données existent déjà pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
                   <div className="mt-1 text-sm">
-                    Total frais: {(Number(existingEntry.uber_fee) + Number(existingEntry.marketing_fee) + Number(existingEntry.offers_cost) + Number(existingEntry.ads_cost) + Number(existingEntry.error_adjustments) + Number(existingEntry.other_fees)).toLocaleString("fr-FR")} € • 
+                    Total frais: {(Number(existingEntry.uber_fee) + Number(existingEntry.marketing_fee) + Number(existingEntry.offers_cost) + Number(existingEntry.offer_usage_fee || 0) + Number(existingEntry.ads_cost) + Number(existingEntry.order_error || 0) + Number(existingEntry.error_adjustments) + Number(existingEntry.eco_contribution)).toLocaleString("fr-FR")} € • 
                     Net: {Number(existingEntry.net_payout).toLocaleString("fr-FR")} €
                   </div>
                   <Button 
@@ -669,7 +700,7 @@ export default function DataEntryFees() {
                   <div className="bg-muted/50 rounded-lg p-3">
                     <p className="font-medium mb-2 text-foreground">Données actuelles</p>
                     <div className="space-y-1 text-muted-foreground">
-                      <p>Total frais: {existingEntry ? (Number(existingEntry.uber_fee) + Number(existingEntry.marketing_fee) + Number(existingEntry.offers_cost) + Number(existingEntry.ads_cost) + Number(existingEntry.error_adjustments) + Number(existingEntry.other_fees)).toLocaleString("fr-FR") : 0} €</p>
+                      <p>Total frais: {existingEntry ? (Number(existingEntry.uber_fee) + Number(existingEntry.marketing_fee) + Number(existingEntry.offers_cost) + Number(existingEntry.offer_usage_fee || 0) + Number(existingEntry.ads_cost) + Number(existingEntry.order_error || 0) + Number(existingEntry.error_adjustments) + Number(existingEntry.eco_contribution)).toLocaleString("fr-FR") : 0} €</p>
                       <p>Net: {existingEntry ? Number(existingEntry.net_payout).toLocaleString("fr-FR") : 0} €</p>
                     </div>
                   </div>
