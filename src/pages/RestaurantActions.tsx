@@ -1171,7 +1171,7 @@ export default function RestaurantActions() {
                     <TableHead>Catégorie</TableHead>
                     <TableHead>Action</TableHead>
                     <TableHead>Période</TableHead>
-                    <TableHead>Impact</TableHead>
+                    <TableHead>Impact / Valeur</TableHead>
                     <TableHead>Produits</TableHead>
                     <TableHead>Restaurant</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -1218,36 +1218,60 @@ export default function RestaurantActions() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <span>{formatDate(action.start_date)}</span>
-                            {action.end_date && (
-                              <>
-                                <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                                <span>{formatDate(action.end_date)}</span>
-                              </>
-                            )}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1 text-sm">
+                              <span>{formatDate(action.start_date)}</span>
+                              {action.end_date && (
+                                <>
+                                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                                  <span>{formatDate(action.end_date)}</span>
+                                </>
+                              )}
+                            </div>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-[10px] px-1.5 py-0 h-5",
+                                status === "en_cours" && "text-emerald-600 border-emerald-200 bg-emerald-50",
+                                status === "programmee" && "text-blue-600 border-blue-200 bg-blue-50",
+                                status === "terminee" && "text-muted-foreground border-muted bg-muted/30"
+                              )}
+                            >
+                              {status === "en_cours" && "En cours"}
+                              {status === "programmee" && "Programmée"}
+                              {status === "terminee" && "Terminée"}
+                            </Badge>
                           </div>
-                          <Badge 
-                            variant="outline" 
-                            className={cn(
-                              "mt-1 text-xs",
-                              status === "en_cours" && "text-emerald-600 border-emerald-200 bg-emerald-50",
-                              status === "programmee" && "text-blue-600 border-blue-200 bg-blue-50",
-                              status === "terminee" && "text-muted-foreground border-muted bg-muted/30"
-                            )}
-                          >
-                            {status === "en_cours" && "En cours"}
-                            {status === "programmee" && "Programmée"}
-                            {status === "terminee" && "Terminée"}
-                          </Badge>
                         </TableCell>
                         <TableCell>
                           {action.impact_value ? (
-                            <span className="font-mono">
-                              {action.impact_value}{action.impact_unit || ""}
-                            </span>
+                            (() => {
+                              const config = getActionConfig(action.action_type);
+                              const unit = action.impact_unit || "";
+                              const isPercent = unit === "%";
+                              const isEuro = unit === "€";
+                              const isDays = unit === "jours";
+                              
+                              // Determine color based on action type
+                              const colorClass = 
+                                ["Remise %", "Remise fixe", "Baisse de prix"].includes(action.action_type)
+                                  ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                                : ["Sponsoring", "Publicité"].includes(action.action_type)
+                                  ? "text-blue-600 bg-blue-50 border-blue-200"
+                                : ["Hausse de prix", "Nouveau tarif", "Nouveau produit", "Menu promo"].includes(action.action_type)
+                                  ? "text-amber-600 bg-amber-50 border-amber-200"
+                                : "text-muted-foreground bg-muted/50 border-muted";
+                              
+                              return (
+                                <Badge variant="outline" className={cn("font-mono text-xs px-2 py-0.5", colorClass)}>
+                                  {isPercent && <span className="mr-0.5 opacity-70">-</span>}
+                                  {action.impact_value}
+                                  {unit && <span className="ml-0.5 opacity-70">{unit}</span>}
+                                </Badge>
+                              );
+                            })()
                           ) : (
-                            <span className="text-muted-foreground">-</span>
+                            <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </TableCell>
                         <TableCell>
