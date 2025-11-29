@@ -10,8 +10,6 @@ import {
   AlertCircle,
   Shield,
   PenLine,
-  TrendingUp,
-  Receipt,
   BarChart3,
 } from "lucide-react";
 import {
@@ -69,19 +67,9 @@ const menuItems = [
 
 const dataEntryItems = [
   {
-    title: "CA & Commandes",
-    url: "/data-entry/revenue",
+    title: "Saisie de données",
+    url: "/data-entry",
     icon: PenLine,
-  },
-  {
-    title: "Conversion",
-    url: "/data-entry/conversion",
-    icon: TrendingUp,
-  },
-  {
-    title: "Frais & Marketing",
-    url: "/data-entry/fees",
-    icon: Receipt,
   },
   {
     title: "Analytics",

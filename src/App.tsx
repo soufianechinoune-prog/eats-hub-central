@@ -23,6 +23,7 @@ import MenuEditor from "./pages/MenuEditor";
 import DataEntryRevenue from "./pages/DataEntryRevenue";
 import DataEntryConversion from "./pages/DataEntryConversion";
 import DataEntryFees from "./pages/DataEntryFees";
+import DataEntry from "./pages/DataEntry";
 import Analytics from "./pages/Analytics";
 import RestaurantDetail from "./pages/RestaurantDetail";
 
@@ -165,34 +166,26 @@ const App = () => {
               element={<UberCallback />}
             />
             <Route
-              path="/data-entry/revenue"
+              path="/data-entry"
               element={
                 <ProtectedRoute session={session}>
                   <AppLayout>
-                    <DataEntryRevenue />
+                    <DataEntry />
                   </AppLayout>
                 </ProtectedRoute>
               }
+            />
+            <Route
+              path="/data-entry/revenue"
+              element={<Navigate to="/data-entry?tab=revenue" replace />}
             />
             <Route
               path="/data-entry/conversion"
-              element={
-                <ProtectedRoute session={session}>
-                  <AppLayout>
-                    <DataEntryConversion />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
+              element={<Navigate to="/data-entry?tab=conversion" replace />}
             />
             <Route
               path="/data-entry/fees"
-              element={
-                <ProtectedRoute session={session}>
-                  <AppLayout>
-                    <DataEntryFees />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
+              element={<Navigate to="/data-entry?tab=fees" replace />}
             />
             <Route
               path="/analytics"
