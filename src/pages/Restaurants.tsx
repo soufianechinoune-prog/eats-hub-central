@@ -46,7 +46,6 @@ const Restaurants = () => {
     }
   }, []);
 
-  const [departmentFilter, setDepartmentFilter] = useState<string>(savedPrefs?.departmentFilter ?? "all");
   const [statusFilter, setStatusFilter] = useState<string>(savedPrefs?.statusFilter ?? "all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -56,13 +55,12 @@ const Restaurants = () => {
   // Persist preferences to localStorage
   useEffect(() => {
     const prefs = {
-      departmentFilter,
       statusFilter,
       sortColumn,
       sortDirection,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
-  }, [departmentFilter, statusFilter, sortColumn, sortDirection]);
+  }, [statusFilter, sortColumn, sortDirection]);
 
   const { data: restaurants, refetch } = useQuery({
     queryKey: ["restaurants"],
@@ -79,21 +77,6 @@ const Restaurants = () => {
     },
   });
 
-  // Extract unique departments from postal codes with count
-  const departments = useMemo(() => {
-    if (!restaurants) return [];
-    const deptCounts = new Map<string, number>();
-    restaurants.forEach((r) => {
-      if (r.postal_code && r.postal_code.length >= 2) {
-        const dept = r.postal_code.substring(0, 2);
-        deptCounts.set(dept, (deptCounts.get(dept) || 0) + 1);
-      }
-    });
-    return Array.from(deptCounts.entries())
-      .map(([code, count]) => ({ code, count }))
-      .sort((a, b) => a.code.localeCompare(b.code));
-  }, [restaurants]);
-
   // Helper to get API status
   const getApiStatus = (r: typeof restaurants[0]) => {
     if (Array.isArray(r.uber_connections) && r.uber_connections.length > 0) return "connected";
@@ -101,18 +84,11 @@ const Restaurants = () => {
     return "disconnected";
   };
 
-  // Filter restaurants by department, status, and search query
+  // Filter restaurants by status and search query
   const filteredRestaurants = useMemo(() => {
     if (!restaurants) return [];
     
     let filtered = restaurants;
-    
-    // Filter by department
-    if (departmentFilter !== "all") {
-      filtered = filtered.filter(
-        (r) => r.postal_code && r.postal_code.startsWith(departmentFilter)
-      );
-    }
 
     // Filter by API status
     if (statusFilter !== "all") {
@@ -134,7 +110,7 @@ const Restaurants = () => {
     }
     
     return filtered;
-  }, [restaurants, departmentFilter, statusFilter, searchQuery]);
+  }, [restaurants, statusFilter, searchQuery]);
 
   // Sort restaurants
   const sortedRestaurants = useMemo(() => {
@@ -253,19 +229,6 @@ const Restaurants = () => {
                   <SelectItem value="disconnected">Non connecté</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Tous les départements" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les départements ({restaurants?.length || 0})</SelectItem>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept.code} value={dept.code}>
-                      Département {dept.code} ({dept.count})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
         </CardHeader>
@@ -333,9 +296,7 @@ const Restaurants = () => {
               {sortedRestaurants.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                    {departmentFilter === "all" 
-                      ? "Aucun restaurant trouvé" 
-                      : `Aucun restaurant dans le département ${departmentFilter}`}
+                    Aucun restaurant trouvé
                   </TableCell>
                 </TableRow>
               ) : (
