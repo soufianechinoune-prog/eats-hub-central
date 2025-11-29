@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { Check, ChevronsUpDown, Store, Calendar, X } from "lucide-react";
+import { Check, ChevronsUpDown, Store, Calendar, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Command,
   CommandEmpty,
@@ -15,35 +19,23 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { DateRange } from "react-day-picker";
 
-const MONTHS = [
-  { value: 0, label: "Tous les mois" },
-  { value: 1, label: "Janvier" },
-  { value: 2, label: "Février" },
-  { value: 3, label: "Mars" },
-  { value: 4, label: "Avril" },
-  { value: 5, label: "Mai" },
-  { value: 6, label: "Juin" },
-  { value: 7, label: "Juillet" },
-  { value: 8, label: "Août" },
-  { value: 9, label: "Septembre" },
-  { value: 10, label: "Octobre" },
-  { value: 11, label: "Novembre" },
-  { value: 12, label: "Décembre" },
+const MONTHS_SHORT = [
+  "Jan", "Fév", "Mar", "Avr", "Mai", "Jun",
+  "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"
+];
+
+const MONTHS_FULL = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
 ];
 
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
 
-type PeriodMode = "year" | "month" | "range";
+export type PeriodMode = "year" | "month" | "range";
 
 interface Restaurant {
   id: string;
@@ -61,9 +53,8 @@ interface AnalyticsFiltersProps {
   onMonthChange: (month: number) => void;
   periodMode: PeriodMode;
   onPeriodModeChange: (mode: PeriodMode) => void;
-  startMonth?: number;
-  endMonth?: number;
-  onRangeChange?: (start: number, end: number) => void;
+  dateRange?: DateRange;
+  onDateRangeChange?: (range: DateRange | undefined) => void;
 }
 
 export function AnalyticsFilters({
@@ -76,11 +67,12 @@ export function AnalyticsFilters({
   onMonthChange,
   periodMode,
   onPeriodModeChange,
-  startMonth = 1,
-  endMonth = 12,
-  onRangeChange,
+  dateRange,
+  onDateRangeChange,
 }: AnalyticsFiltersProps) {
   const [restaurantOpen, setRestaurantOpen] = useState(false);
+  const [periodOpen, setPeriodOpen] = useState(false);
+  const [tempYear, setTempYear] = useState(selectedYear);
 
   const toggleRestaurant = (id: string) => {
     if (id === "all") {
@@ -101,10 +93,45 @@ export function AnalyticsFilters({
     ?.filter((r) => selectedRestaurants.includes(r.id))
     .map((r) => r.name) || [];
 
+  const handleMonthSelect = (monthIndex: number) => {
+    onPeriodModeChange("month");
+    onYearChange(tempYear);
+    onMonthChange(monthIndex + 1); // monthIndex is 0-based, selectedMonth is 1-based
+    setPeriodOpen(false);
+  };
+
+  const handleYearSelect = (year: number) => {
+    onPeriodModeChange("year");
+    onYearChange(year);
+    setPeriodOpen(false);
+  };
+
+  const handleDateRangeSelect = (range: DateRange | undefined) => {
+    if (range?.from && range?.to) {
+      onPeriodModeChange("range");
+      onDateRangeChange?.(range);
+    } else {
+      onDateRangeChange?.(range);
+    }
+  };
+
+  // Format the display text for the period button
+  const getPeriodDisplayText = () => {
+    if (periodMode === "month") {
+      return `${MONTHS_FULL[selectedMonth - 1]} ${selectedYear}`;
+    } else if (periodMode === "year") {
+      return `${selectedYear}`;
+    } else if (periodMode === "range" && dateRange?.from && dateRange?.to) {
+      return `${format(dateRange.from, "dd/MM/yyyy")} – ${format(dateRange.to, "dd/MM/yyyy")}`;
+    }
+    return "Sélectionner une période";
+  };
+
   return (
     <div className="space-y-4">
-      {/* Restaurant Multi-Select */}
+      {/* Restaurant Multi-Select & Period Selector */}
       <div className="flex flex-wrap gap-3 items-start">
+        {/* Restaurant Multi-Select */}
         <div className="flex-1 min-w-[250px]">
           <Popover open={restaurantOpen} onOpenChange={setRestaurantOpen}>
             <PopoverTrigger asChild>
@@ -176,72 +203,124 @@ export function AnalyticsFilters({
           </Popover>
         </div>
 
-        {/* Period Mode Selector */}
-        <Select value={periodMode} onValueChange={(v) => onPeriodModeChange(v as PeriodMode)}>
-          <SelectTrigger className="w-[140px]">
-            <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="year">Année</SelectItem>
-            <SelectItem value="month">Mois</SelectItem>
-            <SelectItem value="range">Période</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Period Selector */}
+        <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className="min-w-[200px] justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span>{getPeriodDisplayText()}</span>
+              </div>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Tabs defaultValue={periodMode} className="w-full">
+              <TabsList className="w-full grid grid-cols-3 rounded-b-none">
+                <TabsTrigger value="month" className="text-xs">Mois</TabsTrigger>
+                <TabsTrigger value="year" className="text-xs">Année</TabsTrigger>
+                <TabsTrigger value="range" className="text-xs">Période perso.</TabsTrigger>
+              </TabsList>
 
-        {/* Year Selector */}
-        <Select value={selectedYear.toString()} onValueChange={(v) => onYearChange(parseInt(v))}>
-          <SelectTrigger className="w-[100px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {YEARS.map((y) => (
-              <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              {/* Month Tab */}
+              <TabsContent value="month" className="p-4 mt-0">
+                {/* Year Navigation */}
+                <div className="flex items-center justify-center gap-4 mb-4">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setTempYear(tempYear - 1)}
+                    disabled={tempYear <= YEARS[0]}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="font-semibold text-sm w-12 text-center">{tempYear}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setTempYear(tempYear + 1)}
+                    disabled={tempYear >= YEARS[YEARS.length - 1]}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                {/* Months Grid */}
+                <div className="grid grid-cols-4 gap-2">
+                  {MONTHS_SHORT.map((month, index) => {
+                    const isSelected = periodMode === "month" && 
+                                       selectedMonth === index + 1 && 
+                                       selectedYear === tempYear;
+                    return (
+                      <Button
+                        key={month}
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "h-9 text-xs",
+                          isSelected && "bg-primary text-primary-foreground"
+                        )}
+                        onClick={() => handleMonthSelect(index)}
+                      >
+                        {month}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </TabsContent>
 
-        {/* Month Selector (shown for month mode) */}
-        {periodMode === "month" && (
-          <Select value={selectedMonth.toString()} onValueChange={(v) => onMonthChange(parseInt(v))}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MONTHS.slice(1).map((m) => (
-                <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+              {/* Year Tab */}
+              <TabsContent value="year" className="p-4 mt-0">
+                <div className="grid grid-cols-3 gap-2">
+                  {YEARS.map((year) => {
+                    const isSelected = periodMode === "year" && selectedYear === year;
+                    return (
+                      <Button
+                        key={year}
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "h-10",
+                          isSelected && "bg-primary text-primary-foreground"
+                        )}
+                        onClick={() => handleYearSelect(year)}
+                      >
+                        {year}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </TabsContent>
 
-        {/* Range Selectors (shown for range mode) */}
-        {periodMode === "range" && onRangeChange && (
-          <>
-            <Select value={startMonth.toString()} onValueChange={(v) => onRangeChange(parseInt(v), endMonth)}>
-              <SelectTrigger className="w-[130px]">
-                <span className="text-muted-foreground text-xs mr-1">De:</span>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTHS.slice(1).map((m) => (
-                  <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={endMonth.toString()} onValueChange={(v) => onRangeChange(startMonth, parseInt(v))}>
-              <SelectTrigger className="w-[130px]">
-                <span className="text-muted-foreground text-xs mr-1">À:</span>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTHS.slice(1).map((m) => (
-                  <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </>
-        )}
+              {/* Custom Range Tab */}
+              <TabsContent value="range" className="p-0 mt-0">
+                <CalendarComponent
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={handleDateRangeSelect}
+                  numberOfMonths={2}
+                  locale={fr}
+                  className="pointer-events-auto"
+                />
+                {dateRange?.from && dateRange?.to && (
+                  <div className="p-3 border-t text-center">
+                    <Button 
+                      size="sm" 
+                      onClick={() => setPeriodOpen(false)}
+                    >
+                      Appliquer
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Selected Restaurants Display */}
