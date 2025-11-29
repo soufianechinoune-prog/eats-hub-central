@@ -204,6 +204,8 @@ export default function RestaurantActions() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [restaurantFilter, setRestaurantFilter] = useState<string>("all");
+  const [actionTypeFilter, setActionTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [startDateFilter, setStartDateFilter] = useState<Date | undefined>(undefined);
   const [endDateFilter, setEndDateFilter] = useState<Date | undefined>(undefined);
   
@@ -544,10 +546,34 @@ export default function RestaurantActions() {
     fetchActions();
   };
 
+  // Helper pour déterminer le statut d'une action
+  const getActionStatus = (action: RestaurantAction): "en_cours" | "programmee" | "terminee" => {
+    const now = new Date();
+    const startDate = new Date(action.start_date);
+    
+    if (startDate > now) {
+      return "programmee";
+    }
+    
+    if (action.end_date) {
+      const endDate = new Date(action.end_date);
+      if (endDate < now) {
+        return "terminee";
+      }
+    }
+    
+    return "en_cours";
+  };
+
   const filteredActions = actions
     .filter(a => categoryFilter === "all" || a.category === categoryFilter)
     .filter(a => platformFilter === "all" || a.platform === platformFilter)
     .filter(a => restaurantFilter === "all" || a.restaurant_id === restaurantFilter)
+    .filter(a => actionTypeFilter === "all" || a.action_type === actionTypeFilter)
+    .filter(a => {
+      if (statusFilter === "all") return true;
+      return getActionStatus(a) === statusFilter;
+    })
     .filter(a => {
       if (!startDateFilter) return true;
       const actionDate = new Date(a.start_date);
@@ -558,6 +584,9 @@ export default function RestaurantActions() {
       const actionDate = new Date(a.start_date);
       return actionDate <= endDateFilter;
     });
+  
+  // Récupérer tous les types d'action uniques
+  const uniqueActionTypes = [...new Set(actions.map(a => a.action_type))].sort();
 
   const clearDateFilters = () => {
     setStartDateFilter(undefined);
@@ -738,6 +767,28 @@ export default function RestaurantActions() {
                   <span className="ml-1">×</span>
                 </Badge>
               )}
+              {actionTypeFilter !== "all" && (
+                <Badge 
+                  variant="secondary" 
+                  className="gap-1 cursor-pointer"
+                  onClick={() => setActionTypeFilter("all")}
+                >
+                  <Zap className="h-3 w-3" />
+                  {actionTypeFilter}
+                  <span className="ml-1">×</span>
+                </Badge>
+              )}
+              {statusFilter !== "all" && (
+                <Badge 
+                  variant="secondary" 
+                  className="gap-1 cursor-pointer"
+                  onClick={() => setStatusFilter("all")}
+                >
+                  <Clock className="h-3 w-3" />
+                  {statusFilter === "en_cours" ? "En cours" : statusFilter === "programmee" ? "Programmée" : "Terminée"}
+                  <span className="ml-1">×</span>
+                </Badge>
+              )}
               {(startDateFilter || endDateFilter) && (
                 <Badge 
                   variant="secondary" 
@@ -755,6 +806,71 @@ export default function RestaurantActions() {
             
             {/* Filter Controls */}
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Platform Filter */}
+              <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                <SelectTrigger className="w-[140px] h-9">
+                  <SelectValue placeholder="Plateforme" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes</SelectItem>
+                  <SelectItem value="uber_eats">
+                    <div className="flex items-center gap-2">
+                      <UberEatsIcon className="h-4 w-4" />
+                      Uber Eats
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="deliveroo">
+                    <div className="flex items-center gap-2">
+                      <DeliverooIcon className="h-4 w-4" />
+                      Deliveroo
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Action Type Filter */}
+              <Select value={actionTypeFilter} onValueChange={setActionTypeFilter}>
+                <SelectTrigger className="w-[160px] h-9">
+                  <SelectValue placeholder="Type d'action" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les types</SelectItem>
+                  {uniqueActionTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Status Filter */}
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[140px] h-9">
+                  <SelectValue placeholder="Statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous statuts</SelectItem>
+                  <SelectItem value="en_cours">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                      En cours
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="programmee">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-500" />
+                      Programmée
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="terminee">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-muted-foreground" />
+                      Terminée
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
               {/* Restaurant Filter */}
               <Select value={restaurantFilter} onValueChange={setRestaurantFilter}>
                 <SelectTrigger className="w-[180px] h-9">
@@ -879,7 +995,7 @@ export default function RestaurantActions() {
                 <TableBody>
                   {filteredActions.map((action) => {
                     const Icon = CATEGORY_ICONS[action.category] || Zap;
-                    const isActive = !action.end_date || new Date(action.end_date) >= new Date();
+                    const status = getActionStatus(action);
                     const targetItems = menuItems.filter(item => action.target_item_ids?.includes(item.id));
                     const restaurantName = getRestaurantName(action.restaurant_id);
                     
@@ -926,11 +1042,19 @@ export default function RestaurantActions() {
                               </>
                             )}
                           </div>
-                          {isActive && (
-                            <Badge variant="outline" className="mt-1 text-xs text-emerald-600 border-emerald-200">
-                              En cours
-                            </Badge>
-                          )}
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "mt-1 text-xs",
+                              status === "en_cours" && "text-emerald-600 border-emerald-200 bg-emerald-50",
+                              status === "programmee" && "text-blue-600 border-blue-200 bg-blue-50",
+                              status === "terminee" && "text-muted-foreground border-muted bg-muted/30"
+                            )}
+                          >
+                            {status === "en_cours" && "En cours"}
+                            {status === "programmee" && "Programmée"}
+                            {status === "terminee" && "Terminée"}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           {action.impact_value ? (
