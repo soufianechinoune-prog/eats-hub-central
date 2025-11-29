@@ -55,6 +55,7 @@ export default function DataEntryRevenue() {
   const [revenueTtc, setRevenueTtc] = useState<string>("");
   const [orderCount, setOrderCount] = useState<string>("");
   const [workingDays, setWorkingDays] = useState<string>("");
+  const [averageBasket, setAverageBasket] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Update selectedRestaurant when URL param changes
@@ -97,6 +98,12 @@ export default function DataEntryRevenue() {
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: async () => {
+      // Use manual basket if provided, otherwise calculate
+      const calculatedBasket = orderCount && parseFloat(orderCount) > 0 
+        ? parseFloat(revenueTtc || "0") / parseFloat(orderCount) 
+        : 0;
+      const finalBasket = averageBasket ? parseFloat(averageBasket) : calculatedBasket;
+
       const payload = {
         restaurant_id: selectedRestaurant,
         year: selectedYear,
@@ -104,6 +111,7 @@ export default function DataEntryRevenue() {
         revenue_ttc: parseFloat(revenueTtc) || 0,
         order_count: parseInt(orderCount) || 0,
         working_days: workingDays ? parseInt(workingDays) : null,
+        average_basket: finalBasket,
       };
 
       if (editingId) {
@@ -159,6 +167,7 @@ export default function DataEntryRevenue() {
     setRevenueTtc("");
     setOrderCount("");
     setWorkingDays("");
+    setAverageBasket("");
     setEditingId(null);
   };
 
@@ -168,13 +177,15 @@ export default function DataEntryRevenue() {
     setRevenueTtc(entry.revenue_ttc?.toString() || "");
     setOrderCount(entry.order_count?.toString() || "");
     setWorkingDays(entry.working_days?.toString() || "");
+    setAverageBasket(entry.average_basket?.toString() || "");
     setEditingId(entry.id);
   };
 
   // Calculate preview values
-  const previewBasket = orderCount && parseFloat(orderCount) > 0 
+  const calculatedBasket = orderCount && parseFloat(orderCount) > 0 
     ? (parseFloat(revenueTtc || "0") / parseFloat(orderCount)).toFixed(2) 
     : "0.00";
+  const previewBasket = averageBasket || calculatedBasket;
   const previewPerDay = workingDays && parseFloat(workingDays) > 0 
     ? (parseFloat(revenueTtc || "0") / parseFloat(workingDays)).toFixed(2) 
     : "0.00";
@@ -291,6 +302,20 @@ export default function DataEntryRevenue() {
                 onChange={(e) => setWorkingDays(e.target.value)}
                 placeholder="Ex: 30"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Panier moyen (€) - optionnel</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={averageBasket}
+                onChange={(e) => setAverageBasket(e.target.value)}
+                placeholder={`Auto: ${calculatedBasket} €`}
+              />
+              <p className="text-xs text-muted-foreground">
+                Laissez vide pour calculer automatiquement (CA ÷ Commandes)
+              </p>
             </div>
 
             {/* Preview calculations */}
