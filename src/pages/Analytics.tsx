@@ -26,6 +26,8 @@ export default function Analytics() {
   const [startMonth, setStartMonth] = useState<number>(1);
   const [endMonth, setEndMonth] = useState<number>(12);
 
+  const prevYear = selectedYear - 1;
+
   const handleTabChange = (value: string) => {
     setSelectedTab(value);
     setSearchParams({ platform: value });
@@ -56,7 +58,7 @@ export default function Analytics() {
   // Build filter for restaurants
   const restaurantFilter = selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
 
-  // Fetch revenue data for Uber Eats
+  // ========== UBER EATS DATA (Current Year) ==========
   const { data: uberRevenueData, isLoading: loadingUberRevenue } = useQuery({
     queryKey: ["analytics_revenue_uber", restaurantFilter, selectedYear],
     queryFn: async () => {
@@ -77,7 +79,6 @@ export default function Analytics() {
     },
   });
 
-  // Fetch conversion data for Uber Eats
   const { data: uberConversionData, isLoading: loadingUberConversion } = useQuery({
     queryKey: ["analytics_conversion_uber", restaurantFilter, selectedYear],
     queryFn: async () => {
@@ -98,7 +99,6 @@ export default function Analytics() {
     },
   });
 
-  // Fetch fees data for Uber Eats
   const { data: uberFeesData, isLoading: loadingUberFees } = useQuery({
     queryKey: ["analytics_fees_uber", restaurantFilter, selectedYear],
     queryFn: async () => {
@@ -119,7 +119,68 @@ export default function Analytics() {
     },
   });
 
-  // Fetch revenue data for Deliveroo
+  // ========== UBER EATS DATA (Previous Year - N-1) ==========
+  const { data: uberPrevRevenueData } = useQuery({
+    queryKey: ["analytics_revenue_uber_prev", restaurantFilter, prevYear],
+    queryFn: async () => {
+      let query = supabase
+        .from("monthly_revenue")
+        .select("*")
+        .eq("year", prevYear)
+        .eq("platform", "uber_eats")
+        .order("month");
+      
+      if (restaurantFilter) {
+        query = query.in("restaurant_id", restaurantFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: uberPrevConversionData } = useQuery({
+    queryKey: ["analytics_conversion_uber_prev", restaurantFilter, prevYear],
+    queryFn: async () => {
+      let query = supabase
+        .from("monthly_conversion")
+        .select("*")
+        .eq("year", prevYear)
+        .eq("platform", "uber_eats")
+        .order("month");
+      
+      if (restaurantFilter) {
+        query = query.in("restaurant_id", restaurantFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: uberPrevFeesData } = useQuery({
+    queryKey: ["analytics_fees_uber_prev", restaurantFilter, prevYear],
+    queryFn: async () => {
+      let query = supabase
+        .from("monthly_fees")
+        .select("*")
+        .eq("year", prevYear)
+        .eq("platform", "uber_eats")
+        .order("month");
+      
+      if (restaurantFilter) {
+        query = query.in("restaurant_id", restaurantFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // ========== DELIVEROO DATA (Current Year) ==========
   const { data: deliverooRevenueData, isLoading: loadingDeliverooRevenue } = useQuery({
     queryKey: ["analytics_revenue_deliveroo", restaurantFilter, selectedYear],
     queryFn: async () => {
@@ -140,7 +201,6 @@ export default function Analytics() {
     },
   });
 
-  // Fetch conversion data for Deliveroo
   const { data: deliverooConversionData, isLoading: loadingDeliverooConversion } = useQuery({
     queryKey: ["analytics_conversion_deliveroo", restaurantFilter, selectedYear],
     queryFn: async () => {
@@ -161,7 +221,6 @@ export default function Analytics() {
     },
   });
 
-  // Fetch fees data for Deliveroo
   const { data: deliverooFeesData, isLoading: loadingDeliverooFees } = useQuery({
     queryKey: ["analytics_fees_deliveroo", restaurantFilter, selectedYear],
     queryFn: async () => {
@@ -182,7 +241,68 @@ export default function Analytics() {
     },
   });
 
-  // Combine data for Global view
+  // ========== DELIVEROO DATA (Previous Year - N-1) ==========
+  const { data: deliverooPrevRevenueData } = useQuery({
+    queryKey: ["analytics_revenue_deliveroo_prev", restaurantFilter, prevYear],
+    queryFn: async () => {
+      let query = supabase
+        .from("monthly_revenue")
+        .select("*")
+        .eq("year", prevYear)
+        .eq("platform", "deliveroo")
+        .order("month");
+      
+      if (restaurantFilter) {
+        query = query.in("restaurant_id", restaurantFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: deliverooPrevConversionData } = useQuery({
+    queryKey: ["analytics_conversion_deliveroo_prev", restaurantFilter, prevYear],
+    queryFn: async () => {
+      let query = supabase
+        .from("monthly_conversion")
+        .select("*")
+        .eq("year", prevYear)
+        .eq("platform", "deliveroo")
+        .order("month");
+      
+      if (restaurantFilter) {
+        query = query.in("restaurant_id", restaurantFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: deliverooPrevFeesData } = useQuery({
+    queryKey: ["analytics_fees_deliveroo_prev", restaurantFilter, prevYear],
+    queryFn: async () => {
+      let query = supabase
+        .from("monthly_fees")
+        .select("*")
+        .eq("year", prevYear)
+        .eq("platform", "deliveroo")
+        .order("month");
+      
+      if (restaurantFilter) {
+        query = query.in("restaurant_id", restaurantFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // ========== GLOBAL DATA (Combined) ==========
   const globalRevenueData = useMemo(() => {
     return [...(uberRevenueData || []), ...(deliverooRevenueData || [])];
   }, [uberRevenueData, deliverooRevenueData]);
@@ -195,18 +315,20 @@ export default function Analytics() {
     return [...(uberFeesData || []), ...(deliverooFeesData || [])];
   }, [uberFeesData, deliverooFeesData]);
 
+  const globalPrevRevenueData = useMemo(() => {
+    return [...(uberPrevRevenueData || []), ...(deliverooPrevRevenueData || [])];
+  }, [uberPrevRevenueData, deliverooPrevRevenueData]);
+
+  const globalPrevConversionData = useMemo(() => {
+    return [...(uberPrevConversionData || []), ...(deliverooPrevConversionData || [])];
+  }, [uberPrevConversionData, deliverooPrevConversionData]);
+
+  const globalPrevFeesData = useMemo(() => {
+    return [...(uberPrevFeesData || []), ...(deliverooPrevFeesData || [])];
+  }, [uberPrevFeesData, deliverooPrevFeesData]);
+
   const isLoading = loadingUberRevenue || loadingUberConversion || loadingUberFees ||
                     loadingDeliverooRevenue || loadingDeliverooConversion || loadingDeliverooFees;
-
-  // Get selected restaurant names for display
-  const selectedRestaurantNames = useMemo(() => {
-    if (selectedRestaurants.length === 0) return "Tous les restaurants";
-    const names = restaurants
-      ?.filter((r) => selectedRestaurants.includes(r.id))
-      .map((r) => r.name) || [];
-    if (names.length <= 2) return names.join(", ");
-    return `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
-  }, [selectedRestaurants, restaurants]);
 
   return (
     <div className="space-y-6">
@@ -261,8 +383,12 @@ export default function Analytics() {
                 revenueData={uberRevenueData}
                 conversionData={uberConversionData}
                 feesData={uberFeesData}
+                prevRevenueData={uberPrevRevenueData}
+                prevConversionData={uberPrevConversionData}
+                prevFeesData={uberPrevFeesData}
                 startMonth={effectiveStartMonth}
                 endMonth={effectiveEndMonth}
+                selectedYear={selectedYear}
               />
             </TabsContent>
 
@@ -271,8 +397,12 @@ export default function Analytics() {
                 revenueData={deliverooRevenueData}
                 conversionData={deliverooConversionData}
                 feesData={deliverooFeesData}
+                prevRevenueData={deliverooPrevRevenueData}
+                prevConversionData={deliverooPrevConversionData}
+                prevFeesData={deliverooPrevFeesData}
                 startMonth={effectiveStartMonth}
                 endMonth={effectiveEndMonth}
+                selectedYear={selectedYear}
               />
             </TabsContent>
 
@@ -281,8 +411,12 @@ export default function Analytics() {
                 revenueData={globalRevenueData}
                 conversionData={globalConversionData}
                 feesData={globalFeesData}
+                prevRevenueData={globalPrevRevenueData}
+                prevConversionData={globalPrevConversionData}
+                prevFeesData={globalPrevFeesData}
                 startMonth={effectiveStartMonth}
                 endMonth={effectiveEndMonth}
+                selectedYear={selectedYear}
               />
             </TabsContent>
           </>
