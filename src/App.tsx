@@ -27,10 +27,9 @@ import Analytics from "./pages/Analytics";
 
 const queryClient = new QueryClient();
 
+// TEMPORAIREMENT DÉSACTIVÉ - Authentification bypassée pour le développement
 const ProtectedRoute = ({ children, session }: { children: React.ReactNode; session: Session | null }) => {
-  if (!session) {
-    return <Navigate to="/auth" replace />;
-  }
+  // Bypass auth temporairement
   return <>{children}</>;
 };
 
@@ -64,7 +63,8 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
+{/* Auth temporairement désactivé */}
+            <Route path="/auth" element={<Navigate to="/" replace />} />
             <Route
               path="/"
               element={
