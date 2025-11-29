@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import {
   Tooltip,
   TooltipContent,
@@ -79,11 +80,17 @@ const Restaurants = () => {
     },
   });
 
-  // Helper to get API status
-  const getApiStatus = (r: typeof restaurants[0]) => {
+  // Helper to get Uber API status
+  const getUberStatus = (r: typeof restaurants[0]) => {
     if (Array.isArray(r.uber_connections) && r.uber_connections.length > 0) return "connected";
     if (r.uber_store_id) return "pending";
     return "disconnected";
+  };
+
+  // Helper to get Deliveroo status
+  const getDeliverooStatus = (r: typeof restaurants[0]) => {
+    if (r.deliveroo_store_id) return "configured";
+    return "not_configured";
   };
 
   // Filter restaurants by status and search query
@@ -92,9 +99,9 @@ const Restaurants = () => {
     
     let filtered = restaurants;
 
-    // Filter by API status
+    // Filter by API status (Uber)
     if (statusFilter !== "all") {
-      filtered = filtered.filter((r) => getApiStatus(r) === statusFilter);
+      filtered = filtered.filter((r) => getUberStatus(r) === statusFilter);
     }
     
     // Filter by search query
@@ -139,9 +146,13 @@ const Restaurants = () => {
           aVal = a.account_manager_name?.toLowerCase() || "";
           bVal = b.account_manager_name?.toLowerCase() || "";
           break;
-        case "status":
-          aVal = getApiStatus(a);
-          bVal = getApiStatus(b);
+        case "uber_status":
+          aVal = getUberStatus(a);
+          bVal = getUberStatus(b);
+          break;
+        case "deliveroo_status":
+          aVal = getDeliverooStatus(a);
+          bVal = getDeliverooStatus(b);
           break;
         default:
           return 0;
@@ -284,11 +295,22 @@ const Restaurants = () => {
                 </TableHead>
                 <TableHead 
                   className="text-center cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("status")}
+                  onClick={() => handleSort("uber_status")}
                 >
                   <div className="flex items-center justify-center gap-1.5">
-                    Statut API
-                    <SortIcon column="status" />
+                    <UberEatsLogo size={16} />
+                    Uber
+                    <SortIcon column="uber_status" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-center cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("deliveroo_status")}
+                >
+                  <div className="flex items-center justify-center gap-1.5">
+                    <DeliverooLogo size={16} />
+                    Deliveroo
+                    <SortIcon column="deliveroo_status" />
                   </div>
                 </TableHead>
                 <TableHead></TableHead>
@@ -297,7 +319,7 @@ const Restaurants = () => {
             <TableBody>
               {sortedRestaurants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     Aucun restaurant trouvé
                   </TableCell>
                 </TableRow>
@@ -381,7 +403,14 @@ const Restaurants = () => {
                       ) : restaurant.uber_store_id ? (
                         <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
                       ) : (
-                        <Badge variant="outline" className="text-muted-foreground">Non connecté</Badge>
+                        <Badge variant="outline" className="text-muted-foreground">-</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
+                      {restaurant.deliveroo_store_id ? (
+                        <Badge className="bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30">Configuré</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground">-</Badge>
                       )}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
