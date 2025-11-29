@@ -197,6 +197,27 @@ export default function Analytics() {
     }));
   }, [feesData]);
 
+  // Calculate profitability data by month
+  const profitabilityData = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => {
+      const monthNum = i + 1;
+      const revenueMonth = aggregatedRevenueData.find(r => r.monthNum === monthNum);
+      const feesMonth = aggregatedFeesData.find(f => f.monthNum === monthNum);
+      
+      const revenue = revenueMonth?.revenue || 0;
+      const netPayout = feesMonth?.net || 0;
+      const profitability = revenue > 0 ? (netPayout / revenue) * 100 : 0;
+      
+      return {
+        month: MONTHS[i],
+        monthNum,
+        revenue,
+        netPayout,
+        profitability,
+      };
+    });
+  }, [aggregatedRevenueData, aggregatedFeesData]);
+
   // Calculate KPIs
   const kpis = useMemo(() => {
     const totalRevenue = aggregatedRevenueData.reduce((sum, d) => sum + d.revenue, 0);
@@ -205,6 +226,7 @@ export default function Analytics() {
     const totalConvOrders = aggregatedConversionData.reduce((sum, d) => sum + d.orders, 0);
     const totalFees = aggregatedFeesData.reduce((sum, d) => sum + d.totalFees, 0);
     const totalNet = aggregatedFeesData.reduce((sum, d) => sum + d.net, 0);
+    const profitability = totalRevenue > 0 ? (totalNet / totalRevenue) * 100 : 0;
 
     return {
       totalRevenue,
@@ -214,6 +236,7 @@ export default function Analytics() {
       totalFees,
       totalNet,
       feePercentage: totalRevenue > 0 ? (totalFees / totalRevenue) * 100 : 0,
+      profitability,
     };
   }, [aggregatedRevenueData, aggregatedConversionData, aggregatedFeesData]);
 
@@ -277,7 +300,7 @@ export default function Analytics() {
       ) : (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
@@ -328,6 +351,21 @@ export default function Analytics() {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {kpis.feePercentage.toFixed(1)}% du CA
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className={kpis.profitability > 60 ? "border-green-500/50" : kpis.profitability > 40 ? "border-amber-500/50" : "border-destructive/50"}>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className={`h-4 w-4 ${kpis.profitability > 60 ? "text-green-500" : kpis.profitability > 40 ? "text-amber-500" : "text-destructive"}`} />
+                  <span className="text-sm text-muted-foreground">% Rentabilité</span>
+                </div>
+                <p className={`text-2xl font-bold mt-2 ${kpis.profitability > 60 ? "text-green-500" : kpis.profitability > 40 ? "text-amber-500" : "text-destructive"}`}>
+                  {kpis.profitability.toFixed(1)}%
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Versement / CA
                 </p>
               </CardContent>
             </Card>
@@ -500,6 +538,51 @@ export default function Analytics() {
                     <Legend />
                     <Bar dataKey="net" name="Versement Net" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                     <Line type="monotone" dataKey="totalFees" name="Total Frais" stroke="hsl(var(--destructive))" strokeWidth={2} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Profitability Rate Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Percent className="h-5 w-5" />
+                Taux de Rentabilité
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={profitabilityData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="month" className="text-xs" />
+                    <YAxis yAxisId="left" className="text-xs" />
+                    <YAxis yAxisId="right" orientation="right" className="text-xs" unit="%" domain={[0, 100]} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--background))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                      formatter={(value: number, name: string) => {
+                        if (name === 'Rentabilité') return [value.toFixed(1) + '%', name];
+                        return [value.toLocaleString('fr-FR') + ' €', name];
+                      }}
+                    />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="revenue" name="CA TTC" fill="hsl(var(--muted))" radius={[4, 4, 0, 0]} opacity={0.5} />
+                    <Bar yAxisId="left" dataKey="netPayout" name="Versement Net" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Line 
+                      yAxisId="right" 
+                      type="monotone" 
+                      dataKey="profitability" 
+                      name="Rentabilité" 
+                      stroke="hsl(142.1 76.2% 36.3%)" 
+                      strokeWidth={3}
+                      dot={{ fill: 'hsl(142.1 76.2% 36.3%)', strokeWidth: 2, r: 4 }}
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
