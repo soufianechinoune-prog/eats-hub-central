@@ -12,6 +12,7 @@ import {
   PenLine,
   TrendingUp,
   Receipt,
+  BarChart3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -80,6 +81,11 @@ const dataEntryItems = [
     title: "Frais & Marketing",
     url: "/data-entry/fees",
     icon: Receipt,
+  },
+  {
+    title: "Analytics",
+    url: "/analytics",
+    icon: BarChart3,
   },
 ];
 
