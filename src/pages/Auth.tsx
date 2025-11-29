@@ -30,7 +30,7 @@ const Auth = () => {
 
         toast({
           title: "Connexion réussie",
-          description: "Bienvenue sur Resto Manager",
+          description: "Bienvenue sur CS Performance",
         });
         navigate("/");
       } else {
@@ -65,7 +65,7 @@ const Auth = () => {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl">Resto Manager</CardTitle>
+          <CardTitle className="text-2xl">CS Performance</CardTitle>
           <CardDescription>
             {isLogin
               ? "Connectez-vous à votre compte"
