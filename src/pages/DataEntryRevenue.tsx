@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Save, Pencil, Trash2, ArrowLeft } from "lucide-react";
 
 const MONTHS = [
   { value: 1, label: "Janvier" },
@@ -44,14 +45,24 @@ const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 export default function DataEntryRevenue() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const restaurantFromUrl = searchParams.get("restaurant");
   
-  const [selectedRestaurant, setSelectedRestaurant] = useState<string>("");
+  const [selectedRestaurant, setSelectedRestaurant] = useState<string>(restaurantFromUrl || "");
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [revenueTtc, setRevenueTtc] = useState<string>("");
   const [orderCount, setOrderCount] = useState<string>("");
   const [workingDays, setWorkingDays] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Update selectedRestaurant when URL param changes
+  useEffect(() => {
+    if (restaurantFromUrl) {
+      setSelectedRestaurant(restaurantFromUrl);
+    }
+  }, [restaurantFromUrl]);
 
   // Fetch restaurants
   const { data: restaurants, isLoading: loadingRestaurants } = useQuery({
@@ -172,11 +183,18 @@ export default function DataEntryRevenue() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Saisie CA & Commandes</h1>
-        <p className="text-muted-foreground mt-2">
-          Entrez les données mensuelles de chiffre d'affaires et de commandes
-        </p>
+      <div className="flex items-center gap-4">
+        {restaurantFromUrl && (
+          <Button variant="ghost" size="icon" onClick={() => navigate(`/restaurants/${restaurantFromUrl}`)}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Saisie CA & Commandes</h1>
+          <p className="text-muted-foreground mt-2">
+            Entrez les données mensuelles de chiffre d'affaires et de commandes
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -191,6 +209,7 @@ export default function DataEntryRevenue() {
               <Select 
                 value={selectedRestaurant} 
                 onValueChange={setSelectedRestaurant}
+                disabled={!!restaurantFromUrl}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner un restaurant" />
