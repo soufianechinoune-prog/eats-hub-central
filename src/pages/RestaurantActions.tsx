@@ -64,6 +64,10 @@ import {
   Store,
   Package,
   X,
+  Search,
+  Check,
+  ChevronsUpDown,
+  MapPin,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon, UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { format } from "date-fns";
@@ -228,6 +232,9 @@ export default function RestaurantActions() {
   // BOGO (1 acheté = 1 offert) specific state
   const [bogoPurchasedItem, setBogoPurchasedItem] = useState<string>("");
   const [bogoFreeItem, setBogoFreeItem] = useState<string>("");
+  // Restaurant search
+  const [restaurantSearch, setRestaurantSearch] = useState("");
+  const [isRestaurantPopoverOpen, setIsRestaurantPopoverOpen] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -964,9 +971,10 @@ export default function RestaurantActions() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto p-0">
-          <DialogHeader className="px-6 pt-6 pb-4">
-            <DialogTitle className="text-xl">
+        <DialogContent className="sm:max-w-[720px] max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30">
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
               {editingAction ? "Modifier l'action" : "Nouvelle action"}
             </DialogTitle>
             <DialogDescription>
@@ -1274,24 +1282,126 @@ export default function RestaurantActions() {
               
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Restaurant</Label>
-                <Select 
-                  value={formData.restaurant_id || "all"} 
-                  onValueChange={(value) => setFormData({ ...formData, restaurant_id: value === "all" ? "" : value })}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Tous les restaurants" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">
-                      <span className="text-muted-foreground">Tous les restaurants</span>
-                    </SelectItem>
-                    {restaurants.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={isRestaurantPopoverOpen} onOpenChange={setIsRestaurantPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={isRestaurantPopoverOpen}
+                      className="h-11 w-full justify-between font-normal"
+                    >
+                      {formData.restaurant_id ? (
+                        <div className="flex items-center gap-2 truncate">
+                          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="truncate">{restaurants.find(r => r.id === formData.restaurant_id)?.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">Tous les restaurants</span>
+                      )}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0" align="start">
+                    <div className="flex flex-col">
+                      {/* Search input */}
+                      <div className="flex items-center border-b px-3 py-2">
+                        <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                        <input
+                          placeholder="Rechercher un restaurant..."
+                          value={restaurantSearch}
+                          onChange={(e) => setRestaurantSearch(e.target.value)}
+                          className="flex h-9 w-full bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
+                        />
+                        {restaurantSearch && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => setRestaurantSearch("")}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {/* Restaurant list */}
+                      <div className="max-h-[280px] overflow-y-auto">
+                        {/* "Tous les restaurants" option */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, restaurant_id: "" });
+                            setIsRestaurantPopoverOpen(false);
+                            setRestaurantSearch("");
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors",
+                            !formData.restaurant_id && "bg-primary/5"
+                          )}
+                        >
+                          <div className={cn(
+                            "flex h-4 w-4 items-center justify-center rounded-full border",
+                            !formData.restaurant_id ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
+                          )}>
+                            {!formData.restaurant_id && <Check className="h-3 w-3" />}
+                          </div>
+                          <Store className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">Tous les restaurants</span>
+                        </button>
+                        
+                        <div className="border-t" />
+                        
+                        {/* Filtered restaurants */}
+                        {(() => {
+                          const filtered = restaurants.filter(r =>
+                            r.name.toLowerCase().includes(restaurantSearch.toLowerCase())
+                          );
+                          
+                          if (filtered.length === 0) {
+                            return (
+                              <div className="py-6 text-center text-sm text-muted-foreground">
+                                Aucun restaurant trouvé
+                              </div>
+                            );
+                          }
+                          
+                          return filtered.map((restaurant) => (
+                            <button
+                              key={restaurant.id}
+                              type="button"
+                              onClick={() => {
+                                setFormData({ ...formData, restaurant_id: restaurant.id });
+                                setIsRestaurantPopoverOpen(false);
+                                setRestaurantSearch("");
+                              }}
+                              className={cn(
+                                "flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors",
+                                formData.restaurant_id === restaurant.id && "bg-primary/5"
+                              )}
+                            >
+                              <div className={cn(
+                                "flex h-4 w-4 items-center justify-center rounded-full border shrink-0",
+                                formData.restaurant_id === restaurant.id ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
+                              )}>
+                                {formData.restaurant_id === restaurant.id && <Check className="h-3 w-3" />}
+                              </div>
+                              <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="truncate">{restaurant.name}</span>
+                            </button>
+                          ));
+                        })()}
+                      </div>
+                      
+                      {/* Footer with count */}
+                      <div className="border-t px-3 py-2 text-xs text-muted-foreground bg-muted/30">
+                        {restaurantSearch 
+                          ? `${restaurants.filter(r => r.name.toLowerCase().includes(restaurantSearch.toLowerCase())).length} résultat(s)`
+                          : `${restaurants.length} restaurants`
+                        }
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* BOGO specific - 1 acheté = 1 offert */}
