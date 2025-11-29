@@ -802,22 +802,22 @@ export default function RestaurantActions() {
             {/* Restaurant (Optional) */}
             <div className="grid gap-2">
               <Label>Restaurant (optionnel)</Label>
-              <Select 
-                value={formData.restaurant_id} 
-                onValueChange={(value) => setFormData({ ...formData, restaurant_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les restaurants" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Tous les restaurants</SelectItem>
-                  {restaurants.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select 
+              value={formData.restaurant_id || "all"} 
+              onValueChange={(value) => setFormData({ ...formData, restaurant_id: value === "all" ? "" : value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Tous les restaurants" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les restaurants</SelectItem>
+                {restaurants.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
               <p className="text-xs text-muted-foreground">
                 Laissez vide pour une action globale
               </p>
