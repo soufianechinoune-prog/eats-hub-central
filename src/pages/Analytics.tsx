@@ -4,15 +4,14 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AnalyticsFilters } from "@/components/analytics/AnalyticsFilters";
+import { AnalyticsFilters, PeriodMode } from "@/components/analytics/AnalyticsFilters";
 import { AnalyticsCharts } from "@/components/analytics/AnalyticsCharts";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
+import type { DateRange } from "react-day-picker";
 
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
-
-type PeriodMode = "year" | "month" | "range";
 
 export default function Analytics() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,8 +22,7 @@ export default function Analytics() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
   const [periodMode, setPeriodMode] = useState<PeriodMode>("year");
-  const [startMonth, setStartMonth] = useState<number>(1);
-  const [endMonth, setEndMonth] = useState<number>(12);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const prevYear = selectedYear - 1;
 
@@ -33,14 +31,22 @@ export default function Analytics() {
     setSearchParams({ platform: value });
   };
 
-  const handleRangeChange = (start: number, end: number) => {
-    setStartMonth(start);
-    setEndMonth(end);
+  // Determine month range based on period mode
+  const getEffectiveMonthRange = () => {
+    if (periodMode === "year") {
+      return { start: 1, end: 12 };
+    } else if (periodMode === "month") {
+      return { start: selectedMonth, end: selectedMonth };
+    } else if (periodMode === "range" && dateRange?.from && dateRange?.to) {
+      // For date range, we use full months from start to end
+      const startMonth = dateRange.from.getMonth() + 1;
+      const endMonth = dateRange.to.getMonth() + 1;
+      return { start: startMonth, end: endMonth };
+    }
+    return { start: 1, end: 12 };
   };
 
-  // Determine month range based on period mode
-  const effectiveStartMonth = periodMode === "year" ? 1 : periodMode === "month" ? selectedMonth : startMonth;
-  const effectiveEndMonth = periodMode === "year" ? 12 : periodMode === "month" ? selectedMonth : endMonth;
+  const { start: effectiveStartMonth, end: effectiveEndMonth } = getEffectiveMonthRange();
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
@@ -350,9 +356,8 @@ export default function Analytics() {
         onMonthChange={setSelectedMonth}
         periodMode={periodMode}
         onPeriodModeChange={setPeriodMode}
-        startMonth={startMonth}
-        endMonth={endMonth}
-        onRangeChange={handleRangeChange}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
       />
 
       {/* Platform Tabs */}
