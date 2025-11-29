@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -196,6 +197,10 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default function RestaurantActions() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightedActionId = searchParams.get("highlight");
+  const highlightedRowRef = useRef<HTMLTableRowElement>(null);
+  
   const [categories, setCategories] = useState<ActionCategory[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -255,6 +260,26 @@ export default function RestaurantActions() {
     fetchRestaurants();
     fetchActions();
   }, []);
+
+  // Handle scrolling to highlighted action when coming from analytics
+  useEffect(() => {
+    if (highlightedActionId && actions.length > 0 && highlightedRowRef.current) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        highlightedRowRef.current?.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "center" 
+        });
+      }, 100);
+
+      // Clear the highlight param after 3 seconds
+      const timer = setTimeout(() => {
+        setSearchParams({}, { replace: true });
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedActionId, actions, setSearchParams]);
 
   const fetchCategories = async () => {
     const { data, error } = await supabase
@@ -1183,9 +1208,16 @@ export default function RestaurantActions() {
                     const status = getActionStatus(action);
                     const targetItems = menuItems.filter(item => action.target_item_ids?.includes(item.id));
                     const restaurantName = getRestaurantName(action.restaurant_id);
+                    const isHighlighted = action.id === highlightedActionId;
                     
                     return (
-                      <TableRow key={action.id}>
+                      <TableRow 
+                        key={action.id}
+                        ref={isHighlighted ? highlightedRowRef : undefined}
+                        className={cn(
+                          isHighlighted && "bg-primary/10 animate-pulse ring-2 ring-primary ring-inset"
+                        )}
+                      >
                         <TableCell>
                           <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded ${
                             action.platform === "uber_eats" 

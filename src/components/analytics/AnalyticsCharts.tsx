@@ -104,6 +104,7 @@ interface AnalyticsChartsProps {
   actions?: RestaurantAction[];
   chartActionsConfig?: ChartActionsConfig;
   onChartActionsConfigChange?: (config: ChartActionsConfig) => void;
+  onActionClick?: (actionId: string) => void;
 }
 
 // Action category colors
@@ -212,10 +213,12 @@ function ActionMarkerLabel({
   viewBox,
   actions,
   color,
+  onActionClick,
 }: {
   viewBox?: { x?: number; y?: number };
   actions: RestaurantAction[];
   color: string;
+  onActionClick?: (actionId: string) => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   
@@ -223,6 +226,12 @@ function ActionMarkerLabel({
   
   const x = viewBox.x;
   const y = 10; // Position at top of chart
+
+  const handleMarkerClick = () => {
+    if (actions.length === 1 && onActionClick) {
+      onActionClick(actions[0].id);
+    }
+  };
   
   return (
     <g>
@@ -236,6 +245,7 @@ function ActionMarkerLabel({
         style={{ cursor: "pointer" }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onClick={handleMarkerClick}
       />
       {/* Icon circle */}
       <circle
@@ -249,6 +259,7 @@ function ActionMarkerLabel({
         style={{ cursor: "pointer" }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onClick={handleMarkerClick}
       />
       {/* Zap icon or count */}
       <text
@@ -269,12 +280,13 @@ function ActionMarkerLabel({
           x={x - 120}
           y={y + 14}
           width={240}
-          height={Math.min(actions.length * 60 + 16, 200)}
+          height={Math.min(actions.length * 70 + 20, 220)}
           style={{ overflow: "visible" }}
         >
           <div
             className="bg-popover border border-border rounded-lg shadow-lg p-2 text-xs"
-            style={{ pointerEvents: "none" }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
           >
             <div className="font-medium text-foreground mb-1.5 flex items-center gap-1">
               <Zap className="h-3 w-3" style={{ color }} />
@@ -294,20 +306,21 @@ function ActionMarkerLabel({
                 return (
                   <div 
                     key={action.id || idx} 
-                    className="flex items-start gap-2 p-1.5 rounded bg-muted/50"
+                    className="flex items-start gap-2 p-1.5 rounded bg-muted/50 hover:bg-muted cursor-pointer transition-colors group"
+                    onClick={() => onActionClick?.(action.id)}
                   >
                     <Icon 
                       className="h-3.5 w-3.5 mt-0.5 shrink-0" 
                       style={{ color: categoryColor }} 
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-foreground truncate">
+                      <div className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
                         {action.title}
                       </div>
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <span 
                           className="text-[10px] px-1 py-0.5 rounded"
-                          style={{ 
+                          style={{
                             backgroundColor: `${categoryColor}20`,
                             color: categoryColor 
                           }}
@@ -342,6 +355,7 @@ export function AnalyticsCharts({
   actions,
   chartActionsConfig,
   onChartActionsConfigChange,
+  onActionClick,
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
   
@@ -813,7 +827,7 @@ export function AnalyticsCharts({
                       stroke={color}
                       strokeWidth={2}
                       strokeDasharray="5 5"
-                      label={<ActionMarkerLabel actions={monthActions} color={color} />}
+                      label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
                     />
                   );
                 })}
