@@ -213,6 +213,174 @@ export type Database = {
         }
         Relationships: []
       }
+      monthly_conversion: {
+        Row: {
+          add_to_cart: number
+          cart_rate: number | null
+          conversion_rate: number | null
+          created_at: string
+          id: string
+          menu_views: number
+          month: number
+          orders: number
+          overall_rate: number | null
+          restaurant_id: string
+          updated_at: string
+          view_rate: number | null
+          visits: number
+          year: number
+        }
+        Insert: {
+          add_to_cart?: number
+          cart_rate?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          id?: string
+          menu_views?: number
+          month: number
+          orders?: number
+          overall_rate?: number | null
+          restaurant_id: string
+          updated_at?: string
+          view_rate?: number | null
+          visits?: number
+          year: number
+        }
+        Update: {
+          add_to_cart?: number
+          cart_rate?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          id?: string
+          menu_views?: number
+          month?: number
+          orders?: number
+          overall_rate?: number | null
+          restaurant_id?: string
+          updated_at?: string
+          view_rate?: number | null
+          visits?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_conversion_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_fees: {
+        Row: {
+          ads_cost: number
+          created_at: string
+          error_adjustments: number
+          id: string
+          marketing_fee: number
+          month: number
+          net_payout: number
+          notes: string | null
+          offers_cost: number
+          other_fees: number
+          restaurant_id: string
+          uber_fee: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          ads_cost?: number
+          created_at?: string
+          error_adjustments?: number
+          id?: string
+          marketing_fee?: number
+          month: number
+          net_payout?: number
+          notes?: string | null
+          offers_cost?: number
+          other_fees?: number
+          restaurant_id: string
+          uber_fee?: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          ads_cost?: number
+          created_at?: string
+          error_adjustments?: number
+          id?: string
+          marketing_fee?: number
+          month?: number
+          net_payout?: number
+          notes?: string | null
+          offers_cost?: number
+          other_fees?: number
+          restaurant_id?: string
+          uber_fee?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_fees_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_revenue: {
+        Row: {
+          average_basket: number | null
+          created_at: string
+          id: string
+          month: number
+          order_count: number
+          restaurant_id: string
+          revenue_per_day: number | null
+          revenue_ttc: number
+          updated_at: string
+          working_days: number | null
+          year: number
+        }
+        Insert: {
+          average_basket?: number | null
+          created_at?: string
+          id?: string
+          month: number
+          order_count?: number
+          restaurant_id: string
+          revenue_per_day?: number | null
+          revenue_ttc?: number
+          updated_at?: string
+          working_days?: number | null
+          year: number
+        }
+        Update: {
+          average_basket?: number | null
+          created_at?: string
+          id?: string
+          month?: number
+          order_count?: number
+          restaurant_id?: string
+          revenue_per_day?: number | null
+          revenue_ttc?: number
+          updated_at?: string
+          working_days?: number | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_revenue_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_errors: {
         Row: {
           created_at: string
