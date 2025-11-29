@@ -197,19 +197,19 @@ const RestaurantDetail = () => {
       title: "CA & Commandes",
       description: "Saisir le chiffre d'affaires et nombre de commandes",
       icon: TrendingUp,
-      href: `/data-entry/revenue?restaurant=${id}`,
+      href: `/data-entry?restaurant=${id}&tab=revenue`,
     },
     {
       title: "Conversion",
       description: "Saisir les métriques de conversion (visites, vues, paniers)",
       icon: BarChart3,
-      href: `/data-entry/conversion?restaurant=${id}`,
+      href: `/data-entry?restaurant=${id}&tab=conversion`,
     },
     {
       title: "Frais",
       description: "Saisir les frais mensuels (commissions, marketing, offres)",
       icon: Receipt,
-      href: `/data-entry/fees?restaurant=${id}`,
+      href: `/data-entry?restaurant=${id}&tab=fees`,
     },
   ];
 
