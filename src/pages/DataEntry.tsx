@@ -1072,7 +1072,10 @@ export default function DataEntry() {
                       <TableHead className="text-right font-semibold">Menu</TableHead>
                       <TableHead className="text-right font-semibold">Panier</TableHead>
                       <TableHead className="text-right font-semibold">Cmd</TableHead>
-                      <TableHead className="text-right font-semibold">Conv.</TableHead>
+                      <TableHead className="text-right font-semibold text-xs">V→M</TableHead>
+                      <TableHead className="text-right font-semibold text-xs">M→P</TableHead>
+                      <TableHead className="text-right font-semibold text-xs">P→C</TableHead>
+                      <TableHead className="text-right font-semibold text-stat-conversion">Global</TableHead>
                       <TableHead className="w-20"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1081,9 +1084,12 @@ export default function DataEntry() {
                       <TableRow key={entry.id} className="group hover:bg-stat-conversion/5 transition-colors">
                         <TableCell className="font-medium">{getMonthLabel(entry.month)} {entry.year}</TableCell>
                         <TableCell className="text-right font-medium">{entry.visits.toLocaleString("fr-FR")}</TableCell>
-                        <TableCell className="text-right font-medium text-muted-foreground">{entry.menu_views.toLocaleString("fr-FR")}</TableCell>
-                        <TableCell className="text-right font-medium text-muted-foreground">{entry.add_to_cart.toLocaleString("fr-FR")}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{entry.menu_views.toLocaleString("fr-FR")}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{entry.add_to_cart.toLocaleString("fr-FR")}</TableCell>
                         <TableCell className="text-right font-medium">{entry.orders}</TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">{Number(entry.view_rate || 0).toFixed(1)}%</TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">{Number(entry.cart_rate || 0).toFixed(1)}%</TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">{Number(entry.conversion_rate || 0).toFixed(1)}%</TableCell>
                         <TableCell className="text-right">
                           <span className="font-semibold text-stat-conversion">{Number(entry.overall_rate).toFixed(1)}%</span>
                         </TableCell>
