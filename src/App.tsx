@@ -28,6 +28,7 @@ import Analytics from "./pages/Analytics";
 import RestaurantDetail from "./pages/RestaurantDetail";
 import MenuItems from "./pages/MenuItems";
 import RestaurantActions from "./pages/RestaurantActions";
+import MenuHistory from "./pages/MenuHistory";
 
 const queryClient = new QueryClient();
 
@@ -215,6 +216,16 @@ const App = () => {
                 <ProtectedRoute session={session}>
                   <AppLayout>
                     <RestaurantActions />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/menu-history"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <MenuHistory />
                   </AppLayout>
                 </ProtectedRoute>
               }

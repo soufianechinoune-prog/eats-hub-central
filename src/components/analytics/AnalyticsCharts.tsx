@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   TrendingUp,
   TrendingDown,
@@ -14,6 +16,12 @@ import {
   Info,
   Lightbulb,
   Target,
+  Camera,
+  Gift,
+  Megaphone,
+  UtensilsCrossed,
+  Settings,
+  Zap,
 } from "lucide-react";
 import {
   LineChart,
@@ -61,6 +69,15 @@ interface MonthlyFees {
   net_payout: number;
 }
 
+interface RestaurantAction {
+  id: string;
+  category: string;
+  action_type: string;
+  title: string;
+  start_date: string;
+  platform: string;
+}
+
 interface AnalyticsChartsProps {
   revenueData: MonthlyRevenue[] | undefined;
   conversionData: MonthlyConversion[] | undefined;
@@ -72,7 +89,36 @@ interface AnalyticsChartsProps {
   endMonth?: number;
   selectedYear: number;
   showComparison?: boolean;
+  actions?: RestaurantAction[];
 }
+
+// Action category colors
+const ACTION_CATEGORY_COLORS: Record<string, string> = {
+  visuals: "#8b5cf6",
+  pricing: "#f59e0b",
+  promotions: "#ec4899",
+  marketing: "#3b82f6",
+  menu: "#10b981",
+  operational: "#64748b",
+};
+
+const ACTION_CATEGORY_ICONS: Record<string, any> = {
+  visuals: Camera,
+  pricing: Euro,
+  promotions: Gift,
+  marketing: Megaphone,
+  menu: UtensilsCrossed,
+  operational: Settings,
+};
+
+const ACTION_CATEGORY_LABELS: Record<string, string> = {
+  visuals: "Visuels",
+  pricing: "Prix",
+  promotions: "Promotions",
+  marketing: "Marketing",
+  menu: "Menu",
+  operational: "Opérations",
+};
 
 // Helper to calculate variation percentage
 const calcVariation = (current: number, previous: number): number | null => {
@@ -114,6 +160,7 @@ export function AnalyticsCharts({
   endMonth = 12,
   selectedYear,
   showComparison = true,
+  actions,
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
   
@@ -126,6 +173,26 @@ export function AnalyticsCharts({
   useEffect(() => {
     localStorage.setItem('conversionTarget', String(conversionTarget));
   }, [conversionTarget]);
+
+  // Group actions by month for reference lines
+  const actionsByMonth = useMemo(() => {
+    if (!actions || actions.length === 0) return {};
+    
+    const byMonth: Record<number, RestaurantAction[]> = {};
+    actions.forEach(action => {
+      const month = new Date(action.start_date).getMonth() + 1;
+      if (!byMonth[month]) byMonth[month] = [];
+      byMonth[month].push(action);
+    });
+    return byMonth;
+  }, [actions]);
+
+  // Get unique months with actions within the range
+  const actionMonths = useMemo(() => {
+    return Object.keys(actionsByMonth)
+      .map(Number)
+      .filter(m => m >= startMonth && m <= endMonth);
+  }, [actionsByMonth, startMonth, endMonth]);
   
   // Filter months for range
   const filterByRange = (monthNum: number) => {
@@ -461,6 +528,37 @@ export function AnalyticsCharts({
         </Card>
       </div>
 
+      {/* Actions Legend */}
+      {actions && actions.length > 0 && (
+        <Card className="bg-muted/30">
+          <CardContent className="py-3">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Zap className="h-4 w-4 text-primary" />
+                Actions affichées ({actions.length})
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {Object.entries(ACTION_CATEGORY_LABELS).map(([key, label]) => {
+                  const count = actions.filter(a => a.category === key).length;
+                  if (count === 0) return null;
+                  const Icon = ACTION_CATEGORY_ICONS[key] || Zap;
+                  return (
+                    <div key={key} className="flex items-center gap-1.5 text-xs">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: ACTION_CATEGORY_COLORS[key] }} 
+                      />
+                      <Icon className="h-3 w-3" style={{ color: ACTION_CATEGORY_COLORS[key] }} />
+                      <span>{label} ({count})</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Revenue Chart with N-1 comparison */}
       <Card>
         <CardHeader>
@@ -490,6 +588,30 @@ export function AnalyticsCharts({
                   }}
                 />
                 <Legend />
+                {/* Action markers */}
+                {actionMonths.map(monthNum => {
+                  const monthActions = actionsByMonth[monthNum] || [];
+                  const primaryAction = monthActions[0];
+                  if (!primaryAction) return null;
+                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                  return (
+                    <ReferenceLine
+                      key={`action-${monthNum}`}
+                      x={MONTHS[monthNum - 1]}
+                      yAxisId="left"
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      label={{
+                        value: monthActions.length > 1 ? `${monthActions.length}` : "",
+                        position: "top",
+                        fill: color,
+                        fontSize: 10,
+                        fontWeight: "bold",
+                      }}
+                    />
+                  );
+                })}
                 <Bar yAxisId="left" dataKey="revenue" name={`CA ${selectedYear} (€)`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 {hasPrevData && (
                   <Bar yAxisId="left" dataKey="prevRevenue" name={`CA ${prevYear} (€)`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} />

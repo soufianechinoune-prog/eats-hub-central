@@ -13,6 +13,7 @@ import {
   BarChart3,
   UtensilsCrossed,
   Zap,
+  History,
 } from "lucide-react";
 import {
   Sidebar,
@@ -77,6 +78,11 @@ const dataEntryItems = [
     title: "Catalogue Produits",
     url: "/menu-items",
     icon: UtensilsCrossed,
+  },
+  {
+    title: "Historique Modifs",
+    url: "/menu-history",
+    icon: History,
   },
   {
     title: "Actions & Events",
