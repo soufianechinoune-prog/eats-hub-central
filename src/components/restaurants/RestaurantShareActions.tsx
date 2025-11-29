@@ -38,12 +38,12 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
 
   const handleShareWhatsApp = () => {
     const text = encodeURIComponent(formatAllRestaurants());
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
   const handleShareTelegram = () => {
     const text = encodeURIComponent(formatAllRestaurants());
-    window.open(`https://t.me/share/url?text=${text}`, '_blank');
+    window.open(`https://telegram.me/share/msg?text=${text}`, '_blank');
   };
 
   const handleShareEmail = () => {
