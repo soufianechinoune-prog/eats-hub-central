@@ -73,7 +73,7 @@ const Restaurants = () => {
                   <TableCell>
                     <div className="flex items-center gap-1.5 text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5" />
-                      {restaurant.city}
+                      {restaurant.postal_code && `${restaurant.postal_code} `}{restaurant.city}
                     </div>
                   </TableCell>
                   <TableCell>

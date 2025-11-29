@@ -662,9 +662,11 @@ export type Database = {
           manager_whatsapp: string | null
           name: string
           phone: string | null
+          postal_code: string | null
           restaurant_email: string | null
           restaurant_phone: string | null
           siren: string | null
+          street: string | null
           tablet_email: string | null
           tablet_password: string | null
           uber_store_id: string | null
@@ -685,9 +687,11 @@ export type Database = {
           manager_whatsapp?: string | null
           name: string
           phone?: string | null
+          postal_code?: string | null
           restaurant_email?: string | null
           restaurant_phone?: string | null
           siren?: string | null
+          street?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
           uber_store_id?: string | null
@@ -708,9 +712,11 @@ export type Database = {
           manager_whatsapp?: string | null
           name?: string
           phone?: string | null
+          postal_code?: string | null
           restaurant_email?: string | null
           restaurant_phone?: string | null
           siren?: string | null
+          street?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
           uber_store_id?: string | null
