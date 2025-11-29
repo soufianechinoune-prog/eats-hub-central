@@ -85,65 +85,35 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
     }
   };
 
-  const handleShareWhatsApp = async () => {
+  const handleShareWhatsApp = () => {
     const text = formatAllRestaurants();
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Fiche${selectedRestaurants.length > 1 ? 's' : ''} Restaurant`,
-          text: text,
-        });
-        return;
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
-      }
-    }
+    // Copy to clipboard as backup
+    navigator.clipboard.writeText(text).catch(() => {});
     
-    // Fallback: copy to clipboard
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({
-        title: "Copié !",
-        description: "Collez le texte dans WhatsApp",
-      });
-    } catch {
-      toast({
-        title: "Erreur",
-        description: "Impossible de copier",
-        variant: "destructive",
-      });
+    // Open WhatsApp in new tab
+    const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    
+    if (!newWindow || newWindow.closed) {
+      // Popup was blocked, try location change
+      window.location.href = url;
     }
   };
 
-  const handleShareTelegram = async () => {
+  const handleShareTelegram = () => {
     const text = formatAllRestaurants();
+    const url = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(text)}`;
     
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Fiche${selectedRestaurants.length > 1 ? 's' : ''} Restaurant`,
-          text: text,
-        });
-        return;
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
-      }
-    }
+    // Copy to clipboard as backup
+    navigator.clipboard.writeText(text).catch(() => {});
     
-    // Fallback: copy to clipboard
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({
-        title: "Copié !",
-        description: "Collez le texte dans Telegram",
-      });
-    } catch {
-      toast({
-        title: "Erreur",
-        description: "Impossible de copier",
-        variant: "destructive",
-      });
+    // Open Telegram in new tab
+    const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    
+    if (!newWindow || newWindow.closed) {
+      // Popup was blocked, try location change
+      window.location.href = url;
     }
   };
 
