@@ -359,6 +359,16 @@ export default function RestaurantActions() {
       return;
     }
     
+    // Validation: date de fin >= date de début
+    if (formData.end_date && config.dateType === "range" && formData.end_date < formData.start_date) {
+      toast({
+        title: "Erreur",
+        description: "La date de fin ne peut pas être antérieure à la date de début",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     // Validation contextuelle: produits obligatoires (uniquement si scope = specific)
     if (config.productsRequired && productScope === "specific" && formData.target_item_ids.length === 0) {
       toast({
@@ -1152,7 +1162,15 @@ export default function RestaurantActions() {
                         <Input
                           type="date"
                           value={formData.start_date}
-                          onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                          onChange={(e) => {
+                            const newStartDate = e.target.value;
+                            // Si la date de fin est antérieure à la nouvelle date de début, la réinitialiser
+                            const updates: any = { start_date: newStartDate };
+                            if (formData.end_date && formData.end_date < newStartDate) {
+                              updates.end_date = "";
+                            }
+                            setFormData({ ...formData, ...updates });
+                          }}
                           className="h-11"
                         />
                       </div>
@@ -1162,6 +1180,7 @@ export default function RestaurantActions() {
                           type="date"
                           value={formData.end_date}
                           onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                          min={formData.start_date}
                           className="h-11"
                         />
                       </div>
