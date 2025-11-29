@@ -698,7 +698,11 @@ export default function RestaurantActions() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {targetItems.length > 0 ? (
+                          {action.action_type === "Nouveau produit" && action.change_context?.new_product_name ? (
+                            <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-200">
+                              🆕 {action.change_context.new_product_name}
+                            </Badge>
+                          ) : targetItems.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {targetItems.slice(0, 2).map(item => (
                                 <Badge key={item.id} variant="secondary" className="text-xs">
