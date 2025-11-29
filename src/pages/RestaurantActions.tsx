@@ -93,12 +93,12 @@ interface Restaurant {
 }
 
 const ACTION_TYPES: Record<string, string[]> = {
-  visuals: ["Photo principale", "Photos produits", "Bannière", "Logo"],
-  pricing: ["Hausse de prix", "Baisse de prix", "Nouveau tarif"],
-  promotions: ["Remise %", "1 acheté = 1 offert", "Remise fixe", "Livraison offerte", "Menu promo"],
-  marketing: ["Push notification", "Offre nationale", "Sponsoring", "Publicité"],
-  menu: ["Nouveau produit", "Réorganisation menu", "Suppression produit", "Changement catégorie"],
-  operational: ["Changement horaires", "Fermeture temporaire", "Nouveau livreur", "Formation équipe"],
+  visuals: ["Photo principale", "Photos produits", "Bannière", "Logo", "Autre"],
+  pricing: ["Hausse de prix", "Baisse de prix", "Nouveau tarif", "Autre"],
+  promotions: ["Remise %", "1 acheté = 1 offert", "Remise fixe", "Livraison offerte", "Menu promo", "Autre"],
+  marketing: ["Push notification", "Offre nationale", "Sponsoring", "Publicité", "Reportage TV", "Autre"],
+  menu: ["Nouveau produit", "Réorganisation menu", "Suppression produit", "Changement catégorie", "Autre"],
+  operational: ["Changement horaires", "Fermeture temporaire", "Nouveau livreur", "Formation équipe", "Autre"],
 };
 
 const CATEGORY_ICONS: Record<string, any> = {
@@ -149,6 +149,7 @@ export default function RestaurantActions() {
     target_item_ids: [] as string[],
     platform: "",
   });
+  const [customActionType, setCustomActionType] = useState("");
 
   useEffect(() => {
     fetchCategories();
@@ -226,15 +227,19 @@ export default function RestaurantActions() {
       target_item_ids: [],
       platform: "",
     });
+    setCustomActionType("");
     setIsDialogOpen(true);
   };
 
   const openEditDialog = (action: RestaurantAction) => {
     setEditingAction(action);
+    const categoryTypes = ACTION_TYPES[action.category] || [];
+    const isCustomType = !categoryTypes.includes(action.action_type);
+    
     setFormData({
       restaurant_id: action.restaurant_id || "",
       category: action.category,
-      action_type: action.action_type,
+      action_type: isCustomType ? "Autre" : action.action_type,
       title: action.title,
       description: action.description || "",
       start_date: action.start_date,
@@ -244,14 +249,19 @@ export default function RestaurantActions() {
       target_item_ids: action.target_item_ids || [],
       platform: action.platform,
     });
+    setCustomActionType(isCustomType ? action.action_type : "");
     setIsDialogOpen(true);
   };
 
   const handleSubmit = async () => {
-    if (!formData.category || !formData.action_type || !formData.title || !formData.start_date || !formData.platform) {
+    const finalActionType = formData.action_type === "Autre" ? customActionType.trim() : formData.action_type;
+    
+    if (!formData.category || !finalActionType || !formData.title || !formData.start_date || !formData.platform) {
       toast({
         title: "Erreur",
-        description: "Veuillez remplir tous les champs obligatoires (catégorie, type, titre, date, plateforme)",
+        description: formData.action_type === "Autre" && !customActionType.trim()
+          ? "Veuillez préciser le type d'action personnalisé"
+          : "Veuillez remplir tous les champs obligatoires (catégorie, type, titre, date, plateforme)",
         variant: "destructive",
       });
       return;
@@ -260,7 +270,7 @@ export default function RestaurantActions() {
     const actionData = {
       restaurant_id: formData.restaurant_id || null,
       category: formData.category,
-      action_type: formData.action_type,
+      action_type: finalActionType,
       title: formData.title.trim(),
       description: formData.description.trim() || null,
       start_date: formData.start_date,
@@ -692,7 +702,10 @@ export default function RestaurantActions() {
                 <Label>Catégorie *</Label>
                 <Select 
                   value={formData.category} 
-                  onValueChange={(value) => setFormData({ ...formData, category: value, action_type: "" })}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, category: value, action_type: "" });
+                    setCustomActionType("");
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Choisir..." />
@@ -710,7 +723,10 @@ export default function RestaurantActions() {
                 <Label>Type d'action *</Label>
                 <Select 
                   value={formData.action_type} 
-                  onValueChange={(value) => setFormData({ ...formData, action_type: value })}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, action_type: value });
+                    if (value !== "Autre") setCustomActionType("");
+                  }}
                   disabled={!formData.category}
                 >
                   <SelectTrigger>
@@ -726,6 +742,19 @@ export default function RestaurantActions() {
                 </Select>
               </div>
             </div>
+
+            {/* Custom action type input */}
+            {formData.action_type === "Autre" && (
+              <div className="grid gap-2">
+                <Label>Précisez le type d'action *</Label>
+                <Input
+                  value={customActionType}
+                  onChange={(e) => setCustomActionType(e.target.value)}
+                  placeholder="Ex: Reportage TV, Partenariat influenceur..."
+                  className={!customActionType.trim() ? "border-destructive/50" : ""}
+                />
+              </div>
+            )}
 
             {/* Title */}
             <div className="grid gap-2">
