@@ -28,6 +28,7 @@ import {
 const Restaurants = () => {
   const navigate = useNavigate();
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -61,7 +62,14 @@ const Restaurants = () => {
       .sort((a, b) => a.code.localeCompare(b.code));
   }, [restaurants]);
 
-  // Filter restaurants by department and search query
+  // Helper to get API status
+  const getApiStatus = (r: typeof restaurants[0]) => {
+    if (Array.isArray(r.uber_connections) && r.uber_connections.length > 0) return "connected";
+    if (r.uber_store_id) return "pending";
+    return "disconnected";
+  };
+
+  // Filter restaurants by department, status, and search query
   const filteredRestaurants = useMemo(() => {
     if (!restaurants) return [];
     
@@ -72,6 +80,11 @@ const Restaurants = () => {
       filtered = filtered.filter(
         (r) => r.postal_code && r.postal_code.startsWith(departmentFilter)
       );
+    }
+
+    // Filter by API status
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((r) => getApiStatus(r) === statusFilter);
     }
     
     // Filter by search query
@@ -86,7 +99,7 @@ const Restaurants = () => {
     }
     
     return filtered;
-  }, [restaurants, departmentFilter, searchQuery]);
+  }, [restaurants, departmentFilter, statusFilter, searchQuery]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -137,19 +150,30 @@ const Restaurants = () => {
             </div>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Statut API" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="connected">Connecté</SelectItem>
+                  <SelectItem value="pending">En attente</SelectItem>
+                  <SelectItem value="disconnected">Non connecté</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Tous les départements" />
                 </SelectTrigger>
                 <SelectContent>
-                <SelectItem value="all">Tous les départements ({restaurants?.length || 0})</SelectItem>
-                {departments.map((dept) => (
-                  <SelectItem key={dept.code} value={dept.code}>
-                    Département {dept.code} ({dept.count})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  <SelectItem value="all">Tous les départements ({restaurants?.length || 0})</SelectItem>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.code} value={dept.code}>
+                      Département {dept.code} ({dept.count})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
