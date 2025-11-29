@@ -101,6 +101,64 @@ const ACTION_TYPES: Record<string, string[]> = {
   operational: ["Changement horaires", "Fermeture temporaire", "Nouveau livreur", "Formation équipe", "Autre"],
 };
 
+// Configuration contextuelle pour chaque type d'action
+interface ActionTypeConfig {
+  dateType: "single" | "range" | "datetime";
+  hasImpact: boolean;
+  impactLabel?: string;
+  impactUnits?: string[];
+  hasProducts: boolean;
+  productsRequired?: boolean;
+  productsLabel?: string;
+}
+
+const ACTION_CONFIG: Record<string, ActionTypeConfig> = {
+  // VISUALS
+  "Photo principale": { dateType: "single", hasImpact: false, hasProducts: false },
+  "Photos produits": { dateType: "single", hasImpact: false, hasProducts: true, productsRequired: true, productsLabel: "Produits photographiés" },
+  "Bannière": { dateType: "range", hasImpact: false, hasProducts: false },
+  "Logo": { dateType: "single", hasImpact: false, hasProducts: false },
+  
+  // PRICING
+  "Hausse de prix": { dateType: "single", hasImpact: true, impactLabel: "Augmentation", impactUnits: ["%", "€"], hasProducts: true, productsRequired: true, productsLabel: "Produits concernés" },
+  "Baisse de prix": { dateType: "single", hasImpact: true, impactLabel: "Réduction", impactUnits: ["%", "€"], hasProducts: true, productsRequired: true, productsLabel: "Produits concernés" },
+  "Nouveau tarif": { dateType: "single", hasImpact: true, impactLabel: "Nouveau prix", impactUnits: ["€"], hasProducts: true, productsRequired: true, productsLabel: "Produits concernés" },
+  
+  // PROMOTIONS
+  "Remise %": { dateType: "range", hasImpact: true, impactLabel: "Remise", impactUnits: ["%"], hasProducts: true, productsRequired: false, productsLabel: "Produits en promo" },
+  "1 acheté = 1 offert": { dateType: "range", hasImpact: false, hasProducts: true, productsRequired: true, productsLabel: "Produits concernés" },
+  "Remise fixe": { dateType: "range", hasImpact: true, impactLabel: "Montant remise", impactUnits: ["€"], hasProducts: true, productsRequired: false, productsLabel: "Produits en promo" },
+  "Livraison offerte": { dateType: "range", hasImpact: false, hasProducts: false },
+  "Menu promo": { dateType: "range", hasImpact: true, impactLabel: "Prix menu", impactUnits: ["€"], hasProducts: true, productsRequired: true, productsLabel: "Produits du menu" },
+  
+  // MARKETING
+  "Push notification": { dateType: "datetime", hasImpact: false, hasProducts: true, productsRequired: false, productsLabel: "Produits mis en avant" },
+  "Offre nationale": { dateType: "range", hasImpact: true, impactLabel: "Valeur offre", impactUnits: ["%", "€"], hasProducts: false },
+  "Sponsoring": { dateType: "range", hasImpact: true, impactLabel: "Budget", impactUnits: ["€"], hasProducts: false },
+  "Publicité": { dateType: "range", hasImpact: true, impactLabel: "Budget", impactUnits: ["€"], hasProducts: true, productsRequired: false, productsLabel: "Produits sponsorisés" },
+  "Reportage TV": { dateType: "single", hasImpact: false, hasProducts: false },
+  
+  // MENU
+  "Nouveau produit": { dateType: "single", hasImpact: true, impactLabel: "Prix", impactUnits: ["€"], hasProducts: false },
+  "Réorganisation menu": { dateType: "single", hasImpact: false, hasProducts: false },
+  "Suppression produit": { dateType: "single", hasImpact: false, hasProducts: true, productsRequired: true, productsLabel: "Produits supprimés" },
+  "Changement catégorie": { dateType: "single", hasImpact: false, hasProducts: true, productsRequired: true, productsLabel: "Produits déplacés" },
+  
+  // OPERATIONAL
+  "Changement horaires": { dateType: "single", hasImpact: false, hasProducts: false },
+  "Fermeture temporaire": { dateType: "range", hasImpact: true, impactLabel: "Durée", impactUnits: ["jours"], hasProducts: false },
+  "Nouveau livreur": { dateType: "single", hasImpact: false, hasProducts: false },
+  "Formation équipe": { dateType: "single", hasImpact: false, hasProducts: false },
+  
+  // Défaut pour "Autre" et types inconnus - tout affiché
+  "Autre": { dateType: "range", hasImpact: true, impactUnits: ["%", "€", "produits", "jours"], hasProducts: true, productsRequired: false },
+};
+
+// Helper pour récupérer la config d'un type d'action
+const getActionConfig = (actionType: string): ActionTypeConfig => {
+  return ACTION_CONFIG[actionType] || ACTION_CONFIG["Autre"];
+};
+
 const CATEGORY_ICONS: Record<string, any> = {
   visuals: Camera,
   pricing: Euro,
@@ -255,13 +313,35 @@ export default function RestaurantActions() {
 
   const handleSubmit = async () => {
     const finalActionType = formData.action_type === "Autre" ? customActionType.trim() : formData.action_type;
+    const config = getActionConfig(formData.action_type);
     
+    // Validation de base
     if (!formData.category || !finalActionType || !formData.title || !formData.start_date || !formData.platform) {
       toast({
         title: "Erreur",
         description: formData.action_type === "Autre" && !customActionType.trim()
           ? "Veuillez préciser le type d'action personnalisé"
           : "Veuillez remplir tous les champs obligatoires (catégorie, type, titre, date, plateforme)",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validation contextuelle: produits obligatoires
+    if (config.productsRequired && formData.target_item_ids.length === 0) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner au moins un produit pour ce type d'action",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validation contextuelle: heure pour datetime
+    if (config.dateType === "datetime" && !formData.end_date) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez indiquer l'heure",
         variant: "destructive",
       });
       return;
@@ -724,7 +804,26 @@ export default function RestaurantActions() {
                 <Select 
                   value={formData.action_type} 
                   onValueChange={(value) => {
-                    setFormData({ ...formData, action_type: value });
+                    const newConfig = getActionConfig(value);
+                    const updates: any = { action_type: value };
+                    
+                    // Reset impact fields if new type doesn't have impact
+                    if (!newConfig.hasImpact) {
+                      updates.impact_value = "";
+                      updates.impact_unit = "";
+                    }
+                    
+                    // Reset products if new type doesn't have products
+                    if (!newConfig.hasProducts) {
+                      updates.target_item_ids = [];
+                    }
+                    
+                    // Reset end_date for single date types
+                    if (newConfig.dateType === "single") {
+                      updates.end_date = "";
+                    }
+                    
+                    setFormData({ ...formData, ...updates });
                     if (value !== "Autre") setCustomActionType("");
                   }}
                   disabled={!formData.category}
@@ -777,138 +876,175 @@ export default function RestaurantActions() {
               />
             </div>
 
-            {/* Dates - different UI for punctual events like Push notifications */}
-            {formData.action_type === "Push notification" ? (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Date *</Label>
-                  <Input
-                    type="date"
-                    value={formData.start_date}
-                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value, end_date: "" })}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Heure *</Label>
-                  <Input
-                    type="time"
-                    value={formData.end_date}
-                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                    placeholder="HH:MM"
-                  />
-                  <p className="text-xs text-muted-foreground">Heure d'envoi de la notification</p>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Date de début *</Label>
-                  <Input
-                    type="date"
-                    value={formData.start_date}
-                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Date de fin</Label>
-                  <Input
-                    type="date"
-                    value={formData.end_date}
-                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                  />
-                </div>
-              </div>
-            )}
+            {/* Dates - contextual based on action type */}
+            {(() => {
+              const config = getActionConfig(formData.action_type);
+              
+              if (config.dateType === "datetime") {
+                return (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label>Date *</Label>
+                      <Input
+                        type="date"
+                        value={formData.start_date}
+                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Heure *</Label>
+                      <Input
+                        type="time"
+                        value={formData.end_date}
+                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                        placeholder="HH:MM"
+                      />
+                      <p className="text-xs text-muted-foreground">Heure d'envoi</p>
+                    </div>
+                  </div>
+                );
+              } else if (config.dateType === "single") {
+                return (
+                  <div className="grid gap-2">
+                    <Label>Date *</Label>
+                    <Input
+                      type="date"
+                      value={formData.start_date}
+                      onChange={(e) => setFormData({ ...formData, start_date: e.target.value, end_date: "" })}
+                    />
+                  </div>
+                );
+              } else {
+                return (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label>Date de début *</Label>
+                      <Input
+                        type="date"
+                        value={formData.start_date}
+                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Date de fin</Label>
+                      <Input
+                        type="date"
+                        value={formData.end_date}
+                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+            })()}
 
-            {/* Impact */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Valeur d'impact</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={formData.impact_value}
-                  onChange={(e) => setFormData({ ...formData, impact_value: e.target.value })}
-                  placeholder="Ex: 20"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Unité</Label>
-                <Select 
-                  value={formData.impact_unit} 
-                  onValueChange={(value) => setFormData({ ...formData, impact_unit: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="%">%</SelectItem>
-                    <SelectItem value="€">€</SelectItem>
-                    <SelectItem value="produits">produits</SelectItem>
-                    <SelectItem value="jours">jours</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {/* Impact - contextual based on action type */}
+            {(() => {
+              const config = getActionConfig(formData.action_type);
+              if (!config.hasImpact) return null;
+              
+              const units = config.impactUnits || ["%", "€", "produits", "jours"];
+              
+              return (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>{config.impactLabel || "Valeur d'impact"}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.impact_value}
+                      onChange={(e) => setFormData({ ...formData, impact_value: e.target.value })}
+                      placeholder="Ex: 20"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Unité</Label>
+                    <Select 
+                      value={formData.impact_unit} 
+                      onValueChange={(value) => setFormData({ ...formData, impact_unit: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choisir..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {units.map((unit) => (
+                          <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Restaurant (Optional) */}
             <div className="grid gap-2">
               <Label>Restaurant (optionnel)</Label>
-            <Select 
-              value={formData.restaurant_id || "all"} 
-              onValueChange={(value) => setFormData({ ...formData, restaurant_id: value === "all" ? "" : value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Tous les restaurants" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les restaurants</SelectItem>
-                {restaurants.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select 
+                value={formData.restaurant_id || "all"} 
+                onValueChange={(value) => setFormData({ ...formData, restaurant_id: value === "all" ? "" : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Tous les restaurants" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les restaurants</SelectItem>
+                  {restaurants.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
                 Laissez vide pour une action globale
               </p>
             </div>
 
-            {/* Target Products */}
-            {menuItems.length > 0 && (
-              <div className="grid gap-2">
-                <Label>Produits concernés</Label>
-                <div className="border rounded-lg p-3 max-h-[150px] overflow-y-auto space-y-2">
-                  {menuItems.map((item) => (
-                    <label key={item.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
-                      <input
-                        type="checkbox"
-                        checked={formData.target_item_ids.includes(item.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormData({ ...formData, target_item_ids: [...formData.target_item_ids, item.id] });
-                          } else {
-                            setFormData({ ...formData, target_item_ids: formData.target_item_ids.filter(id => id !== item.id) });
-                          }
-                        }}
-                        className="rounded"
-                      />
-                      <span className="text-sm">{item.name}</span>
-                      {item.category && (
-                        <Badge variant="secondary" className="text-xs ml-auto">{item.category}</Badge>
-                      )}
-                    </label>
-                  ))}
+            {/* Target Products - contextual based on action type */}
+            {(() => {
+              const config = getActionConfig(formData.action_type);
+              if (!config.hasProducts || menuItems.length === 0) return null;
+              
+              return (
+                <div className="grid gap-2">
+                  <Label>
+                    {config.productsLabel || "Produits concernés"}
+                    {config.productsRequired && <span className="text-destructive ml-1">*</span>}
+                  </Label>
+                  <div className="border rounded-lg p-3 max-h-[150px] overflow-y-auto space-y-2">
+                    {menuItems.map((item) => (
+                      <label key={item.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={formData.target_item_ids.includes(item.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({ ...formData, target_item_ids: [...formData.target_item_ids, item.id] });
+                            } else {
+                              setFormData({ ...formData, target_item_ids: formData.target_item_ids.filter(id => id !== item.id) });
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <span className="text-sm">{item.name}</span>
+                        {item.category && (
+                          <Badge variant="secondary" className="text-xs ml-auto">{item.category}</Badge>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {config.productsRequired 
+                      ? `${formData.target_item_ids.length} produit(s) sélectionné(s)${formData.target_item_ids.length === 0 ? " - sélection obligatoire" : ""}`
+                      : formData.target_item_ids.length === 0 
+                        ? "Aucun produit sélectionné = action globale"
+                        : `${formData.target_item_ids.length} produit(s) sélectionné(s)`
+                    }
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {formData.target_item_ids.length === 0 
-                    ? "Aucun produit sélectionné = action globale"
-                    : `${formData.target_item_ids.length} produit(s) sélectionné(s)`
-                  }
-                </p>
-              </div>
-            )}
+              );
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
