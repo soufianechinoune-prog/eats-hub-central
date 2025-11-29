@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -54,6 +56,9 @@ import {
   Calendar,
   ArrowRight,
   Filter,
+  Clock,
+  Store,
+  Package,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { format } from "date-fns";
@@ -757,340 +762,399 @@ export default function RestaurantActions() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
+            <DialogTitle className="text-xl">
               {editingAction ? "Modifier l'action" : "Nouvelle action"}
             </DialogTitle>
             <DialogDescription>
               Enregistrez une action pour suivre son impact sur les performances
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {/* Platform (Required) */}
-            <div className="grid gap-2">
-              <Label className="flex items-center gap-1">
-                Plateforme <span className="text-destructive">*</span>
-              </Label>
-              <Select 
-                value={formData.platform} 
-                onValueChange={(value) => setFormData({ ...formData, platform: value })}
-              >
-                <SelectTrigger className={!formData.platform ? "border-destructive/50" : ""}>
-                  <SelectValue placeholder="Choisir une plateforme..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="uber_eats">
-                    <div className="flex items-center gap-2">
-                      <UberEatsIcon className="h-4 w-4" />
-                      Uber Eats
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="deliveroo">
-                    <div className="flex items-center gap-2">
-                      <DeliverooIcon className="h-4 w-4" />
-                      Deliveroo
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                L'action apparaîtra dans l'onglet Analytics de cette plateforme
-              </p>
+          
+          <div className="px-6 space-y-6">
+            {/* Platform Selection - Visual Toggle Buttons */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Plateforme *</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, platform: "uber_eats" })}
+                  className={`flex items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all ${
+                    formData.platform === "uber_eats"
+                      ? "border-[#06C167] bg-[#06C167]/10 shadow-sm"
+                      : "border-border hover:border-[#06C167]/50 hover:bg-muted/50"
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg ${formData.platform === "uber_eats" ? "bg-[#06C167]/20" : "bg-muted"}`}>
+                    <UberEatsIcon className="h-6 w-6" />
+                  </div>
+                  <span className={`font-medium ${formData.platform === "uber_eats" ? "text-[#06C167]" : ""}`}>
+                    Uber Eats
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, platform: "deliveroo" })}
+                  className={`flex items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all ${
+                    formData.platform === "deliveroo"
+                      ? "border-[#00CCBC] bg-[#00CCBC]/10 shadow-sm"
+                      : "border-border hover:border-[#00CCBC]/50 hover:bg-muted/50"
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg ${formData.platform === "deliveroo" ? "bg-[#00CCBC]/20" : "bg-muted"}`}>
+                    <DeliverooIcon className="h-6 w-6" />
+                  </div>
+                  <span className={`font-medium ${formData.platform === "deliveroo" ? "text-[#00CCBC]" : ""}`}>
+                    Deliveroo
+                  </span>
+                </button>
+              </div>
             </div>
+
+            <Separator />
 
             {/* Category & Type */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Catégorie *</Label>
-                <Select 
-                  value={formData.category} 
-                  onValueChange={(value) => {
-                    setFormData({ ...formData, category: value, action_type: "" });
-                    setCustomActionType("");
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Zap className="h-4 w-4" />
+                Type d'action
               </div>
-              <div className="grid gap-2">
-                <Label>Type d'action *</Label>
-                <Select 
-                  value={formData.action_type} 
-                  onValueChange={(value) => {
-                    const newConfig = getActionConfig(value);
-                    const updates: any = { action_type: value };
-                    
-                    // Reset impact fields if new type doesn't have impact
-                    if (!newConfig.hasImpact) {
-                      updates.impact_value = "";
-                      updates.impact_unit = "";
-                    }
-                    
-                    // Reset products if new type doesn't have products
-                    if (!newConfig.hasProducts) {
-                      updates.target_item_ids = [];
-                    }
-                    
-                    // Reset end_date for single date types
-                    if (newConfig.dateType === "single") {
-                      updates.end_date = "";
-                    }
-                    
-                    setFormData({ ...formData, ...updates });
-                    if (value !== "Autre") setCustomActionType("");
-                  }}
-                  disabled={!formData.category}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(ACTION_TYPES[formData.category] || []).map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Catégorie *</Label>
+                  <Select 
+                    value={formData.category} 
+                    onValueChange={(value) => {
+                      setFormData({ ...formData, category: value, action_type: "" });
+                      setCustomActionType("");
+                    }}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Sélectionner..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => {
+                        const Icon = CATEGORY_ICONS[cat.id] || Zap;
+                        return (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            <div className="flex items-center gap-2">
+                              <Icon className="h-4 w-4" />
+                              {cat.label}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Type *</Label>
+                  <Select 
+                    value={formData.action_type} 
+                    onValueChange={(value) => {
+                      const newConfig = getActionConfig(value);
+                      const updates: any = { action_type: value };
+                      if (!newConfig.hasImpact) {
+                        updates.impact_value = "";
+                        updates.impact_unit = "";
+                      }
+                      if (!newConfig.hasProducts) {
+                        updates.target_item_ids = [];
+                      }
+                      if (newConfig.dateType === "single") {
+                        updates.end_date = "";
+                      }
+                      setFormData({ ...formData, ...updates });
+                      if (value !== "Autre") setCustomActionType("");
+                    }}
+                    disabled={!formData.category}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Sélectionner..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(ACTION_TYPES[formData.category] || []).map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
 
-            {/* Custom action type input */}
-            {formData.action_type === "Autre" && (
-              <div className="grid gap-2">
-                <Label>Précisez le type d'action *</Label>
+              {/* Custom action type input */}
+              {formData.action_type === "Autre" && (
                 <Input
                   value={customActionType}
                   onChange={(e) => setCustomActionType(e.target.value)}
-                  placeholder="Ex: Reportage TV, Partenariat influenceur..."
-                  className={!customActionType.trim() ? "border-destructive/50" : ""}
+                  placeholder="Précisez le type d'action..."
+                  className={`h-11 ${!customActionType.trim() ? "border-destructive/50" : ""}`}
                 />
-              </div>
-            )}
-
-            {/* Title */}
-            <div className="grid gap-2">
-              <Label>Titre *</Label>
-              <Input
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Ex: Promo été -20% sur les burgers"
-              />
+              )}
             </div>
 
-            {/* New Product Name - only for "Nouveau produit" action type */}
-            {formData.action_type === "Nouveau produit" && (
-              <div className="grid gap-2">
-                <Label>Nom du nouveau produit *</Label>
+            <Separator />
+
+            {/* Title & Description */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Titre de l'action *</Label>
                 <Input
-                  value={newProductName}
-                  onChange={(e) => setNewProductName(e.target.value)}
-                  placeholder="Ex: Double Cheese Bacon"
-                  className={!newProductName.trim() ? "border-destructive/50" : ""}
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="Ex: Promo été -20% sur les burgers"
+                  className="h-11"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Ce produit sera ajouté au catalogue après son lancement
-                </p>
               </div>
-            )}
 
-            {/* Description */}
-            <div className="grid gap-2">
-              <Label>Description</Label>
-              <Textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Détails de l'action..."
-                rows={2}
-              />
-            </div>
-
-            {/* Dates - contextual based on action type */}
-            {(() => {
-              const config = getActionConfig(formData.action_type);
-              
-              if (config.dateType === "datetime") {
-                return (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label>Date *</Label>
-                      <Input
-                        type="date"
-                        value={formData.start_date}
-                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>Heure *</Label>
-                      <Input
-                        type="time"
-                        value={formData.end_date}
-                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                        placeholder="HH:MM"
-                      />
-                      <p className="text-xs text-muted-foreground">Heure d'envoi</p>
-                    </div>
-                  </div>
-                );
-              } else if (config.dateType === "single") {
-                return (
-                  <div className="grid gap-2">
-                    <Label>Date *</Label>
-                    <Input
-                      type="date"
-                      value={formData.start_date}
-                      onChange={(e) => setFormData({ ...formData, start_date: e.target.value, end_date: "" })}
-                    />
-                  </div>
-                );
-              } else {
-                return (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label>Date de début *</Label>
-                      <Input
-                        type="date"
-                        value={formData.start_date}
-                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>Date de fin</Label>
-                      <Input
-                        type="date"
-                        value={formData.end_date}
-                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                );
-              }
-            })()}
-
-            {/* Impact - contextual based on action type */}
-            {(() => {
-              const config = getActionConfig(formData.action_type);
-              if (!config.hasImpact) return null;
-              
-              const units = config.impactUnits || ["%", "€", "produits", "jours"];
-              
-              return (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label>{config.impactLabel || "Valeur d'impact"}</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={formData.impact_value}
-                      onChange={(e) => setFormData({ ...formData, impact_value: e.target.value })}
-                      placeholder="Ex: 20"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Unité</Label>
-                    <Select 
-                      value={formData.impact_unit} 
-                      onValueChange={(value) => setFormData({ ...formData, impact_unit: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choisir..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {units.map((unit) => (
-                          <SelectItem key={unit} value={unit}>{unit}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Restaurant (Optional) */}
-            <div className="grid gap-2">
-              <Label>Restaurant (optionnel)</Label>
-              <Select 
-                value={formData.restaurant_id || "all"} 
-                onValueChange={(value) => setFormData({ ...formData, restaurant_id: value === "all" ? "" : value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les restaurants" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les restaurants</SelectItem>
-                  {restaurants.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Laissez vide pour une action globale
-              </p>
-            </div>
-
-            {/* Target Products - contextual based on action type */}
-            {(() => {
-              const config = getActionConfig(formData.action_type);
-              if (!config.hasProducts || menuItems.length === 0) return null;
-              
-              return (
-                <div className="grid gap-2">
-                  <Label>
-                    {config.productsLabel || "Produits concernés"}
-                    {config.productsRequired && <span className="text-destructive ml-1">*</span>}
-                  </Label>
-                  <div className="border rounded-lg p-3 max-h-[150px] overflow-y-auto space-y-2">
-                    {menuItems.map((item) => (
-                      <label key={item.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
-                        <input
-                          type="checkbox"
-                          checked={formData.target_item_ids.includes(item.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({ ...formData, target_item_ids: [...formData.target_item_ids, item.id] });
-                            } else {
-                              setFormData({ ...formData, target_item_ids: formData.target_item_ids.filter(id => id !== item.id) });
-                            }
-                          }}
-                          className="rounded"
-                        />
-                        <span className="text-sm">{item.name}</span>
-                        {item.category && (
-                          <Badge variant="secondary" className="text-xs ml-auto">{item.category}</Badge>
-                        )}
-                      </label>
-                    ))}
-                  </div>
+              {/* New Product Name */}
+              {formData.action_type === "Nouveau produit" && (
+                <div className="space-y-2">
+                  <Label>Nom du nouveau produit *</Label>
+                  <Input
+                    value={newProductName}
+                    onChange={(e) => setNewProductName(e.target.value)}
+                    placeholder="Ex: Double Cheese Bacon"
+                    className={`h-11 ${!newProductName.trim() ? "border-destructive/50" : ""}`}
+                  />
                   <p className="text-xs text-muted-foreground">
-                    {config.productsRequired 
-                      ? `${formData.target_item_ids.length} produit(s) sélectionné(s)${formData.target_item_ids.length === 0 ? " - sélection obligatoire" : ""}`
-                      : formData.target_item_ids.length === 0 
-                        ? "Aucun produit sélectionné = action globale"
-                        : `${formData.target_item_ids.length} produit(s) sélectionné(s)`
-                    }
+                    Ce produit sera ajouté au catalogue après son lancement
                   </p>
                 </div>
-              );
-            })()}
+              )}
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Description (optionnel)</Label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Détails supplémentaires..."
+                  rows={2}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Dates & Impact */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                Période & Impact
+              </div>
+              
+              {/* Dates - contextual */}
+              {(() => {
+                const config = getActionConfig(formData.action_type);
+                
+                if (config.dateType === "datetime") {
+                  return (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Date *</Label>
+                        <Input
+                          type="date"
+                          value={formData.start_date}
+                          onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                          className="h-11"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Heure *</Label>
+                        <Input
+                          type="time"
+                          value={formData.end_date}
+                          onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                          className="h-11"
+                        />
+                      </div>
+                    </div>
+                  );
+                } else if (config.dateType === "single") {
+                  return (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Date *</Label>
+                      <Input
+                        type="date"
+                        value={formData.start_date}
+                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value, end_date: "" })}
+                        className="h-11"
+                      />
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Date de début *</Label>
+                        <Input
+                          type="date"
+                          value={formData.start_date}
+                          onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                          className="h-11"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Date de fin</Label>
+                        <Input
+                          type="date"
+                          value={formData.end_date}
+                          onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                          className="h-11"
+                        />
+                      </div>
+                    </div>
+                  );
+                }
+              })()}
+
+              {/* Impact - contextual */}
+              {(() => {
+                const config = getActionConfig(formData.action_type);
+                if (!config.hasImpact) return null;
+                
+                const units = config.impactUnits || ["%", "€", "produits", "jours"];
+                
+                return (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">{config.impactLabel || "Valeur"}</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.impact_value}
+                        onChange={(e) => setFormData({ ...formData, impact_value: e.target.value })}
+                        placeholder="Ex: 20"
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Unité</Label>
+                      <Select 
+                        value={formData.impact_unit} 
+                        onValueChange={(value) => setFormData({ ...formData, impact_unit: value })}
+                      >
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Choisir..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {units.map((unit) => (
+                            <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <Separator />
+
+            {/* Restaurant & Products */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Store className="h-4 w-4" />
+                Cible
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Restaurant</Label>
+                <Select 
+                  value={formData.restaurant_id || "all"} 
+                  onValueChange={(value) => setFormData({ ...formData, restaurant_id: value === "all" ? "" : value })}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Tous les restaurants" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
+                      <span className="text-muted-foreground">Tous les restaurants</span>
+                    </SelectItem>
+                    {restaurants.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Target Products - contextual */}
+              {(() => {
+                const config = getActionConfig(formData.action_type);
+                if (!config.hasProducts || menuItems.length === 0) return null;
+                
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Package className="h-3 w-3" />
+                        {config.productsLabel || "Produits concernés"}
+                        {config.productsRequired && <span className="text-destructive">*</span>}
+                      </Label>
+                      {formData.target_item_ids.length > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {formData.target_item_ids.length} sélectionné(s)
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="border rounded-lg p-3 max-h-[140px] overflow-y-auto space-y-1 bg-muted/30">
+                      {menuItems.map((item) => (
+                        <label 
+                          key={item.id} 
+                          className={`flex items-center gap-3 cursor-pointer p-2 rounded-md transition-colors ${
+                            formData.target_item_ids.includes(item.id) 
+                              ? "bg-primary/10" 
+                              : "hover:bg-muted"
+                          }`}
+                        >
+                          <Checkbox
+                            checked={formData.target_item_ids.includes(item.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setFormData({ ...formData, target_item_ids: [...formData.target_item_ids, item.id] });
+                              } else {
+                                setFormData({ ...formData, target_item_ids: formData.target_item_ids.filter(id => id !== item.id) });
+                              }
+                            }}
+                          />
+                          <span className="text-sm flex-1">{item.name}</span>
+                          {item.category && (
+                            <Badge variant="outline" className="text-xs font-normal">{item.category}</Badge>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+
+          <DialogFooter className="px-6 py-4 border-t bg-muted/30 mt-6">
+            <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>
               Annuler
             </Button>
-            <Button onClick={handleSubmit}>
-              {editingAction ? "Enregistrer" : "Créer"}
+            <Button 
+              onClick={handleSubmit}
+              disabled={!formData.platform || !formData.category || !formData.action_type}
+              className="gap-2"
+            >
+              {editingAction ? (
+                <>
+                  <Pencil className="h-4 w-4" />
+                  Enregistrer
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  Créer l'action
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
