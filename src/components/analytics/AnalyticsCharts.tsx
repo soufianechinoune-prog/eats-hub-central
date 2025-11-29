@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   TrendingUp,
   TrendingDown,
@@ -12,6 +13,7 @@ import {
   Minus,
   Info,
   Lightbulb,
+  Target,
 } from "lucide-react";
 import {
   LineChart,
@@ -27,6 +29,7 @@ import {
   ResponsiveContainer,
   Legend,
   ComposedChart,
+  ReferenceLine,
 } from "recharts";
 
 const MONTHS = [
@@ -112,6 +115,16 @@ export function AnalyticsCharts({
   showComparison = true,
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
+  
+  // Objectif de conversion configurable (persisté dans localStorage)
+  const [conversionTarget, setConversionTarget] = useState<number>(() => {
+    const saved = localStorage.getItem('conversionTarget');
+    return saved ? Number(saved) : 5;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('conversionTarget', String(conversionTarget));
+  }, [conversionTarget]);
   
   // Filter months for range
   const filterByRange = (monthNum: number) => {
@@ -273,12 +286,15 @@ export function AnalyticsCharts({
     }).filter(d => filterByRange(d.monthNum));
   }, [aggregatedRevenueData, aggregatedFeesData, startMonth, endMonth]);
 
-  // Dynamic Y-axis domain for conversion rate chart
+  // Dynamic Y-axis domain for conversion rate chart (inclut l'objectif)
   const conversionYDomain = useMemo(() => {
     const rates = aggregatedConversionData
       .map(d => [d.conversionRate, d.prevConversionRate])
       .flat()
       .filter(r => r > 0);
+    
+    // Inclure l'objectif dans le calcul du domain
+    rates.push(conversionTarget);
     
     if (rates.length === 0) return [0, 10];
     
@@ -290,7 +306,7 @@ export function AnalyticsCharts({
       Math.max(0, Math.floor(min - padding)),
       Math.ceil(max + padding)
     ];
-  }, [aggregatedConversionData]);
+  }, [aggregatedConversionData, conversionTarget]);
 
   // Calculate KPIs
   const kpis = useMemo(() => {
@@ -552,6 +568,26 @@ export function AnalyticsCharts({
                 </ul>
               </div>
             </div>
+            {/* Input pour définir l'objectif */}
+            <div className="flex items-center gap-3 pt-3 border-t border-border/50">
+              <Target className="h-5 w-5 text-emerald-500 shrink-0" />
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Mon objectif :</span>
+                <Input
+                  type="number"
+                  value={conversionTarget}
+                  onChange={(e) => setConversionTarget(Number(e.target.value) || 0)}
+                  className="w-20 h-8 text-center"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+              <span className="text-xs text-muted-foreground ml-auto">
+                Les mois en dessous seront en rouge
+              </span>
+            </div>
           </div>
 
           <div className="h-[280px]">
@@ -600,14 +636,40 @@ export function AnalyticsCharts({
                   }}
                 />
                 <Legend />
+                {/* Ligne de référence pour l'objectif */}
+                <ReferenceLine 
+                  y={conversionTarget} 
+                  stroke="#22c55e" 
+                  strokeDasharray="8 4"
+                  strokeWidth={2}
+                  label={{ 
+                    value: `Objectif ${conversionTarget}%`, 
+                    position: 'right', 
+                    fill: '#22c55e',
+                    fontSize: 12,
+                    fontWeight: 500
+                  }}
+                />
                 <Line 
                   type="monotone" 
                   dataKey="conversionRate" 
                   name={`Taux ${selectedYear}`}
                   stroke="hsl(var(--primary))" 
                   strokeWidth={3}
-                  dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 5 }}
-                  activeDot={{ r: 7, strokeWidth: 2 }}
+                  dot={({ cx, cy, payload }: { cx: number; cy: number; payload: { conversionRate: number } }) => {
+                    const isBelow = payload.conversionRate > 0 && payload.conversionRate < conversionTarget;
+                    return (
+                      <circle 
+                        cx={cx} 
+                        cy={cy} 
+                        r={6} 
+                        fill={isBelow ? '#ef4444' : 'hsl(var(--primary))'} 
+                        stroke="white"
+                        strokeWidth={2}
+                      />
+                    );
+                  }}
+                  activeDot={{ r: 8, strokeWidth: 2 }}
                 />
                 {hasPrevData && (
                   <Line 
