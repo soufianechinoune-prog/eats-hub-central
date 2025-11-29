@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Pencil, Trash2, TrendingUp, ArrowLeft } from "lucide-react";
+import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 
 const MONTHS = [
   { value: 1, label: "Janvier" },
@@ -44,8 +45,8 @@ const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
 const PLATFORMS = [
-  { value: "uber_eats", label: "Uber Eats", color: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30" },
-  { value: "deliveroo", label: "Deliveroo", color: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30" },
+  { value: "uber_eats", label: "Uber Eats", color: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30", Logo: UberEatsLogo },
+  { value: "deliveroo", label: "Deliveroo", color: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30", Logo: DeliverooLogo },
 ];
 
 export default function DataEntryConversion() {
@@ -198,7 +199,12 @@ export default function DataEntryConversion() {
   const getMonthLabel = (month: number) => MONTHS.find(m => m.value === month)?.label || "";
   const getPlatformBadge = (platform: string) => {
     const p = PLATFORMS.find(pl => pl.value === platform);
-    return p ? <Badge className={p.color}>{p.label}</Badge> : <Badge variant="outline">{platform}</Badge>;
+    return p ? (
+      <Badge className={`${p.color} flex items-center gap-1.5`}>
+        <p.Logo size={14} />
+        {p.label}
+      </Badge>
+    ) : <Badge variant="outline">{platform}</Badge>;
   };
 
   return (
@@ -253,8 +259,10 @@ export default function DataEntryConversion() {
                     key={p.value}
                     type="button"
                     variant={selectedPlatform === p.value ? "default" : "outline"}
+                    className="flex items-center gap-2"
                     onClick={() => setSelectedPlatform(p.value)}
                   >
+                    <p.Logo size={18} />
                     {p.label}
                   </Button>
                 ))}
