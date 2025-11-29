@@ -4,12 +4,15 @@ import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, FileDown } from "lucide-react";
+import { Loader2, FileDown, Zap } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { AnalyticsFilters, PeriodMode } from "@/components/analytics/AnalyticsFilters";
 import { AnalyticsCharts } from "@/components/analytics/AnalyticsCharts";
 import { useAnalyticsPdfExport } from "@/hooks/useAnalyticsPdfExport";
+import { useRestaurantActions } from "@/hooks/useRestaurantActions";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
 import type { DateRange } from "react-day-picker";
@@ -32,6 +35,10 @@ export default function Analytics() {
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
   const [periodMode, setPeriodMode] = useState<PeriodMode>("year");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [showActions, setShowActions] = useState<boolean>(() => {
+    const saved = localStorage.getItem('analyticsShowActions');
+    return saved ? saved === 'true' : true;
+  });
 
   const chartsRef = useRef<HTMLDivElement>(null);
   const { exportToPdf, isExporting } = useAnalyticsPdfExport();
@@ -42,6 +49,32 @@ export default function Analytics() {
     setSelectedTab(value);
     setSearchParams({ platform: value });
   };
+
+  const handleShowActionsChange = (value: boolean) => {
+    setShowActions(value);
+    localStorage.setItem('analyticsShowActions', String(value));
+  };
+
+  // Fetch restaurant actions for the selected year and platform
+  const { data: uberActions } = useRestaurantActions(
+    selectedYear,
+    selectedRestaurants.length > 0 ? selectedRestaurants : undefined,
+    "uber_eats"
+  );
+
+  const { data: deliverooActions } = useRestaurantActions(
+    selectedYear,
+    selectedRestaurants.length > 0 ? selectedRestaurants : undefined,
+    "deliveroo"
+  );
+
+  const globalActions = useMemo(() => {
+    const all = [...(uberActions || []), ...(deliverooActions || [])];
+    // Deduplicate by id
+    const uniqueMap = new Map();
+    all.forEach(a => uniqueMap.set(a.id, a));
+    return Array.from(uniqueMap.values());
+  }, [uberActions, deliverooActions]);
 
   // Determine month range based on period mode
   const getEffectiveMonthRange = () => {
@@ -426,6 +459,24 @@ export default function Analytics() {
         onDateRangeChange={setDateRange}
       />
 
+      {/* Actions Toggle */}
+      <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border">
+        <div className="flex items-center gap-2">
+          <Zap className="h-4 w-4 text-primary" />
+          <Label htmlFor="show-actions" className="text-sm font-medium cursor-pointer">
+            Afficher les actions sur les graphiques
+          </Label>
+        </div>
+        <Switch
+          id="show-actions"
+          checked={showActions}
+          onCheckedChange={handleShowActionsChange}
+        />
+        <span className="text-xs text-muted-foreground">
+          ({(selectedTab === "uber_eats" ? uberActions : selectedTab === "deliveroo" ? deliverooActions : globalActions)?.length || 0} actions)
+        </span>
+      </div>
+
       {/* Platform Tabs */}
       <Tabs value={selectedTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full max-w-[600px] grid-cols-3">
@@ -460,6 +511,7 @@ export default function Analytics() {
                 startMonth={effectiveStartMonth}
                 endMonth={effectiveEndMonth}
                 selectedYear={selectedYear}
+                actions={showActions ? uberActions : undefined}
               />
             </TabsContent>
 
@@ -474,6 +526,7 @@ export default function Analytics() {
                 startMonth={effectiveStartMonth}
                 endMonth={effectiveEndMonth}
                 selectedYear={selectedYear}
+                actions={showActions ? deliverooActions : undefined}
               />
             </TabsContent>
 
@@ -488,6 +541,7 @@ export default function Analytics() {
                 startMonth={effectiveStartMonth}
                 endMonth={effectiveEndMonth}
                 selectedYear={selectedYear}
+                actions={showActions ? globalActions : undefined}
               />
             </TabsContent>
           </div>
