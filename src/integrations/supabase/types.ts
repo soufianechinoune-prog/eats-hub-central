@@ -239,8 +239,8 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
-          price: number
-          restaurant_id: string
+          price_deliveroo: number | null
+          price_uber: number | null
           updated_at: string
         }
         Insert: {
@@ -250,8 +250,8 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
-          price?: number
-          restaurant_id: string
+          price_deliveroo?: number | null
+          price_uber?: number | null
           updated_at?: string
         }
         Update: {
@@ -261,19 +261,11 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
-          price?: number
-          restaurant_id?: string
+          price_deliveroo?: number | null
+          price_uber?: number | null
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "menu_items_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       monthly_conversion: {
         Row: {
