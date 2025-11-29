@@ -168,15 +168,14 @@ const Restaurants = () => {
                 <TableHead>Ville</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Gérant</TableHead>
-                <TableHead className="text-center">Statut</TableHead>
-                <TableHead className="text-center">Connexion Uber</TableHead>
+                <TableHead className="text-center">Statut API</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredRestaurants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     {departmentFilter === "all" 
                       ? "Aucun restaurant trouvé" 
                       : `Aucun restaurant dans le département ${departmentFilter}`}
@@ -222,18 +221,12 @@ const Restaurants = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.is_active ? (
-                        <Badge className="bg-accent text-accent-foreground">Actif</Badge>
+                      {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0 ? (
+                        <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Connecté</Badge>
+                      ) : restaurant.uber_store_id ? (
+                        <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
                       ) : (
-                        <Badge variant="outline">Inactif</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {Array.isArray(restaurant.uber_connections) &&
-                      restaurant.uber_connections.length > 0 ? (
-                        <Badge className="bg-accent text-accent-foreground">Connecté</Badge>
-                      ) : (
-                        <Badge variant="outline">Non connecté</Badge>
+                        <Badge variant="outline" className="text-muted-foreground">Non connecté</Badge>
                       )}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
