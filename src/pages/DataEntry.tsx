@@ -512,14 +512,14 @@ export default function DataEntry() {
                       key={p.value}
                       type="button"
                       variant="outline"
-                      className={`flex-1 h-10 transition-all duration-300 ${
+                      className={`flex-1 h-10 transition-all duration-300 hover:scale-105 active:scale-95 ${
                         selectedPlatform === p.value 
-                          ? p.activeClass
-                          : p.bgClass
+                          ? `${p.activeClass} animate-scale-in`
+                          : `${p.bgClass} hover:-translate-y-0.5`
                       }`}
                       onClick={() => setSelectedPlatform(p.value)}
                     >
-                      <p.Logo size={18} />
+                      <p.Logo size={18} className="transition-transform group-hover:scale-110" />
                     </Button>
                   ))}
                 </div>
@@ -561,44 +561,44 @@ export default function DataEntry() {
 
         <CardContent className="pt-0">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-6 h-12 p-1 bg-muted/50">
+            <TabsList className="grid w-full grid-cols-3 mb-6 h-12 p-1 bg-muted/50 rounded-xl">
               <TabsTrigger 
                 value="revenue" 
-                className="flex items-center gap-2 data-[state=active]:bg-stat-revenue data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300"
+                className="flex items-center gap-2 transition-all duration-300 hover:bg-stat-revenue/10 data-[state=active]:bg-stat-revenue data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] rounded-lg"
               >
-                <Euro className="h-4 w-4" />
+                <Euro className="h-4 w-4 transition-transform data-[state=active]:animate-bounce-soft" />
                 <span className="hidden sm:inline font-medium">CA & Commandes</span>
                 <span className="sm:hidden font-medium">CA</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="conversion" 
-                className="flex items-center gap-2 data-[state=active]:bg-stat-conversion data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300"
+                className="flex items-center gap-2 transition-all duration-300 hover:bg-stat-conversion/10 data-[state=active]:bg-stat-conversion data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] rounded-lg"
               >
-                <BarChart3 className="h-4 w-4" />
+                <BarChart3 className="h-4 w-4 transition-transform data-[state=active]:animate-bounce-soft" />
                 <span className="hidden sm:inline font-medium">Conversion</span>
                 <span className="sm:hidden font-medium">Conv.</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="fees" 
-                className="flex items-center gap-2 data-[state=active]:bg-stat-fees data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300"
+                className="flex items-center gap-2 transition-all duration-300 hover:bg-stat-fees/10 data-[state=active]:bg-stat-fees data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] rounded-lg"
               >
-                <Receipt className="h-4 w-4" />
+                <Receipt className="h-4 w-4 transition-transform data-[state=active]:animate-bounce-soft" />
                 <span className="hidden sm:inline font-medium">Frais & Marketing</span>
                 <span className="sm:hidden font-medium">Frais</span>
               </TabsTrigger>
             </TabsList>
 
             {/* Revenue Tab */}
-            <TabsContent value="revenue" className="space-y-5 mt-0 animate-fade-in">
+            <TabsContent value="revenue" className="space-y-5 mt-0 animate-fade-in-up" key={`revenue-${activeTab}`}>
               {existingRevenue && !revenueEditingId && (
-                <Alert className="border-amber-500/50 bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <Alert className="border-amber-500/50 bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20 animate-slide-in-right">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 animate-wiggle" />
                   <AlertDescription className="text-amber-800 dark:text-amber-200">
                     <span className="font-semibold">Données existantes pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
                     <span className="ml-2 text-sm opacity-80">
                       ({Number(existingRevenue.revenue_ttc).toLocaleString("fr-FR")} € • {existingRevenue.order_count} cmd)
                     </span>
-                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700 hover:text-amber-900" onClick={() => handleEditRevenue(existingRevenue)}>
+                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700 hover:text-amber-900 hover:translate-x-1 transition-transform" onClick={() => handleEditRevenue(existingRevenue)}>
                       Modifier →
                     </Button>
                   </AlertDescription>
@@ -617,7 +617,7 @@ export default function DataEntry() {
                     value={revenueTtc} 
                     onChange={(e) => setRevenueTtc(e.target.value)} 
                     placeholder="Ex: 15000.50"
-                    className="h-11 text-lg font-medium"
+                    className="h-11 text-lg font-medium transition-all duration-200 focus:scale-[1.01] focus:shadow-md"
                   />
                 </div>
                 <div className="space-y-2">
@@ -630,34 +630,34 @@ export default function DataEntry() {
                     value={orderCount} 
                     onChange={(e) => setOrderCount(e.target.value)} 
                     placeholder="Ex: 450"
-                    className="h-11 text-lg font-medium"
+                    className="h-11 text-lg font-medium transition-all duration-200 focus:scale-[1.01] focus:shadow-md"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Jours ouvrés (optionnel)</Label>
-                  <Input type="number" value={workingDays} onChange={(e) => setWorkingDays(e.target.value)} placeholder="Ex: 30" className="h-11" />
+                  <Input type="number" value={workingDays} onChange={(e) => setWorkingDays(e.target.value)} placeholder="Ex: 30" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Panier moyen (€) - optionnel</Label>
-                  <Input type="number" step="0.01" value={averageBasket} onChange={(e) => setAverageBasket(e.target.value)} placeholder={`Auto: ${calculatedBasket} €`} className="h-11" />
+                  <Input type="number" step="0.01" value={averageBasket} onChange={(e) => setAverageBasket(e.target.value)} placeholder={`Auto: ${calculatedBasket} €`} className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
               </div>
 
               {/* Colorful stats preview */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl p-4 bg-gradient-to-br from-stat-basket/10 to-stat-basket/5 border border-stat-basket/20">
+                <div className="group rounded-xl p-4 bg-gradient-to-br from-stat-basket/10 to-stat-basket/5 border border-stat-basket/20 transition-all duration-300 hover:shadow-lg hover:shadow-stat-basket/10 hover:-translate-y-1 hover:border-stat-basket/40 cursor-default">
                   <div className="flex items-center gap-2 text-stat-basket mb-1">
-                    <ShoppingCart className="h-4 w-4" />
+                    <ShoppingCart className="h-4 w-4 transition-transform group-hover:scale-110 group-hover:rotate-6" />
                     <span className="text-sm font-medium">Panier moyen</span>
                   </div>
-                  <p className="text-2xl font-bold text-foreground">{previewBasket} €</p>
+                  <p className="text-2xl font-bold text-foreground transition-transform group-hover:scale-105">{previewBasket} €</p>
                 </div>
-                <div className="rounded-xl p-4 bg-gradient-to-br from-stat-revenue/10 to-stat-revenue/5 border border-stat-revenue/20">
+                <div className="group rounded-xl p-4 bg-gradient-to-br from-stat-revenue/10 to-stat-revenue/5 border border-stat-revenue/20 transition-all duration-300 hover:shadow-lg hover:shadow-stat-revenue/10 hover:-translate-y-1 hover:border-stat-revenue/40 cursor-default">
                   <div className="flex items-center gap-2 text-stat-revenue mb-1">
-                    <TrendingUp className="h-4 w-4" />
+                    <TrendingUp className="h-4 w-4 transition-transform group-hover:scale-110 group-hover:-rotate-6" />
                     <span className="text-sm font-medium">CA / jour</span>
                   </div>
-                  <p className="text-2xl font-bold text-foreground">{previewPerDay} €</p>
+                  <p className="text-2xl font-bold text-foreground transition-transform group-hover:scale-105">{previewPerDay} €</p>
                 </div>
               </div>
 
@@ -665,13 +665,17 @@ export default function DataEntry() {
                 <Button 
                   onClick={handleSaveRevenue} 
                   disabled={!selectedRestaurant || revenueMutation.isPending} 
-                  className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-stat-revenue to-stat-revenue/80 hover:from-stat-revenue/90 hover:to-stat-revenue/70 shadow-lg shadow-stat-revenue/25"
+                  className="group flex-1 h-12 text-base font-semibold bg-gradient-to-r from-stat-revenue to-stat-revenue/80 hover:from-stat-revenue/90 hover:to-stat-revenue/70 shadow-lg shadow-stat-revenue/25 transition-all duration-300 hover:shadow-xl hover:shadow-stat-revenue/30 hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  {revenueMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
+                  {revenueMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  ) : (
+                    <Save className="h-5 w-5 mr-2 transition-transform group-hover:scale-110 group-hover:rotate-6" />
+                  )}
                   {revenueEditingId ? "Mettre à jour" : existingRevenue ? "Remplacer" : "Enregistrer"}
                 </Button>
                 {revenueEditingId && (
-                  <Button variant="outline" onClick={resetRevenueForm} className="h-12">
+                  <Button variant="outline" onClick={resetRevenueForm} className="h-12 transition-all duration-200 hover:scale-105 active:scale-95">
                     Annuler
                   </Button>
                 )}
@@ -679,16 +683,16 @@ export default function DataEntry() {
             </TabsContent>
 
             {/* Conversion Tab */}
-            <TabsContent value="conversion" className="space-y-5 mt-0 animate-fade-in">
+            <TabsContent value="conversion" className="space-y-5 mt-0 animate-fade-in-up" key={`conversion-${activeTab}`}>
               {existingConversion && !conversionEditingId && (
-                <Alert className="border-amber-500/50 bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20">
+                <Alert className="border-amber-500/50 bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20 animate-slide-in-right">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-amber-800 dark:text-amber-200">
                     <span className="font-semibold">Données existantes pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
                     <span className="ml-2 text-sm opacity-80">
                       ({existingConversion.visits.toLocaleString("fr-FR")} visites • {Number(existingConversion.overall_rate).toFixed(1)}%)
                     </span>
-                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700 hover:text-amber-900" onClick={() => handleEditConversion(existingConversion)}>
+                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700 hover:text-amber-900 hover:translate-x-1 transition-transform" onClick={() => handleEditConversion(existingConversion)}>
                       Modifier →
                     </Button>
                   </AlertDescription>
@@ -701,55 +705,55 @@ export default function DataEntry() {
                     <Eye className="h-4 w-4 text-primary" />
                     Nombre de visites
                   </Label>
-                  <Input type="number" value={visits} onChange={(e) => setVisits(e.target.value)} placeholder="Ex: 5000" className="h-11 text-lg font-medium" />
+                  <Input type="number" value={visits} onChange={(e) => setVisits(e.target.value)} placeholder="Ex: 5000" className="h-11 text-lg font-medium transition-all duration-200 focus:scale-[1.01] focus:shadow-md" />
                 </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <MousePointer className="h-4 w-4 text-stat-orders" />
                     Consultations du menu
                   </Label>
-                  <Input type="number" value={menuViews} onChange={(e) => setMenuViews(e.target.value)} placeholder="Ex: 3500" className="h-11 text-lg font-medium" />
+                  <Input type="number" value={menuViews} onChange={(e) => setMenuViews(e.target.value)} placeholder="Ex: 3500" className="h-11 text-lg font-medium transition-all duration-200 focus:scale-[1.01] focus:shadow-md" />
                 </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <ShoppingCart className="h-4 w-4 text-stat-basket" />
                     Ajouts au panier
                   </Label>
-                  <Input type="number" value={addToCart} onChange={(e) => setAddToCart(e.target.value)} placeholder="Ex: 800" className="h-11 text-lg font-medium" />
+                  <Input type="number" value={addToCart} onChange={(e) => setAddToCart(e.target.value)} placeholder="Ex: 800" className="h-11 text-lg font-medium transition-all duration-200 focus:scale-[1.01] focus:shadow-md" />
                 </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Receipt className="h-4 w-4 text-stat-conversion" />
                     Commandes passées
                   </Label>
-                  <Input type="number" value={orders} onChange={(e) => setOrders(e.target.value)} placeholder="Ex: 450" className="h-11 text-lg font-medium" />
+                  <Input type="number" value={orders} onChange={(e) => setOrders(e.target.value)} placeholder="Ex: 450" className="h-11 text-lg font-medium transition-all duration-200 focus:scale-[1.01] focus:shadow-md" />
                 </div>
               </div>
 
               {/* Conversion funnel preview */}
-              <div className="rounded-xl border border-stat-conversion/20 overflow-hidden">
+              <div className="rounded-xl border border-stat-conversion/20 overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-stat-conversion/10">
                 <div className="bg-gradient-to-r from-stat-conversion/10 to-stat-conversion/5 px-4 py-3 border-b border-stat-conversion/20">
                   <p className="text-sm font-semibold flex items-center gap-2 text-stat-conversion">
-                    <TrendingUp className="h-4 w-4" />
+                    <TrendingUp className="h-4 w-4 animate-bounce-soft" />
                     Entonnoir de conversion
                   </p>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border">
-                  <div className="bg-card p-4 text-center">
+                  <div className="bg-card p-4 text-center group transition-all duration-200 hover:bg-primary/5">
                     <p className="text-xs text-muted-foreground mb-1">Visites → Menu</p>
-                    <p className="text-xl font-bold text-primary">{viewRate}%</p>
+                    <p className="text-xl font-bold text-primary transition-transform group-hover:scale-110">{viewRate}%</p>
                   </div>
-                  <div className="bg-card p-4 text-center">
+                  <div className="bg-card p-4 text-center group transition-all duration-200 hover:bg-stat-orders/5">
                     <p className="text-xs text-muted-foreground mb-1">Menu → Panier</p>
-                    <p className="text-xl font-bold text-stat-orders">{cartRate}%</p>
+                    <p className="text-xl font-bold text-stat-orders transition-transform group-hover:scale-110">{cartRate}%</p>
                   </div>
-                  <div className="bg-card p-4 text-center">
+                  <div className="bg-card p-4 text-center group transition-all duration-200 hover:bg-stat-basket/5">
                     <p className="text-xs text-muted-foreground mb-1">Panier → Cmd</p>
-                    <p className="text-xl font-bold text-stat-basket">{conversionRate}%</p>
+                    <p className="text-xl font-bold text-stat-basket transition-transform group-hover:scale-110">{conversionRate}%</p>
                   </div>
-                  <div className="bg-gradient-to-br from-stat-conversion/10 to-stat-conversion/5 p-4 text-center">
+                  <div className="bg-gradient-to-br from-stat-conversion/10 to-stat-conversion/5 p-4 text-center group">
                     <p className="text-xs text-stat-conversion font-medium mb-1">Taux global</p>
-                    <p className="text-2xl font-bold text-stat-conversion">{overallRate}%</p>
+                    <p className="text-2xl font-bold text-stat-conversion transition-transform group-hover:scale-110">{overallRate}%</p>
                   </div>
                 </div>
               </div>
@@ -758,13 +762,17 @@ export default function DataEntry() {
                 <Button 
                   onClick={handleSaveConversion} 
                   disabled={!selectedRestaurant || conversionMutation.isPending} 
-                  className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-stat-conversion to-stat-conversion/80 hover:from-stat-conversion/90 hover:to-stat-conversion/70 shadow-lg shadow-stat-conversion/25"
+                  className="group flex-1 h-12 text-base font-semibold bg-gradient-to-r from-stat-conversion to-stat-conversion/80 hover:from-stat-conversion/90 hover:to-stat-conversion/70 shadow-lg shadow-stat-conversion/25 transition-all duration-300 hover:shadow-xl hover:shadow-stat-conversion/30 hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  {conversionMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
+                  {conversionMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  ) : (
+                    <Save className="h-5 w-5 mr-2 transition-transform group-hover:scale-110 group-hover:rotate-6" />
+                  )}
                   {conversionEditingId ? "Mettre à jour" : existingConversion ? "Remplacer" : "Enregistrer"}
                 </Button>
                 {conversionEditingId && (
-                  <Button variant="outline" onClick={resetConversionForm} className="h-12">
+                  <Button variant="outline" onClick={resetConversionForm} className="h-12 transition-all duration-200 hover:scale-105 active:scale-95">
                     Annuler
                   </Button>
                 )}
@@ -772,16 +780,16 @@ export default function DataEntry() {
             </TabsContent>
 
             {/* Fees Tab */}
-            <TabsContent value="fees" className="space-y-5 mt-0 animate-fade-in">
+            <TabsContent value="fees" className="space-y-5 mt-0 animate-fade-in-up" key={`fees-${activeTab}`}>
               {existingFees && !feesEditingId && (
-                <Alert className="border-amber-500/50 bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20">
+                <Alert className="border-amber-500/50 bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20 animate-slide-in-right">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-amber-800 dark:text-amber-200">
                     <span className="font-semibold">Données existantes pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
                     <span className="ml-2 text-sm opacity-80">
                       (Total: {(Number(existingFees.uber_fee) + Number(existingFees.marketing_fee) + Number(existingFees.offers_cost) + Number(existingFees.ads_cost)).toLocaleString("fr-FR")} €)
                     </span>
-                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700 hover:text-amber-900" onClick={() => handleEditFees(existingFees)}>
+                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700 hover:text-amber-900 hover:translate-x-1 transition-transform" onClick={() => handleEditFees(existingFees)}>
                       Modifier →
                     </Button>
                   </AlertDescription>
@@ -794,27 +802,27 @@ export default function DataEntry() {
                     <Receipt className="h-4 w-4 text-stat-fees" />
                     {commissionLabel} (€)
                   </Label>
-                  <Input type="number" step="0.01" value={uberFee} onChange={(e) => setUberFee(e.target.value)} placeholder="Ex: 4500" className="h-11 text-lg font-medium" />
+                  <Input type="number" step="0.01" value={uberFee} onChange={(e) => setUberFee(e.target.value)} placeholder="Ex: 4500" className="h-11 text-lg font-medium transition-all duration-200 focus:scale-[1.01] focus:shadow-md" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Frais marketing (€)</Label>
-                  <Input type="number" step="0.01" value={marketingFee} onChange={(e) => setMarketingFee(e.target.value)} placeholder="Ex: 200" className="h-11" />
+                  <Input type="number" step="0.01" value={marketingFee} onChange={(e) => setMarketingFee(e.target.value)} placeholder="Ex: 200" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Coût des offres (€)</Label>
-                  <Input type="number" step="0.01" value={offersCost} onChange={(e) => setOffersCost(e.target.value)} placeholder="Ex: 350" className="h-11" />
+                  <Input type="number" step="0.01" value={offersCost} onChange={(e) => setOffersCost(e.target.value)} placeholder="Ex: 350" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Publicité (€)</Label>
-                  <Input type="number" step="0.01" value={adsCost} onChange={(e) => setAdsCost(e.target.value)} placeholder="Ex: 150" className="h-11" />
+                  <Input type="number" step="0.01" value={adsCost} onChange={(e) => setAdsCost(e.target.value)} placeholder="Ex: 150" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Ajustements erreurs (€)</Label>
-                  <Input type="number" step="0.01" value={errorAdjustments} onChange={(e) => setErrorAdjustments(e.target.value)} placeholder="Ex: 50" className="h-11" />
+                  <Input type="number" step="0.01" value={errorAdjustments} onChange={(e) => setErrorAdjustments(e.target.value)} placeholder="Ex: 50" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Autres frais (€)</Label>
-                  <Input type="number" step="0.01" value={otherFees} onChange={(e) => setOtherFees(e.target.value)} placeholder="Ex: 25" className="h-11" />
+                  <Input type="number" step="0.01" value={otherFees} onChange={(e) => setOtherFees(e.target.value)} placeholder="Ex: 25" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
               </div>
 
@@ -824,26 +832,26 @@ export default function DataEntry() {
                     <Euro className="h-4 w-4 text-stat-payout" />
                     Versement net reçu (€)
                   </Label>
-                  <Input type="number" step="0.01" value={netPayout} onChange={(e) => setNetPayout(e.target.value)} placeholder="Ex: 9724.50" className="h-11 text-lg font-medium" />
+                  <Input type="number" step="0.01" value={netPayout} onChange={(e) => setNetPayout(e.target.value)} placeholder="Ex: 9724.50" className="h-11 text-lg font-medium transition-all duration-200 focus:scale-[1.01] focus:shadow-md" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Notes (optionnel)</Label>
-                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Remarques..." rows={1} />
+                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Remarques..." rows={1} className="transition-all duration-200 focus:scale-[1.01]" />
                 </div>
               </div>
 
               {/* Fees summary */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl p-4 bg-gradient-to-br from-stat-fees/10 to-stat-fees/5 border border-stat-fees/20">
+                <div className="group rounded-xl p-4 bg-gradient-to-br from-stat-fees/10 to-stat-fees/5 border border-stat-fees/20 transition-all duration-300 hover:shadow-lg hover:shadow-stat-fees/10 hover:-translate-y-1 hover:border-stat-fees/40 cursor-default">
                   <div className="flex items-center gap-2 text-stat-fees mb-1">
-                    <Calculator className="h-4 w-4" />
+                    <Calculator className="h-4 w-4 transition-transform group-hover:scale-110 group-hover:rotate-6" />
                     <span className="text-sm font-medium">Total frais</span>
                   </div>
-                  <p className="text-2xl font-bold text-foreground">{totalFees.toLocaleString("fr-FR")} €</p>
+                  <p className="text-2xl font-bold text-foreground transition-transform group-hover:scale-105">{totalFees.toLocaleString("fr-FR")} €</p>
                 </div>
-                <div className="rounded-xl p-4 bg-gradient-to-br from-stat-payout/10 to-stat-payout/5 border border-stat-payout/20">
+                <div className="group rounded-xl p-4 bg-gradient-to-br from-stat-payout/10 to-stat-payout/5 border border-stat-payout/20 transition-all duration-300 hover:shadow-lg hover:shadow-stat-payout/10 hover:-translate-y-1 hover:border-stat-payout/40 cursor-default">
                   <div className="flex items-center gap-2 text-stat-payout mb-1">
-                    <TrendingUp className="h-4 w-4" />
+                    <TrendingUp className="h-4 w-4 transition-transform group-hover:scale-110 group-hover:-rotate-6" />
                     <span className="text-sm font-medium">Versement net</span>
                   </div>
                   <p className="text-2xl font-bold text-foreground">{parseFloat(netPayout || "0").toLocaleString("fr-FR")} €</p>
@@ -854,13 +862,17 @@ export default function DataEntry() {
                 <Button 
                   onClick={handleSaveFees} 
                   disabled={!selectedRestaurant || feesMutation.isPending} 
-                  className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-stat-fees to-stat-fees/80 hover:from-stat-fees/90 hover:to-stat-fees/70 shadow-lg shadow-stat-fees/25"
+                  className="group flex-1 h-12 text-base font-semibold bg-gradient-to-r from-stat-fees to-stat-fees/80 hover:from-stat-fees/90 hover:to-stat-fees/70 shadow-lg shadow-stat-fees/25 transition-all duration-300 hover:shadow-xl hover:shadow-stat-fees/30 hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  {feesMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
+                  {feesMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  ) : (
+                    <Save className="h-5 w-5 mr-2 transition-transform group-hover:scale-110 group-hover:rotate-6" />
+                  )}
                   {feesEditingId ? "Mettre à jour" : existingFees ? "Remplacer" : "Enregistrer"}
                 </Button>
                 {feesEditingId && (
-                  <Button variant="outline" onClick={resetFeesForm} className="h-12">
+                  <Button variant="outline" onClick={resetFeesForm} className="h-12 transition-all duration-200 hover:scale-105 active:scale-95">
                     Annuler
                   </Button>
                 )}
@@ -871,14 +883,14 @@ export default function DataEntry() {
       </Card>
 
       {/* History Card */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden transition-all duration-300 hover:shadow-lg">
         <CardHeader className="bg-gradient-to-r from-muted/50 to-transparent border-b">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-3">
               <span>Historique</span>
               <Badge 
                 variant="secondary" 
-                className={`font-normal ${
+                className={`font-normal transition-all duration-300 ${
                   activeTab === "revenue" ? "bg-stat-revenue/15 text-stat-revenue" :
                   activeTab === "conversion" ? "bg-stat-conversion/15 text-stat-conversion" :
                   "bg-stat-fees/15 text-stat-fees"
@@ -887,7 +899,9 @@ export default function DataEntry() {
                 {activeTab === "revenue" ? "CA & Commandes" : activeTab === "conversion" ? "Conversion" : "Frais"}
               </Badge>
             </CardTitle>
-            {getPlatformBadge(selectedPlatform)}
+            <div className="transition-transform duration-200 hover:scale-105">
+              {getPlatformBadge(selectedPlatform)}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
