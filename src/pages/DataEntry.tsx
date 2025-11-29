@@ -120,6 +120,10 @@ export default function DataEntry() {
   const [showConversionConfirm, setShowConversionConfirm] = useState(false);
   const [showIntermediateRates, setShowIntermediateRates] = useState(false);
   
+  // Detail toggle states
+  const [showRevenueDetails, setShowRevenueDetails] = useState(false);
+  const [showFeesDetails, setShowFeesDetails] = useState(false);
+  
   // Fees state
   const [uberFee, setUberFee] = useState<string>("");
   const [marketingFee, setMarketingFee] = useState<string>("");
@@ -1009,6 +1013,19 @@ export default function DataEntry() {
               </Badge>
             </CardTitle>
             <div className="flex items-center gap-4">
+              {activeTab === "revenue" && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="show-revenue-details"
+                    checked={showRevenueDetails}
+                    onCheckedChange={setShowRevenueDetails}
+                    className="data-[state=checked]:bg-stat-revenue"
+                  />
+                  <Label htmlFor="show-revenue-details" className="text-xs text-muted-foreground cursor-pointer">
+                    Ratios détaillés
+                  </Label>
+                </div>
+              )}
               {activeTab === "conversion" && (
                 <div className="flex items-center gap-2">
                   <Switch
@@ -1019,6 +1036,19 @@ export default function DataEntry() {
                   />
                   <Label htmlFor="show-rates" className="text-xs text-muted-foreground cursor-pointer">
                     Taux détaillés
+                  </Label>
+                </div>
+              )}
+              {activeTab === "fees" && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="show-fees-details"
+                    checked={showFeesDetails}
+                    onCheckedChange={setShowFeesDetails}
+                    className="data-[state=checked]:bg-stat-fees"
+                  />
+                  <Label htmlFor="show-fees-details" className="text-xs text-muted-foreground cursor-pointer">
+                    % détaillés
                   </Label>
                 </div>
               )}
@@ -1051,32 +1081,68 @@ export default function DataEntry() {
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableHead className="font-semibold">Période</TableHead>
                       <TableHead className="text-right font-semibold">CA TTC</TableHead>
+                      {showRevenueDetails && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">÷Cmd</TableHead>
+                      )}
                       <TableHead className="text-right font-semibold">Cmd</TableHead>
+                      {showRevenueDetails && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">÷Jours</TableHead>
+                      )}
+                      <TableHead className="text-right font-semibold">Jours</TableHead>
+                      {showRevenueDetails && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">CA÷Jours</TableHead>
+                      )}
                       <TableHead className="text-right font-semibold">Panier</TableHead>
+                      <TableHead className="text-right font-semibold text-stat-revenue">CA/Jour</TableHead>
                       <TableHead className="w-20"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {revenueEntries?.map((entry, idx) => (
-                      <TableRow key={entry.id} className="group hover:bg-stat-revenue/5 transition-colors">
-                        <TableCell className="font-medium">{getMonthLabel(entry.month)} {entry.year}</TableCell>
-                        <TableCell className="text-right">
-                          <span className="font-semibold text-stat-revenue">{Number(entry.revenue_ttc).toLocaleString("fr-FR")} €</span>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">{entry.order_count}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">{Number(entry.average_basket).toFixed(2)} €</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditRevenue(entry)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteRevenueMutation.mutate(entry.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {revenueEntries?.map((entry) => {
+                      const caPerDay = entry.working_days && entry.working_days > 0 
+                        ? Number(entry.revenue_ttc) / entry.working_days : 0;
+                      const cmdPerDay = entry.working_days && entry.working_days > 0 
+                        ? entry.order_count / entry.working_days : 0;
+                      return (
+                        <TableRow key={entry.id} className="group hover:bg-stat-revenue/5 transition-colors">
+                          <TableCell className="font-medium">{getMonthLabel(entry.month)} {entry.year}</TableCell>
+                          <TableCell className="text-right">
+                            <span className="font-semibold text-stat-revenue">{Number(entry.revenue_ttc).toLocaleString("fr-FR")} €</span>
+                          </TableCell>
+                          {showRevenueDetails && (
+                            <TableCell className="text-center text-xs text-stat-revenue/70 bg-muted/10 border-x border-dashed border-border/30">
+                              {Number(entry.average_basket).toFixed(2)} €
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right font-medium">{entry.order_count}</TableCell>
+                          {showRevenueDetails && (
+                            <TableCell className="text-center text-xs text-stat-revenue/70 bg-muted/10 border-x border-dashed border-border/30">
+                              {cmdPerDay.toFixed(1)}/j
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right text-muted-foreground">{entry.working_days || "-"}</TableCell>
+                          {showRevenueDetails && (
+                            <TableCell className="text-center text-xs text-stat-revenue/70 bg-muted/10 border-x border-dashed border-border/30">
+                              {caPerDay.toFixed(0)} €
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right text-muted-foreground">{Number(entry.average_basket).toFixed(2)} €</TableCell>
+                          <TableCell className="text-right">
+                            <span className="font-semibold text-stat-revenue">{caPerDay > 0 ? caPerDay.toFixed(0) : "-"} €</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditRevenue(entry)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteRevenueMutation.mutate(entry.id)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -1172,37 +1238,113 @@ export default function DataEntry() {
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableHead className="font-semibold">Période</TableHead>
-                      <TableHead className="text-right font-semibold">Commission</TableHead>
+                      <TableHead className="text-right font-semibold">Frais</TableHead>
+                      {showFeesDetails && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">%</TableHead>
+                      )}
                       <TableHead className="text-right font-semibold">Marketing</TableHead>
-                      <TableHead className="text-right font-semibold">Net</TableHead>
+                      {showFeesDetails && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">%</TableHead>
+                      )}
+                      <TableHead className="text-right font-semibold">Offres</TableHead>
+                      {showFeesDetails && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">%</TableHead>
+                      )}
+                      <TableHead className="text-right font-semibold">Frais offre</TableHead>
+                      {showFeesDetails && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">%</TableHead>
+                      )}
+                      <TableHead className="text-right font-semibold">Pub</TableHead>
+                      {showFeesDetails && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">%</TableHead>
+                      )}
+                      <TableHead className="text-right font-semibold">Err. cmd</TableHead>
+                      {showFeesDetails && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">%</TableHead>
+                      )}
+                      <TableHead className="text-right font-semibold">Ajust.</TableHead>
+                      {showFeesDetails && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">%</TableHead>
+                      )}
+                      <TableHead className="text-right font-semibold">Eco</TableHead>
+                      <TableHead className="text-right font-semibold text-stat-fees">Total</TableHead>
+                      <TableHead className="text-right font-semibold text-stat-payout">Versement</TableHead>
                       <TableHead className="w-20"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {feesEntries?.map((entry) => (
-                      <TableRow key={entry.id} className="group hover:bg-stat-fees/5 transition-colors">
-                        <TableCell className="font-medium">{getMonthLabel(entry.month)} {entry.year}</TableCell>
-                        <TableCell className="text-right">
-                          <span className="font-semibold text-stat-fees">{Number(entry.uber_fee).toLocaleString("fr-FR")} €</span>
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {(Number(entry.marketing_fee) + Number(entry.offers_cost) + Number(entry.ads_cost)).toLocaleString("fr-FR")} €
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className="font-semibold text-stat-payout">{Number(entry.net_payout).toLocaleString("fr-FR")} €</span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditFees(entry)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteFeesMutation.mutate(entry.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {feesEntries?.map((entry) => {
+                      const total = Number(entry.uber_fee) + Number(entry.marketing_fee) + Number(entry.offers_cost) + 
+                        Number(entry.offer_usage_fee || 0) + Number(entry.ads_cost) + Number(entry.order_error || 0) + 
+                        Number(entry.error_adjustments) + Number(entry.eco_contribution);
+                      const pct = (val: number) => total > 0 ? ((val / total) * 100).toFixed(0) : "0";
+                      return (
+                        <TableRow key={entry.id} className="group hover:bg-stat-fees/5 transition-colors">
+                          <TableCell className="font-medium whitespace-nowrap">{getMonthLabel(entry.month)} {entry.year}</TableCell>
+                          <TableCell className="text-right">
+                            <span className="font-semibold text-stat-fees">{Number(entry.uber_fee).toLocaleString("fr-FR")} €</span>
+                          </TableCell>
+                          {showFeesDetails && (
+                            <TableCell className="text-center text-xs text-stat-fees/70 bg-muted/10 border-x border-dashed border-border/30">
+                              {pct(Number(entry.uber_fee))}%
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right text-muted-foreground">{Number(entry.marketing_fee).toLocaleString("fr-FR")} €</TableCell>
+                          {showFeesDetails && (
+                            <TableCell className="text-center text-xs text-stat-fees/70 bg-muted/10 border-x border-dashed border-border/30">
+                              {pct(Number(entry.marketing_fee))}%
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right text-muted-foreground">{Number(entry.offers_cost).toLocaleString("fr-FR")} €</TableCell>
+                          {showFeesDetails && (
+                            <TableCell className="text-center text-xs text-stat-fees/70 bg-muted/10 border-x border-dashed border-border/30">
+                              {pct(Number(entry.offers_cost))}%
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right text-muted-foreground">{Number(entry.offer_usage_fee || 0).toLocaleString("fr-FR")} €</TableCell>
+                          {showFeesDetails && (
+                            <TableCell className="text-center text-xs text-stat-fees/70 bg-muted/10 border-x border-dashed border-border/30">
+                              {pct(Number(entry.offer_usage_fee || 0))}%
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right text-muted-foreground">{Number(entry.ads_cost).toLocaleString("fr-FR")} €</TableCell>
+                          {showFeesDetails && (
+                            <TableCell className="text-center text-xs text-stat-fees/70 bg-muted/10 border-x border-dashed border-border/30">
+                              {pct(Number(entry.ads_cost))}%
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right text-muted-foreground">{Number(entry.order_error || 0).toLocaleString("fr-FR")} €</TableCell>
+                          {showFeesDetails && (
+                            <TableCell className="text-center text-xs text-stat-fees/70 bg-muted/10 border-x border-dashed border-border/30">
+                              {pct(Number(entry.order_error || 0))}%
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right text-muted-foreground">{Number(entry.error_adjustments).toLocaleString("fr-FR")} €</TableCell>
+                          {showFeesDetails && (
+                            <TableCell className="text-center text-xs text-stat-fees/70 bg-muted/10 border-x border-dashed border-border/30">
+                              {pct(Number(entry.error_adjustments))}%
+                            </TableCell>
+                          )}
+                          <TableCell className="text-right text-muted-foreground">{Number(entry.eco_contribution).toLocaleString("fr-FR")} €</TableCell>
+                          <TableCell className="text-right">
+                            <span className="font-semibold text-stat-fees">{total.toLocaleString("fr-FR")} €</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className="font-semibold text-stat-payout">{Number(entry.net_payout).toLocaleString("fr-FR")} €</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditFees(entry)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteFeesMutation.mutate(entry.id)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
