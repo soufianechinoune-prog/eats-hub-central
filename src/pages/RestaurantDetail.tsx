@@ -7,8 +7,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { PhoneInput } from "@/components/ui/phone-input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   ArrowLeft,
   Building2,
@@ -24,6 +36,7 @@ import {
   Phone,
   Mail,
   MessageCircle,
+  Trash2,
 } from "lucide-react";
 
 const RestaurantDetail = () => {
@@ -53,7 +66,7 @@ const RestaurantDetail = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (updates: Record<string, string | null>) => {
+    mutationFn: async (updates: Record<string, string | null | boolean>) => {
       const { error } = await supabase
         .from("restaurants")
         .update(updates)
@@ -69,6 +82,47 @@ const RestaurantDetail = () => {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Impossible de mettre à jour", variant: "destructive" });
+    },
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async (isActive: boolean) => {
+      const { error } = await supabase
+        .from("restaurants")
+        .update({ is_active: isActive })
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, isActive) => {
+      queryClient.invalidateQueries({ queryKey: ["restaurant", id] });
+      queryClient.invalidateQueries({ queryKey: ["restaurants"] });
+      toast({ 
+        title: "Succès", 
+        description: isActive ? "Restaurant activé" : "Restaurant désactivé" 
+      });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de modifier le statut", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("restaurants")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["restaurants"] });
+      toast({ title: "Succès", description: "Restaurant supprimé" });
+      navigate("/restaurants");
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de supprimer le restaurant", variant: "destructive" });
     },
   });
 
@@ -233,24 +287,65 @@ const RestaurantDetail = () => {
             <p className="text-muted-foreground">{restaurant.city}</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          {isEditing ? (
-            <>
-              <Button variant="outline" onClick={handleCancel}>
-                <X className="mr-2 h-4 w-4" />
-                Annuler
-              </Button>
-              <Button onClick={handleSave} disabled={updateMutation.isPending}>
-                <Save className="mr-2 h-4 w-4" />
-                Enregistrer
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" onClick={handleEdit}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Modifier
-            </Button>
-          )}
+        <div className="flex items-center gap-4">
+          {/* Toggle Active Status */}
+          <div className="flex items-center gap-2">
+            <Label htmlFor="active-toggle" className="text-sm text-muted-foreground">
+              {restaurant.is_active ? "Actif" : "Inactif"}
+            </Label>
+            <Switch
+              id="active-toggle"
+              checked={restaurant.is_active ?? false}
+              onCheckedChange={(checked) => toggleActiveMutation.mutate(checked)}
+              disabled={toggleActiveMutation.isPending}
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            {isEditing ? (
+              <>
+                <Button variant="outline" onClick={handleCancel}>
+                  <X className="mr-2 h-4 w-4" />
+                  Annuler
+                </Button>
+                <Button onClick={handleSave} disabled={updateMutation.isPending}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Enregistrer
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={handleEdit}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Modifier
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="icon">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Supprimer ce restaurant ?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Cette action est irréversible. Toutes les données associées à ce restaurant seront définitivement supprimées.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Annuler</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteMutation.mutate()}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Supprimer
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
