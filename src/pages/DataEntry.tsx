@@ -67,7 +67,7 @@ const PLATFORMS = [
     label: "Uber Eats", 
     Logo: UberEatsLogo,
     bgClass: "bg-uber/10 hover:bg-uber/20 border-uber/30",
-    activeClass: "bg-uber text-white shadow-lg shadow-uber/30",
+    activeClass: "bg-uber text-white shadow-lg shadow-uber/30 ring-uber/50",
     cardClass: "border-uber/40 shadow-[0_0_30px_-10px_hsl(var(--uber)/0.3)]",
     indicatorClass: "bg-gradient-to-r from-uber to-uber/70",
     badgeClass: "bg-uber/15 text-uber border-uber/30",
@@ -77,7 +77,7 @@ const PLATFORMS = [
     label: "Deliveroo", 
     Logo: DeliverooLogo,
     bgClass: "bg-deliveroo/10 hover:bg-deliveroo/20 border-deliveroo/30",
-    activeClass: "bg-deliveroo text-white shadow-lg shadow-deliveroo/30",
+    activeClass: "bg-deliveroo text-white shadow-lg shadow-deliveroo/30 ring-deliveroo/50",
     cardClass: "border-deliveroo/40 shadow-[0_0_30px_-10px_hsl(var(--deliveroo)/0.3)]",
     indicatorClass: "bg-gradient-to-r from-deliveroo to-deliveroo/70",
     badgeClass: "bg-deliveroo/15 text-deliveroo border-deliveroo/30",
@@ -504,22 +504,23 @@ export default function DataEntry() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 md:col-span-1 col-span-2">
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plateforme</Label>
-                <div className="flex gap-1.5">
+                <div className="flex gap-2">
                   {PLATFORMS.map((p) => (
                     <Button
                       key={p.value}
                       type="button"
                       variant="outline"
-                      className={`flex-1 h-10 transition-all duration-300 hover:scale-105 active:scale-95 ${
+                      className={`flex-1 h-14 flex-col gap-1 transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] ${
                         selectedPlatform === p.value 
-                          ? `${p.activeClass} animate-scale-in`
+                          ? `${p.activeClass} animate-scale-in ring-2 ring-offset-2 ring-offset-background`
                           : `${p.bgClass} hover:-translate-y-0.5`
                       }`}
                       onClick={() => setSelectedPlatform(p.value)}
                     >
-                      <p.Logo size={18} className="transition-transform group-hover:scale-110" />
+                      <p.Logo size={24} className="transition-transform" />
+                      <span className="text-xs font-medium">{p.label}</span>
                     </Button>
                   ))}
                 </div>
