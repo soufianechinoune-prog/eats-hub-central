@@ -100,15 +100,16 @@ export default function DataEntryConversion() {
     },
   });
 
-  // Fetch existing entries
+  // Fetch existing entries for selected restaurant and platform
   const { data: entries, isLoading: loadingEntries } = useQuery({
-    queryKey: ["monthly_conversion", selectedRestaurant],
+    queryKey: ["monthly_conversion", selectedRestaurant, selectedPlatform],
     queryFn: async () => {
       if (!selectedRestaurant) return [];
       const { data, error } = await supabase
         .from("monthly_conversion")
         .select("*")
         .eq("restaurant_id", selectedRestaurant)
+        .eq("platform", selectedPlatform)
         .order("year", { ascending: false })
         .order("month", { ascending: false });
       if (error) throw error;
@@ -418,7 +419,18 @@ export default function DataEntryConversion() {
         {/* History Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Historique des saisies</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Historique des saisies</CardTitle>
+              {(() => {
+                const platform = PLATFORMS.find(p => p.value === selectedPlatform);
+                return platform ? (
+                  <Badge className={`${platform.color} flex items-center gap-1.5`}>
+                    <platform.Logo size={14} />
+                    {platform.label}
+                  </Badge>
+                ) : null;
+              })()}
+            </div>
           </CardHeader>
           <CardContent>
             {!selectedRestaurant ? (
