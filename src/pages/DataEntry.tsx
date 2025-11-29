@@ -38,7 +38,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { 
   Loader2, Save, Pencil, Trash2, ArrowLeft, AlertTriangle,
-  TrendingUp, Calculator, Euro, BarChart3, Receipt
+  TrendingUp, Calculator, Euro, BarChart3, Receipt, 
+  ShoppingCart, Eye, MousePointer, Sparkles, Calendar
 } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 
@@ -64,18 +65,22 @@ const PLATFORMS = [
   { 
     value: "uber_eats", 
     label: "Uber Eats", 
-    color: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30", 
-    cardStyle: "border-green-500 bg-green-50/50 dark:bg-green-950/20",
-    indicatorStyle: "bg-green-500",
-    Logo: UberEatsLogo 
+    Logo: UberEatsLogo,
+    bgClass: "bg-uber/10 hover:bg-uber/20 border-uber/30",
+    activeClass: "bg-uber text-white shadow-lg shadow-uber/30",
+    cardClass: "border-uber/40 shadow-[0_0_30px_-10px_hsl(var(--uber)/0.3)]",
+    indicatorClass: "bg-gradient-to-r from-uber to-uber/70",
+    badgeClass: "bg-uber/15 text-uber border-uber/30",
   },
   { 
     value: "deliveroo", 
     label: "Deliveroo", 
-    color: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30", 
-    cardStyle: "border-cyan-500 bg-cyan-50/50 dark:bg-cyan-950/20",
-    indicatorStyle: "bg-cyan-500",
-    Logo: DeliverooLogo 
+    Logo: DeliverooLogo,
+    bgClass: "bg-deliveroo/10 hover:bg-deliveroo/20 border-deliveroo/30",
+    activeClass: "bg-deliveroo text-white shadow-lg shadow-deliveroo/30",
+    cardClass: "border-deliveroo/40 shadow-[0_0_30px_-10px_hsl(var(--deliveroo)/0.3)]",
+    indicatorClass: "bg-gradient-to-r from-deliveroo to-deliveroo/70",
+    badgeClass: "bg-deliveroo/15 text-deliveroo border-deliveroo/30",
   },
 ];
 
@@ -437,7 +442,7 @@ export default function DataEntry() {
   const getPlatformBadge = (platform: string) => {
     const p = PLATFORMS.find(pl => pl.value === platform);
     return p ? (
-      <Badge className={`${p.color} flex items-center gap-1.5`}>
+      <Badge className={`${p.badgeClass} flex items-center gap-1.5 border`}>
         <p.Logo size={14} />
         {p.label}
       </Badge>
@@ -447,32 +452,46 @@ export default function DataEntry() {
   const selectedRestaurantName = restaurants?.find(r => r.id === selectedRestaurant)?.name;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        {restaurantFromUrl && (
-          <Button variant="ghost" size="icon" onClick={() => navigate(`/restaurants/${restaurantFromUrl}`)}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        )}
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold text-foreground">Saisie des données mensuelles</h1>
-          <p className="text-muted-foreground mt-1">
-            CA, conversion et frais pour {selectedRestaurantName || "votre restaurant"}
-          </p>
+    <div className="space-y-6 animate-fade-in">
+      {/* Header with gradient background */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 border border-primary/20">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="relative flex items-center gap-4">
+          {restaurantFromUrl && (
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => navigate(`/restaurants/${restaurantFromUrl}`)}
+              className="shrink-0 bg-card/80 backdrop-blur-sm hover:bg-card"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Saisie des données mensuelles</h1>
+            </div>
+            <p className="text-muted-foreground">
+              CA, conversion et frais pour <span className="font-medium text-foreground">{selectedRestaurantName || "votre restaurant"}</span>
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Shared Period Selection */}
-      <Card className={`transition-all duration-300 border-2 ${selectedPlatformConfig?.cardStyle}`}>
-        <CardHeader className="relative pb-4">
-          <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-lg ${selectedPlatformConfig?.indicatorStyle}`} />
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Main Form Card */}
+      <Card className={`transition-all duration-500 border-2 overflow-hidden ${selectedPlatformConfig?.cardClass}`}>
+        {/* Platform indicator bar */}
+        <div className={`h-1.5 ${selectedPlatformConfig?.indicatorClass}`} />
+        
+        <CardHeader className="pb-4">
+          <div className="flex flex-col gap-4">
+            {/* Period selection row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Restaurant</Label>
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Restaurant</Label>
                 <Select value={selectedRestaurant} onValueChange={setSelectedRestaurant} disabled={!!restaurantFromUrl}>
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger className="h-10 bg-card">
                     <SelectValue placeholder="Sélectionner" />
                   </SelectTrigger>
                   <SelectContent>
@@ -486,27 +505,33 @@ export default function DataEntry() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Plateforme</Label>
-                <div className="flex gap-1">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plateforme</Label>
+                <div className="flex gap-1.5">
                   {PLATFORMS.map((p) => (
                     <Button
                       key={p.value}
                       type="button"
-                      size="sm"
-                      variant={selectedPlatform === p.value ? "default" : "outline"}
-                      className="flex-1 h-9"
+                      variant="outline"
+                      className={`flex-1 h-10 transition-all duration-300 ${
+                        selectedPlatform === p.value 
+                          ? p.activeClass
+                          : p.bgClass
+                      }`}
                       onClick={() => setSelectedPlatform(p.value)}
                     >
-                      <p.Logo size={16} />
+                      <p.Logo size={18} />
                     </Button>
                   ))}
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Année</Label>
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  Année
+                </Label>
                 <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger className="h-10 bg-card">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -518,9 +543,9 @@ export default function DataEntry() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Mois</Label>
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Mois</Label>
                 <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger className="h-10 bg-card">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -536,36 +561,45 @@ export default function DataEntry() {
 
         <CardContent className="pt-0">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-6">
-              <TabsTrigger value="revenue" className="flex items-center gap-2">
+            <TabsList className="grid w-full grid-cols-3 mb-6 h-12 p-1 bg-muted/50">
+              <TabsTrigger 
+                value="revenue" 
+                className="flex items-center gap-2 data-[state=active]:bg-stat-revenue data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300"
+              >
                 <Euro className="h-4 w-4" />
-                <span className="hidden sm:inline">CA & Commandes</span>
-                <span className="sm:hidden">CA</span>
+                <span className="hidden sm:inline font-medium">CA & Commandes</span>
+                <span className="sm:hidden font-medium">CA</span>
               </TabsTrigger>
-              <TabsTrigger value="conversion" className="flex items-center gap-2">
+              <TabsTrigger 
+                value="conversion" 
+                className="flex items-center gap-2 data-[state=active]:bg-stat-conversion data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300"
+              >
                 <BarChart3 className="h-4 w-4" />
-                <span className="hidden sm:inline">Conversion</span>
-                <span className="sm:hidden">Conv.</span>
+                <span className="hidden sm:inline font-medium">Conversion</span>
+                <span className="sm:hidden font-medium">Conv.</span>
               </TabsTrigger>
-              <TabsTrigger value="fees" className="flex items-center gap-2">
+              <TabsTrigger 
+                value="fees" 
+                className="flex items-center gap-2 data-[state=active]:bg-stat-fees data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300"
+              >
                 <Receipt className="h-4 w-4" />
-                <span className="hidden sm:inline">Frais & Marketing</span>
-                <span className="sm:hidden">Frais</span>
+                <span className="hidden sm:inline font-medium">Frais & Marketing</span>
+                <span className="sm:hidden font-medium">Frais</span>
               </TabsTrigger>
             </TabsList>
 
             {/* Revenue Tab */}
-            <TabsContent value="revenue" className="space-y-4 mt-0">
+            <TabsContent value="revenue" className="space-y-5 mt-0 animate-fade-in">
               {existingRevenue && !revenueEditingId && (
-                <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+                <Alert className="border-amber-500/50 bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-amber-800 dark:text-amber-200">
-                    <span className="font-medium">Données existantes pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
-                    <span className="ml-2 text-sm">
+                    <span className="font-semibold">Données existantes pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
+                    <span className="ml-2 text-sm opacity-80">
                       ({Number(existingRevenue.revenue_ttc).toLocaleString("fr-FR")} € • {existingRevenue.order_count} cmd)
                     </span>
-                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700" onClick={() => handleEditRevenue(existingRevenue)}>
-                      Modifier
+                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700 hover:text-amber-900" onClick={() => handleEditRevenue(existingRevenue)}>
+                      Modifier →
                     </Button>
                   </AlertDescription>
                 </Alert>
@@ -573,49 +607,89 @@ export default function DataEntry() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>CA TTC (€)</Label>
-                  <Input type="number" step="0.01" value={revenueTtc} onChange={(e) => setRevenueTtc(e.target.value)} placeholder="Ex: 15000.50" />
+                  <Label className="flex items-center gap-2">
+                    <Euro className="h-4 w-4 text-stat-revenue" />
+                    CA TTC (€)
+                  </Label>
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    value={revenueTtc} 
+                    onChange={(e) => setRevenueTtc(e.target.value)} 
+                    placeholder="Ex: 15000.50"
+                    className="h-11 text-lg font-medium"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label>Nombre de commandes</Label>
-                  <Input type="number" value={orderCount} onChange={(e) => setOrderCount(e.target.value)} placeholder="Ex: 450" />
+                  <Label className="flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4 text-stat-orders" />
+                    Nombre de commandes
+                  </Label>
+                  <Input 
+                    type="number" 
+                    value={orderCount} 
+                    onChange={(e) => setOrderCount(e.target.value)} 
+                    placeholder="Ex: 450"
+                    className="h-11 text-lg font-medium"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label>Jours ouvrés (optionnel)</Label>
-                  <Input type="number" value={workingDays} onChange={(e) => setWorkingDays(e.target.value)} placeholder="Ex: 30" />
+                  <Label className="text-muted-foreground">Jours ouvrés (optionnel)</Label>
+                  <Input type="number" value={workingDays} onChange={(e) => setWorkingDays(e.target.value)} placeholder="Ex: 30" className="h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Panier moyen (€) - optionnel</Label>
-                  <Input type="number" step="0.01" value={averageBasket} onChange={(e) => setAverageBasket(e.target.value)} placeholder={`Auto: ${calculatedBasket} €`} />
+                  <Label className="text-muted-foreground">Panier moyen (€) - optionnel</Label>
+                  <Input type="number" step="0.01" value={averageBasket} onChange={(e) => setAverageBasket(e.target.value)} placeholder={`Auto: ${calculatedBasket} €`} className="h-11" />
                 </div>
               </div>
 
-              <div className="bg-muted/50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div><span className="text-muted-foreground">Panier moyen :</span> <span className="font-medium">{previewBasket} €</span></div>
-                <div><span className="text-muted-foreground">CA/jour :</span> <span className="font-medium">{previewPerDay} €</span></div>
+              {/* Colorful stats preview */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl p-4 bg-gradient-to-br from-stat-basket/10 to-stat-basket/5 border border-stat-basket/20">
+                  <div className="flex items-center gap-2 text-stat-basket mb-1">
+                    <ShoppingCart className="h-4 w-4" />
+                    <span className="text-sm font-medium">Panier moyen</span>
+                  </div>
+                  <p className="text-2xl font-bold text-foreground">{previewBasket} €</p>
+                </div>
+                <div className="rounded-xl p-4 bg-gradient-to-br from-stat-revenue/10 to-stat-revenue/5 border border-stat-revenue/20">
+                  <div className="flex items-center gap-2 text-stat-revenue mb-1">
+                    <TrendingUp className="h-4 w-4" />
+                    <span className="text-sm font-medium">CA / jour</span>
+                  </div>
+                  <p className="text-2xl font-bold text-foreground">{previewPerDay} €</p>
+                </div>
               </div>
 
-              <div className="flex gap-2">
-                <Button onClick={handleSaveRevenue} disabled={!selectedRestaurant || revenueMutation.isPending} className="flex-1">
-                  {revenueMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              <div className="flex gap-2 pt-2">
+                <Button 
+                  onClick={handleSaveRevenue} 
+                  disabled={!selectedRestaurant || revenueMutation.isPending} 
+                  className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-stat-revenue to-stat-revenue/80 hover:from-stat-revenue/90 hover:to-stat-revenue/70 shadow-lg shadow-stat-revenue/25"
+                >
+                  {revenueMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
                   {revenueEditingId ? "Mettre à jour" : existingRevenue ? "Remplacer" : "Enregistrer"}
                 </Button>
-                {revenueEditingId && <Button variant="outline" onClick={resetRevenueForm}>Annuler</Button>}
+                {revenueEditingId && (
+                  <Button variant="outline" onClick={resetRevenueForm} className="h-12">
+                    Annuler
+                  </Button>
+                )}
               </div>
             </TabsContent>
 
             {/* Conversion Tab */}
-            <TabsContent value="conversion" className="space-y-4 mt-0">
+            <TabsContent value="conversion" className="space-y-5 mt-0 animate-fade-in">
               {existingConversion && !conversionEditingId && (
-                <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+                <Alert className="border-amber-500/50 bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-amber-800 dark:text-amber-200">
-                    <span className="font-medium">Données existantes pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
-                    <span className="ml-2 text-sm">
+                    <span className="font-semibold">Données existantes pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
+                    <span className="ml-2 text-sm opacity-80">
                       ({existingConversion.visits.toLocaleString("fr-FR")} visites • {Number(existingConversion.overall_rate).toFixed(1)}%)
                     </span>
-                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700" onClick={() => handleEditConversion(existingConversion)}>
-                      Modifier
+                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700 hover:text-amber-900" onClick={() => handleEditConversion(existingConversion)}>
+                      Modifier →
                     </Button>
                   </AlertDescription>
                 </Alert>
@@ -623,54 +697,92 @@ export default function DataEntry() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Nombre de visites</Label>
-                  <Input type="number" value={visits} onChange={(e) => setVisits(e.target.value)} placeholder="Ex: 5000" />
+                  <Label className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-primary" />
+                    Nombre de visites
+                  </Label>
+                  <Input type="number" value={visits} onChange={(e) => setVisits(e.target.value)} placeholder="Ex: 5000" className="h-11 text-lg font-medium" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Consultations du menu</Label>
-                  <Input type="number" value={menuViews} onChange={(e) => setMenuViews(e.target.value)} placeholder="Ex: 3500" />
+                  <Label className="flex items-center gap-2">
+                    <MousePointer className="h-4 w-4 text-stat-orders" />
+                    Consultations du menu
+                  </Label>
+                  <Input type="number" value={menuViews} onChange={(e) => setMenuViews(e.target.value)} placeholder="Ex: 3500" className="h-11 text-lg font-medium" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Ajouts au panier</Label>
-                  <Input type="number" value={addToCart} onChange={(e) => setAddToCart(e.target.value)} placeholder="Ex: 800" />
+                  <Label className="flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4 text-stat-basket" />
+                    Ajouts au panier
+                  </Label>
+                  <Input type="number" value={addToCart} onChange={(e) => setAddToCart(e.target.value)} placeholder="Ex: 800" className="h-11 text-lg font-medium" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Commandes passées</Label>
-                  <Input type="number" value={orders} onChange={(e) => setOrders(e.target.value)} placeholder="Ex: 450" />
+                  <Label className="flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-stat-conversion" />
+                    Commandes passées
+                  </Label>
+                  <Input type="number" value={orders} onChange={(e) => setOrders(e.target.value)} placeholder="Ex: 450" className="h-11 text-lg font-medium" />
                 </div>
               </div>
 
-              <div className="bg-muted/50 rounded-lg p-4">
-                <p className="text-sm font-medium flex items-center gap-2 mb-3"><TrendingUp className="h-4 w-4" /> Taux de conversion</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div><span className="text-muted-foreground">Visites → Menu :</span> <span className="font-medium">{viewRate}%</span></div>
-                  <div><span className="text-muted-foreground">Menu → Panier :</span> <span className="font-medium">{cartRate}%</span></div>
-                  <div><span className="text-muted-foreground">Panier → Cmd :</span> <span className="font-medium">{conversionRate}%</span></div>
-                  <div><span className="text-muted-foreground font-medium">Global :</span> <span className="font-bold text-primary">{overallRate}%</span></div>
+              {/* Conversion funnel preview */}
+              <div className="rounded-xl border border-stat-conversion/20 overflow-hidden">
+                <div className="bg-gradient-to-r from-stat-conversion/10 to-stat-conversion/5 px-4 py-3 border-b border-stat-conversion/20">
+                  <p className="text-sm font-semibold flex items-center gap-2 text-stat-conversion">
+                    <TrendingUp className="h-4 w-4" />
+                    Entonnoir de conversion
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border">
+                  <div className="bg-card p-4 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Visites → Menu</p>
+                    <p className="text-xl font-bold text-primary">{viewRate}%</p>
+                  </div>
+                  <div className="bg-card p-4 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Menu → Panier</p>
+                    <p className="text-xl font-bold text-stat-orders">{cartRate}%</p>
+                  </div>
+                  <div className="bg-card p-4 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Panier → Cmd</p>
+                    <p className="text-xl font-bold text-stat-basket">{conversionRate}%</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-stat-conversion/10 to-stat-conversion/5 p-4 text-center">
+                    <p className="text-xs text-stat-conversion font-medium mb-1">Taux global</p>
+                    <p className="text-2xl font-bold text-stat-conversion">{overallRate}%</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Button onClick={handleSaveConversion} disabled={!selectedRestaurant || conversionMutation.isPending} className="flex-1">
-                  {conversionMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              <div className="flex gap-2 pt-2">
+                <Button 
+                  onClick={handleSaveConversion} 
+                  disabled={!selectedRestaurant || conversionMutation.isPending} 
+                  className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-stat-conversion to-stat-conversion/80 hover:from-stat-conversion/90 hover:to-stat-conversion/70 shadow-lg shadow-stat-conversion/25"
+                >
+                  {conversionMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
                   {conversionEditingId ? "Mettre à jour" : existingConversion ? "Remplacer" : "Enregistrer"}
                 </Button>
-                {conversionEditingId && <Button variant="outline" onClick={resetConversionForm}>Annuler</Button>}
+                {conversionEditingId && (
+                  <Button variant="outline" onClick={resetConversionForm} className="h-12">
+                    Annuler
+                  </Button>
+                )}
               </div>
             </TabsContent>
 
             {/* Fees Tab */}
-            <TabsContent value="fees" className="space-y-4 mt-0">
+            <TabsContent value="fees" className="space-y-5 mt-0 animate-fade-in">
               {existingFees && !feesEditingId && (
-                <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+                <Alert className="border-amber-500/50 bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-amber-800 dark:text-amber-200">
-                    <span className="font-medium">Données existantes pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
-                    <span className="ml-2 text-sm">
+                    <span className="font-semibold">Données existantes pour {getMonthLabel(selectedMonth)} {selectedYear}</span>
+                    <span className="ml-2 text-sm opacity-80">
                       (Total: {(Number(existingFees.uber_fee) + Number(existingFees.marketing_fee) + Number(existingFees.offers_cost) + Number(existingFees.ads_cost)).toLocaleString("fr-FR")} €)
                     </span>
-                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700" onClick={() => handleEditFees(existingFees)}>
-                      Modifier
+                    <Button variant="link" size="sm" className="h-auto p-0 ml-2 text-amber-700 hover:text-amber-900" onClick={() => handleEditFees(existingFees)}>
+                      Modifier →
                     </Button>
                   </AlertDescription>
                 </Alert>
@@ -678,55 +790,80 @@ export default function DataEntry() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>{commissionLabel} (€)</Label>
-                  <Input type="number" step="0.01" value={uberFee} onChange={(e) => setUberFee(e.target.value)} placeholder="Ex: 4500" />
+                  <Label className="flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-stat-fees" />
+                    {commissionLabel} (€)
+                  </Label>
+                  <Input type="number" step="0.01" value={uberFee} onChange={(e) => setUberFee(e.target.value)} placeholder="Ex: 4500" className="h-11 text-lg font-medium" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Frais marketing (€)</Label>
-                  <Input type="number" step="0.01" value={marketingFee} onChange={(e) => setMarketingFee(e.target.value)} placeholder="Ex: 200" />
+                  <Label className="text-muted-foreground">Frais marketing (€)</Label>
+                  <Input type="number" step="0.01" value={marketingFee} onChange={(e) => setMarketingFee(e.target.value)} placeholder="Ex: 200" className="h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Coût des offres (€)</Label>
-                  <Input type="number" step="0.01" value={offersCost} onChange={(e) => setOffersCost(e.target.value)} placeholder="Ex: 350" />
+                  <Label className="text-muted-foreground">Coût des offres (€)</Label>
+                  <Input type="number" step="0.01" value={offersCost} onChange={(e) => setOffersCost(e.target.value)} placeholder="Ex: 350" className="h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Publicité (€)</Label>
-                  <Input type="number" step="0.01" value={adsCost} onChange={(e) => setAdsCost(e.target.value)} placeholder="Ex: 150" />
+                  <Label className="text-muted-foreground">Publicité (€)</Label>
+                  <Input type="number" step="0.01" value={adsCost} onChange={(e) => setAdsCost(e.target.value)} placeholder="Ex: 150" className="h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Ajustements erreurs (€)</Label>
-                  <Input type="number" step="0.01" value={errorAdjustments} onChange={(e) => setErrorAdjustments(e.target.value)} placeholder="Ex: 50" />
+                  <Label className="text-muted-foreground">Ajustements erreurs (€)</Label>
+                  <Input type="number" step="0.01" value={errorAdjustments} onChange={(e) => setErrorAdjustments(e.target.value)} placeholder="Ex: 50" className="h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Autres frais (€)</Label>
-                  <Input type="number" step="0.01" value={otherFees} onChange={(e) => setOtherFees(e.target.value)} placeholder="Ex: 25" />
+                  <Label className="text-muted-foreground">Autres frais (€)</Label>
+                  <Input type="number" step="0.01" value={otherFees} onChange={(e) => setOtherFees(e.target.value)} placeholder="Ex: 25" className="h-11" />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Versement net reçu (€)</Label>
-                  <Input type="number" step="0.01" value={netPayout} onChange={(e) => setNetPayout(e.target.value)} placeholder="Ex: 9724.50" />
+                  <Label className="flex items-center gap-2">
+                    <Euro className="h-4 w-4 text-stat-payout" />
+                    Versement net reçu (€)
+                  </Label>
+                  <Input type="number" step="0.01" value={netPayout} onChange={(e) => setNetPayout(e.target.value)} placeholder="Ex: 9724.50" className="h-11 text-lg font-medium" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Notes (optionnel)</Label>
+                  <Label className="text-muted-foreground">Notes (optionnel)</Label>
                   <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Remarques..." rows={1} />
                 </div>
               </div>
 
-              <div className="bg-muted/50 rounded-lg p-4">
-                <p className="text-sm font-medium flex items-center gap-2 mb-2"><Calculator className="h-4 w-4" /> Récapitulatif</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div><span className="text-muted-foreground">Total frais :</span> <span className="font-bold text-primary">{totalFees.toLocaleString("fr-FR")} €</span></div>
+              {/* Fees summary */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl p-4 bg-gradient-to-br from-stat-fees/10 to-stat-fees/5 border border-stat-fees/20">
+                  <div className="flex items-center gap-2 text-stat-fees mb-1">
+                    <Calculator className="h-4 w-4" />
+                    <span className="text-sm font-medium">Total frais</span>
+                  </div>
+                  <p className="text-2xl font-bold text-foreground">{totalFees.toLocaleString("fr-FR")} €</p>
+                </div>
+                <div className="rounded-xl p-4 bg-gradient-to-br from-stat-payout/10 to-stat-payout/5 border border-stat-payout/20">
+                  <div className="flex items-center gap-2 text-stat-payout mb-1">
+                    <TrendingUp className="h-4 w-4" />
+                    <span className="text-sm font-medium">Versement net</span>
+                  </div>
+                  <p className="text-2xl font-bold text-foreground">{parseFloat(netPayout || "0").toLocaleString("fr-FR")} €</p>
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Button onClick={handleSaveFees} disabled={!selectedRestaurant || feesMutation.isPending} className="flex-1">
-                  {feesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              <div className="flex gap-2 pt-2">
+                <Button 
+                  onClick={handleSaveFees} 
+                  disabled={!selectedRestaurant || feesMutation.isPending} 
+                  className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-stat-fees to-stat-fees/80 hover:from-stat-fees/90 hover:to-stat-fees/70 shadow-lg shadow-stat-fees/25"
+                >
+                  {feesMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
                   {feesEditingId ? "Mettre à jour" : existingFees ? "Remplacer" : "Enregistrer"}
                 </Button>
-                {feesEditingId && <Button variant="outline" onClick={resetFeesForm}>Annuler</Button>}
+                {feesEditingId && (
+                  <Button variant="outline" onClick={resetFeesForm} className="h-12">
+                    Annuler
+                  </Button>
+                )}
               </div>
             </TabsContent>
           </Tabs>
@@ -734,46 +871,70 @@ export default function DataEntry() {
       </Card>
 
       {/* History Card */}
-      <Card>
-        <CardHeader>
+      <Card className="overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-muted/50 to-transparent border-b">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              Historique
-              <Badge variant="outline" className="font-normal">
+            <CardTitle className="flex items-center gap-3">
+              <span>Historique</span>
+              <Badge 
+                variant="secondary" 
+                className={`font-normal ${
+                  activeTab === "revenue" ? "bg-stat-revenue/15 text-stat-revenue" :
+                  activeTab === "conversion" ? "bg-stat-conversion/15 text-stat-conversion" :
+                  "bg-stat-fees/15 text-stat-fees"
+                }`}
+              >
                 {activeTab === "revenue" ? "CA & Commandes" : activeTab === "conversion" ? "Conversion" : "Frais"}
               </Badge>
             </CardTitle>
             {getPlatformBadge(selectedPlatform)}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {!selectedRestaurant ? (
-            <p className="text-muted-foreground text-center py-8">Sélectionnez un restaurant pour voir l'historique</p>
+            <div className="text-muted-foreground text-center py-12">
+              <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p>Sélectionnez un restaurant pour voir l'historique</p>
+            </div>
           ) : activeTab === "revenue" ? (
-            loadingRevenue ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : 
-            !revenueEntries?.length ? <p className="text-muted-foreground text-center py-8">Aucune donnée</p> : (
+            loadingRevenue ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-stat-revenue" />
+              </div>
+            ) : !revenueEntries?.length ? (
+              <div className="text-muted-foreground text-center py-12">
+                <Euro className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>Aucune donnée enregistrée</p>
+              </div>
+            ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Période</TableHead>
-                      <TableHead className="text-right">CA TTC</TableHead>
-                      <TableHead className="text-right">Cmd</TableHead>
-                      <TableHead className="text-right">Panier</TableHead>
-                      <TableHead></TableHead>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="font-semibold">Période</TableHead>
+                      <TableHead className="text-right font-semibold">CA TTC</TableHead>
+                      <TableHead className="text-right font-semibold">Cmd</TableHead>
+                      <TableHead className="text-right font-semibold">Panier</TableHead>
+                      <TableHead className="w-20"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {revenueEntries?.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>{getMonthLabel(entry.month)} {entry.year}</TableCell>
-                        <TableCell className="text-right">{Number(entry.revenue_ttc).toLocaleString("fr-FR")} €</TableCell>
-                        <TableCell className="text-right">{entry.order_count}</TableCell>
-                        <TableCell className="text-right">{Number(entry.average_basket).toFixed(2)} €</TableCell>
+                    {revenueEntries?.map((entry, idx) => (
+                      <TableRow key={entry.id} className="group hover:bg-stat-revenue/5 transition-colors">
+                        <TableCell className="font-medium">{getMonthLabel(entry.month)} {entry.year}</TableCell>
+                        <TableCell className="text-right">
+                          <span className="font-semibold text-stat-revenue">{Number(entry.revenue_ttc).toLocaleString("fr-FR")} €</span>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">{entry.order_count}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{Number(entry.average_basket).toFixed(2)} €</TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => handleEditRevenue(entry)}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => deleteRevenueMutation.mutate(entry.id)}><Trash2 className="h-4 w-4" /></Button>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditRevenue(entry)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteRevenueMutation.mutate(entry.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -783,30 +944,44 @@ export default function DataEntry() {
               </div>
             )
           ) : activeTab === "conversion" ? (
-            loadingConversion ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : 
-            !conversionEntries?.length ? <p className="text-muted-foreground text-center py-8">Aucune donnée</p> : (
+            loadingConversion ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-stat-conversion" />
+              </div>
+            ) : !conversionEntries?.length ? (
+              <div className="text-muted-foreground text-center py-12">
+                <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>Aucune donnée enregistrée</p>
+              </div>
+            ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Période</TableHead>
-                      <TableHead className="text-right">Visites</TableHead>
-                      <TableHead className="text-right">Cmd</TableHead>
-                      <TableHead className="text-right">Conv.</TableHead>
-                      <TableHead></TableHead>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="font-semibold">Période</TableHead>
+                      <TableHead className="text-right font-semibold">Visites</TableHead>
+                      <TableHead className="text-right font-semibold">Cmd</TableHead>
+                      <TableHead className="text-right font-semibold">Conv.</TableHead>
+                      <TableHead className="w-20"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {conversionEntries?.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>{getMonthLabel(entry.month)} {entry.year}</TableCell>
-                        <TableCell className="text-right">{entry.visits.toLocaleString("fr-FR")}</TableCell>
-                        <TableCell className="text-right">{entry.orders}</TableCell>
-                        <TableCell className="text-right">{Number(entry.overall_rate).toFixed(1)}%</TableCell>
+                      <TableRow key={entry.id} className="group hover:bg-stat-conversion/5 transition-colors">
+                        <TableCell className="font-medium">{getMonthLabel(entry.month)} {entry.year}</TableCell>
+                        <TableCell className="text-right font-medium">{entry.visits.toLocaleString("fr-FR")}</TableCell>
+                        <TableCell className="text-right font-medium">{entry.orders}</TableCell>
+                        <TableCell className="text-right">
+                          <span className="font-semibold text-stat-conversion">{Number(entry.overall_rate).toFixed(1)}%</span>
+                        </TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => handleEditConversion(entry)}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => deleteConversionMutation.mutate(entry.id)}><Trash2 className="h-4 w-4" /></Button>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditConversion(entry)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteConversionMutation.mutate(entry.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -816,30 +991,48 @@ export default function DataEntry() {
               </div>
             )
           ) : (
-            loadingFees ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : 
-            !feesEntries?.length ? <p className="text-muted-foreground text-center py-8">Aucune donnée</p> : (
+            loadingFees ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-stat-fees" />
+              </div>
+            ) : !feesEntries?.length ? (
+              <div className="text-muted-foreground text-center py-12">
+                <Receipt className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>Aucune donnée enregistrée</p>
+              </div>
+            ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Période</TableHead>
-                      <TableHead className="text-right">Commission</TableHead>
-                      <TableHead className="text-right">Marketing</TableHead>
-                      <TableHead className="text-right">Net</TableHead>
-                      <TableHead></TableHead>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="font-semibold">Période</TableHead>
+                      <TableHead className="text-right font-semibold">Commission</TableHead>
+                      <TableHead className="text-right font-semibold">Marketing</TableHead>
+                      <TableHead className="text-right font-semibold">Net</TableHead>
+                      <TableHead className="w-20"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {feesEntries?.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>{getMonthLabel(entry.month)} {entry.year}</TableCell>
-                        <TableCell className="text-right">{Number(entry.uber_fee).toLocaleString("fr-FR")} €</TableCell>
-                        <TableCell className="text-right">{(Number(entry.marketing_fee) + Number(entry.offers_cost) + Number(entry.ads_cost)).toLocaleString("fr-FR")} €</TableCell>
-                        <TableCell className="text-right">{Number(entry.net_payout).toLocaleString("fr-FR")} €</TableCell>
+                      <TableRow key={entry.id} className="group hover:bg-stat-fees/5 transition-colors">
+                        <TableCell className="font-medium">{getMonthLabel(entry.month)} {entry.year}</TableCell>
+                        <TableCell className="text-right">
+                          <span className="font-semibold text-stat-fees">{Number(entry.uber_fee).toLocaleString("fr-FR")} €</span>
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {(Number(entry.marketing_fee) + Number(entry.offers_cost) + Number(entry.ads_cost)).toLocaleString("fr-FR")} €
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className="font-semibold text-stat-payout">{Number(entry.net_payout).toLocaleString("fr-FR")} €</span>
+                        </TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => handleEditFees(entry)}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => deleteFeesMutation.mutate(entry.id)}><Trash2 className="h-4 w-4" /></Button>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditFees(entry)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteFeesMutation.mutate(entry.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -866,7 +1059,7 @@ export default function DataEntry() {
                     <p className="text-muted-foreground">CA: {existingRevenue ? Number(existingRevenue.revenue_ttc).toLocaleString("fr-FR") : 0} €</p>
                     <p className="text-muted-foreground">Cmd: {existingRevenue?.order_count || 0}</p>
                   </div>
-                  <div className="bg-primary/10 rounded-lg p-3 border border-primary/20">
+                  <div className="bg-stat-revenue/10 rounded-lg p-3 border border-stat-revenue/20">
                     <p className="font-medium mb-2 text-foreground">Nouvelles</p>
                     <p className="text-muted-foreground">CA: {parseFloat(revenueTtc || "0").toLocaleString("fr-FR")} €</p>
                     <p className="text-muted-foreground">Cmd: {orderCount || 0}</p>
@@ -877,7 +1070,9 @@ export default function DataEntry() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setShowRevenueConfirm(false); revenueMutation.mutate(); }}>Remplacer</AlertDialogAction>
+            <AlertDialogAction onClick={() => { setShowRevenueConfirm(false); revenueMutation.mutate(); }} className="bg-stat-revenue hover:bg-stat-revenue/90">
+              Remplacer
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -895,7 +1090,7 @@ export default function DataEntry() {
                     <p className="text-muted-foreground">Visites: {existingConversion?.visits.toLocaleString("fr-FR") || 0}</p>
                     <p className="text-muted-foreground">Taux: {existingConversion ? Number(existingConversion.overall_rate).toFixed(1) : "0.0"}%</p>
                   </div>
-                  <div className="bg-primary/10 rounded-lg p-3 border border-primary/20">
+                  <div className="bg-stat-conversion/10 rounded-lg p-3 border border-stat-conversion/20">
                     <p className="font-medium mb-2 text-foreground">Nouvelles</p>
                     <p className="text-muted-foreground">Visites: {parseInt(visits || "0").toLocaleString("fr-FR")}</p>
                     <p className="text-muted-foreground">Taux: {overallRate}%</p>
@@ -906,7 +1101,9 @@ export default function DataEntry() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setShowConversionConfirm(false); conversionMutation.mutate(); }}>Remplacer</AlertDialogAction>
+            <AlertDialogAction onClick={() => { setShowConversionConfirm(false); conversionMutation.mutate(); }} className="bg-stat-conversion hover:bg-stat-conversion/90">
+              Remplacer
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -923,7 +1120,7 @@ export default function DataEntry() {
                     <p className="font-medium mb-2 text-foreground">Actuelles</p>
                     <p className="text-muted-foreground">Total: {existingFees ? (Number(existingFees.uber_fee) + Number(existingFees.marketing_fee) + Number(existingFees.offers_cost) + Number(existingFees.ads_cost)).toLocaleString("fr-FR") : 0} €</p>
                   </div>
-                  <div className="bg-primary/10 rounded-lg p-3 border border-primary/20">
+                  <div className="bg-stat-fees/10 rounded-lg p-3 border border-stat-fees/20">
                     <p className="font-medium mb-2 text-foreground">Nouvelles</p>
                     <p className="text-muted-foreground">Total: {totalFees.toLocaleString("fr-FR")} €</p>
                   </div>
@@ -933,7 +1130,9 @@ export default function DataEntry() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setShowFeesConfirm(false); feesMutation.mutate(); }}>Remplacer</AlertDialogAction>
+            <AlertDialogAction onClick={() => { setShowFeesConfirm(false); feesMutation.mutate(); }} className="bg-stat-fees hover:bg-stat-fees/90">
+              Remplacer
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
