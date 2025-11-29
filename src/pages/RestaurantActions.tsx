@@ -203,10 +203,16 @@ export default function RestaurantActions() {
   const [loading, setLoading] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
-  const [restaurantFilter, setRestaurantFilter] = useState<string>("all");
+  const [restaurantFilters, setRestaurantFilters] = useState<string[]>([]);
   const [actionTypeFilter, setActionTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [startDateFilter, setStartDateFilter] = useState<Date | undefined>(undefined);
+  // Restaurant list filter states
+  const [listRestaurantSearch, setListRestaurantSearch] = useState("");
+  const [listRestaurantFilterType, setListRestaurantFilterType] = useState<"all" | "department" | "manager">("all");
+  const [listSelectedDepartment, setListSelectedDepartment] = useState<string>("");
+  const [listSelectedManager, setListSelectedManager] = useState<string>("");
+  const [isListRestaurantPopoverOpen, setIsListRestaurantPopoverOpen] = useState(false);
   const [endDateFilter, setEndDateFilter] = useState<Date | undefined>(undefined);
   
   // Dialog states
@@ -568,7 +574,7 @@ export default function RestaurantActions() {
   const filteredActions = actions
     .filter(a => categoryFilter === "all" || a.category === categoryFilter)
     .filter(a => platformFilter === "all" || a.platform === platformFilter)
-    .filter(a => restaurantFilter === "all" || a.restaurant_id === restaurantFilter)
+    .filter(a => restaurantFilters.length === 0 || (a.restaurant_id && restaurantFilters.includes(a.restaurant_id)))
     .filter(a => actionTypeFilter === "all" || a.action_type === actionTypeFilter)
     .filter(a => {
       if (statusFilter === "all") return true;
@@ -756,14 +762,16 @@ export default function RestaurantActions() {
                   <span className="ml-1">×</span>
                 </Badge>
               )}
-              {restaurantFilter !== "all" && (
+              {restaurantFilters.length > 0 && (
                 <Badge 
                   variant="secondary" 
                   className="gap-1 cursor-pointer"
-                  onClick={() => setRestaurantFilter("all")}
+                  onClick={() => setRestaurantFilters([])}
                 >
                   <Store className="h-3 w-3" />
-                  {restaurants.find(r => r.id === restaurantFilter)?.name || "Restaurant"}
+                  {restaurantFilters.length === 1 
+                    ? restaurants.find(r => r.id === restaurantFilters[0])?.name 
+                    : `${restaurantFilters.length} restaurants`}
                   <span className="ml-1">×</span>
                 </Badge>
               )}
@@ -871,21 +879,198 @@ export default function RestaurantActions() {
                 </SelectContent>
               </Select>
 
-              {/* Restaurant Filter */}
-              <Select value={restaurantFilter} onValueChange={setRestaurantFilter}>
-                <SelectTrigger className="w-[180px] h-9">
-                  <Store className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Restaurant" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les restaurants</SelectItem>
-                  {restaurants.map((restaurant) => (
-                    <SelectItem key={restaurant.id} value={restaurant.id}>
-                      {restaurant.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Restaurant Filter - Advanced */}
+              <Popover open={isListRestaurantPopoverOpen} onOpenChange={setIsListRestaurantPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={isListRestaurantPopoverOpen}
+                    className="w-[200px] h-9 justify-between"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Store className="h-4 w-4 text-muted-foreground shrink-0" />
+                      {restaurantFilters.length === 0
+                        ? "Tous les..."
+                        : restaurantFilters.length === 1
+                        ? restaurants.find(r => r.id === restaurantFilters[0])?.name
+                        : `${restaurantFilters.length} restaurants`}
+                    </div>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-0" align="start">
+                  <div className="p-3 border-b space-y-3">
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Rechercher..."
+                        value={listRestaurantSearch}
+                        onChange={(e) => setListRestaurantSearch(e.target.value)}
+                        className="pl-9 h-9"
+                      />
+                    </div>
+                    
+                    {/* Filter Type Tabs */}
+                    <div className="flex gap-1">
+                      <Button
+                        variant={listRestaurantFilterType === "all" ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setListRestaurantFilterType("all")}
+                      >
+                        Tous
+                      </Button>
+                      <Button
+                        variant={listRestaurantFilterType === "department" ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-7 text-xs gap-1"
+                        onClick={() => setListRestaurantFilterType("department")}
+                      >
+                        <MapPin className="h-3 w-3" />
+                        Département
+                      </Button>
+                      <Button
+                        variant={listRestaurantFilterType === "manager" ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setListRestaurantFilterType("manager")}
+                      >
+                        Manager
+                      </Button>
+                    </div>
+                    
+                    {/* Department/Manager Select */}
+                    {listRestaurantFilterType === "department" && (
+                      <Select value={listSelectedDepartment} onValueChange={setListSelectedDepartment}>
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Choisir un département" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[...new Set(restaurants.filter(r => r.postal_code).map(r => r.postal_code!.substring(0, 2)))].sort().map((dept) => (
+                            <SelectItem key={dept} value={dept}>
+                              {dept} ({restaurants.filter(r => r.postal_code?.startsWith(dept)).length})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    
+                    {listRestaurantFilterType === "manager" && (
+                      <Select value={listSelectedManager} onValueChange={setListSelectedManager}>
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Choisir un account manager" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[...new Set(restaurants.filter(r => r.account_manager_name).map(r => r.account_manager_name!))].sort().map((manager) => (
+                            <SelectItem key={manager} value={manager}>
+                              {manager} ({restaurants.filter(r => r.account_manager_name === manager).length})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                  
+                  {/* Restaurant List */}
+                  <div className="max-h-[200px] overflow-y-auto p-2">
+                    {(() => {
+                      let filtered = restaurants;
+                      
+                      // Apply search
+                      if (listRestaurantSearch) {
+                        const search = listRestaurantSearch.toLowerCase();
+                        filtered = filtered.filter(r => 
+                          r.name.toLowerCase().includes(search) ||
+                          r.postal_code?.toLowerCase().includes(search) ||
+                          r.account_manager_name?.toLowerCase().includes(search)
+                        );
+                      }
+                      
+                      // Apply department filter
+                      if (listRestaurantFilterType === "department" && listSelectedDepartment) {
+                        filtered = filtered.filter(r => r.postal_code?.startsWith(listSelectedDepartment));
+                      }
+                      
+                      // Apply manager filter
+                      if (listRestaurantFilterType === "manager" && listSelectedManager) {
+                        filtered = filtered.filter(r => r.account_manager_name === listSelectedManager);
+                      }
+                      
+                      if (filtered.length === 0) {
+                        return <p className="text-sm text-muted-foreground text-center py-4">Aucun restaurant trouvé</p>;
+                      }
+                      
+                      return (
+                        <>
+                          <div className="flex justify-between mb-2 px-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => setRestaurantFilters([...new Set([...restaurantFilters, ...filtered.map(r => r.id)])])}
+                            >
+                              Tout sélectionner
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-muted-foreground"
+                              onClick={() => setRestaurantFilters(restaurantFilters.filter(id => !filtered.find(r => r.id === id)))}
+                            >
+                              Désélectionner
+                            </Button>
+                          </div>
+                          {filtered.map((restaurant) => (
+                            <div
+                              key={restaurant.id}
+                              className="flex items-center space-x-2 p-2 hover:bg-muted/50 rounded cursor-pointer"
+                              onClick={() => {
+                                const isSelected = restaurantFilters.includes(restaurant.id);
+                                if (isSelected) {
+                                  setRestaurantFilters(restaurantFilters.filter(id => id !== restaurant.id));
+                                } else {
+                                  setRestaurantFilters([...restaurantFilters, restaurant.id]);
+                                }
+                              }}
+                            >
+                              <Checkbox checked={restaurantFilters.includes(restaurant.id)} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm truncate">{restaurant.name}</p>
+                                {(restaurant.postal_code || restaurant.account_manager_name) && (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {restaurant.postal_code?.substring(0, 2)}
+                                    {restaurant.postal_code && restaurant.account_manager_name && " • "}
+                                    {restaurant.account_manager_name}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      );
+                    })()}
+                  </div>
+                  
+                  {/* Footer */}
+                  <div className="p-2 border-t flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground">
+                      {restaurantFilters.length} / {restaurants.length} sélectionné(s)
+                    </span>
+                    {restaurantFilters.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setRestaurantFilters([])}
+                      >
+                        Effacer
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
               
               {/* Date Range Filters */}
               <div className="flex items-center gap-1">
