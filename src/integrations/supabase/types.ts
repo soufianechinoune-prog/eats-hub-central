@@ -647,30 +647,63 @@ export type Database = {
       }
       restaurants: {
         Row: {
+          account_manager_email: string | null
+          account_manager_name: string | null
+          account_manager_phone: string | null
+          account_manager_title: string | null
+          address: string | null
           chain_id: string
           city: string | null
           created_at: string
           id: string
           is_active: boolean | null
+          manager_first_name: string | null
+          manager_last_name: string | null
           name: string
+          phone: string | null
+          siren: string | null
+          tablet_email: string | null
+          tablet_password: string | null
           uber_store_id: string | null
         }
         Insert: {
+          account_manager_email?: string | null
+          account_manager_name?: string | null
+          account_manager_phone?: string | null
+          account_manager_title?: string | null
+          address?: string | null
           chain_id: string
           city?: string | null
           created_at?: string
           id?: string
           is_active?: boolean | null
+          manager_first_name?: string | null
+          manager_last_name?: string | null
           name: string
+          phone?: string | null
+          siren?: string | null
+          tablet_email?: string | null
+          tablet_password?: string | null
           uber_store_id?: string | null
         }
         Update: {
+          account_manager_email?: string | null
+          account_manager_name?: string | null
+          account_manager_phone?: string | null
+          account_manager_title?: string | null
+          address?: string | null
           chain_id?: string
           city?: string | null
           created_at?: string
           id?: string
           is_active?: boolean | null
+          manager_first_name?: string | null
+          manager_last_name?: string | null
           name?: string
+          phone?: string | null
+          siren?: string | null
+          tablet_email?: string | null
+          tablet_password?: string | null
           uber_store_id?: string | null
         }
         Relationships: [
