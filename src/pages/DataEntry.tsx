@@ -39,7 +39,8 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Loader2, Save, Pencil, Trash2, ArrowLeft, AlertTriangle,
   TrendingUp, Calculator, Euro, BarChart3, Receipt, 
-  ShoppingCart, Eye, MousePointer, Sparkles, Calendar
+  ShoppingCart, Eye, MousePointer, Sparkles, Calendar,
+  CheckCircle2, Circle, CircleDot
 } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 
@@ -451,6 +452,34 @@ export default function DataEntry() {
 
   const selectedRestaurantName = restaurants?.find(r => r.id === selectedRestaurant)?.name;
 
+  // Calculate monthly completeness for the selected year
+  const monthlyCompleteness = useMemo(() => {
+    if (!selectedRestaurant) return [];
+    
+    return MONTHS.map(month => {
+      const hasRevenue = revenueEntries?.some(e => e.year === selectedYear && e.month === month.value);
+      const hasConversion = conversionEntries?.some(e => e.year === selectedYear && e.month === month.value);
+      const hasFees = feesEntries?.some(e => e.year === selectedYear && e.month === month.value);
+      
+      const count = [hasRevenue, hasConversion, hasFees].filter(Boolean).length;
+      
+      return {
+        month: month.value,
+        label: month.label.slice(0, 3),
+        hasRevenue,
+        hasConversion,
+        hasFees,
+        count,
+        isComplete: count === 3,
+        isPartial: count > 0 && count < 3,
+        isEmpty: count === 0,
+      };
+    });
+  }, [revenueEntries, conversionEntries, feesEntries, selectedYear, selectedRestaurant]);
+
+  const completedMonths = monthlyCompleteness.filter(m => m.isComplete).length;
+  const partialMonths = monthlyCompleteness.filter(m => m.isPartial).length;
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header with gradient background */}
@@ -557,6 +586,71 @@ export default function DataEntry() {
                 </Select>
               </div>
             </div>
+
+            {/* Monthly completeness indicator */}
+            {selectedRestaurant && (
+              <div className="space-y-2 pt-2 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Complétude {selectedYear}
+                  </Label>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="flex items-center gap-1 text-emerald-600">
+                      <CheckCircle2 className="h-3 w-3" /> {completedMonths} complet{completedMonths > 1 ? 's' : ''}
+                    </span>
+                    <span className="flex items-center gap-1 text-amber-600">
+                      <CircleDot className="h-3 w-3" /> {partialMonths} partiel{partialMonths > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-12 gap-1">
+                  {monthlyCompleteness.map((m) => (
+                    <button
+                      key={m.month}
+                      onClick={() => setSelectedMonth(m.month)}
+                      className={`group relative flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition-all duration-200 hover:scale-105 ${
+                        selectedMonth === m.month 
+                          ? 'ring-2 ring-primary ring-offset-1 ring-offset-background' 
+                          : ''
+                      } ${
+                        m.isComplete 
+                          ? 'bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30' 
+                          : m.isPartial 
+                            ? 'bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30' 
+                            : 'bg-muted/50 hover:bg-muted border border-transparent'
+                      }`}
+                    >
+                      <span className={`text-[10px] font-medium ${
+                        m.isComplete ? 'text-emerald-700 dark:text-emerald-400' 
+                        : m.isPartial ? 'text-amber-700 dark:text-amber-400' 
+                        : 'text-muted-foreground'
+                      }`}>
+                        {m.label}
+                      </span>
+                      {m.isComplete ? (
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                      ) : m.isPartial ? (
+                        <CircleDot className="h-3 w-3 text-amber-600" />
+                      ) : (
+                        <Circle className="h-3 w-3 text-muted-foreground/50" />
+                      )}
+                      
+                      {/* Tooltip on hover */}
+                      <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                        <div className="bg-popover text-popover-foreground text-[10px] px-2 py-1 rounded shadow-lg border whitespace-nowrap">
+                          <div className="font-medium mb-0.5">{MONTHS.find(mo => mo.value === m.month)?.label}</div>
+                          <div className="flex gap-1">
+                            <span className={m.hasRevenue ? 'text-emerald-600' : 'text-muted-foreground'}>CA</span>
+                            <span className={m.hasConversion ? 'text-emerald-600' : 'text-muted-foreground'}>Conv</span>
+                            <span className={m.hasFees ? 'text-emerald-600' : 'text-muted-foreground'}>Frais</span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </CardHeader>
 
