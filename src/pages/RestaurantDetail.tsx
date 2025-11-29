@@ -279,30 +279,18 @@ const RestaurantDetail = () => {
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-3xl font-bold tracking-tight">{restaurant.name}</h2>
-              {restaurant.is_active ? (
-                <Badge className="bg-accent text-accent-foreground">Actif</Badge>
+              {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0 ? (
+                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Connecté</Badge>
+              ) : restaurant.uber_store_id ? (
+                <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
               ) : (
-                <Badge variant="outline">Inactif</Badge>
+                <Badge variant="outline" className="text-muted-foreground">Non connecté</Badge>
               )}
             </div>
             <p className="text-muted-foreground">{restaurant.city}</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          {/* Toggle Active Status */}
-          <div className="flex items-center gap-2">
-            <Label htmlFor="active-toggle" className="text-sm text-muted-foreground">
-              {restaurant.is_active ? "Actif" : "Inactif"}
-            </Label>
-            <Switch
-              id="active-toggle"
-              checked={restaurant.is_active ?? false}
-              onCheckedChange={(checked) => toggleActiveMutation.mutate(checked)}
-              disabled={toggleActiveMutation.isPending}
-            />
-          </div>
-          
-          <div className="flex gap-2">
+        <div className="flex items-center gap-2">
             {isEditing ? (
               <>
                 <Button variant="outline" onClick={handleCancel}>
@@ -348,7 +336,6 @@ const RestaurantDetail = () => {
             )}
           </div>
         </div>
-      </div>
 
       {/* Quick Actions - Data Entry */}
       <Card>
@@ -478,6 +465,8 @@ const RestaurantDetail = () => {
               <p className="font-medium">
                 {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0
                   ? "Connecté à l'API Uber Eats"
+                  : restaurant.uber_store_id
+                  ? "En attente de connexion"
                   : "Non connecté à l'API Uber Eats"}
               </p>
               <p className="text-sm text-muted-foreground">
@@ -487,7 +476,9 @@ const RestaurantDetail = () => {
               </p>
             </div>
             {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0 ? (
-              <Badge className="bg-accent text-accent-foreground">Connecté</Badge>
+              <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Connecté</Badge>
+            ) : restaurant.uber_store_id ? (
+              <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
             ) : (
               <Button variant="outline" onClick={() => navigate("/uber-connections")}>
                 Configurer
