@@ -12,7 +12,13 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter, Search, Mail } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useNavigate } from "react-router-dom";
 import { RestaurantFormDialog } from "@/components/restaurants/RestaurantFormDialog";
 import { RestaurantShareActions } from "@/components/restaurants/RestaurantShareActions";
@@ -250,7 +256,35 @@ const Restaurants = () => {
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.account_manager_name ? (
-                        restaurant.account_manager_name
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help border-b border-dotted border-muted-foreground/50">
+                                {restaurant.account_manager_name}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <div className="space-y-1.5">
+                                <p className="font-medium">{restaurant.account_manager_name}</p>
+                                {restaurant.account_manager_title && (
+                                  <p className="text-xs text-muted-foreground">{restaurant.account_manager_title}</p>
+                                )}
+                                {restaurant.account_manager_phone && (
+                                  <div className="flex items-center gap-1.5 text-xs">
+                                    <Phone className="h-3 w-3" />
+                                    {restaurant.account_manager_phone}
+                                  </div>
+                                )}
+                                {restaurant.account_manager_email && (
+                                  <div className="flex items-center gap-1.5 text-xs">
+                                    <Mail className="h-3 w-3" />
+                                    {restaurant.account_manager_email}
+                                  </div>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
