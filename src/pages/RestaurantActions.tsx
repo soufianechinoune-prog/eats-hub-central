@@ -225,6 +225,9 @@ export default function RestaurantActions() {
   const [newProductName, setNewProductName] = useState("");
   const [productScope, setProductScope] = useState<"all" | "specific">("all");
   const [productSearch, setProductSearch] = useState("");
+  // BOGO (1 acheté = 1 offert) specific state
+  const [bogoPurchasedItem, setBogoPurchasedItem] = useState<string>("");
+  const [bogoFreeItem, setBogoFreeItem] = useState<string>("");
 
   useEffect(() => {
     fetchCategories();
@@ -306,6 +309,8 @@ export default function RestaurantActions() {
     setNewProductName("");
     setProductScope("all");
     setProductSearch("");
+    setBogoPurchasedItem("");
+    setBogoFreeItem("");
     setIsDialogOpen(true);
   };
 
@@ -340,6 +345,9 @@ export default function RestaurantActions() {
       setProductScope(action.target_item_ids && action.target_item_ids.length > 0 ? "specific" : "all");
     }
     setProductSearch("");
+    // BOGO specific
+    setBogoPurchasedItem(changeContext?.bogo_purchased_item || "");
+    setBogoFreeItem(changeContext?.bogo_free_item || "");
     setIsDialogOpen(true);
   };
 
@@ -398,13 +406,26 @@ export default function RestaurantActions() {
       });
       return;
     }
+    
+    // Validation contextuelle: BOGO (1 acheté = 1 offert)
+    if (formData.action_type === "1 acheté = 1 offert" && (!bogoPurchasedItem || !bogoFreeItem)) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner le produit acheté et le produit offert",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Construire le change_context avec scope et autres données
     const changeContext: any = {};
     if (formData.action_type === "Nouveau produit" && newProductName.trim()) {
       changeContext.new_product_name = newProductName.trim();
     }
-    if (config.hasProducts) {
+    if (formData.action_type === "1 acheté = 1 offert") {
+      changeContext.bogo_purchased_item = bogoPurchasedItem;
+      changeContext.bogo_free_item = bogoFreeItem;
+    } else if (config.hasProducts) {
       changeContext.scope = productScope;
     }
     
@@ -871,6 +892,18 @@ export default function RestaurantActions() {
                             <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-200">
                               🆕 {action.change_context.new_product_name}
                             </Badge>
+                          ) : action.action_type === "1 acheté = 1 offert" && action.change_context?.bogo_purchased_item ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1 text-xs">
+                                <Badge variant="secondary" className="text-xs">
+                                  {menuItems.find(i => i.id === action.change_context.bogo_purchased_item)?.name || "?"}
+                                </Badge>
+                                <span className="text-muted-foreground">=</span>
+                                <Badge variant="secondary" className="text-xs bg-pink-500/10 text-pink-600 border-pink-200">
+                                  🎁 {menuItems.find(i => i.id === action.change_context.bogo_free_item)?.name || "?"}
+                                </Badge>
+                              </div>
+                            </div>
                           ) : action.change_context?.scope === "all" ? (
                             <Badge variant="outline" className="text-xs bg-primary/5 border-primary/20 text-primary">
                               <UtensilsCrossed className="h-3 w-3 mr-1" />
@@ -1261,9 +1294,88 @@ export default function RestaurantActions() {
                 </Select>
               </div>
 
-              {/* Target Products - contextual with scope selection */}
+              {/* BOGO specific - 1 acheté = 1 offert */}
+              {formData.action_type === "1 acheté = 1 offert" && menuItems.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Gift className="h-4 w-4" />
+                    Produits de l'offre
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Produit acheté */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">
+                        Produit acheté *
+                      </Label>
+                      <Select 
+                        value={bogoPurchasedItem} 
+                        onValueChange={setBogoPurchasedItem}
+                      >
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Sélectionner..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {menuItems.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              <div className="flex items-center gap-2">
+                                <span>{item.name}</span>
+                                {item.category && (
+                                  <span className="text-xs text-muted-foreground">({item.category})</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* Produit offert */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">
+                        Produit offert *
+                      </Label>
+                      <Select 
+                        value={bogoFreeItem} 
+                        onValueChange={setBogoFreeItem}
+                      >
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Sélectionner..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {menuItems.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              <div className="flex items-center gap-2">
+                                <span>{item.name}</span>
+                                {item.category && (
+                                  <span className="text-xs text-muted-foreground">({item.category})</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  {bogoPurchasedItem && bogoFreeItem && (
+                    <div className="p-3 rounded-lg bg-pink-500/10 border border-pink-500/20">
+                      <p className="text-sm text-center">
+                        <span className="font-medium">{menuItems.find(i => i.id === bogoPurchasedItem)?.name}</span>
+                        <span className="text-muted-foreground mx-2">acheté =</span>
+                        <span className="font-medium text-pink-600">{menuItems.find(i => i.id === bogoFreeItem)?.name}</span>
+                        <span className="text-muted-foreground ml-2">offert</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Target Products - contextual with scope selection (not for BOGO) */}
               {(() => {
                 const config = getActionConfig(formData.action_type);
+                // Skip for BOGO which has its own UI
+                if (formData.action_type === "1 acheté = 1 offert") return null;
                 if (!config.hasProducts || menuItems.length === 0) return null;
                 
                 // Group menu items by category
