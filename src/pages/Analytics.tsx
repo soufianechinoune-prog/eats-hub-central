@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,6 +74,13 @@ export default function Analytics() {
 
   const handleGlobalToggleChange = (value: boolean) => {
     handleChartActionsConfigChange({ ...chartActionsConfig, global: value });
+  };
+
+  const navigate = useNavigate();
+
+  const handleActionClick = (actionId: string) => {
+    // Navigate to actions page with highlight parameter
+    navigate(`/actions?highlight=${actionId}`);
   };
 
   // Fetch restaurant actions for the selected year and platform
@@ -540,6 +547,7 @@ export default function Analytics() {
                 actions={uberActions}
                 chartActionsConfig={chartActionsConfig}
                 onChartActionsConfigChange={handleChartActionsConfigChange}
+                onActionClick={handleActionClick}
               />
             </TabsContent>
 
@@ -557,6 +565,7 @@ export default function Analytics() {
                 actions={deliverooActions}
                 chartActionsConfig={chartActionsConfig}
                 onChartActionsConfigChange={handleChartActionsConfigChange}
+                onActionClick={handleActionClick}
               />
             </TabsContent>
 
@@ -574,6 +583,7 @@ export default function Analytics() {
                 actions={globalActions}
                 chartActionsConfig={chartActionsConfig}
                 onChartActionsConfigChange={handleChartActionsConfigChange}
+                onActionClick={handleActionClick}
               />
             </TabsContent>
           </div>
