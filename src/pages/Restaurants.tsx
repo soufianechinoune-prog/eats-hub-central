@@ -11,9 +11,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight, MapPin, Phone, Filter } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { RestaurantFormDialog } from "@/components/restaurants/RestaurantFormDialog";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -25,6 +26,7 @@ import {
 const Restaurants = () => {
   const navigate = useNavigate();
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const { data: restaurants, refetch } = useQuery({
     queryKey: ["restaurants"],
@@ -56,14 +58,32 @@ const Restaurants = () => {
       .sort((a, b) => a.code.localeCompare(b.code));
   }, [restaurants]);
 
-  // Filter restaurants by department
+  // Filter restaurants by department and search query
   const filteredRestaurants = useMemo(() => {
     if (!restaurants) return [];
-    if (departmentFilter === "all") return restaurants;
-    return restaurants.filter(
-      (r) => r.postal_code && r.postal_code.startsWith(departmentFilter)
-    );
-  }, [restaurants, departmentFilter]);
+    
+    let filtered = restaurants;
+    
+    // Filter by department
+    if (departmentFilter !== "all") {
+      filtered = filtered.filter(
+        (r) => r.postal_code && r.postal_code.startsWith(departmentFilter)
+      );
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(
+        (r) =>
+          r.name.toLowerCase().includes(query) ||
+          r.city?.toLowerCase().includes(query) ||
+          r.street?.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [restaurants, departmentFilter, searchQuery]);
 
   return (
     <div className="space-y-6">
@@ -80,13 +100,23 @@ const Restaurants = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>Liste des restaurants</CardTitle>
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Tous les départements" />
-              </SelectTrigger>
-              <SelectContent>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 w-[200px]"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Tous les départements" />
+                </SelectTrigger>
+                <SelectContent>
                 <SelectItem value="all">Tous les départements ({restaurants?.length || 0})</SelectItem>
                 {departments.map((dept) => (
                   <SelectItem key={dept.code} value={dept.code}>
@@ -95,6 +125,7 @@ const Restaurants = () => {
                 ))}
               </SelectContent>
             </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
