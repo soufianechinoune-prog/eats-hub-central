@@ -4,6 +4,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -51,6 +53,7 @@ import {
   Calculator,
   ArrowUpDown,
   TrendingUp,
+  Info,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 
@@ -58,6 +61,7 @@ interface MenuItem {
   id: string;
   name: string;
   category: string | null;
+  description: string | null;
   price_uber: number | null;
   price_deliveroo: number | null;
   food_cost: number | null;
@@ -67,17 +71,26 @@ interface MenuItem {
 }
 
 const CATEGORIES = [
-  "Entrées",
-  "Plats",
+  "Menu enfant",
+  "Menus Naans",
+  "Menus Fried Chicken",
+  "Menus Wraps",
+  "Menus Burgers",
+  "Menus Burgers Naan",
+  "Menu Xtra",
+  "Fried Chicken",
+  "Bowls Street",
   "Burgers",
-  "Pizzas",
-  "Salades",
+  "Chicken Cheese",
+  "Sandwichs Naans",
+  "Burger Naan",
+  "Sandwichs Wraps",
+  "À partager",
   "Desserts",
+  "À la carte",
+  "Salades",
   "Boissons",
-  "Accompagnements",
-  "Menus",
-  "Snacks",
-  "Petit-déjeuner",
+  "Sauces",
   "Autre",
 ];
 
@@ -98,6 +111,7 @@ export default function MenuItems() {
   const [formData, setFormData] = useState({
     name: "",
     category: "",
+    description: "",
     price_uber: "",
     price_deliveroo: "",
     food_cost: "",
@@ -146,6 +160,7 @@ export default function MenuItems() {
     setFormData({
       name: "",
       category: "",
+      description: "",
       price_uber: "",
       price_deliveroo: "",
       food_cost: "",
@@ -159,6 +174,7 @@ export default function MenuItems() {
     setFormData({
       name: item.name,
       category: item.category || "",
+      description: item.description || "",
       price_uber: item.price_uber?.toString() || "",
       price_deliveroo: item.price_deliveroo?.toString() || "",
       food_cost: item.food_cost?.toString() || "",
@@ -189,6 +205,7 @@ export default function MenuItems() {
     const itemData = {
       name: formData.name.trim(),
       category: formData.category || null,
+      description: formData.description.trim() || null,
       price_uber: formData.price_uber ? parseFloat(formData.price_uber) : null,
       price_deliveroo: formData.price_deliveroo ? parseFloat(formData.price_deliveroo) : null,
       food_cost: formData.food_cost ? parseFloat(formData.food_cost) : null,
@@ -550,7 +567,23 @@ export default function MenuItems() {
                     
                     return (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-1">
+                            {item.name}
+                            {item.description && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs">
+                                    <p className="text-sm">{item.description}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           {item.category ? (
                             <Badge variant="secondary">{item.category}</Badge>
@@ -671,6 +704,16 @@ export default function MenuItems() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Description du produit (ingrédients, composition...)"
+                rows={3}
+              />
             </div>
             
             {/* Platform-specific prices */}
