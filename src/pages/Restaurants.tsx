@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,14 +31,38 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const STORAGE_KEY = "restaurants-preferences";
+
 const Restaurants = () => {
   const navigate = useNavigate();
-  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  
+  // Load preferences from localStorage
+  const savedPrefs = useMemo(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const [departmentFilter, setDepartmentFilter] = useState<string>(savedPrefs?.departmentFilter ?? "all");
+  const [statusFilter, setStatusFilter] = useState<string>(savedPrefs?.statusFilter ?? "all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [sortColumn, setSortColumn] = useState<string | null>(savedPrefs?.sortColumn ?? null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(savedPrefs?.sortDirection ?? "asc");
+
+  // Persist preferences to localStorage
+  useEffect(() => {
+    const prefs = {
+      departmentFilter,
+      statusFilter,
+      sortColumn,
+      sortDirection,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  }, [departmentFilter, statusFilter, sortColumn, sortDirection]);
 
   const { data: restaurants, refetch } = useQuery({
     queryKey: ["restaurants"],
