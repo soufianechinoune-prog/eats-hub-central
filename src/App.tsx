@@ -23,6 +23,7 @@ import MenuEditor from "./pages/MenuEditor";
 import DataEntryRevenue from "./pages/DataEntryRevenue";
 import DataEntryConversion from "./pages/DataEntryConversion";
 import DataEntryFees from "./pages/DataEntryFees";
+import Analytics from "./pages/Analytics";
 
 const queryClient = new QueryClient();
 
@@ -178,6 +179,16 @@ const App = () => {
                 <ProtectedRoute session={session}>
                   <AppLayout>
                     <DataEntryFees />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <Analytics />
                   </AppLayout>
                 </ProtectedRoute>
               }
