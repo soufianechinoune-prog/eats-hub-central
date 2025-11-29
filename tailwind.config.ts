@@ -57,6 +57,22 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        uber: {
+          DEFAULT: "hsl(var(--uber))",
+          light: "hsl(var(--uber-light))",
+        },
+        deliveroo: {
+          DEFAULT: "hsl(var(--deliveroo))",
+          light: "hsl(var(--deliveroo-light))",
+        },
+        stat: {
+          revenue: "hsl(var(--stat-revenue))",
+          orders: "hsl(var(--stat-orders))",
+          basket: "hsl(var(--stat-basket))",
+          conversion: "hsl(var(--stat-conversion))",
+          fees: "hsl(var(--stat-fees))",
+          payout: "hsl(var(--stat-payout))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

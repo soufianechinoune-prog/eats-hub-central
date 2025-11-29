@@ -44,6 +44,20 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
+    /* Platform colors */
+    --uber: 142 76% 36%;
+    --uber-light: 142 76% 95%;
+    --deliveroo: 187 92% 45%;
+    --deliveroo-light: 187 92% 95%;
+
+    /* Accent colors for stats */
+    --stat-revenue: 239 84% 67%;
+    --stat-orders: 280 70% 60%;
+    --stat-basket: 38 92% 50%;
+    --stat-conversion: 142 76% 45%;
+    --stat-fees: 0 84% 60%;
+    --stat-payout: 142 70% 40%;
+
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 239 84% 67%;
@@ -54,7 +68,11 @@ All colors MUST be HSL.
     --sidebar-ring: 239 84% 67%;
 
     --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 77%));
+    --gradient-uber: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
+    --gradient-deliveroo: linear-gradient(135deg, hsl(187 92% 45%), hsl(187 92% 55%));
     --shadow-elegant: 0 10px 30px -10px hsl(239 84% 67% / 0.2);
+    --shadow-uber: 0 10px 30px -10px hsl(142 76% 36% / 0.3);
+    --shadow-deliveroo: 0 10px 30px -10px hsl(187 92% 45% / 0.3);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -93,6 +111,20 @@ All colors MUST be HSL.
     --input: 217 33% 17%;
     --ring: 239 84% 67%;
 
+    /* Platform colors */
+    --uber: 142 76% 36%;
+    --uber-light: 142 60% 15%;
+    --deliveroo: 187 92% 45%;
+    --deliveroo-light: 187 80% 15%;
+
+    /* Accent colors for stats */
+    --stat-revenue: 239 84% 67%;
+    --stat-orders: 280 70% 60%;
+    --stat-basket: 38 92% 50%;
+    --stat-conversion: 142 76% 45%;
+    --stat-fees: 0 84% 60%;
+    --stat-payout: 142 70% 40%;
+
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 239 84% 67%;
@@ -103,7 +135,11 @@ All colors MUST be HSL.
     --sidebar-ring: 239 84% 67%;
 
     --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 77%));
+    --gradient-uber: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
+    --gradient-deliveroo: linear-gradient(135deg, hsl(187 92% 45%), hsl(187 92% 55%));
     --shadow-elegant: 0 10px 30px -10px hsl(239 84% 67% / 0.3);
+    --shadow-uber: 0 10px 30px -10px hsl(142 76% 36% / 0.4);
+    --shadow-deliveroo: 0 10px 30px -10px hsl(187 92% 45% / 0.4);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
