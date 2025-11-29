@@ -127,6 +127,15 @@ export function AnalyticsFilters({
     return "Sélectionner une période";
   };
 
+  const handleResetPeriod = () => {
+    onPeriodModeChange("year");
+    onYearChange(currentYear);
+    onDateRangeChange?.(undefined);
+    setPeriodOpen(false);
+  };
+
+  const showResetButton = periodMode === "month" || (periodMode === "range" && dateRange?.from);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-start">
@@ -203,18 +212,19 @@ export function AnalyticsFilters({
         </div>
 
         {/* Period Selector - Styled like Uber Eats */}
-        <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              className="min-w-[180px] justify-between bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm"
-            >
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                <span className="font-medium">{getPeriodDisplayText()}</span>
-              </div>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
-            </Button>
-          </PopoverTrigger>
+        <div className="flex items-center gap-2">
+          <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                className="min-w-[180px] justify-between bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  <span className="font-medium">{getPeriodDisplayText()}</span>
+                </div>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
+              </Button>
+            </PopoverTrigger>
           <PopoverContent 
             className="w-auto p-0 bg-background border shadow-xl rounded-xl overflow-hidden" 
             align="end"
@@ -378,6 +388,20 @@ export function AnalyticsFilters({
             </Tabs>
           </PopoverContent>
         </Popover>
+        
+        {/* Reset Period Button */}
+        {showResetButton && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleResetPeriod}
+            className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted"
+            title="Réinitialiser la période"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+        </div>
       </div>
 
       {/* Selected Restaurants Display */}
