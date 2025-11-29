@@ -192,6 +192,54 @@ export type Database = {
         }
         Relationships: []
       }
+      menu_item_changes: {
+        Row: {
+          change_type: string
+          changed_at: string
+          field_changes: Json | null
+          id: string
+          item_name: string
+          menu_item_id: string | null
+          notes: string | null
+          restaurant_action_id: string | null
+        }
+        Insert: {
+          change_type: string
+          changed_at?: string
+          field_changes?: Json | null
+          id?: string
+          item_name: string
+          menu_item_id?: string | null
+          notes?: string | null
+          restaurant_action_id?: string | null
+        }
+        Update: {
+          change_type?: string
+          changed_at?: string
+          field_changes?: Json | null
+          id?: string
+          item_name?: string
+          menu_item_id?: string | null
+          notes?: string | null
+          restaurant_action_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_changes_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_changes_restaurant_action_id_fkey"
+            columns: ["restaurant_action_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_actions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_item_reviews: {
         Row: {
           comment: string | null
@@ -625,6 +673,54 @@ export type Database = {
           },
         ]
       }
+      price_history: {
+        Row: {
+          changed_at: string
+          field_name: string
+          id: string
+          menu_item_id: string
+          new_value: number | null
+          notes: string | null
+          old_value: number | null
+          restaurant_action_id: string | null
+        }
+        Insert: {
+          changed_at?: string
+          field_name: string
+          id?: string
+          menu_item_id: string
+          new_value?: number | null
+          notes?: string | null
+          old_value?: number | null
+          restaurant_action_id?: string | null
+        }
+        Update: {
+          changed_at?: string
+          field_name?: string
+          id?: string
+          menu_item_id?: string
+          new_value?: number | null
+          notes?: string | null
+          old_value?: number | null
+          restaurant_action_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_history_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_history_restaurant_action_id_fkey"
+            columns: ["restaurant_action_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_actions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       promotions: {
         Row: {
           created_at: string
@@ -721,6 +817,7 @@ export type Database = {
         Row: {
           action_type: string
           category: string
+          change_context: Json | null
           created_at: string
           description: string | null
           end_date: string | null
@@ -737,6 +834,7 @@ export type Database = {
         Insert: {
           action_type: string
           category: string
+          change_context?: Json | null
           created_at?: string
           description?: string | null
           end_date?: string | null
@@ -753,6 +851,7 @@ export type Database = {
         Update: {
           action_type?: string
           category?: string
+          change_context?: Json | null
           created_at?: string
           description?: string | null
           end_date?: string | null
