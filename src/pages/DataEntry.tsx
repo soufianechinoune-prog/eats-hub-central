@@ -1069,6 +1069,7 @@ export default function DataEntry() {
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableHead className="font-semibold">Période</TableHead>
                       <TableHead className="text-right font-semibold">Visites</TableHead>
+                      <TableHead className="text-right font-semibold">Menu</TableHead>
                       <TableHead className="text-right font-semibold">Panier</TableHead>
                       <TableHead className="text-right font-semibold">Cmd</TableHead>
                       <TableHead className="text-right font-semibold">Conv.</TableHead>
@@ -1080,6 +1081,7 @@ export default function DataEntry() {
                       <TableRow key={entry.id} className="group hover:bg-stat-conversion/5 transition-colors">
                         <TableCell className="font-medium">{getMonthLabel(entry.month)} {entry.year}</TableCell>
                         <TableCell className="text-right font-medium">{entry.visits.toLocaleString("fr-FR")}</TableCell>
+                        <TableCell className="text-right font-medium text-muted-foreground">{entry.menu_views.toLocaleString("fr-FR")}</TableCell>
                         <TableCell className="text-right font-medium text-muted-foreground">{entry.add_to_cart.toLocaleString("fr-FR")}</TableCell>
                         <TableCell className="text-right font-medium">{entry.orders}</TableCell>
                         <TableCell className="text-right">
