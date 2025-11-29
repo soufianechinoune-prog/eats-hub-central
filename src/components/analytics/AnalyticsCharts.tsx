@@ -2,7 +2,9 @@ import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import {
   TrendingUp,
   TrendingDown,
@@ -78,6 +80,16 @@ interface RestaurantAction {
   platform: string;
 }
 
+export interface ChartActionsConfig {
+  global: boolean;
+  revenue: boolean;
+  conversionFunnel: boolean;
+  conversionRate: boolean;
+  fees: boolean;
+  netPayout: boolean;
+  profitability: boolean;
+}
+
 interface AnalyticsChartsProps {
   revenueData: MonthlyRevenue[] | undefined;
   conversionData: MonthlyConversion[] | undefined;
@@ -90,6 +102,8 @@ interface AnalyticsChartsProps {
   selectedYear: number;
   showComparison?: boolean;
   actions?: RestaurantAction[];
+  chartActionsConfig?: ChartActionsConfig;
+  onChartActionsConfigChange?: (config: ChartActionsConfig) => void;
 }
 
 // Action category colors
@@ -149,6 +163,50 @@ function VariationIndicator({ current, previous, inverse = false }: { current: n
   );
 }
 
+// Mini toggle button for per-chart action visibility
+function ChartActionToggle({
+  chartKey,
+  config,
+  onChange,
+  hasActions,
+}: {
+  chartKey: keyof Omit<ChartActionsConfig, "global">;
+  config: ChartActionsConfig;
+  onChange: (config: ChartActionsConfig) => void;
+  hasActions: boolean;
+}) {
+  if (!config.global || !hasActions) return null;
+
+  const isActive = config[chartKey];
+  
+  return (
+    <TooltipProvider>
+      <UITooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-7 w-7 p-0 rounded-full transition-colors",
+              isActive 
+                ? "bg-primary/10 text-primary hover:bg-primary/20" 
+                : "bg-muted/50 text-muted-foreground hover:bg-muted"
+            )}
+            onClick={() => onChange({ ...config, [chartKey]: !isActive })}
+          >
+            <Zap className={cn("h-3.5 w-3.5", isActive && "fill-primary")} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          <p className="text-xs">
+            {isActive ? "Masquer les actions" : "Afficher les actions"}
+          </p>
+        </TooltipContent>
+      </UITooltip>
+    </TooltipProvider>
+  );
+}
+
 export function AnalyticsCharts({
   revenueData,
   conversionData,
@@ -161,6 +219,8 @@ export function AnalyticsCharts({
   selectedYear,
   showComparison = true,
   actions,
+  chartActionsConfig,
+  onChartActionsConfigChange,
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
   
@@ -193,6 +253,30 @@ export function AnalyticsCharts({
       .map(Number)
       .filter(m => m >= startMonth && m <= endMonth);
   }, [actionsByMonth, startMonth, endMonth]);
+
+  // Helper to check if actions should be shown for a specific chart
+  const shouldShowActionsForChart = (chartKey: keyof Omit<ChartActionsConfig, "global">) => {
+    if (!chartActionsConfig?.global) return false;
+    return chartActionsConfig[chartKey] !== false;
+  };
+
+  const hasActions = actions && actions.length > 0;
+
+  // Handler for chart toggle (with fallback if no handler provided)
+  const handleChartToggle = (config: ChartActionsConfig) => {
+    onChartActionsConfigChange?.(config);
+  };
+
+  // Default config if none provided
+  const config: ChartActionsConfig = chartActionsConfig || {
+    global: true,
+    revenue: true,
+    conversionFunnel: true,
+    conversionRate: true,
+    fees: true,
+    netPayout: true,
+    profitability: true,
+  };
   
   // Filter months for range
   const filterByRange = (monthNum: number) => {
@@ -529,7 +613,7 @@ export function AnalyticsCharts({
       </div>
 
       {/* Actions Legend */}
-      {actions && actions.length > 0 && (
+      {config.global && actions && actions.length > 0 && (
         <Card className="bg-muted/30">
           <CardContent className="py-3">
             <div className="flex items-center gap-4 flex-wrap">
@@ -561,12 +645,18 @@ export function AnalyticsCharts({
 
       {/* Revenue Chart with N-1 comparison */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
             Évolution du Chiffre d'Affaires
             {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
+          <ChartActionToggle
+            chartKey="revenue"
+            config={config}
+            onChange={handleChartToggle}
+            hasActions={!!hasActions}
+          />
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
@@ -589,7 +679,7 @@ export function AnalyticsCharts({
                 />
                 <Legend />
                 {/* Action markers */}
-                {actionMonths.map(monthNum => {
+                {shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
                   const primaryAction = monthActions[0];
                   if (!primaryAction) return null;
@@ -625,11 +715,17 @@ export function AnalyticsCharts({
 
       {/* Conversion Funnel Chart */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
             Funnel de Conversion
           </CardTitle>
+          <ChartActionToggle
+            chartKey="conversionFunnel"
+            config={config}
+            onChange={handleChartToggle}
+            hasActions={!!hasActions}
+          />
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
@@ -666,19 +762,27 @@ export function AnalyticsCharts({
             {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
           {/* Input objectif en haut à droite */}
-          <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-1.5">
-            <Target className="h-4 w-4 text-emerald-500 shrink-0" />
-            <span className="text-sm font-medium">Objectif :</span>
-            <Input
-              type="number"
-              value={conversionTarget}
-              onChange={(e) => setConversionTarget(Number(e.target.value) || 0)}
-              className="w-16 h-7 text-center text-sm"
-              min={0}
-              max={100}
-              step={0.5}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-1.5">
+              <Target className="h-4 w-4 text-emerald-500 shrink-0" />
+              <span className="text-sm font-medium">Objectif :</span>
+              <Input
+                type="number"
+                value={conversionTarget}
+                onChange={(e) => setConversionTarget(Number(e.target.value) || 0)}
+                className="w-16 h-7 text-center text-sm"
+                min={0}
+                max={100}
+                step={0.5}
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+            <ChartActionToggle
+              chartKey="conversionRate"
+              config={config}
+              onChange={handleChartToggle}
+              hasActions={!!hasActions}
             />
-            <span className="text-sm text-muted-foreground">%</span>
           </div>
         </CardHeader>
         <CardContent>
@@ -816,11 +920,17 @@ export function AnalyticsCharts({
 
       {/* Fees Breakdown Chart */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
             <Euro className="h-5 w-5" />
             Répartition des Frais
           </CardTitle>
+          <ChartActionToggle
+            chartKey="fees"
+            config={config}
+            onChange={handleChartToggle}
+            hasActions={!!hasActions}
+          />
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
@@ -850,12 +960,18 @@ export function AnalyticsCharts({
 
       {/* Net Payout Chart with N-1 */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
             Versement Net vs Frais Totaux
             {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
+          <ChartActionToggle
+            chartKey="netPayout"
+            config={config}
+            onChange={handleChartToggle}
+            hasActions={!!hasActions}
+          />
         </CardHeader>
         <CardContent>
           <div className="h-[250px]">
@@ -886,12 +1002,18 @@ export function AnalyticsCharts({
 
       {/* Profitability Rate Chart with N-1 */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
             <Percent className="h-5 w-5" />
             Taux de Rentabilité
             {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
+          <ChartActionToggle
+            chartKey="profitability"
+            config={config}
+            onChange={handleChartToggle}
+            hasActions={!!hasActions}
+          />
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">

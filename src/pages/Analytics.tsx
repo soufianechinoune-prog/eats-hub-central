@@ -10,12 +10,22 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { AnalyticsFilters, PeriodMode } from "@/components/analytics/AnalyticsFilters";
-import { AnalyticsCharts } from "@/components/analytics/AnalyticsCharts";
+import { AnalyticsCharts, ChartActionsConfig } from "@/components/analytics/AnalyticsCharts";
 import { useAnalyticsPdfExport } from "@/hooks/useAnalyticsPdfExport";
 import { useRestaurantActions } from "@/hooks/useRestaurantActions";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
 import type { DateRange } from "react-day-picker";
+
+const DEFAULT_CHART_ACTIONS_CONFIG: ChartActionsConfig = {
+  global: true,
+  revenue: true,
+  conversionFunnel: true,
+  conversionRate: true,
+  fees: true,
+  netPayout: true,
+  profitability: true,
+};
 
 const MONTHS_FULL = [
   "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
@@ -35,9 +45,16 @@ export default function Analytics() {
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
   const [periodMode, setPeriodMode] = useState<PeriodMode>("year");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [showActions, setShowActions] = useState<boolean>(() => {
-    const saved = localStorage.getItem('analyticsShowActions');
-    return saved ? saved === 'true' : true;
+  const [chartActionsConfig, setChartActionsConfig] = useState<ChartActionsConfig>(() => {
+    const saved = localStorage.getItem('analyticsChartActionsConfig');
+    if (saved) {
+      try {
+        return { ...DEFAULT_CHART_ACTIONS_CONFIG, ...JSON.parse(saved) };
+      } catch {
+        return DEFAULT_CHART_ACTIONS_CONFIG;
+      }
+    }
+    return DEFAULT_CHART_ACTIONS_CONFIG;
   });
 
   const chartsRef = useRef<HTMLDivElement>(null);
@@ -50,9 +67,13 @@ export default function Analytics() {
     setSearchParams({ platform: value });
   };
 
-  const handleShowActionsChange = (value: boolean) => {
-    setShowActions(value);
-    localStorage.setItem('analyticsShowActions', String(value));
+  const handleChartActionsConfigChange = (newConfig: ChartActionsConfig) => {
+    setChartActionsConfig(newConfig);
+    localStorage.setItem('analyticsChartActionsConfig', JSON.stringify(newConfig));
+  };
+
+  const handleGlobalToggleChange = (value: boolean) => {
+    handleChartActionsConfigChange({ ...chartActionsConfig, global: value });
   };
 
   // Fetch restaurant actions for the selected year and platform
@@ -469,12 +490,17 @@ export default function Analytics() {
         </div>
         <Switch
           id="show-actions"
-          checked={showActions}
-          onCheckedChange={handleShowActionsChange}
+          checked={chartActionsConfig.global}
+          onCheckedChange={handleGlobalToggleChange}
         />
         <span className="text-xs text-muted-foreground">
           ({(selectedTab === "uber_eats" ? uberActions : selectedTab === "deliveroo" ? deliverooActions : globalActions)?.length || 0} actions)
         </span>
+        {chartActionsConfig.global && (
+          <span className="text-xs text-muted-foreground ml-2 border-l pl-3">
+            Utilisez ⚡ sur chaque graphique pour affiner
+          </span>
+        )}
       </div>
 
       {/* Platform Tabs */}
@@ -511,7 +537,9 @@ export default function Analytics() {
                 startMonth={effectiveStartMonth}
                 endMonth={effectiveEndMonth}
                 selectedYear={selectedYear}
-                actions={showActions ? uberActions : undefined}
+                actions={uberActions}
+                chartActionsConfig={chartActionsConfig}
+                onChartActionsConfigChange={handleChartActionsConfigChange}
               />
             </TabsContent>
 
@@ -526,7 +554,9 @@ export default function Analytics() {
                 startMonth={effectiveStartMonth}
                 endMonth={effectiveEndMonth}
                 selectedYear={selectedYear}
-                actions={showActions ? deliverooActions : undefined}
+                actions={deliverooActions}
+                chartActionsConfig={chartActionsConfig}
+                onChartActionsConfigChange={handleChartActionsConfigChange}
               />
             </TabsContent>
 
@@ -541,7 +571,9 @@ export default function Analytics() {
                 startMonth={effectiveStartMonth}
                 endMonth={effectiveEndMonth}
                 selectedYear={selectedYear}
-                actions={showActions ? globalActions : undefined}
+                actions={globalActions}
+                chartActionsConfig={chartActionsConfig}
+                onChartActionsConfigChange={handleChartActionsConfigChange}
               />
             </TabsContent>
           </div>
