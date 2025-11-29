@@ -11,6 +11,8 @@ import {
   Shield,
   PenLine,
   BarChart3,
+  UtensilsCrossed,
+  Zap,
 } from "lucide-react";
 import {
   Sidebar,
@@ -70,6 +72,16 @@ const dataEntryItems = [
     title: "Saisie de données",
     url: "/data-entry",
     icon: PenLine,
+  },
+  {
+    title: "Catalogue Produits",
+    url: "/menu-items",
+    icon: UtensilsCrossed,
+  },
+  {
+    title: "Actions & Events",
+    url: "/actions",
+    icon: Zap,
   },
   {
     title: "Analytics",

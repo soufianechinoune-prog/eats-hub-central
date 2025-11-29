@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      action_categories: {
+        Row: {
+          icon: string
+          id: string
+          label: string
+        }
+        Insert: {
+          icon: string
+          id: string
+          label: string
+        }
+        Update: {
+          icon?: string
+          id?: string
+          label?: string
+        }
+        Relationships: []
+      }
       chains: {
         Row: {
           created_at: string
@@ -212,6 +230,50 @@ export type Database = {
           thumb_up?: number | null
         }
         Relationships: []
+      }
+      menu_items: {
+        Row: {
+          category: string | null
+          created_at: string
+          food_cost: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          food_cost?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          food_cost?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       monthly_conversion: {
         Row: {
@@ -659,6 +721,72 @@ export type Database = {
           workflow_id?: string | null
         }
         Relationships: []
+      }
+      restaurant_actions: {
+        Row: {
+          action_type: string
+          category: string
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          impact_unit: string | null
+          impact_value: number | null
+          platform: string | null
+          restaurant_id: string
+          start_date: string
+          target_item_ids: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          category: string
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          impact_unit?: string | null
+          impact_value?: number | null
+          platform?: string | null
+          restaurant_id: string
+          start_date: string
+          target_item_ids?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          category?: string
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          impact_unit?: string | null
+          impact_value?: number | null
+          platform?: string | null
+          restaurant_id?: string
+          start_date?: string
+          target_item_ids?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_actions_category_fkey"
+            columns: ["category"]
+            isOneToOne: false
+            referencedRelation: "action_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_actions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       restaurants: {
         Row: {

@@ -26,6 +26,8 @@ import DataEntryFees from "./pages/DataEntryFees";
 import DataEntry from "./pages/DataEntry";
 import Analytics from "./pages/Analytics";
 import RestaurantDetail from "./pages/RestaurantDetail";
+import MenuItems from "./pages/MenuItems";
+import RestaurantActions from "./pages/RestaurantActions";
 
 const queryClient = new QueryClient();
 
@@ -193,6 +195,26 @@ const App = () => {
                 <ProtectedRoute session={session}>
                   <AppLayout>
                     <Analytics />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/menu-items"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <MenuItems />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/actions"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <RestaurantActions />
                   </AppLayout>
                 </ProtectedRoute>
               }
