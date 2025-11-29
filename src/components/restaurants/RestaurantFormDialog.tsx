@@ -78,23 +78,34 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
       return;
     }
 
-    const { data: chains } = await supabase
+    // Fetch or create a default chain
+    let { data: chain } = await supabase
       .from("chains")
       .select("id")
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (!chains) {
-      toast({
-        title: "Erreur",
-        description: "Aucune chaîne trouvée",
-        variant: "destructive",
-      });
-      return;
+    if (!chain) {
+      // Create a default chain if none exists
+      const { data: newChain, error: chainError } = await supabase
+        .from("chains")
+        .insert({ name: "Default Chain" })
+        .select("id")
+        .single();
+      
+      if (chainError || !newChain) {
+        toast({
+          title: "Erreur",
+          description: "Impossible de créer la chaîne par défaut",
+          variant: "destructive",
+        });
+        return;
+      }
+      chain = newChain;
     }
 
     const { error } = await supabase.from("restaurants").insert({
-      chain_id: chains.id,
+      chain_id: chain.id,
       name: newRestaurant.name,
       street: newRestaurant.street || null,
       postal_code: newRestaurant.postal_code || null,
