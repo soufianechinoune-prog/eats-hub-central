@@ -94,7 +94,10 @@ const Restaurants = () => {
         (r) =>
           r.name.toLowerCase().includes(query) ||
           r.city?.toLowerCase().includes(query) ||
-          r.street?.toLowerCase().includes(query)
+          r.street?.toLowerCase().includes(query) ||
+          r.manager_first_name?.toLowerCase().includes(query) ||
+          r.manager_last_name?.toLowerCase().includes(query) ||
+          r.account_manager_name?.toLowerCase().includes(query)
       );
     }
     
@@ -192,6 +195,7 @@ const Restaurants = () => {
                 <TableHead>Ville</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Gérant</TableHead>
+                <TableHead>Account Manager</TableHead>
                 <TableHead className="text-center">Statut API</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -199,7 +203,7 @@ const Restaurants = () => {
             <TableBody>
               {filteredRestaurants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     {departmentFilter === "all" 
                       ? "Aucun restaurant trouvé" 
                       : `Aucun restaurant dans le département ${departmentFilter}`}
@@ -238,10 +242,17 @@ const Restaurants = () => {
                       )}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.manager_first_name && restaurant.manager_last_name ? (
-                        `${restaurant.manager_first_name} ${restaurant.manager_last_name}`
+                      {restaurant.manager_first_name || restaurant.manager_last_name ? (
+                        `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim()
                       ) : (
-                        <span className="text-muted-foreground">Non renseigné</span>
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
+                      {restaurant.account_manager_name ? (
+                        restaurant.account_manager_name
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
                     <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
