@@ -14,6 +14,7 @@ import {
   UtensilsCrossed,
   Zap,
   History,
+  MessageSquare,
 } from "lucide-react";
 import {
   Sidebar,
@@ -40,6 +41,11 @@ const menuItems = [
     title: "Restaurants",
     url: "/restaurants",
     icon: Store,
+  },
+  {
+    title: "Messagerie",
+    url: "/messaging",
+    icon: MessageSquare,
   },
   {
     title: "Éditeur de Menu",
