@@ -207,6 +207,127 @@ function ChartActionToggle({
   );
 }
 
+// Custom label component for action markers with tooltip
+function ActionMarkerLabel({
+  viewBox,
+  actions,
+  color,
+}: {
+  viewBox?: { x?: number; y?: number };
+  actions: RestaurantAction[];
+  color: string;
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  if (!viewBox?.x) return null;
+  
+  const x = viewBox.x;
+  const y = 10; // Position at top of chart
+  
+  return (
+    <g>
+      {/* Invisible larger hit area for easier hovering */}
+      <rect
+        x={x - 12}
+        y={y - 8}
+        width={24}
+        height={20}
+        fill="transparent"
+        style={{ cursor: "pointer" }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      />
+      {/* Icon circle */}
+      <circle
+        cx={x}
+        cy={y}
+        r={8}
+        fill={color}
+        fillOpacity={0.15}
+        stroke={color}
+        strokeWidth={1.5}
+        style={{ cursor: "pointer" }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      />
+      {/* Zap icon or count */}
+      <text
+        x={x}
+        y={y + 3.5}
+        textAnchor="middle"
+        fill={color}
+        fontSize={9}
+        fontWeight="bold"
+        style={{ pointerEvents: "none" }}
+      >
+        {actions.length > 1 ? actions.length : "⚡"}
+      </text>
+      
+      {/* Tooltip */}
+      {isHovered && (
+        <foreignObject
+          x={x - 120}
+          y={y + 14}
+          width={240}
+          height={Math.min(actions.length * 60 + 16, 200)}
+          style={{ overflow: "visible" }}
+        >
+          <div
+            className="bg-popover border border-border rounded-lg shadow-lg p-2 text-xs"
+            style={{ pointerEvents: "none" }}
+          >
+            <div className="font-medium text-foreground mb-1.5 flex items-center gap-1">
+              <Zap className="h-3 w-3" style={{ color }} />
+              {actions.length} action{actions.length > 1 ? "s" : ""}
+            </div>
+            <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
+              {actions.map((action, idx) => {
+                const Icon = ACTION_CATEGORY_ICONS[action.category] || Zap;
+                const categoryColor = ACTION_CATEGORY_COLORS[action.category] || "#64748b";
+                const date = new Date(action.start_date);
+                const formattedDate = date.toLocaleDateString("fr-FR", { 
+                  day: "numeric", 
+                  month: "short",
+                  year: "numeric"
+                });
+                
+                return (
+                  <div 
+                    key={action.id || idx} 
+                    className="flex items-start gap-2 p-1.5 rounded bg-muted/50"
+                  >
+                    <Icon 
+                      className="h-3.5 w-3.5 mt-0.5 shrink-0" 
+                      style={{ color: categoryColor }} 
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground truncate">
+                        {action.title}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <span 
+                          className="text-[10px] px-1 py-0.5 rounded"
+                          style={{ 
+                            backgroundColor: `${categoryColor}20`,
+                            color: categoryColor 
+                          }}
+                        >
+                          {ACTION_CATEGORY_LABELS[action.category] || action.category}
+                        </span>
+                        <span className="text-[10px]">{formattedDate}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </foreignObject>
+      )}
+    </g>
+  );
+}
+
 export function AnalyticsCharts({
   revenueData,
   conversionData,
@@ -692,13 +813,7 @@ export function AnalyticsCharts({
                       stroke={color}
                       strokeWidth={2}
                       strokeDasharray="5 5"
-                      label={{
-                        value: monthActions.length > 1 ? `${monthActions.length}` : "",
-                        position: "top",
-                        fill: color,
-                        fontSize: 10,
-                        fontWeight: "bold",
-                      }}
+                      label={<ActionMarkerLabel actions={monthActions} color={color} />}
                     />
                   );
                 })}
