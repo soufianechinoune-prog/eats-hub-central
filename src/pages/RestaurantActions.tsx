@@ -333,6 +333,13 @@ export default function RestaurantActions() {
     setEditingAction(action);
     const categoryTypes = ACTION_TYPES[action.category] || [];
     const isCustomType = !categoryTypes.includes(action.action_type);
+    const changeContext = action.change_context as any;
+    
+    // Pour les datetime, restaurer l'heure depuis change_context
+    const actionConfig = getActionConfig(isCustomType ? "Autre" : action.action_type);
+    const timeValue = actionConfig.dateType === "datetime" && changeContext?.time 
+      ? changeContext.time 
+      : (action.end_date || "");
     
     setFormData({
       restaurant_ids: action.restaurant_id ? [action.restaurant_id] : [],
@@ -341,7 +348,7 @@ export default function RestaurantActions() {
       title: action.title,
       description: action.description || "",
       start_date: action.start_date,
-      end_date: action.end_date || "",
+      end_date: timeValue,
       impact_value: action.impact_value?.toString() || "",
       impact_unit: action.impact_unit || "",
       target_item_ids: action.target_item_ids || [],
@@ -349,7 +356,6 @@ export default function RestaurantActions() {
     });
     setCustomActionType(isCustomType ? action.action_type : "");
     // Récupérer le nom du nouveau produit et la portée depuis change_context
-    const changeContext = action.change_context as any;
     setNewProductName(changeContext?.new_product_name || "");
     // Déterminer la portée: si target_item_ids vide et scope pas défini, c'est "all"
     const savedScope = changeContext?.scope;
@@ -446,6 +452,10 @@ export default function RestaurantActions() {
     } else if (config.hasProducts) {
       changeContext.scope = productScope;
     }
+    // Pour les datetime, stocker l'heure dans change_context
+    if (config.dateType === "datetime" && formData.end_date) {
+      changeContext.time = formData.end_date;
+    }
     
     // Si aucun restaurant sélectionné, on crée une seule action avec restaurant_id = null
     // Sinon on crée une action par restaurant sélectionné
@@ -460,7 +470,7 @@ export default function RestaurantActions() {
         title: formData.title.trim(),
         description: formData.description.trim() || null,
         start_date: formData.start_date,
-        end_date: formData.end_date || null,
+        end_date: config.dateType === "datetime" ? null : (formData.end_date || null),
         impact_value: formData.impact_value ? parseFloat(formData.impact_value) : null,
         impact_unit: formData.impact_unit || null,
         target_item_ids: productScope === "all" ? [] : formData.target_item_ids,
@@ -487,7 +497,7 @@ export default function RestaurantActions() {
         title: formData.title.trim(),
         description: formData.description.trim() || null,
         start_date: formData.start_date,
-        end_date: formData.end_date || null,
+        end_date: config.dateType === "datetime" ? null : (formData.end_date || null),
         impact_value: formData.impact_value ? parseFloat(formData.impact_value) : null,
         impact_unit: formData.impact_unit || null,
         target_item_ids: productScope === "all" ? [] : formData.target_item_ids,
