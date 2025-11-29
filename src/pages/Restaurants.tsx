@@ -41,16 +41,19 @@ const Restaurants = () => {
     },
   });
 
-  // Extract unique departments from postal codes
+  // Extract unique departments from postal codes with count
   const departments = useMemo(() => {
     if (!restaurants) return [];
-    const depts = new Set<string>();
+    const deptCounts = new Map<string, number>();
     restaurants.forEach((r) => {
       if (r.postal_code && r.postal_code.length >= 2) {
-        depts.add(r.postal_code.substring(0, 2));
+        const dept = r.postal_code.substring(0, 2);
+        deptCounts.set(dept, (deptCounts.get(dept) || 0) + 1);
       }
     });
-    return Array.from(depts).sort();
+    return Array.from(deptCounts.entries())
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) => a.code.localeCompare(b.code));
   }, [restaurants]);
 
   // Filter restaurants by department
@@ -80,14 +83,14 @@ const Restaurants = () => {
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Tous les départements" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous les départements</SelectItem>
+                <SelectItem value="all">Tous les départements ({restaurants?.length || 0})</SelectItem>
                 {departments.map((dept) => (
-                  <SelectItem key={dept} value={dept}>
-                    Département {dept}
+                  <SelectItem key={dept.code} value={dept.code}>
+                    Département {dept.code} ({dept.count})
                   </SelectItem>
                 ))}
               </SelectContent>
