@@ -971,63 +971,75 @@ export default function RestaurantActions() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[720px] max-h-[90vh] overflow-y-auto p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30">
-            <DialogTitle className="text-xl flex items-center gap-2">
-              <Zap className="h-5 w-5 text-primary" />
-              {editingAction ? "Modifier l'action" : "Nouvelle action"}
-            </DialogTitle>
-            <DialogDescription>
-              Enregistrez une action pour suivre son impact sur les performances
-            </DialogDescription>
+        <DialogContent className="sm:max-w-[850px] max-h-[90vh] overflow-hidden p-0 gap-0">
+          {/* Header */}
+          <DialogHeader className="px-8 pt-6 pb-5 border-b bg-gradient-to-r from-primary/5 to-transparent">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20">
+                <Zap className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-semibold">
+                  {editingAction ? "Modifier l'action" : "Nouvelle action"}
+                </DialogTitle>
+                <DialogDescription className="mt-1">
+                  Enregistrez une action pour suivre son impact sur les performances
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           
-          <div className="px-6 space-y-6">
+          <div className="px-8 py-6 space-y-6 overflow-y-auto max-h-[calc(90vh-180px)]">
             {/* Platform Selection - Visual Toggle Buttons */}
             <div className="space-y-3">
-              <Label className="text-sm font-medium">Plateforme *</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                Plateforme *
+              </Label>
+              <div className="grid grid-cols-2 gap-4">
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, platform: "uber_eats" })}
-                  className={`flex items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all ${
+                  className={`flex items-center justify-center gap-3 p-5 rounded-xl border-2 transition-all ${
                     formData.platform === "uber_eats"
-                      ? "border-[#06C167] bg-[#06C167]/10 shadow-sm"
+                      ? "border-[#06C167] bg-[#06C167]/10 shadow-md shadow-[#06C167]/10"
                       : "border-border hover:border-[#06C167]/50 hover:bg-muted/50"
                   }`}
                 >
-                  <div className={`p-2 rounded-lg ${formData.platform === "uber_eats" ? "bg-[#06C167]/20" : "bg-muted"}`}>
-                    <UberEatsLogo size={28} />
+                  <div className={`p-2.5 rounded-xl ${formData.platform === "uber_eats" ? "bg-[#06C167]/20" : "bg-muted"}`}>
+                    <UberEatsLogo size={32} />
                   </div>
-                  <span className={`font-medium ${formData.platform === "uber_eats" ? "text-[#06C167]" : ""}`}>
+                  <span className={`font-semibold text-base ${formData.platform === "uber_eats" ? "text-[#06C167]" : ""}`}>
                     Uber Eats
                   </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, platform: "deliveroo" })}
-                  className={`flex items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all ${
+                  className={`flex items-center justify-center gap-3 p-5 rounded-xl border-2 transition-all ${
                     formData.platform === "deliveroo"
-                      ? "border-[#00CCBC] bg-[#00CCBC]/10 shadow-sm"
+                      ? "border-[#00CCBC] bg-[#00CCBC]/10 shadow-md shadow-[#00CCBC]/10"
                       : "border-border hover:border-[#00CCBC]/50 hover:bg-muted/50"
                   }`}
                 >
-                  <div className={`p-2 rounded-lg ${formData.platform === "deliveroo" ? "bg-[#00CCBC]/20" : "bg-muted"}`}>
-                    <DeliverooLogo size={28} />
+                  <div className={`p-2.5 rounded-xl ${formData.platform === "deliveroo" ? "bg-[#00CCBC]/20" : "bg-muted"}`}>
+                    <DeliverooLogo size={32} />
                   </div>
-                  <span className={`font-medium ${formData.platform === "deliveroo" ? "text-[#00CCBC]" : ""}`}>
+                  <span className={`font-semibold text-base ${formData.platform === "deliveroo" ? "text-[#00CCBC]" : ""}`}>
                     Deliveroo
                   </span>
                 </button>
               </div>
             </div>
 
-            <Separator />
+            <Separator className="my-2" />
 
             {/* Category & Type */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Zap className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <div className="p-1.5 rounded-lg bg-primary/10">
+                  <Zap className="h-4 w-4 text-primary" />
+                </div>
                 Type d'action
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1147,12 +1159,14 @@ export default function RestaurantActions() {
               </div>
             </div>
 
-            <Separator />
+            <Separator className="my-2" />
 
             {/* Dates & Impact */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Clock className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <div className="p-1.5 rounded-lg bg-amber-500/10">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                </div>
                 Période & Impact
               </div>
               
@@ -1271,12 +1285,14 @@ export default function RestaurantActions() {
               })()}
             </div>
 
-            <Separator />
+            <Separator className="my-2" />
 
             {/* Restaurant & Products */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Store className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <div className="p-1.5 rounded-lg bg-blue-500/10">
+                  <Store className="h-4 w-4 text-blue-600" />
+                </div>
                 Cible
               </div>
               
@@ -1406,9 +1422,11 @@ export default function RestaurantActions() {
 
               {/* BOGO specific - 1 acheté = 1 offert */}
               {formData.action_type === "1 acheté = 1 offert" && menuItems.length > 0 && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                    <Gift className="h-4 w-4" />
+                <div className="space-y-4 p-4 rounded-xl bg-pink-500/5 border border-pink-500/10">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <div className="p-1.5 rounded-lg bg-pink-500/10">
+                      <Gift className="h-4 w-4 text-pink-600" />
+                    </div>
                     Produits de l'offre
                   </div>
                   
@@ -1506,8 +1524,10 @@ export default function RestaurantActions() {
                 
                 return (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                      <Package className="h-4 w-4" />
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <div className="p-1.5 rounded-lg bg-emerald-500/10">
+                        <Package className="h-4 w-4 text-emerald-600" />
+                      </div>
                       Portée de l'action
                     </div>
                     
@@ -1649,19 +1669,20 @@ export default function RestaurantActions() {
             </div>
           </div>
 
-          <DialogFooter className="px-6 py-4 border-t bg-muted/30 mt-6">
-            <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>
+          <DialogFooter className="px-8 py-5 border-t bg-muted/20 flex-shrink-0">
+            <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="px-6">
               Annuler
             </Button>
             <Button 
               onClick={handleSubmit}
               disabled={!formData.platform || !formData.category || !formData.action_type}
-              className="gap-2"
+              className="gap-2 px-6"
+              size="lg"
             >
               {editingAction ? (
                 <>
                   <Pencil className="h-4 w-4" />
-                  Enregistrer
+                  Enregistrer les modifications
                 </>
               ) : (
                 <>
