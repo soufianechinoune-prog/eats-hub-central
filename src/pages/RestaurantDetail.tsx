@@ -316,7 +316,7 @@ const RestaurantDetail = () => {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Supprimer ce restaurant ?</AlertDialogTitle>
+                      <AlertDialogTitle>Supprimer "{restaurant.name}" ?</AlertDialogTitle>
                       <AlertDialogDescription>
                         Cette action est irréversible. Toutes les données associées à ce restaurant seront définitivement supprimées.
                       </AlertDialogDescription>
