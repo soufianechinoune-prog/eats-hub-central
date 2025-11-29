@@ -30,11 +30,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 
 const STORAGE_KEY = "restaurants-preferences";
 
 const Restaurants = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   // Load preferences from localStorage
   const savedPrefs = useMemo(() => {
@@ -396,6 +398,17 @@ const Restaurants = () => {
       <RestaurantShareActions
         selectedRestaurants={selectedRestaurants}
         onClear={() => setSelectedIds(new Set())}
+        onDelete={async (ids) => {
+          const { error } = await supabase
+            .from("restaurants")
+            .delete()
+            .in("id", ids);
+          
+          if (error) throw error;
+          
+          setSelectedIds(new Set());
+          refetch();
+        }}
       />
     </div>
   );
