@@ -85,6 +85,7 @@ interface RestaurantAction {
   target_item_ids: string[];
   platform: string;
   created_at: string;
+  change_context: any;
 }
 
 interface Restaurant {
@@ -208,6 +209,7 @@ export default function RestaurantActions() {
     platform: "",
   });
   const [customActionType, setCustomActionType] = useState("");
+  const [newProductName, setNewProductName] = useState("");
 
   useEffect(() => {
     fetchCategories();
@@ -286,6 +288,7 @@ export default function RestaurantActions() {
       platform: "",
     });
     setCustomActionType("");
+    setNewProductName("");
     setIsDialogOpen(true);
   };
 
@@ -308,6 +311,9 @@ export default function RestaurantActions() {
       platform: action.platform,
     });
     setCustomActionType(isCustomType ? action.action_type : "");
+    // Récupérer le nom du nouveau produit depuis change_context si présent
+    const changeContext = action.change_context as any;
+    setNewProductName(changeContext?.new_product_name || "");
     setIsDialogOpen(true);
   };
 
@@ -346,6 +352,16 @@ export default function RestaurantActions() {
       });
       return;
     }
+    
+    // Validation contextuelle: nom du nouveau produit
+    if (formData.action_type === "Nouveau produit" && !newProductName.trim()) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez indiquer le nom du nouveau produit",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const actionData = {
       restaurant_id: formData.restaurant_id || null,
@@ -359,6 +375,9 @@ export default function RestaurantActions() {
       impact_unit: formData.impact_unit || null,
       target_item_ids: formData.target_item_ids,
       platform: formData.platform,
+      change_context: formData.action_type === "Nouveau produit" && newProductName.trim() 
+        ? { new_product_name: newProductName.trim() } 
+        : null,
     };
 
     if (editingAction) {
@@ -864,6 +883,22 @@ export default function RestaurantActions() {
                 placeholder="Ex: Promo été -20% sur les burgers"
               />
             </div>
+
+            {/* New Product Name - only for "Nouveau produit" action type */}
+            {formData.action_type === "Nouveau produit" && (
+              <div className="grid gap-2">
+                <Label>Nom du nouveau produit *</Label>
+                <Input
+                  value={newProductName}
+                  onChange={(e) => setNewProductName(e.target.value)}
+                  placeholder="Ex: Double Cheese Bacon"
+                  className={!newProductName.trim() ? "border-destructive/50" : ""}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ce produit sera ajouté au catalogue après son lancement
+                </p>
+              </div>
+            )}
 
             {/* Description */}
             <div className="grid gap-2">
