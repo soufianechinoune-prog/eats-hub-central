@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,12 +11,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight, MapPin, Phone } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { RestaurantFormDialog } from "@/components/restaurants/RestaurantFormDialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Restaurants = () => {
   const navigate = useNavigate();
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
 
   const { data: restaurants, refetch } = useQuery({
     queryKey: ["restaurants"],
@@ -26,10 +35,32 @@ const Restaurants = () => {
           *,
           uber_connections (id)
         `)
+        .order("postal_code", { ascending: true })
         .order("city", { ascending: true });
       return data || [];
     },
   });
+
+  // Extract unique departments from postal codes
+  const departments = useMemo(() => {
+    if (!restaurants) return [];
+    const depts = new Set<string>();
+    restaurants.forEach((r) => {
+      if (r.postal_code && r.postal_code.length >= 2) {
+        depts.add(r.postal_code.substring(0, 2));
+      }
+    });
+    return Array.from(depts).sort();
+  }, [restaurants]);
+
+  // Filter restaurants by department
+  const filteredRestaurants = useMemo(() => {
+    if (!restaurants) return [];
+    if (departmentFilter === "all") return restaurants;
+    return restaurants.filter(
+      (r) => r.postal_code && r.postal_code.startsWith(departmentFilter)
+    );
+  }, [restaurants, departmentFilter]);
 
   return (
     <div className="space-y-6">
@@ -44,8 +75,24 @@ const Restaurants = () => {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>Liste des restaurants</CardTitle>
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Tous les départements" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les départements</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept} value={dept}>
+                    Département {dept}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -61,58 +108,68 @@ const Restaurants = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {restaurants?.map((restaurant) => (
-                <TableRow 
-                  key={restaurant.id} 
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => navigate(`/restaurants/${restaurant.id}`)}
-                >
-                  <TableCell className="font-medium">
-                    {restaurant.name}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <MapPin className="h-3.5 w-3.5" />
-                      {restaurant.postal_code && `${restaurant.postal_code} `}{restaurant.city}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {restaurant.restaurant_phone ? (
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                        {restaurant.restaurant_phone}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {restaurant.manager_first_name && restaurant.manager_last_name ? (
-                      `${restaurant.manager_first_name} ${restaurant.manager_last_name}`
-                    ) : (
-                      <span className="text-muted-foreground">Non renseigné</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {restaurant.is_active ? (
-                      <Badge className="bg-accent text-accent-foreground">Actif</Badge>
-                    ) : (
-                      <Badge variant="outline">Inactif</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {Array.isArray(restaurant.uber_connections) &&
-                    restaurant.uber_connections.length > 0 ? (
-                      <Badge className="bg-accent text-accent-foreground">Connecté</Badge>
-                    ) : (
-                      <Badge variant="outline">Non connecté</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              {filteredRestaurants.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    {departmentFilter === "all" 
+                      ? "Aucun restaurant trouvé" 
+                      : `Aucun restaurant dans le département ${departmentFilter}`}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredRestaurants.map((restaurant) => (
+                  <TableRow 
+                    key={restaurant.id} 
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => navigate(`/restaurants/${restaurant.id}`)}
+                  >
+                    <TableCell className="font-medium">
+                      {restaurant.name}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {restaurant.postal_code && `${restaurant.postal_code} `}{restaurant.city}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {restaurant.restaurant_phone ? (
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                          {restaurant.restaurant_phone}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {restaurant.manager_first_name && restaurant.manager_last_name ? (
+                        `${restaurant.manager_first_name} ${restaurant.manager_last_name}`
+                      ) : (
+                        <span className="text-muted-foreground">Non renseigné</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {restaurant.is_active ? (
+                        <Badge className="bg-accent text-accent-foreground">Actif</Badge>
+                      ) : (
+                        <Badge variant="outline">Inactif</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {Array.isArray(restaurant.uber_connections) &&
+                      restaurant.uber_connections.length > 0 ? (
+                        <Badge className="bg-accent text-accent-foreground">Connecté</Badge>
+                      ) : (
+                        <Badge variant="outline">Non connecté</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
