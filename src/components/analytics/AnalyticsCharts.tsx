@@ -30,6 +30,7 @@ import {
   Legend,
   ComposedChart,
   ReferenceLine,
+  ReferenceArea,
 } from "recharts";
 
 const MONTHS = [
@@ -536,12 +537,27 @@ export function AnalyticsCharts({
 
       {/* Conversion Rate Chart with N-1 */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
             <Percent className="h-5 w-5" />
             Taux de Conversion Global
             {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
+          {/* Input objectif en haut à droite */}
+          <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-1.5">
+            <Target className="h-4 w-4 text-emerald-500 shrink-0" />
+            <span className="text-sm font-medium">Objectif :</span>
+            <Input
+              type="number"
+              value={conversionTarget}
+              onChange={(e) => setConversionTarget(Number(e.target.value) || 0)}
+              className="w-16 h-7 text-center text-sm"
+              min={0}
+              max={100}
+              step={0.5}
+            />
+            <span className="text-sm text-muted-foreground">%</span>
+          </div>
         </CardHeader>
         <CardContent>
           {/* Section explicative */}
@@ -567,26 +583,6 @@ export function AnalyticsCharts({
                   <li>• <span className="text-green-600 dark:text-green-400 font-medium">Benchmark : 5-10% = correct, &gt;10% = excellent</span></li>
                 </ul>
               </div>
-            </div>
-            {/* Input pour définir l'objectif */}
-            <div className="flex items-center gap-3 pt-3 border-t border-border/50">
-              <Target className="h-5 w-5 text-emerald-500 shrink-0" />
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Mon objectif :</span>
-                <Input
-                  type="number"
-                  value={conversionTarget}
-                  onChange={(e) => setConversionTarget(Number(e.target.value) || 0)}
-                  className="w-20 h-8 text-center"
-                  min={0}
-                  max={100}
-                  step={0.5}
-                />
-                <span className="text-sm text-muted-foreground">%</span>
-              </div>
-              <span className="text-xs text-muted-foreground ml-auto">
-                Les mois en dessous seront en rouge
-              </span>
             </div>
           </div>
 
@@ -636,6 +632,14 @@ export function AnalyticsCharts({
                   }}
                 />
                 <Legend />
+                {/* Zone rouge semi-transparente pour les valeurs en dessous de l'objectif */}
+                <ReferenceArea
+                  y1={0}
+                  y2={conversionTarget}
+                  fill="#ef4444"
+                  fillOpacity={0.1}
+                  stroke="none"
+                />
                 {/* Ligne de référence pour l'objectif */}
                 <ReferenceLine 
                   y={conversionTarget} 
@@ -650,7 +654,7 @@ export function AnalyticsCharts({
                     fontWeight: 500
                   }}
                 />
-                <Line 
+                <Line
                   type="monotone" 
                   dataKey="conversionRate" 
                   name={`Taux ${selectedYear}`}
