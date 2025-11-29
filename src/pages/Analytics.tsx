@@ -1,14 +1,23 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, FileDown } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { AnalyticsFilters, PeriodMode } from "@/components/analytics/AnalyticsFilters";
 import { AnalyticsCharts } from "@/components/analytics/AnalyticsCharts";
+import { useAnalyticsPdfExport } from "@/hooks/useAnalyticsPdfExport";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
 import type { DateRange } from "react-day-picker";
+
+const MONTHS_FULL = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+];
 
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
@@ -23,6 +32,9 @@ export default function Analytics() {
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
   const [periodMode, setPeriodMode] = useState<PeriodMode>("year");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+
+  const chartsRef = useRef<HTMLDivElement>(null);
+  const { exportToPdf, isExporting } = useAnalyticsPdfExport();
 
   const prevYear = selectedYear - 1;
 
@@ -336,13 +348,67 @@ export default function Analytics() {
   const isLoading = loadingUberRevenue || loadingUberConversion || loadingUberFees ||
                     loadingDeliverooRevenue || loadingDeliverooConversion || loadingDeliverooFees;
 
+  // Get period display string for PDF export
+  const getPeriodDisplay = () => {
+    if (periodMode === "month") {
+      return `${MONTHS_FULL[selectedMonth - 1]} ${selectedYear}`;
+    } else if (periodMode === "range" && dateRange?.from && dateRange?.to) {
+      return `${format(dateRange.from, "dd MMM yyyy", { locale: fr })} - ${format(dateRange.to, "dd MMM yyyy", { locale: fr })}`;
+    }
+    return `${selectedYear}`;
+  };
+
+  const getRestaurantsDisplay = () => {
+    if (selectedRestaurants.length === 0) return "Tous les restaurants";
+    const names = restaurants?.filter(r => selectedRestaurants.includes(r.id)).map(r => r.name) || [];
+    if (names.length <= 3) return names.join(", ");
+    return `${names.slice(0, 3).join(", ")} +${names.length - 3}`;
+  };
+
+  const getPlatformDisplay = () => {
+    switch (selectedTab) {
+      case "uber_eats": return "Uber Eats";
+      case "deliveroo": return "Deliveroo";
+      default: return "Global";
+    }
+  };
+
+  const handleExportPdf = () => {
+    exportToPdf(chartsRef.current, {
+      title: "Rapport Analytics",
+      subtitle: "CS Delivery Performance",
+      period: getPeriodDisplay(),
+      restaurants: getRestaurantsDisplay(),
+      platform: getPlatformDisplay(),
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
-        <p className="text-muted-foreground mt-1">
-          Analyse de vos performances mensuelles
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
+          <p className="text-muted-foreground mt-1">
+            Analyse de vos performances mensuelles
+          </p>
+        </div>
+        <Button
+          onClick={handleExportPdf}
+          disabled={isExporting || isLoading}
+          className="bg-emerald-600 hover:bg-emerald-700"
+        >
+          {isExporting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Export en cours...
+            </>
+          ) : (
+            <>
+              <FileDown className="h-4 w-4 mr-2" />
+              Exporter PDF
+            </>
+          )}
+        </Button>
       </div>
 
       {/* Filters Section */}
@@ -382,7 +448,7 @@ export default function Analytics() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <>
+          <div ref={chartsRef}>
             <TabsContent value="uber_eats" className="mt-6">
               <AnalyticsCharts
                 revenueData={uberRevenueData}
@@ -424,7 +490,7 @@ export default function Analytics() {
                 selectedYear={selectedYear}
               />
             </TabsContent>
-          </>
+          </div>
         )}
       </Tabs>
     </div>
