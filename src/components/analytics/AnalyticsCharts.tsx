@@ -7,6 +7,9 @@ import {
   ShoppingCart,
   Users,
   Percent,
+  ArrowUp,
+  ArrowDown,
+  Minus,
 } from "lucide-react";
 import {
   LineChart,
@@ -56,17 +59,58 @@ interface AnalyticsChartsProps {
   revenueData: MonthlyRevenue[] | undefined;
   conversionData: MonthlyConversion[] | undefined;
   feesData: MonthlyFees[] | undefined;
+  prevRevenueData?: MonthlyRevenue[] | undefined;
+  prevConversionData?: MonthlyConversion[] | undefined;
+  prevFeesData?: MonthlyFees[] | undefined;
   startMonth?: number;
   endMonth?: number;
+  selectedYear: number;
+  showComparison?: boolean;
+}
+
+// Helper to calculate variation percentage
+const calcVariation = (current: number, previous: number): number | null => {
+  if (previous === 0) return current > 0 ? 100 : null;
+  return ((current - previous) / previous) * 100;
+};
+
+// Component for variation indicator
+function VariationIndicator({ current, previous, inverse = false }: { current: number; previous: number; inverse?: boolean }) {
+  const variation = calcVariation(current, previous);
+  
+  if (variation === null) return <span className="text-xs text-muted-foreground">--</span>;
+  
+  const isPositive = inverse ? variation < 0 : variation > 0;
+  const isNeutral = Math.abs(variation) < 0.5;
+  
+  return (
+    <span className={`text-xs flex items-center gap-0.5 ${isNeutral ? "text-muted-foreground" : isPositive ? "text-green-600" : "text-red-600"}`}>
+      {isNeutral ? (
+        <Minus className="h-3 w-3" />
+      ) : isPositive ? (
+        <ArrowUp className="h-3 w-3" />
+      ) : (
+        <ArrowDown className="h-3 w-3" />
+      )}
+      {Math.abs(variation).toFixed(1)}%
+    </span>
+  );
 }
 
 export function AnalyticsCharts({
   revenueData,
   conversionData,
   feesData,
+  prevRevenueData,
+  prevConversionData,
+  prevFeesData,
   startMonth = 1,
   endMonth = 12,
+  selectedYear,
+  showComparison = true,
 }: AnalyticsChartsProps) {
+  const prevYear = selectedYear - 1;
+  
   // Filter months for range
   const filterByRange = (monthNum: number) => {
     return monthNum >= startMonth && monthNum <= endMonth;
@@ -77,6 +121,7 @@ export function AnalyticsCharts({
     if (!revenueData) return [];
     
     const monthlyData: { [key: number]: { revenue: number; orders: number } } = {};
+    const prevMonthlyData: { [key: number]: { revenue: number; orders: number } } = {};
     
     revenueData.forEach((item) => {
       if (!monthlyData[item.month]) {
@@ -84,6 +129,14 @@ export function AnalyticsCharts({
       }
       monthlyData[item.month].revenue += Number(item.revenue_ttc) || 0;
       monthlyData[item.month].orders += item.order_count || 0;
+    });
+
+    prevRevenueData?.forEach((item) => {
+      if (!prevMonthlyData[item.month]) {
+        prevMonthlyData[item.month] = { revenue: 0, orders: 0 };
+      }
+      prevMonthlyData[item.month].revenue += Number(item.revenue_ttc) || 0;
+      prevMonthlyData[item.month].orders += item.order_count || 0;
     });
     
     return Array.from({ length: 12 }, (_, i) => ({
@@ -94,14 +147,17 @@ export function AnalyticsCharts({
       avgBasket: monthlyData[i + 1]?.orders > 0 
         ? monthlyData[i + 1].revenue / monthlyData[i + 1].orders 
         : 0,
+      prevRevenue: prevMonthlyData[i + 1]?.revenue || 0,
+      prevOrders: prevMonthlyData[i + 1]?.orders || 0,
     })).filter(d => filterByRange(d.monthNum));
-  }, [revenueData, startMonth, endMonth]);
+  }, [revenueData, prevRevenueData, startMonth, endMonth]);
 
   // Aggregate conversion data
   const aggregatedConversionData = useMemo(() => {
     if (!conversionData) return [];
     
     const monthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
+    const prevMonthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
     
     conversionData.forEach((item) => {
       if (!monthlyData[item.month]) {
@@ -112,9 +168,20 @@ export function AnalyticsCharts({
       monthlyData[item.month].cart += item.add_to_cart || 0;
       monthlyData[item.month].orders += item.orders || 0;
     });
+
+    prevConversionData?.forEach((item) => {
+      if (!prevMonthlyData[item.month]) {
+        prevMonthlyData[item.month] = { visits: 0, views: 0, cart: 0, orders: 0 };
+      }
+      prevMonthlyData[item.month].visits += item.visits || 0;
+      prevMonthlyData[item.month].views += item.menu_views || 0;
+      prevMonthlyData[item.month].cart += item.add_to_cart || 0;
+      prevMonthlyData[item.month].orders += item.orders || 0;
+    });
     
     return Array.from({ length: 12 }, (_, i) => {
       const data = monthlyData[i + 1];
+      const prevData = prevMonthlyData[i + 1];
       return {
         month: MONTHS[i],
         monthNum: i + 1,
@@ -123,15 +190,18 @@ export function AnalyticsCharts({
         cart: data?.cart || 0,
         orders: data?.orders || 0,
         conversionRate: data?.visits > 0 ? ((data.orders / data.visits) * 100) : 0,
+        prevVisits: prevData?.visits || 0,
+        prevConversionRate: prevData?.visits > 0 ? ((prevData.orders / prevData.visits) * 100) : 0,
       };
     }).filter(d => filterByRange(d.monthNum));
-  }, [conversionData, startMonth, endMonth]);
+  }, [conversionData, prevConversionData, startMonth, endMonth]);
 
   // Aggregate fees data
   const aggregatedFeesData = useMemo(() => {
     if (!feesData) return [];
     
     const monthlyData: { [key: number]: { uber: number; marketing: number; offers: number; ads: number; net: number } } = {};
+    const prevMonthlyData: { [key: number]: { uber: number; marketing: number; offers: number; ads: number; net: number } } = {};
     
     feesData.forEach((item) => {
       if (!monthlyData[item.month]) {
@@ -142,6 +212,17 @@ export function AnalyticsCharts({
       monthlyData[item.month].offers += Number(item.offers_cost) || 0;
       monthlyData[item.month].ads += Number(item.ads_cost) || 0;
       monthlyData[item.month].net += Number(item.net_payout) || 0;
+    });
+
+    prevFeesData?.forEach((item) => {
+      if (!prevMonthlyData[item.month]) {
+        prevMonthlyData[item.month] = { uber: 0, marketing: 0, offers: 0, ads: 0, net: 0 };
+      }
+      prevMonthlyData[item.month].uber += Number(item.uber_fee) || 0;
+      prevMonthlyData[item.month].marketing += Number(item.marketing_fee) || 0;
+      prevMonthlyData[item.month].offers += Number(item.offers_cost) || 0;
+      prevMonthlyData[item.month].ads += Number(item.ads_cost) || 0;
+      prevMonthlyData[item.month].net += Number(item.net_payout) || 0;
     });
     
     return Array.from({ length: 12 }, (_, i) => ({
@@ -156,8 +237,13 @@ export function AnalyticsCharts({
                  (monthlyData[i + 1]?.marketing || 0) + 
                  (monthlyData[i + 1]?.offers || 0) + 
                  (monthlyData[i + 1]?.ads || 0),
+      prevNet: prevMonthlyData[i + 1]?.net || 0,
+      prevTotalFees: (prevMonthlyData[i + 1]?.uber || 0) + 
+                     (prevMonthlyData[i + 1]?.marketing || 0) + 
+                     (prevMonthlyData[i + 1]?.offers || 0) + 
+                     (prevMonthlyData[i + 1]?.ads || 0),
     })).filter(d => filterByRange(d.monthNum));
-  }, [feesData, startMonth, endMonth]);
+  }, [feesData, prevFeesData, startMonth, endMonth]);
 
   // Profitability data
   const profitabilityData = useMemo(() => {
@@ -169,6 +255,10 @@ export function AnalyticsCharts({
       const revenue = revenueMonth?.revenue || 0;
       const netPayout = feesMonth?.net || 0;
       const profitability = revenue > 0 ? (netPayout / revenue) * 100 : 0;
+
+      const prevRevenue = revenueMonth?.prevRevenue || 0;
+      const prevNet = feesMonth?.prevNet || 0;
+      const prevProfitability = prevRevenue > 0 ? (prevNet / prevRevenue) * 100 : 0;
       
       return {
         month: MONTHS[i],
@@ -176,6 +266,7 @@ export function AnalyticsCharts({
         revenue,
         netPayout,
         profitability,
+        prevProfitability,
       };
     }).filter(d => filterByRange(d.monthNum));
   }, [aggregatedRevenueData, aggregatedFeesData, startMonth, endMonth]);
@@ -190,6 +281,14 @@ export function AnalyticsCharts({
     const totalNet = aggregatedFeesData.reduce((sum, d) => sum + d.net, 0);
     const profitability = totalRevenue > 0 ? (totalNet / totalRevenue) * 100 : 0;
 
+    // Previous year totals
+    const prevTotalRevenue = aggregatedRevenueData.reduce((sum, d) => sum + d.prevRevenue, 0);
+    const prevTotalOrders = aggregatedRevenueData.reduce((sum, d) => sum + d.prevOrders, 0);
+    const prevTotalVisits = aggregatedConversionData.reduce((sum, d) => sum + d.prevVisits, 0);
+    const prevTotalFees = aggregatedFeesData.reduce((sum, d) => sum + d.prevTotalFees, 0);
+    const prevTotalNet = aggregatedFeesData.reduce((sum, d) => sum + d.prevNet, 0);
+    const prevProfitability = prevTotalRevenue > 0 ? (prevTotalNet / prevTotalRevenue) * 100 : 0;
+
     return {
       totalRevenue,
       totalOrders,
@@ -199,12 +298,24 @@ export function AnalyticsCharts({
       totalNet,
       feePercentage: totalRevenue > 0 ? (totalFees / totalRevenue) * 100 : 0,
       profitability,
+      // Previous year
+      prevTotalRevenue,
+      prevTotalOrders,
+      prevAvgBasket: prevTotalOrders > 0 ? prevTotalRevenue / prevTotalOrders : 0,
+      prevConversionRate: prevTotalVisits > 0 ? (aggregatedConversionData.reduce((sum, d) => sum + (d.prevVisits > 0 ? d.orders : 0), 0) / prevTotalVisits) * 100 : 0,
+      prevTotalFees,
+      prevProfitability,
     };
   }, [aggregatedRevenueData, aggregatedConversionData, aggregatedFeesData]);
 
   const hasData = aggregatedRevenueData.some(d => d.revenue > 0) || 
                   aggregatedConversionData.some(d => d.visits > 0) || 
                   aggregatedFeesData.some(d => d.totalFees > 0);
+
+  const hasPrevData = showComparison && (
+    aggregatedRevenueData.some(d => d.prevRevenue > 0) || 
+    aggregatedFeesData.some(d => d.prevTotalFees > 0)
+  );
 
   if (!hasData) {
     return (
@@ -227,21 +338,32 @@ export function AnalyticsCharts({
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Euro className="h-4 w-4 text-primary" />
-              <span className="text-sm text-muted-foreground">CA Total</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Euro className="h-4 w-4 text-primary" />
+                <span className="text-sm text-muted-foreground">CA Total</span>
+              </div>
+              {hasPrevData && <VariationIndicator current={kpis.totalRevenue} previous={kpis.prevTotalRevenue} />}
             </div>
             <p className="text-2xl font-bold mt-2">
               {kpis.totalRevenue.toLocaleString("fr-FR")} €
             </p>
+            {hasPrevData && (
+              <p className="text-xs text-muted-foreground">
+                {prevYear}: {kpis.prevTotalRevenue.toLocaleString("fr-FR")} €
+              </p>
+            )}
           </CardContent>
         </Card>
         
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4 text-primary" />
-              <span className="text-sm text-muted-foreground">Commandes</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-4 w-4 text-primary" />
+                <span className="text-sm text-muted-foreground">Commandes</span>
+              </div>
+              {hasPrevData && <VariationIndicator current={kpis.totalOrders} previous={kpis.prevTotalOrders} />}
             </div>
             <p className="text-2xl font-bold mt-2">
               {kpis.totalOrders.toLocaleString("fr-FR")}
@@ -266,9 +388,12 @@ export function AnalyticsCharts({
         
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-destructive" />
-              <span className="text-sm text-muted-foreground">Frais Totaux</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-destructive" />
+                <span className="text-sm text-muted-foreground">Frais Totaux</span>
+              </div>
+              {hasPrevData && <VariationIndicator current={kpis.totalFees} previous={kpis.prevTotalFees} inverse />}
             </div>
             <p className="text-2xl font-bold mt-2">
               {kpis.totalFees.toLocaleString("fr-FR")} €
@@ -281,9 +406,12 @@ export function AnalyticsCharts({
 
         <Card className={kpis.profitability > 60 ? "border-green-500/50" : kpis.profitability > 40 ? "border-amber-500/50" : "border-destructive/50"}>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <TrendingUp className={`h-4 w-4 ${kpis.profitability > 60 ? "text-green-500" : kpis.profitability > 40 ? "text-amber-500" : "text-destructive"}`} />
-              <span className="text-sm text-muted-foreground">% Rentabilité</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className={`h-4 w-4 ${kpis.profitability > 60 ? "text-green-500" : kpis.profitability > 40 ? "text-amber-500" : "text-destructive"}`} />
+                <span className="text-sm text-muted-foreground">% Rentabilité</span>
+              </div>
+              {hasPrevData && <VariationIndicator current={kpis.profitability} previous={kpis.prevProfitability} />}
             </div>
             <p className={`text-2xl font-bold mt-2 ${kpis.profitability > 60 ? "text-green-500" : kpis.profitability > 40 ? "text-amber-500" : "text-destructive"}`}>
               {kpis.profitability.toFixed(1)}%
@@ -295,12 +423,13 @@ export function AnalyticsCharts({
         </Card>
       </div>
 
-      {/* Revenue Chart */}
+      {/* Revenue Chart with N-1 comparison */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
             Évolution du Chiffre d'Affaires
+            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -318,12 +447,15 @@ export function AnalyticsCharts({
                     borderRadius: '8px'
                   }}
                   formatter={(value: number, name: string) => {
-                    if (name === 'CA (€)') return [value.toLocaleString('fr-FR') + ' €', name];
+                    if (name.includes('€')) return [value.toLocaleString('fr-FR') + ' €', name];
                     return [value.toLocaleString('fr-FR'), name];
                   }}
                 />
                 <Legend />
-                <Bar yAxisId="left" dataKey="revenue" name="CA (€)" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="left" dataKey="revenue" name={`CA ${selectedYear} (€)`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                {hasPrevData && (
+                  <Bar yAxisId="left" dataKey="prevRevenue" name={`CA ${prevYear} (€)`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} />
+                )}
                 <Line yAxisId="right" type="monotone" dataKey="orders" name="Commandes" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-2))' }} />
               </ComposedChart>
             </ResponsiveContainer>
@@ -365,12 +497,13 @@ export function AnalyticsCharts({
         </CardContent>
       </Card>
 
-      {/* Conversion Rate Chart */}
+      {/* Conversion Rate Chart with N-1 */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Percent className="h-5 w-5" />
             Taux de Conversion Global
+            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -386,16 +519,28 @@ export function AnalyticsCharts({
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: number) => [value.toFixed(2) + '%', 'Taux de conversion']}
+                  formatter={(value: number, name: string) => [value.toFixed(2) + '%', name]}
                 />
+                <Legend />
                 <Line 
                   type="monotone" 
                   dataKey="conversionRate" 
-                  name="Taux de conversion" 
+                  name={`Taux ${selectedYear}`}
                   stroke="hsl(var(--primary))" 
                   strokeWidth={3}
                   dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2 }}
                 />
+                {hasPrevData && (
+                  <Line 
+                    type="monotone" 
+                    dataKey="prevConversionRate" 
+                    name={`Taux ${prevYear}`}
+                    stroke="hsl(var(--muted-foreground))" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={{ fill: 'hsl(var(--muted-foreground))', strokeWidth: 1 }}
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -436,12 +581,13 @@ export function AnalyticsCharts({
         </CardContent>
       </Card>
 
-      {/* Net Payout Chart */}
+      {/* Net Payout Chart with N-1 */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
             Versement Net vs Frais Totaux
+            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -460,7 +606,10 @@ export function AnalyticsCharts({
                   formatter={(value: number, name: string) => [value.toLocaleString('fr-FR') + ' €', name]}
                 />
                 <Legend />
-                <Bar dataKey="net" name="Versement Net" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="net" name={`Versement ${selectedYear}`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                {hasPrevData && (
+                  <Bar dataKey="prevNet" name={`Versement ${prevYear}`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} />
+                )}
                 <Line type="monotone" dataKey="totalFees" name="Total Frais" stroke="hsl(var(--destructive))" strokeWidth={2} />
               </ComposedChart>
             </ResponsiveContainer>
@@ -468,12 +617,13 @@ export function AnalyticsCharts({
         </CardContent>
       </Card>
 
-      {/* Profitability Rate Chart */}
+      {/* Profitability Rate Chart with N-1 */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Percent className="h-5 w-5" />
             Taux de Rentabilité
+            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -491,7 +641,7 @@ export function AnalyticsCharts({
                     borderRadius: '8px'
                   }}
                   formatter={(value: number, name: string) => {
-                    if (name === 'Rentabilité') return [value.toFixed(1) + '%', name];
+                    if (name.includes('Rentabilité')) return [value.toFixed(1) + '%', name];
                     return [value.toLocaleString('fr-FR') + ' €', name];
                   }}
                 />
@@ -502,11 +652,23 @@ export function AnalyticsCharts({
                   yAxisId="right" 
                   type="monotone" 
                   dataKey="profitability" 
-                  name="Rentabilité" 
+                  name={`Rentabilité ${selectedYear}`}
                   stroke="hsl(142.1 76.2% 36.3%)" 
                   strokeWidth={3}
                   dot={{ fill: 'hsl(142.1 76.2% 36.3%)', strokeWidth: 2, r: 4 }}
                 />
+                {hasPrevData && (
+                  <Line 
+                    yAxisId="right" 
+                    type="monotone" 
+                    dataKey="prevProfitability" 
+                    name={`Rentabilité ${prevYear}`}
+                    stroke="hsl(var(--muted-foreground))" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={{ fill: 'hsl(var(--muted-foreground))', strokeWidth: 1, r: 3 }}
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
