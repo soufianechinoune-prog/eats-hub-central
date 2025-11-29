@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search, Mail } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -37,6 +37,8 @@ const Restaurants = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const { data: restaurants, refetch } = useQuery({
     queryKey: ["restaurants"],
@@ -110,6 +112,63 @@ const Restaurants = () => {
     return filtered;
   }, [restaurants, departmentFilter, statusFilter, searchQuery]);
 
+  // Sort restaurants
+  const sortedRestaurants = useMemo(() => {
+    if (!sortColumn) return filteredRestaurants;
+    
+    return [...filteredRestaurants].sort((a, b) => {
+      let aVal: string | null = null;
+      let bVal: string | null = null;
+      
+      switch (sortColumn) {
+        case "name":
+          aVal = a.name?.toLowerCase() || "";
+          bVal = b.name?.toLowerCase() || "";
+          break;
+        case "city":
+          aVal = a.city?.toLowerCase() || "";
+          bVal = b.city?.toLowerCase() || "";
+          break;
+        case "manager":
+          aVal = `${a.manager_first_name || ""} ${a.manager_last_name || ""}`.toLowerCase().trim();
+          bVal = `${b.manager_first_name || ""} ${b.manager_last_name || ""}`.toLowerCase().trim();
+          break;
+        case "account_manager":
+          aVal = a.account_manager_name?.toLowerCase() || "";
+          bVal = b.account_manager_name?.toLowerCase() || "";
+          break;
+        case "status":
+          aVal = getApiStatus(a);
+          bVal = getApiStatus(b);
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [filteredRestaurants, sortColumn, sortDirection]);
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />;
+    }
+    return sortDirection === "asc" 
+      ? <ArrowUp className="h-3.5 w-3.5" /> 
+      : <ArrowDown className="h-3.5 w-3.5" />;
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -123,14 +182,14 @@ const Restaurants = () => {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredRestaurants.length) {
+    if (selectedIds.size === sortedRestaurants.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredRestaurants.map((r) => r.id)));
+      setSelectedIds(new Set(sortedRestaurants.map((r) => r.id)));
     }
   };
 
-  const selectedRestaurants = filteredRestaurants.filter((r) => selectedIds.has(r.id));
+  const selectedRestaurants = sortedRestaurants.filter((r) => selectedIds.has(r.id));
 
   return (
     <div className="space-y-6">
@@ -192,22 +251,62 @@ const Restaurants = () => {
               <TableRow>
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={filteredRestaurants.length > 0 && selectedIds.size === filteredRestaurants.length}
+                    checked={sortedRestaurants.length > 0 && selectedIds.size === sortedRestaurants.length}
                     onCheckedChange={toggleSelectAll}
                     aria-label="Tout sélectionner"
                   />
                 </TableHead>
-                <TableHead>Nom</TableHead>
-                <TableHead>Ville</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("name")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    Nom
+                    <SortIcon column="name" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("city")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    Ville
+                    <SortIcon column="city" />
+                  </div>
+                </TableHead>
                 <TableHead>Contact</TableHead>
-                <TableHead>Gérant</TableHead>
-                <TableHead>Account Manager</TableHead>
-                <TableHead className="text-center">Statut API</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("manager")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    Gérant
+                    <SortIcon column="manager" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("account_manager")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    Account Manager
+                    <SortIcon column="account_manager" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-center cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center justify-center gap-1.5">
+                    Statut API
+                    <SortIcon column="status" />
+                  </div>
+                </TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRestaurants.length === 0 ? (
+              {sortedRestaurants.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     {departmentFilter === "all" 
@@ -216,7 +315,7 @@ const Restaurants = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRestaurants.map((restaurant) => (
+                sortedRestaurants.map((restaurant) => (
                   <TableRow 
                     key={restaurant.id} 
                     className="cursor-pointer hover:bg-muted/50 transition-colors"
