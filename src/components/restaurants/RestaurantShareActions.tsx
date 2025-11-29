@@ -1,6 +1,17 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Mail, MessageCircle, Send, X, Copy, Share2 } from "lucide-react";
+import { Mail, MessageCircle, Send, X, Copy, Share2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Restaurant {
   id: string;
@@ -21,10 +32,34 @@ interface Restaurant {
 interface RestaurantShareActionsProps {
   selectedRestaurants: Restaurant[];
   onClear: () => void;
+  onDelete?: (ids: string[]) => Promise<void>;
 }
 
-export function RestaurantShareActions({ selectedRestaurants, onClear }: RestaurantShareActionsProps) {
+export function RestaurantShareActions({ selectedRestaurants, onClear, onDelete }: RestaurantShareActionsProps) {
   const { toast } = useToast();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(selectedRestaurants.map(r => r.id));
+      setShowDeleteDialog(false);
+      toast({
+        title: "Supprimé",
+        description: `${selectedRestaurants.length} restaurant${selectedRestaurants.length > 1 ? 's' : ''} supprimé${selectedRestaurants.length > 1 ? 's' : ''}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer les restaurants",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const formatRestaurantInfo = (restaurant: Restaurant) => {
     const lines = [
@@ -183,10 +218,50 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
           <Mail className="h-4 w-4 text-orange-500" />
           Email
         </Button>
+        {onDelete && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDeleteDialog(true)}
+            className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-4 w-4" />
+            Supprimer
+          </Button>
+        )}
       </div>
       <Button variant="ghost" size="icon" onClick={onClear} className="h-8 w-8">
         <X className="h-4 w-4" />
       </Button>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {selectedRestaurants.length} restaurant{selectedRestaurants.length > 1 ? 's' : ''} ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Les restaurants suivants seront définitivement supprimés :
+              <ul className="mt-2 list-disc list-inside text-sm">
+                {selectedRestaurants.slice(0, 5).map(r => (
+                  <li key={r.id}>{r.name}</li>
+                ))}
+                {selectedRestaurants.length > 5 && (
+                  <li>...et {selectedRestaurants.length - 5} autres</li>
+                )}
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Suppression..." : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
