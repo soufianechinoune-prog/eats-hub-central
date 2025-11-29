@@ -777,25 +777,48 @@ export default function RestaurantActions() {
               />
             </div>
 
-            {/* Dates */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Date de début *</Label>
-                <Input
-                  type="date"
-                  value={formData.start_date}
-                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                />
+            {/* Dates - different UI for punctual events like Push notifications */}
+            {formData.action_type === "Push notification" ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Date *</Label>
+                  <Input
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value, end_date: "" })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Heure *</Label>
+                  <Input
+                    type="time"
+                    value={formData.end_date}
+                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                    placeholder="HH:MM"
+                  />
+                  <p className="text-xs text-muted-foreground">Heure d'envoi de la notification</p>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label>Date de fin</Label>
-                <Input
-                  type="date"
-                  value={formData.end_date}
-                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                />
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Date de début *</Label>
+                  <Input
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Date de fin</Label>
+                  <Input
+                    type="date"
+                    value={formData.end_date}
+                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Impact */}
             <div className="grid grid-cols-2 gap-4">
