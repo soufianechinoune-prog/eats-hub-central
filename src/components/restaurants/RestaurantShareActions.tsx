@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Mail, MessageCircle, Send, X } from "lucide-react";
+import { Mail, MessageCircle, Send, X, Copy, Share2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface Restaurant {
   id: string;
@@ -19,6 +20,8 @@ interface RestaurantShareActionsProps {
 }
 
 export function RestaurantShareActions({ selectedRestaurants, onClear }: RestaurantShareActionsProps) {
+  const { toast } = useToast();
+
   const formatRestaurantInfo = (restaurant: Restaurant) => {
     const lines = [
       `🏪 ${restaurant.name}`,
@@ -36,14 +39,88 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
     return selectedRestaurants.map(formatRestaurantInfo).join('\n\n---\n\n');
   };
 
-  const handleShareWhatsApp = () => {
-    const text = encodeURIComponent(formatAllRestaurants());
-    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+  const handleCopyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(formatAllRestaurants());
+      toast({
+        title: "Copié !",
+        description: "Les informations ont été copiées dans le presse-papier",
+      });
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Impossible de copier dans le presse-papier",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleShareTelegram = () => {
-    const text = encodeURIComponent(formatAllRestaurants());
-    window.open(`https://telegram.me/share/msg?text=${text}`, '_blank');
+  const handleNativeShare = async () => {
+    const text = formatAllRestaurants();
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Fiche${selectedRestaurants.length > 1 ? 's' : ''} Restaurant`,
+          text: text,
+        });
+      } catch (err) {
+        // User cancelled or error - fallback to copy
+        if ((err as Error).name !== 'AbortError') {
+          handleCopyToClipboard();
+        }
+      }
+    } else {
+      // Fallback for desktop - copy to clipboard
+      handleCopyToClipboard();
+    }
+  };
+
+  const handleShareWhatsApp = async () => {
+    const text = formatAllRestaurants();
+    
+    // Copy first, then try to open WhatsApp
+    await navigator.clipboard.writeText(text);
+    
+    // Try WhatsApp URL scheme (works better on mobile)
+    const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(text)}`;
+    
+    // Create a hidden link and click it
+    const link = document.createElement('a');
+    link.href = whatsappUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "Texte copié",
+      description: "Si WhatsApp ne s'ouvre pas, collez le texte manuellement",
+    });
+  };
+
+  const handleShareTelegram = async () => {
+    const text = formatAllRestaurants();
+    
+    // Copy first
+    await navigator.clipboard.writeText(text);
+    
+    // Try Telegram URL scheme
+    const telegramUrl = `tg://msg?text=${encodeURIComponent(text)}`;
+    
+    const link = document.createElement('a');
+    link.href = telegramUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "Texte copié",
+      description: "Si Telegram ne s'ouvre pas, collez le texte manuellement",
+    });
   };
 
   const handleShareEmail = () => {
@@ -60,6 +137,24 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
         {selectedRestaurants.length} restaurant{selectedRestaurants.length > 1 ? 's' : ''} sélectionné{selectedRestaurants.length > 1 ? 's' : ''}
       </span>
       <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleNativeShare}
+          className="gap-2"
+        >
+          <Share2 className="h-4 w-4" />
+          Partager
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleCopyToClipboard}
+          className="gap-2"
+        >
+          <Copy className="h-4 w-4" />
+          Copier
+        </Button>
         <Button
           variant="outline"
           size="sm"
