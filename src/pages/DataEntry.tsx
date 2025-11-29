@@ -450,8 +450,33 @@ export default function DataEntry() {
     (parseFloat(offersCost) || 0) + (parseFloat(offerUsageFee) || 0) + (parseFloat(adsCost) || 0) + 
     (parseFloat(orderError) || 0) + (parseFloat(errorAdjustments) || 0) + (parseFloat(ecoContribution) || 0);
 
-  const selectedPlatformConfig = PLATFORMS.find(p => p.value === selectedPlatform);
+  // Helper to find revenue for a given period
+  const getRevenueForPeriod = (year: number, month: number) => {
+    return revenueEntries?.find(r => r.year === year && r.month === month);
+  };
 
+  // Calculate profitability: (net_payout / revenue_ttc) * 100
+  const calculateProfitability = (netPayoutVal: number, revenueTtc: number | null | undefined): number | null => {
+    if (!revenueTtc || revenueTtc === 0) return null;
+    return (netPayoutVal / revenueTtc) * 100;
+  };
+
+  // Get profitability color class based on percentage
+  const getProfitabilityColor = (profitability: number | null) => {
+    if (profitability === null) return "text-muted-foreground";
+    if (profitability >= 60) return "text-emerald-600";
+    if (profitability >= 40) return "text-amber-600";
+    return "text-red-600";
+  };
+
+  // Current period profitability for KPI card
+  const currentPeriodRevenue = getRevenueForPeriod(selectedYear, selectedMonth);
+  const currentProfitability = calculateProfitability(
+    parseFloat(netPayout || "0"), 
+    currentPeriodRevenue?.revenue_ttc
+  );
+
+  const selectedPlatformConfig = PLATFORMS.find(p => p.value === selectedPlatform);
   const getPlatformBadge = (platform: string) => {
     const p = PLATFORMS.find(pl => pl.value === platform);
     return p ? (
@@ -954,7 +979,7 @@ export default function DataEntry() {
               </div>
 
               {/* Fees summary */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="group rounded-xl p-4 bg-gradient-to-br from-stat-fees/10 to-stat-fees/5 border border-stat-fees/20 transition-all duration-300 hover:shadow-lg hover:shadow-stat-fees/10 hover:-translate-y-1 hover:border-stat-fees/40 cursor-default">
                   <div className="flex items-center gap-2 text-stat-fees mb-1">
                     <Calculator className="h-4 w-4 transition-transform group-hover:scale-110 group-hover:rotate-6" />
@@ -968,6 +993,26 @@ export default function DataEntry() {
                     <span className="text-sm font-medium">Versement net</span>
                   </div>
                   <p className="text-2xl font-bold text-foreground">{parseFloat(netPayout || "0").toLocaleString("fr-FR")} €</p>
+                </div>
+                <div className={`group rounded-xl p-4 border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-default ${
+                  currentProfitability === null 
+                    ? "bg-gradient-to-br from-muted/20 to-muted/10 border-muted/30" 
+                    : currentProfitability >= 60 
+                      ? "bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/20 hover:shadow-emerald-500/10 hover:border-emerald-500/40" 
+                      : currentProfitability >= 40 
+                        ? "bg-gradient-to-br from-amber-500/10 to-amber-500/5 border-amber-500/20 hover:shadow-amber-500/10 hover:border-amber-500/40" 
+                        : "bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/20 hover:shadow-red-500/10 hover:border-red-500/40"
+                }`}>
+                  <div className={`flex items-center gap-2 mb-1 ${getProfitabilityColor(currentProfitability)}`}>
+                    <BarChart3 className="h-4 w-4 transition-transform group-hover:scale-110" />
+                    <span className="text-sm font-medium">% Rentabilité</span>
+                  </div>
+                  <p className={`text-2xl font-bold transition-transform group-hover:scale-105 ${getProfitabilityColor(currentProfitability)}`}>
+                    {currentProfitability !== null ? `${currentProfitability.toFixed(1)}%` : "--"}
+                  </p>
+                  {currentProfitability === null && (
+                    <p className="text-xs text-muted-foreground mt-1">Saisir le CA</p>
+                  )}
                 </div>
               </div>
 
@@ -1269,6 +1314,7 @@ export default function DataEntry() {
                       <TableHead className="text-right font-semibold">Eco</TableHead>
                       <TableHead className="text-right font-semibold text-stat-fees">Total</TableHead>
                       <TableHead className="text-right font-semibold text-stat-payout">Versement</TableHead>
+                      <TableHead className="text-right font-semibold">Rent. %</TableHead>
                       <TableHead className="w-20"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1331,6 +1377,17 @@ export default function DataEntry() {
                           </TableCell>
                           <TableCell className="text-right">
                             <span className="font-semibold text-stat-payout">{Number(entry.net_payout).toLocaleString("fr-FR")} €</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {(() => {
+                              const matchingRevenue = getRevenueForPeriod(entry.year, entry.month);
+                              const profitability = calculateProfitability(Number(entry.net_payout), matchingRevenue?.revenue_ttc);
+                              return (
+                                <span className={`font-semibold ${getProfitabilityColor(profitability)}`}>
+                                  {profitability !== null ? `${profitability.toFixed(1)}%` : "--"}
+                                </span>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
