@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -117,6 +118,7 @@ export default function DataEntry() {
   const [orders, setOrders] = useState<string>("");
   const [conversionEditingId, setConversionEditingId] = useState<string | null>(null);
   const [showConversionConfirm, setShowConversionConfirm] = useState(false);
+  const [showIntermediateRates, setShowIntermediateRates] = useState(false);
   
   // Fees state
   const [uberFee, setUberFee] = useState<string>("");
@@ -994,8 +996,23 @@ export default function DataEntry() {
                 {activeTab === "revenue" ? "CA & Commandes" : activeTab === "conversion" ? "Conversion" : "Frais"}
               </Badge>
             </CardTitle>
-            <div className="transition-transform duration-200 hover:scale-105">
-              {getPlatformBadge(selectedPlatform)}
+            <div className="flex items-center gap-4">
+              {activeTab === "conversion" && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="show-rates"
+                    checked={showIntermediateRates}
+                    onCheckedChange={setShowIntermediateRates}
+                    className="data-[state=checked]:bg-stat-conversion"
+                  />
+                  <Label htmlFor="show-rates" className="text-xs text-muted-foreground cursor-pointer">
+                    Taux détaillés
+                  </Label>
+                </div>
+              )}
+              <div className="transition-transform duration-200 hover:scale-105">
+                {getPlatformBadge(selectedPlatform)}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -1069,12 +1086,18 @@ export default function DataEntry() {
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableHead className="font-semibold">Période</TableHead>
                       <TableHead className="text-right font-semibold">Visites</TableHead>
+                      {showIntermediateRates && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">→</TableHead>
+                      )}
                       <TableHead className="text-right font-semibold">Menu</TableHead>
+                      {showIntermediateRates && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">→</TableHead>
+                      )}
                       <TableHead className="text-right font-semibold">Panier</TableHead>
+                      {showIntermediateRates && (
+                        <TableHead className="text-center text-xs font-normal text-muted-foreground bg-muted/20 border-x border-dashed border-border/50">→</TableHead>
+                      )}
                       <TableHead className="text-right font-semibold">Cmd</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">V→M</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">M→P</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">P→C</TableHead>
                       <TableHead className="text-right font-semibold text-stat-conversion">Global</TableHead>
                       <TableHead className="w-20"></TableHead>
                     </TableRow>
@@ -1084,12 +1107,24 @@ export default function DataEntry() {
                       <TableRow key={entry.id} className="group hover:bg-stat-conversion/5 transition-colors">
                         <TableCell className="font-medium">{getMonthLabel(entry.month)} {entry.year}</TableCell>
                         <TableCell className="text-right font-medium">{entry.visits.toLocaleString("fr-FR")}</TableCell>
+                        {showIntermediateRates && (
+                          <TableCell className="text-center text-xs text-stat-conversion/70 bg-muted/10 border-x border-dashed border-border/30">
+                            {Number(entry.view_rate || 0).toFixed(1)}%
+                          </TableCell>
+                        )}
                         <TableCell className="text-right text-muted-foreground">{entry.menu_views.toLocaleString("fr-FR")}</TableCell>
+                        {showIntermediateRates && (
+                          <TableCell className="text-center text-xs text-stat-conversion/70 bg-muted/10 border-x border-dashed border-border/30">
+                            {Number(entry.cart_rate || 0).toFixed(1)}%
+                          </TableCell>
+                        )}
                         <TableCell className="text-right text-muted-foreground">{entry.add_to_cart.toLocaleString("fr-FR")}</TableCell>
+                        {showIntermediateRates && (
+                          <TableCell className="text-center text-xs text-stat-conversion/70 bg-muted/10 border-x border-dashed border-border/30">
+                            {Number(entry.conversion_rate || 0).toFixed(1)}%
+                          </TableCell>
+                        )}
                         <TableCell className="text-right font-medium">{entry.orders}</TableCell>
-                        <TableCell className="text-right text-xs text-muted-foreground">{Number(entry.view_rate || 0).toFixed(1)}%</TableCell>
-                        <TableCell className="text-right text-xs text-muted-foreground">{Number(entry.cart_rate || 0).toFixed(1)}%</TableCell>
-                        <TableCell className="text-right text-xs text-muted-foreground">{Number(entry.conversion_rate || 0).toFixed(1)}%</TableCell>
                         <TableCell className="text-right">
                           <span className="font-semibold text-stat-conversion">{Number(entry.overall_rate).toFixed(1)}%</span>
                         </TableCell>
