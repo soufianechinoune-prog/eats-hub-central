@@ -12,6 +12,10 @@ interface Restaurant {
   restaurant_email?: string | null;
   manager_first_name?: string | null;
   manager_last_name?: string | null;
+  account_manager_name?: string | null;
+  account_manager_title?: string | null;
+  account_manager_phone?: string | null;
+  account_manager_email?: string | null;
 }
 
 interface RestaurantShareActionsProps {
@@ -31,6 +35,11 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
       restaurant.restaurant_email && `✉️ ${restaurant.restaurant_email}`,
       (restaurant.manager_first_name || restaurant.manager_last_name) && 
         `👤 Gérant: ${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim(),
+      // Account Manager section
+      (restaurant.account_manager_name || restaurant.account_manager_phone || restaurant.account_manager_email) && `\n📊 Account Manager Uber:`,
+      restaurant.account_manager_name && `   ${restaurant.account_manager_name}${restaurant.account_manager_title ? ` (${restaurant.account_manager_title})` : ''}`,
+      restaurant.account_manager_phone && `   📞 ${restaurant.account_manager_phone}`,
+      restaurant.account_manager_email && `   ✉️ ${restaurant.account_manager_email}`,
     ].filter(Boolean);
     return lines.join('\n');
   };
@@ -76,51 +85,16 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
     }
   };
 
-  const handleShareWhatsApp = async () => {
+  const handleShareWhatsApp = () => {
     const text = formatAllRestaurants();
-    
-    // Copy first, then try to open WhatsApp
-    await navigator.clipboard.writeText(text);
-    
-    // Try WhatsApp URL scheme (works better on mobile)
-    const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(text)}`;
-    
-    // Create a hidden link and click it
-    const link = document.createElement('a');
-    link.href = whatsappUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast({
-      title: "Texte copié",
-      description: "Si WhatsApp ne s'ouvre pas, collez le texte manuellement",
-    });
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, '_blank');
   };
 
-  const handleShareTelegram = async () => {
+  const handleShareTelegram = () => {
     const text = formatAllRestaurants();
-    
-    // Copy first
-    await navigator.clipboard.writeText(text);
-    
-    // Try Telegram URL scheme
-    const telegramUrl = `tg://msg?text=${encodeURIComponent(text)}`;
-    
-    const link = document.createElement('a');
-    link.href = telegramUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast({
-      title: "Texte copié",
-      description: "Si Telegram ne s'ouvre pas, collez le texte manuellement",
-    });
+    const telegramUrl = `https://t.me/share/url?url=&text=${encodeURIComponent(text)}`;
+    window.open(telegramUrl, '_blank');
   };
 
   const handleShareEmail = () => {
