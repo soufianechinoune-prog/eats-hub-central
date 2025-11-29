@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import csLogo from "@/assets/cs-logo.jpeg";
 
 const menuItems = [
   {
@@ -118,7 +119,14 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
-            {collapsed ? "CS" : "CS Performance"}
+            {collapsed ? (
+              <img src={csLogo} alt="CS" className="h-8 w-8 rounded-full object-cover mx-auto" />
+            ) : (
+              <div className="flex items-center gap-2">
+                <img src={csLogo} alt="CS Performance" className="h-6 w-6 rounded-full object-cover" />
+                <span>CS Performance</span>
+              </div>
+            )}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
