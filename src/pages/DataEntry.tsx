@@ -124,9 +124,11 @@ export default function DataEntry() {
   const [uberFee, setUberFee] = useState<string>("");
   const [marketingFee, setMarketingFee] = useState<string>("");
   const [offersCost, setOffersCost] = useState<string>("");
+  const [offerUsageFee, setOfferUsageFee] = useState<string>("");
   const [adsCost, setAdsCost] = useState<string>("");
+  const [orderError, setOrderError] = useState<string>("");
   const [errorAdjustments, setErrorAdjustments] = useState<string>("");
-  const [otherFees, setOtherFees] = useState<string>("");
+  const [ecoContribution, setEcoContribution] = useState<string>("");
   const [netPayout, setNetPayout] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [feesEditingId, setFeesEditingId] = useState<string | null>(null);
@@ -302,9 +304,11 @@ export default function DataEntry() {
         uber_fee: parseFloat(uberFee) || 0,
         marketing_fee: parseFloat(marketingFee) || 0,
         offers_cost: parseFloat(offersCost) || 0,
+        offer_usage_fee: parseFloat(offerUsageFee) || 0,
         ads_cost: parseFloat(adsCost) || 0,
+        order_error: parseFloat(orderError) || 0,
         error_adjustments: parseFloat(errorAdjustments) || 0,
-        other_fees: parseFloat(otherFees) || 0,
+        eco_contribution: parseFloat(ecoContribution) || 0,
         net_payout: parseFloat(netPayout) || 0,
         notes: notes || null,
       };
@@ -369,8 +373,9 @@ export default function DataEntry() {
     setVisits(""); setMenuViews(""); setAddToCart(""); setOrders(""); setConversionEditingId(null);
   };
   const resetFeesForm = () => {
-    setUberFee(""); setMarketingFee(""); setOffersCost(""); setAdsCost("");
-    setErrorAdjustments(""); setOtherFees(""); setNetPayout(""); setNotes(""); setFeesEditingId(null);
+    setUberFee(""); setMarketingFee(""); setOffersCost(""); setOfferUsageFee("");
+    setAdsCost(""); setOrderError(""); setErrorAdjustments(""); setEcoContribution("");
+    setNetPayout(""); setNotes(""); setFeesEditingId(null);
   };
 
   // Edit handlers
@@ -397,9 +402,11 @@ export default function DataEntry() {
     setUberFee(entry.uber_fee?.toString() || "");
     setMarketingFee(entry.marketing_fee?.toString() || "");
     setOffersCost(entry.offers_cost?.toString() || "");
+    setOfferUsageFee(entry.offer_usage_fee?.toString() || "");
     setAdsCost(entry.ads_cost?.toString() || "");
+    setOrderError(entry.order_error?.toString() || "");
     setErrorAdjustments(entry.error_adjustments?.toString() || "");
-    setOtherFees(entry.other_fees?.toString() || "");
+    setEcoContribution(entry.eco_contribution?.toString() || "");
     setNetPayout(entry.net_payout?.toString() || "");
     setNotes(entry.notes || "");
     setFeesEditingId(entry.id);
@@ -436,10 +443,9 @@ export default function DataEntry() {
   const overallRate = v > 0 ? ((o / v) * 100).toFixed(1) : "0.0";
 
   const totalFees = (parseFloat(uberFee) || 0) + (parseFloat(marketingFee) || 0) + 
-    (parseFloat(offersCost) || 0) + (parseFloat(adsCost) || 0) + 
-    (parseFloat(errorAdjustments) || 0) + (parseFloat(otherFees) || 0);
+    (parseFloat(offersCost) || 0) + (parseFloat(offerUsageFee) || 0) + (parseFloat(adsCost) || 0) + 
+    (parseFloat(orderError) || 0) + (parseFloat(errorAdjustments) || 0) + (parseFloat(ecoContribution) || 0);
 
-  const commissionLabel = selectedPlatform === "deliveroo" ? "Commission Deliveroo" : "Commission Uber";
   const selectedPlatformConfig = PLATFORMS.find(p => p.value === selectedPlatform);
 
   const getPlatformBadge = (platform: string) => {
@@ -897,44 +903,50 @@ export default function DataEntry() {
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Receipt className="h-4 w-4 text-stat-fees" />
-                    {commissionLabel} (€)
+                    Frais UBER (€)
                   </Label>
                   <Input type="number" step="0.01" value={uberFee} onChange={(e) => setUberFee(e.target.value)} placeholder="Ex: 4500" className="h-11 text-lg font-medium transition-all duration-200 focus:scale-[1.01] focus:shadow-md" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Frais marketing (€)</Label>
+                  <Label className="text-muted-foreground">Marketing UBER (€)</Label>
                   <Input type="number" step="0.01" value={marketingFee} onChange={(e) => setMarketingFee(e.target.value)} placeholder="Ex: 200" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Coût des offres (€)</Label>
+                  <Label className="text-muted-foreground italic">Offres sur les articles (€)</Label>
                   <Input type="number" step="0.01" value={offersCost} onChange={(e) => setOffersCost(e.target.value)} placeholder="Ex: 350" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Publicité (€)</Label>
+                  <Label className="text-muted-foreground italic">Frais d'utilisation de l'offre (€)</Label>
+                  <Input type="number" step="0.01" value={offerUsageFee} onChange={(e) => setOfferUsageFee(e.target.value)} placeholder="Ex: 50" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground italic">Dépenses publicitaire (€)</Label>
                   <Input type="number" step="0.01" value={adsCost} onChange={(e) => setAdsCost(e.target.value)} placeholder="Ex: 150" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Ajustements erreurs (€)</Label>
+                  <Label className="text-muted-foreground">Erreur de commande (€)</Label>
+                  <Input type="number" step="0.01" value={orderError} onChange={(e) => setOrderError(e.target.value)} placeholder="Ex: 30" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Ajustements liés aux erreurs (€)</Label>
                   <Input type="number" step="0.01" value={errorAdjustments} onChange={(e) => setErrorAdjustments(e.target.value)} placeholder="Ex: 50" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Autres frais (€)</Label>
-                  <Input type="number" step="0.01" value={otherFees} onChange={(e) => setOtherFees(e.target.value)} placeholder="Ex: 25" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
+                  <Label className="text-muted-foreground">Eco contribution (€)</Label>
+                  <Input type="number" step="0.01" value={ecoContribution} onChange={(e) => setEcoContribution(e.target.value)} placeholder="Ex: 25" className="h-11 transition-all duration-200 focus:scale-[1.01]" />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Euro className="h-4 w-4 text-stat-payout" />
-                    Versement net reçu (€)
+                    Versement (€)
                   </Label>
                   <Input type="number" step="0.01" value={netPayout} onChange={(e) => setNetPayout(e.target.value)} placeholder="Ex: 9724.50" className="h-11 text-lg font-medium transition-all duration-200 focus:scale-[1.01] focus:shadow-md" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Notes (optionnel)</Label>
-                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Remarques..." rows={1} className="transition-all duration-200 focus:scale-[1.01]" />
-                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Notes (optionnel)</Label>
+                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Remarques..." rows={2} className="transition-all duration-200 focus:scale-[1.01]" />
               </div>
 
               {/* Fees summary */}

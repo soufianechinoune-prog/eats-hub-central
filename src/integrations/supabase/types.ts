@@ -279,14 +279,16 @@ export type Database = {
         Row: {
           ads_cost: number
           created_at: string
+          eco_contribution: number
           error_adjustments: number
           id: string
           marketing_fee: number
           month: number
           net_payout: number
           notes: string | null
+          offer_usage_fee: number | null
           offers_cost: number
-          other_fees: number
+          order_error: number | null
           platform: string
           restaurant_id: string
           uber_fee: number
@@ -296,14 +298,16 @@ export type Database = {
         Insert: {
           ads_cost?: number
           created_at?: string
+          eco_contribution?: number
           error_adjustments?: number
           id?: string
           marketing_fee?: number
           month: number
           net_payout?: number
           notes?: string | null
+          offer_usage_fee?: number | null
           offers_cost?: number
-          other_fees?: number
+          order_error?: number | null
           platform?: string
           restaurant_id: string
           uber_fee?: number
@@ -313,14 +317,16 @@ export type Database = {
         Update: {
           ads_cost?: number
           created_at?: string
+          eco_contribution?: number
           error_adjustments?: number
           id?: string
           marketing_fee?: number
           month?: number
           net_payout?: number
           notes?: string | null
+          offer_usage_fee?: number | null
           offers_cost?: number
-          other_fees?: number
+          order_error?: number | null
           platform?: string
           restaurant_id?: string
           uber_fee?: number
