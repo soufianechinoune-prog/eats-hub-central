@@ -224,6 +224,7 @@ export type Database = {
           month: number
           orders: number
           overall_rate: number | null
+          platform: string
           restaurant_id: string
           updated_at: string
           view_rate: number | null
@@ -240,6 +241,7 @@ export type Database = {
           month: number
           orders?: number
           overall_rate?: number | null
+          platform?: string
           restaurant_id: string
           updated_at?: string
           view_rate?: number | null
@@ -256,6 +258,7 @@ export type Database = {
           month?: number
           orders?: number
           overall_rate?: number | null
+          platform?: string
           restaurant_id?: string
           updated_at?: string
           view_rate?: number | null
@@ -284,6 +287,7 @@ export type Database = {
           notes: string | null
           offers_cost: number
           other_fees: number
+          platform: string
           restaurant_id: string
           uber_fee: number
           updated_at: string
@@ -300,6 +304,7 @@ export type Database = {
           notes?: string | null
           offers_cost?: number
           other_fees?: number
+          platform?: string
           restaurant_id: string
           uber_fee?: number
           updated_at?: string
@@ -316,6 +321,7 @@ export type Database = {
           notes?: string | null
           offers_cost?: number
           other_fees?: number
+          platform?: string
           restaurant_id?: string
           uber_fee?: number
           updated_at?: string
@@ -338,6 +344,7 @@ export type Database = {
           id: string
           month: number
           order_count: number
+          platform: string
           restaurant_id: string
           revenue_per_day: number | null
           revenue_ttc: number
@@ -351,6 +358,7 @@ export type Database = {
           id?: string
           month: number
           order_count?: number
+          platform?: string
           restaurant_id: string
           revenue_per_day?: number | null
           revenue_ttc?: number
@@ -364,6 +372,7 @@ export type Database = {
           id?: string
           month?: number
           order_count?: number
+          platform?: string
           restaurant_id?: string
           revenue_per_day?: number | null
           revenue_ttc?: number
@@ -655,6 +664,11 @@ export type Database = {
           chain_id: string
           city: string | null
           created_at: string
+          deliveroo_account_manager_email: string | null
+          deliveroo_account_manager_name: string | null
+          deliveroo_account_manager_phone: string | null
+          deliveroo_account_manager_title: string | null
+          deliveroo_store_id: string | null
           id: string
           is_active: boolean | null
           manager_first_name: string | null
@@ -680,6 +694,11 @@ export type Database = {
           chain_id: string
           city?: string | null
           created_at?: string
+          deliveroo_account_manager_email?: string | null
+          deliveroo_account_manager_name?: string | null
+          deliveroo_account_manager_phone?: string | null
+          deliveroo_account_manager_title?: string | null
+          deliveroo_store_id?: string | null
           id?: string
           is_active?: boolean | null
           manager_first_name?: string | null
@@ -705,6 +724,11 @@ export type Database = {
           chain_id?: string
           city?: string | null
           created_at?: string
+          deliveroo_account_manager_email?: string | null
+          deliveroo_account_manager_name?: string | null
+          deliveroo_account_manager_phone?: string | null
+          deliveroo_account_manager_title?: string | null
+          deliveroo_store_id?: string | null
           id?: string
           is_active?: boolean | null
           manager_first_name?: string | null

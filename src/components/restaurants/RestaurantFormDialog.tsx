@@ -33,6 +33,10 @@ interface RestaurantForm {
   account_manager_title: string;
   account_manager_phone: string;
   account_manager_email: string;
+  deliveroo_account_manager_name: string;
+  deliveroo_account_manager_title: string;
+  deliveroo_account_manager_phone: string;
+  deliveroo_account_manager_email: string;
 }
 
 const initialFormState: RestaurantForm = {
@@ -53,6 +57,10 @@ const initialFormState: RestaurantForm = {
   account_manager_title: "",
   account_manager_phone: "",
   account_manager_email: "",
+  deliveroo_account_manager_name: "",
+  deliveroo_account_manager_title: "",
+  deliveroo_account_manager_phone: "",
+  deliveroo_account_manager_email: "",
 };
 
 interface RestaurantFormDialogProps {
@@ -123,6 +131,10 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
       account_manager_title: newRestaurant.account_manager_title || null,
       account_manager_phone: newRestaurant.account_manager_phone || null,
       account_manager_email: newRestaurant.account_manager_email || null,
+      deliveroo_account_manager_name: newRestaurant.deliveroo_account_manager_name || null,
+      deliveroo_account_manager_title: newRestaurant.deliveroo_account_manager_title || null,
+      deliveroo_account_manager_phone: newRestaurant.deliveroo_account_manager_phone || null,
+      deliveroo_account_manager_email: newRestaurant.deliveroo_account_manager_email || null,
       is_active: true,
     });
 
@@ -328,10 +340,10 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
 
           {/* Account Manager Uber */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-primary">
+            <div className="flex items-center gap-2 text-green-600">
               <UserCheck className="h-4 w-4" />
               <h3 className="font-semibold text-sm uppercase tracking-wide">
-                Account Manager Uber
+                Account Manager Uber Eats
               </h3>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -372,6 +384,59 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
                   placeholder="camille.lampin@uber.com"
                   value={newRestaurant.account_manager_email}
                   onChange={(e) => handleInputChange("account_manager_email", e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Account Manager Deliveroo */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-cyan-600">
+              <UserCheck className="h-4 w-4" />
+              <h3 className="font-semibold text-sm uppercase tracking-wide">
+                Account Manager Deliveroo
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="deliveroo_account_manager_name">Nom complet</Label>
+                <Input
+                  id="deliveroo_account_manager_name"
+                  placeholder="Marie MARTIN"
+                  value={newRestaurant.deliveroo_account_manager_name}
+                  onChange={(e) => handleInputChange("deliveroo_account_manager_name", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="deliveroo_account_manager_title">Titre</Label>
+                <Input
+                  id="deliveroo_account_manager_title"
+                  placeholder="Account Manager, France"
+                  value={newRestaurant.deliveroo_account_manager_title}
+                  onChange={(e) => handleInputChange("deliveroo_account_manager_title", e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="deliveroo_account_manager_phone">Téléphone</Label>
+                <PhoneInput
+                  id="deliveroo_account_manager_phone"
+                  value={newRestaurant.deliveroo_account_manager_phone}
+                  onChange={(value) => handleInputChange("deliveroo_account_manager_phone", value)}
+                  placeholder="07 12 34 56 78"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="deliveroo_account_manager_email">Email</Label>
+                <Input
+                  id="deliveroo_account_manager_email"
+                  type="email"
+                  placeholder="marie.martin@deliveroo.com"
+                  value={newRestaurant.deliveroo_account_manager_email}
+                  onChange={(e) => handleInputChange("deliveroo_account_manager_email", e.target.value)}
                 />
               </div>
             </div>

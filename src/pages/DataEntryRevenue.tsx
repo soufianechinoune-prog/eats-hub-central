@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -42,6 +43,11 @@ const MONTHS = [
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
+const PLATFORMS = [
+  { value: "uber_eats", label: "Uber Eats", color: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30" },
+  { value: "deliveroo", label: "Deliveroo", color: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30" },
+];
+
 export default function DataEntryRevenue() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -50,6 +56,7 @@ export default function DataEntryRevenue() {
   const restaurantFromUrl = searchParams.get("restaurant");
   
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>(restaurantFromUrl || "");
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("uber_eats");
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [revenueTtc, setRevenueTtc] = useState<string>("");
@@ -108,6 +115,7 @@ export default function DataEntryRevenue() {
         restaurant_id: selectedRestaurant,
         year: selectedYear,
         month: selectedMonth,
+        platform: selectedPlatform,
         revenue_ttc: parseFloat(revenueTtc) || 0,
         order_count: parseInt(orderCount) || 0,
         working_days: workingDays ? parseInt(workingDays) : null,
@@ -123,7 +131,7 @@ export default function DataEntryRevenue() {
       } else {
         const { error } = await supabase
           .from("monthly_revenue")
-          .upsert(payload, { onConflict: "restaurant_id,year,month" });
+          .upsert(payload, { onConflict: "restaurant_id,year,month,platform" });
         if (error) throw error;
       }
     },
@@ -174,6 +182,7 @@ export default function DataEntryRevenue() {
   const handleEdit = (entry: any) => {
     setSelectedYear(entry.year);
     setSelectedMonth(entry.month);
+    setSelectedPlatform(entry.platform || "uber_eats");
     setRevenueTtc(entry.revenue_ttc?.toString() || "");
     setOrderCount(entry.order_count?.toString() || "");
     setWorkingDays(entry.working_days?.toString() || "");
@@ -191,6 +200,10 @@ export default function DataEntryRevenue() {
     : "0.00";
 
   const getMonthLabel = (month: number) => MONTHS.find(m => m.value === month)?.label || "";
+  const getPlatformBadge = (platform: string) => {
+    const p = PLATFORMS.find(pl => pl.value === platform);
+    return p ? <Badge className={p.color}>{p.label}</Badge> : <Badge variant="outline">{platform}</Badge>;
+  };
 
   return (
     <div className="space-y-6">
@@ -233,6 +246,24 @@ export default function DataEntryRevenue() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Platform selector */}
+            <div className="space-y-2">
+              <Label>Plateforme</Label>
+              <div className="flex gap-2">
+                {PLATFORMS.map((p) => (
+                  <Button
+                    key={p.value}
+                    type="button"
+                    variant={selectedPlatform === p.value ? "default" : "outline"}
+                    className={selectedPlatform === p.value ? "" : ""}
+                    onClick={() => setSelectedPlatform(p.value)}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -375,6 +406,7 @@ export default function DataEntryRevenue() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Période</TableHead>
+                      <TableHead>Plateforme</TableHead>
                       <TableHead className="text-right">CA TTC</TableHead>
                       <TableHead className="text-right">Cmd</TableHead>
                       <TableHead className="text-right">Panier</TableHead>
@@ -386,6 +418,9 @@ export default function DataEntryRevenue() {
                       <TableRow key={entry.id}>
                         <TableCell>
                           {getMonthLabel(entry.month)} {entry.year}
+                        </TableCell>
+                        <TableCell>
+                          {getPlatformBadge(entry.platform || "uber_eats")}
                         </TableCell>
                         <TableCell className="text-right">
                           {Number(entry.revenue_ttc).toLocaleString("fr-FR")} €
