@@ -336,7 +336,12 @@ const Restaurants = () => {
                       </div>
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.restaurant_phone ? (
+                      {restaurant.manager_whatsapp ? (
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                          {restaurant.manager_whatsapp}
+                        </div>
+                      ) : restaurant.restaurant_phone ? (
                         <div className="flex items-center gap-1.5 text-sm">
                           <Phone className="h-3.5 w-3.5 text-muted-foreground" />
                           {restaurant.restaurant_phone}
