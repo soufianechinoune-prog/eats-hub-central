@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { AnalyticsFilters, PeriodMode } from "@/components/analytics/AnalyticsFilters";
-import { AnalyticsCharts, ChartActionsConfig } from "@/components/analytics/AnalyticsCharts";
+import { AnalyticsCharts, ChartActionsConfig, ActionCategoryFilter } from "@/components/analytics/AnalyticsCharts";
 import { useAnalyticsPdfExport } from "@/hooks/useAnalyticsPdfExport";
 import { useRestaurantActions } from "@/hooks/useRestaurantActions";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
@@ -56,6 +56,7 @@ export default function Analytics() {
     }
     return DEFAULT_CHART_ACTIONS_CONFIG;
   });
+  const [selectedCategories, setSelectedCategories] = useState<ActionCategoryFilter>(new Set());
 
   const chartsRef = useRef<HTMLDivElement>(null);
   const { exportToPdf, isExporting } = useAnalyticsPdfExport();
@@ -74,6 +75,18 @@ export default function Analytics() {
 
   const handleGlobalToggleChange = (value: boolean) => {
     handleChartActionsConfigChange({ ...chartActionsConfig, global: value });
+  };
+
+  const handleCategoryToggle = (category: string) => {
+    setSelectedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
   };
 
   const navigate = useNavigate();
@@ -548,6 +561,8 @@ export default function Analytics() {
                 chartActionsConfig={chartActionsConfig}
                 onChartActionsConfigChange={handleChartActionsConfigChange}
                 onActionClick={handleActionClick}
+                selectedCategories={selectedCategories}
+                onCategoryToggle={handleCategoryToggle}
               />
             </TabsContent>
 
@@ -566,6 +581,8 @@ export default function Analytics() {
                 chartActionsConfig={chartActionsConfig}
                 onChartActionsConfigChange={handleChartActionsConfigChange}
                 onActionClick={handleActionClick}
+                selectedCategories={selectedCategories}
+                onCategoryToggle={handleCategoryToggle}
               />
             </TabsContent>
 
@@ -584,6 +601,8 @@ export default function Analytics() {
                 chartActionsConfig={chartActionsConfig}
                 onChartActionsConfigChange={handleChartActionsConfigChange}
                 onActionClick={handleActionClick}
+                selectedCategories={selectedCategories}
+                onCategoryToggle={handleCategoryToggle}
               />
             </TabsContent>
           </div>
