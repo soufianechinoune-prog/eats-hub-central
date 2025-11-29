@@ -55,13 +55,9 @@ import {
   ArrowRight,
   Filter,
 } from "lucide-react";
+import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-
-interface Restaurant {
-  id: string;
-  name: string;
-}
 
 interface ActionCategory {
   id: string;
@@ -77,7 +73,7 @@ interface MenuItem {
 
 interface RestaurantAction {
   id: string;
-  restaurant_id: string;
+  restaurant_id: string | null;
   category: string;
   action_type: string;
   title: string;
@@ -89,6 +85,11 @@ interface RestaurantAction {
   target_item_ids: string[];
   platform: string;
   created_at: string;
+}
+
+interface Restaurant {
+  id: string;
+  name: string;
 }
 
 const ACTION_TYPES: Record<string, string[]> = {
@@ -120,13 +121,13 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default function RestaurantActions() {
   const { toast } = useToast();
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [selectedRestaurant, setSelectedRestaurant] = useState<string>("");
   const [categories, setCategories] = useState<ActionCategory[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [actions, setActions] = useState<RestaurantAction[]>([]);
   const [loading, setLoading] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [platformFilter, setPlatformFilter] = useState<string>("all");
   
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -136,6 +137,7 @@ export default function RestaurantActions() {
   
   // Form state
   const [formData, setFormData] = useState({
+    restaurant_id: "",
     category: "",
     action_type: "",
     title: "",
@@ -145,32 +147,15 @@ export default function RestaurantActions() {
     impact_value: "",
     impact_unit: "",
     target_item_ids: [] as string[],
-    platform: "all",
+    platform: "",
   });
 
   useEffect(() => {
-    fetchRestaurants();
     fetchCategories();
+    fetchMenuItems();
+    fetchRestaurants();
+    fetchActions();
   }, []);
-
-  useEffect(() => {
-    if (selectedRestaurant) {
-      fetchActions();
-      fetchMenuItems();
-    }
-  }, [selectedRestaurant]);
-
-  const fetchRestaurants = async () => {
-    const { data, error } = await supabase
-      .from("restaurants")
-      .select("id, name")
-      .eq("is_active", true)
-      .order("name");
-
-    if (!error && data) {
-      setRestaurants(data);
-    }
-  };
 
   const fetchCategories = async () => {
     const { data, error } = await supabase
@@ -187,7 +172,6 @@ export default function RestaurantActions() {
     const { data, error } = await supabase
       .from("menu_items")
       .select("id, name, category")
-      .eq("restaurant_id", selectedRestaurant)
       .eq("is_active", true)
       .order("name");
 
@@ -196,12 +180,23 @@ export default function RestaurantActions() {
     }
   };
 
+  const fetchRestaurants = async () => {
+    const { data, error } = await supabase
+      .from("restaurants")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name");
+
+    if (!error && data) {
+      setRestaurants(data);
+    }
+  };
+
   const fetchActions = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("restaurant_actions")
       .select("*")
-      .eq("restaurant_id", selectedRestaurant)
       .order("start_date", { ascending: false });
 
     if (error) {
@@ -219,6 +214,7 @@ export default function RestaurantActions() {
   const openCreateDialog = () => {
     setEditingAction(null);
     setFormData({
+      restaurant_id: "",
       category: "",
       action_type: "",
       title: "",
@@ -228,7 +224,7 @@ export default function RestaurantActions() {
       impact_value: "",
       impact_unit: "",
       target_item_ids: [],
-      platform: "all",
+      platform: "",
     });
     setIsDialogOpen(true);
   };
@@ -236,6 +232,7 @@ export default function RestaurantActions() {
   const openEditDialog = (action: RestaurantAction) => {
     setEditingAction(action);
     setFormData({
+      restaurant_id: action.restaurant_id || "",
       category: action.category,
       action_type: action.action_type,
       title: action.title,
@@ -245,23 +242,23 @@ export default function RestaurantActions() {
       impact_value: action.impact_value?.toString() || "",
       impact_unit: action.impact_unit || "",
       target_item_ids: action.target_item_ids || [],
-      platform: action.platform || "all",
+      platform: action.platform,
     });
     setIsDialogOpen(true);
   };
 
   const handleSubmit = async () => {
-    if (!formData.category || !formData.action_type || !formData.title || !formData.start_date) {
+    if (!formData.category || !formData.action_type || !formData.title || !formData.start_date || !formData.platform) {
       toast({
         title: "Erreur",
-        description: "Veuillez remplir tous les champs obligatoires",
+        description: "Veuillez remplir tous les champs obligatoires (catégorie, type, titre, date, plateforme)",
         variant: "destructive",
       });
       return;
     }
 
     const actionData = {
-      restaurant_id: selectedRestaurant,
+      restaurant_id: formData.restaurant_id || null,
       category: formData.category,
       action_type: formData.action_type,
       title: formData.title.trim(),
@@ -320,12 +317,17 @@ export default function RestaurantActions() {
     fetchActions();
   };
 
-  const filteredActions = categoryFilter === "all" 
-    ? actions 
-    : actions.filter(a => a.category === categoryFilter);
+  const filteredActions = actions
+    .filter(a => categoryFilter === "all" || a.category === categoryFilter)
+    .filter(a => platformFilter === "all" || a.platform === platformFilter);
 
   const getCategoryLabel = (categoryId: string) => {
     return categories.find(c => c.id === categoryId)?.label || categoryId;
+  };
+
+  const getRestaurantName = (restaurantId: string | null) => {
+    if (!restaurantId) return null;
+    return restaurants.find(r => r.id === restaurantId)?.name || null;
   };
 
   const formatDate = (dateStr: string) => {
@@ -335,6 +337,9 @@ export default function RestaurantActions() {
   // Stats
   const totalActions = actions.length;
   const activeActions = actions.filter(a => !a.end_date || new Date(a.end_date) >= new Date()).length;
+  const uberActions = actions.filter(a => a.platform === "uber_eats").length;
+  const deliverooActions = actions.filter(a => a.platform === "deliveroo").length;
+  
   const actionsByCategory = categories.map(cat => ({
     ...cat,
     count: actions.filter(a => a.category === cat.id).length
@@ -350,225 +355,292 @@ export default function RestaurantActions() {
             Actions & Événements
           </h1>
           <p className="text-muted-foreground mt-1">
-            Suivez les actions marketing, changements de prix et événements pour analyser leur impact
+            Suivez les actions par plateforme pour analyser leur impact sur les performances
           </p>
         </div>
+        <Button onClick={openCreateDialog} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Nouvelle action
+        </Button>
       </div>
 
-      {/* Restaurant Selection */}
+      {/* Platform Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Zap className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalActions}</p>
+                <p className="text-xs text-muted-foreground">Actions total</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-500/10 rounded-lg">
+                <Calendar className="h-5 w-5 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{activeActions}</p>
+                <p className="text-xs text-muted-foreground">En cours</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md ${platformFilter === "uber_eats" ? 'ring-2 ring-[#06C167]' : ''}`}
+          onClick={() => setPlatformFilter(platformFilter === "uber_eats" ? "all" : "uber_eats")}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[#06C167]/10 rounded-lg">
+                <UberEatsIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{uberActions}</p>
+                <p className="text-xs text-muted-foreground">Uber Eats</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md ${platformFilter === "deliveroo" ? 'ring-2 ring-[#00CCBC]' : ''}`}
+          onClick={() => setPlatformFilter(platformFilter === "deliveroo" ? "all" : "deliveroo")}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[#00CCBC]/10 rounded-lg">
+                <DeliverooIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{deliverooActions}</p>
+                <p className="text-xs text-muted-foreground">Deliveroo</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Category Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {actionsByCategory.map((cat) => {
+          const Icon = CATEGORY_ICONS[cat.id] || Zap;
+          return (
+            <Card 
+              key={cat.id} 
+              className={`cursor-pointer transition-all hover:shadow-md ${categoryFilter === cat.id ? 'ring-2 ring-primary' : ''}`}
+              onClick={() => setCategoryFilter(categoryFilter === cat.id ? "all" : cat.id)}
+            >
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded ${CATEGORY_COLORS[cat.id]}`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold">{cat.count}</p>
+                    <p className="text-xs text-muted-foreground">{cat.label}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Actions Header */}
       <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg">Sélection du restaurant</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Select value={selectedRestaurant} onValueChange={setSelectedRestaurant}>
-            <SelectTrigger className="w-full sm:w-[400px]">
-              <SelectValue placeholder="Choisir un restaurant" />
-            </SelectTrigger>
-            <SelectContent>
-              {restaurants.map((r) => (
-                <SelectItem key={r.id} value={r.id}>
-                  {r.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Badge variant="secondary" className="gap-1">
+                <Calendar className="h-3 w-3" />
+                {filteredActions.length} actions
+              </Badge>
+              {categoryFilter !== "all" && (
+                <Badge 
+                  variant="secondary" 
+                  className="gap-1 cursor-pointer"
+                  onClick={() => setCategoryFilter("all")}
+                >
+                  <Filter className="h-3 w-3" />
+                  {getCategoryLabel(categoryFilter)}
+                  <span className="ml-1">×</span>
+                </Badge>
+              )}
+              {platformFilter !== "all" && (
+                <Badge 
+                  variant="secondary" 
+                  className="gap-1 cursor-pointer"
+                  onClick={() => setPlatformFilter("all")}
+                >
+                  {platformFilter === "uber_eats" ? <UberEatsIcon className="h-3 w-3" /> : <DeliverooIcon className="h-3 w-3" />}
+                  {platformFilter === "uber_eats" ? "Uber Eats" : "Deliveroo"}
+                  <span className="ml-1">×</span>
+                </Badge>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {selectedRestaurant && (
-        <>
-          {/* Category Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {actionsByCategory.map((cat) => {
-              const Icon = CATEGORY_ICONS[cat.id] || Zap;
-              return (
-                <Card 
-                  key={cat.id} 
-                  className={`cursor-pointer transition-all hover:shadow-md ${categoryFilter === cat.id ? 'ring-2 ring-primary' : ''}`}
-                  onClick={() => setCategoryFilter(categoryFilter === cat.id ? "all" : cat.id)}
-                >
-                  <CardContent className="pt-4 pb-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`p-1.5 rounded ${CATEGORY_COLORS[cat.id]}`}>
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="text-lg font-bold">{cat.count}</p>
-                        <p className="text-xs text-muted-foreground">{cat.label}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Actions Header */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                <div className="flex items-center gap-3">
-                  <Badge variant="secondary" className="gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {totalActions} actions
-                  </Badge>
-                  <Badge variant="outline" className="gap-1 text-emerald-600">
-                    {activeActions} en cours
-                  </Badge>
-                  {categoryFilter !== "all" && (
-                    <Badge 
-                      variant="secondary" 
-                      className="gap-1 cursor-pointer"
-                      onClick={() => setCategoryFilter("all")}
-                    >
-                      <Filter className="h-3 w-3" />
-                      {getCategoryLabel(categoryFilter)}
-                      <span className="ml-1">×</span>
-                    </Badge>
-                  )}
-                </div>
-                <Button onClick={openCreateDialog} className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Nouvelle action
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Actions List */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Historique des actions</CardTitle>
-              <CardDescription>
-                Actions triées par date de début (plus récentes en premier)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : filteredActions.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  {actions.length === 0 
-                    ? "Aucune action enregistrée pour ce restaurant"
-                    : "Aucune action ne correspond au filtre"
-                  }
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Catégorie</TableHead>
-                        <TableHead>Action</TableHead>
-                        <TableHead>Période</TableHead>
-                        <TableHead>Impact</TableHead>
-                        <TableHead>Produits</TableHead>
-                        <TableHead>Plateforme</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredActions.map((action) => {
-                        const Icon = CATEGORY_ICONS[action.category] || Zap;
-                        const isActive = !action.end_date || new Date(action.end_date) >= new Date();
-                        const targetItems = menuItems.filter(item => action.target_item_ids?.includes(item.id));
-                        
-                        return (
-                          <TableRow key={action.id}>
-                            <TableCell>
-                              <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded ${CATEGORY_COLORS[action.category]}`}>
-                                <Icon className="h-3.5 w-3.5" />
-                                <span className="text-xs font-medium">{getCategoryLabel(action.category)}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{action.title}</p>
-                                <p className="text-xs text-muted-foreground">{action.action_type}</p>
-                                {action.description && (
-                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{action.description}</p>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1 text-sm">
-                                <span>{formatDate(action.start_date)}</span>
-                                {action.end_date && (
-                                  <>
-                                    <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                                    <span>{formatDate(action.end_date)}</span>
-                                  </>
-                                )}
-                              </div>
-                              {isActive && (
-                                <Badge variant="outline" className="mt-1 text-xs text-emerald-600 border-emerald-200">
-                                  En cours
+      {/* Actions List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Historique des actions</CardTitle>
+          <CardDescription>
+            Actions triées par date de début (plus récentes en premier)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : filteredActions.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              {actions.length === 0 
+                ? "Aucune action enregistrée"
+                : "Aucune action ne correspond aux filtres"
+              }
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Plateforme</TableHead>
+                    <TableHead>Catégorie</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Période</TableHead>
+                    <TableHead>Impact</TableHead>
+                    <TableHead>Produits</TableHead>
+                    <TableHead>Restaurant</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredActions.map((action) => {
+                    const Icon = CATEGORY_ICONS[action.category] || Zap;
+                    const isActive = !action.end_date || new Date(action.end_date) >= new Date();
+                    const targetItems = menuItems.filter(item => action.target_item_ids?.includes(item.id));
+                    const restaurantName = getRestaurantName(action.restaurant_id);
+                    
+                    return (
+                      <TableRow key={action.id}>
+                        <TableCell>
+                          <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded ${
+                            action.platform === "uber_eats" 
+                              ? "bg-[#06C167]/10" 
+                              : "bg-[#00CCBC]/10"
+                          }`}>
+                            {action.platform === "uber_eats" ? (
+                              <UberEatsIcon className="h-4 w-4" />
+                            ) : (
+                              <DeliverooIcon className="h-4 w-4" />
+                            )}
+                            <span className="text-xs font-medium">
+                              {action.platform === "uber_eats" ? "Uber" : "Deliveroo"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded ${CATEGORY_COLORS[action.category]}`}>
+                            <Icon className="h-3.5 w-3.5" />
+                            <span className="text-xs font-medium">{getCategoryLabel(action.category)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{action.title}</p>
+                            <p className="text-xs text-muted-foreground">{action.action_type}</p>
+                            {action.description && (
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{action.description}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm">
+                            <span>{formatDate(action.start_date)}</span>
+                            {action.end_date && (
+                              <>
+                                <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                                <span>{formatDate(action.end_date)}</span>
+                              </>
+                            )}
+                          </div>
+                          {isActive && (
+                            <Badge variant="outline" className="mt-1 text-xs text-emerald-600 border-emerald-200">
+                              En cours
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {action.impact_value ? (
+                            <span className="font-mono">
+                              {action.impact_value}{action.impact_unit || ""}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {targetItems.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {targetItems.slice(0, 2).map(item => (
+                                <Badge key={item.id} variant="secondary" className="text-xs">
+                                  {item.name}
+                                </Badge>
+                              ))}
+                              {targetItems.length > 2 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{targetItems.length - 2}
                                 </Badge>
                               )}
-                            </TableCell>
-                            <TableCell>
-                              {action.impact_value ? (
-                                <span className="font-mono">
-                                  {action.impact_value}{action.impact_unit || ""}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {targetItems.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {targetItems.slice(0, 2).map(item => (
-                                    <Badge key={item.id} variant="secondary" className="text-xs">
-                                      {item.name}
-                                    </Badge>
-                                  ))}
-                                  {targetItems.length > 2 && (
-                                    <Badge variant="outline" className="text-xs">
-                                      +{targetItems.length - 2}
-                                    </Badge>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">Tous</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs">
-                                {action.platform === "all" ? "Toutes" : action.platform}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-1">
-                                <Button variant="ghost" size="icon" onClick={() => openEditDialog(action)}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => {
-                                    setActionToDelete(action);
-                                    setIsDeleteDialogOpen(true);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Tous</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {restaurantName ? (
+                            <Badge variant="outline" className="text-xs">
+                              {restaurantName}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Tous</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => openEditDialog(action)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => {
+                                setActionToDelete(action);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -578,10 +650,42 @@ export default function RestaurantActions() {
               {editingAction ? "Modifier l'action" : "Nouvelle action"}
             </DialogTitle>
             <DialogDescription>
-              Enregistrez une action ou un événement pour suivre son impact sur les performances
+              Enregistrez une action pour suivre son impact sur les performances
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Platform (Required) */}
+            <div className="grid gap-2">
+              <Label className="flex items-center gap-1">
+                Plateforme <span className="text-destructive">*</span>
+              </Label>
+              <Select 
+                value={formData.platform} 
+                onValueChange={(value) => setFormData({ ...formData, platform: value })}
+              >
+                <SelectTrigger className={!formData.platform ? "border-destructive/50" : ""}>
+                  <SelectValue placeholder="Choisir une plateforme..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="uber_eats">
+                    <div className="flex items-center gap-2">
+                      <UberEatsIcon className="h-4 w-4" />
+                      Uber Eats
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="deliveroo">
+                    <div className="flex items-center gap-2">
+                      <DeliverooIcon className="h-4 w-4" />
+                      Deliveroo
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                L'action apparaîtra dans l'onglet Analytics de cette plateforme
+              </p>
+            </div>
+
             {/* Category & Type */}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
@@ -695,22 +799,28 @@ export default function RestaurantActions() {
               </div>
             </div>
 
-            {/* Platform */}
+            {/* Restaurant (Optional) */}
             <div className="grid gap-2">
-              <Label>Plateforme</Label>
+              <Label>Restaurant (optionnel)</Label>
               <Select 
-                value={formData.platform} 
-                onValueChange={(value) => setFormData({ ...formData, platform: value })}
+                value={formData.restaurant_id} 
+                onValueChange={(value) => setFormData({ ...formData, restaurant_id: value })}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Tous les restaurants" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Toutes les plateformes</SelectItem>
-                  <SelectItem value="uber_eats">Uber Eats</SelectItem>
-                  <SelectItem value="deliveroo">Deliveroo</SelectItem>
+                  <SelectItem value="">Tous les restaurants</SelectItem>
+                  {restaurants.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Laissez vide pour une action globale
+              </p>
             </div>
 
             {/* Target Products */}
