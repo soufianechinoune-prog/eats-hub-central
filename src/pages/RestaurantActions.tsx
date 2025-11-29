@@ -60,7 +60,7 @@ import {
   Store,
   Package,
 } from "lucide-react";
-import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
+import { UberEatsIcon, DeliverooIcon, UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -787,7 +787,7 @@ export default function RestaurantActions() {
                   }`}
                 >
                   <div className={`p-2 rounded-lg ${formData.platform === "uber_eats" ? "bg-[#06C167]/20" : "bg-muted"}`}>
-                    <UberEatsIcon className="h-6 w-6" />
+                    <UberEatsLogo size={28} />
                   </div>
                   <span className={`font-medium ${formData.platform === "uber_eats" ? "text-[#06C167]" : ""}`}>
                     Uber Eats
@@ -803,7 +803,7 @@ export default function RestaurantActions() {
                   }`}
                 >
                   <div className={`p-2 rounded-lg ${formData.platform === "deliveroo" ? "bg-[#00CCBC]/20" : "bg-muted"}`}>
-                    <DeliverooIcon className="h-6 w-6" />
+                    <DeliverooLogo size={28} />
                   </div>
                   <span className={`font-medium ${formData.platform === "deliveroo" ? "text-[#00CCBC]" : ""}`}>
                     Deliveroo
