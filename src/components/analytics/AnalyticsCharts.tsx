@@ -872,6 +872,23 @@ export function AnalyticsCharts({
                   formatter={(value: number) => [value.toLocaleString('fr-FR'), '']}
                 />
                 <Legend />
+                {/* Action markers */}
+                {shouldShowActionsForChart("conversionFunnel") && actionMonths.map(monthNum => {
+                  const monthActions = actionsByMonth[monthNum] || [];
+                  const primaryAction = monthActions[0];
+                  if (!primaryAction) return null;
+                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                  return (
+                    <ReferenceLine
+                      key={`action-funnel-${monthNum}`}
+                      x={MONTHS[monthNum - 1]}
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                    />
+                  );
+                })}
                 <Area type="monotone" dataKey="visits" name="Visites" stackId="1" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />
                 <Area type="monotone" dataKey="views" name="Vues menu" stackId="2" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} />
                 <Area type="monotone" dataKey="cart" name="Ajouts panier" stackId="3" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.6} />
@@ -987,6 +1004,23 @@ export function AnalyticsCharts({
                   }}
                 />
                 <Legend />
+                {/* Action markers */}
+                {shouldShowActionsForChart("conversionRate") && actionMonths.map(monthNum => {
+                  const monthActions = actionsByMonth[monthNum] || [];
+                  const primaryAction = monthActions[0];
+                  if (!primaryAction) return null;
+                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                  return (
+                    <ReferenceLine
+                      key={`action-conv-${monthNum}`}
+                      x={MONTHS[monthNum - 1]}
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                    />
+                  );
+                })}
                 {/* Zone rouge semi-transparente pour les valeurs en dessous de l'objectif */}
                 <ReferenceArea
                   y1={0}
@@ -1077,6 +1111,23 @@ export function AnalyticsCharts({
                   formatter={(value: number, name: string) => [value.toLocaleString('fr-FR') + ' €', name]}
                 />
                 <Legend />
+                {/* Action markers */}
+                {shouldShowActionsForChart("fees") && actionMonths.map(monthNum => {
+                  const monthActions = actionsByMonth[monthNum] || [];
+                  const primaryAction = monthActions[0];
+                  if (!primaryAction) return null;
+                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                  return (
+                    <ReferenceLine
+                      key={`action-fees-${monthNum}`}
+                      x={MONTHS[monthNum - 1]}
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                    />
+                  );
+                })}
                 <Bar dataKey="uber" name="Commission" stackId="a" fill="hsl(var(--chart-1))" />
                 <Bar dataKey="marketing" name="Marketing" stackId="a" fill="hsl(var(--chart-2))" />
                 <Bar dataKey="offers" name="Offres" stackId="a" fill="hsl(var(--chart-3))" />
@@ -1118,6 +1169,23 @@ export function AnalyticsCharts({
                   formatter={(value: number, name: string) => [value.toLocaleString('fr-FR') + ' €', name]}
                 />
                 <Legend />
+                {/* Action markers */}
+                {shouldShowActionsForChart("netPayout") && actionMonths.map(monthNum => {
+                  const monthActions = actionsByMonth[monthNum] || [];
+                  const primaryAction = monthActions[0];
+                  if (!primaryAction) return null;
+                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                  return (
+                    <ReferenceLine
+                      key={`action-net-${monthNum}`}
+                      x={MONTHS[monthNum - 1]}
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                    />
+                  );
+                })}
                 <Bar dataKey="net" name={`Versement ${selectedYear}`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 {hasPrevData && (
                   <Bar dataKey="prevNet" name={`Versement ${prevYear}`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} />
@@ -1164,6 +1232,24 @@ export function AnalyticsCharts({
                   }}
                 />
                 <Legend />
+                {/* Action markers */}
+                {shouldShowActionsForChart("profitability") && actionMonths.map(monthNum => {
+                  const monthActions = actionsByMonth[monthNum] || [];
+                  const primaryAction = monthActions[0];
+                  if (!primaryAction) return null;
+                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                  return (
+                    <ReferenceLine
+                      key={`action-profit-${monthNum}`}
+                      x={MONTHS[monthNum - 1]}
+                      yAxisId="left"
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                    />
+                  );
+                })}
                 <Bar yAxisId="left" dataKey="revenue" name="CA TTC" fill="hsl(var(--muted))" radius={[4, 4, 0, 0]} opacity={0.5} />
                 <Bar yAxisId="left" dataKey="netPayout" name="Versement Net" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 <Line 
