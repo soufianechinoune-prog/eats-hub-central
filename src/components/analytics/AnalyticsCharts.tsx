@@ -90,6 +90,8 @@ export interface ChartActionsConfig {
   profitability: boolean;
 }
 
+export type ActionCategoryFilter = Set<string>;
+
 interface AnalyticsChartsProps {
   revenueData: MonthlyRevenue[] | undefined;
   conversionData: MonthlyConversion[] | undefined;
@@ -105,6 +107,8 @@ interface AnalyticsChartsProps {
   chartActionsConfig?: ChartActionsConfig;
   onChartActionsConfigChange?: (config: ChartActionsConfig) => void;
   onActionClick?: (actionId: string) => void;
+  selectedCategories?: ActionCategoryFilter;
+  onCategoryToggle?: (category: string) => void;
 }
 
 // Action category colors
@@ -356,6 +360,8 @@ export function AnalyticsCharts({
   chartActionsConfig,
   onChartActionsConfigChange,
   onActionClick,
+  selectedCategories,
+  onCategoryToggle,
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
   
@@ -369,18 +375,25 @@ export function AnalyticsCharts({
     localStorage.setItem('conversionTarget', String(conversionTarget));
   }, [conversionTarget]);
 
-  // Group actions by month for reference lines
+  // Filter actions by selected categories
+  const filteredActions = useMemo(() => {
+    if (!actions || actions.length === 0) return [];
+    if (!selectedCategories || selectedCategories.size === 0) return actions;
+    return actions.filter(a => selectedCategories.has(a.category));
+  }, [actions, selectedCategories]);
+
+  // Group actions by month for reference lines (using filtered actions)
   const actionsByMonth = useMemo(() => {
-    if (!actions || actions.length === 0) return {};
+    if (!filteredActions || filteredActions.length === 0) return {};
     
     const byMonth: Record<number, RestaurantAction[]> = {};
-    actions.forEach(action => {
+    filteredActions.forEach(action => {
       const month = new Date(action.start_date).getMonth() + 1;
       if (!byMonth[month]) byMonth[month] = [];
       byMonth[month].push(action);
     });
     return byMonth;
-  }, [actions]);
+  }, [filteredActions]);
 
   // Get unique months with actions within the range
   const actionMonths = useMemo(() => {
@@ -754,25 +767,60 @@ export function AnalyticsCharts({
             <div className="flex items-center gap-4 flex-wrap">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Zap className="h-4 w-4 text-primary" />
-                Actions affichées ({actions.length})
+                Actions affichées ({filteredActions.length}/{actions.length})
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-2">
                 {Object.entries(ACTION_CATEGORY_LABELS).map(([key, label]) => {
                   const count = actions.filter(a => a.category === key).length;
                   if (count === 0) return null;
                   const Icon = ACTION_CATEGORY_ICONS[key] || Zap;
+                  const isSelected = !selectedCategories || selectedCategories.size === 0 || selectedCategories.has(key);
+                  const categoryColor = ACTION_CATEGORY_COLORS[key];
+                  
                   return (
-                    <div key={key} className="flex items-center gap-1.5 text-xs">
+                    <button
+                      key={key}
+                      onClick={() => onCategoryToggle?.(key)}
+                      className={cn(
+                        "flex items-center gap-1.5 text-xs px-2 py-1 rounded-full transition-all cursor-pointer border",
+                        isSelected 
+                          ? "bg-background shadow-sm border-border"
+                          : "bg-muted/50 opacity-50 border-transparent hover:opacity-75"
+                      )}
+                      style={{
+                        borderColor: isSelected ? categoryColor : undefined,
+                      }}
+                    >
                       <div 
-                        className="w-3 h-3 rounded-full" 
-                        style={{ backgroundColor: ACTION_CATEGORY_COLORS[key] }} 
+                        className={cn(
+                          "w-2.5 h-2.5 rounded-full transition-opacity",
+                          !isSelected && "opacity-40"
+                        )}
+                        style={{ backgroundColor: categoryColor }} 
                       />
-                      <Icon className="h-3 w-3" style={{ color: ACTION_CATEGORY_COLORS[key] }} />
-                      <span>{label} ({count})</span>
-                    </div>
+                      <Icon 
+                        className={cn(
+                          "h-3 w-3 transition-opacity",
+                          !isSelected && "opacity-40"
+                        )} 
+                        style={{ color: categoryColor }} 
+                      />
+                      <span className={cn(!isSelected && "line-through")}>{label} ({count})</span>
+                    </button>
                   );
                 })}
               </div>
+              {selectedCategories && selectedCategories.size > 0 && (
+                <button
+                  onClick={() => {
+                    // Clear all filters by toggling all selected categories off
+                    selectedCategories.forEach(cat => onCategoryToggle?.(cat));
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
+                  Réinitialiser
+                </button>
+              )}
             </div>
           </CardContent>
         </Card>
