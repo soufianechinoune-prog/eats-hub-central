@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useMenuItemTracking, type MenuItem as TrackingMenuItem, type FieldChange } from "@/hooks/useMenuItemTracking";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,6 +66,7 @@ import {
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { CsvImportDialog } from "@/components/menu/CsvImportDialog";
+import { MenuItemChangeConfirmDialog } from "@/components/menu/MenuItemChangeConfirmDialog";
 
 interface MenuItem {
   id: string;
@@ -105,6 +107,7 @@ const CATEGORIES = [
 
 export default function MenuItems() {
   const { toast } = useToast();
+  const { detectChanges, trackChange } = useMenuItemTracking();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -115,8 +118,17 @@ export default function MenuItems() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
+  
+  // Pending change state for confirmation
+  const [pendingChange, setPendingChange] = useState<{
+    changeType: "created" | "updated" | "deleted" | "activated" | "deactivated";
+    itemName: string;
+    changes: FieldChange[];
+    itemData?: any;
+  } | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -194,6 +206,7 @@ export default function MenuItems() {
     setIsDialogOpen(true);
   };
 
+  // Prepare submit - show confirmation dialog
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
       toast({
@@ -223,7 +236,28 @@ export default function MenuItems() {
       is_active: formData.is_active,
     };
 
-    if (editingItem) {
+    // Detect changes
+    const changes = detectChanges(editingItem as TrackingMenuItem | null, itemData);
+    const changeType = editingItem ? "updated" : "created";
+
+    // Show confirmation dialog
+    setPendingChange({
+      changeType,
+      itemName: itemData.name,
+      changes,
+      itemData,
+    });
+    setIsDialogOpen(false);
+    setIsConfirmDialogOpen(true);
+  };
+
+  // Execute the confirmed change
+  const executeChange = async (notes: string) => {
+    if (!pendingChange) return;
+
+    const { changeType, itemName, changes, itemData } = pendingChange;
+
+    if (changeType === "updated" && editingItem) {
       const { error } = await supabase
         .from("menu_items")
         .update(itemData)
@@ -238,14 +272,19 @@ export default function MenuItems() {
         return;
       }
 
+      // Track the change
+      await trackChange(changeType, editingItem.id, itemName, changes, notes);
+
       toast({
         title: "Succès",
-        description: "Produit modifié avec succès",
+        description: "Produit modifié et changement enregistré",
       });
-    } else {
-      const { error } = await supabase
+    } else if (changeType === "created") {
+      const { data, error } = await supabase
         .from("menu_items")
-        .insert(itemData);
+        .insert(itemData)
+        .select("id")
+        .single();
 
       if (error) {
         toast({
@@ -256,59 +295,108 @@ export default function MenuItems() {
         return;
       }
 
+      // Track the change
+      await trackChange(changeType, data?.id || null, itemName, changes, notes);
+
       toast({
         title: "Succès",
-        description: "Produit ajouté avec succès",
+        description: "Produit ajouté et changement enregistré",
+      });
+    } else if (changeType === "deleted" && itemToDelete) {
+      const { error } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("id", itemToDelete.id);
+
+      if (error) {
+        toast({
+          title: "Erreur",
+          description: "Impossible de supprimer le produit",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Track the change
+      await trackChange(changeType, itemToDelete.id, itemName, changes, notes);
+
+      toast({
+        title: "Succès",
+        description: "Produit supprimé et changement enregistré",
+      });
+      setItemToDelete(null);
+    } else if ((changeType === "activated" || changeType === "deactivated") && itemData?.itemId) {
+      const { error } = await supabase
+        .from("menu_items")
+        .update({ is_active: changeType === "activated" })
+        .eq("id", itemData.itemId);
+
+      if (error) {
+        toast({
+          title: "Erreur",
+          description: "Impossible de modifier le statut",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Track the change
+      await trackChange(changeType, itemData.itemId, itemName, changes, notes);
+
+      toast({
+        title: "Succès",
+        description: `Produit ${changeType === "activated" ? "activé" : "désactivé"} et changement enregistré`,
       });
     }
 
-    setIsDialogOpen(false);
+    setIsConfirmDialogOpen(false);
+    setPendingChange(null);
+    setEditingItem(null);
     fetchMenuItems();
   };
 
-  const handleDelete = async () => {
-    if (!itemToDelete) return;
+  // Handle delete - show confirmation dialog with tracking info
+  const handleDeleteClick = (item: MenuItem) => {
+    setItemToDelete(item);
+    
+    const changes: FieldChange[] = [
+      { field: "name", fieldLabel: "Nom", from: item.name, to: null },
+      { field: "category", fieldLabel: "Catégorie", from: item.category, to: null },
+      { field: "price_uber", fieldLabel: "Prix Uber", from: item.price_uber, to: null },
+      { field: "price_deliveroo", fieldLabel: "Prix Deliveroo", from: item.price_deliveroo, to: null },
+    ];
 
-    const { error } = await supabase
-      .from("menu_items")
-      .delete()
-      .eq("id", itemToDelete.id);
-
-    if (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de supprimer le produit",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "Succès",
-      description: "Produit supprimé avec succès",
+    setPendingChange({
+      changeType: "deleted",
+      itemName: item.name,
+      changes,
     });
-
-    setIsDeleteDialogOpen(false);
-    setItemToDelete(null);
-    fetchMenuItems();
+    setIsConfirmDialogOpen(true);
   };
 
-  const toggleItemActive = async (item: MenuItem) => {
-    const { error } = await supabase
-      .from("menu_items")
-      .update({ is_active: !item.is_active })
-      .eq("id", item.id);
+  // Toggle item active - show confirmation dialog
+  const toggleItemActive = (item: MenuItem) => {
+    const newStatus = !item.is_active;
+    const changeType = newStatus ? "activated" : "deactivated";
 
-    if (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de modifier le statut",
-        variant: "destructive",
-      });
-      return;
-    }
+    const changes: FieldChange[] = [
+      { field: "is_active", fieldLabel: "Statut", from: item.is_active, to: newStatus },
+    ];
 
-    fetchMenuItems();
+    setPendingChange({
+      changeType,
+      itemName: item.name,
+      changes,
+      itemData: { itemId: item.id },
+    });
+    setIsConfirmDialogOpen(true);
+  };
+
+  // Cancel pending change
+  const cancelPendingChange = () => {
+    setIsConfirmDialogOpen(false);
+    setPendingChange(null);
+    setItemToDelete(null);
   };
 
   // Filter items
@@ -783,10 +871,7 @@ export default function MenuItems() {
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        onClick={() => {
-                                          setItemToDelete(item);
-                                          setIsDeleteDialogOpen(true);
-                                        }}
+                                        onClick={() => handleDeleteClick(item)}
                                       >
                                         <Trash2 className="h-4 w-4 text-destructive" />
                                       </Button>
@@ -932,24 +1017,18 @@ export default function MenuItems() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce produit ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer "{itemToDelete?.name}" ? 
-              Cette action est irréversible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Change Confirmation Dialog */}
+      {pendingChange && (
+        <MenuItemChangeConfirmDialog
+          open={isConfirmDialogOpen}
+          onOpenChange={setIsConfirmDialogOpen}
+          itemName={pendingChange.itemName}
+          changeType={pendingChange.changeType}
+          changes={pendingChange.changes}
+          onConfirm={executeChange}
+          onCancel={cancelPendingChange}
+        />
+      )}
 
       {/* CSV Import Dialog */}
       <CsvImportDialog
