@@ -11,9 +11,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronRight, MapPin, Phone, Filter, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { RestaurantFormDialog } from "@/components/restaurants/RestaurantFormDialog";
+import { RestaurantShareActions } from "@/components/restaurants/RestaurantShareActions";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -27,6 +29,7 @@ const Restaurants = () => {
   const navigate = useNavigate();
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: restaurants, refetch } = useQuery({
     queryKey: ["restaurants"],
@@ -85,6 +88,28 @@ const Restaurants = () => {
     return filtered;
   }, [restaurants, departmentFilter, searchQuery]);
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredRestaurants.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredRestaurants.map((r) => r.id)));
+    }
+  };
+
+  const selectedRestaurants = filteredRestaurants.filter((r) => selectedIds.has(r.id));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -132,6 +157,13 @@ const Restaurants = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={filteredRestaurants.length > 0 && selectedIds.size === filteredRestaurants.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Tout sélectionner"
+                  />
+                </TableHead>
                 <TableHead>Nom</TableHead>
                 <TableHead>Ville</TableHead>
                 <TableHead>Contact</TableHead>
@@ -144,7 +176,7 @@ const Restaurants = () => {
             <TableBody>
               {filteredRestaurants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     {departmentFilter === "all" 
                       ? "Aucun restaurant trouvé" 
                       : `Aucun restaurant dans le département ${departmentFilter}`}
@@ -155,18 +187,24 @@ const Restaurants = () => {
                   <TableRow 
                     key={restaurant.id} 
                     className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => navigate(`/restaurants/${restaurant.id}`)}
                   >
-                    <TableCell className="font-medium">
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(restaurant.id)}
+                        onCheckedChange={() => toggleSelect(restaurant.id)}
+                        aria-label={`Sélectionner ${restaurant.name}`}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.name}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <MapPin className="h-3.5 w-3.5" />
                         {restaurant.postal_code && `${restaurant.postal_code} `}{restaurant.city}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.restaurant_phone ? (
                         <div className="flex items-center gap-1.5 text-sm">
                           <Phone className="h-3.5 w-3.5 text-muted-foreground" />
@@ -176,21 +214,21 @@ const Restaurants = () => {
                         <span className="text-muted-foreground text-sm">-</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.manager_first_name && restaurant.manager_last_name ? (
                         `${restaurant.manager_first_name} ${restaurant.manager_last_name}`
                       ) : (
                         <span className="text-muted-foreground">Non renseigné</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.is_active ? (
                         <Badge className="bg-accent text-accent-foreground">Actif</Badge>
                       ) : (
                         <Badge variant="outline">Inactif</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {Array.isArray(restaurant.uber_connections) &&
                       restaurant.uber_connections.length > 0 ? (
                         <Badge className="bg-accent text-accent-foreground">Connecté</Badge>
@@ -198,7 +236,7 @@ const Restaurants = () => {
                         <Badge variant="outline">Non connecté</Badge>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </TableCell>
                   </TableRow>
@@ -208,6 +246,11 @@ const Restaurants = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <RestaurantShareActions
+        selectedRestaurants={selectedRestaurants}
+        onClear={() => setSelectedIds(new Set())}
+      />
     </div>
   );
 };
