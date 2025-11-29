@@ -105,6 +105,8 @@ interface RestaurantAction {
 interface Restaurant {
   id: string;
   name: string;
+  postal_code: string | null;
+  account_manager_name: string | null;
 }
 
 const ACTION_TYPES: Record<string, string[]> = {
@@ -213,7 +215,7 @@ export default function RestaurantActions() {
   
   // Form state
   const [formData, setFormData] = useState({
-    restaurant_id: "",
+    restaurant_ids: [] as string[],
     category: "",
     action_type: "",
     title: "",
@@ -232,9 +234,12 @@ export default function RestaurantActions() {
   // BOGO (1 acheté = 1 offert) specific state
   const [bogoPurchasedItem, setBogoPurchasedItem] = useState<string>("");
   const [bogoFreeItem, setBogoFreeItem] = useState<string>("");
-  // Restaurant search
+  // Restaurant search with filters
   const [restaurantSearch, setRestaurantSearch] = useState("");
   const [isRestaurantPopoverOpen, setIsRestaurantPopoverOpen] = useState(false);
+  const [restaurantFilterType, setRestaurantFilterType] = useState<"all" | "department" | "manager">("all");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("");
+  const [selectedManager, setSelectedManager] = useState<string>("");
 
   useEffect(() => {
     fetchCategories();
@@ -269,7 +274,7 @@ export default function RestaurantActions() {
   const fetchRestaurants = async () => {
     const { data, error } = await supabase
       .from("restaurants")
-      .select("id, name")
+      .select("id, name, postal_code, account_manager_name")
       .eq("is_active", true)
       .order("name");
 
@@ -300,7 +305,7 @@ export default function RestaurantActions() {
   const openCreateDialog = () => {
     setEditingAction(null);
     setFormData({
-      restaurant_id: "",
+      restaurant_ids: [],
       category: "",
       action_type: "",
       title: "",
@@ -318,6 +323,9 @@ export default function RestaurantActions() {
     setProductSearch("");
     setBogoPurchasedItem("");
     setBogoFreeItem("");
+    setRestaurantFilterType("all");
+    setSelectedDepartment("");
+    setSelectedManager("");
     setIsDialogOpen(true);
   };
 
@@ -327,7 +335,7 @@ export default function RestaurantActions() {
     const isCustomType = !categoryTypes.includes(action.action_type);
     
     setFormData({
-      restaurant_id: action.restaurant_id || "",
+      restaurant_ids: action.restaurant_id ? [action.restaurant_id] : [],
       category: action.category,
       action_type: isCustomType ? "Autre" : action.action_type,
       title: action.title,
@@ -355,6 +363,9 @@ export default function RestaurantActions() {
     // BOGO specific
     setBogoPurchasedItem(changeContext?.bogo_purchased_item || "");
     setBogoFreeItem(changeContext?.bogo_free_item || "");
+    setRestaurantFilterType("all");
+    setSelectedDepartment("");
+    setSelectedManager("");
     setIsDialogOpen(true);
   };
 
@@ -436,22 +447,27 @@ export default function RestaurantActions() {
       changeContext.scope = productScope;
     }
     
-    const actionData = {
-      restaurant_id: formData.restaurant_id || null,
-      category: formData.category,
-      action_type: finalActionType,
-      title: formData.title.trim(),
-      description: formData.description.trim() || null,
-      start_date: formData.start_date,
-      end_date: formData.end_date || null,
-      impact_value: formData.impact_value ? parseFloat(formData.impact_value) : null,
-      impact_unit: formData.impact_unit || null,
-      target_item_ids: productScope === "all" ? [] : formData.target_item_ids,
-      platform: formData.platform,
-      change_context: Object.keys(changeContext).length > 0 ? changeContext : null,
-    };
+    // Si aucun restaurant sélectionné, on crée une seule action avec restaurant_id = null
+    // Sinon on crée une action par restaurant sélectionné
+    const restaurantIdsToUse = formData.restaurant_ids.length > 0 ? formData.restaurant_ids : [null];
 
     if (editingAction) {
+      // En édition, on met à jour seulement l'action existante avec le premier restaurant
+      const actionData = {
+        restaurant_id: formData.restaurant_ids.length > 0 ? formData.restaurant_ids[0] : null,
+        category: formData.category,
+        action_type: finalActionType,
+        title: formData.title.trim(),
+        description: formData.description.trim() || null,
+        start_date: formData.start_date,
+        end_date: formData.end_date || null,
+        impact_value: formData.impact_value ? parseFloat(formData.impact_value) : null,
+        impact_unit: formData.impact_unit || null,
+        target_item_ids: productScope === "all" ? [] : formData.target_item_ids,
+        platform: formData.platform,
+        change_context: Object.keys(changeContext).length > 0 ? changeContext : null,
+      };
+
       const { error } = await supabase
         .from("restaurant_actions")
         .update(actionData)
@@ -463,15 +479,36 @@ export default function RestaurantActions() {
       }
       toast({ title: "Succès", description: "Action modifiée" });
     } else {
+      // En création, on crée une action par restaurant sélectionné
+      const actionsToInsert = restaurantIdsToUse.map(restaurantId => ({
+        restaurant_id: restaurantId,
+        category: formData.category,
+        action_type: finalActionType,
+        title: formData.title.trim(),
+        description: formData.description.trim() || null,
+        start_date: formData.start_date,
+        end_date: formData.end_date || null,
+        impact_value: formData.impact_value ? parseFloat(formData.impact_value) : null,
+        impact_unit: formData.impact_unit || null,
+        target_item_ids: productScope === "all" ? [] : formData.target_item_ids,
+        platform: formData.platform,
+        change_context: Object.keys(changeContext).length > 0 ? changeContext : null,
+      }));
+
       const { error } = await supabase
         .from("restaurant_actions")
-        .insert(actionData);
+        .insert(actionsToInsert);
 
       if (error) {
         toast({ title: "Erreur", description: "Impossible de créer l'action", variant: "destructive" });
         return;
       }
-      toast({ title: "Succès", description: "Action créée" });
+      toast({ 
+        title: "Succès", 
+        description: actionsToInsert.length > 1 
+          ? `${actionsToInsert.length} actions créées` 
+          : "Action créée" 
+      });
     }
 
     setIsDialogOpen(false);
@@ -1296,8 +1333,42 @@ export default function RestaurantActions() {
                 Cible
               </div>
               
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Restaurant</Label>
+              <div className="space-y-3">
+                <Label className="text-xs text-muted-foreground">Restaurants</Label>
+                
+                {/* Selected restaurants display */}
+                {formData.restaurant_ids.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 p-2 rounded-lg bg-muted/30 border">
+                    {formData.restaurant_ids.map(id => {
+                      const restaurant = restaurants.find(r => r.id === id);
+                      return (
+                        <Badge key={id} variant="secondary" className="gap-1 pr-1">
+                          <span className="truncate max-w-[150px]">{restaurant?.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ 
+                              ...formData, 
+                              restaurant_ids: formData.restaurant_ids.filter(rid => rid !== id) 
+                            })}
+                            className="ml-0.5 hover:bg-muted rounded p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                    {formData.restaurant_ids.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, restaurant_ids: [] })}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Tout effacer
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <Popover open={isRestaurantPopoverOpen} onOpenChange={setIsRestaurantPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -1306,19 +1377,122 @@ export default function RestaurantActions() {
                       aria-expanded={isRestaurantPopoverOpen}
                       className="h-11 w-full justify-between font-normal"
                     >
-                      {formData.restaurant_id ? (
-                        <div className="flex items-center gap-2 truncate">
-                          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="truncate">{restaurants.find(r => r.id === formData.restaurant_id)?.name}</span>
-                        </div>
+                      {formData.restaurant_ids.length === 0 ? (
+                        <span className="text-muted-foreground">Tous les restaurants (global)</span>
                       ) : (
-                        <span className="text-muted-foreground">Tous les restaurants</span>
+                        <span>{formData.restaurant_ids.length} restaurant(s) sélectionné(s)</span>
                       )}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0" align="start">
+                  <PopoverContent className="w-[500px] p-0" align="start">
                     <div className="flex flex-col">
+                      {/* Filter tabs */}
+                      <div className="flex border-b bg-muted/30">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRestaurantFilterType("all");
+                            setSelectedDepartment("");
+                            setSelectedManager("");
+                          }}
+                          className={cn(
+                            "flex-1 px-4 py-2.5 text-sm font-medium transition-colors",
+                            restaurantFilterType === "all" 
+                              ? "bg-background border-b-2 border-primary text-primary" 
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          Tous
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRestaurantFilterType("department");
+                            setSelectedManager("");
+                          }}
+                          className={cn(
+                            "flex-1 px-4 py-2.5 text-sm font-medium transition-colors",
+                            restaurantFilterType === "department" 
+                              ? "bg-background border-b-2 border-primary text-primary" 
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          Par département
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRestaurantFilterType("manager");
+                            setSelectedDepartment("");
+                          }}
+                          className={cn(
+                            "flex-1 px-4 py-2.5 text-sm font-medium transition-colors",
+                            restaurantFilterType === "manager" 
+                              ? "bg-background border-b-2 border-primary text-primary" 
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          Par account manager
+                        </button>
+                      </div>
+
+                      {/* Department selector */}
+                      {restaurantFilterType === "department" && (
+                        <div className="p-3 border-b bg-muted/20">
+                          <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Choisir un département..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(() => {
+                                const departments = [...new Set(
+                                  restaurants
+                                    .filter(r => r.postal_code)
+                                    .map(r => r.postal_code!.substring(0, 2))
+                                )].sort();
+                                return departments.map(dept => {
+                                  const count = restaurants.filter(r => r.postal_code?.startsWith(dept)).length;
+                                  return (
+                                    <SelectItem key={dept} value={dept}>
+                                      Département {dept} ({count})
+                                    </SelectItem>
+                                  );
+                                });
+                              })()}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Manager selector */}
+                      {restaurantFilterType === "manager" && (
+                        <div className="p-3 border-b bg-muted/20">
+                          <Select value={selectedManager} onValueChange={setSelectedManager}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Choisir un account manager..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(() => {
+                                const managers = [...new Set(
+                                  restaurants
+                                    .filter(r => r.account_manager_name)
+                                    .map(r => r.account_manager_name!)
+                                )].sort();
+                                return managers.map(manager => {
+                                  const count = restaurants.filter(r => r.account_manager_name === manager).length;
+                                  return (
+                                    <SelectItem key={manager} value={manager}>
+                                      {manager} ({count})
+                                    </SelectItem>
+                                  );
+                                });
+                              })()}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       {/* Search input */}
                       <div className="flex items-center border-b px-3 py-2">
                         <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1342,36 +1516,20 @@ export default function RestaurantActions() {
                       
                       {/* Restaurant list */}
                       <div className="max-h-[280px] overflow-y-auto">
-                        {/* "Tous les restaurants" option */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFormData({ ...formData, restaurant_id: "" });
-                            setIsRestaurantPopoverOpen(false);
-                            setRestaurantSearch("");
-                          }}
-                          className={cn(
-                            "flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors",
-                            !formData.restaurant_id && "bg-primary/5"
-                          )}
-                        >
-                          <div className={cn(
-                            "flex h-4 w-4 items-center justify-center rounded-full border",
-                            !formData.restaurant_id ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
-                          )}>
-                            {!formData.restaurant_id && <Check className="h-3 w-3" />}
-                          </div>
-                          <Store className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">Tous les restaurants</span>
-                        </button>
-                        
-                        <div className="border-t" />
-                        
-                        {/* Filtered restaurants */}
                         {(() => {
-                          const filtered = restaurants.filter(r =>
+                          let filtered = restaurants.filter(r =>
                             r.name.toLowerCase().includes(restaurantSearch.toLowerCase())
                           );
+                          
+                          // Apply department filter
+                          if (restaurantFilterType === "department" && selectedDepartment) {
+                            filtered = filtered.filter(r => r.postal_code?.startsWith(selectedDepartment));
+                          }
+                          
+                          // Apply manager filter
+                          if (restaurantFilterType === "manager" && selectedManager) {
+                            filtered = filtered.filter(r => r.account_manager_name === selectedManager);
+                          }
                           
                           if (filtered.length === 0) {
                             return (
@@ -1380,40 +1538,91 @@ export default function RestaurantActions() {
                               </div>
                             );
                           }
+
+                          // Select all button for filtered results
+                          const allFilteredSelected = filtered.every(r => formData.restaurant_ids.includes(r.id));
                           
-                          return filtered.map((restaurant) => (
-                            <button
-                              key={restaurant.id}
-                              type="button"
-                              onClick={() => {
-                                setFormData({ ...formData, restaurant_id: restaurant.id });
-                                setIsRestaurantPopoverOpen(false);
-                                setRestaurantSearch("");
-                              }}
-                              className={cn(
-                                "flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors",
-                                formData.restaurant_id === restaurant.id && "bg-primary/5"
-                              )}
-                            >
-                              <div className={cn(
-                                "flex h-4 w-4 items-center justify-center rounded-full border shrink-0",
-                                formData.restaurant_id === restaurant.id ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
-                              )}>
-                                {formData.restaurant_id === restaurant.id && <Check className="h-3 w-3" />}
-                              </div>
-                              <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                              <span className="truncate">{restaurant.name}</span>
-                            </button>
-                          ));
+                          return (
+                            <>
+                              {/* Select all filtered */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (allFilteredSelected) {
+                                    setFormData({
+                                      ...formData,
+                                      restaurant_ids: formData.restaurant_ids.filter(id => !filtered.some(r => r.id === id))
+                                    });
+                                  } else {
+                                    const newIds = [...new Set([...formData.restaurant_ids, ...filtered.map(r => r.id)])];
+                                    setFormData({ ...formData, restaurant_ids: newIds });
+                                  }
+                                }}
+                                className={cn(
+                                  "flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors border-b",
+                                  allFilteredSelected && "bg-primary/5"
+                                )}
+                              >
+                                <Checkbox checked={allFilteredSelected} className="h-4 w-4" />
+                                <span className="font-medium">
+                                  {allFilteredSelected ? "Tout désélectionner" : `Tout sélectionner (${filtered.length})`}
+                                </span>
+                              </button>
+                              
+                              {filtered.map((restaurant) => {
+                                const isSelected = formData.restaurant_ids.includes(restaurant.id);
+                                const dept = restaurant.postal_code?.substring(0, 2);
+                                return (
+                                  <button
+                                    key={restaurant.id}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setFormData({
+                                          ...formData,
+                                          restaurant_ids: formData.restaurant_ids.filter(id => id !== restaurant.id)
+                                        });
+                                      } else {
+                                        setFormData({
+                                          ...formData,
+                                          restaurant_ids: [...formData.restaurant_ids, restaurant.id]
+                                        });
+                                      }
+                                    }}
+                                    className={cn(
+                                      "flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted transition-colors",
+                                      isSelected && "bg-primary/5"
+                                    )}
+                                  >
+                                    <Checkbox checked={isSelected} className="h-4 w-4" />
+                                    <div className="flex flex-col items-start flex-1 min-w-0">
+                                      <span className="truncate w-full text-left">{restaurant.name}</span>
+                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        {dept && <span>Dép. {dept}</span>}
+                                        {restaurant.account_manager_name && (
+                                          <>
+                                            {dept && <span>•</span>}
+                                            <span className="truncate">{restaurant.account_manager_name}</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </>
+                          );
                         })()}
                       </div>
                       
                       {/* Footer with count */}
-                      <div className="border-t px-3 py-2 text-xs text-muted-foreground bg-muted/30">
-                        {restaurantSearch 
-                          ? `${restaurants.filter(r => r.name.toLowerCase().includes(restaurantSearch.toLowerCase())).length} résultat(s)`
-                          : `${restaurants.length} restaurants`
-                        }
+                      <div className="border-t px-3 py-2 text-xs text-muted-foreground bg-muted/30 flex justify-between">
+                        <span>
+                          {formData.restaurant_ids.length} sélectionné(s)
+                        </span>
+                        <span>
+                          {restaurants.length} restaurants au total
+                        </span>
                       </div>
                     </div>
                   </PopoverContent>
