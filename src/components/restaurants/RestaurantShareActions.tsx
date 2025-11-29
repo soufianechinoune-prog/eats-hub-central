@@ -85,16 +85,45 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
     }
   };
 
-  const handleShareWhatsApp = () => {
+  const handleShareWhatsApp = async () => {
     const text = formatAllRestaurants();
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(whatsappUrl, '_blank');
+    // Copy to clipboard first as backup
+    await navigator.clipboard.writeText(text);
+    
+    // Use location.href to avoid COOP blocking
+    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    
+    // Create and click a link element
+    const link = document.createElement('a');
+    link.href = whatsappUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.click();
+    
+    toast({
+      title: "Texte copié",
+      description: "Si WhatsApp ne s'ouvre pas correctement, collez le texte",
+    });
   };
 
-  const handleShareTelegram = () => {
+  const handleShareTelegram = async () => {
     const text = formatAllRestaurants();
-    const telegramUrl = `https://t.me/share/url?url=&text=${encodeURIComponent(text)}`;
-    window.open(telegramUrl, '_blank');
+    // Copy to clipboard first as backup
+    await navigator.clipboard.writeText(text);
+    
+    // Telegram share URL - use url parameter with a placeholder
+    const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(' ')}&text=${encodeURIComponent(text)}`;
+    
+    const link = document.createElement('a');
+    link.href = telegramUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.click();
+    
+    toast({
+      title: "Texte copié",
+      description: "Si Telegram ne s'ouvre pas correctement, collez le texte",
+    });
   };
 
   const handleShareEmail = () => {
