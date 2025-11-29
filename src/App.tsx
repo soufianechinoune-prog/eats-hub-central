@@ -29,6 +29,7 @@ import RestaurantDetail from "./pages/RestaurantDetail";
 import MenuItems from "./pages/MenuItems";
 import RestaurantActions from "./pages/RestaurantActions";
 import MenuHistory from "./pages/MenuHistory";
+import Messaging from "./pages/Messaging";
 
 const queryClient = new QueryClient();
 
@@ -86,6 +87,16 @@ const App = () => {
                 <ProtectedRoute session={session}>
                   <AppLayout>
                     <Restaurants />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messaging"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <Messaging />
                   </AppLayout>
                 </ProtectedRoute>
               }
