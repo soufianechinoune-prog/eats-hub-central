@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { PhoneInput } from "@/components/ui/phone-input";
 import {
   ArrowLeft,
   Building2,
@@ -21,6 +21,9 @@ import {
   Pencil,
   Save,
   X,
+  Phone,
+  Mail,
+  MessageCircle,
 } from "lucide-react";
 
 const RestaurantDetail = () => {
@@ -76,9 +79,12 @@ const RestaurantDetail = () => {
         address: restaurant.address || "",
         city: restaurant.city || "",
         siren: restaurant.siren || "",
+        restaurant_phone: restaurant.restaurant_phone || "",
+        restaurant_email: restaurant.restaurant_email || "",
         manager_first_name: restaurant.manager_first_name || "",
         manager_last_name: restaurant.manager_last_name || "",
         phone: restaurant.phone || "",
+        manager_whatsapp: restaurant.manager_whatsapp || "",
         tablet_email: restaurant.tablet_email || "",
         tablet_password: restaurant.tablet_password || "",
         account_manager_name: restaurant.account_manager_name || "",
@@ -153,7 +159,7 @@ const RestaurantDetail = () => {
     
     if (isEditing) {
       return (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">{label}</Label>
           <Input
             type={type}
@@ -169,7 +175,39 @@ const RestaurantDetail = () => {
       <div className="space-y-1">
         <span className="text-xs text-muted-foreground">{label}</span>
         <p className="font-medium">
-          {value ? String(value) : <span className="text-muted-foreground">Non renseigné</span>}
+          {value ? String(value) : <span className="text-muted-foreground italic">Non renseigné</span>}
+        </p>
+      </div>
+    );
+  };
+
+  const renderPhoneField = (label: string, field: string, placeholder?: string, icon?: React.ReactNode) => {
+    const value = (restaurant as Record<string, unknown>)[field];
+    
+    if (isEditing) {
+      return (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+            {icon}
+            {label}
+          </Label>
+          <PhoneInput
+            value={formData[field] || ""}
+            onChange={(val) => handleInputChange(field, val)}
+            placeholder={placeholder}
+          />
+        </div>
+      );
+    }
+    
+    return (
+      <div className="space-y-1">
+        <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+          {icon}
+          {label}
+        </span>
+        <p className="font-medium">
+          {value ? String(value) : <span className="text-muted-foreground italic">Non renseigné</span>}
         </p>
       </div>
     );
@@ -187,7 +225,7 @@ const RestaurantDetail = () => {
             <div className="flex items-center gap-3">
               <h2 className="text-3xl font-bold tracking-tight">{restaurant.name}</h2>
               {restaurant.is_active ? (
-                <Badge className="bg-accent">Actif</Badge>
+                <Badge className="bg-accent text-accent-foreground">Actif</Badge>
               ) : (
                 <Badge variant="outline">Inactif</Badge>
               )}
@@ -247,22 +285,32 @@ const RestaurantDetail = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Informations générales */}
         <Card>
-          <CardHeader className="flex flex-row items-center gap-2">
-            <Building2 className="h-5 w-5 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center gap-2 pb-4">
+            <div className="p-2 rounded-md bg-primary/10">
+              <Building2 className="h-4 w-4 text-primary" />
+            </div>
             <CardTitle className="text-lg">Informations générales</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {renderField("Nom", "name", "text", "Nom du restaurant")}
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("Nom", "name", "text", "Nom du restaurant")}
+              {renderField("SIREN", "siren", "text", "123 456 789")}
+            </div>
             {renderField("Adresse", "address", "text", "Adresse complète")}
-            {renderField("Ville", "city", "text", "Ville")}
-            {renderField("SIREN", "siren", "text", "123 456 789")}
+            {renderField("Ville", "city", "text", "91200 Athis-Mons")}
+            <div className="grid grid-cols-2 gap-4 pt-2">
+              {renderPhoneField("Téléphone", "restaurant_phone", "1 23 45 67 89", <Phone className="h-3 w-3" />)}
+              {renderField("Email", "restaurant_email", "email", "contact@restaurant.com")}
+            </div>
           </CardContent>
         </Card>
 
         {/* Gérant */}
         <Card>
-          <CardHeader className="flex flex-row items-center gap-2">
-            <User className="h-5 w-5 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center gap-2 pb-4">
+            <div className="p-2 rounded-md bg-primary/10">
+              <User className="h-4 w-4 text-primary" />
+            </div>
             <CardTitle className="text-lg">Gérant</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -270,18 +318,26 @@ const RestaurantDetail = () => {
               {renderField("Prénom", "manager_first_name", "text", "Prénom")}
               {renderField("Nom", "manager_last_name", "text", "Nom")}
             </div>
-            {renderField("Téléphone", "phone", "tel", "06 12 34 56 78")}
+            <div className="grid grid-cols-2 gap-4">
+              {renderPhoneField("Téléphone", "phone", "6 12 34 56 78", <Phone className="h-3 w-3" />)}
+              {renderPhoneField("WhatsApp", "manager_whatsapp", "6 12 34 56 78", <MessageCircle className="h-3 w-3" />)}
+            </div>
           </CardContent>
         </Card>
 
         {/* Accès Tablette */}
         <Card>
-          <CardHeader className="flex flex-row items-center gap-2">
-            <Tablet className="h-5 w-5 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center gap-2 pb-4">
+            <div className="p-2 rounded-md bg-primary/10">
+              <Tablet className="h-4 w-4 text-primary" />
+            </div>
             <CardTitle className="text-lg">Accès Tablette Uber</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {renderField("Email", "tablet_email", "email", "Email de connexion")}
+            <div className="flex items-center gap-1.5 mb-2">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              {renderField("Email", "tablet_email", "email", "Email de connexion")}
+            </div>
             {renderField("Mot de passe", "tablet_password", "password", "Mot de passe")}
             {!isEditing && restaurant.tablet_password && (
               <p className="text-xs text-muted-foreground">
@@ -293,15 +349,21 @@ const RestaurantDetail = () => {
 
         {/* Account Manager */}
         <Card>
-          <CardHeader className="flex flex-row items-center gap-2">
-            <UserCheck className="h-5 w-5 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center gap-2 pb-4">
+            <div className="p-2 rounded-md bg-primary/10">
+              <UserCheck className="h-4 w-4 text-primary" />
+            </div>
             <CardTitle className="text-lg">Account Manager Uber</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {renderField("Nom", "account_manager_name", "text", "Nom complet")}
-            {renderField("Titre", "account_manager_title", "text", "Account Manager Territory, France")}
-            {renderField("Téléphone", "account_manager_phone", "tel", "07 XX XX XX XX")}
-            {renderField("Email", "account_manager_email", "email", "email@uber.com")}
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("Nom", "account_manager_name", "text", "Nom complet")}
+              {renderField("Titre", "account_manager_title", "text", "Account Manager Territory, France")}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {renderPhoneField("Téléphone", "account_manager_phone", "7 87 77 86 58", <Phone className="h-3 w-3" />)}
+              {renderField("Email", "account_manager_email", "email", "email@uber.com")}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -326,7 +388,7 @@ const RestaurantDetail = () => {
               </p>
             </div>
             {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0 ? (
-              <Badge className="bg-accent">Connecté</Badge>
+              <Badge className="bg-accent text-accent-foreground">Connecté</Badge>
             ) : (
               <Button variant="outline" onClick={() => navigate("/uber-connections")}>
                 Configurer

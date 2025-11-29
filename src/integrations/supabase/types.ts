@@ -659,8 +659,11 @@ export type Database = {
           is_active: boolean | null
           manager_first_name: string | null
           manager_last_name: string | null
+          manager_whatsapp: string | null
           name: string
           phone: string | null
+          restaurant_email: string | null
+          restaurant_phone: string | null
           siren: string | null
           tablet_email: string | null
           tablet_password: string | null
@@ -679,8 +682,11 @@ export type Database = {
           is_active?: boolean | null
           manager_first_name?: string | null
           manager_last_name?: string | null
+          manager_whatsapp?: string | null
           name: string
           phone?: string | null
+          restaurant_email?: string | null
+          restaurant_phone?: string | null
           siren?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
@@ -699,8 +705,11 @@ export type Database = {
           is_active?: boolean | null
           manager_first_name?: string | null
           manager_last_name?: string | null
+          manager_whatsapp?: string | null
           name?: string
           phone?: string | null
+          restaurant_email?: string | null
+          restaurant_phone?: string | null
           siren?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
