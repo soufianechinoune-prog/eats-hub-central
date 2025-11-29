@@ -85,36 +85,14 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
     }
   };
 
-  const handleShareWhatsApp = () => {
+  const getWhatsAppUrl = () => {
     const text = formatAllRestaurants();
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    
-    // Copy to clipboard as backup
-    navigator.clipboard.writeText(text).catch(() => {});
-    
-    // Open WhatsApp in new tab
-    const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
-    
-    if (!newWindow || newWindow.closed) {
-      // Popup was blocked, try location change
-      window.location.href = url;
-    }
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
-  const handleShareTelegram = () => {
+  const getTelegramUrl = () => {
     const text = formatAllRestaurants();
-    const url = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(text)}`;
-    
-    // Copy to clipboard as backup
-    navigator.clipboard.writeText(text).catch(() => {});
-    
-    // Open Telegram in new tab
-    const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
-    
-    if (!newWindow || newWindow.closed) {
-      // Popup was blocked, try location change
-      window.location.href = url;
-    }
+    return `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(text)}`;
   };
 
   const handleShareEmail = () => {
@@ -149,24 +127,24 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
           <Copy className="h-4 w-4" />
           Copier
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleShareWhatsApp}
-          className="gap-2"
+        <a
+          href={getWhatsAppUrl()}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
         >
           <MessageCircle className="h-4 w-4 text-green-500" />
           WhatsApp
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleShareTelegram}
-          className="gap-2"
+        </a>
+        <a
+          href={getTelegramUrl()}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
         >
           <Send className="h-4 w-4 text-blue-500" />
           Telegram
-        </Button>
+        </a>
         <Button
           variant="outline"
           size="sm"
