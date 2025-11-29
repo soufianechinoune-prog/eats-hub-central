@@ -146,13 +146,9 @@ const Restaurants = () => {
           aVal = a.account_manager_name?.toLowerCase() || "";
           bVal = b.account_manager_name?.toLowerCase() || "";
           break;
-        case "uber_status":
-          aVal = getUberStatus(a);
-          bVal = getUberStatus(b);
-          break;
-        case "deliveroo_status":
-          aVal = getDeliverooStatus(a);
-          bVal = getDeliverooStatus(b);
+        case "deliveroo_account_manager":
+          aVal = a.deliveroo_account_manager_name?.toLowerCase() || "";
+          bVal = b.deliveroo_account_manager_name?.toLowerCase() || "";
           break;
         default:
           return 0;
@@ -289,28 +285,22 @@ const Restaurants = () => {
                   onClick={() => handleSort("account_manager")}
                 >
                   <div className="flex items-center gap-1.5">
-                    Account Manager
+                    AM Uber
                     <SortIcon column="account_manager" />
                   </div>
                 </TableHead>
                 <TableHead 
-                  className="text-center cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("uber_status")}
+                  className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("deliveroo_account_manager")}
                 >
-                  <div className="flex items-center justify-center gap-1.5">
-                    <UberEatsLogo size={16} />
-                    Uber
-                    <SortIcon column="uber_status" />
+                  <div className="flex items-center gap-1.5">
+                    AM Deliveroo
+                    <SortIcon column="deliveroo_account_manager" />
                   </div>
                 </TableHead>
-                <TableHead 
-                  className="text-center cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("deliveroo_status")}
-                >
+                <TableHead className="text-center">
                   <div className="flex items-center justify-center gap-1.5">
-                    <DeliverooLogo size={16} />
-                    Deliveroo
-                    <SortIcon column="deliveroo_status" />
+                    Connexions
                   </div>
                 </TableHead>
                 <TableHead></TableHead>
@@ -397,21 +387,92 @@ const Restaurants = () => {
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0 ? (
-                        <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Connecté</Badge>
-                      ) : restaurant.uber_store_id ? (
-                        <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
+                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
+                      {restaurant.deliveroo_account_manager_name ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help border-b border-dotted border-muted-foreground/50">
+                                {restaurant.deliveroo_account_manager_name}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <div className="space-y-1.5">
+                                <p className="font-medium">{restaurant.deliveroo_account_manager_name}</p>
+                                {restaurant.deliveroo_account_manager_title && (
+                                  <p className="text-xs text-muted-foreground">{restaurant.deliveroo_account_manager_title}</p>
+                                )}
+                                {restaurant.deliveroo_account_manager_phone && (
+                                  <div className="flex items-center gap-1.5 text-xs">
+                                    <Phone className="h-3 w-3" />
+                                    {restaurant.deliveroo_account_manager_phone}
+                                  </div>
+                                )}
+                                {restaurant.deliveroo_account_manager_email && (
+                                  <div className="flex items-center gap-1.5 text-xs">
+                                    <Mail className="h-3 w-3" />
+                                    {restaurant.deliveroo_account_manager_email}
+                                  </div>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ) : (
-                        <Badge variant="outline" className="text-muted-foreground">-</Badge>
+                        <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
                     <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.deliveroo_store_id ? (
-                        <Badge className="bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30">Configuré</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">-</Badge>
-                      )}
+                      <div className="flex items-center justify-center gap-3">
+                        {/* Uber indicator */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1.5">
+                                <UberEatsLogo size={14} />
+                                <span 
+                                  className={`h-2 w-2 rounded-full ${
+                                    Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0
+                                      ? "bg-green-500"
+                                      : restaurant.uber_store_id
+                                      ? "bg-yellow-500"
+                                      : "bg-gray-300"
+                                  }`}
+                                />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0
+                                ? "Uber Eats connecté"
+                                : restaurant.uber_store_id
+                                ? "Uber Eats en attente"
+                                : "Uber Eats non connecté"}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        {/* Deliveroo indicator */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1.5">
+                                <DeliverooLogo size={14} />
+                                <span 
+                                  className={`h-2 w-2 rounded-full ${
+                                    restaurant.deliveroo_store_id
+                                      ? "bg-cyan-500"
+                                      : "bg-gray-300"
+                                  }`}
+                                />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {restaurant.deliveroo_store_id
+                                ? "Deliveroo configuré"
+                                : "Deliveroo non configuré"}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
