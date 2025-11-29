@@ -130,7 +130,8 @@ const RestaurantDetail = () => {
     if (restaurant) {
       setFormData({
         name: restaurant.name || "",
-        address: restaurant.address || "",
+        street: restaurant.street || "",
+        postal_code: restaurant.postal_code || "",
         city: restaurant.city || "",
         siren: restaurant.siren || "",
         restaurant_phone: restaurant.restaurant_phone || "",
@@ -391,10 +392,13 @@ const RestaurantDetail = () => {
               {renderField("Nom", "name", "text", "Nom du restaurant")}
               {renderField("SIREN", "siren", "text", "123 456 789")}
             </div>
-            {renderField("Adresse", "address", "text", "Adresse complète")}
-            {renderField("Ville", "city", "text", "91200 Athis-Mons")}
+            {renderField("Rue", "street", "text", "29 Avenue François Mitterrand")}
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("Code postal", "postal_code", "text", "91200")}
+              {renderField("Ville", "city", "text", "Athis-Mons")}
+            </div>
             <div className="grid grid-cols-2 gap-4 pt-2">
-              {renderPhoneField("Téléphone", "restaurant_phone", "1 23 45 67 89", <Phone className="h-3 w-3" />)}
+              {renderPhoneField("Téléphone", "restaurant_phone", "01 23 45 67 89", <Phone className="h-3 w-3" />)}
               {renderField("Email", "restaurant_email", "email", "contact@restaurant.com")}
             </div>
           </CardContent>
@@ -414,8 +418,8 @@ const RestaurantDetail = () => {
               {renderField("Nom", "manager_last_name", "text", "Nom")}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              {renderPhoneField("Téléphone", "phone", "6 12 34 56 78", <Phone className="h-3 w-3" />)}
-              {renderPhoneField("WhatsApp", "manager_whatsapp", "6 12 34 56 78", <MessageCircle className="h-3 w-3" />)}
+              {renderPhoneField("Téléphone", "phone", "06 12 34 56 78", <Phone className="h-3 w-3" />)}
+              {renderPhoneField("WhatsApp", "manager_whatsapp", "06 12 34 56 78", <MessageCircle className="h-3 w-3" />)}
             </div>
           </CardContent>
         </Card>

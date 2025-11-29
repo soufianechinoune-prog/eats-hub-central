@@ -17,7 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface RestaurantForm {
   name: string;
-  address: string;
+  street: string;
+  postal_code: string;
   city: string;
   siren: string;
   restaurant_phone: string;
@@ -36,7 +37,8 @@ interface RestaurantForm {
 
 const initialFormState: RestaurantForm = {
   name: "",
-  address: "",
+  street: "",
+  postal_code: "",
   city: "",
   siren: "",
   restaurant_phone: "",
@@ -94,7 +96,8 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
     const { error } = await supabase.from("restaurants").insert({
       chain_id: chains.id,
       name: newRestaurant.name,
-      address: newRestaurant.address || null,
+      street: newRestaurant.street || null,
+      postal_code: newRestaurant.postal_code || null,
       city: newRestaurant.city,
       siren: newRestaurant.siren || null,
       restaurant_phone: newRestaurant.restaurant_phone || null,
@@ -173,22 +176,33 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Adresse</Label>
+              <Label htmlFor="street">Rue</Label>
               <Input
-                id="address"
-                placeholder="123 Avenue de la République"
-                value={newRestaurant.address}
-                onChange={(e) => handleInputChange("address", e.target.value)}
+                id="street"
+                placeholder="29 Avenue François Mitterrand"
+                value={newRestaurant.street}
+                onChange={(e) => handleInputChange("street", e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="city">Ville *</Label>
-              <Input
-                id="city"
-                placeholder="91200 Athis-Mons"
-                value={newRestaurant.city}
-                onChange={(e) => handleInputChange("city", e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="postal_code">Code postal</Label>
+                <Input
+                  id="postal_code"
+                  placeholder="91200"
+                  value={newRestaurant.postal_code}
+                  onChange={(e) => handleInputChange("postal_code", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="city">Ville *</Label>
+                <Input
+                  id="city"
+                  placeholder="Athis-Mons"
+                  value={newRestaurant.city}
+                  onChange={(e) => handleInputChange("city", e.target.value)}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -197,7 +211,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
                   id="restaurant_phone"
                   value={newRestaurant.restaurant_phone}
                   onChange={(value) => handleInputChange("restaurant_phone", value)}
-                  placeholder="1 23 45 67 89"
+                  placeholder="01 23 45 67 89"
                 />
               </div>
               <div className="space-y-2">
@@ -250,7 +264,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
                   id="phone"
                   value={newRestaurant.phone}
                   onChange={(value) => handleInputChange("phone", value)}
-                  placeholder="6 12 34 56 78"
+                  placeholder="06 12 34 56 78"
                 />
               </div>
               <div className="space-y-2">
@@ -259,7 +273,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
                   id="manager_whatsapp"
                   value={newRestaurant.manager_whatsapp}
                   onChange={(value) => handleInputChange("manager_whatsapp", value)}
-                  placeholder="6 12 34 56 78"
+                  placeholder="06 12 34 56 78"
                 />
               </div>
             </div>
@@ -336,7 +350,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
                   id="account_manager_phone"
                   value={newRestaurant.account_manager_phone}
                   onChange={(value) => handleInputChange("account_manager_phone", value)}
-                  placeholder="7 87 77 86 58"
+                  placeholder="07 87 77 86 58"
                 />
               </div>
               <div className="space-y-2">
