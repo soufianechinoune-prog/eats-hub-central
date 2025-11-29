@@ -15,7 +15,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
           <header className="sticky top-0 z-10 flex h-16 items-center border-b bg-card px-6 shadow-sm">
             <SidebarTrigger className="mr-4" />
             <div className="flex-1">
-              <h1 className="text-xl font-semibold text-foreground">Resto Manager</h1>
+              <h1 className="text-xl font-semibold text-foreground">CS Performance</h1>
             </div>
           </header>
           <div className="p-6">

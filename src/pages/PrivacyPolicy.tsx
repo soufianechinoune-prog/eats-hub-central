@@ -8,8 +8,8 @@ const PrivacyPolicy = () => {
 
   useEffect(() => {
     document.title = language === "fr" 
-      ? "Politique de Confidentialité — Resto Manager"
-      : "Privacy Policy — Resto Manager";
+      ? "Politique de Confidentialité — CS Performance"
+      : "Privacy Policy — CS Performance";
   }, [language]);
 
   const toggleLanguage = () => {
@@ -54,7 +54,7 @@ const PrivacyPolicy = () => {
 const FrenchContent = () => (
   <>
     <h1 className="text-4xl font-bold text-foreground mb-2">
-      Politique de Confidentialité — Resto Manager
+      Politique de Confidentialité — CS Performance
     </h1>
     <p className="text-sm text-muted-foreground mb-8">
       (Version française – conforme RGPD & intégration API Uber Eats)
@@ -65,7 +65,7 @@ const FrenchContent = () => (
 
     <div className="space-y-6 text-foreground">
       <p>
-        Resto Manager (« le Service ») est une plateforme d'analyse et de gestion destinée aux restaurants, 
+        CS Performance (« le Service ») est une plateforme d'analyse et de gestion destinée aux restaurants, 
         opérée par Opineo. La présente Politique de Confidentialité explique comment nous collectons, 
         utilisons, stockons et protégeons les données lorsque les restaurateurs connectent leur compte 
         Uber Eats à notre plateforme.
@@ -238,7 +238,7 @@ const FrenchContent = () => (
 const EnglishContent = () => (
   <>
     <h1 className="text-4xl font-bold text-foreground mb-2">
-      Privacy Policy — Resto Manager
+      Privacy Policy — CS Performance
     </h1>
     <p className="text-sm text-muted-foreground mb-8">
       (English version – GDPR compliant & Uber Eats API integration)
@@ -249,7 +249,7 @@ const EnglishContent = () => (
 
     <div className="space-y-6 text-foreground">
       <p>
-        Resto Manager ("the Service") is an analysis and management platform for restaurants, 
+        CS Performance ("the Service") is an analysis and management platform for restaurants, 
         operated by Opineo. This Privacy Policy explains how we collect, use, store and protect 
         data when restaurant owners connect their Uber Eats account to our platform.
       </p>
