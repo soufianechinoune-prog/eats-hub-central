@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -42,6 +43,11 @@ const MONTHS = [
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
+const PLATFORMS = [
+  { value: "uber_eats", label: "Uber Eats", color: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30" },
+  { value: "deliveroo", label: "Deliveroo", color: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30" },
+];
+
 export default function DataEntryConversion() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -50,6 +56,7 @@ export default function DataEntryConversion() {
   const restaurantFromUrl = searchParams.get("restaurant");
   
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>(restaurantFromUrl || "");
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("uber_eats");
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [visits, setVisits] = useState<string>("");
@@ -102,6 +109,7 @@ export default function DataEntryConversion() {
         restaurant_id: selectedRestaurant,
         year: selectedYear,
         month: selectedMonth,
+        platform: selectedPlatform,
         visits: parseInt(visits) || 0,
         menu_views: parseInt(menuViews) || 0,
         add_to_cart: parseInt(addToCart) || 0,
@@ -117,7 +125,7 @@ export default function DataEntryConversion() {
       } else {
         const { error } = await supabase
           .from("monthly_conversion")
-          .upsert(payload, { onConflict: "restaurant_id,year,month" });
+          .upsert(payload, { onConflict: "restaurant_id,year,month,platform" });
         if (error) throw error;
       }
     },
@@ -168,6 +176,7 @@ export default function DataEntryConversion() {
   const handleEdit = (entry: any) => {
     setSelectedYear(entry.year);
     setSelectedMonth(entry.month);
+    setSelectedPlatform(entry.platform || "uber_eats");
     setVisits(entry.visits?.toString() || "");
     setMenuViews(entry.menu_views?.toString() || "");
     setAddToCart(entry.add_to_cart?.toString() || "");
@@ -187,6 +196,10 @@ export default function DataEntryConversion() {
   const overallRate = v > 0 ? ((o / v) * 100).toFixed(1) : "0.0";
 
   const getMonthLabel = (month: number) => MONTHS.find(m => m.value === month)?.label || "";
+  const getPlatformBadge = (platform: string) => {
+    const p = PLATFORMS.find(pl => pl.value === platform);
+    return p ? <Badge className={p.color}>{p.label}</Badge> : <Badge variant="outline">{platform}</Badge>;
+  };
 
   return (
     <div className="space-y-6">
@@ -229,6 +242,23 @@ export default function DataEntryConversion() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Platform selector */}
+            <div className="space-y-2">
+              <Label>Plateforme</Label>
+              <div className="flex gap-2">
+                {PLATFORMS.map((p) => (
+                  <Button
+                    key={p.value}
+                    type="button"
+                    variant={selectedPlatform === p.value ? "default" : "outline"}
+                    onClick={() => setSelectedPlatform(p.value)}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -373,6 +403,7 @@ export default function DataEntryConversion() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Période</TableHead>
+                      <TableHead>Plateforme</TableHead>
                       <TableHead className="text-right">Visites</TableHead>
                       <TableHead className="text-right">Cmd</TableHead>
                       <TableHead className="text-right">Conv.</TableHead>
@@ -384,6 +415,9 @@ export default function DataEntryConversion() {
                       <TableRow key={entry.id}>
                         <TableCell>
                           {getMonthLabel(entry.month)} {entry.year}
+                        </TableCell>
+                        <TableCell>
+                          {getPlatformBadge(entry.platform || "uber_eats")}
                         </TableCell>
                         <TableCell className="text-right">
                           {entry.visits.toLocaleString("fr-FR")}

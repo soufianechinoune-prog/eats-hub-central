@@ -123,8 +123,8 @@ export function AppSidebar() {
               <img src={csLogo} alt="CS" className="h-8 w-8 rounded-full object-cover mx-auto" />
             ) : (
               <div className="flex items-center gap-2">
-                <img src={csLogo} alt="CS Performance" className="h-6 w-6 rounded-full object-cover" />
-                <span>CS Performance</span>
+                <img src={csLogo} alt="CS Delivery Performance" className="h-6 w-6 rounded-full object-cover" />
+                <span>CS Delivery Performance</span>
               </div>
             )}
           </SidebarGroupLabel>

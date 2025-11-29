@@ -146,6 +146,10 @@ const RestaurantDetail = () => {
         account_manager_title: restaurant.account_manager_title || "",
         account_manager_phone: restaurant.account_manager_phone || "",
         account_manager_email: restaurant.account_manager_email || "",
+        deliveroo_account_manager_name: restaurant.deliveroo_account_manager_name || "",
+        deliveroo_account_manager_title: restaurant.deliveroo_account_manager_title || "",
+        deliveroo_account_manager_phone: restaurant.deliveroo_account_manager_phone || "",
+        deliveroo_account_manager_email: restaurant.deliveroo_account_manager_email || "",
       });
       setIsEditing(true);
     }
@@ -280,7 +284,7 @@ const RestaurantDetail = () => {
             <div className="flex items-center gap-3">
               <h2 className="text-3xl font-bold tracking-tight">{restaurant.name}</h2>
               {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0 ? (
-                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Connecté</Badge>
+                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Uber Connecté</Badge>
               ) : restaurant.uber_store_id ? (
                 <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
               ) : (
@@ -433,13 +437,13 @@ const RestaurantDetail = () => {
           </CardContent>
         </Card>
 
-        {/* Account Manager */}
+        {/* Account Manager Uber */}
         <Card>
           <CardHeader className="flex flex-row items-center gap-2 pb-4">
-            <div className="p-2 rounded-md bg-primary/10">
-              <UserCheck className="h-4 w-4 text-primary" />
+            <div className="p-2 rounded-md bg-green-500/10">
+              <UserCheck className="h-4 w-4 text-green-600" />
             </div>
-            <CardTitle className="text-lg">Account Manager Uber</CardTitle>
+            <CardTitle className="text-lg">Account Manager Uber Eats</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -452,38 +456,108 @@ const RestaurantDetail = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Account Manager Deliveroo */}
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2 pb-4">
+            <div className="p-2 rounded-md bg-cyan-500/10">
+              <UserCheck className="h-4 w-4 text-cyan-600" />
+            </div>
+            <CardTitle className="text-lg">Account Manager Deliveroo</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("Nom", "deliveroo_account_manager_name", "text", "Nom complet")}
+              {renderField("Titre", "deliveroo_account_manager_title", "text", "Account Manager, France")}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {renderPhoneField("Téléphone", "deliveroo_account_manager_phone", "07 12 34 56 78", <Phone className="h-3 w-3" />)}
+              {renderField("Email", "deliveroo_account_manager_email", "email", "email@deliveroo.com")}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Connexion Uber Status */}
+      {/* Connexion API Status */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Connexion API Uber</CardTitle>
+          <CardTitle className="text-lg">Connexions API</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Uber Eats */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <p className="font-medium text-green-600">Uber Eats</p>
+                <p className="text-sm text-muted-foreground">
+                  {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0
+                    ? "Connecté à l'API"
+                    : restaurant.uber_store_id
+                    ? "En attente de connexion"
+                    : "Non connecté"}
+                </p>
+                {restaurant.uber_store_id && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Store ID: {restaurant.uber_store_id}
+                  </p>
+                )}
+              </div>
+              {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0 ? (
+                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Connecté</Badge>
+              ) : restaurant.uber_store_id ? (
+                <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground">Non connecté</Badge>
+              )}
+            </div>
+
+            {/* Deliveroo */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <p className="font-medium text-cyan-600">Deliveroo</p>
+                <p className="text-sm text-muted-foreground">
+                  {restaurant.deliveroo_store_id
+                    ? "Store ID configuré"
+                    : "Non connecté"}
+                </p>
+                {restaurant.deliveroo_store_id && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Store ID: {restaurant.deliveroo_store_id}
+                  </p>
+                )}
+              </div>
+              {restaurant.deliveroo_store_id ? (
+                <Badge className="bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30">Configuré</Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground">Non connecté</Badge>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Active Status */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Statut du restaurant</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">
-                {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0
-                  ? "Connecté à l'API Uber Eats"
-                  : restaurant.uber_store_id
-                  ? "En attente de connexion"
-                  : "Non connecté à l'API Uber Eats"}
+                {restaurant.is_active ? "Restaurant actif" : "Restaurant inactif"}
               </p>
               <p className="text-sm text-muted-foreground">
-                {restaurant.uber_store_id
-                  ? `Store ID: ${restaurant.uber_store_id}`
-                  : "Aucun Store ID configuré"}
+                {restaurant.is_active
+                  ? "Le restaurant est visible et peut recevoir des commandes"
+                  : "Le restaurant est masqué et ne reçoit pas de commandes"}
               </p>
             </div>
-            {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0 ? (
-              <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Connecté</Badge>
-            ) : restaurant.uber_store_id ? (
-              <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
-            ) : (
-              <Button variant="outline" onClick={() => navigate("/uber-connections")}>
-                Configurer
-              </Button>
-            )}
+            <Switch
+              checked={restaurant.is_active ?? true}
+              onCheckedChange={(checked) => toggleActiveMutation.mutate(checked)}
+              disabled={toggleActiveMutation.isPending}
+            />
           </div>
         </CardContent>
       </Card>

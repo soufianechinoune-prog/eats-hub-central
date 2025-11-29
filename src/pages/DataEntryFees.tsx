@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -43,6 +44,11 @@ const MONTHS = [
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
+const PLATFORMS = [
+  { value: "uber_eats", label: "Uber Eats", color: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30" },
+  { value: "deliveroo", label: "Deliveroo", color: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30" },
+];
+
 export default function DataEntryFees() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -51,6 +57,7 @@ export default function DataEntryFees() {
   const restaurantFromUrl = searchParams.get("restaurant");
   
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>(restaurantFromUrl || "");
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("uber_eats");
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [uberFee, setUberFee] = useState<string>("");
@@ -102,7 +109,7 @@ export default function DataEntryFees() {
 
   // Fetch revenue for percentage calculations
   const { data: revenueData } = useQuery({
-    queryKey: ["monthly_revenue", selectedRestaurant, selectedYear, selectedMonth],
+    queryKey: ["monthly_revenue", selectedRestaurant, selectedYear, selectedMonth, selectedPlatform],
     queryFn: async () => {
       if (!selectedRestaurant) return null;
       const { data, error } = await supabase
@@ -111,8 +118,9 @@ export default function DataEntryFees() {
         .eq("restaurant_id", selectedRestaurant)
         .eq("year", selectedYear)
         .eq("month", selectedMonth)
-        .single();
-      if (error && error.code !== "PGRST116") throw error;
+        .eq("platform", selectedPlatform)
+        .maybeSingle();
+      if (error) throw error;
       return data;
     },
     enabled: !!selectedRestaurant,
@@ -125,6 +133,7 @@ export default function DataEntryFees() {
         restaurant_id: selectedRestaurant,
         year: selectedYear,
         month: selectedMonth,
+        platform: selectedPlatform,
         uber_fee: parseFloat(uberFee) || 0,
         marketing_fee: parseFloat(marketingFee) || 0,
         offers_cost: parseFloat(offersCost) || 0,
@@ -144,7 +153,7 @@ export default function DataEntryFees() {
       } else {
         const { error } = await supabase
           .from("monthly_fees")
-          .upsert(payload, { onConflict: "restaurant_id,year,month" });
+          .upsert(payload, { onConflict: "restaurant_id,year,month,platform" });
         if (error) throw error;
       }
     },
@@ -199,6 +208,7 @@ export default function DataEntryFees() {
   const handleEdit = (entry: any) => {
     setSelectedYear(entry.year);
     setSelectedMonth(entry.month);
+    setSelectedPlatform(entry.platform || "uber_eats");
     setUberFee(entry.uber_fee?.toString() || "");
     setMarketingFee(entry.marketing_fee?.toString() || "");
     setOffersCost(entry.offers_cost?.toString() || "");
@@ -223,6 +233,13 @@ export default function DataEntryFees() {
   const feesPercentage = revenue > 0 ? ((totalFees / revenue) * 100).toFixed(1) : "0.0";
 
   const getMonthLabel = (month: number) => MONTHS.find(m => m.value === month)?.label || "";
+  const getPlatformBadge = (platform: string) => {
+    const p = PLATFORMS.find(pl => pl.value === platform);
+    return p ? <Badge className={p.color}>{p.label}</Badge> : <Badge variant="outline">{platform}</Badge>;
+  };
+
+  // Dynamic label for commission field
+  const commissionLabel = selectedPlatform === "deliveroo" ? "Commission Deliveroo (€)" : "Commission Uber (€)";
 
   return (
     <div className="space-y-6">
@@ -235,7 +252,7 @@ export default function DataEntryFees() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Saisie Frais & Marketing</h1>
           <p className="text-muted-foreground mt-2">
-            Entrez les frais Uber et dépenses marketing mensuels
+            Entrez les frais et dépenses marketing mensuels
           </p>
         </div>
       </div>
@@ -265,6 +282,23 @@ export default function DataEntryFees() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Platform selector */}
+            <div className="space-y-2">
+              <Label>Plateforme</Label>
+              <div className="flex gap-2">
+                {PLATFORMS.map((p) => (
+                  <Button
+                    key={p.value}
+                    type="button"
+                    variant={selectedPlatform === p.value ? "default" : "outline"}
+                    onClick={() => setSelectedPlatform(p.value)}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -307,7 +341,7 @@ export default function DataEntryFees() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Commission Uber (€)</Label>
+                <Label>{commissionLabel}</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -464,7 +498,8 @@ export default function DataEntryFees() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Période</TableHead>
-                      <TableHead className="text-right">Uber</TableHead>
+                      <TableHead>Plateforme</TableHead>
+                      <TableHead className="text-right">Commission</TableHead>
                       <TableHead className="text-right">Marketing</TableHead>
                       <TableHead className="text-right">Net</TableHead>
                       <TableHead></TableHead>
@@ -475,6 +510,9 @@ export default function DataEntryFees() {
                       <TableRow key={entry.id}>
                         <TableCell>
                           {getMonthLabel(entry.month)} {entry.year}
+                        </TableCell>
+                        <TableCell>
+                          {getPlatformBadge(entry.platform || "uber_eats")}
                         </TableCell>
                         <TableCell className="text-right">
                           {Number(entry.uber_fee).toLocaleString("fr-FR")} €

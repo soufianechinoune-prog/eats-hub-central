@@ -16,8 +16,8 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
           <header className="sticky top-0 z-10 flex h-16 items-center border-b bg-card px-6 shadow-sm">
             <SidebarTrigger className="mr-4" />
             <div className="flex items-center gap-3 flex-1">
-              <img src={csLogo} alt="CS Performance" className="h-10 w-10 rounded-full object-cover" />
-              <h1 className="text-xl font-semibold text-foreground">CS Performance</h1>
+              <img src={csLogo} alt="CS Delivery Performance" className="h-10 w-10 rounded-full object-cover" />
+              <h1 className="text-xl font-semibold text-foreground">CS Delivery Performance</h1>
             </div>
           </header>
           <div className="p-6">
