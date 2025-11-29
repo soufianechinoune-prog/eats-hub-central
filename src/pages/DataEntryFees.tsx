@@ -46,8 +46,22 @@ const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
 const PLATFORMS = [
-  { value: "uber_eats", label: "Uber Eats", color: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30", Logo: UberEatsLogo },
-  { value: "deliveroo", label: "Deliveroo", color: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30", Logo: DeliverooLogo },
+  { 
+    value: "uber_eats", 
+    label: "Uber Eats", 
+    color: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30", 
+    cardStyle: "border-green-500 bg-green-50/50 dark:bg-green-950/20",
+    indicatorStyle: "bg-green-500",
+    Logo: UberEatsLogo 
+  },
+  { 
+    value: "deliveroo", 
+    label: "Deliveroo", 
+    color: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30", 
+    cardStyle: "border-cyan-500 bg-cyan-50/50 dark:bg-cyan-950/20",
+    indicatorStyle: "bg-cyan-500",
+    Logo: DeliverooLogo 
+  },
 ];
 
 export default function DataEntryFees() {
@@ -265,9 +279,23 @@ export default function DataEntryFees() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Form Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{editingId ? "Modifier l'entrée" : "Nouvelle entrée"}</CardTitle>
+        <Card className={`transition-all duration-300 border-2 ${PLATFORMS.find(p => p.value === selectedPlatform)?.cardStyle}`}>
+          <CardHeader className="relative">
+            <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-lg ${PLATFORMS.find(p => p.value === selectedPlatform)?.indicatorStyle}`} />
+            <div className="flex items-center justify-between">
+              <CardTitle>{editingId ? "Modifier l'entrée" : "Nouvelle entrée"}</CardTitle>
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const platform = PLATFORMS.find(p => p.value === selectedPlatform);
+                  return platform ? (
+                    <Badge className={`${platform.color} flex items-center gap-1.5`}>
+                      <platform.Logo size={16} />
+                      {platform.label}
+                    </Badge>
+                  ) : null;
+                })()}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
