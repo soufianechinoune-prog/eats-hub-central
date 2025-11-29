@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -42,6 +44,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { 
   Plus, 
   Pencil, 
@@ -54,11 +57,13 @@ import {
   UtensilsCrossed,
   Settings,
   Calendar,
+  CalendarIcon,
   ArrowRight,
   Filter,
   Clock,
   Store,
   Package,
+  X,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon, UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { format } from "date-fns";
@@ -193,6 +198,8 @@ export default function RestaurantActions() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [restaurantFilter, setRestaurantFilter] = useState<string>("all");
+  const [startDateFilter, setStartDateFilter] = useState<Date | undefined>(undefined);
+  const [endDateFilter, setEndDateFilter] = useState<Date | undefined>(undefined);
   
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -435,7 +442,22 @@ export default function RestaurantActions() {
   const filteredActions = actions
     .filter(a => categoryFilter === "all" || a.category === categoryFilter)
     .filter(a => platformFilter === "all" || a.platform === platformFilter)
-    .filter(a => restaurantFilter === "all" || a.restaurant_id === restaurantFilter);
+    .filter(a => restaurantFilter === "all" || a.restaurant_id === restaurantFilter)
+    .filter(a => {
+      if (!startDateFilter) return true;
+      const actionDate = new Date(a.start_date);
+      return actionDate >= startDateFilter;
+    })
+    .filter(a => {
+      if (!endDateFilter) return true;
+      const actionDate = new Date(a.start_date);
+      return actionDate <= endDateFilter;
+    });
+
+  const clearDateFilters = () => {
+    setStartDateFilter(undefined);
+    setEndDateFilter(undefined);
+  };
 
   const getCategoryLabel = (categoryId: string) => {
     return categories.find(c => c.id === categoryId)?.label || categoryId;
@@ -570,8 +592,9 @@ export default function RestaurantActions() {
 
       {/* Actions Header */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+        <CardContent className="pt-6 space-y-4">
+          {/* Filters Row */}
+          <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
             <div className="flex items-center gap-3 flex-wrap">
               <Badge variant="secondary" className="gap-1">
                 <Calendar className="h-3 w-3" />
@@ -610,21 +633,105 @@ export default function RestaurantActions() {
                   <span className="ml-1">×</span>
                 </Badge>
               )}
+              {(startDateFilter || endDateFilter) && (
+                <Badge 
+                  variant="secondary" 
+                  className="gap-1 cursor-pointer"
+                  onClick={clearDateFilters}
+                >
+                  <CalendarIcon className="h-3 w-3" />
+                  {startDateFilter && format(startDateFilter, "dd/MM/yy", { locale: fr })}
+                  {startDateFilter && endDateFilter && " → "}
+                  {endDateFilter && format(endDateFilter, "dd/MM/yy", { locale: fr })}
+                  <span className="ml-1">×</span>
+                </Badge>
+              )}
             </div>
-            <Select value={restaurantFilter} onValueChange={setRestaurantFilter}>
-              <SelectTrigger className="w-[220px]">
-                <Store className="h-4 w-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Filtrer par restaurant" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les restaurants</SelectItem>
-                {restaurants.map((restaurant) => (
-                  <SelectItem key={restaurant.id} value={restaurant.id}>
-                    {restaurant.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            
+            {/* Filter Controls */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Restaurant Filter */}
+              <Select value={restaurantFilter} onValueChange={setRestaurantFilter}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <Store className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Restaurant" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les restaurants</SelectItem>
+                  {restaurants.map((restaurant) => (
+                    <SelectItem key={restaurant.id} value={restaurant.id}>
+                      {restaurant.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {/* Date Range Filters */}
+              <div className="flex items-center gap-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "h-9 w-[130px] justify-start text-left font-normal",
+                        !startDateFilter && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {startDateFilter ? format(startDateFilter, "dd MMM yyyy", { locale: fr }) : "Début"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={startDateFilter}
+                      onSelect={setStartDateFilter}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "h-9 w-[130px] justify-start text-left font-normal",
+                        !endDateFilter && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {endDateFilter ? format(endDateFilter, "dd MMM yyyy", { locale: fr }) : "Fin"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={endDateFilter}
+                      onSelect={setEndDateFilter}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                {(startDateFilter || endDateFilter) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={clearDateFilters}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
