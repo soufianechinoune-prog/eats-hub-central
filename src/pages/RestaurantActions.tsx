@@ -223,6 +223,8 @@ export default function RestaurantActions() {
   });
   const [customActionType, setCustomActionType] = useState("");
   const [newProductName, setNewProductName] = useState("");
+  const [productScope, setProductScope] = useState<"all" | "specific">("all");
+  const [productSearch, setProductSearch] = useState("");
 
   useEffect(() => {
     fetchCategories();
@@ -302,6 +304,8 @@ export default function RestaurantActions() {
     });
     setCustomActionType("");
     setNewProductName("");
+    setProductScope("all");
+    setProductSearch("");
     setIsDialogOpen(true);
   };
 
@@ -324,9 +328,18 @@ export default function RestaurantActions() {
       platform: action.platform,
     });
     setCustomActionType(isCustomType ? action.action_type : "");
-    // Récupérer le nom du nouveau produit depuis change_context si présent
+    // Récupérer le nom du nouveau produit et la portée depuis change_context
     const changeContext = action.change_context as any;
     setNewProductName(changeContext?.new_product_name || "");
+    // Déterminer la portée: si target_item_ids vide et scope pas défini, c'est "all"
+    const savedScope = changeContext?.scope;
+    if (savedScope) {
+      setProductScope(savedScope);
+    } else {
+      // Fallback: si des produits sont sélectionnés, c'est "specific"
+      setProductScope(action.target_item_ids && action.target_item_ids.length > 0 ? "specific" : "all");
+    }
+    setProductSearch("");
     setIsDialogOpen(true);
   };
 
@@ -346,8 +359,8 @@ export default function RestaurantActions() {
       return;
     }
     
-    // Validation contextuelle: produits obligatoires
-    if (config.productsRequired && formData.target_item_ids.length === 0) {
+    // Validation contextuelle: produits obligatoires (uniquement si scope = specific)
+    if (config.productsRequired && productScope === "specific" && formData.target_item_ids.length === 0) {
       toast({
         title: "Erreur",
         description: "Veuillez sélectionner au moins un produit pour ce type d'action",
@@ -376,6 +389,15 @@ export default function RestaurantActions() {
       return;
     }
 
+    // Construire le change_context avec scope et autres données
+    const changeContext: any = {};
+    if (formData.action_type === "Nouveau produit" && newProductName.trim()) {
+      changeContext.new_product_name = newProductName.trim();
+    }
+    if (config.hasProducts) {
+      changeContext.scope = productScope;
+    }
+    
     const actionData = {
       restaurant_id: formData.restaurant_id || null,
       category: formData.category,
@@ -386,11 +408,9 @@ export default function RestaurantActions() {
       end_date: formData.end_date || null,
       impact_value: formData.impact_value ? parseFloat(formData.impact_value) : null,
       impact_unit: formData.impact_unit || null,
-      target_item_ids: formData.target_item_ids,
+      target_item_ids: productScope === "all" ? [] : formData.target_item_ids,
       platform: formData.platform,
-      change_context: formData.action_type === "Nouveau produit" && newProductName.trim() 
-        ? { new_product_name: newProductName.trim() } 
-        : null,
+      change_context: Object.keys(changeContext).length > 0 ? changeContext : null,
     };
 
     if (editingAction) {
@@ -841,6 +861,11 @@ export default function RestaurantActions() {
                             <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-200">
                               🆕 {action.change_context.new_product_name}
                             </Badge>
+                          ) : action.change_context?.scope === "all" ? (
+                            <Badge variant="outline" className="text-xs bg-primary/5 border-primary/20 text-primary">
+                              <UtensilsCrossed className="h-3 w-3 mr-1" />
+                              Toute la carte
+                            </Badge>
                           ) : targetItems.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {targetItems.slice(0, 2).map(item => (
@@ -855,7 +880,7 @@ export default function RestaurantActions() {
                               )}
                             </div>
                           ) : (
-                            <span className="text-muted-foreground text-sm">Tous</span>
+                            <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </TableCell>
                         <TableCell>
@@ -1217,52 +1242,166 @@ export default function RestaurantActions() {
                 </Select>
               </div>
 
-              {/* Target Products - contextual */}
+              {/* Target Products - contextual with scope selection */}
               {(() => {
                 const config = getActionConfig(formData.action_type);
                 if (!config.hasProducts || menuItems.length === 0) return null;
                 
+                // Group menu items by category
+                const groupedItems = menuItems.reduce((acc, item) => {
+                  const cat = item.category || "Sans catégorie";
+                  if (!acc[cat]) acc[cat] = [];
+                  acc[cat].push(item);
+                  return acc;
+                }, {} as Record<string, MenuItem[]>);
+                
+                // Filter items by search
+                const filteredItems = productSearch.trim() 
+                  ? menuItems.filter(item => 
+                      item.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                      (item.category && item.category.toLowerCase().includes(productSearch.toLowerCase()))
+                    )
+                  : null;
+                
                 return (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Package className="h-3 w-3" />
-                        {config.productsLabel || "Produits concernés"}
-                        {config.productsRequired && <span className="text-destructive">*</span>}
-                      </Label>
-                      {formData.target_item_ids.length > 0 && (
-                        <Badge variant="secondary" className="text-xs">
-                          {formData.target_item_ids.length} sélectionné(s)
-                        </Badge>
-                      )}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Package className="h-4 w-4" />
+                      Portée de l'action
                     </div>
-                    <div className="border rounded-lg p-3 max-h-[140px] overflow-y-auto space-y-1 bg-muted/30">
-                      {menuItems.map((item) => (
-                        <label 
-                          key={item.id} 
-                          className={`flex items-center gap-3 cursor-pointer p-2 rounded-md transition-colors ${
-                            formData.target_item_ids.includes(item.id) 
-                              ? "bg-primary/10" 
-                              : "hover:bg-muted"
-                          }`}
-                        >
-                          <Checkbox
-                            checked={formData.target_item_ids.includes(item.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setFormData({ ...formData, target_item_ids: [...formData.target_item_ids, item.id] });
-                              } else {
-                                setFormData({ ...formData, target_item_ids: formData.target_item_ids.filter(id => id !== item.id) });
-                              }
-                            }}
-                          />
-                          <span className="text-sm flex-1">{item.name}</span>
-                          {item.category && (
-                            <Badge variant="outline" className="text-xs font-normal">{item.category}</Badge>
+                    
+                    {/* Scope Toggle Buttons */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProductScope("all");
+                          setFormData({ ...formData, target_item_ids: [] });
+                        }}
+                        className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                          productScope === "all"
+                            ? "border-primary bg-primary/10 shadow-sm"
+                            : "border-border hover:border-primary/50 hover:bg-muted/50"
+                        }`}
+                      >
+                        <UtensilsCrossed className={`h-5 w-5 ${productScope === "all" ? "text-primary" : "text-muted-foreground"}`} />
+                        <span className={`font-medium text-sm ${productScope === "all" ? "text-primary" : ""}`}>
+                          Toute la carte
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProductScope("specific")}
+                        className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                          productScope === "specific"
+                            ? "border-primary bg-primary/10 shadow-sm"
+                            : "border-border hover:border-primary/50 hover:bg-muted/50"
+                        }`}
+                      >
+                        <Package className={`h-5 w-5 ${productScope === "specific" ? "text-primary" : "text-muted-foreground"}`} />
+                        <span className={`font-medium text-sm ${productScope === "specific" ? "text-primary" : ""}`}>
+                          Certains produits
+                        </span>
+                      </button>
+                    </div>
+                    
+                    {/* Product Selection - only shown when scope is "specific" */}
+                    {productScope === "specific" && (
+                      <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                            {config.productsLabel || "Produits concernés"}
+                            {config.productsRequired && <span className="text-destructive">*</span>}
+                          </Label>
+                          {formData.target_item_ids.length > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {formData.target_item_ids.length} sélectionné(s)
+                            </Badge>
                           )}
-                        </label>
-                      ))}
-                    </div>
+                        </div>
+                        
+                        {/* Search bar */}
+                        <Input
+                          type="text"
+                          placeholder="Rechercher un produit..."
+                          value={productSearch}
+                          onChange={(e) => setProductSearch(e.target.value)}
+                          className="h-9"
+                        />
+                        
+                        <div className="border rounded-lg max-h-[180px] overflow-y-auto bg-muted/30">
+                          {filteredItems ? (
+                            // Flat list when searching
+                            <div className="p-2 space-y-1">
+                              {filteredItems.length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center py-4">Aucun produit trouvé</p>
+                              ) : (
+                                filteredItems.map((item) => (
+                                  <label 
+                                    key={item.id} 
+                                    className={`flex items-center gap-3 cursor-pointer p-2 rounded-md transition-colors ${
+                                      formData.target_item_ids.includes(item.id) 
+                                        ? "bg-primary/10" 
+                                        : "hover:bg-muted"
+                                    }`}
+                                  >
+                                    <Checkbox
+                                      checked={formData.target_item_ids.includes(item.id)}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setFormData({ ...formData, target_item_ids: [...formData.target_item_ids, item.id] });
+                                        } else {
+                                          setFormData({ ...formData, target_item_ids: formData.target_item_ids.filter(id => id !== item.id) });
+                                        }
+                                      }}
+                                    />
+                                    <span className="text-sm flex-1">{item.name}</span>
+                                    {item.category && (
+                                      <Badge variant="outline" className="text-xs font-normal">{item.category}</Badge>
+                                    )}
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                          ) : (
+                            // Grouped by category when not searching
+                            <div className="divide-y divide-border">
+                              {Object.entries(groupedItems).map(([category, items]) => (
+                                <div key={category} className="p-2">
+                                  <div className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">
+                                    {category}
+                                  </div>
+                                  <div className="space-y-1">
+                                    {items.map((item) => (
+                                      <label 
+                                        key={item.id} 
+                                        className={`flex items-center gap-3 cursor-pointer p-2 rounded-md transition-colors ${
+                                          formData.target_item_ids.includes(item.id) 
+                                            ? "bg-primary/10" 
+                                            : "hover:bg-muted"
+                                        }`}
+                                      >
+                                        <Checkbox
+                                          checked={formData.target_item_ids.includes(item.id)}
+                                          onCheckedChange={(checked) => {
+                                            if (checked) {
+                                              setFormData({ ...formData, target_item_ids: [...formData.target_item_ids, item.id] });
+                                            } else {
+                                              setFormData({ ...formData, target_item_ids: formData.target_item_ids.filter(id => id !== item.id) });
+                                            }
+                                          }}
+                                        />
+                                        <span className="text-sm flex-1">{item.name}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
