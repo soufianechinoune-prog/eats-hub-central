@@ -10,6 +10,8 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
+  Info,
+  Lightbulb,
 } from "lucide-react";
 import {
   LineChart,
@@ -271,6 +273,25 @@ export function AnalyticsCharts({
     }).filter(d => filterByRange(d.monthNum));
   }, [aggregatedRevenueData, aggregatedFeesData, startMonth, endMonth]);
 
+  // Dynamic Y-axis domain for conversion rate chart
+  const conversionYDomain = useMemo(() => {
+    const rates = aggregatedConversionData
+      .map(d => [d.conversionRate, d.prevConversionRate])
+      .flat()
+      .filter(r => r > 0);
+    
+    if (rates.length === 0) return [0, 10];
+    
+    const min = Math.min(...rates);
+    const max = Math.max(...rates);
+    const padding = (max - min) * 0.3 || 1; // 30% de marge, minimum 1
+    
+    return [
+      Math.max(0, Math.floor(min - padding)),
+      Math.ceil(max + padding)
+    ];
+  }, [aggregatedConversionData]);
+
   // Calculate KPIs
   const kpis = useMemo(() => {
     const totalRevenue = aggregatedRevenueData.reduce((sum, d) => sum + d.revenue, 0);
@@ -507,19 +528,76 @@ export function AnalyticsCharts({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[250px]">
+          {/* Section explicative */}
+          <div className="bg-muted/50 rounded-lg p-4 mb-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-sm mb-1">Comment c'est calculé ?</p>
+                <p className="text-muted-foreground text-sm">
+                  <code className="bg-background px-2 py-0.5 rounded text-xs font-mono">
+                    Taux = (Commandes ÷ Visites) × 100
+                  </code>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Lightbulb className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-sm mb-1">Ce que ça révèle</p>
+                <ul className="text-muted-foreground text-xs space-y-1">
+                  <li>• Plus le taux est élevé, mieux votre page convertit les visiteurs en clients</li>
+                  <li>• Un taux faible peut indiquer : photos peu attrayantes, prix mal positionnés, ou menu confus</li>
+                  <li>• <span className="text-green-600 dark:text-green-400 font-medium">Benchmark : 5-10% = correct, &gt;10% = excellent</span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={aggregatedConversionData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
-                <YAxis className="text-xs" unit="%" />
+                <YAxis className="text-xs" unit="%" domain={conversionYDomain} />
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--background))',
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: number, name: string) => [value.toFixed(2) + '%', name]}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const data = payload[0]?.payload;
+                    const variation = data?.prevConversionRate > 0 
+                      ? ((data.conversionRate - data.prevConversionRate) / data.prevConversionRate * 100)
+                      : null;
+                    return (
+                      <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                        <p className="font-medium mb-2">{label}</p>
+                        <div className="space-y-1 text-sm">
+                          <p>
+                            <span className="text-muted-foreground">Taux {selectedYear} :</span>{" "}
+                            <span className="font-medium">{data?.conversionRate?.toFixed(2)}%</span>
+                          </p>
+                          {hasPrevData && data?.prevConversionRate > 0 && (
+                            <p>
+                              <span className="text-muted-foreground">Taux {prevYear} :</span>{" "}
+                              <span className="font-medium">{data?.prevConversionRate?.toFixed(2)}%</span>
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground pt-1 border-t border-border mt-1">
+                            {data?.visits?.toLocaleString('fr-FR')} visites → {data?.orders?.toLocaleString('fr-FR')} commandes
+                          </p>
+                          {variation !== null && (
+                            <p className={`text-xs font-medium ${variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {variation >= 0 ? '↑' : '↓'} {Math.abs(variation).toFixed(1)}% vs {prevYear}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }}
                 />
                 <Legend />
                 <Line 
@@ -528,7 +606,8 @@ export function AnalyticsCharts({
                   name={`Taux ${selectedYear}`}
                   stroke="hsl(var(--primary))" 
                   strokeWidth={3}
-                  dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2 }}
+                  dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 5 }}
+                  activeDot={{ r: 7, strokeWidth: 2 }}
                 />
                 {hasPrevData && (
                   <Line 
@@ -538,7 +617,7 @@ export function AnalyticsCharts({
                     stroke="hsl(var(--muted-foreground))" 
                     strokeWidth={2}
                     strokeDasharray="5 5"
-                    dot={{ fill: 'hsl(var(--muted-foreground))', strokeWidth: 1 }}
+                    dot={{ fill: 'hsl(var(--muted-foreground))', strokeWidth: 1, r: 3 }}
                   />
                 )}
               </LineChart>
