@@ -85,14 +85,43 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
     }
   };
 
-  const getWhatsAppUrl = () => {
+  // Check if we're in an iframe (preview mode)
+  const isInIframe = window.self !== window.top;
+
+  const handleShareWhatsApp = async () => {
     const text = formatAllRestaurants();
-    return `https://wa.me/?text=${encodeURIComponent(text)}`;
+    
+    // Copy to clipboard first
+    await navigator.clipboard.writeText(text).catch(() => {});
+    
+    if (isInIframe) {
+      // In iframe, COOP blocks external navigation - just copy
+      toast({
+        title: "Texte copié !",
+        description: "Ouvrez WhatsApp et collez le texte. (Le lien direct fonctionne sur l'app publiée)",
+      });
+    } else {
+      // Outside iframe, try to open WhatsApp
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    }
   };
 
-  const getTelegramUrl = () => {
+  const handleShareTelegram = async () => {
     const text = formatAllRestaurants();
-    return `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(text)}`;
+    
+    // Copy to clipboard first
+    await navigator.clipboard.writeText(text).catch(() => {});
+    
+    if (isInIframe) {
+      // In iframe, COOP blocks external navigation - just copy
+      toast({
+        title: "Texte copié !",
+        description: "Ouvrez Telegram et collez le texte. (Le lien direct fonctionne sur l'app publiée)",
+      });
+    } else {
+      // Outside iframe, try to open Telegram
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(text)}`, '_blank');
+    }
   };
 
   const handleShareEmail = () => {
@@ -127,24 +156,24 @@ export function RestaurantShareActions({ selectedRestaurants, onClear }: Restaur
           <Copy className="h-4 w-4" />
           Copier
         </Button>
-        <a
-          href={getWhatsAppUrl()}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleShareWhatsApp}
+          className="gap-2"
         >
           <MessageCircle className="h-4 w-4 text-green-500" />
           WhatsApp
-        </a>
-        <a
-          href={getTelegramUrl()}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleShareTelegram}
+          className="gap-2"
         >
           <Send className="h-4 w-4 text-blue-500" />
           Telegram
-        </a>
+        </Button>
         <Button
           variant="outline"
           size="sm"
