@@ -61,8 +61,10 @@ import {
   ChevronDown,
   ChevronRight,
   X,
+  Upload,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
+import { CsvImportDialog } from "@/components/menu/CsvImportDialog";
 
 interface MenuItem {
   id: string;
@@ -112,6 +114,7 @@ export default function MenuItems() {
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
   
@@ -427,10 +430,16 @@ export default function MenuItems() {
             Gérez le catalogue de produits commun avec les prix par plateforme
           </p>
         </div>
-        <Button onClick={openCreateDialog} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Ajouter un produit
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} className="gap-2">
+            <Upload className="h-4 w-4" />
+            Import CSV
+          </Button>
+          <Button onClick={openCreateDialog} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Ajouter un produit
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -941,6 +950,14 @@ export default function MenuItems() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* CSV Import Dialog */}
+      <CsvImportDialog
+        open={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+        onImportComplete={fetchMenuItems}
+        existingCategories={existingCategories as string[]}
+      />
     </div>
   );
 }
