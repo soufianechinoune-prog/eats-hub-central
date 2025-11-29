@@ -192,6 +192,7 @@ export default function RestaurantActions() {
   const [loading, setLoading] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
+  const [restaurantFilter, setRestaurantFilter] = useState<string>("all");
   
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -433,7 +434,8 @@ export default function RestaurantActions() {
 
   const filteredActions = actions
     .filter(a => categoryFilter === "all" || a.category === categoryFilter)
-    .filter(a => platformFilter === "all" || a.platform === platformFilter);
+    .filter(a => platformFilter === "all" || a.platform === platformFilter)
+    .filter(a => restaurantFilter === "all" || a.restaurant_id === restaurantFilter);
 
   const getCategoryLabel = (categoryId: string) => {
     return categories.find(c => c.id === categoryId)?.label || categoryId;
@@ -597,7 +599,32 @@ export default function RestaurantActions() {
                   <span className="ml-1">×</span>
                 </Badge>
               )}
+              {restaurantFilter !== "all" && (
+                <Badge 
+                  variant="secondary" 
+                  className="gap-1 cursor-pointer"
+                  onClick={() => setRestaurantFilter("all")}
+                >
+                  <Store className="h-3 w-3" />
+                  {restaurants.find(r => r.id === restaurantFilter)?.name || "Restaurant"}
+                  <span className="ml-1">×</span>
+                </Badge>
+              )}
             </div>
+            <Select value={restaurantFilter} onValueChange={setRestaurantFilter}>
+              <SelectTrigger className="w-[220px]">
+                <Store className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Filtrer par restaurant" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les restaurants</SelectItem>
+                {restaurants.map((restaurant) => (
+                  <SelectItem key={restaurant.id} value={restaurant.id}>
+                    {restaurant.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
