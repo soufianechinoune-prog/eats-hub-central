@@ -27,7 +27,7 @@ export const CommuneDensityLayer = ({
     if (!map || !mapLoaded) return;
 
     const sourceId = sourceIdRef.current;
-    const layerId = layerIdRef.current;
+    const heatmapLayerId = layerIdRef.current;
     const labelLayerId = labelLayerIdRef.current;
 
     // Remove existing layers and source
@@ -35,8 +35,8 @@ export const CommuneDensityLayer = ({
       if (map.getLayer(labelLayerId)) {
         map.removeLayer(labelLayerId);
       }
-      if (map.getLayer(layerId)) {
-        map.removeLayer(layerId);
+      if (map.getLayer(heatmapLayerId)) {
+        map.removeLayer(heatmapLayerId);
       }
       if (map.getSource(sourceId)) {
         map.removeSource(sourceId);
@@ -60,34 +60,72 @@ export const CommuneDensityLayer = ({
       data: geojson,
     });
 
-    // Add circle layer for communes
+    // Add heatmap layer for density visualization
     map.addLayer({
-      id: layerId,
-      type: "circle",
+      id: heatmapLayerId,
+      type: "heatmap",
       source: sourceId,
       paint: {
-        "circle-radius": [
+        // Weight based on population - normalized for heatmap
+        "heatmap-weight": [
+          "interpolate",
+          ["linear"],
+          ["get", "population"],
+          10000, 0.1,
+          50000, 0.3,
+          100000, 0.5,
+          500000, 0.8,
+          2000000, 1
+        ],
+        // Intensity increases with zoom
+        "heatmap-intensity": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          5, ["interpolate", ["linear"], ["get", "population"], 10000, 4, 100000, 8, 500000, 14, 2000000, 20],
-          10, ["interpolate", ["linear"], ["get", "population"], 10000, 8, 100000, 16, 500000, 28, 2000000, 40],
-          15, ["interpolate", ["linear"], ["get", "population"], 10000, 16, 100000, 32, 500000, 56, 2000000, 80],
+          4, 0.5,
+          8, 1.5,
+          12, 2.5
         ],
-        "circle-color": ["get", "color"],
-        "circle-opacity": 0.7,
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#fff",
-        "circle-stroke-opacity": 0.8,
-      },
-    });
+        // Color gradient from blue (low) to red (high density)
+        "heatmap-color": [
+          "interpolate",
+          ["linear"],
+          ["heatmap-density"],
+          0, "rgba(0, 0, 255, 0)",
+          0.1, "rgba(65, 105, 225, 0.4)",
+          0.3, "rgba(0, 191, 255, 0.5)",
+          0.5, "rgba(50, 205, 50, 0.6)",
+          0.7, "rgba(255, 165, 0, 0.7)",
+          0.9, "rgba(255, 69, 0, 0.8)",
+          1, "rgba(178, 34, 34, 0.9)"
+        ],
+        // Radius increases with zoom
+        "heatmap-radius": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          4, 15,
+          8, 30,
+          12, 50,
+          15, 80
+        ],
+        // Fade out at high zoom to show individual points
+        "heatmap-opacity": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10, 0.8,
+          15, 0.4
+        ]
+      }
+    }, "waterway-label"); // Insert below labels
 
-    // Add labels for larger communes
+    // Add labels for larger communes at higher zoom
     map.addLayer({
       id: labelLayerId,
       type: "symbol",
       source: sourceId,
-      minzoom: 8,
+      minzoom: 9,
       layout: {
         "text-field": ["get", "name"],
         "text-font": ["DIN Pro Medium", "Arial Unicode MS Bold"],
@@ -95,80 +133,29 @@ export const CommuneDensityLayer = ({
           "interpolate",
           ["linear"],
           ["zoom"],
-          8, 10,
-          12, 14,
+          9, 10,
+          12, 13,
         ],
-        "text-offset": [0, 1.5],
-        "text-anchor": "top",
+        "text-offset": [0, 0],
+        "text-anchor": "center",
         "text-allow-overlap": false,
         "text-ignore-placement": false,
       },
       paint: {
-        "text-color": "#333",
+        "text-color": "#1a1a2e",
         "text-halo-color": "#fff",
-        "text-halo-width": 1.5,
+        "text-halo-width": 2,
       },
-      filter: [">", ["get", "population"], 30000],
+      filter: [">", ["get", "population"], 50000],
     });
 
-    // Add popup on click
-    const handleClick = (e: mapboxgl.MapMouseEvent) => {
-      const features = map.queryRenderedFeatures(e.point, { layers: [layerId] });
-      if (features.length === 0) return;
-
-      const feature = features[0];
-      const props = feature.properties;
-      if (!props) return;
-
-      const levelInfo = DENS7_LEVELS.find(l => l.level === props.dens7);
-      const priorityBadge = props.priority === "high" 
-        ? '<span style="background:#22c55e;color:white;padding:2px 6px;border-radius:4px;font-size:10px;">Priorité haute</span>'
-        : props.priority === "medium"
-          ? '<span style="background:#f59e0b;color:white;padding:2px 6px;border-radius:4px;font-size:10px;">Priorité moyenne</span>'
-          : '<span style="background:#6b7280;color:white;padding:2px 6px;border-radius:4px;font-size:10px;">Priorité basse</span>';
-
-      new mapboxgl.Popup({ closeButton: true, maxWidth: "280px" })
-        .setLngLat(e.lngLat)
-        .setHTML(`
-          <div style="font-family: system-ui; padding: 4px;">
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${props.name}</div>
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-              <span style="width: 12px; height: 12px; border-radius: 50%; background: ${props.color}; display: inline-block;"></span>
-              <span style="font-size: 12px; color: #666;">${levelInfo?.label || 'N/A'}</span>
-            </div>
-            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">
-              <strong>Population:</strong> ${Number(props.population).toLocaleString('fr-FR')} hab.
-            </div>
-            <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
-              <strong>Département:</strong> ${props.department}
-            </div>
-            ${priorityBadge}
-          </div>
-        `)
-        .addTo(map);
-    };
-
-    map.on("click", layerId, handleClick);
-
-    // Change cursor on hover
-    map.on("mouseenter", layerId, () => {
-      map.getCanvas().style.cursor = "pointer";
-    });
-
-    map.on("mouseleave", layerId, () => {
-      map.getCanvas().style.cursor = "";
-    });
-
-    return () => {
-      map.off("click", layerId, handleClick);
-      cleanup();
-    };
+    return cleanup;
   }, [map, mapLoaded, visible, filteredLevels]);
 
   return null;
 };
 
-// Legend component for the density layer
+// Legend component for the heatmap layer
 export const CommuneDensityLegend = ({
   filteredLevels,
   onToggleLevel,
@@ -177,48 +164,65 @@ export const CommuneDensityLegend = ({
   onToggleLevel: (level: number) => void;
 }) => {
   return (
-    <div className="space-y-2 p-3 rounded-lg border bg-background">
-      <p className="text-xs font-medium text-muted-foreground mb-2">
-        Densité INSEE (7 niveaux)
+    <div className="space-y-3 p-3 rounded-lg border bg-background">
+      <p className="text-xs font-medium text-muted-foreground">
+        Densité population (heatmap)
       </p>
-      <div className="space-y-1.5">
-        {DENS7_LEVELS.map((level) => {
-          const isActive = filteredLevels.includes(level.level);
-          return (
-            <button
-              key={level.level}
-              onClick={() => onToggleLevel(level.level)}
-              className={`w-full flex items-center gap-2 p-1.5 rounded text-left transition-colors ${
-                isActive 
-                  ? "bg-muted/50 hover:bg-muted" 
-                  : "opacity-40 hover:opacity-60"
-              }`}
-            >
-              <div
-                className="w-4 h-4 rounded-full shrink-0 border border-white/50"
-                style={{ backgroundColor: level.color }}
-              />
-              <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium truncate block">
+      
+      {/* Gradient legend */}
+      <div className="space-y-1">
+        <div 
+          className="h-3 rounded-full w-full"
+          style={{
+            background: "linear-gradient(to right, rgba(65, 105, 225, 0.6), rgba(0, 191, 255, 0.7), rgba(50, 205, 50, 0.8), rgba(255, 165, 0, 0.9), rgba(255, 69, 0, 1))"
+          }}
+        />
+        <div className="flex justify-between text-[10px] text-muted-foreground">
+          <span>Faible</span>
+          <span>Élevée</span>
+        </div>
+      </div>
+
+      {/* Filter by priority levels */}
+      <div className="pt-2 border-t">
+        <p className="text-[10px] font-medium text-muted-foreground mb-2">
+          Filtrer par niveau INSEE
+        </p>
+        <div className="space-y-1">
+          {DENS7_LEVELS.map((level) => {
+            const isActive = filteredLevels.includes(level.level);
+            return (
+              <button
+                key={level.level}
+                onClick={() => onToggleLevel(level.level)}
+                className={`w-full flex items-center gap-2 p-1 rounded text-left transition-colors ${
+                  isActive 
+                    ? "bg-muted/50 hover:bg-muted" 
+                    : "opacity-40 hover:opacity-60"
+                }`}
+              >
+                <div
+                  className="w-3 h-3 rounded-full shrink-0 border border-white/50"
+                  style={{ backgroundColor: level.color }}
+                />
+                <span className="text-[11px] truncate flex-1">
                   {level.label}
                 </span>
-                {level.priority !== "none" && (
-                  <span className={`text-[10px] ${
-                    level.priority === "high" 
-                      ? "text-emerald-600" 
-                      : "text-amber-600"
-                  }`}>
-                    {level.priority === "high" ? "★ Priorité" : "○ Potentiel"}
-                  </span>
+                {level.priority === "high" && (
+                  <span className="text-[9px] text-emerald-600">★</span>
                 )}
-              </div>
-            </button>
-          );
-        })}
+                {level.priority === "medium" && (
+                  <span className="text-[9px] text-amber-600">○</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div className="pt-2 border-t mt-2">
+
+      <div className="pt-2 border-t">
         <p className="text-[10px] text-muted-foreground">
-          Cliquez pour filtrer les niveaux
+          Zones chaudes = forte densité urbaine
         </p>
       </div>
     </div>
