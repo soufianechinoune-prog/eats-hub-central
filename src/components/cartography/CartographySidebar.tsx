@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { RestaurantWithGeo, SimulatedLocation, CannibalismAlert } from "@/pages/Cartography";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 
 import { CommuneDensityLegend } from "./CommuneDensityLayer";
 import { DistanceMeasurePanel, DistancePoint } from "./DistanceMeasurePanel";
+import { DepartmentFilter } from "./DepartmentFilter";
 
 interface CartographySidebarProps {
   restaurants: RestaurantWithGeo[];
@@ -104,6 +105,7 @@ export const CartographySidebar = ({
 }: CartographySidebarProps) => {
   const [search, setSearch] = useState("");
   const [localRadii, setLocalRadii] = useState<Record<string, number>>({});
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Scroll to selected restaurant when selection changes from map
@@ -119,7 +121,16 @@ export const CartographySidebar = ({
   const geocodedRestaurants = restaurants.filter(r => r.latitude && r.longitude);
   const unGeocodedRestaurants = restaurants.filter(r => !r.latitude || !r.longitude);
 
-  const filteredGeocoded = geocodedRestaurants.filter(r =>
+  // Filter by department first, then by search
+  const departmentFilteredGeocoded = useMemo(() => {
+    if (selectedDepartments.length === 0) return geocodedRestaurants;
+    return geocodedRestaurants.filter(r => {
+      const dept = r.postal_code?.substring(0, 2);
+      return dept && selectedDepartments.includes(dept);
+    });
+  }, [geocodedRestaurants, selectedDepartments]);
+
+  const filteredGeocoded = departmentFilteredGeocoded.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase()) ||
     r.city?.toLowerCase().includes(search.toLowerCase())
   );
@@ -158,6 +169,14 @@ export const CartographySidebar = ({
             className="pl-9"
           />
         </div>
+        
+        {/* Department Filter */}
+        <DepartmentFilter
+          restaurants={restaurants}
+          selectedDepartments={selectedDepartments}
+          onSelectionChange={setSelectedDepartments}
+        />
+        
         <Button
           onClick={onToggleSimulationMode}
           variant={isSimulationMode ? "default" : "outline"}
@@ -209,7 +228,7 @@ export const CartographySidebar = ({
         <TabsList className="mx-4 mt-4 grid grid-cols-3">
           <TabsTrigger value="restaurants" className="text-xs">
             <MapPin className="h-3 w-3 mr-1" />
-            Restos ({geocodedRestaurants.length})
+            Restos ({selectedDepartments.length > 0 ? `${departmentFilteredGeocoded.length}/${geocodedRestaurants.length}` : geocodedRestaurants.length})
           </TabsTrigger>
           <TabsTrigger value="alerts" className="text-xs">
             <AlertTriangle className="h-3 w-3 mr-1" />
