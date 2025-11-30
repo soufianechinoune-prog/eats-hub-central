@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   MessageSquare,
@@ -20,6 +19,7 @@ import {
   Eye,
   AlertCircle,
   User,
+  Smile,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
@@ -130,7 +130,6 @@ export default function ConversationView() {
 
       const normalizedSelected = normalizePhone(selectedPhone);
       
-      // Find unread inbound messages for this conversation
       const unreadMessages = messages.filter((msg) => {
         const msgPhone = msg.direction === "inbound" 
           ? msg.sender_phone || msg.recipient_phone
@@ -144,7 +143,6 @@ export default function ConversationView() {
 
       if (unreadMessages.length === 0) return;
 
-      // Update all unread messages to "read"
       const messageIds = unreadMessages.map((m) => m.id);
       
       const { error } = await supabase
@@ -158,7 +156,6 @@ export default function ConversationView() {
       if (error) {
         console.error("Error marking messages as read:", error);
       } else {
-        // Refresh to update UI
         queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
         queryClient.invalidateQueries({ queryKey: ["message-history"] });
       }
@@ -172,7 +169,6 @@ export default function ConversationView() {
     const convMap = new Map<string, Conversation>();
 
     messages.forEach((msg) => {
-      // Determine the conversation phone (the other party)
       const phone = msg.direction === "inbound" 
         ? msg.sender_phone || msg.recipient_phone
         : msg.recipient_phone;
@@ -180,7 +176,6 @@ export default function ConversationView() {
       const normalizedPhone = normalizePhone(phone);
 
       if (!convMap.has(normalizedPhone)) {
-        // Find associated restaurant
         const restaurant = restaurants.find(
           (r) => r.manager_whatsapp && normalizePhone(r.manager_whatsapp) === normalizedPhone
         );
@@ -200,19 +195,16 @@ export default function ConversationView() {
       const conv = convMap.get(normalizedPhone)!;
       conv.messages.push(msg);
       
-      // Update last message if this is more recent
       if (new Date(msg.created_at) > new Date(conv.lastMessageAt)) {
         conv.lastMessage = msg.message_content;
         conv.lastMessageAt = msg.created_at;
       }
 
-      // Count unread incoming messages
       if (msg.direction === "inbound" && msg.status !== "read") {
         conv.unreadCount++;
       }
     });
 
-    // Sort conversations by last message date (most recent first)
     return Array.from(convMap.values()).sort(
       (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
     );
@@ -265,15 +257,15 @@ export default function ConversationView() {
     
     switch (msg.status) {
       case "read":
-        return <Eye className="h-3 w-3 text-primary" />;
+        return <CheckCheck className="h-3.5 w-3.5 text-blue-400" />;
       case "delivered":
-        return <CheckCheck className="h-3 w-3 text-green-500" />;
+        return <CheckCheck className="h-3.5 w-3.5 text-muted-foreground/60" />;
       case "sent":
-        return <Check className="h-3 w-3 text-muted-foreground" />;
+        return <Check className="h-3.5 w-3.5 text-muted-foreground/60" />;
       case "pending":
-        return <Clock className="h-3 w-3 text-muted-foreground" />;
+        return <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />;
       case "failed":
-        return <AlertCircle className="h-3 w-3 text-destructive" />;
+        return <AlertCircle className="h-3.5 w-3.5 text-destructive" />;
       default:
         return null;
     }
@@ -286,7 +278,6 @@ export default function ConversationView() {
     setIsSending(true);
 
     try {
-      // Find the restaurant for this conversation
       const restaurant = restaurants.find(
         (r) => r.manager_whatsapp && normalizePhone(r.manager_whatsapp) === normalizePhone(selectedConversation.phone)
       );
@@ -328,178 +319,232 @@ export default function ConversationView() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[600px]">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 h-[650px] bg-card rounded-2xl overflow-hidden shadow-[var(--shadow-card)]">
       {/* Conversation List */}
-      <Card className={cn("lg:col-span-1", selectedPhone && "hidden lg:block")}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Conversations
-          </CardTitle>
-          <div className="relative mt-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className={cn(
+        "lg:col-span-1 border-r border-border/50 flex flex-col",
+        selectedPhone && "hidden lg:flex"
+      )}>
+        {/* Header */}
+        <div className="p-5 border-b border-border/50">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Messages</h3>
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Rechercher..."
+              placeholder="Rechercher une conversation..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 h-10 rounded-xl bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors"
             />
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="h-[480px]">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                Chargement...
+        </div>
+
+        {/* Conversations */}
+        <ScrollArea className="flex-1">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              Chargement...
+            </div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="text-center py-16 px-6 text-muted-foreground">
+              <div className="h-16 w-16 rounded-full bg-secondary/50 flex items-center justify-center mx-auto mb-4">
+                <MessageSquare className="h-8 w-8 opacity-40" />
               </div>
-            ) : filteredConversations.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground px-4">
-                <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>Aucune conversation</p>
-                <p className="text-sm">Envoyez un message pour commencer</p>
-              </div>
-            ) : (
-              filteredConversations.map((conv) => (
-                <div
-                  key={conv.phone}
-                  className={cn(
-                    "flex items-start gap-3 p-4 cursor-pointer hover:bg-muted/50 border-b transition-colors",
-                    selectedPhone && normalizePhone(conv.phone) === normalizePhone(selectedPhone) && "bg-muted"
-                  )}
-                  onClick={() => setSelectedPhone(conv.phone)}
-                >
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    {conv.restaurantName ? (
-                      <Store className="h-5 w-5 text-primary" />
-                    ) : (
-                      <User className="h-5 w-5 text-primary" />
+              <p className="font-medium">Aucune conversation</p>
+              <p className="text-sm mt-1 opacity-70">Envoyez un message pour commencer</p>
+            </div>
+          ) : (
+            <div>
+              {filteredConversations.map((conv) => {
+                const isSelected = selectedPhone && normalizePhone(conv.phone) === normalizePhone(selectedPhone);
+                
+                return (
+                  <div
+                    key={conv.phone}
+                    className={cn(
+                      "flex items-center gap-3 p-4 cursor-pointer transition-all duration-200 border-l-2",
+                      isSelected 
+                        ? "bg-whatsapp/5 border-l-whatsapp" 
+                        : "border-l-transparent hover:bg-secondary/50"
                     )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium truncate">
-                        {conv.restaurantName || conv.contactName || conv.phone}
-                      </span>
-                      <span className="text-xs text-muted-foreground shrink-0 ml-2">
-                        {formatConversationDate(conv.lastMessageAt)}
-                      </span>
-                    </div>
-                    {conv.restaurantName && conv.contactName && (
-                      <div className="text-xs text-muted-foreground truncate">
-                        {conv.contactName}
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between mt-1">
-                      <p className="text-sm text-muted-foreground truncate">
-                        {conv.lastMessage}
-                      </p>
-                      {conv.unreadCount > 0 && (
-                        <Badge className="ml-2 shrink-0 h-5 w-5 p-0 flex items-center justify-center rounded-full">
-                          {conv.unreadCount}
-                        </Badge>
+                    onClick={() => setSelectedPhone(conv.phone)}
+                  >
+                    <div className={cn(
+                      "h-12 w-12 rounded-full flex items-center justify-center shrink-0 transition-colors",
+                      conv.restaurantName ? "bg-whatsapp/10" : "bg-secondary"
+                    )}>
+                      {conv.restaurantName ? (
+                        <Store className="h-5 w-5 text-whatsapp" />
+                      ) : (
+                        <User className="h-5 w-5 text-muted-foreground" />
                       )}
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className={cn(
+                          "font-medium truncate",
+                          conv.unreadCount > 0 ? "text-foreground" : "text-foreground/90"
+                        )}>
+                          {conv.restaurantName || conv.contactName || conv.phone}
+                        </span>
+                        <span className={cn(
+                          "text-xs shrink-0 ml-2",
+                          conv.unreadCount > 0 ? "text-whatsapp font-medium" : "text-muted-foreground"
+                        )}>
+                          {formatConversationDate(conv.lastMessageAt)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className={cn(
+                          "text-sm truncate",
+                          conv.unreadCount > 0 ? "text-foreground/80" : "text-muted-foreground"
+                        )}>
+                          {conv.lastMessage}
+                        </p>
+                        {conv.unreadCount > 0 && (
+                          <span className="ml-2 flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-whatsapp text-white">
+                            {conv.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
-          </ScrollArea>
-        </CardContent>
-      </Card>
+                );
+              })}
+            </div>
+          )}
+        </ScrollArea>
+      </div>
 
       {/* Message View */}
-      <Card className={cn("lg:col-span-2", !selectedPhone && "hidden lg:flex lg:items-center lg:justify-center")}>
+      <div className={cn(
+        "lg:col-span-2 flex flex-col bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%239C92AC%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')]",
+        !selectedPhone && "hidden lg:flex lg:items-center lg:justify-center"
+      )}>
         {selectedConversation ? (
           <>
             {/* Header */}
-            <CardHeader className="border-b py-3 px-4">
+            <div className="p-4 border-b border-border/50 bg-card/95 backdrop-blur-sm">
               <div className="flex items-center gap-3">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="lg:hidden"
+                  className="lg:hidden h-9 w-9 rounded-full"
                   onClick={() => setSelectedPhone(null)}
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <div className={cn(
+                  "h-11 w-11 rounded-full flex items-center justify-center",
+                  selectedConversation.restaurantName ? "bg-whatsapp/10" : "bg-secondary"
+                )}>
                   {selectedConversation.restaurantName ? (
-                    <Store className="h-5 w-5 text-primary" />
+                    <Store className="h-5 w-5 text-whatsapp" />
                   ) : (
-                    <User className="h-5 w-5 text-primary" />
+                    <User className="h-5 w-5 text-muted-foreground" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">
+                  <div className="font-semibold text-foreground truncate">
                     {selectedConversation.restaurantName || selectedConversation.contactName || selectedConversation.phone}
                   </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <Phone className="h-3 w-3" />
                     {selectedConversation.phone}
                   </div>
                 </div>
               </div>
-            </CardHeader>
+            </div>
 
             {/* Messages */}
-            <CardContent className="flex-1 p-0 overflow-hidden">
-              <ScrollArea className="h-[440px] p-4">
-                <div className="space-y-4">
-                  {selectedConversation.messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        "flex",
-                        msg.direction === "outbound" ? "justify-end" : "justify-start"
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-3 max-w-3xl mx-auto">
+                {selectedConversation.messages.map((msg, index) => {
+                  const isOutbound = msg.direction === "outbound";
+                  const showDate = index === 0 || 
+                    new Date(msg.created_at).toDateString() !== 
+                    new Date(selectedConversation.messages[index - 1].created_at).toDateString();
+                  
+                  return (
+                    <div key={msg.id}>
+                      {showDate && (
+                        <div className="flex justify-center my-4">
+                          <span className="px-3 py-1 text-xs font-medium text-muted-foreground bg-card/80 rounded-full shadow-sm">
+                            {isToday(new Date(msg.created_at)) 
+                              ? "Aujourd'hui" 
+                              : isYesterday(new Date(msg.created_at))
+                                ? "Hier"
+                                : format(new Date(msg.created_at), "d MMMM yyyy", { locale: fr })}
+                          </span>
+                        </div>
                       )}
-                    >
-                      <div
-                        className={cn(
-                          "max-w-[75%] rounded-lg px-4 py-2",
-                          msg.direction === "outbound"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted"
-                        )}
-                      >
-                        <p className="text-sm whitespace-pre-wrap break-words">
-                          {msg.message_content}
-                        </p>
+                      <div className={cn("flex", isOutbound ? "justify-end" : "justify-start")}>
                         <div
                           className={cn(
-                            "flex items-center gap-1 mt-1 text-xs",
-                            msg.direction === "outbound"
-                              ? "text-primary-foreground/70 justify-end"
-                              : "text-muted-foreground"
+                            "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm relative",
+                            isOutbound
+                              ? "bg-whatsapp-bubble-out text-foreground rounded-br-md"
+                              : "bg-card text-foreground rounded-bl-md"
                           )}
                         >
-                          <span>{formatMessageDate(msg.created_at)}</span>
-                          {getStatusIcon(msg)}
+                          <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+                            {msg.message_content}
+                          </p>
+                          <div
+                            className={cn(
+                              "flex items-center gap-1 mt-1 text-[11px]",
+                              isOutbound ? "justify-end text-muted-foreground/70" : "text-muted-foreground/60"
+                            )}
+                          >
+                            <span>{format(new Date(msg.created_at), "HH:mm")}</span>
+                            {getStatusIcon(msg)}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
-              </ScrollArea>
-            </CardContent>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
 
             {/* Input */}
-            <div className="p-4 border-t">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Écrire un message..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  disabled={isSending}
-                  className="flex-1"
-                />
-                <Button onClick={sendReply} disabled={!newMessage.trim() || isSending}>
+            <div className="p-4 bg-card/95 backdrop-blur-sm border-t border-border/50">
+              <div className="flex items-end gap-3 max-w-3xl mx-auto">
+                <div className="flex-1 relative">
+                  <Input
+                    placeholder="Écrire un message..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    disabled={isSending}
+                    className="h-11 pr-12 rounded-full bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors text-[15px]"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
+                    type="button"
+                  >
+                    <Smile className="h-5 w-5" />
+                  </Button>
+                </div>
+                <Button
+                  size="icon"
+                  onClick={sendReply}
+                  disabled={!newMessage.trim() || isSending}
+                  className={cn(
+                    "h-11 w-11 rounded-full shrink-0 transition-all",
+                    newMessage.trim() 
+                      ? "bg-whatsapp hover:bg-whatsapp/90" 
+                      : "bg-secondary text-muted-foreground"
+                  )}
+                >
                   {isSending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <Send className="h-4 w-4" />
+                    <Send className="h-5 w-5" />
                   )}
                 </Button>
               </div>
@@ -507,12 +552,16 @@ export default function ConversationView() {
           </>
         ) : (
           <div className="text-center text-muted-foreground p-8">
-            <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-50" />
-            <p className="text-lg font-medium">Sélectionnez une conversation</p>
-            <p className="text-sm">Choisissez une conversation à gauche pour voir les messages</p>
+            <div className="h-20 w-20 rounded-full bg-secondary/50 flex items-center justify-center mx-auto mb-4">
+              <MessageSquare className="h-10 w-10 opacity-40" />
+            </div>
+            <p className="font-medium text-lg text-foreground/80">Vos messages</p>
+            <p className="text-sm mt-1 opacity-70">
+              Sélectionnez une conversation pour commencer
+            </p>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 }
