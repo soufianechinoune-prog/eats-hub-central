@@ -2,12 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Store,
-  Link as LinkIcon,
-  Download,
   LogOut,
-  Menu,
-  FileText,
-  AlertCircle,
   Shield,
   PenLine,
   BarChart3,
@@ -32,7 +27,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import csLogo from "@/assets/cs-logo.jpeg";
 
-const menuItems = [
+// Navigation principale
+const mainItems = [
   {
     title: "Vue d'ensemble",
     url: "/",
@@ -48,34 +44,10 @@ const menuItems = [
     url: "/messaging",
     icon: MessageSquare,
   },
-  {
-    title: "Éditeur de Menu",
-    url: "/menu-editor",
-    icon: Menu,
-  },
-  {
-    title: "Connexions Uber",
-    url: "/uber-connections",
-    icon: LinkIcon,
-  },
-  {
-    title: "Rapports",
-    url: "/reports",
-    icon: FileText,
-  },
-  {
-    title: "Contestations",
-    url: "/disputes",
-    icon: AlertCircle,
-  },
-  {
-    title: "Exports",
-    url: "/exports",
-    icon: Download,
-  },
 ];
 
-const dataEntryItems = [
+// Gestion des données
+const dataItems = [
   {
     title: "Saisie de données",
     url: "/data-entry",
@@ -91,6 +63,10 @@ const dataEntryItems = [
     url: "/menu-history",
     icon: History,
   },
+];
+
+// Pilotage & Analyse
+const analysisItems = [
   {
     title: "Actions & Events",
     url: "/actions",
@@ -148,7 +124,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -171,11 +147,38 @@ export function AppSidebar() {
 
         <SidebarGroup>
           <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
-            {collapsed ? "📝" : "Saisie de données"}
+            {collapsed ? "📊" : "Données"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {dataEntryItems.map((item) => (
+              {dataItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    className={
+                      isActive(item.url)
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : ""
+                    }
+                  >
+                    <NavLink to={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
+            {collapsed ? "📈" : "Pilotage"}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {analysisItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
