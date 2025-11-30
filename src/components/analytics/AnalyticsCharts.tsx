@@ -372,6 +372,21 @@ export function AnalyticsCharts({
     return saved ? Number(saved) : 5;
   });
 
+  // State for interactive legend - hidden fees categories
+  const [hiddenFeesBars, setHiddenFeesBars] = useState<Set<string>>(new Set());
+
+  const toggleFeesBar = (dataKey: string) => {
+    setHiddenFeesBars(prev => {
+      const next = new Set(prev);
+      if (next.has(dataKey)) {
+        next.delete(dataKey);
+      } else {
+        next.add(dataKey);
+      }
+      return next;
+    });
+  };
+
   useEffect(() => {
     localStorage.setItem('conversionTarget', String(conversionTarget));
   }, [conversionTarget]);
@@ -1145,6 +1160,46 @@ export function AnalyticsCharts({
           />
         </CardHeader>
         <CardContent>
+          {/* Interactive Legend */}
+          <div className="flex flex-wrap gap-3 mb-4">
+            {[
+              { key: 'uber', label: 'Commission', color: 'hsl(var(--chart-1))' },
+              { key: 'marketing', label: 'Marketing', color: 'hsl(var(--chart-2))' },
+              { key: 'offers', label: 'Offres', color: 'hsl(var(--chart-3))' },
+              { key: 'ads', label: 'Publicité', color: 'hsl(var(--chart-4))' },
+            ].map(item => {
+              const isHidden = hiddenFeesBars.has(item.key);
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => toggleFeesBar(item.key)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border",
+                    isHidden
+                      ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
+                      : "bg-background shadow-sm border-border hover:shadow-md"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "w-3 h-3 rounded-sm transition-opacity",
+                      isHidden && "opacity-30"
+                    )}
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className={cn(isHidden && "line-through")}>{item.label}</span>
+                </button>
+              );
+            })}
+            {hiddenFeesBars.size > 0 && (
+              <button
+                onClick={() => setHiddenFeesBars(new Set())}
+                className="text-xs text-muted-foreground hover:text-foreground underline ml-2"
+              >
+                Tout afficher
+              </button>
+            )}
+          </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={aggregatedFeesData}>
@@ -1159,7 +1214,6 @@ export function AnalyticsCharts({
                   }}
                   formatter={(value: number, name: string) => [value.toLocaleString('fr-FR') + ' €', name]}
                 />
-                <Legend />
                 {/* Action markers */}
                 {shouldShowActionsForChart("fees") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
@@ -1177,10 +1231,10 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                <Bar dataKey="uber" name="Commission" stackId="a" fill="hsl(var(--chart-1))" />
-                <Bar dataKey="marketing" name="Marketing" stackId="a" fill="hsl(var(--chart-2))" />
-                <Bar dataKey="offers" name="Offres" stackId="a" fill="hsl(var(--chart-3))" />
-                <Bar dataKey="ads" name="Publicité" stackId="a" fill="hsl(var(--chart-4))" />
+                {!hiddenFeesBars.has('uber') && <Bar dataKey="uber" name="Commission" stackId="a" fill="hsl(var(--chart-1))" />}
+                {!hiddenFeesBars.has('marketing') && <Bar dataKey="marketing" name="Marketing" stackId="a" fill="hsl(var(--chart-2))" />}
+                {!hiddenFeesBars.has('offers') && <Bar dataKey="offers" name="Offres" stackId="a" fill="hsl(var(--chart-3))" />}
+                {!hiddenFeesBars.has('ads') && <Bar dataKey="ads" name="Publicité" stackId="a" fill="hsl(var(--chart-4))" />}
               </BarChart>
             </ResponsiveContainer>
           </div>
