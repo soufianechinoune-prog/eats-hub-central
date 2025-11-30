@@ -36,8 +36,6 @@ import {
   Calendar,
   Trash2,
   History,
-  CheckCheck,
-  Eye,
   Users,
   Sparkles,
 } from "lucide-react";
@@ -48,6 +46,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import ConversationView from "@/components/messaging/ConversationView";
+import CampaignHistory from "@/components/messaging/CampaignHistory";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -85,23 +84,6 @@ interface ScheduledMessage {
   sent_count: number;
   failed_count: number;
   created_at: string;
-}
-
-interface MessageHistoryItem {
-  id: string;
-  restaurant_id: string | null;
-  recipient_phone: string;
-  recipient_name: string | null;
-  restaurant_name: string | null;
-  message_content: string;
-  ultramsg_message_id: string | null;
-  status: string;
-  error_message: string | null;
-  sent_at: string | null;
-  delivered_at: string | null;
-  read_at: string | null;
-  created_at: string;
-  direction: string;
 }
 
 // Animation variants
@@ -156,8 +138,6 @@ export default function Messaging() {
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
 
-  // History filters
-  const [historyStatusFilter, setHistoryStatusFilter] = useState<string>("all");
 
   // Fetch restaurants
   const { data: restaurants = [], isLoading } = useQuery({
@@ -191,18 +171,18 @@ export default function Messaging() {
     },
   });
 
-  // Fetch message history
-  const { data: messageHistory = [], isLoading: isLoadingHistory } = useQuery({
+  // Fetch message history (for unread count in conversations)
+  const { data: messageHistory = [] } = useQuery({
     queryKey: ["message-history"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("message_history")
-        .select("*")
+        .select("id, direction, status")
         .order("sent_at", { ascending: false })
         .limit(200);
 
       if (error) throw error;
-      return data as MessageHistoryItem[];
+      return data as { id: string; direction: string; status: string }[];
     },
   });
 
@@ -267,11 +247,6 @@ export default function Messaging() {
     return restaurantsWithWhatsApp.filter((r) => selectedRestaurants.has(r.id));
   }, [restaurantsWithWhatsApp, selectedRestaurants]);
 
-  // Filtered message history
-  const filteredHistory = useMemo(() => {
-    if (historyStatusFilter === "all") return messageHistory;
-    return messageHistory.filter((m) => m.status === historyStatusFilter);
-  }, [messageHistory, historyStatusFilter]);
 
   // Toggle selection
   const toggleRestaurant = (id: string) => {
@@ -455,33 +430,6 @@ export default function Messaging() {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
-
-  // Get status badge for message history
-  const getHistoryStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return <Badge className="bg-amber-500/10 text-amber-600 border-amber-200"><Clock className="h-3 w-3 mr-1" />En attente</Badge>;
-      case "sent":
-        return <Badge className="bg-blue-500/10 text-blue-600 border-blue-200"><Send className="h-3 w-3 mr-1" />Envoyé</Badge>;
-      case "delivered":
-        return <Badge className="bg-whatsapp/10 text-whatsapp border-whatsapp/20"><CheckCheck className="h-3 w-3 mr-1" />Délivré</Badge>;
-      case "read":
-        return <Badge className="bg-primary/10 text-primary border-primary/20"><Eye className="h-3 w-3 mr-1" />Lu</Badge>;
-      case "failed":
-        return <Badge className="bg-destructive/10 text-destructive border-destructive/20"><AlertCircle className="h-3 w-3 mr-1" />Échec</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  // History stats
-  const historyStats = useMemo(() => {
-    const sent = messageHistory.filter((m) => m.status === "sent").length;
-    const delivered = messageHistory.filter((m) => m.status === "delivered").length;
-    const read = messageHistory.filter((m) => m.status === "read").length;
-    const failed = messageHistory.filter((m) => m.status === "failed").length;
-    return { sent, delivered, read, failed, total: messageHistory.length };
-  }, [messageHistory]);
 
   // Unread incoming messages count
   const unreadCount = useMemo(() => {
@@ -1099,114 +1047,7 @@ export default function Messaging() {
               animate="visible"
               exit="exit"
             >
-              <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
-                <div className="p-6 border-b border-border/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <History className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">Historique des messages</h3>
-                        <p className="text-sm text-muted-foreground">{historyStats.total} messages envoyés</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      {/* Stats badges */}
-                      <div className="hidden md:flex items-center gap-2">
-                        <Badge className="bg-whatsapp/10 text-whatsapp border-0">
-                          <CheckCheck className="h-3 w-3 mr-1" />
-                          {historyStats.delivered}
-                        </Badge>
-                        <Badge className="bg-primary/10 text-primary border-0">
-                          <Eye className="h-3 w-3 mr-1" />
-                          {historyStats.read}
-                        </Badge>
-                        {historyStats.failed > 0 && (
-                          <Badge className="bg-destructive/10 text-destructive border-0">
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                            {historyStats.failed}
-                          </Badge>
-                        )}
-                      </div>
-                      <Select value={historyStatusFilter} onValueChange={setHistoryStatusFilter}>
-                        <SelectTrigger className="w-[140px] h-9 rounded-lg">
-                          <SelectValue placeholder="Filtrer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Tous</SelectItem>
-                          <SelectItem value="sent">Envoyés</SelectItem>
-                          <SelectItem value="delivered">Délivrés</SelectItem>
-                          <SelectItem value="read">Lus</SelectItem>
-                          <SelectItem value="failed">Échecs</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-                <CardContent className="p-0">
-                  <ScrollArea className="h-[500px]">
-                    {isLoadingHistory ? (
-                      <div className="flex items-center justify-center py-12 text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                        Chargement...
-                      </div>
-                    ) : filteredHistory.length === 0 ? (
-                      <div className="text-center py-16 text-muted-foreground">
-                        <History className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                        <p className="font-medium">Aucun message</p>
-                        <p className="text-sm mt-1">L'historique de vos messages apparaîtra ici</p>
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-border/50">
-                        {filteredHistory.map((msg, index) => (
-                          <motion.div 
-                            key={msg.id} 
-                            className="p-5 hover:bg-secondary/30 transition-colors"
-                            custom={index}
-                            variants={listItemVariants}
-                            initial="hidden"
-                            animate="visible"
-                          >
-                            <div className="flex items-start gap-4">
-                              <div className={cn(
-                                "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
-                                msg.direction === "inbound" ? "bg-blue-500/10" : "bg-whatsapp/10"
-                              )}>
-                                {msg.direction === "inbound" ? (
-                                  <MessageSquare className="h-5 w-5 text-blue-500" />
-                                ) : (
-                                  <Send className="h-5 w-5 text-whatsapp" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0 space-y-1.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-foreground truncate">
-                                    {msg.restaurant_name || msg.recipient_name || msg.recipient_phone}
-                                  </span>
-                                  {getHistoryStatusBadge(msg.status)}
-                                </div>
-                                <p className="text-sm text-muted-foreground line-clamp-2">{msg.message_content}</p>
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                  <span className="flex items-center gap-1">
-                                    <Phone className="h-3 w-3" />
-                                    {msg.recipient_phone}
-                                  </span>
-                                  {msg.sent_at && (
-                                    <span>
-                                      {format(new Date(msg.sent_at), "d MMM HH:mm", { locale: fr })}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    )}
-                  </ScrollArea>
-                </CardContent>
-              </Card>
+              <CampaignHistory />
             </motion.div>
           </TabsContent>
         </AnimatePresence>
