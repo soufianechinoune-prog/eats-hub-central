@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +27,8 @@ import {
   Mic,
   Square,
   Trash2,
+  Bell,
+  BellOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
@@ -41,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useVoiceRecorder, formatRecordingTime } from "@/hooks/useVoiceRecorder";
 import { AudioPlayer } from "@/components/messaging/AudioPlayer";
+import { useMessageNotifications } from "@/hooks/useMessageNotifications";
 
 interface Message {
   id: string;
@@ -112,8 +115,11 @@ export default function ConversationView() {
   const [mediaPreview, setMediaPreview] = useState<MediaPreview | null>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [isSendingVoice, setIsSendingVoice] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const seenMessageIdsRef = useRef<Set<string>>(new Set());
+  const isInitialLoadRef = useRef(true);
 
   // Voice recorder hook
   const {
@@ -125,6 +131,13 @@ export default function ConversationView() {
     cancelRecording,
     clearRecording,
   } = useVoiceRecorder();
+
+  // Notification hook
+  const { notify } = useMessageNotifications({
+    enabled: notificationsEnabled,
+    soundEnabled: true,
+    toastEnabled: true,
+  });
 
   // Fetch all messages
   const { data: messages = [], isLoading } = useQuery({
@@ -160,14 +173,57 @@ export default function ConversationView() {
     return phone.replace(/[\s\-\(\)]/g, "").replace(/^\+/, "");
   };
 
-  // Subscribe to realtime updates
+  // Track initial message IDs to avoid notifications on first load
+  useEffect(() => {
+    if (messages.length > 0 && isInitialLoadRef.current) {
+      messages.forEach((msg) => seenMessageIdsRef.current.add(msg.id));
+      isInitialLoadRef.current = false;
+    }
+  }, [messages]);
+
+  // Subscribe to realtime updates with notifications
   useEffect(() => {
     const channel = supabase
       .channel("conversations-realtime")
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
+          schema: "public",
+          table: "message_history",
+        },
+        (payload) => {
+          const newMsg = payload.new as Message;
+          
+          // Only notify for inbound messages we haven't seen
+          if (
+            newMsg.direction === "inbound" && 
+            !seenMessageIdsRef.current.has(newMsg.id) &&
+            !isInitialLoadRef.current
+          ) {
+            seenMessageIdsRef.current.add(newMsg.id);
+            
+            // Get sender info
+            const senderName = newMsg.recipient_name || newMsg.restaurant_name || null;
+            const messagePreview = newMsg.media_type === "audio" 
+              ? "🎤 Message vocal" 
+              : newMsg.message_content || "Nouveau message";
+            
+            // Trigger notification
+            notify(senderName, messagePreview, () => {
+              // Click handler: select the conversation
+              const phone = newMsg.sender_phone || newMsg.recipient_phone;
+              setSelectedPhone(phone);
+            });
+          }
+          
+          queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
           schema: "public",
           table: "message_history",
         },
@@ -623,7 +679,27 @@ export default function ConversationView() {
       )}>
         {/* Header */}
         <div className="p-5 border-b border-border/50">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Messages</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-foreground">Messages</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+              className={cn(
+                "h-8 w-8 p-0 rounded-lg transition-colors",
+                notificationsEnabled 
+                  ? "text-whatsapp hover:bg-whatsapp/10" 
+                  : "text-muted-foreground hover:bg-secondary"
+              )}
+              title={notificationsEnabled ? "Désactiver les notifications" : "Activer les notifications"}
+            >
+              {notificationsEnabled ? (
+                <Bell className="h-4 w-4" />
+              ) : (
+                <BellOff className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
