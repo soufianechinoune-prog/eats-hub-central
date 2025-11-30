@@ -6,6 +6,7 @@ import { useMapboxToken } from "@/hooks/useMapboxToken";
 import { Loader2, AlertCircle } from "lucide-react";
 import csLogo from "@/assets/cs-logo.jpeg";
 import { CommuneDensityLayer } from "./CommuneDensityLayer";
+import { DistancePoint } from "./DistanceMeasurePanel";
 
 interface InseeDensityData {
   type: "FeatureCollection";
@@ -32,7 +33,11 @@ interface CartographyMapProps {
   densityLevels: number[];
   inseeDensityData?: InseeDensityData | null;
   isDensityLoading?: boolean;
+  isDistanceMode: boolean;
+  distancePointA: DistancePoint | null;
+  distancePointB: DistancePoint | null;
   onSelectRestaurant: (id: string | null) => void;
+  onDistancePointSelect: (id: string) => void;
 }
 
 export const CartographyMap = ({
@@ -45,13 +50,19 @@ export const CartographyMap = ({
   densityLevels,
   inseeDensityData,
   isDensityLoading,
+  isDistanceMode,
+  distancePointA,
+  distancePointB,
   onSelectRestaurant,
+  onDistancePointSelect,
 }: CartographyMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const circleSourcesRef = useRef<string[]>([]);
+  const distanceLineRef = useRef<string | null>(null);
+  const distanceBadgesRef = useRef<HTMLDivElement[]>([]);
 
   const { token, isLoading: tokenLoading, error: tokenError } = useMapboxToken();
 
@@ -305,12 +316,149 @@ export const CartographyMap = ({
 
       el.addEventListener("click", (e) => {
         e.stopPropagation();
-        onSelectRestaurant(loc.id);
+        if (isDistanceMode) {
+          onDistancePointSelect(loc.id);
+        } else {
+          onSelectRestaurant(loc.id);
+        }
       });
 
       markersRef.current.push(marker);
     });
-  }, [restaurants, simulatedLocations, mapLoaded, selectedRestaurantId, onSelectRestaurant]);
+  }, [restaurants, simulatedLocations, mapLoaded, selectedRestaurantId, isDistanceMode, onSelectRestaurant, onDistancePointSelect]);
+
+  // Render distance line and badges
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    // Clear existing distance line
+    if (distanceLineRef.current) {
+      if (map.current.getLayer('distance-line-layer')) {
+        map.current.removeLayer('distance-line-layer');
+      }
+      if (map.current.getLayer('distance-line-dashes')) {
+        map.current.removeLayer('distance-line-dashes');
+      }
+      if (map.current.getSource(distanceLineRef.current)) {
+        map.current.removeSource(distanceLineRef.current);
+      }
+      distanceLineRef.current = null;
+    }
+
+    // Clear existing badges
+    distanceBadgesRef.current.forEach(badge => badge.remove());
+    distanceBadgesRef.current = [];
+
+    // If not in distance mode or no points, exit
+    if (!isDistanceMode) return;
+
+    // Add A badge
+    if (distancePointA) {
+      const badgeA = document.createElement("div");
+      badgeA.className = "distance-badge-a";
+      badgeA.style.cssText = `
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+        color: white;
+        border: 2px solid white;
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.5);
+        transform: translate(-50%, -100%);
+        margin-top: -8px;
+        z-index: 10;
+        pointer-events: none;
+      `;
+      badgeA.textContent = "A";
+      
+      const markerA = new mapboxgl.Marker({ element: badgeA, anchor: "bottom" })
+        .setLngLat([distancePointA.lng, distancePointA.lat])
+        .addTo(map.current!);
+      distanceBadgesRef.current.push(badgeA);
+    }
+
+    // Add B badge
+    if (distancePointB) {
+      const badgeB = document.createElement("div");
+      badgeB.className = "distance-badge-b";
+      badgeB.style.cssText = `
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        background: linear-gradient(135deg, #ea580c, #c2410c);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+        color: white;
+        border: 2px solid white;
+        box-shadow: 0 2px 8px rgba(234, 88, 12, 0.5);
+        transform: translate(-50%, -100%);
+        margin-top: -8px;
+        z-index: 10;
+        pointer-events: none;
+      `;
+      badgeB.textContent = "B";
+      
+      const markerB = new mapboxgl.Marker({ element: badgeB, anchor: "bottom" })
+        .setLngLat([distancePointB.lng, distancePointB.lat])
+        .addTo(map.current!);
+      distanceBadgesRef.current.push(badgeB);
+    }
+
+    // Draw line between A and B
+    if (distancePointA && distancePointB) {
+      const sourceId = "distance-line-source";
+      distanceLineRef.current = sourceId;
+
+      map.current.addSource(sourceId, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [distancePointA.lng, distancePointA.lat],
+              [distancePointB.lng, distancePointB.lat],
+            ],
+          },
+        },
+      });
+
+      // Background line (solid)
+      map.current.addLayer({
+        id: "distance-line-layer",
+        type: "line",
+        source: sourceId,
+        paint: {
+          "line-color": "#f59e0b",
+          "line-width": 3,
+          "line-opacity": 0.6,
+        },
+      });
+
+      // Dashed overlay
+      map.current.addLayer({
+        id: "distance-line-dashes",
+        type: "line",
+        source: sourceId,
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": 2,
+          "line-dasharray": [2, 4],
+        },
+      });
+    }
+  }, [mapLoaded, isDistanceMode, distancePointA, distancePointB]);
 
   // Loading state
   if (tokenLoading) {
