@@ -322,6 +322,7 @@ export type Database = {
         Row: {
           created_at: string
           delivered_at: string | null
+          direction: string
           error_message: string | null
           id: string
           message_content: string
@@ -331,6 +332,7 @@ export type Database = {
           restaurant_id: string | null
           restaurant_name: string | null
           scheduled_message_id: string | null
+          sender_phone: string | null
           sent_at: string | null
           status: string
           ultramsg_message_id: string | null
@@ -338,6 +340,7 @@ export type Database = {
         Insert: {
           created_at?: string
           delivered_at?: string | null
+          direction?: string
           error_message?: string | null
           id?: string
           message_content: string
@@ -347,6 +350,7 @@ export type Database = {
           restaurant_id?: string | null
           restaurant_name?: string | null
           scheduled_message_id?: string | null
+          sender_phone?: string | null
           sent_at?: string | null
           status?: string
           ultramsg_message_id?: string | null
@@ -354,6 +358,7 @@ export type Database = {
         Update: {
           created_at?: string
           delivered_at?: string | null
+          direction?: string
           error_message?: string | null
           id?: string
           message_content?: string
@@ -363,6 +368,7 @@ export type Database = {
           restaurant_id?: string | null
           restaurant_name?: string | null
           scheduled_message_id?: string | null
+          sender_phone?: string | null
           sent_at?: string | null
           status?: string
           ultramsg_message_id?: string | null
