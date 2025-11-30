@@ -53,6 +53,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import ConversationView from "@/components/messaging/ConversationView";
 
 interface Restaurant {
   id: string;
@@ -470,8 +471,12 @@ export default function Messaging() {
         </Badge>
       </div>
 
-      <Tabs defaultValue="compose" className="space-y-6">
+      <Tabs defaultValue="conversations" className="space-y-6">
         <TabsList>
+          <TabsTrigger value="conversations" className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Conversations
+          </TabsTrigger>
           <TabsTrigger value="compose" className="flex items-center gap-2">
             <Send className="h-4 w-4" />
             Composer
@@ -495,6 +500,10 @@ export default function Messaging() {
             )}
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="conversations">
+          <ConversationView />
+        </TabsContent>
 
         <TabsContent value="compose">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
