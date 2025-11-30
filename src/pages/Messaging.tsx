@@ -52,6 +52,7 @@ import {
   Paperclip,
   Image as ImageIcon,
   FileText,
+  Pencil,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -156,6 +157,14 @@ export default function Messaging() {
   
   // Subject for multi-recipient scheduled messages
   const [scheduledSubject, setScheduledSubject] = useState("");
+  
+  // Edit scheduled message state
+  const [editingMessage, setEditingMessage] = useState<ScheduledMessage | null>(null);
+  const [editSubject, setEditSubject] = useState("");
+  const [editMessageContent, setEditMessageContent] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editTime, setEditTime] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   
   // Send state
   const [isSending, setIsSending] = useState(false);
@@ -434,7 +443,12 @@ export default function Messaging() {
 
     } catch (err) {
       console.error("Error scheduling message:", err);
-      toast.error("Erreur lors de la programmation du message");
+      const errorMessage = err instanceof Error ? err.message : "Erreur inconnue";
+      if (errorMessage.includes("upload")) {
+        toast.error("Erreur lors de l'upload du média. Vérifiez la taille du fichier.");
+      } else {
+        toast.error(`Erreur lors de la programmation: ${errorMessage}`);
+      }
     } finally {
       setIsSending(false);
       setIsUploadingMedia(false);
@@ -482,6 +496,59 @@ export default function Messaging() {
     } catch (err) {
       console.error("Error deleting scheduled message:", err);
       toast.error("Erreur lors de la suppression");
+    }
+  };
+
+  // Open edit dialog for scheduled message
+  const openEditDialog = (msg: ScheduledMessage) => {
+    setEditingMessage(msg);
+    setEditSubject(msg.subject || "");
+    setEditMessageContent(msg.message);
+    const date = new Date(msg.scheduled_at);
+    setEditDate(date.toISOString().split("T")[0]);
+    setEditTime(date.toTimeString().slice(0, 5));
+  };
+
+  // Save edited scheduled message
+  const saveEditedMessage = async () => {
+    if (!editingMessage) return;
+    if (!editMessageContent.trim()) {
+      toast.error("Le message ne peut pas être vide");
+      return;
+    }
+    if (!editDate || !editTime) {
+      toast.error("Veuillez sélectionner une date et une heure");
+      return;
+    }
+
+    const scheduledAt = new Date(`${editDate}T${editTime}`);
+    if (scheduledAt <= new Date()) {
+      toast.error("La date programmée doit être dans le futur");
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    try {
+      const { error } = await supabase
+        .from("scheduled_messages")
+        .update({
+          message: editMessageContent,
+          subject: editSubject.trim() || null,
+          scheduled_at: scheduledAt.toISOString(),
+        })
+        .eq("id", editingMessage.id);
+
+      if (error) throw error;
+
+      toast.success("Message programmé modifié");
+      setEditingMessage(null);
+      queryClient.invalidateQueries({ queryKey: ["scheduled-messages"] });
+    } catch (err) {
+      console.error("Error updating scheduled message:", err);
+      toast.error("Erreur lors de la modification");
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -803,6 +870,32 @@ export default function Messaging() {
                       </div>
 
                       <CardContent className="p-6 space-y-5">
+                        {/* Subject field - shown when scheduled mode and multi-recipient */}
+                        <AnimatePresence>
+                          {sendMode === "scheduled" && selectedRestaurants.size > 1 && (
+                            <motion.div 
+                              className="space-y-1.5"
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <label className="text-xs font-medium text-muted-foreground">
+                                Objet du message (optionnel)
+                              </label>
+                              <Input
+                                value={scheduledSubject}
+                                onChange={(e) => setScheduledSubject(e.target.value)}
+                                placeholder="Ex: Rappel inventaire, Promotion weekend..."
+                                className="h-10 rounded-lg"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                L'objet vous aidera à identifier ce message dans l'historique
+                              </p>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
                         <div>
                           <Textarea
                             placeholder="Rédigez votre message ici..."
@@ -835,26 +928,6 @@ export default function Messaging() {
                             ))}
                           </div>
                         </div>
-
-                        {/* Preview */}
-                        <AnimatePresence>
-                          {message && selectedRestaurantsList.length > 0 && (
-                            <motion.div 
-                              className="p-4 bg-whatsapp-bubble-out rounded-2xl rounded-tr-sm space-y-1"
-                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              <p className="text-xs font-medium text-whatsapp/70">
-                                Aperçu • {selectedRestaurantsList[0].name}
-                              </p>
-                              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                                {getPersonalizedMessage(selectedRestaurantsList[0])}
-                              </p>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
 
                         {/* Send mode selection */}
                         <div className="space-y-4 pt-4 border-t border-border/50">
@@ -920,24 +993,6 @@ export default function Messaging() {
                                     />
                                   </div>
                                 </div>
-                                
-                                {/* Subject field for multi-recipient scheduled messages */}
-                                {selectedRestaurants.size > 1 && (
-                                  <div className="space-y-1.5">
-                                    <label className="text-xs font-medium text-muted-foreground">
-                                      Objet du message (optionnel)
-                                    </label>
-                                    <Input
-                                      value={scheduledSubject}
-                                      onChange={(e) => setScheduledSubject(e.target.value)}
-                                      placeholder="Ex: Rappel inventaire, Promotion weekend..."
-                                      className="h-10 rounded-lg"
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                      L'objet vous aidera à identifier ce message dans l'historique
-                                    </p>
-                                  </div>
-                                )}
                                 
                                 {/* Media attachment for scheduled */}
                                 <div className="space-y-2">
@@ -1225,16 +1280,28 @@ export default function Messaging() {
                               </div>
                             </div>
                             {msg.status === "pending" && (
-                              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => deleteScheduledMessage(msg.id)}
-                                  className="h-9 w-9 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </motion.div>
+                              <div className="flex items-center gap-1">
+                                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openEditDialog(msg)}
+                                    className="h-9 w-9 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </motion.div>
+                                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => deleteScheduledMessage(msg.id)}
+                                    className="h-9 w-9 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </motion.div>
+                              </div>
                             )}
                           </div>
                         </motion.div>
@@ -1332,6 +1399,116 @@ export default function Messaging() {
               className="w-full rounded-xl"
             >
               Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Scheduled Message Dialog */}
+      <Dialog open={!!editingMessage} onOpenChange={(open) => !open && setEditingMessage(null)}>
+        <DialogContent className="sm:max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Pencil className="h-4 w-4 text-primary" />
+              </div>
+              Modifier le message programmé
+            </DialogTitle>
+            <DialogDescription>
+              Modifiez le contenu et la date d'envoi du message.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Subject */}
+            {editingMessage && editingMessage.recipients.length > 1 && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Objet (optionnel)</label>
+                <Input
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                  placeholder="Ex: Rappel inventaire, Promotion weekend..."
+                  className="rounded-lg"
+                />
+              </div>
+            )}
+
+            {/* Message */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Message</label>
+              <Textarea
+                value={editMessageContent}
+                onChange={(e) => setEditMessageContent(e.target.value)}
+                className="min-h-[120px] resize-none rounded-lg"
+              />
+            </div>
+
+            {/* Date & Time */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Date</label>
+                <Input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="rounded-lg"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Heure</label>
+                <Input
+                  type="time"
+                  value={editTime}
+                  onChange={(e) => setEditTime(e.target.value)}
+                  className="rounded-lg"
+                />
+              </div>
+            </div>
+
+            {/* Recipients (read-only) */}
+            {editingMessage && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Destinataires ({editingMessage.recipients.length})
+                </label>
+                <div className="flex flex-wrap gap-1.5 p-3 bg-secondary/30 rounded-lg max-h-24 overflow-y-auto">
+                  {editingMessage.recipients.slice(0, 10).map((r, i) => (
+                    <Badge key={i} variant="secondary" className="text-xs">
+                      {r.restaurantName}
+                    </Badge>
+                  ))}
+                  {editingMessage.recipients.length > 10 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{editingMessage.recipients.length - 10}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setEditingMessage(null)}
+              className="rounded-lg"
+            >
+              Annuler
+            </Button>
+            <Button 
+              onClick={saveEditedMessage}
+              disabled={isSavingEdit}
+              className="rounded-lg"
+            >
+              {isSavingEdit ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Enregistrement...
+                </>
+              ) : (
+                "Enregistrer"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
