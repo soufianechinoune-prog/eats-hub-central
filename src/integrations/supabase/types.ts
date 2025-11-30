@@ -1134,6 +1134,8 @@ export type Database = {
           error_message: string | null
           failed_count: number | null
           id: string
+          media_type: string | null
+          media_url: string | null
           message: string
           recipients: Json
           results: Json | null
@@ -1147,6 +1149,8 @@ export type Database = {
           error_message?: string | null
           failed_count?: number | null
           id?: string
+          media_type?: string | null
+          media_url?: string | null
           message: string
           recipients: Json
           results?: Json | null
@@ -1160,6 +1164,8 @@ export type Database = {
           error_message?: string | null
           failed_count?: number | null
           id?: string
+          media_type?: string | null
+          media_url?: string | null
           message?: string
           recipients?: Json
           results?: Json | null

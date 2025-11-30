@@ -19,6 +19,8 @@ interface ScheduledMessage {
   message: string;
   recipients: Recipient[];
   status: string;
+  media_url: string | null;
+  media_type: string | null;
 }
 
 serve(async (req) => {
@@ -83,6 +85,9 @@ serve(async (req) => {
       let successCount = 0;
       let failCount = 0;
 
+      // Check if this is a media message
+      const hasMedia = scheduledMsg.media_url && scheduledMsg.media_type;
+
       for (const recipient of scheduledMsg.recipients) {
         // Personalize message
         let personalizedMessage = scheduledMsg.message
@@ -99,18 +104,56 @@ serve(async (req) => {
           phone = phone.substring(1);
         }
 
-        console.log(`Sending to ${phone}`);
+        console.log(`Sending to ${phone}${hasMedia ? ' with media' : ''}`);
 
         try {
-          const response = await fetch(`https://api.ultramsg.com/${INSTANCE_ID}/messages/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          let response;
+          let messageContent = personalizedMessage;
+
+          if (hasMedia) {
+            // Send media message
+            const mediaEndpoint = scheduledMsg.media_type === 'image' 
+              ? 'image' 
+              : scheduledMsg.media_type === 'audio' 
+                ? 'voice' 
+                : 'document';
+
+            const mediaBody: Record<string, string> = {
               token: TOKEN,
               to: phone,
-              body: personalizedMessage,
-            }),
-          });
+            };
+
+            if (scheduledMsg.media_type === 'image') {
+              mediaBody.image = scheduledMsg.media_url!;
+              mediaBody.caption = personalizedMessage;
+              messageContent = `📷 Image: ${personalizedMessage}`;
+            } else if (scheduledMsg.media_type === 'audio') {
+              mediaBody.audio = scheduledMsg.media_url!;
+              messageContent = '🎤 Message vocal';
+            } else {
+              mediaBody.document = scheduledMsg.media_url!;
+              mediaBody.filename = 'document';
+              mediaBody.caption = personalizedMessage;
+              messageContent = `📄 Document: ${personalizedMessage}`;
+            }
+
+            response = await fetch(`https://api.ultramsg.com/${INSTANCE_ID}/messages/${mediaEndpoint}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(mediaBody),
+            });
+          } else {
+            // Send text message
+            response = await fetch(`https://api.ultramsg.com/${INSTANCE_ID}/messages/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                token: TOKEN,
+                to: phone,
+                body: personalizedMessage,
+              }),
+            });
+          }
 
           const data = await response.json();
 
@@ -123,11 +166,13 @@ serve(async (req) => {
               recipient_phone: recipient.phone,
               recipient_name: recipient.name,
               restaurant_name: recipient.restaurantName,
-              message_content: personalizedMessage,
+              message_content: messageContent,
               ultramsg_message_id: data.id,
               status: 'sent',
               sent_at: new Date().toISOString(),
               scheduled_message_id: scheduledMsg.id,
+              media_url: hasMedia ? scheduledMsg.media_url : null,
+              media_type: hasMedia ? scheduledMsg.media_type : null,
             });
 
             results.push({ phone, name: recipient.name, success: true, messageId: data.id });
@@ -141,7 +186,7 @@ serve(async (req) => {
               recipient_phone: recipient.phone,
               recipient_name: recipient.name,
               restaurant_name: recipient.restaurantName,
-              message_content: personalizedMessage,
+              message_content: messageContent,
               status: 'failed',
               error_message: data.error || 'Unknown error',
               scheduled_message_id: scheduledMsg.id,
