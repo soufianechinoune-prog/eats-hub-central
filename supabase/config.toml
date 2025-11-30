@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.get-mapbox-token]
 verify_jwt = false
+
+[functions.insee-density]
+verify_jwt = false

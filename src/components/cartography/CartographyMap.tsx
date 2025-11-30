@@ -7,6 +7,21 @@ import { Loader2, AlertCircle } from "lucide-react";
 import csLogo from "@/assets/cs-logo.jpeg";
 import { CommuneDensityLayer } from "./CommuneDensityLayer";
 
+interface InseeDensityData {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    geometry: {
+      type: "Point";
+      coordinates: [number, number];
+    };
+    properties: {
+      population: number;
+      id: string;
+    };
+  }>;
+}
+
 interface CartographyMapProps {
   restaurants: RestaurantWithGeo[];
   simulatedLocations: SimulatedLocation[];
@@ -15,6 +30,8 @@ interface CartographyMapProps {
   zoom: number;
   showDensityLayer: boolean;
   densityLevels: number[];
+  inseeDensityData?: InseeDensityData | null;
+  isDensityLoading?: boolean;
   onSelectRestaurant: (id: string | null) => void;
 }
 
@@ -26,6 +43,8 @@ export const CartographyMap = ({
   zoom,
   showDensityLayer,
   densityLevels,
+  inseeDensityData,
+  isDensityLoading,
   onSelectRestaurant,
 }: CartographyMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -330,7 +349,14 @@ export const CartographyMap = ({
         mapLoaded={mapLoaded}
         visible={showDensityLayer}
         filteredLevels={densityLevels}
+        apiData={inseeDensityData}
       />
+      {isDensityLoading && showDensityLayer && (
+        <div className="absolute top-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-2 text-sm flex items-center gap-2 border shadow-sm">
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          <span className="text-muted-foreground">Chargement densité INSEE...</span>
+        </div>
+      )}
     </>
   );
 };
