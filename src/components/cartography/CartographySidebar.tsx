@@ -22,11 +22,10 @@ import {
   Eye,
   RotateCcw,
   Users,
-  Building2,
   Locate
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DENSITY_LEGEND } from "@/data/france-population-density";
+
 import { CommuneDensityLegend } from "./CommuneDensityLayer";
 
 interface CartographySidebarProps {
@@ -36,8 +35,7 @@ interface CartographySidebarProps {
   ignoredAlerts: CannibalismAlert[];
   showIgnoredAlerts: boolean;
   showDensityLayer: boolean;
-  showCommuneDensity: boolean;
-  communeDensityLevels: number[];
+  densityLevels: number[];
   selectedRestaurantId: string | null;
   isSimulationMode: boolean;
   onSelectRestaurant: (id: string | null) => void;
@@ -48,8 +46,7 @@ interface CartographySidebarProps {
   onUpdateSimulationRadius: (id: string, radius: number) => void;
   onToggleSimulationMode: () => void;
   onToggleDensityLayer: () => void;
-  onToggleCommuneDensity: () => void;
-  onToggleCommuneDensityLevel: (level: number) => void;
+  onToggleDensityLevel: (level: number) => void;
   onGeocodeRestaurant: (id: string) => void;
   onIgnoreAlert: (alert: CannibalismAlert) => void;
   onRestoreAlert: (alert: CannibalismAlert) => void;
@@ -65,8 +62,7 @@ export const CartographySidebar = ({
   ignoredAlerts,
   showIgnoredAlerts,
   showDensityLayer,
-  showCommuneDensity,
-  communeDensityLevels,
+  densityLevels,
   selectedRestaurantId,
   isSimulationMode,
   onSelectRestaurant,
@@ -77,8 +73,7 @@ export const CartographySidebar = ({
   onUpdateSimulationRadius,
   onToggleSimulationMode,
   onToggleDensityLayer,
-  onToggleCommuneDensity,
-  onToggleCommuneDensityLevel,
+  onToggleDensityLevel,
   onGeocodeRestaurant,
   onIgnoreAlert,
   onRestoreAlert,
@@ -168,42 +163,9 @@ export const CartographySidebar = ({
 
         {/* Density Legend */}
         {showDensityLayer && (
-          <div className="space-y-2 p-2 rounded-lg border bg-background">
-            <p className="text-xs font-medium text-muted-foreground">Légende densité (hab/km²)</p>
-            <div className="grid grid-cols-2 gap-1">
-              {DENSITY_LEGEND.map((item) => (
-                <div key={item.min} className="flex items-center gap-1.5">
-                  <div 
-                    className="w-3 h-3 rounded-sm" 
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-xs text-muted-foreground">{item.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Commune Density Layer Toggle */}
-        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-            <Label htmlFor="commune-density-toggle" className="text-sm font-medium cursor-pointer">
-              Densité communes INSEE
-            </Label>
-          </div>
-          <Switch
-            id="commune-density-toggle"
-            checked={showCommuneDensity}
-            onCheckedChange={onToggleCommuneDensity}
-          />
-        </div>
-
-        {/* Commune Density Legend */}
-        {showCommuneDensity && (
           <CommuneDensityLegend
-            filteredLevels={communeDensityLevels}
-            onToggleLevel={onToggleCommuneDensityLevel}
+            filteredLevels={densityLevels}
+            onToggleLevel={onToggleDensityLevel}
           />
         )}
       </div>

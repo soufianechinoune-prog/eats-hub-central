@@ -48,11 +48,10 @@ const Cartography = () => {
   });
   const [showIgnoredAlerts, setShowIgnoredAlerts] = useState(false);
   const [showDensityLayer, setShowDensityLayer] = useState(false);
-  const [showCommuneDensity, setShowCommuneDensity] = useState(false);
-  const [communeDensityLevels, setCommuneDensityLevels] = useState<number[]>([1, 2, 3, 4]);
+  const [densityLevels, setDensityLevels] = useState<number[]>([1, 2, 3, 4]);
 
-  const handleToggleCommuneDensityLevel = (level: number) => {
-    setCommuneDensityLevels(prev => 
+  const handleToggleDensityLevel = (level: number) => {
+    setDensityLevels(prev => 
       prev.includes(level) 
         ? prev.filter(l => l !== level)
         : [...prev, level].sort((a, b) => a - b)
@@ -288,8 +287,7 @@ const Cartography = () => {
             ignoredAlerts={ignoredAlertsList}
             showIgnoredAlerts={showIgnoredAlerts}
             showDensityLayer={showDensityLayer}
-            showCommuneDensity={showCommuneDensity}
-            communeDensityLevels={communeDensityLevels}
+            densityLevels={densityLevels}
             selectedRestaurantId={selectedRestaurantId}
             isSimulationMode={isSimulationMode}
             onSelectRestaurant={setSelectedRestaurantId}
@@ -299,8 +297,7 @@ const Cartography = () => {
             onUpdateSimulationRadius={handleUpdateSimulationRadius}
             onToggleSimulationMode={() => setIsSimulationMode(!isSimulationMode)}
             onToggleDensityLayer={() => setShowDensityLayer(!showDensityLayer)}
-            onToggleCommuneDensity={() => setShowCommuneDensity(!showCommuneDensity)}
-            onToggleCommuneDensityLevel={handleToggleCommuneDensityLevel}
+            onToggleDensityLevel={handleToggleDensityLevel}
             onFocusAlert={handleFocusAlert}
             onIgnoreAlert={handleIgnoreAlert}
             onRestoreAlert={handleRestoreAlert}
@@ -348,8 +345,7 @@ const Cartography = () => {
               center={mapCenter}
               zoom={mapZoom}
               showDensityLayer={showDensityLayer}
-              showCommuneDensity={showCommuneDensity}
-              communeDensityLevels={communeDensityLevels}
+              densityLevels={densityLevels}
               onSelectRestaurant={setSelectedRestaurantId}
             />
             
