@@ -42,6 +42,7 @@ interface CartographySidebarProps {
   isSimulationMode: boolean;
   onSelectRestaurant: (id: string | null) => void;
   onFocusRestaurant: (id: string) => void;
+  onFocusAlert: (alert: CannibalismAlert) => void;
   onRadiusChange: (id: string, radius: number) => void;
   onRemoveSimulation: (id: string) => void;
   onUpdateSimulationRadius: (id: string, radius: number) => void;
@@ -70,6 +71,7 @@ export const CartographySidebar = ({
   isSimulationMode,
   onSelectRestaurant,
   onFocusRestaurant,
+  onFocusAlert,
   onRadiusChange,
   onRemoveSimulation,
   onUpdateSimulationRadius,
@@ -404,7 +406,11 @@ export const CartographySidebar = ({
                 </div>
               ) : (
                 cannibalismAlerts.map((alert, index) => (
-                  <Card key={index} className="border-destructive/30 bg-destructive/5">
+                  <Card 
+                    key={index} 
+                    className="border-destructive/30 bg-destructive/5 cursor-pointer hover:bg-destructive/10 transition-colors"
+                    onClick={() => onFocusAlert(alert)}
+                  >
                     <CardHeader className="p-3 pb-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -417,7 +423,10 @@ export const CartographySidebar = ({
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                          onClick={() => onIgnoreAlert(alert)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onIgnoreAlert(alert);
+                          }}
                           title="Ignorer ce chevauchement"
                         >
                           <EyeOff className="h-3 w-3" />
