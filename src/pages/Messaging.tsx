@@ -93,6 +93,8 @@ interface ScheduledMessage {
   sent_count: number;
   failed_count: number;
   created_at: string;
+  media_url: string | null;
+  media_type: string | null;
 }
 
 // Animation variants
@@ -1138,11 +1140,20 @@ export default function Messaging() {
                                 </span>
                               </div>
                               <p className="text-sm text-muted-foreground line-clamp-2">{msg.message}</p>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <Badge variant="secondary" className="text-xs">
                                   <Users className="h-3 w-3 mr-1" />
                                   {msg.recipients.length} destinataire{msg.recipients.length > 1 ? "s" : ""}
                                 </Badge>
+                                {msg.media_url && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {msg.media_type === 'image' ? (
+                                      <><ImageIcon className="h-3 w-3 mr-1" />Image</>
+                                    ) : (
+                                      <><FileText className="h-3 w-3 mr-1" />Document</>
+                                    )}
+                                  </Badge>
+                                )}
                                 {msg.sent_count > 0 && (
                                   <span className="text-xs text-whatsapp">
                                     {msg.sent_count} envoyé{msg.sent_count > 1 ? "s" : ""}
