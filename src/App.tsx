@@ -25,6 +25,7 @@ import DataEntryConversion from "./pages/DataEntryConversion";
 import DataEntryFees from "./pages/DataEntryFees";
 import DataEntry from "./pages/DataEntry";
 import Analytics from "./pages/Analytics";
+import RankingDetail from "./pages/RankingDetail";
 import RestaurantDetail from "./pages/RestaurantDetail";
 import MenuItems from "./pages/MenuItems";
 import RestaurantActions from "./pages/RestaurantActions";
@@ -210,6 +211,14 @@ const App = () => {
                   <AppLayout>
                     <Analytics />
                   </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics/ranking/:metric"
+              element={
+                <ProtectedRoute session={session}>
+                  <RankingDetail />
                 </ProtectedRoute>
               }
             />

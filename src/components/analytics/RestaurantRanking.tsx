@@ -1,6 +1,6 @@
 import { useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   Tooltip,
@@ -19,6 +19,7 @@ import {
   Users,
   Percent,
   Medal,
+  ExternalLink,
 } from "lucide-react";
 
 interface Restaurant {
@@ -111,6 +112,7 @@ function RankingCard({
   formatValue,
   maxValue,
   colorClass,
+  metricKey,
 }: {
   title: string;
   icon: React.ElementType;
@@ -118,13 +120,28 @@ function RankingCard({
   formatValue: (v: number) => string;
   maxValue: number;
   colorClass: string;
+  metricKey: "revenue" | "conversion" | "profitability";
 }) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  const handleCardClick = () => {
+    const platform = searchParams.get("platform") || "uber_eats";
+    navigate(`/analytics/ranking/${metricKey}?platform=${platform}`);
+  };
+
   return (
-    <Card className="flex-1 min-w-[280px]">
+    <Card 
+      className="flex-1 min-w-[280px] cursor-pointer transition-all hover:shadow-md hover:border-primary/50 group"
+      onClick={handleCardClick}
+    >
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <Icon className={cn("h-4 w-4", colorClass)} />
-          {title}
+        <CardTitle className="text-sm font-medium flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Icon className={cn("h-4 w-4", colorClass)} />
+            {title}
+          </div>
+          <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -193,6 +210,12 @@ function RankingCard({
               </div>
             </motion.div>
           ))
+        )}
+        
+        {data.length > 0 && (
+          <p className="text-xs text-muted-foreground text-center pt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            Cliquer pour voir le classement complet
+          </p>
         )}
       </CardContent>
     </Card>
@@ -394,6 +417,7 @@ export function RestaurantRanking({
             formatValue={formatCurrency}
             maxValue={maxRevenue}
             colorClass="text-emerald-500"
+            metricKey="revenue"
           />
           <RankingCard
             title="Taux de conversion"
@@ -402,6 +426,7 @@ export function RestaurantRanking({
             formatValue={formatPercent}
             maxValue={maxConversion}
             colorClass="text-blue-500"
+            metricKey="conversion"
           />
           <RankingCard
             title="Rentabilité"
@@ -410,6 +435,7 @@ export function RestaurantRanking({
             formatValue={formatPercent}
             maxValue={maxProfitability}
             colorClass="text-violet-500"
+            metricKey="profitability"
           />
         </div>
       </CardContent>
