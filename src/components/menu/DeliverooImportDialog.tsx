@@ -30,16 +30,18 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Link2,
 } from "lucide-react";
 import { DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { findPotentialMatches, normalizeName } from "@/lib/fuzzyMatch";
 
 interface DeliverooImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImportComplete: () => void;
-  existingItems: { id: string; name: string; price_deliveroo: number | null }[];
+  existingItems: { id: string; name: string; price_uber: number | null; price_deliveroo: number | null }[];
 }
 
 interface ParsedItem {
@@ -51,8 +53,10 @@ interface ParsedItem {
 
 interface MatchedItem extends ParsedItem {
   existingId: string | null;
+  existingName: string | null;
   existingPrice: number | null;
-  matchType: "exact" | "new";
+  matchType: "exact" | "fuzzy" | "new";
+  similarity: number;
 }
 
 // Category extraction patterns
@@ -202,41 +206,56 @@ export function DeliverooImportDialog({
     return items;
   };
 
-  // Normalize name for matching
-  const normalizeName = (name: string): string => {
-    return name
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "") // Remove accents
-      .replace(/[🔥🌶️🧀🥓🍯🐐]+/g, "") // Remove emojis
-      .replace(/\s+/g, " ")
-      .trim();
-  };
-
-  // Match parsed items with existing items
+  // Match parsed items with existing items using fuzzy matching
   const matchItems = (parsed: ParsedItem[]): MatchedItem[] => {
+    // Only match against items that don't have Deliveroo price (Uber-only items)
+    const uberOnlyItems = existingItems.filter(i => i.price_uber && !i.price_deliveroo);
+    
     return parsed.map(item => {
-      const normalizedName = normalizeName(item.name);
+      const normalizedItemName = normalizeName(item.name);
       
-      // Find exact match
+      // First, try exact match on all existing items
       const exactMatch = existingItems.find(existing => 
-        normalizeName(existing.name) === normalizedName
+        normalizeName(existing.name) === normalizedItemName
       );
       
       if (exactMatch) {
         return {
           ...item,
           existingId: exactMatch.id,
+          existingName: exactMatch.name,
           existingPrice: exactMatch.price_deliveroo,
           matchType: "exact" as const,
+          similarity: 100,
+        };
+      }
+
+      // Then try fuzzy match on Uber-only items
+      const fuzzyMatches = findPotentialMatches(
+        item.name,
+        uberOnlyItems.map(i => ({ id: i.id, name: i.name, price_uber: i.price_uber, price_deliveroo: i.price_deliveroo })),
+        65
+      );
+
+      if (fuzzyMatches.length > 0) {
+        const bestMatch = fuzzyMatches[0];
+        return {
+          ...item,
+          existingId: bestMatch.id,
+          existingName: bestMatch.name,
+          existingPrice: null,
+          matchType: "fuzzy" as const,
+          similarity: bestMatch.similarity,
         };
       }
 
       return {
         ...item,
         existingId: null,
+        existingName: null,
         existingPrice: null,
         matchType: "new" as const,
+        similarity: 0,
       };
     });
   };
@@ -272,7 +291,7 @@ export function DeliverooImportDialog({
     setImportProgress(0);
     setErrors([]);
 
-    const toUpdate = parsedItems.filter(i => i.matchType === "exact" && i.existingId);
+    const toUpdate = parsedItems.filter(i => (i.matchType === "exact" || i.matchType === "fuzzy") && i.existingId);
     const toCreate = parsedItems.filter(i => i.matchType === "new");
 
     let processed = 0;
@@ -281,12 +300,20 @@ export function DeliverooImportDialog({
 
     // Update existing items
     for (const item of toUpdate) {
+      const updateData: Record<string, any> = { 
+        price_deliveroo: item.price,
+        description_deliveroo: item.description || null,
+      };
+      
+      // If names are different (fuzzy match), store both names
+      if (item.matchType === "fuzzy" && item.existingName && item.name !== item.existingName) {
+        updateData.name_uber = item.existingName;
+        updateData.name_deliveroo = item.name;
+      }
+      
       const { error } = await supabase
         .from("menu_items")
-        .update({ 
-          price_deliveroo: item.price,
-          description_deliveroo: item.description || null,
-        })
+        .update(updateData)
         .eq("id", item.existingId!);
 
       if (error) {
@@ -333,6 +360,7 @@ export function DeliverooImportDialog({
   };
 
   const updatedCount = parsedItems.filter(i => i.matchType === "exact").length;
+  const fuzzyCount = parsedItems.filter(i => i.matchType === "fuzzy").length;
   const newCount = parsedItems.filter(i => i.matchType === "new").length;
 
   return (
@@ -377,11 +405,17 @@ export function DeliverooImportDialog({
           {/* Step 2: Preview */}
           {step === "preview" && (
             <div className="space-y-4">
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary" className="gap-1">
                   <RefreshCw className="h-3 w-3" />
                   {updatedCount} à mettre à jour
                 </Badge>
+                {fuzzyCount > 0 && (
+                  <Badge variant="outline" className="gap-1 text-purple-500 border-purple-500">
+                    <Link2 className="h-3 w-3" />
+                    {fuzzyCount} correspondances détectées
+                  </Badge>
+                )}
                 <Badge variant="default" className="gap-1">
                   <Plus className="h-3 w-3" />
                   {newCount} nouveaux
@@ -392,6 +426,9 @@ export function DeliverooImportDialog({
                 <TabsList>
                   <TabsTrigger value="all">Tous ({parsedItems.length})</TabsTrigger>
                   <TabsTrigger value="update">Mise à jour ({updatedCount})</TabsTrigger>
+                  {fuzzyCount > 0 && (
+                    <TabsTrigger value="fuzzy">Correspondances ({fuzzyCount})</TabsTrigger>
+                  )}
                   <TabsTrigger value="new">Nouveaux ({newCount})</TabsTrigger>
                 </TabsList>
 
@@ -409,8 +446,16 @@ export function DeliverooImportDialog({
                       <TableBody>
                         {parsedItems.map((item, idx) => (
                           <TableRow key={idx}>
-                            <TableCell className="font-medium max-w-[250px] truncate">
-                              {item.name}
+                            <TableCell className="font-medium max-w-[250px]">
+                              <div className="space-y-1">
+                                <span className="truncate block">{item.name}</span>
+                                {item.matchType === "fuzzy" && item.existingName && (
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Link2 className="h-3 w-3 text-purple-500" />
+                                    ↔ {item.existingName} ({item.similarity}%)
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Badge variant="secondary">{item.category}</Badge>
@@ -424,12 +469,52 @@ export function DeliverooImportDialog({
                                   <RefreshCw className="h-3 w-3" />
                                   Maj
                                 </Badge>
+                              ) : item.matchType === "fuzzy" ? (
+                                <Badge variant="outline" className="gap-1 text-purple-500 border-purple-500">
+                                  <Link2 className="h-3 w-3" />
+                                  Match
+                                </Badge>
                               ) : (
                                 <Badge variant="default" className="gap-1">
                                   <Plus className="h-3 w-3" />
                                   Créer
                                 </Badge>
                               )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="fuzzy">
+                  <ScrollArea className="h-[350px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produit Deliveroo</TableHead>
+                          <TableHead>Similarité</TableHead>
+                          <TableHead>Produit Uber existant</TableHead>
+                          <TableHead className="text-right">Prix</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {parsedItems.filter(i => i.matchType === "fuzzy").map((item, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell className="font-medium">{item.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={
+                                item.similarity >= 90 ? "text-emerald-500 border-emerald-500" :
+                                item.similarity >= 75 ? "text-amber-500 border-amber-500" :
+                                "text-orange-500 border-orange-500"
+                              }>
+                                {item.similarity}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{item.existingName}</TableCell>
+                            <TableCell className="text-right font-mono">
+                              {item.price.toFixed(2)} €
                             </TableCell>
                           </TableRow>
                         ))}
