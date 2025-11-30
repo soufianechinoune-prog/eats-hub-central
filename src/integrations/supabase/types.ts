@@ -1036,6 +1036,7 @@ export type Database = {
           address: string | null
           chain_id: string
           city: string | null
+          coverage_radius_km: number | null
           created_at: string
           deliveroo_account_manager_email: string | null
           deliveroo_account_manager_name: string | null
@@ -1044,6 +1045,8 @@ export type Database = {
           deliveroo_store_id: string | null
           id: string
           is_active: boolean | null
+          latitude: number | null
+          longitude: number | null
           manager_first_name: string | null
           manager_last_name: string | null
           manager_whatsapp: string | null
@@ -1066,6 +1069,7 @@ export type Database = {
           address?: string | null
           chain_id: string
           city?: string | null
+          coverage_radius_km?: number | null
           created_at?: string
           deliveroo_account_manager_email?: string | null
           deliveroo_account_manager_name?: string | null
@@ -1074,6 +1078,8 @@ export type Database = {
           deliveroo_store_id?: string | null
           id?: string
           is_active?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
           manager_first_name?: string | null
           manager_last_name?: string | null
           manager_whatsapp?: string | null
@@ -1096,6 +1102,7 @@ export type Database = {
           address?: string | null
           chain_id?: string
           city?: string | null
+          coverage_radius_km?: number | null
           created_at?: string
           deliveroo_account_manager_email?: string | null
           deliveroo_account_manager_name?: string | null
@@ -1104,6 +1111,8 @@ export type Database = {
           deliveroo_store_id?: string | null
           id?: string
           is_active?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
           manager_first_name?: string | null
           manager_last_name?: string | null
           manager_whatsapp?: string | null
