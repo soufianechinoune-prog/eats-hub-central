@@ -20,12 +20,22 @@ import {
   AlertCircle,
   User,
   Smile,
+  Paperclip,
+  Image as ImageIcon,
+  FileText,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Message {
   id: string;
@@ -60,6 +70,12 @@ interface Restaurant {
   manager_last_name: string | null;
 }
 
+interface MediaPreview {
+  file: File;
+  url: string;
+  type: 'image' | 'document';
+}
+
 // Animation variants
 const messageVariants = {
   hidden: { opacity: 0, y: 20, scale: 0.95 },
@@ -86,7 +102,10 @@ export default function ConversationView() {
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [mediaPreview, setMediaPreview] = useState<MediaPreview | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch all messages
   const { data: messages = [], isLoading } = useQuery({
@@ -292,8 +311,104 @@ export default function ConversationView() {
     }
   };
 
+  // Handle file selection
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document') => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Le fichier est trop volumineux (max 10MB)");
+      return;
+    }
+
+    // Create preview URL
+    const url = URL.createObjectURL(file);
+    setMediaPreview({ file, url, type });
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Clear media preview
+  const clearMediaPreview = () => {
+    if (mediaPreview) {
+      URL.revokeObjectURL(mediaPreview.url);
+    }
+    setMediaPreview(null);
+  };
+
+  // Send media message
+  const sendMedia = async () => {
+    if (!selectedConversation || !mediaPreview) return;
+
+    setIsUploadingMedia(true);
+
+    try {
+      const restaurant = restaurants.find(
+        (r) => r.manager_whatsapp && normalizePhone(r.manager_whatsapp) === normalizePhone(selectedConversation.phone)
+      );
+
+      // Upload file to Supabase storage
+      const fileName = `${Date.now()}-${mediaPreview.file.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('whatsapp-media')
+        .upload(fileName, mediaPreview.file);
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error('Erreur lors de l\'upload du fichier');
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('whatsapp-media')
+        .getPublicUrl(fileName);
+
+      console.log('Media uploaded, public URL:', publicUrl);
+
+      // Send media via edge function
+      const { data, error } = await supabase.functions.invoke("send-whatsapp-media", {
+        body: {
+          phone: selectedConversation.phone,
+          mediaUrl: publicUrl,
+          mediaType: mediaPreview.type,
+          caption: newMessage.trim() || undefined,
+          filename: mediaPreview.file.name,
+          restaurant_id: restaurant?.id,
+          recipient_name: selectedConversation.contactName,
+          restaurant_name: selectedConversation.restaurantName,
+        },
+      });
+
+      if (error) throw new Error(error.message);
+
+      if (data.success) {
+        toast.success(mediaPreview.type === 'image' ? "Image envoyée" : "Document envoyé");
+        clearMediaPreview();
+        setNewMessage("");
+        queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
+      } else {
+        toast.error(data.error || "Échec de l'envoi");
+      }
+    } catch (err) {
+      console.error("Error sending media:", err);
+      toast.error("Erreur lors de l'envoi du média");
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
   // Send a reply message
   const sendReply = async () => {
+    // If there's media, send media instead
+    if (mediaPreview) {
+      await sendMedia();
+      return;
+    }
+
     if (!selectedConversation || !newMessage.trim()) return;
 
     setIsSending(true);
@@ -339,8 +454,38 @@ export default function ConversationView() {
     }
   };
 
+  // Render message content (detect media messages)
+  const renderMessageContent = (content: string) => {
+    if (content.startsWith('📷 Image')) {
+      return (
+        <div className="flex items-center gap-2">
+          <ImageIcon className="h-4 w-4 text-whatsapp" />
+          <span>{content.replace('📷 ', '')}</span>
+        </div>
+      );
+    }
+    if (content.startsWith('📄 Document')) {
+      return (
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-blue-500" />
+          <span>{content.replace('📄 ', '')}</span>
+        </div>
+      );
+    }
+    return <span className="whitespace-pre-wrap break-words">{content}</span>;
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 h-[650px] bg-card rounded-2xl overflow-hidden shadow-[var(--shadow-card)]">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => handleFileSelect(e, 'image')}
+        accept="image/*"
+      />
+
       {/* Conversation List */}
       <div className={cn(
         "lg:col-span-1 border-r border-border/50 flex flex-col",
@@ -554,8 +699,8 @@ export default function ConversationView() {
                             whileHover={{ scale: 1.01 }}
                             transition={{ duration: 0.1 }}
                           >
-                            <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-                              {msg.message_content}
+                            <p className="text-[15px] leading-relaxed">
+                              {renderMessageContent(msg.message_content)}
                             </p>
                             <div
                               className={cn(
@@ -575,16 +720,108 @@ export default function ConversationView() {
                 </div>
               </ScrollArea>
 
+              {/* Media Preview */}
+              <AnimatePresence>
+                {mediaPreview && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="px-4 py-3 bg-card/95 backdrop-blur-sm border-t border-border/50"
+                  >
+                    <div className="flex items-start gap-3 max-w-3xl mx-auto">
+                      <div className="relative">
+                        {mediaPreview.type === 'image' ? (
+                          <img
+                            src={mediaPreview.url}
+                            alt="Preview"
+                            className="h-20 w-20 object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="h-20 w-20 rounded-lg bg-secondary flex items-center justify-center">
+                            <FileText className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                        )}
+                        <button
+                          onClick={clearMediaPreview}
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-md hover:bg-destructive/90 transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {mediaPreview.file.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {(mediaPreview.file.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                        {mediaPreview.type === 'image' && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Ajoutez une légende ci-dessous (optionnel)
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Input */}
               <div className="p-4 bg-card/95 backdrop-blur-sm border-t border-border/50">
-                <div className="flex items-end gap-3 max-w-3xl mx-auto">
+                <div className="flex items-end gap-2 max-w-3xl mx-auto">
+                  {/* Attachment Menu */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-11 w-11 rounded-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+                      >
+                        <Paperclip className="h-5 w-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = (e) => handleFileSelect(e as any, 'image');
+                          input.click();
+                        }}
+                        className="gap-3 cursor-pointer"
+                      >
+                        <div className="h-8 w-8 rounded-full bg-whatsapp/10 flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-whatsapp" />
+                        </div>
+                        <span>Image</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = '.pdf,.doc,.docx';
+                          input.onchange = (e) => handleFileSelect(e as any, 'document');
+                          input.click();
+                        }}
+                        className="gap-3 cursor-pointer"
+                      >
+                        <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                          <FileText className="h-4 w-4 text-blue-500" />
+                        </div>
+                        <span>Document</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
                   <div className="flex-1 relative">
                     <Input
-                      placeholder="Écrire un message..."
+                      placeholder={mediaPreview ? "Ajouter une légende..." : "Écrire un message..."}
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      disabled={isSending}
+                      disabled={isSending || isUploadingMedia}
                       className="h-11 pr-12 rounded-full bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors text-[15px]"
                     />
                     <Button
@@ -600,15 +837,15 @@ export default function ConversationView() {
                     <Button
                       size="icon"
                       onClick={sendReply}
-                      disabled={!newMessage.trim() || isSending}
+                      disabled={(!newMessage.trim() && !mediaPreview) || isSending || isUploadingMedia}
                       className={cn(
                         "h-11 w-11 rounded-full shrink-0 transition-all",
-                        newMessage.trim() 
+                        (newMessage.trim() || mediaPreview)
                           ? "bg-whatsapp hover:bg-whatsapp/90" 
                           : "bg-secondary text-muted-foreground"
                       )}
                     >
-                      {isSending ? (
+                      {(isSending || isUploadingMedia) ? (
                         <motion.div
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
