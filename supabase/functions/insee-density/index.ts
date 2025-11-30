@@ -51,9 +51,9 @@ serve(async (req) => {
       const deptCode = dept.toString().padStart(2, '0');
       
       const params = new URLSearchParams({
-        limit: '50',
+        limit: '100',
         select: 'geo_point_2d,pop_carr,dep_code',
-        where: 'pop_carr > 100',
+        where: 'pop_carr > 50',
         order_by: 'pop_carr DESC',
         'refine': `dep_code:${deptCode}`,
       });
