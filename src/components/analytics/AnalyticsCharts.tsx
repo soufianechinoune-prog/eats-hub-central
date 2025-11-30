@@ -27,6 +27,10 @@ import {
   Zap,
 } from "lucide-react";
 import { ConversionFunnelChart } from "./ConversionFunnelChart";
+import { RevenueChart } from "./RevenueChart";
+import { FeesBreakdownChart } from "./FeesBreakdownChart";
+import { NetPayoutChart } from "./NetPayoutChart";
+import { ProfitabilityChart } from "./ProfitabilityChart";
 import {
   LineChart,
   Line,
