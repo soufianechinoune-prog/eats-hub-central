@@ -30,6 +30,7 @@ import MenuItems from "./pages/MenuItems";
 import RestaurantActions from "./pages/RestaurantActions";
 import MenuHistory from "./pages/MenuHistory";
 import Messaging from "./pages/Messaging";
+import Operations from "./pages/Operations";
 
 const queryClient = new QueryClient();
 
@@ -237,6 +238,16 @@ const App = () => {
                 <ProtectedRoute session={session}>
                   <AppLayout>
                     <MenuHistory />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/operations"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <Operations />
                   </AppLayout>
                 </ProtectedRoute>
               }

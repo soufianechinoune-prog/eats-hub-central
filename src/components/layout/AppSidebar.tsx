@@ -15,6 +15,7 @@ import {
   Zap,
   History,
   MessageSquare,
+  Settings2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -99,6 +100,11 @@ const dataEntryItems = [
     title: "Analytics",
     url: "/analytics",
     icon: BarChart3,
+  },
+  {
+    title: "Opérations",
+    url: "/operations",
+    icon: Settings2,
   },
 ];
 
