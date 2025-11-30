@@ -35,13 +35,16 @@ import {
   Search,
   Send,
   CheckCircle2,
-  ArrowRight,
   X,
   Phone,
   User,
   Store,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 
 interface Restaurant {
   id: string;
@@ -54,16 +57,25 @@ interface Restaurant {
   is_active: boolean | null;
 }
 
+interface SendResult {
+  phone: string;
+  name: string;
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}
+
 export default function Messaging() {
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [selectedRestaurants, setSelectedRestaurants] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
   
-  // Sequential send dialog state
-  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
-  const [currentSendIndex, setCurrentSendIndex] = useState(0);
-  const [sentRestaurants, setSentRestaurants] = useState<Set<string>>(new Set());
+  // Send state
+  const [isSending, setIsSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState(0);
+  const [sendResults, setSendResults] = useState<SendResult[]>([]);
+  const [showResultsDialog, setShowResultsDialog] = useState(false);
 
   // Fetch restaurants
   const { data: restaurants = [], isLoading } = useQuery({
@@ -85,7 +97,7 @@ export default function Messaging() {
     const depts = new Set<string>();
     restaurants.forEach((r) => {
       if (r.postal_code) {
-        depts.add(r.postal_code.substring(0, 2));
+        depts.add(r.postal_code.trim().substring(0, 2));
       }
     });
     return Array.from(depts).sort();
@@ -105,7 +117,7 @@ export default function Messaging() {
       // Department filter
       const matchesDepartment =
         departmentFilter === "all" ||
-        (r.postal_code && r.postal_code.startsWith(departmentFilter));
+        (r.postal_code && r.postal_code.trim().startsWith(departmentFilter));
 
       return matchesSearch && matchesDepartment;
     });
@@ -143,19 +155,7 @@ export default function Messaging() {
     setSelectedRestaurants(new Set());
   };
 
-  // Format phone for WhatsApp (remove spaces, ensure +33 format)
-  const formatWhatsAppNumber = (phone: string) => {
-    let cleaned = phone.replace(/\s/g, "").replace(/[^0-9+]/g, "");
-    if (cleaned.startsWith("0")) {
-      cleaned = "+33" + cleaned.substring(1);
-    }
-    if (!cleaned.startsWith("+")) {
-      cleaned = "+33" + cleaned;
-    }
-    return cleaned;
-  };
-
-  // Generate personalized message
+  // Generate personalized message preview
   const getPersonalizedMessage = (restaurant: Restaurant) => {
     let personalizedMsg = message;
     personalizedMsg = personalizedMsg.replace(/{prenom}/g, restaurant.manager_first_name || "");
@@ -164,49 +164,65 @@ export default function Messaging() {
     return personalizedMsg;
   };
 
-  // Open WhatsApp for current restaurant
-  const openWhatsApp = (restaurant: Restaurant) => {
-    if (!restaurant.manager_whatsapp) return;
-    
-    const phone = formatWhatsAppNumber(restaurant.manager_whatsapp);
-    const text = encodeURIComponent(getPersonalizedMessage(restaurant));
-    const url = `https://wa.me/${phone.replace("+", "")}?text=${text}`;
-    
-    // Use anchor element to avoid COOP blocking in Safari
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Mark as sent
-    setSentRestaurants((prev) => new Set([...prev, restaurant.id]));
-  };
-
-  // Start send process
-  const startSending = () => {
+  // Send messages via Ultramsg API
+  const sendMessages = async () => {
     if (selectedRestaurantsList.length === 0 || !message.trim()) return;
-    setCurrentSendIndex(0);
-    setSentRestaurants(new Set());
-    setIsSendDialogOpen(true);
-  };
+    
+    setIsSending(true);
+    setSendProgress(0);
+    setSendResults([]);
 
-  // Handle next in sequence
-  const handleNext = () => {
-    if (currentSendIndex < selectedRestaurantsList.length - 1) {
-      setCurrentSendIndex((prev) => prev + 1);
-    } else {
-      // All done
-      setIsSendDialogOpen(false);
-      setSelectedRestaurants(new Set());
-      setMessage("");
+    try {
+      // Prepare recipients
+      const recipients = selectedRestaurantsList.map((r) => ({
+        phone: r.manager_whatsapp || "",
+        name: `${r.manager_first_name || ""} ${r.manager_last_name || ""}`.trim(),
+        restaurantName: r.name,
+      }));
+
+      // Show progress toast
+      toast.loading(`Envoi en cours... 0/${recipients.length}`, { id: "send-progress" });
+
+      // Call edge function
+      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+        body: { recipients, message },
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      setSendProgress(100);
+      setSendResults(data.results || []);
+      
+      // Update toast
+      toast.dismiss("send-progress");
+      
+      if (data.sent > 0 && data.failed === 0) {
+        toast.success(`${data.sent} message${data.sent > 1 ? "s" : ""} envoyé${data.sent > 1 ? "s" : ""} avec succès`);
+      } else if (data.sent > 0 && data.failed > 0) {
+        toast.warning(`${data.sent} envoyé${data.sent > 1 ? "s" : ""}, ${data.failed} échec${data.failed > 1 ? "s" : ""}`);
+      } else {
+        toast.error(`Échec de l'envoi (${data.failed} erreur${data.failed > 1 ? "s" : ""})`);
+      }
+
+      // Show results dialog
+      setShowResultsDialog(true);
+
+      // Reset selection if all successful
+      if (data.failed === 0) {
+        setSelectedRestaurants(new Set());
+        setMessage("");
+      }
+
+    } catch (err) {
+      console.error("Error sending messages:", err);
+      toast.dismiss("send-progress");
+      toast.error("Erreur lors de l'envoi des messages");
+    } finally {
+      setIsSending(false);
     }
   };
-
-  // Current restaurant in send flow
-  const currentRestaurant = selectedRestaurantsList[currentSendIndex];
 
   return (
     <div className="space-y-6">
@@ -320,7 +336,7 @@ export default function Messaging() {
                             <TableCell>
                               <div className="font-medium">{restaurant.name}</div>
                               <div className="text-xs text-muted-foreground">
-                                {restaurant.city} {restaurant.postal_code && `(${restaurant.postal_code.substring(0, 2)})`}
+                                {restaurant.city} {restaurant.postal_code && `(${restaurant.postal_code.trim().substring(0, 2)})`}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -405,12 +421,26 @@ Variables disponibles :
               <Button
                 className="w-full"
                 size="lg"
-                onClick={startSending}
-                disabled={selectedRestaurants.size === 0 || !message.trim()}
+                onClick={sendMessages}
+                disabled={selectedRestaurants.size === 0 || !message.trim() || isSending}
               >
-                <Send className="h-4 w-4 mr-2" />
-                Envoyer à {selectedRestaurants.size} restaurant{selectedRestaurants.size > 1 ? "s" : ""}
+                {isSending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Envoi en cours...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Envoyer à {selectedRestaurants.size} restaurant{selectedRestaurants.size > 1 ? "s" : ""}
+                  </>
+                )}
               </Button>
+
+              {/* Progress indicator */}
+              {isSending && (
+                <Progress value={sendProgress} className="h-2" />
+              )}
             </CardContent>
           </Card>
 
@@ -447,97 +477,47 @@ Variables disponibles :
         </div>
       </div>
 
-      {/* Send Dialog */}
-      <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
+      {/* Results Dialog */}
+      <Dialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-primary" />
-              Envoi WhatsApp
+              Résultats de l'envoi
             </DialogTitle>
             <DialogDescription>
-              Restaurant {currentSendIndex + 1} sur {selectedRestaurantsList.length}
+              {sendResults.filter(r => r.success).length} envoyé{sendResults.filter(r => r.success).length > 1 ? "s" : ""} sur {sendResults.length}
             </DialogDescription>
           </DialogHeader>
 
-          {currentRestaurant && (
-            <div className="space-y-4">
-              {/* Progress */}
-              <div className="flex gap-1">
-                {selectedRestaurantsList.map((r, idx) => (
-                  <div
-                    key={r.id}
-                    className={`h-1.5 flex-1 rounded-full transition-colors ${
-                      sentRestaurants.has(r.id)
-                        ? "bg-green-500"
-                        : idx === currentSendIndex
-                        ? "bg-primary"
-                        : "bg-muted"
-                    }`}
-                  />
-                ))}
-              </div>
-
-              {/* Current restaurant info */}
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold">{currentRestaurant.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {currentRestaurant.manager_first_name} {currentRestaurant.manager_last_name}
-                      </p>
-                      <Badge variant="outline" className="mt-1 text-xs font-mono">
-                        <Phone className="h-3 w-3 mr-1" />
-                        {currentRestaurant.manager_whatsapp}
-                      </Badge>
-                    </div>
-                    {sentRestaurants.has(currentRestaurant.id) && (
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    )}
+          <ScrollArea className="max-h-[300px]">
+            <div className="space-y-2">
+              {sendResults.map((result, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-center gap-3 p-3 rounded-lg ${
+                    result.success ? "bg-green-500/10" : "bg-destructive/10"
+                  }`}
+                >
+                  {result.success ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{result.name || result.phone}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {result.success ? `ID: ${result.messageId}` : result.error}
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Message preview */}
-              <div className="p-3 bg-muted rounded-lg text-sm max-h-[150px] overflow-y-auto">
-                <p className="whitespace-pre-wrap">{getPersonalizedMessage(currentRestaurant)}</p>
-              </div>
+                </div>
+              ))}
             </div>
-          )}
+          </ScrollArea>
 
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            {!sentRestaurants.has(currentRestaurant?.id || "") ? (
-              <Button
-                className="flex-1"
-                onClick={() => currentRestaurant && openWhatsApp(currentRestaurant)}
-              >
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Ouvrir WhatsApp
-              </Button>
-            ) : (
-              <Button
-                className="flex-1"
-                onClick={handleNext}
-              >
-                {currentSendIndex < selectedRestaurantsList.length - 1 ? (
-                  <>
-                    Suivant
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Terminé
-                  </>
-                )}
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => setIsSendDialogOpen(false)}>
-              Annuler
+          <DialogFooter>
+            <Button onClick={() => setShowResultsDialog(false)}>
+              Fermer
             </Button>
           </DialogFooter>
         </DialogContent>
