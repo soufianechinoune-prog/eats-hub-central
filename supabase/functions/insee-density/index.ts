@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// AMP Metropole OpenDataSoft API - Public access to INSEE 200m grid data
-const API_URL = "https://data.ampmetropole.fr/api/explore/v2.1/catalog/datasets/donnees-carroyees-a-200m-france/records";
+// Public OpenDataSoft API - INSEE 200m grid data for all France (2.3M+ records)
+const API_URL = "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/demographyref-france-donnees-carroyees-200m/records";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -46,12 +46,12 @@ serve(async (req) => {
 
     const allFeatures: any[] = [];
     
-    // Batch departments to reduce API calls
-    const batchSize = 10;
+    // Process departments in batches
+    const batchSize = 5;
     for (let i = 0; i < validDepartments.length; i += batchSize) {
       const batch = validDepartments.slice(i, i + batchSize);
       
-      // Build WHERE clause using dep_code field
+      // Build WHERE clause using dep_code field with OR conditions
       const whereConditions = batch.map((dept: string) => {
         const deptCode = dept.toString().padStart(2, '0');
         return `dep_code='${deptCode}'`;
@@ -60,8 +60,8 @@ serve(async (req) => {
       const params = new URLSearchParams({
         limit: '100',
         select: 'geo_point_2d,pop_carr,dep_code',
-        where: `(${whereConditions}) AND pop_carr > 50`,
-        order_by: 'pop_carr DESC', // Get most populated cells first
+        where: `(${whereConditions}) AND pop_carr > 100`,
+        order_by: 'pop_carr DESC',
       });
 
       const url = `${API_URL}?${params.toString()}`;
@@ -72,8 +72,6 @@ serve(async (req) => {
         
         if (!response.ok) {
           console.warn(`API returned ${response.status} for batch: ${batch.join(', ')}`);
-          const errorText = await response.text();
-          console.warn(`Error: ${errorText.substring(0, 200)}`);
           continue;
         }
 
