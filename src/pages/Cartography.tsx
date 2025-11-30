@@ -48,6 +48,16 @@ const Cartography = () => {
   });
   const [showIgnoredAlerts, setShowIgnoredAlerts] = useState(false);
   const [showDensityLayer, setShowDensityLayer] = useState(false);
+  const [showCommuneDensity, setShowCommuneDensity] = useState(false);
+  const [communeDensityLevels, setCommuneDensityLevels] = useState<number[]>([1, 2, 3, 4]);
+
+  const handleToggleCommuneDensityLevel = (level: number) => {
+    setCommuneDensityLevels(prev => 
+      prev.includes(level) 
+        ? prev.filter(l => l !== level)
+        : [...prev, level].sort((a, b) => a - b)
+    );
+  };
 
   // Persist ignored alerts
   useEffect(() => {
@@ -255,6 +265,8 @@ const Cartography = () => {
             ignoredAlerts={ignoredAlertsList}
             showIgnoredAlerts={showIgnoredAlerts}
             showDensityLayer={showDensityLayer}
+            showCommuneDensity={showCommuneDensity}
+            communeDensityLevels={communeDensityLevels}
             selectedRestaurantId={selectedRestaurantId}
             isSimulationMode={isSimulationMode}
             onSelectRestaurant={setSelectedRestaurantId}
@@ -264,6 +276,8 @@ const Cartography = () => {
             onUpdateSimulationRadius={handleUpdateSimulationRadius}
             onToggleSimulationMode={() => setIsSimulationMode(!isSimulationMode)}
             onToggleDensityLayer={() => setShowDensityLayer(!showDensityLayer)}
+            onToggleCommuneDensity={() => setShowCommuneDensity(!showCommuneDensity)}
+            onToggleCommuneDensityLevel={handleToggleCommuneDensityLevel}
             onIgnoreAlert={handleIgnoreAlert}
             onRestoreAlert={handleRestoreAlert}
             onIgnoreAllAlerts={handleIgnoreAllAlerts}
@@ -310,6 +324,8 @@ const Cartography = () => {
               center={mapCenter}
               zoom={mapZoom}
               showDensityLayer={showDensityLayer}
+              showCommuneDensity={showCommuneDensity}
+              communeDensityLevels={communeDensityLevels}
               onSelectRestaurant={setSelectedRestaurantId}
             />
             
