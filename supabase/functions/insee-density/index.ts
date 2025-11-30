@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Géoplateforme API endpoint for 200m grid population data (INSEE carroyées)
-const GEOPF_API_URL = "https://data.geopf.fr/api/explore/v2.1/catalog/datasets/demographyref-france-donnees-carroyees-200m-millesime/records";
+// AMP Metropole OpenDataSoft API - Public access to INSEE 200m grid data
+const API_URL = "https://data.ampmetropole.fr/api/explore/v2.1/catalog/datasets/donnees-carroyees-a-200m-france/records";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -46,25 +46,26 @@ serve(async (req) => {
 
     const allFeatures: any[] = [];
     
-    // Batch departments to reduce API calls - fetch multiple departments at once
-    const batchSize = 5;
+    // Batch departments to reduce API calls
+    const batchSize = 10;
     for (let i = 0; i < validDepartments.length; i += batchSize) {
       const batch = validDepartments.slice(i, i + batchSize);
       
-      // Build WHERE clause for multiple departments using depcom (starts with dept code)
+      // Build WHERE clause using dep_code field
       const whereConditions = batch.map((dept: string) => {
         const deptCode = dept.toString().padStart(2, '0');
-        return `depcom LIKE '${deptCode}%'`;
+        return `dep_code='${deptCode}'`;
       }).join(' OR ');
 
       const params = new URLSearchParams({
-        limit: '500',
-        select: 'geo_point_2d,ind,depcom',
-        where: `(${whereConditions}) AND ind > 100`, // Only cells with population > 100
+        limit: '100',
+        select: 'geo_point_2d,pop_carr,dep_code',
+        where: `(${whereConditions}) AND pop_carr > 50`,
+        order_by: 'pop_carr DESC', // Get most populated cells first
       });
 
-      const url = `${GEOPF_API_URL}?${params.toString()}`;
-      console.log(`Fetching batch ${Math.floor(i/batchSize) + 1}: ${url}`);
+      const url = `${API_URL}?${params.toString()}`;
+      console.log(`Fetching batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(validDepartments.length/batchSize)}`);
       
       try {
         const response = await fetch(url);
@@ -72,21 +73,16 @@ serve(async (req) => {
         if (!response.ok) {
           console.warn(`API returned ${response.status} for batch: ${batch.join(', ')}`);
           const errorText = await response.text();
-          console.warn(`Error response: ${errorText.substring(0, 200)}`);
+          console.warn(`Error: ${errorText.substring(0, 200)}`);
           continue;
         }
 
         const data = await response.json();
-        console.log(`Received ${data.results?.length || 0} records for batch ${batch.join(', ')}`);
+        console.log(`Received ${data.results?.length || 0} records for departments ${batch.join(', ')}`);
         
         if (data.results && data.results.length > 0) {
-          // Log sample record structure for debugging
-          if (allFeatures.length === 0 && data.results[0]) {
-            console.log('Sample record structure:', JSON.stringify(data.results[0]));
-          }
-
           const features = data.results
-            .filter((r: any) => r.geo_point_2d && r.ind)
+            .filter((r: any) => r.geo_point_2d && r.pop_carr)
             .map((r: any) => ({
               type: "Feature",
               geometry: {
@@ -94,9 +90,9 @@ serve(async (req) => {
                 coordinates: [r.geo_point_2d.lon, r.geo_point_2d.lat]
               },
               properties: {
-                population: r.ind || 0,
-                depcom: r.depcom || '',
-                id: `${r.depcom}_${r.geo_point_2d.lat}_${r.geo_point_2d.lon}`
+                population: r.pop_carr || 0,
+                dep_code: r.dep_code || '',
+                id: `${r.dep_code}_${r.geo_point_2d.lat}_${r.geo_point_2d.lon}`
               }
             }));
           
@@ -108,20 +104,6 @@ serve(async (req) => {
     }
 
     console.log(`Total features collected: ${allFeatures.length}`);
-
-    // Return empty collection with info if no data
-    if (allFeatures.length === 0) {
-      console.log('No data received from API');
-      return new Response(
-        JSON.stringify({ 
-          type: "FeatureCollection", 
-          features: [],
-          fallback: true,
-          message: "API returned no data for requested departments"
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     const geojson = {
       type: "FeatureCollection",
