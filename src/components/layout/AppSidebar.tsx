@@ -12,6 +12,8 @@ import {
   MessageSquare,
   Settings2,
 } from "lucide-react";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
+import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -89,6 +91,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { toast } = useToast();
   const collapsed = state === "collapsed";
+  const unreadCount = useUnreadMessages();
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -108,6 +111,11 @@ export function AppSidebar() {
     return location.pathname.startsWith(path);
   };
 
+  const getBadgeCount = (url: string) => {
+    if (url === "/messaging") return unreadCount;
+    return 0;
+  };
+
   return (
     <Sidebar className={collapsed ? "w-16" : "w-64"} collapsible="icon">
       <SidebarContent>
@@ -124,23 +132,36 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    className={
-                      isActive(item.url)
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                        : ""
-                    }
-                  >
-                    <NavLink to={item.url} end={item.url === "/"}>
-                      <item.icon className="h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {mainItems.map((item) => {
+                const badgeCount = getBadgeCount(item.url);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      className={
+                        isActive(item.url)
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : ""
+                      }
+                    >
+                      <NavLink to={item.url} end={item.url === "/"} className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4" />
+                          {!collapsed && <span>{item.title}</span>}
+                        </div>
+                        {badgeCount > 0 && (
+                          <Badge 
+                            variant="destructive" 
+                            className="h-5 min-w-5 flex items-center justify-center text-xs px-1.5 ml-auto"
+                          >
+                            {badgeCount > 99 ? "99+" : badgeCount}
+                          </Badge>
+                        )}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
