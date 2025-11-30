@@ -372,11 +372,15 @@ export function AnalyticsCharts({
     return saved ? Number(saved) : 5;
   });
 
-  // State for interactive legend - hidden fees categories
+  // State for interactive legends - hidden chart elements
   const [hiddenFeesBars, setHiddenFeesBars] = useState<Set<string>>(new Set());
+  const [hiddenRevenueBars, setHiddenRevenueBars] = useState<Set<string>>(new Set());
+  const [hiddenFunnelAreas, setHiddenFunnelAreas] = useState<Set<string>>(new Set());
+  const [hiddenNetPayoutBars, setHiddenNetPayoutBars] = useState<Set<string>>(new Set());
+  const [hiddenProfitBars, setHiddenProfitBars] = useState<Set<string>>(new Set());
 
-  const toggleFeesBar = (dataKey: string) => {
-    setHiddenFeesBars(prev => {
+  const createToggle = (setter: React.Dispatch<React.SetStateAction<Set<string>>>) => (dataKey: string) => {
+    setter(prev => {
       const next = new Set(prev);
       if (next.has(dataKey)) {
         next.delete(dataKey);
@@ -386,6 +390,12 @@ export function AnalyticsCharts({
       return next;
     });
   };
+
+  const toggleFeesBar = createToggle(setHiddenFeesBars);
+  const toggleRevenueBar = createToggle(setHiddenRevenueBars);
+  const toggleFunnelArea = createToggle(setHiddenFunnelAreas);
+  const toggleNetPayoutBar = createToggle(setHiddenNetPayoutBars);
+  const toggleProfitBar = createToggle(setHiddenProfitBars);
 
   useEffect(() => {
     localStorage.setItem('conversionTarget', String(conversionTarget));
@@ -858,6 +868,45 @@ export function AnalyticsCharts({
           />
         </CardHeader>
         <CardContent>
+          {/* Interactive Legend */}
+          <div className="flex flex-wrap gap-3 mb-4">
+            {[
+              { key: 'revenue', label: `CA ${selectedYear}`, color: 'hsl(var(--primary))' },
+              ...(hasPrevData ? [{ key: 'prevRevenue', label: `CA ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
+              { key: 'orders', label: 'Commandes', color: 'hsl(var(--chart-2))' },
+            ].map(item => {
+              const isHidden = hiddenRevenueBars.has(item.key);
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => toggleRevenueBar(item.key)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border",
+                    isHidden
+                      ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
+                      : "bg-background shadow-sm border-border hover:shadow-md"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "w-3 h-3 rounded-sm transition-opacity",
+                      isHidden && "opacity-30"
+                    )}
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className={cn(isHidden && "line-through")}>{item.label}</span>
+                </button>
+              );
+            })}
+            {hiddenRevenueBars.size > 0 && (
+              <button
+                onClick={() => setHiddenRevenueBars(new Set())}
+                className="text-xs text-muted-foreground hover:text-foreground underline ml-2"
+              >
+                Tout afficher
+              </button>
+            )}
+          </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={aggregatedRevenueData}>
@@ -876,7 +925,6 @@ export function AnalyticsCharts({
                     return [value.toLocaleString('fr-FR'), name];
                   }}
                 />
-                <Legend />
                 {/* Action markers */}
                 {shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
@@ -895,11 +943,11 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                <Bar yAxisId="left" dataKey="revenue" name={`CA ${selectedYear} (€)`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                {hasPrevData && (
+                {!hiddenRevenueBars.has('revenue') && <Bar yAxisId="left" dataKey="revenue" name={`CA ${selectedYear} (€)`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />}
+                {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
                   <Bar yAxisId="left" dataKey="prevRevenue" name={`CA ${prevYear} (€)`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} />
                 )}
-                <Line yAxisId="right" type="monotone" dataKey="orders" name="Commandes" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-2))' }} />
+                {!hiddenRevenueBars.has('orders') && <Line yAxisId="right" type="monotone" dataKey="orders" name="Commandes" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-2))' }} />}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -921,6 +969,46 @@ export function AnalyticsCharts({
           />
         </CardHeader>
         <CardContent>
+          {/* Interactive Legend */}
+          <div className="flex flex-wrap gap-3 mb-4">
+            {[
+              { key: 'visits', label: 'Visites', color: 'hsl(var(--chart-1))' },
+              { key: 'views', label: 'Vues menu', color: 'hsl(var(--chart-2))' },
+              { key: 'cart', label: 'Ajouts panier', color: 'hsl(var(--chart-3))' },
+              { key: 'orders', label: 'Commandes', color: 'hsl(var(--chart-4))' },
+            ].map(item => {
+              const isHidden = hiddenFunnelAreas.has(item.key);
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => toggleFunnelArea(item.key)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border",
+                    isHidden
+                      ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
+                      : "bg-background shadow-sm border-border hover:shadow-md"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "w-3 h-3 rounded-sm transition-opacity",
+                      isHidden && "opacity-30"
+                    )}
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className={cn(isHidden && "line-through")}>{item.label}</span>
+                </button>
+              );
+            })}
+            {hiddenFunnelAreas.size > 0 && (
+              <button
+                onClick={() => setHiddenFunnelAreas(new Set())}
+                className="text-xs text-muted-foreground hover:text-foreground underline ml-2"
+              >
+                Tout afficher
+              </button>
+            )}
+          </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={aggregatedConversionData}>
@@ -935,7 +1023,6 @@ export function AnalyticsCharts({
                   }}
                   formatter={(value: number) => [value.toLocaleString('fr-FR'), '']}
                 />
-                <Legend />
                 {/* Action markers */}
                 {shouldShowActionsForChart("conversionFunnel") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
@@ -953,10 +1040,10 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                <Area type="monotone" dataKey="visits" name="Visites" stackId="1" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />
-                <Area type="monotone" dataKey="views" name="Vues menu" stackId="2" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} />
-                <Area type="monotone" dataKey="cart" name="Ajouts panier" stackId="3" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.6} />
-                <Area type="monotone" dataKey="orders" name="Commandes" stackId="4" stroke="hsl(var(--chart-4))" fill="hsl(var(--chart-4))" fillOpacity={0.6} />
+                {!hiddenFunnelAreas.has('visits') && <Area type="monotone" dataKey="visits" name="Visites" stackId="1" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />}
+                {!hiddenFunnelAreas.has('views') && <Area type="monotone" dataKey="views" name="Vues menu" stackId="2" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} />}
+                {!hiddenFunnelAreas.has('cart') && <Area type="monotone" dataKey="cart" name="Ajouts panier" stackId="3" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.6} />}
+                {!hiddenFunnelAreas.has('orders') && <Area type="monotone" dataKey="orders" name="Commandes" stackId="4" stroke="hsl(var(--chart-4))" fill="hsl(var(--chart-4))" fillOpacity={0.6} />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -1257,6 +1344,45 @@ export function AnalyticsCharts({
           />
         </CardHeader>
         <CardContent>
+          {/* Interactive Legend */}
+          <div className="flex flex-wrap gap-3 mb-4">
+            {[
+              { key: 'net', label: `Versement ${selectedYear}`, color: 'hsl(var(--primary))' },
+              ...(hasPrevData ? [{ key: 'prevNet', label: `Versement ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
+              { key: 'totalFees', label: 'Total Frais', color: 'hsl(var(--destructive))' },
+            ].map(item => {
+              const isHidden = hiddenNetPayoutBars.has(item.key);
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => toggleNetPayoutBar(item.key)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border",
+                    isHidden
+                      ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
+                      : "bg-background shadow-sm border-border hover:shadow-md"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "w-3 h-3 rounded-sm transition-opacity",
+                      isHidden && "opacity-30"
+                    )}
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className={cn(isHidden && "line-through")}>{item.label}</span>
+                </button>
+              );
+            })}
+            {hiddenNetPayoutBars.size > 0 && (
+              <button
+                onClick={() => setHiddenNetPayoutBars(new Set())}
+                className="text-xs text-muted-foreground hover:text-foreground underline ml-2"
+              >
+                Tout afficher
+              </button>
+            )}
+          </div>
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={aggregatedFeesData}>
@@ -1271,7 +1397,6 @@ export function AnalyticsCharts({
                   }}
                   formatter={(value: number, name: string) => [value.toLocaleString('fr-FR') + ' €', name]}
                 />
-                <Legend />
                 {/* Action markers */}
                 {shouldShowActionsForChart("netPayout") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
@@ -1289,11 +1414,11 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                <Bar dataKey="net" name={`Versement ${selectedYear}`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                {hasPrevData && (
+                {!hiddenNetPayoutBars.has('net') && <Bar dataKey="net" name={`Versement ${selectedYear}`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />}
+                {hasPrevData && !hiddenNetPayoutBars.has('prevNet') && (
                   <Bar dataKey="prevNet" name={`Versement ${prevYear}`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} />
                 )}
-                <Line type="monotone" dataKey="totalFees" name="Total Frais" stroke="hsl(var(--destructive))" strokeWidth={2} />
+                {!hiddenNetPayoutBars.has('totalFees') && <Line type="monotone" dataKey="totalFees" name="Total Frais" stroke="hsl(var(--destructive))" strokeWidth={2} />}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -1316,6 +1441,46 @@ export function AnalyticsCharts({
           />
         </CardHeader>
         <CardContent>
+          {/* Interactive Legend */}
+          <div className="flex flex-wrap gap-3 mb-4">
+            {[
+              { key: 'revenue', label: 'CA TTC', color: 'hsl(var(--muted))' },
+              { key: 'netPayout', label: 'Versement Net', color: 'hsl(var(--primary))' },
+              { key: 'profitability', label: `Rentabilité ${selectedYear}`, color: 'hsl(142.1 76.2% 36.3%)' },
+              ...(hasPrevData ? [{ key: 'prevProfitability', label: `Rentabilité ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
+            ].map(item => {
+              const isHidden = hiddenProfitBars.has(item.key);
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => toggleProfitBar(item.key)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border",
+                    isHidden
+                      ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
+                      : "bg-background shadow-sm border-border hover:shadow-md"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "w-3 h-3 rounded-sm transition-opacity",
+                      isHidden && "opacity-30"
+                    )}
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className={cn(isHidden && "line-through")}>{item.label}</span>
+                </button>
+              );
+            })}
+            {hiddenProfitBars.size > 0 && (
+              <button
+                onClick={() => setHiddenProfitBars(new Set())}
+                className="text-xs text-muted-foreground hover:text-foreground underline ml-2"
+              >
+                Tout afficher
+              </button>
+            )}
+          </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={profitabilityData}>
@@ -1334,7 +1499,6 @@ export function AnalyticsCharts({
                     return [value.toLocaleString('fr-FR') + ' €', name];
                   }}
                 />
-                <Legend />
                 {/* Action markers */}
                 {shouldShowActionsForChart("profitability") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
@@ -1353,18 +1517,20 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                <Bar yAxisId="left" dataKey="revenue" name="CA TTC" fill="hsl(var(--muted))" radius={[4, 4, 0, 0]} opacity={0.5} />
-                <Bar yAxisId="left" dataKey="netPayout" name="Versement Net" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                <Line 
-                  yAxisId="right" 
-                  type="monotone" 
-                  dataKey="profitability" 
-                  name={`Rentabilité ${selectedYear}`}
-                  stroke="hsl(142.1 76.2% 36.3%)" 
-                  strokeWidth={3}
-                  dot={{ fill: 'hsl(142.1 76.2% 36.3%)', strokeWidth: 2, r: 4 }}
-                />
-                {hasPrevData && (
+                {!hiddenProfitBars.has('revenue') && <Bar yAxisId="left" dataKey="revenue" name="CA TTC" fill="hsl(var(--muted))" radius={[4, 4, 0, 0]} opacity={0.5} />}
+                {!hiddenProfitBars.has('netPayout') && <Bar yAxisId="left" dataKey="netPayout" name="Versement Net" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />}
+                {!hiddenProfitBars.has('profitability') && (
+                  <Line 
+                    yAxisId="right" 
+                    type="monotone" 
+                    dataKey="profitability" 
+                    name={`Rentabilité ${selectedYear}`}
+                    stroke="hsl(142.1 76.2% 36.3%)" 
+                    strokeWidth={3}
+                    dot={{ fill: 'hsl(142.1 76.2% 36.3%)', strokeWidth: 2, r: 4 }}
+                  />
+                )}
+                {hasPrevData && !hiddenProfitBars.has('prevProfitability') && (
                   <Line 
                     yAxisId="right" 
                     type="monotone" 
