@@ -204,43 +204,6 @@ export const CommuneDensityLegend = ({
         </div>
       </div>
 
-      {/* Filter by priority levels */}
-      <div className="pt-2 border-t">
-        <p className="text-[10px] font-medium text-muted-foreground mb-2">
-          Filtrer par niveau INSEE
-        </p>
-        <div className="space-y-1">
-          {DENS7_LEVELS.map((level) => {
-            const isActive = filteredLevels.includes(level.level);
-            return (
-              <button
-                key={level.level}
-                onClick={() => onToggleLevel(level.level)}
-                className={`w-full flex items-center gap-2 p-1 rounded text-left transition-colors ${
-                  isActive 
-                    ? "bg-muted/50 hover:bg-muted" 
-                    : "opacity-40 hover:opacity-60"
-                }`}
-              >
-                <div
-                  className="w-3 h-3 rounded-full shrink-0 border border-white/50"
-                  style={{ backgroundColor: level.color }}
-                />
-                <span className="text-[11px] truncate flex-1">
-                  {level.label}
-                </span>
-                {level.priority === "high" && (
-                  <span className="text-[9px] text-emerald-600">★</span>
-                )}
-                {level.priority === "medium" && (
-                  <span className="text-[9px] text-amber-600">○</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       <div className="pt-2 border-t">
         <p className="text-[10px] text-muted-foreground">
           Zones chaudes = forte densité urbaine
