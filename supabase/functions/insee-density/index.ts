@@ -30,7 +30,7 @@ serve(async (req) => {
       return /^[0-9]{2}$|^2[AB]$|^97[1-6]$/.test(normalized);
     });
 
-    console.log(`Fetching density data for ${validDepartments.length} valid departments: ${validDepartments.join(', ')}`);
+    console.log(`Fetching density data for ${validDepartments.length} valid departments`);
 
     if (validDepartments.length === 0) {
       console.log('No valid French departments provided');
@@ -46,39 +46,33 @@ serve(async (req) => {
 
     const allFeatures: any[] = [];
     
-    // Process departments in batches
-    const batchSize = 5;
-    for (let i = 0; i < validDepartments.length; i += batchSize) {
-      const batch = validDepartments.slice(i, i + batchSize);
+    // Fetch each department individually using refine parameter (works with array fields)
+    for (const dept of validDepartments) {
+      const deptCode = dept.toString().padStart(2, '0');
       
-      // Build WHERE clause using dep_code field with OR conditions
-      const whereConditions = batch.map((dept: string) => {
-        const deptCode = dept.toString().padStart(2, '0');
-        return `dep_code='${deptCode}'`;
-      }).join(' OR ');
-
       const params = new URLSearchParams({
-        limit: '100',
+        limit: '50',
         select: 'geo_point_2d,pop_carr,dep_code',
-        where: `(${whereConditions}) AND pop_carr > 100`,
+        where: 'pop_carr > 100',
         order_by: 'pop_carr DESC',
+        'refine': `dep_code:${deptCode}`,
       });
 
       const url = `${API_URL}?${params.toString()}`;
-      console.log(`Fetching batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(validDepartments.length/batchSize)}`);
       
       try {
         const response = await fetch(url);
         
         if (!response.ok) {
-          console.warn(`API returned ${response.status} for batch: ${batch.join(', ')}`);
+          console.warn(`API returned ${response.status} for dept ${deptCode}`);
           continue;
         }
 
         const data = await response.json();
-        console.log(`Received ${data.results?.length || 0} records for departments ${batch.join(', ')}`);
         
         if (data.results && data.results.length > 0) {
+          console.log(`Dept ${deptCode}: ${data.results.length} records`);
+          
           const features = data.results
             .filter((r: any) => r.geo_point_2d && r.pop_carr)
             .map((r: any) => ({
@@ -89,15 +83,15 @@ serve(async (req) => {
               },
               properties: {
                 population: r.pop_carr || 0,
-                dep_code: r.dep_code || '',
-                id: `${r.dep_code}_${r.geo_point_2d.lat}_${r.geo_point_2d.lon}`
+                dep_code: Array.isArray(r.dep_code) ? r.dep_code[0] : r.dep_code,
+                id: `${deptCode}_${r.geo_point_2d.lat}_${r.geo_point_2d.lon}`
               }
             }));
           
           allFeatures.push(...features);
         }
       } catch (fetchError) {
-        console.warn(`Failed to fetch batch ${batch.join(', ')}:`, fetchError);
+        console.warn(`Failed to fetch dept ${deptCode}:`, fetchError);
       }
     }
 
