@@ -43,6 +43,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useVoiceRecorder, formatRecordingTime } from "@/hooks/useVoiceRecorder";
 import { AudioPlayer } from "@/components/messaging/AudioPlayer";
 import { useMessageNotifications } from "@/hooks/useMessageNotifications";
@@ -118,6 +128,7 @@ export default function ConversationView() {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [isSendingVoice, setIsSendingVoice] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
@@ -592,13 +603,15 @@ export default function ConversationView() {
     }
   };
 
-  // Delete message from history
-  const deleteMessage = async (messageId: string) => {
+  // Delete message from history (with confirmation)
+  const confirmDeleteMessage = async () => {
+    if (!messageToDelete) return;
+    
     try {
       const { error } = await supabase
         .from("message_history")
         .delete()
-        .eq("id", messageId);
+        .eq("id", messageToDelete.id);
 
       if (error) throw error;
 
@@ -607,6 +620,8 @@ export default function ConversationView() {
     } catch (err) {
       console.error("Error deleting message:", err);
       toast.error("Erreur lors de la suppression");
+    } finally {
+      setMessageToDelete(null);
     }
   };
 
@@ -947,7 +962,7 @@ export default function ConversationView() {
                               <DropdownMenuContent align={isOutbound ? "end" : "start"} className="w-48">
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
-                                  onClick={() => deleteMessage(msg.id)}
+                                  onClick={() => setMessageToDelete(msg)}
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
                                   Supprimer de l'historique
@@ -1273,6 +1288,35 @@ export default function ConversationView() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!messageToDelete} onOpenChange={(open) => !open && setMessageToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce message ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Le message sera supprimé de votre historique local uniquement. Il restera visible pour le destinataire sur WhatsApp.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {messageToDelete && (
+            <div className="p-3 bg-secondary/50 rounded-lg my-2">
+              <p className="text-sm text-muted-foreground line-clamp-3">
+                {messageToDelete.message_content}
+              </p>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteMessage}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
