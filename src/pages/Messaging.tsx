@@ -171,7 +171,15 @@ export default function Messaging() {
     const phone = formatWhatsAppNumber(restaurant.manager_whatsapp);
     const text = encodeURIComponent(getPersonalizedMessage(restaurant));
     const url = `https://wa.me/${phone.replace("+", "")}?text=${text}`;
-    window.open(url, "_blank");
+    
+    // Use anchor element to avoid COOP blocking in Safari
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     
     // Mark as sent
     setSentRestaurants((prev) => new Set([...prev, restaurant.id]));
