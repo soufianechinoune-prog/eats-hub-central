@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { CartographyMap } from "@/components/cartography/CartographyMap";
 import { CartographySidebar } from "@/components/cartography/CartographySidebar";
@@ -6,6 +6,7 @@ import { SimulationPanel } from "@/components/cartography/SimulationPanel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useInseeDensity } from "@/hooks/useInseeDensity";
 
 export interface RestaurantWithGeo {
   id: string;
@@ -100,6 +101,22 @@ const Cartography = () => {
       if (error) throw error;
       return data as RestaurantWithGeo[];
     },
+  });
+
+  // Extract departments from restaurants' postal codes (after restaurants query)
+  const restaurantDepartments = useMemo(() => {
+    return restaurants
+      .map(r => r.postal_code?.substring(0, 2))
+      .filter((dept): dept is string => Boolean(dept));
+  }, [restaurants]);
+
+  // Fetch INSEE density data for restaurant departments
+  const { 
+    data: inseeDensityData, 
+    isLoading: isDensityLoading 
+  } = useInseeDensity({
+    restaurantDepartments,
+    enabled: showDensityLayer,
   });
 
   // Mutation to update restaurant radius
@@ -346,6 +363,8 @@ const Cartography = () => {
               zoom={mapZoom}
               showDensityLayer={showDensityLayer}
               densityLevels={densityLevels}
+              inseeDensityData={inseeDensityData}
+              isDensityLoading={isDensityLoading}
               onSelectRestaurant={setSelectedRestaurantId}
             />
             

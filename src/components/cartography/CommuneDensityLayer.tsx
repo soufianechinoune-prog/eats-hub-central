@@ -6,11 +6,27 @@ import {
   getDens7Color 
 } from "@/data/insee-communes-density";
 
+interface InseeDensityData {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    geometry: {
+      type: "Point";
+      coordinates: [number, number];
+    };
+    properties: {
+      population: number;
+      id: string;
+    };
+  }>;
+}
+
 interface CommuneDensityLayerProps {
   map: mapboxgl.Map | null;
   mapLoaded: boolean;
   visible: boolean;
   filteredLevels: number[];
+  apiData?: InseeDensityData | null;
 }
 
 export const CommuneDensityLayer = ({
@@ -18,6 +34,7 @@ export const CommuneDensityLayer = ({
   mapLoaded,
   visible,
   filteredLevels,
+  apiData,
 }: CommuneDensityLayerProps) => {
   const sourceIdRef = useRef("commune-density-source");
   const layerIdRef = useRef("commune-density-layer");
@@ -48,8 +65,12 @@ export const CommuneDensityLayer = ({
       return;
     }
 
-    // Generate GeoJSON with filtered levels
-    const geojson = generateCommuneDensityGeoJSON(filteredLevels);
+    // Use API data if available, otherwise fall back to local data
+    const geojson = apiData && apiData.features.length > 0 
+      ? apiData 
+      : generateCommuneDensityGeoJSON(filteredLevels);
+
+    console.log(`Using ${apiData && apiData.features.length > 0 ? 'API' : 'local'} density data with ${geojson.features.length} points`);
 
     // Clean up before adding new layers
     cleanup();
@@ -150,7 +171,7 @@ export const CommuneDensityLayer = ({
     });
 
     return cleanup;
-  }, [map, mapLoaded, visible, filteredLevels]);
+  }, [map, mapLoaded, visible, filteredLevels, apiData]);
 
   return null;
 };
