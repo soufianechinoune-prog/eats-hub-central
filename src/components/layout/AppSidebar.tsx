@@ -11,6 +11,7 @@ import {
   History,
   MessageSquare,
   Settings2,
+  Map,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -78,6 +79,11 @@ const analysisItems = [
     title: "Analytics",
     url: "/analytics",
     icon: BarChart3,
+  },
+  {
+    title: "Cartographie",
+    url: "/cartography",
+    icon: Map,
   },
   {
     title: "Opérations",

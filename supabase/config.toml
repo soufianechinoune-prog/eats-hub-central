@@ -32,3 +32,9 @@ verify_jwt = false
 
 [functions.ultramsg-webhook]
 verify_jwt = false
+
+[functions.geocode-address]
+verify_jwt = false
+
+[functions.get-mapbox-token]
+verify_jwt = false
