@@ -49,6 +49,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import ConversationView from "@/components/messaging/ConversationView";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Restaurant {
   id: string;
@@ -103,12 +104,46 @@ interface MessageHistoryItem {
   direction: string;
 }
 
+// Animation variants
+const tabContentVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+  },
+  exit: { 
+    opacity: 0, 
+    y: -10,
+    transition: { duration: 0.2, ease: [0.4, 0, 1, 1] }
+  }
+};
+
+const listItemVariants = {
+  hidden: { opacity: 0, x: -10 },
+  visible: (i: number) => ({
+    opacity: 1,
+    x: 0,
+    transition: { delay: i * 0.03, duration: 0.2 }
+  })
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, scale: 0.98 },
+  visible: { 
+    opacity: 1, 
+    scale: 1,
+    transition: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+  }
+};
+
 export default function Messaging() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [selectedRestaurants, setSelectedRestaurants] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("conversations");
   
   // Scheduling state
   const [sendMode, setSendMode] = useState<"immediate" | "scheduled">("immediate");
@@ -456,29 +491,38 @@ export default function Messaging() {
   }, [messageHistory]);
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <motion.div 
+        className="flex items-center justify-between"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">Messagerie</h1>
           <p className="text-muted-foreground mt-1">
             Communiquez avec vos restaurants via WhatsApp
           </p>
         </div>
-        <div className={cn(
-          "flex items-center gap-3 px-5 py-3 rounded-2xl transition-all duration-300",
-          selectedRestaurants.size > 0 
-            ? "bg-whatsapp/10 text-whatsapp" 
-            : "bg-secondary text-muted-foreground"
-        )}>
+        <motion.div 
+          className={cn(
+            "flex items-center gap-3 px-5 py-3 rounded-2xl transition-all duration-300",
+            selectedRestaurants.size > 0 
+              ? "bg-whatsapp/10 text-whatsapp" 
+              : "bg-secondary text-muted-foreground"
+          )}
+          animate={{ scale: selectedRestaurants.size > 0 ? [1, 1.02, 1] : 1 }}
+          transition={{ duration: 0.2 }}
+        >
           <Users className="h-5 w-5" />
           <span className="text-lg font-medium">
             {selectedRestaurants.size} sélectionné{selectedRestaurants.size > 1 ? "s" : ""}
           </span>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
-      <Tabs defaultValue="conversations" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="bg-secondary/50 p-1 rounded-xl h-auto">
           <TabsTrigger 
             value="conversations" 
@@ -487,9 +531,14 @@ export default function Messaging() {
             <MessageSquare className="h-4 w-4" />
             <span>Conversations</span>
             {unreadCount > 0 && (
-              <span className="ml-1 flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-whatsapp text-white">
+              <motion.span 
+                className="ml-1 flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-whatsapp text-white"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 500, damping: 25 }}
+              >
                 {unreadCount}
-              </span>
+              </motion.span>
             )}
           </TabsTrigger>
           <TabsTrigger 
@@ -520,538 +569,647 @@ export default function Messaging() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="conversations" className="mt-6">
-          <ConversationView />
-        </TabsContent>
+        <AnimatePresence mode="wait">
+          <TabsContent value="conversations" className="mt-6" asChild>
+            <motion.div
+              key="conversations"
+              variants={tabContentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <ConversationView />
+            </motion.div>
+          </TabsContent>
 
-        <TabsContent value="compose" className="mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Left: Restaurant Selection */}
-            <div className="lg:col-span-3 space-y-4">
-              <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
-                <div className="p-6 border-b border-border/50 bg-gradient-to-b from-card to-card/95">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="h-10 w-10 rounded-xl bg-whatsapp/10 flex items-center justify-center">
-                      <Store className="h-5 w-5 text-whatsapp" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">Sélection des restaurants</h3>
-                      <p className="text-sm text-muted-foreground">Choisissez les destinataires</p>
-                    </div>
-                  </div>
+          <TabsContent value="compose" className="mt-6" asChild>
+            <motion.div
+              key="compose"
+              variants={tabContentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                {/* Left: Restaurant Selection */}
+                <div className="lg:col-span-3 space-y-4">
+                  <motion.div variants={cardVariants}>
+                    <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
+                      <div className="p-6 border-b border-border/50 bg-gradient-to-b from-card to-card/95">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="h-10 w-10 rounded-xl bg-whatsapp/10 flex items-center justify-center">
+                            <Store className="h-5 w-5 text-whatsapp" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-foreground">Sélection des restaurants</h3>
+                            <p className="text-sm text-muted-foreground">Choisissez les destinataires</p>
+                          </div>
+                        </div>
 
-                  {/* Filters */}
-                  <div className="flex flex-wrap gap-3">
-                    <div className="flex-1 min-w-[200px]">
-                      <div className="relative">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Rechercher par nom, ville, gérant..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-10 h-11 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-colors"
-                        />
+                        {/* Filters */}
+                        <div className="flex flex-wrap gap-3">
+                          <div className="flex-1 min-w-[200px]">
+                            <div className="relative">
+                              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Rechercher par nom, ville, gérant..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-10 h-11 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-colors"
+                              />
+                            </div>
+                          </div>
+                          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                            <SelectTrigger className="w-[160px] h-11 rounded-xl border-border/50">
+                              <SelectValue placeholder="Département" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Tous</SelectItem>
+                              {departments.map((dept) => (
+                                <SelectItem key={dept} value={dept}>
+                                  Dpt {dept}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                    </div>
-                    <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                      <SelectTrigger className="w-[160px] h-11 rounded-xl border-border/50">
-                        <SelectValue placeholder="Département" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tous</SelectItem>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept} value={dept}>
-                            Dpt {dept}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+
+                      <CardContent className="p-0">
+                        {/* Selection actions */}
+                        <div className="flex items-center gap-3 p-4 bg-secondary/30 border-b border-border/50">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={selectAll}
+                            className="rounded-lg text-xs h-8 hover:bg-whatsapp/10 hover:text-whatsapp hover:border-whatsapp/30 transition-colors"
+                          >
+                            Tout sélectionner ({restaurantsWithWhatsApp.length})
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={deselectAll}
+                            className="rounded-lg text-xs h-8"
+                          >
+                            Désélectionner
+                          </Button>
+                          <span className="text-xs text-muted-foreground ml-auto">
+                            {filteredRestaurants.length - restaurantsWithWhatsApp.length} sans WhatsApp
+                          </span>
+                        </div>
+
+                        {/* Restaurant list */}
+                        <ScrollArea className="h-[420px]">
+                          {isLoading ? (
+                            <div className="flex items-center justify-center py-12 text-muted-foreground">
+                              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                              Chargement...
+                            </div>
+                          ) : filteredRestaurants.length === 0 ? (
+                            <div className="text-center py-12 text-muted-foreground">
+                              <Store className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                              <p>Aucun restaurant trouvé</p>
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-border/50">
+                              {filteredRestaurants.map((restaurant, index) => {
+                                const hasWhatsApp = !!restaurant.manager_whatsapp;
+                                const isSelected = selectedRestaurants.has(restaurant.id);
+                                
+                                return (
+                                  <motion.div
+                                    key={restaurant.id}
+                                    custom={index}
+                                    variants={listItemVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    className={cn(
+                                      "flex items-center gap-4 p-4 transition-all duration-200",
+                                      !hasWhatsApp 
+                                        ? "opacity-40" 
+                                        : "cursor-pointer hover:bg-secondary/50",
+                                      isSelected && "bg-whatsapp/5"
+                                    )}
+                                    onClick={() => hasWhatsApp && toggleRestaurant(restaurant.id)}
+                                    whileTap={hasWhatsApp ? { scale: 0.995 } : undefined}
+                                  >
+                                    <motion.div
+                                      animate={isSelected ? { scale: [1, 1.1, 1] } : { scale: 1 }}
+                                      transition={{ duration: 0.2 }}
+                                    >
+                                      <Checkbox
+                                        checked={isSelected}
+                                        disabled={!hasWhatsApp}
+                                        onCheckedChange={() => toggleRestaurant(restaurant.id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={cn(
+                                          "h-5 w-5 rounded-md transition-all",
+                                          isSelected && "border-whatsapp bg-whatsapp data-[state=checked]:bg-whatsapp"
+                                        )}
+                                      />
+                                    </motion.div>
+                                    
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-foreground truncate">
+                                          {restaurant.name}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-3 mt-0.5 text-sm text-muted-foreground">
+                                        <span>{restaurant.city || "—"}</span>
+                                        {restaurant.postal_code && (
+                                          <span className="text-xs bg-secondary px-1.5 py-0.5 rounded">
+                                            {restaurant.postal_code.trim().substring(0, 2)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="text-right">
+                                      {restaurant.manager_first_name || restaurant.manager_last_name ? (
+                                        <div className="text-sm font-medium text-foreground">
+                                          {restaurant.manager_first_name} {restaurant.manager_last_name}
+                                        </div>
+                                      ) : (
+                                        <div className="text-sm text-muted-foreground">—</div>
+                                      )}
+                                    </div>
+
+                                    <div className="w-36 text-right">
+                                      {hasWhatsApp ? (
+                                        <div className="inline-flex items-center gap-1.5 text-sm font-mono bg-whatsapp/10 text-whatsapp px-2.5 py-1 rounded-lg">
+                                          <Phone className="h-3.5 w-3.5" />
+                                          <span className="truncate">{restaurant.manager_whatsapp}</span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground">Non renseigné</span>
+                                      )}
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </ScrollArea>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
                 </div>
 
-                <CardContent className="p-0">
-                  {/* Selection actions */}
-                  <div className="flex items-center gap-3 p-4 bg-secondary/30 border-b border-border/50">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={selectAll}
-                      className="rounded-lg text-xs h-8 hover:bg-whatsapp/10 hover:text-whatsapp hover:border-whatsapp/30 transition-colors"
-                    >
-                      Tout sélectionner ({restaurantsWithWhatsApp.length})
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={deselectAll}
-                      className="rounded-lg text-xs h-8"
-                    >
-                      Désélectionner
-                    </Button>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      {filteredRestaurants.length - restaurantsWithWhatsApp.length} sans WhatsApp
-                    </span>
-                  </div>
+                {/* Right: Message Composition */}
+                <div className="lg:col-span-2 space-y-4">
+                  <motion.div variants={cardVariants}>
+                    <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
+                      <div className="p-6 border-b border-border/50 bg-gradient-to-b from-card to-card/95">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                            <MessageSquare className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-foreground">Message</h3>
+                            <p className="text-sm text-muted-foreground">Rédigez votre message</p>
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Restaurant list */}
-                  <ScrollArea className="h-[420px]">
-                    {isLoading ? (
+                      <CardContent className="p-6 space-y-5">
+                        <div>
+                          <Textarea
+                            placeholder="Rédigez votre message ici..."
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            className="min-h-[160px] resize-none rounded-xl border-border/50 bg-secondary/30 focus:bg-card transition-colors text-sm"
+                          />
+                        </div>
+
+                        {/* Variables help */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Variables disponibles</p>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { key: "{prenom}", label: "Prénom" },
+                              { key: "{nom}", label: "Nom" },
+                              { key: "{restaurant}", label: "Restaurant" },
+                            ].map((v) => (
+                              <motion.button
+                                key={v.key}
+                                type="button"
+                                onClick={() => setMessage((m) => m + v.key)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-secondary/70 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                {v.key}
+                              </motion.button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Preview */}
+                        <AnimatePresence>
+                          {message && selectedRestaurantsList.length > 0 && (
+                            <motion.div 
+                              className="p-4 bg-whatsapp-bubble-out rounded-2xl rounded-tr-sm space-y-1"
+                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <p className="text-xs font-medium text-whatsapp/70">
+                                Aperçu • {selectedRestaurantsList[0].name}
+                              </p>
+                              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                                {getPersonalizedMessage(selectedRestaurantsList[0])}
+                              </p>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Send mode selection */}
+                        <div className="space-y-4 pt-4 border-t border-border/50">
+                          <div className="grid grid-cols-2 gap-2 p-1 bg-secondary/50 rounded-xl">
+                            <Button
+                              variant={sendMode === "immediate" ? "default" : "ghost"}
+                              size="sm"
+                              className={cn(
+                                "rounded-lg h-10 transition-all",
+                                sendMode === "immediate" 
+                                  ? "bg-whatsapp hover:bg-whatsapp/90 text-white shadow-sm" 
+                                  : "hover:bg-secondary"
+                              )}
+                              onClick={() => setSendMode("immediate")}
+                            >
+                              <Send className="h-4 w-4 mr-2" />
+                              Immédiat
+                            </Button>
+                            <Button
+                              variant={sendMode === "scheduled" ? "default" : "ghost"}
+                              size="sm"
+                              className={cn(
+                                "rounded-lg h-10 transition-all",
+                                sendMode === "scheduled" 
+                                  ? "bg-primary hover:bg-primary/90 text-white shadow-sm" 
+                                  : "hover:bg-secondary"
+                              )}
+                              onClick={() => setSendMode("scheduled")}
+                            >
+                              <Clock className="h-4 w-4 mr-2" />
+                              Programmé
+                            </Button>
+                          </div>
+
+                          {/* Scheduling inputs */}
+                          <AnimatePresence>
+                            {sendMode === "scheduled" && (
+                              <motion.div 
+                                className="grid grid-cols-2 gap-3"
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-medium text-muted-foreground">Date</label>
+                                  <Input
+                                    type="date"
+                                    value={scheduledDate}
+                                    onChange={(e) => setScheduledDate(e.target.value)}
+                                    min={new Date().toISOString().split("T")[0]}
+                                    className="h-10 rounded-lg"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-medium text-muted-foreground">Heure</label>
+                                  <Input
+                                    type="time"
+                                    value={scheduledTime}
+                                    onChange={(e) => setScheduledTime(e.target.value)}
+                                    className="h-10 rounded-lg"
+                                  />
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+
+                        {/* Send button */}
+                        <motion.div whileTap={{ scale: 0.98 }}>
+                          <Button
+                            className={cn(
+                              "w-full h-12 rounded-xl text-base font-medium transition-all",
+                              sendMode === "immediate" 
+                                ? "bg-whatsapp hover:bg-whatsapp/90" 
+                                : "bg-primary hover:bg-primary/90"
+                            )}
+                            onClick={handleSend}
+                            disabled={selectedRestaurants.size === 0 || !message.trim() || isSending}
+                          >
+                            {isSending ? (
+                              <>
+                                <motion.div
+                                  animate={{ rotate: 360 }}
+                                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                >
+                                  <Loader2 className="h-5 w-5 mr-2" />
+                                </motion.div>
+                                {sendMode === "immediate" ? "Envoi en cours..." : "Programmation..."}
+                              </>
+                            ) : sendMode === "immediate" ? (
+                              <>
+                                <Send className="h-5 w-5 mr-2" />
+                                Envoyer à {selectedRestaurants.size} restaurant{selectedRestaurants.size > 1 ? "s" : ""}
+                              </>
+                            ) : (
+                              <>
+                                <Calendar className="h-5 w-5 mr-2" />
+                                Programmer l'envoi
+                              </>
+                            )}
+                          </Button>
+                        </motion.div>
+
+                        {/* Progress indicator */}
+                        <AnimatePresence>
+                          {isSending && sendMode === "immediate" && (
+                            <motion.div
+                              initial={{ opacity: 0, scaleX: 0 }}
+                              animate={{ opacity: 1, scaleX: 1 }}
+                              exit={{ opacity: 0 }}
+                            >
+                              <Progress value={sendProgress} className="h-1.5 rounded-full" />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Selected restaurants summary */}
+                  <AnimatePresence>
+                    {selectedRestaurantsList.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-sm font-medium text-foreground">
+                                Destinataires
+                              </span>
+                              <Badge variant="secondary" className="rounded-full">
+                                {selectedRestaurantsList.length}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedRestaurantsList.slice(0, 8).map((r) => (
+                                <motion.button
+                                  key={r.id}
+                                  onClick={() => toggleRestaurant(r.id)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full bg-secondary hover:bg-destructive/10 hover:text-destructive transition-colors group"
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                  layout
+                                >
+                                  {r.name}
+                                  <X className="h-3 w-3 opacity-50 group-hover:opacity-100" />
+                                </motion.button>
+                              ))}
+                              {selectedRestaurantsList.length > 8 && (
+                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                                  +{selectedRestaurantsList.length - 8}
+                                </span>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="scheduled" className="mt-6" asChild>
+            <motion.div
+              key="scheduled"
+              variants={tabContentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
+                <div className="p-6 border-b border-border/50">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                      <Clock className="h-5 w-5 text-amber-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground">Messages programmés</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {scheduledMessages.filter(m => m.status === "pending").length} message(s) en attente
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <CardContent className="p-0">
+                  {isLoadingScheduled ? (
+                    <div className="flex items-center justify-center py-12 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      Chargement...
+                    </div>
+                  ) : scheduledMessages.length === 0 ? (
+                    <div className="text-center py-16 text-muted-foreground">
+                      <Clock className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                      <p className="font-medium">Aucun message programmé</p>
+                      <p className="text-sm mt-1">Les messages programmés apparaîtront ici</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border/50">
+                      {scheduledMessages.map((msg, index) => (
+                        <motion.div 
+                          key={msg.id} 
+                          className="p-5 hover:bg-secondary/30 transition-colors"
+                          custom={index}
+                          variants={listItemVariants}
+                          initial="hidden"
+                          animate="visible"
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                              <Calendar className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-2">
+                              <div className="flex items-center gap-3">
+                                {getScheduledStatusBadge(msg.status)}
+                                <span className="text-sm font-medium text-foreground">
+                                  {format(new Date(msg.scheduled_at), "d MMMM yyyy à HH:mm", { locale: fr })}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground line-clamp-2">{msg.message}</p>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="text-xs">
+                                  <Users className="h-3 w-3 mr-1" />
+                                  {msg.recipients.length} destinataire{msg.recipients.length > 1 ? "s" : ""}
+                                </Badge>
+                                {msg.sent_count > 0 && (
+                                  <span className="text-xs text-whatsapp">
+                                    {msg.sent_count} envoyé{msg.sent_count > 1 ? "s" : ""}
+                                  </span>
+                                )}
+                                {msg.failed_count > 0 && (
+                                  <span className="text-xs text-destructive">
+                                    {msg.failed_count} échec{msg.failed_count > 1 ? "s" : ""}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {msg.status === "pending" && (
+                              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => deleteScheduledMessage(msg.id)}
+                                  className="h-9 w-9 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </motion.div>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-6" asChild>
+            <motion.div
+              key="history"
+              variants={tabContentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
+                <div className="p-6 border-b border-border/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <History className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">Historique des messages</h3>
+                        <p className="text-sm text-muted-foreground">{historyStats.total} messages envoyés</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {/* Stats badges */}
+                      <div className="hidden md:flex items-center gap-2">
+                        <Badge className="bg-whatsapp/10 text-whatsapp border-0">
+                          <CheckCheck className="h-3 w-3 mr-1" />
+                          {historyStats.delivered}
+                        </Badge>
+                        <Badge className="bg-primary/10 text-primary border-0">
+                          <Eye className="h-3 w-3 mr-1" />
+                          {historyStats.read}
+                        </Badge>
+                        {historyStats.failed > 0 && (
+                          <Badge className="bg-destructive/10 text-destructive border-0">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            {historyStats.failed}
+                          </Badge>
+                        )}
+                      </div>
+                      <Select value={historyStatusFilter} onValueChange={setHistoryStatusFilter}>
+                        <SelectTrigger className="w-[140px] h-9 rounded-lg">
+                          <SelectValue placeholder="Filtrer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tous</SelectItem>
+                          <SelectItem value="sent">Envoyés</SelectItem>
+                          <SelectItem value="delivered">Délivrés</SelectItem>
+                          <SelectItem value="read">Lus</SelectItem>
+                          <SelectItem value="failed">Échecs</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+                <CardContent className="p-0">
+                  <ScrollArea className="h-[500px]">
+                    {isLoadingHistory ? (
                       <div className="flex items-center justify-center py-12 text-muted-foreground">
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />
                         Chargement...
                       </div>
-                    ) : filteredRestaurants.length === 0 ? (
-                      <div className="text-center py-12 text-muted-foreground">
-                        <Store className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                        <p>Aucun restaurant trouvé</p>
+                    ) : filteredHistory.length === 0 ? (
+                      <div className="text-center py-16 text-muted-foreground">
+                        <History className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                        <p className="font-medium">Aucun message</p>
+                        <p className="text-sm mt-1">L'historique de vos messages apparaîtra ici</p>
                       </div>
                     ) : (
                       <div className="divide-y divide-border/50">
-                        {filteredRestaurants.map((restaurant) => {
-                          const hasWhatsApp = !!restaurant.manager_whatsapp;
-                          const isSelected = selectedRestaurants.has(restaurant.id);
-                          
-                          return (
-                            <div
-                              key={restaurant.id}
-                              className={cn(
-                                "flex items-center gap-4 p-4 transition-all duration-200",
-                                !hasWhatsApp 
-                                  ? "opacity-40" 
-                                  : "cursor-pointer hover:bg-secondary/50",
-                                isSelected && "bg-whatsapp/5"
-                              )}
-                              onClick={() => hasWhatsApp && toggleRestaurant(restaurant.id)}
-                            >
-                              <Checkbox
-                                checked={isSelected}
-                                disabled={!hasWhatsApp}
-                                onCheckedChange={() => toggleRestaurant(restaurant.id)}
-                                onClick={(e) => e.stopPropagation()}
-                                className={cn(
-                                  "h-5 w-5 rounded-md transition-all",
-                                  isSelected && "border-whatsapp bg-whatsapp data-[state=checked]:bg-whatsapp"
+                        {filteredHistory.map((msg, index) => (
+                          <motion.div 
+                            key={msg.id} 
+                            className="p-5 hover:bg-secondary/30 transition-colors"
+                            custom={index}
+                            variants={listItemVariants}
+                            initial="hidden"
+                            animate="visible"
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className={cn(
+                                "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
+                                msg.direction === "inbound" ? "bg-blue-500/10" : "bg-whatsapp/10"
+                              )}>
+                                {msg.direction === "inbound" ? (
+                                  <MessageSquare className="h-5 w-5 text-blue-500" />
+                                ) : (
+                                  <Send className="h-5 w-5 text-whatsapp" />
                                 )}
-                              />
-                              
-                              <div className="flex-1 min-w-0">
+                              </div>
+                              <div className="flex-1 min-w-0 space-y-1.5">
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium text-foreground truncate">
-                                    {restaurant.name}
+                                    {msg.restaurant_name || msg.recipient_name || msg.recipient_phone}
                                   </span>
+                                  {getHistoryStatusBadge(msg.status)}
                                 </div>
-                                <div className="flex items-center gap-3 mt-0.5 text-sm text-muted-foreground">
-                                  <span>{restaurant.city || "—"}</span>
-                                  {restaurant.postal_code && (
-                                    <span className="text-xs bg-secondary px-1.5 py-0.5 rounded">
-                                      {restaurant.postal_code.trim().substring(0, 2)}
+                                <p className="text-sm text-muted-foreground line-clamp-2">{msg.message_content}</p>
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="h-3 w-3" />
+                                    {msg.recipient_phone}
+                                  </span>
+                                  {msg.sent_at && (
+                                    <span>
+                                      {format(new Date(msg.sent_at), "d MMM HH:mm", { locale: fr })}
                                     </span>
                                   )}
                                 </div>
                               </div>
-
-                              <div className="text-right">
-                                {restaurant.manager_first_name || restaurant.manager_last_name ? (
-                                  <div className="text-sm font-medium text-foreground">
-                                    {restaurant.manager_first_name} {restaurant.manager_last_name}
-                                  </div>
-                                ) : (
-                                  <div className="text-sm text-muted-foreground">—</div>
-                                )}
-                              </div>
-
-                              <div className="w-36 text-right">
-                                {hasWhatsApp ? (
-                                  <div className="inline-flex items-center gap-1.5 text-sm font-mono bg-whatsapp/10 text-whatsapp px-2.5 py-1 rounded-lg">
-                                    <Phone className="h-3.5 w-3.5" />
-                                    <span className="truncate">{restaurant.manager_whatsapp}</span>
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">Non renseigné</span>
-                                )}
-                              </div>
                             </div>
-                          );
-                        })}
+                          </motion.div>
+                        ))}
                       </div>
                     )}
                   </ScrollArea>
                 </CardContent>
               </Card>
-            </div>
-
-            {/* Right: Message Composition */}
-            <div className="lg:col-span-2 space-y-4">
-              <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
-                <div className="p-6 border-b border-border/50 bg-gradient-to-b from-card to-card/95">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <MessageSquare className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">Message</h3>
-                      <p className="text-sm text-muted-foreground">Rédigez votre message</p>
-                    </div>
-                  </div>
-                </div>
-
-                <CardContent className="p-6 space-y-5">
-                  <div>
-                    <Textarea
-                      placeholder="Rédigez votre message ici..."
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      className="min-h-[160px] resize-none rounded-xl border-border/50 bg-secondary/30 focus:bg-card transition-colors text-sm"
-                    />
-                  </div>
-
-                  {/* Variables help */}
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Variables disponibles</p>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { key: "{prenom}", label: "Prénom" },
-                        { key: "{nom}", label: "Nom" },
-                        { key: "{restaurant}", label: "Restaurant" },
-                      ].map((v) => (
-                        <button
-                          key={v.key}
-                          type="button"
-                          onClick={() => setMessage((m) => m + v.key)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-secondary/70 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-                        >
-                          <Sparkles className="h-3 w-3" />
-                          {v.key}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Preview */}
-                  {message && selectedRestaurantsList.length > 0 && (
-                    <div className="p-4 bg-whatsapp-bubble-out rounded-2xl rounded-tr-sm space-y-1">
-                      <p className="text-xs font-medium text-whatsapp/70">
-                        Aperçu • {selectedRestaurantsList[0].name}
-                      </p>
-                      <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                        {getPersonalizedMessage(selectedRestaurantsList[0])}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Send mode selection */}
-                  <div className="space-y-4 pt-4 border-t border-border/50">
-                    <div className="grid grid-cols-2 gap-2 p-1 bg-secondary/50 rounded-xl">
-                      <Button
-                        variant={sendMode === "immediate" ? "default" : "ghost"}
-                        size="sm"
-                        className={cn(
-                          "rounded-lg h-10 transition-all",
-                          sendMode === "immediate" 
-                            ? "bg-whatsapp hover:bg-whatsapp/90 text-white shadow-sm" 
-                            : "hover:bg-secondary"
-                        )}
-                        onClick={() => setSendMode("immediate")}
-                      >
-                        <Send className="h-4 w-4 mr-2" />
-                        Immédiat
-                      </Button>
-                      <Button
-                        variant={sendMode === "scheduled" ? "default" : "ghost"}
-                        size="sm"
-                        className={cn(
-                          "rounded-lg h-10 transition-all",
-                          sendMode === "scheduled" 
-                            ? "bg-primary hover:bg-primary/90 text-white shadow-sm" 
-                            : "hover:bg-secondary"
-                        )}
-                        onClick={() => setSendMode("scheduled")}
-                      >
-                        <Clock className="h-4 w-4 mr-2" />
-                        Programmé
-                      </Button>
-                    </div>
-
-                    {/* Scheduling inputs */}
-                    {sendMode === "scheduled" && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium text-muted-foreground">Date</label>
-                          <Input
-                            type="date"
-                            value={scheduledDate}
-                            onChange={(e) => setScheduledDate(e.target.value)}
-                            min={new Date().toISOString().split("T")[0]}
-                            className="h-10 rounded-lg"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-medium text-muted-foreground">Heure</label>
-                          <Input
-                            type="time"
-                            value={scheduledTime}
-                            onChange={(e) => setScheduledTime(e.target.value)}
-                            className="h-10 rounded-lg"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Send button */}
-                  <Button
-                    className={cn(
-                      "w-full h-12 rounded-xl text-base font-medium transition-all",
-                      sendMode === "immediate" 
-                        ? "bg-whatsapp hover:bg-whatsapp/90" 
-                        : "bg-primary hover:bg-primary/90"
-                    )}
-                    onClick={handleSend}
-                    disabled={selectedRestaurants.size === 0 || !message.trim() || isSending}
-                  >
-                    {isSending ? (
-                      <>
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                        {sendMode === "immediate" ? "Envoi en cours..." : "Programmation..."}
-                      </>
-                    ) : sendMode === "immediate" ? (
-                      <>
-                        <Send className="h-5 w-5 mr-2" />
-                        Envoyer à {selectedRestaurants.size} restaurant{selectedRestaurants.size > 1 ? "s" : ""}
-                      </>
-                    ) : (
-                      <>
-                        <Calendar className="h-5 w-5 mr-2" />
-                        Programmer l'envoi
-                      </>
-                    )}
-                  </Button>
-
-                  {/* Progress indicator */}
-                  {isSending && sendMode === "immediate" && (
-                    <Progress value={sendProgress} className="h-1.5 rounded-full" />
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Selected restaurants summary */}
-              {selectedRestaurantsList.length > 0 && (
-                <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-foreground">
-                        Destinataires
-                      </span>
-                      <Badge variant="secondary" className="rounded-full">
-                        {selectedRestaurantsList.length}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedRestaurantsList.slice(0, 8).map((r) => (
-                        <button
-                          key={r.id}
-                          onClick={() => toggleRestaurant(r.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full bg-secondary hover:bg-destructive/10 hover:text-destructive transition-colors group"
-                        >
-                          {r.name}
-                          <X className="h-3 w-3 opacity-50 group-hover:opacity-100" />
-                        </button>
-                      ))}
-                      {selectedRestaurantsList.length > 8 && (
-                        <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground">
-                          +{selectedRestaurantsList.length - 8}
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="scheduled" className="mt-6">
-          <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
-            <div className="p-6 border-b border-border/50">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                  <Clock className="h-5 w-5 text-amber-500" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">Messages programmés</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {scheduledMessages.filter(m => m.status === "pending").length} message(s) en attente
-                  </p>
-                </div>
-              </div>
-            </div>
-            <CardContent className="p-0">
-              {isLoadingScheduled ? (
-                <div className="flex items-center justify-center py-12 text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                  Chargement...
-                </div>
-              ) : scheduledMessages.length === 0 ? (
-                <div className="text-center py-16 text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                  <p className="font-medium">Aucun message programmé</p>
-                  <p className="text-sm mt-1">Les messages programmés apparaîtront ici</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-border/50">
-                  {scheduledMessages.map((msg) => (
-                    <div key={msg.id} className="p-5 hover:bg-secondary/30 transition-colors">
-                      <div className="flex items-start gap-4">
-                        <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
-                          <Calendar className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <div className="flex items-center gap-3">
-                            {getScheduledStatusBadge(msg.status)}
-                            <span className="text-sm font-medium text-foreground">
-                              {format(new Date(msg.scheduled_at), "d MMMM yyyy à HH:mm", { locale: fr })}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground line-clamp-2">{msg.message}</p>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-xs">
-                              <Users className="h-3 w-3 mr-1" />
-                              {msg.recipients.length} destinataire{msg.recipients.length > 1 ? "s" : ""}
-                            </Badge>
-                            {msg.sent_count > 0 && (
-                              <span className="text-xs text-whatsapp">
-                                {msg.sent_count} envoyé{msg.sent_count > 1 ? "s" : ""}
-                              </span>
-                            )}
-                            {msg.failed_count > 0 && (
-                              <span className="text-xs text-destructive">
-                                {msg.failed_count} échec{msg.failed_count > 1 ? "s" : ""}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {msg.status === "pending" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteScheduledMessage(msg.id)}
-                            className="h-9 w-9 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="history" className="mt-6">
-          <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
-            <div className="p-6 border-b border-border/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <History className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground">Historique des messages</h3>
-                    <p className="text-sm text-muted-foreground">{historyStats.total} messages envoyés</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  {/* Stats badges */}
-                  <div className="hidden md:flex items-center gap-2">
-                    <Badge className="bg-whatsapp/10 text-whatsapp border-0">
-                      <CheckCheck className="h-3 w-3 mr-1" />
-                      {historyStats.delivered}
-                    </Badge>
-                    <Badge className="bg-primary/10 text-primary border-0">
-                      <Eye className="h-3 w-3 mr-1" />
-                      {historyStats.read}
-                    </Badge>
-                    {historyStats.failed > 0 && (
-                      <Badge className="bg-destructive/10 text-destructive border-0">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        {historyStats.failed}
-                      </Badge>
-                    )}
-                  </div>
-                  <Select value={historyStatusFilter} onValueChange={setHistoryStatusFilter}>
-                    <SelectTrigger className="w-[140px] h-9 rounded-lg">
-                      <SelectValue placeholder="Filtrer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tous</SelectItem>
-                      <SelectItem value="sent">Envoyés</SelectItem>
-                      <SelectItem value="delivered">Délivrés</SelectItem>
-                      <SelectItem value="read">Lus</SelectItem>
-                      <SelectItem value="failed">Échecs</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[500px]">
-                {isLoadingHistory ? (
-                  <div className="flex items-center justify-center py-12 text-muted-foreground">
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    Chargement...
-                  </div>
-                ) : filteredHistory.length === 0 ? (
-                  <div className="text-center py-16 text-muted-foreground">
-                    <History className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                    <p className="font-medium">Aucun message</p>
-                    <p className="text-sm mt-1">L'historique de vos messages apparaîtra ici</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border/50">
-                    {filteredHistory.map((msg) => (
-                      <div key={msg.id} className="p-5 hover:bg-secondary/30 transition-colors">
-                        <div className="flex items-start gap-4">
-                          <div className={cn(
-                            "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
-                            msg.direction === "inbound" ? "bg-blue-500/10" : "bg-whatsapp/10"
-                          )}>
-                            {msg.direction === "inbound" ? (
-                              <MessageSquare className="h-5 w-5 text-blue-500" />
-                            ) : (
-                              <Send className="h-5 w-5 text-whatsapp" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0 space-y-1.5">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-foreground truncate">
-                                {msg.restaurant_name || msg.recipient_name || msg.recipient_phone}
-                              </span>
-                              {getHistoryStatusBadge(msg.status)}
-                            </div>
-                            <p className="text-sm text-muted-foreground line-clamp-2">{msg.message_content}</p>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {msg.recipient_phone}
-                              </span>
-                              {msg.sent_at && (
-                                <span>
-                                  {format(new Date(msg.sent_at), "d MMM HH:mm", { locale: fr })}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </motion.div>
+          </TabsContent>
+        </AnimatePresence>
       </Tabs>
 
       {/* Results Dialog */}
@@ -1061,9 +1219,14 @@ export default function Messaging() {
             <DialogTitle className="flex items-center gap-2">
               {sendResults.every((r) => r.success) ? (
                 <>
-                  <div className="h-8 w-8 rounded-full bg-whatsapp/10 flex items-center justify-center">
+                  <motion.div 
+                    className="h-8 w-8 rounded-full bg-whatsapp/10 flex items-center justify-center"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                  >
                     <CheckCircle2 className="h-5 w-5 text-whatsapp" />
-                  </div>
+                  </motion.div>
                   Envoi réussi
                 </>
               ) : sendResults.some((r) => r.success) ? (
@@ -1089,12 +1252,15 @@ export default function Messaging() {
           <div className="max-h-[300px] overflow-y-auto">
             <div className="space-y-2">
               {sendResults.map((result, index) => (
-                <div
+                <motion.div
                   key={index}
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-xl",
                     result.success ? "bg-whatsapp/5" : "bg-destructive/5"
                   )}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
                 >
                   {result.success ? (
                     <CheckCircle2 className="h-5 w-5 text-whatsapp shrink-0" />
@@ -1108,7 +1274,7 @@ export default function Messaging() {
                       <p className="text-xs text-destructive mt-1">{result.error}</p>
                     )}
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>

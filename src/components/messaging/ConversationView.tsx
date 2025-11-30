@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Message {
   id: string;
@@ -58,6 +59,26 @@ interface Restaurant {
   manager_first_name: string | null;
   manager_last_name: string | null;
 }
+
+// Animation variants
+const messageVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.95 },
+  visible: { 
+    opacity: 1, 
+    y: 0, 
+    scale: 1,
+    transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] }
+  }
+};
+
+const conversationItemVariants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: (i: number) => ({
+    opacity: 1,
+    x: 0,
+    transition: { delay: i * 0.03, duration: 0.2 }
+  })
+};
 
 export default function ConversationView() {
   const queryClient = useQueryClient();
@@ -356,12 +377,16 @@ export default function ConversationView() {
             </div>
           ) : (
             <div>
-              {filteredConversations.map((conv) => {
+              {filteredConversations.map((conv, index) => {
                 const isSelected = selectedPhone && normalizePhone(conv.phone) === normalizePhone(selectedPhone);
                 
                 return (
-                  <div
+                  <motion.div
                     key={conv.phone}
+                    custom={index}
+                    variants={conversationItemVariants}
+                    initial="hidden"
+                    animate="visible"
                     className={cn(
                       "flex items-center gap-3 p-4 cursor-pointer transition-all duration-200 border-l-2",
                       isSelected 
@@ -369,17 +394,22 @@ export default function ConversationView() {
                         : "border-l-transparent hover:bg-secondary/50"
                     )}
                     onClick={() => setSelectedPhone(conv.phone)}
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.99 }}
                   >
-                    <div className={cn(
-                      "h-12 w-12 rounded-full flex items-center justify-center shrink-0 transition-colors",
-                      conv.restaurantName ? "bg-whatsapp/10" : "bg-secondary"
-                    )}>
+                    <motion.div 
+                      className={cn(
+                        "h-12 w-12 rounded-full flex items-center justify-center shrink-0 transition-colors",
+                        conv.restaurantName ? "bg-whatsapp/10" : "bg-secondary"
+                      )}
+                      whileHover={{ scale: 1.05 }}
+                    >
                       {conv.restaurantName ? (
                         <Store className="h-5 w-5 text-whatsapp" />
                       ) : (
                         <User className="h-5 w-5 text-muted-foreground" />
                       )}
-                    </div>
+                    </motion.div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-0.5">
                         <span className={cn(
@@ -402,14 +432,22 @@ export default function ConversationView() {
                         )}>
                           {conv.lastMessage}
                         </p>
-                        {conv.unreadCount > 0 && (
-                          <span className="ml-2 flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-whatsapp text-white">
-                            {conv.unreadCount}
-                          </span>
-                        )}
+                        <AnimatePresence>
+                          {conv.unreadCount > 0 && (
+                            <motion.span 
+                              className="ml-2 flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-whatsapp text-white"
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              exit={{ scale: 0 }}
+                              transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                            >
+                              {conv.unreadCount}
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -422,145 +460,191 @@ export default function ConversationView() {
         "lg:col-span-2 flex flex-col bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%239C92AC%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')]",
         !selectedPhone && "hidden lg:flex lg:items-center lg:justify-center"
       )}>
-        {selectedConversation ? (
-          <>
-            {/* Header */}
-            <div className="p-4 border-b border-border/50 bg-card/95 backdrop-blur-sm">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="lg:hidden h-9 w-9 rounded-full"
-                  onClick={() => setSelectedPhone(null)}
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <div className={cn(
-                  "h-11 w-11 rounded-full flex items-center justify-center",
-                  selectedConversation.restaurantName ? "bg-whatsapp/10" : "bg-secondary"
-                )}>
-                  {selectedConversation.restaurantName ? (
-                    <Store className="h-5 w-5 text-whatsapp" />
-                  ) : (
-                    <User className="h-5 w-5 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-foreground truncate">
-                    {selectedConversation.restaurantName || selectedConversation.contactName || selectedConversation.phone}
-                  </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <Phone className="h-3 w-3" />
-                    {selectedConversation.phone}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-3 max-w-3xl mx-auto">
-                {selectedConversation.messages.map((msg, index) => {
-                  const isOutbound = msg.direction === "outbound";
-                  const showDate = index === 0 || 
-                    new Date(msg.created_at).toDateString() !== 
-                    new Date(selectedConversation.messages[index - 1].created_at).toDateString();
-                  
-                  return (
-                    <div key={msg.id}>
-                      {showDate && (
-                        <div className="flex justify-center my-4">
-                          <span className="px-3 py-1 text-xs font-medium text-muted-foreground bg-card/80 rounded-full shadow-sm">
-                            {isToday(new Date(msg.created_at)) 
-                              ? "Aujourd'hui" 
-                              : isYesterday(new Date(msg.created_at))
-                                ? "Hier"
-                                : format(new Date(msg.created_at), "d MMMM yyyy", { locale: fr })}
-                          </span>
-                        </div>
-                      )}
-                      <div className={cn("flex", isOutbound ? "justify-end" : "justify-start")}>
-                        <div
-                          className={cn(
-                            "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm relative",
-                            isOutbound
-                              ? "bg-whatsapp-bubble-out text-foreground rounded-br-md"
-                              : "bg-card text-foreground rounded-bl-md"
-                          )}
-                        >
-                          <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-                            {msg.message_content}
-                          </p>
-                          <div
-                            className={cn(
-                              "flex items-center gap-1 mt-1 text-[11px]",
-                              isOutbound ? "justify-end text-muted-foreground/70" : "text-muted-foreground/60"
-                            )}
-                          >
-                            <span>{format(new Date(msg.created_at), "HH:mm")}</span>
-                            {getStatusIcon(msg)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
-
-            {/* Input */}
-            <div className="p-4 bg-card/95 backdrop-blur-sm border-t border-border/50">
-              <div className="flex items-end gap-3 max-w-3xl mx-auto">
-                <div className="flex-1 relative">
-                  <Input
-                    placeholder="Écrire un message..."
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    disabled={isSending}
-                    className="h-11 pr-12 rounded-full bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors text-[15px]"
-                  />
+        <AnimatePresence mode="wait">
+          {selectedConversation ? (
+            <motion.div 
+              className="flex flex-col h-full"
+              key="conversation"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {/* Header */}
+              <div className="p-4 border-b border-border/50 bg-card/95 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
-                    type="button"
+                    className="lg:hidden h-9 w-9 rounded-full"
+                    onClick={() => setSelectedPhone(null)}
                   >
-                    <Smile className="h-5 w-5" />
+                    <ArrowLeft className="h-5 w-5" />
                   </Button>
+                  <motion.div 
+                    className={cn(
+                      "h-11 w-11 rounded-full flex items-center justify-center",
+                      selectedConversation.restaurantName ? "bg-whatsapp/10" : "bg-secondary"
+                    )}
+                    initial={{ scale: 0.8 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                  >
+                    {selectedConversation.restaurantName ? (
+                      <Store className="h-5 w-5 text-whatsapp" />
+                    ) : (
+                      <User className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </motion.div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-foreground truncate">
+                      {selectedConversation.restaurantName || selectedConversation.contactName || selectedConversation.phone}
+                    </div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Phone className="h-3 w-3" />
+                      {selectedConversation.phone}
+                    </div>
+                  </div>
                 </div>
-                <Button
-                  size="icon"
-                  onClick={sendReply}
-                  disabled={!newMessage.trim() || isSending}
-                  className={cn(
-                    "h-11 w-11 rounded-full shrink-0 transition-all",
-                    newMessage.trim() 
-                      ? "bg-whatsapp hover:bg-whatsapp/90" 
-                      : "bg-secondary text-muted-foreground"
-                  )}
-                >
-                  {isSending ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Send className="h-5 w-5" />
-                  )}
-                </Button>
               </div>
-            </div>
-          </>
-        ) : (
-          <div className="text-center text-muted-foreground p-8">
-            <div className="h-20 w-20 rounded-full bg-secondary/50 flex items-center justify-center mx-auto mb-4">
-              <MessageSquare className="h-10 w-10 opacity-40" />
-            </div>
-            <p className="font-medium text-lg text-foreground/80">Vos messages</p>
-            <p className="text-sm mt-1 opacity-70">
-              Sélectionnez une conversation pour commencer
-            </p>
-          </div>
-        )}
+
+              {/* Messages */}
+              <ScrollArea className="flex-1 p-4">
+                <div className="space-y-3 max-w-3xl mx-auto">
+                  {selectedConversation.messages.map((msg, index) => {
+                    const isOutbound = msg.direction === "outbound";
+                    const showDate = index === 0 || 
+                      new Date(msg.created_at).toDateString() !== 
+                      new Date(selectedConversation.messages[index - 1].created_at).toDateString();
+                    
+                    return (
+                      <div key={msg.id}>
+                        <AnimatePresence>
+                          {showDate && (
+                            <motion.div 
+                              className="flex justify-center my-4"
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <span className="px-3 py-1 text-xs font-medium text-muted-foreground bg-card/80 rounded-full shadow-sm">
+                                {isToday(new Date(msg.created_at)) 
+                                  ? "Aujourd'hui" 
+                                  : isYesterday(new Date(msg.created_at))
+                                    ? "Hier"
+                                    : format(new Date(msg.created_at), "d MMMM yyyy", { locale: fr })}
+                              </span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                        <motion.div 
+                          className={cn("flex", isOutbound ? "justify-end" : "justify-start")}
+                          variants={messageVariants}
+                          initial="hidden"
+                          animate="visible"
+                          layout
+                        >
+                          <motion.div
+                            className={cn(
+                              "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm relative",
+                              isOutbound
+                                ? "bg-whatsapp-bubble-out text-foreground rounded-br-md"
+                                : "bg-card text-foreground rounded-bl-md"
+                            )}
+                            whileHover={{ scale: 1.01 }}
+                            transition={{ duration: 0.1 }}
+                          >
+                            <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+                              {msg.message_content}
+                            </p>
+                            <div
+                              className={cn(
+                                "flex items-center gap-1 mt-1 text-[11px]",
+                                isOutbound ? "justify-end text-muted-foreground/70" : "text-muted-foreground/60"
+                              )}
+                            >
+                              <span>{format(new Date(msg.created_at), "HH:mm")}</span>
+                              {getStatusIcon(msg)}
+                            </div>
+                          </motion.div>
+                        </motion.div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+              </ScrollArea>
+
+              {/* Input */}
+              <div className="p-4 bg-card/95 backdrop-blur-sm border-t border-border/50">
+                <div className="flex items-end gap-3 max-w-3xl mx-auto">
+                  <div className="flex-1 relative">
+                    <Input
+                      placeholder="Écrire un message..."
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      disabled={isSending}
+                      className="h-11 pr-12 rounded-full bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors text-[15px]"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
+                      type="button"
+                    >
+                      <Smile className="h-5 w-5" />
+                    </Button>
+                  </div>
+                  <motion.div whileTap={{ scale: 0.9 }}>
+                    <Button
+                      size="icon"
+                      onClick={sendReply}
+                      disabled={!newMessage.trim() || isSending}
+                      className={cn(
+                        "h-11 w-11 rounded-full shrink-0 transition-all",
+                        newMessage.trim() 
+                          ? "bg-whatsapp hover:bg-whatsapp/90" 
+                          : "bg-secondary text-muted-foreground"
+                      )}
+                    >
+                      {isSending ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        >
+                          <Loader2 className="h-5 w-5" />
+                        </motion.div>
+                      ) : (
+                        <Send className="h-5 w-5" />
+                      )}
+                    </Button>
+                  </motion.div>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div 
+              className="text-center text-muted-foreground p-8"
+              key="empty"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <motion.div 
+                className="h-20 w-20 rounded-full bg-secondary/50 flex items-center justify-center mx-auto mb-4"
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <MessageSquare className="h-10 w-10 opacity-40" />
+              </motion.div>
+              <p className="font-medium text-lg text-foreground/80">Vos messages</p>
+              <p className="text-sm mt-1 opacity-70">
+                Sélectionnez une conversation pour commencer
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
