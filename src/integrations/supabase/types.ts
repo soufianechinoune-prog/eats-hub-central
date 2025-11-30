@@ -1143,6 +1143,7 @@ export type Database = {
           sent_at: string | null
           sent_count: number | null
           status: string
+          subject: string | null
         }
         Insert: {
           created_at?: string
@@ -1158,6 +1159,7 @@ export type Database = {
           sent_at?: string | null
           sent_count?: number | null
           status?: string
+          subject?: string | null
         }
         Update: {
           created_at?: string
@@ -1173,6 +1175,7 @@ export type Database = {
           sent_at?: string | null
           sent_count?: number | null
           status?: string
+          subject?: string | null
         }
         Relationships: []
       }

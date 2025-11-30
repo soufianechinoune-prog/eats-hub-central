@@ -100,6 +100,7 @@ interface ScheduledMessage {
   created_at: string;
   media_url: string | null;
   media_type: string | null;
+  subject: string | null;
 }
 
 // Animation variants
@@ -152,6 +153,9 @@ export default function Messaging() {
   const [scheduledMedia, setScheduledMedia] = useState<{ file: File; url: string; type: 'image' | 'document' } | null>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const scheduledMediaInputRef = useRef<HTMLInputElement>(null);
+  
+  // Subject for multi-recipient scheduled messages
+  const [scheduledSubject, setScheduledSubject] = useState("");
   
   // Send state
   const [isSending, setIsSending] = useState(false);
@@ -411,6 +415,7 @@ export default function Messaging() {
           status: "pending",
           media_url: mediaUrl,
           media_type: mediaType,
+          subject: selectedRestaurantsList.length > 1 && scheduledSubject.trim() ? scheduledSubject.trim() : null,
         });
 
       if (error) throw error;
@@ -422,6 +427,7 @@ export default function Messaging() {
       setScheduledDate("");
       setScheduledTime("");
       setSendMode("immediate");
+      setScheduledSubject("");
       clearScheduledMedia();
       
       queryClient.invalidateQueries({ queryKey: ["scheduled-messages"] });
@@ -915,6 +921,24 @@ export default function Messaging() {
                                   </div>
                                 </div>
                                 
+                                {/* Subject field for multi-recipient scheduled messages */}
+                                {selectedRestaurants.size > 1 && (
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-muted-foreground">
+                                      Objet du message (optionnel)
+                                    </label>
+                                    <Input
+                                      value={scheduledSubject}
+                                      onChange={(e) => setScheduledSubject(e.target.value)}
+                                      placeholder="Ex: Rappel inventaire, Promotion weekend..."
+                                      className="h-10 rounded-lg"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      L'objet vous aidera à identifier ce message dans l'historique
+                                    </p>
+                                  </div>
+                                )}
+                                
                                 {/* Media attachment for scheduled */}
                                 <div className="space-y-2">
                                   <label className="text-xs font-medium text-muted-foreground">Média (optionnel)</label>
@@ -1144,6 +1168,12 @@ export default function Messaging() {
                                   {format(new Date(msg.scheduled_at), "d MMMM yyyy à HH:mm", { locale: fr })}
                                 </span>
                               </div>
+                              {msg.subject && (
+                                <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                  <span className="text-muted-foreground">📌</span>
+                                  {msg.subject}
+                                </p>
+                              )}
                               <p className="text-sm text-muted-foreground line-clamp-2">{msg.message}</p>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <Badge variant="secondary" className="text-xs">
