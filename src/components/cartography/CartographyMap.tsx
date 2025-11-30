@@ -5,7 +5,8 @@ import { RestaurantWithGeo, SimulatedLocation } from "@/pages/Cartography";
 import { useMapboxToken } from "@/hooks/useMapboxToken";
 import { Loader2, AlertCircle } from "lucide-react";
 import csLogo from "@/assets/cs-logo.jpeg";
-import { generateDensityFeatures, getDensityColor } from "@/data/france-population-density";
+import { generateDensityFeatures } from "@/data/france-population-density";
+import { CommuneDensityLayer } from "./CommuneDensityLayer";
 
 interface CartographyMapProps {
   restaurants: RestaurantWithGeo[];
@@ -14,6 +15,8 @@ interface CartographyMapProps {
   center: [number, number];
   zoom: number;
   showDensityLayer: boolean;
+  showCommuneDensity: boolean;
+  communeDensityLevels: number[];
   onSelectRestaurant: (id: string | null) => void;
 }
 
@@ -24,6 +27,8 @@ export const CartographyMap = ({
   center,
   zoom,
   showDensityLayer,
+  showCommuneDensity,
+  communeDensityLevels,
   onSelectRestaurant,
 }: CartographyMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -387,6 +392,14 @@ export const CartographyMap = ({
   }
 
   return (
-    <div ref={mapContainer} className="w-full h-full" />
+    <>
+      <div ref={mapContainer} className="w-full h-full" />
+      <CommuneDensityLayer
+        map={map.current}
+        mapLoaded={mapLoaded}
+        visible={showCommuneDensity}
+        filteredLevels={communeDensityLevels}
+      />
+    </>
   );
 };

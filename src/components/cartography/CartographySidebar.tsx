@@ -17,16 +17,17 @@ import {
   Trash2, 
   Search,
   MapPinOff,
-  Locate,
   Play,
   EyeOff,
   Eye,
-  X,
   RotateCcw,
-  Users
+  Users,
+  Building2,
+  Locate
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DENSITY_LEGEND } from "@/data/france-population-density";
+import { CommuneDensityLegend } from "./CommuneDensityLayer";
 
 interface CartographySidebarProps {
   restaurants: RestaurantWithGeo[];
@@ -35,6 +36,8 @@ interface CartographySidebarProps {
   ignoredAlerts: CannibalismAlert[];
   showIgnoredAlerts: boolean;
   showDensityLayer: boolean;
+  showCommuneDensity: boolean;
+  communeDensityLevels: number[];
   selectedRestaurantId: string | null;
   isSimulationMode: boolean;
   onSelectRestaurant: (id: string | null) => void;
@@ -44,6 +47,8 @@ interface CartographySidebarProps {
   onUpdateSimulationRadius: (id: string, radius: number) => void;
   onToggleSimulationMode: () => void;
   onToggleDensityLayer: () => void;
+  onToggleCommuneDensity: () => void;
+  onToggleCommuneDensityLevel: (level: number) => void;
   onGeocodeRestaurant: (id: string) => void;
   onIgnoreAlert: (alert: CannibalismAlert) => void;
   onRestoreAlert: (alert: CannibalismAlert) => void;
@@ -59,6 +64,8 @@ export const CartographySidebar = ({
   ignoredAlerts,
   showIgnoredAlerts,
   showDensityLayer,
+  showCommuneDensity,
+  communeDensityLevels,
   selectedRestaurantId,
   isSimulationMode,
   onSelectRestaurant,
@@ -68,6 +75,8 @@ export const CartographySidebar = ({
   onUpdateSimulationRadius,
   onToggleSimulationMode,
   onToggleDensityLayer,
+  onToggleCommuneDensity,
+  onToggleCommuneDensityLevel,
   onGeocodeRestaurant,
   onIgnoreAlert,
   onRestoreAlert,
@@ -171,6 +180,29 @@ export const CartographySidebar = ({
               ))}
             </div>
           </div>
+        )}
+
+        {/* Commune Density Layer Toggle */}
+        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="commune-density-toggle" className="text-sm font-medium cursor-pointer">
+              Densité communes INSEE
+            </Label>
+          </div>
+          <Switch
+            id="commune-density-toggle"
+            checked={showCommuneDensity}
+            onCheckedChange={onToggleCommuneDensity}
+          />
+        </div>
+
+        {/* Commune Density Legend */}
+        {showCommuneDensity && (
+          <CommuneDensityLegend
+            filteredLevels={communeDensityLevels}
+            onToggleLevel={onToggleCommuneDensityLevel}
+          />
         )}
       </div>
 
