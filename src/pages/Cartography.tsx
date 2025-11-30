@@ -51,6 +51,7 @@ const Cartography = () => {
   const [showIgnoredAlerts, setShowIgnoredAlerts] = useState(false);
   const [showDensityLayer, setShowDensityLayer] = useState(false);
   const [densityLevels, setDensityLevels] = useState<number[]>([1, 2, 3, 4]);
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   
   // Distance measurement state
   const [isDistanceMode, setIsDistanceMode] = useState(false);
@@ -323,6 +324,16 @@ const Cartography = () => {
 
   const geocodedRestaurants = restaurants.filter(r => r.latitude && r.longitude);
   const unGeocodedRestaurants = restaurants.filter(r => !r.latitude || !r.longitude);
+  
+  // Filter by selected departments
+  const filteredGeocodedRestaurants = useMemo(() => {
+    if (selectedDepartments.length === 0) return geocodedRestaurants;
+    return geocodedRestaurants.filter(r => {
+      const dept = r.postal_code?.substring(0, 2);
+      return dept && selectedDepartments.includes(dept);
+    });
+  }, [geocodedRestaurants, selectedDepartments]);
+  
   const allAlerts = cannibalismAlerts();
   const activeAlerts = allAlerts.filter(a => !ignoredAlerts.has(getAlertKey(a)));
   const ignoredAlertsList = allAlerts.filter(a => ignoredAlerts.has(getAlertKey(a)));
@@ -366,12 +377,15 @@ const Cartography = () => {
           {/* Sidebar */}
           <CartographySidebar
             restaurants={restaurants}
+            filteredGeocodedRestaurants={filteredGeocodedRestaurants}
             simulatedLocations={simulatedLocations}
             cannibalismAlerts={activeAlerts}
             ignoredAlerts={ignoredAlertsList}
             showIgnoredAlerts={showIgnoredAlerts}
             showDensityLayer={showDensityLayer}
             densityLevels={densityLevels}
+            selectedDepartments={selectedDepartments}
+            onDepartmentSelectionChange={setSelectedDepartments}
             selectedRestaurantId={selectedRestaurantId}
             isSimulationMode={isSimulationMode}
             isDistanceMode={isDistanceMode}
@@ -433,7 +447,7 @@ const Cartography = () => {
           {/* Map */}
           <div className="flex-1 relative rounded-xl overflow-hidden border bg-card">
             <CartographyMap
-              restaurants={geocodedRestaurants}
+              restaurants={filteredGeocodedRestaurants}
               simulatedLocations={simulatedLocations}
               selectedRestaurantId={selectedRestaurantId}
               center={mapCenter}
