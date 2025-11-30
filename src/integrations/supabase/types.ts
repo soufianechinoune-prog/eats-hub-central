@@ -337,6 +337,8 @@ export type Database = {
           direction: string
           error_message: string | null
           id: string
+          media_type: string | null
+          media_url: string | null
           message_content: string
           read_at: string | null
           recipient_name: string | null
@@ -355,6 +357,8 @@ export type Database = {
           direction?: string
           error_message?: string | null
           id?: string
+          media_type?: string | null
+          media_url?: string | null
           message_content: string
           read_at?: string | null
           recipient_name?: string | null
@@ -373,6 +377,8 @@ export type Database = {
           direction?: string
           error_message?: string | null
           id?: string
+          media_type?: string | null
+          media_url?: string | null
           message_content?: string
           read_at?: string | null
           recipient_name?: string | null
