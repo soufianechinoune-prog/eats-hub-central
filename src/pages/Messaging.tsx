@@ -23,6 +23,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -1146,13 +1151,36 @@ export default function Messaging() {
                                   {msg.recipients.length} destinataire{msg.recipients.length > 1 ? "s" : ""}
                                 </Badge>
                                 {msg.media_url && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {msg.media_type === 'image' ? (
-                                      <><ImageIcon className="h-3 w-3 mr-1" />Image</>
-                                    ) : (
-                                      <><FileText className="h-3 w-3 mr-1" />Document</>
-                                    )}
-                                  </Badge>
+                                  <HoverCard>
+                                    <HoverCardTrigger asChild>
+                                      <Badge variant="outline" className="text-xs cursor-pointer">
+                                        {msg.media_type === 'image' ? (
+                                          <><ImageIcon className="h-3 w-3 mr-1" />Image</>
+                                        ) : (
+                                          <><FileText className="h-3 w-3 mr-1" />Document</>
+                                        )}
+                                      </Badge>
+                                    </HoverCardTrigger>
+                                    <HoverCardContent className="w-64 p-2" side="top">
+                                      {msg.media_type === 'image' ? (
+                                        <img 
+                                          src={msg.media_url} 
+                                          alt="Média joint" 
+                                          className="w-full h-auto rounded-lg object-cover max-h-48"
+                                        />
+                                      ) : (
+                                        <div className="flex items-center gap-3 p-2">
+                                          <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
+                                            <FileText className="h-5 w-5 text-muted-foreground" />
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium truncate">Document joint</p>
+                                            <p className="text-xs text-muted-foreground truncate">{msg.media_url.split('/').pop()}</p>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </HoverCardContent>
+                                  </HoverCard>
                                 )}
                                 {msg.sent_count > 0 && (
                                   <span className="text-xs text-whatsapp">
