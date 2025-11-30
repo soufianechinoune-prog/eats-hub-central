@@ -35,6 +35,7 @@ import {
   Eye,
   Copy,
   Filter,
+  Tag,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { useToast } from "@/hooks/use-toast";
@@ -43,6 +44,8 @@ import { supabase } from "@/integrations/supabase/client";
 interface MenuItem {
   id: string;
   name: string;
+  name_uber: string | null;
+  name_deliveroo: string | null;
   category: string | null;
   description: string | null;
   description_uber: string | null;
@@ -58,7 +61,7 @@ interface CatalogComparisonProps {
   onRefresh: () => void;
 }
 
-type ComparisonStatus = "all" | "identical" | "price_diff" | "uber_only" | "deliveroo_only" | "desc_diff";
+type ComparisonStatus = "all" | "identical" | "price_diff" | "uber_only" | "deliveroo_only" | "desc_diff" | "name_diff";
 
 export function CatalogComparison({ menuItems, onRefresh }: CatalogComparisonProps) {
   const { toast } = useToast();
@@ -82,6 +85,10 @@ export function CatalogComparison({ menuItems, onRefresh }: CatalogComparisonPro
       return uberDesc && deliverooDesc && uberDesc !== deliverooDesc;
     }).length;
 
+    const nameDiff = menuItems.filter(i => 
+      i.name_uber && i.name_deliveroo && i.name_uber !== i.name_deliveroo
+    ).length;
+
     const avgPriceDiffPercent = both.length > 0
       ? both.reduce((sum, i) => {
           if (i.price_uber && i.price_deliveroo) {
@@ -91,7 +98,7 @@ export function CatalogComparison({ menuItems, onRefresh }: CatalogComparisonPro
         }, 0) / both.filter(i => i.price_uber && i.price_deliveroo).length
       : 0;
 
-    return { uberOnly, deliverooOnly, identical, priceDiff, descDiff, avgPriceDiffPercent, total: menuItems.length };
+    return { uberOnly, deliverooOnly, identical, priceDiff, descDiff, nameDiff, avgPriceDiffPercent, total: menuItems.length };
   }, [menuItems]);
 
   // Get item comparison status
@@ -111,6 +118,10 @@ export function CatalogComparison({ menuItems, onRefresh }: CatalogComparisonPro
     return !!(uberDesc && deliverooDesc && uberDesc !== deliverooDesc);
   };
 
+  const hasNameDiff = (item: MenuItem): boolean => {
+    return !!(item.name_uber && item.name_deliveroo && item.name_uber !== item.name_deliveroo);
+  };
+
   // Filter items
   const filteredItems = useMemo(() => {
     return menuItems.filter(item => {
@@ -118,6 +129,7 @@ export function CatalogComparison({ menuItems, onRefresh }: CatalogComparisonPro
       
       if (statusFilter === "all") return matchesSearch;
       if (statusFilter === "desc_diff") return matchesSearch && hasDescriptionDiff(item);
+      if (statusFilter === "name_diff") return matchesSearch && hasNameDiff(item);
       
       return matchesSearch && getItemStatus(item) === statusFilter;
     });
@@ -236,6 +248,17 @@ export function CatalogComparison({ menuItems, onRefresh }: CatalogComparisonPro
             <p className="text-xs text-muted-foreground">Desc. différentes</p>
           </CardContent>
         </Card>
+        {stats.nameDiff > 0 && (
+          <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => setStatusFilter("name_diff")}>
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-purple-500" />
+                <p className="text-2xl font-bold">{stats.nameDiff}</p>
+              </div>
+              <p className="text-xs text-muted-foreground">Noms différents</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Average price difference info */}
@@ -274,6 +297,7 @@ export function CatalogComparison({ menuItems, onRefresh }: CatalogComparisonPro
                 <SelectItem value="uber_only">Uber uniquement</SelectItem>
                 <SelectItem value="deliveroo_only">Deliveroo uniquement</SelectItem>
                 <SelectItem value="desc_diff">Descriptions différentes</SelectItem>
+                <SelectItem value="name_diff">Noms différents</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -318,15 +342,36 @@ export function CatalogComparison({ menuItems, onRefresh }: CatalogComparisonPro
                   const priceDiff = calculatePriceDiff(item);
                   const hasDescDiff = hasDescriptionDiff(item);
 
+                  const hasNameDiff = item.name_uber && item.name_deliveroo && item.name_uber !== item.name_deliveroo;
+
                   return (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {item.name}
-                          {hasDescDiff && (
-                            <Badge variant="outline" className="text-xs text-blue-500 border-blue-500">
-                              Desc. ≠
-                            </Badge>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            {item.name}
+                            {hasDescDiff && (
+                              <Badge variant="outline" className="text-xs text-blue-500 border-blue-500">
+                                Desc. ≠
+                              </Badge>
+                            )}
+                            {hasNameDiff && (
+                              <Badge variant="outline" className="text-xs text-purple-500 border-purple-500">
+                                Nom ≠
+                              </Badge>
+                            )}
+                          </div>
+                          {hasNameDiff && (
+                            <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <UberEatsIcon className="h-3 w-3" />
+                                {item.name_uber}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <DeliverooIcon className="h-3 w-3" />
+                                {item.name_deliveroo}
+                              </span>
+                            </div>
                           )}
                         </div>
                       </TableCell>

@@ -65,16 +65,20 @@ import {
   X,
   Upload,
   ArrowRightLeft,
+  Link2,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { CsvImportDialog } from "@/components/menu/CsvImportDialog";
 import { MenuItemChangeConfirmDialog } from "@/components/menu/MenuItemChangeConfirmDialog";
 import { CatalogComparison } from "@/components/menu/CatalogComparison";
 import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
+import { ProductMatcher } from "@/components/menu/ProductMatcher";
 
 interface MenuItem {
   id: string;
   name: string;
+  name_uber: string | null;
+  name_deliveroo: string | null;
   category: string | null;
   description: string | null;
   description_uber: string | null;
@@ -130,7 +134,7 @@ export default function MenuItems() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<"catalog" | "comparison">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "matcher">("catalog");
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
   
@@ -555,7 +559,7 @@ export default function MenuItems() {
       </div>
 
       {/* Tabs for Catalog / Comparison */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "matcher")}>
         <TabsList>
           <TabsTrigger value="catalog" className="gap-2">
             <Package className="h-4 w-4" />
@@ -565,10 +569,18 @@ export default function MenuItems() {
             <ArrowRightLeft className="h-4 w-4" />
             Comparaison
           </TabsTrigger>
+          <TabsTrigger value="matcher" className="gap-2">
+            <Link2 className="h-4 w-4" />
+            Matcher
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="comparison" className="mt-6">
           <CatalogComparison menuItems={menuItems} onRefresh={fetchMenuItems} />
+        </TabsContent>
+
+        <TabsContent value="matcher" className="mt-6">
+          <ProductMatcher menuItems={menuItems} onRefresh={fetchMenuItems} />
         </TabsContent>
 
         <TabsContent value="catalog" className="mt-6 space-y-6">
@@ -1110,7 +1122,7 @@ export default function MenuItems() {
         open={isDeliverooImportDialogOpen}
         onOpenChange={setIsDeliverooImportDialogOpen}
         onImportComplete={fetchMenuItems}
-        existingItems={menuItems.map(i => ({ id: i.id, name: i.name, price_deliveroo: i.price_deliveroo }))}
+        existingItems={menuItems.map(i => ({ id: i.id, name: i.name, price_uber: i.price_uber, price_deliveroo: i.price_deliveroo }))}
       />
     </div>
   );

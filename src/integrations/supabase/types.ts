@@ -290,6 +290,8 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          name_deliveroo: string | null
+          name_uber: string | null
           price_deliveroo: number | null
           price_uber: number | null
           updated_at: string
@@ -304,6 +306,8 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          name_deliveroo?: string | null
+          name_uber?: string | null
           price_deliveroo?: number | null
           price_uber?: number | null
           updated_at?: string
@@ -318,6 +322,8 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          name_deliveroo?: string | null
+          name_uber?: string | null
           price_deliveroo?: number | null
           price_uber?: number | null
           updated_at?: string
