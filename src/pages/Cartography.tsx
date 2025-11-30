@@ -333,6 +333,54 @@ const Cartography = () => {
       return dept && selectedDepartments.includes(dept);
     });
   }, [geocodedRestaurants, selectedDepartments]);
+
+  // Zoom to fit all filtered restaurants
+  const handleZoomToFilteredRestaurants = useCallback(() => {
+    if (filteredGeocodedRestaurants.length === 0) return;
+    
+    if (filteredGeocodedRestaurants.length === 1) {
+      const r = filteredGeocodedRestaurants[0];
+      if (r.latitude && r.longitude) {
+        setMapCenter([r.longitude, r.latitude]);
+        setMapZoom(12);
+      }
+      return;
+    }
+    
+    // Calculate bounding box
+    let minLat = Infinity, maxLat = -Infinity;
+    let minLng = Infinity, maxLng = -Infinity;
+    
+    filteredGeocodedRestaurants.forEach(r => {
+      if (r.latitude && r.longitude) {
+        minLat = Math.min(minLat, r.latitude);
+        maxLat = Math.max(maxLat, r.latitude);
+        minLng = Math.min(minLng, r.longitude);
+        maxLng = Math.max(maxLng, r.longitude);
+      }
+    });
+    
+    // Center of bounding box
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+    
+    // Calculate zoom level based on bounding box size
+    const latDiff = maxLat - minLat;
+    const lngDiff = maxLng - minLng;
+    const maxDiff = Math.max(latDiff, lngDiff);
+    
+    // Approximate zoom calculation
+    let zoom = 12;
+    if (maxDiff > 5) zoom = 5;
+    else if (maxDiff > 2) zoom = 7;
+    else if (maxDiff > 1) zoom = 8;
+    else if (maxDiff > 0.5) zoom = 9;
+    else if (maxDiff > 0.2) zoom = 10;
+    else if (maxDiff > 0.1) zoom = 11;
+    
+    setMapCenter([centerLng, centerLat]);
+    setMapZoom(zoom);
+  }, [filteredGeocodedRestaurants]);
   
   const allAlerts = cannibalismAlerts();
   const activeAlerts = allAlerts.filter(a => !ignoredAlerts.has(getAlertKey(a)));
@@ -386,6 +434,7 @@ const Cartography = () => {
             densityLevels={densityLevels}
             selectedDepartments={selectedDepartments}
             onDepartmentSelectionChange={setSelectedDepartments}
+            onZoomToFilteredRestaurants={handleZoomToFilteredRestaurants}
             selectedRestaurantId={selectedRestaurantId}
             isSimulationMode={isSimulationMode}
             isDistanceMode={isDistanceMode}

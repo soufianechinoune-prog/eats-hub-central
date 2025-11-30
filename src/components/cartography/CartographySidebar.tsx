@@ -41,6 +41,7 @@ interface CartographySidebarProps {
   densityLevels: number[];
   selectedDepartments: string[];
   onDepartmentSelectionChange: (departments: string[]) => void;
+  onZoomToFilteredRestaurants: () => void;
   selectedRestaurantId: string | null;
   isSimulationMode: boolean;
   isDistanceMode: boolean;
@@ -81,6 +82,7 @@ export const CartographySidebar = ({
   densityLevels,
   selectedDepartments,
   onDepartmentSelectionChange,
+  onZoomToFilteredRestaurants,
   selectedRestaurantId,
   isSimulationMode,
   isDistanceMode,
@@ -168,11 +170,25 @@ export const CartographySidebar = ({
         </div>
         
         {/* Department Filter */}
-        <DepartmentFilter
-          restaurants={restaurants}
-          selectedDepartments={selectedDepartments}
-          onSelectionChange={onDepartmentSelectionChange}
-        />
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <DepartmentFilter
+              restaurants={restaurants}
+              selectedDepartments={selectedDepartments}
+              onSelectionChange={onDepartmentSelectionChange}
+            />
+          </div>
+          {selectedDepartments.length > 0 && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onZoomToFilteredRestaurants}
+              title="Zoomer sur les restaurants sélectionnés"
+            >
+              <Locate className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
         
         <Button
           onClick={onToggleSimulationMode}
