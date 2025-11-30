@@ -870,9 +870,9 @@ export default function Messaging() {
                       </div>
 
                       <CardContent className="p-6 space-y-5">
-                        {/* Subject field - shown when scheduled mode and multi-recipient */}
+                        {/* Subject field - shown for multi-recipient (2+) */}
                         <AnimatePresence>
-                          {sendMode === "scheduled" && selectedRestaurants.size > 1 && (
+                          {selectedRestaurants.size > 1 && (
                             <motion.div 
                               className="space-y-1.5"
                               initial={{ opacity: 0, height: 0 }}
