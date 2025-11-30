@@ -105,6 +105,7 @@ interface MessageHistoryItem {
   delivered_at: string | null;
   read_at: string | null;
   created_at: string;
+  direction: string;
 }
 
 export default function Messaging() {
@@ -455,6 +456,13 @@ export default function Messaging() {
     return { sent, delivered, read, failed, total: messageHistory.length };
   }, [messageHistory]);
 
+  // Unread incoming messages count
+  const unreadCount = useMemo(() => {
+    return messageHistory.filter(
+      (m) => m.direction === "inbound" && m.status !== "read"
+    ).length;
+  }, [messageHistory]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -476,6 +484,11 @@ export default function Messaging() {
           <TabsTrigger value="conversations" className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
             Conversations
+            {unreadCount > 0 && (
+              <Badge className="ml-1 bg-primary text-primary-foreground">
+                {unreadCount}
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="compose" className="flex items-center gap-2">
             <Send className="h-4 w-4" />
