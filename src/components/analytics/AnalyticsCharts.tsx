@@ -26,6 +26,7 @@ import {
   Settings,
   Zap,
 } from "lucide-react";
+import { ConversionFunnelChart } from "./ConversionFunnelChart";
 import {
   LineChart,
   Line,
@@ -451,7 +452,6 @@ export function AnalyticsCharts({
   // State for interactive legends - hidden chart elements
   const [hiddenFeesBars, setHiddenFeesBars] = useState<Set<string>>(new Set());
   const [hiddenRevenueBars, setHiddenRevenueBars] = useState<Set<string>>(new Set());
-  const [hiddenFunnelAreas, setHiddenFunnelAreas] = useState<Set<string>>(new Set());
   const [hiddenNetPayoutBars, setHiddenNetPayoutBars] = useState<Set<string>>(new Set());
   const [hiddenProfitBars, setHiddenProfitBars] = useState<Set<string>>(new Set());
 
@@ -469,7 +469,6 @@ export function AnalyticsCharts({
 
   const toggleFeesBar = createToggle(setHiddenFeesBars);
   const toggleRevenueBar = createToggle(setHiddenRevenueBars);
-  const toggleFunnelArea = createToggle(setHiddenFunnelAreas);
   const toggleNetPayoutBar = createToggle(setHiddenNetPayoutBars);
   const toggleProfitBar = createToggle(setHiddenProfitBars);
 
@@ -1002,73 +1001,15 @@ export function AnalyticsCharts({
         </CardContent>
       </Card>
 
-      {/* Conversion Funnel Chart */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Funnel de Conversion
-          </CardTitle>
-          <ChartActionToggle
-            chartKey="conversionFunnel"
-            config={config}
-            onChange={handleChartToggle}
-            hasActions={!!hasActions}
-          />
-        </CardHeader>
-        <CardContent>
-          {/* Interactive Legend */}
-          <InteractiveLegend
-            items={[
-              { key: 'visits', label: 'Visites', color: 'hsl(var(--chart-1))' },
-              { key: 'views', label: 'Vues menu', color: 'hsl(var(--chart-2))' },
-              { key: 'cart', label: 'Ajouts panier', color: 'hsl(var(--chart-3))' },
-              { key: 'orders', label: 'Commandes', color: 'hsl(var(--chart-4))' },
-            ]}
-            hiddenKeys={hiddenFunnelAreas}
-            onToggle={toggleFunnelArea}
-            onReset={() => setHiddenFunnelAreas(new Set())}
-          />
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={aggregatedConversionData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="month" className="text-xs" />
-                <YAxis className="text-xs" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--background))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px'
-                  }}
-                  formatter={(value: number) => [value.toLocaleString('fr-FR'), '']}
-                />
-                {/* Action markers */}
-                {shouldShowActionsForChart("conversionFunnel") && actionMonths.map(monthNum => {
-                  const monthActions = actionsByMonth[monthNum] || [];
-                  const primaryAction = monthActions[0];
-                  if (!primaryAction) return null;
-                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
-                  return (
-                    <ReferenceLine
-                      key={`action-funnel-${monthNum}`}
-                      x={MONTHS[monthNum - 1]}
-                      stroke={color}
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
-                    />
-                  );
-                })}
-                {!hiddenFunnelAreas.has('visits') && <Area type="monotone" dataKey="visits" name="Visites" stackId="1" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
-                {!hiddenFunnelAreas.has('views') && <Area type="monotone" dataKey="views" name="Vues menu" stackId="2" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
-                {!hiddenFunnelAreas.has('cart') && <Area type="monotone" dataKey="cart" name="Ajouts panier" stackId="3" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.6} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
-                {!hiddenFunnelAreas.has('orders') && <Area type="monotone" dataKey="orders" name="Commandes" stackId="4" stroke="hsl(var(--chart-4))" fill="hsl(var(--chart-4))" fillOpacity={0.6} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Conversion Funnel Chart - New Enhanced Component */}
+      <ConversionFunnelChart
+        data={aggregatedConversionData}
+        selectedYear={selectedYear}
+        showActions={shouldShowActionsForChart("conversionFunnel")}
+        actions={filteredActions}
+        actionsByMonth={actionsByMonth}
+        onActionClick={onActionClick}
+      />
 
       {/* Conversion Rate Chart with N-1 */}
       <Card>
