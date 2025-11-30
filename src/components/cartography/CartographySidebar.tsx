@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { 
   MapPin, 
   AlertTriangle, 
@@ -20,9 +22,11 @@ import {
   EyeOff,
   Eye,
   X,
-  RotateCcw
+  RotateCcw,
+  Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DENSITY_LEGEND } from "@/data/france-population-density";
 
 interface CartographySidebarProps {
   restaurants: RestaurantWithGeo[];
@@ -30,6 +34,7 @@ interface CartographySidebarProps {
   cannibalismAlerts: CannibalismAlert[];
   ignoredAlerts: CannibalismAlert[];
   showIgnoredAlerts: boolean;
+  showDensityLayer: boolean;
   selectedRestaurantId: string | null;
   isSimulationMode: boolean;
   onSelectRestaurant: (id: string | null) => void;
@@ -38,6 +43,7 @@ interface CartographySidebarProps {
   onRemoveSimulation: (id: string) => void;
   onUpdateSimulationRadius: (id: string, radius: number) => void;
   onToggleSimulationMode: () => void;
+  onToggleDensityLayer: () => void;
   onGeocodeRestaurant: (id: string) => void;
   onIgnoreAlert: (alert: CannibalismAlert) => void;
   onRestoreAlert: (alert: CannibalismAlert) => void;
@@ -52,6 +58,7 @@ export const CartographySidebar = ({
   cannibalismAlerts,
   ignoredAlerts,
   showIgnoredAlerts,
+  showDensityLayer,
   selectedRestaurantId,
   isSimulationMode,
   onSelectRestaurant,
@@ -60,6 +67,7 @@ export const CartographySidebar = ({
   onRemoveSimulation,
   onUpdateSimulationRadius,
   onToggleSimulationMode,
+  onToggleDensityLayer,
   onGeocodeRestaurant,
   onIgnoreAlert,
   onRestoreAlert,
@@ -131,6 +139,39 @@ export const CartographySidebar = ({
           <Play className="h-4 w-4 mr-2" />
           {isSimulationMode ? "Mode simulation actif" : "Simuler une implantation"}
         </Button>
+        
+        {/* Density Layer Toggle */}
+        <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="density-toggle" className="text-sm font-medium cursor-pointer">
+              Densité population
+            </Label>
+          </div>
+          <Switch
+            id="density-toggle"
+            checked={showDensityLayer}
+            onCheckedChange={onToggleDensityLayer}
+          />
+        </div>
+
+        {/* Density Legend */}
+        {showDensityLayer && (
+          <div className="space-y-2 p-2 rounded-lg border bg-background">
+            <p className="text-xs font-medium text-muted-foreground">Légende densité (hab/km²)</p>
+            <div className="grid grid-cols-2 gap-1">
+              {DENSITY_LEGEND.map((item) => (
+                <div key={item.min} className="flex items-center gap-1.5">
+                  <div 
+                    className="w-3 h-3 rounded-sm" 
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="text-xs text-muted-foreground">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

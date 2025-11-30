@@ -47,6 +47,7 @@ const Cartography = () => {
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [showIgnoredAlerts, setShowIgnoredAlerts] = useState(false);
+  const [showDensityLayer, setShowDensityLayer] = useState(false);
 
   // Persist ignored alerts
   useEffect(() => {
@@ -253,6 +254,7 @@ const Cartography = () => {
             cannibalismAlerts={activeAlerts}
             ignoredAlerts={ignoredAlertsList}
             showIgnoredAlerts={showIgnoredAlerts}
+            showDensityLayer={showDensityLayer}
             selectedRestaurantId={selectedRestaurantId}
             isSimulationMode={isSimulationMode}
             onSelectRestaurant={setSelectedRestaurantId}
@@ -261,6 +263,7 @@ const Cartography = () => {
             onRemoveSimulation={handleRemoveSimulation}
             onUpdateSimulationRadius={handleUpdateSimulationRadius}
             onToggleSimulationMode={() => setIsSimulationMode(!isSimulationMode)}
+            onToggleDensityLayer={() => setShowDensityLayer(!showDensityLayer)}
             onIgnoreAlert={handleIgnoreAlert}
             onRestoreAlert={handleRestoreAlert}
             onIgnoreAllAlerts={handleIgnoreAllAlerts}
@@ -306,6 +309,7 @@ const Cartography = () => {
               selectedRestaurantId={selectedRestaurantId}
               center={mapCenter}
               zoom={mapZoom}
+              showDensityLayer={showDensityLayer}
               onSelectRestaurant={setSelectedRestaurantId}
             />
             
