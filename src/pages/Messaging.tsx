@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,6 +23,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   MessageSquare,
   Search,
   Send,
@@ -38,6 +44,9 @@ import {
   History,
   Users,
   Sparkles,
+  Paperclip,
+  Image as ImageIcon,
+  FileText,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -131,6 +140,11 @@ export default function Messaging() {
   const [sendMode, setSendMode] = useState<"immediate" | "scheduled">("immediate");
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
+  
+  // Media state for scheduled messages
+  const [scheduledMedia, setScheduledMedia] = useState<{ file: File; url: string; type: 'image' | 'document' } | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const scheduledMediaInputRef = useRef<HTMLInputElement>(null);
   
   // Send state
   const [isSending, setIsSending] = useState(false);
@@ -357,6 +371,30 @@ export default function Messaging() {
         restaurantName: r.name,
       }));
 
+      // Upload media if present
+      let mediaUrl: string | null = null;
+      let mediaType: string | null = null;
+      
+      if (scheduledMedia) {
+        setIsUploadingMedia(true);
+        const fileName = `scheduled-${Date.now()}-${scheduledMedia.file.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('whatsapp-media')
+          .upload(fileName, scheduledMedia.file);
+
+        if (uploadError) {
+          throw new Error('Erreur lors de l\'upload du média');
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('whatsapp-media')
+          .getPublicUrl(fileName);
+        
+        mediaUrl = publicUrl;
+        mediaType = scheduledMedia.type;
+        setIsUploadingMedia(false);
+      }
+
       const { error } = await supabase
         .from("scheduled_messages")
         .insert({
@@ -364,6 +402,8 @@ export default function Messaging() {
           message,
           recipients,
           status: "pending",
+          media_url: mediaUrl,
+          media_type: mediaType,
         });
 
       if (error) throw error;
@@ -375,6 +415,7 @@ export default function Messaging() {
       setScheduledDate("");
       setScheduledTime("");
       setSendMode("immediate");
+      clearScheduledMedia();
       
       queryClient.invalidateQueries({ queryKey: ["scheduled-messages"] });
 
@@ -383,7 +424,34 @@ export default function Messaging() {
       toast.error("Erreur lors de la programmation du message");
     } finally {
       setIsSending(false);
+      setIsUploadingMedia(false);
     }
+  };
+
+  // Handle scheduled media file selection
+  const handleScheduledMediaSelect = (event: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document') => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Le fichier est trop volumineux (max 10MB)");
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    setScheduledMedia({ file, url, type });
+    
+    if (scheduledMediaInputRef.current) {
+      scheduledMediaInputRef.current.value = '';
+    }
+  };
+
+  // Clear scheduled media
+  const clearScheduledMedia = () => {
+    if (scheduledMedia) {
+      URL.revokeObjectURL(scheduledMedia.url);
+    }
+    setScheduledMedia(null);
   };
 
   // Delete scheduled message
@@ -812,30 +880,100 @@ export default function Messaging() {
                           <AnimatePresence>
                             {sendMode === "scheduled" && (
                               <motion.div 
-                                className="grid grid-cols-2 gap-3"
+                                className="space-y-3"
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: "auto" }}
                                 exit={{ opacity: 0, height: 0 }}
                                 transition={{ duration: 0.2 }}
                               >
-                                <div className="space-y-1.5">
-                                  <label className="text-xs font-medium text-muted-foreground">Date</label>
-                                  <Input
-                                    type="date"
-                                    value={scheduledDate}
-                                    onChange={(e) => setScheduledDate(e.target.value)}
-                                    min={new Date().toISOString().split("T")[0]}
-                                    className="h-10 rounded-lg"
-                                  />
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-muted-foreground">Date</label>
+                                    <Input
+                                      type="date"
+                                      value={scheduledDate}
+                                      onChange={(e) => setScheduledDate(e.target.value)}
+                                      min={new Date().toISOString().split("T")[0]}
+                                      className="h-10 rounded-lg"
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-muted-foreground">Heure</label>
+                                    <Input
+                                      type="time"
+                                      value={scheduledTime}
+                                      onChange={(e) => setScheduledTime(e.target.value)}
+                                      className="h-10 rounded-lg"
+                                    />
+                                  </div>
                                 </div>
-                                <div className="space-y-1.5">
-                                  <label className="text-xs font-medium text-muted-foreground">Heure</label>
-                                  <Input
-                                    type="time"
-                                    value={scheduledTime}
-                                    onChange={(e) => setScheduledTime(e.target.value)}
-                                    className="h-10 rounded-lg"
-                                  />
+                                
+                                {/* Media attachment for scheduled */}
+                                <div className="space-y-2">
+                                  <label className="text-xs font-medium text-muted-foreground">Média (optionnel)</label>
+                                  
+                                  {scheduledMedia ? (
+                                    <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
+                                      {scheduledMedia.type === 'image' ? (
+                                        <img
+                                          src={scheduledMedia.url}
+                                          alt="Preview"
+                                          className="h-12 w-12 object-cover rounded-lg"
+                                        />
+                                      ) : (
+                                        <div className="h-12 w-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                                          <FileText className="h-6 w-6 text-blue-500" />
+                                        </div>
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">{scheduledMedia.file.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {(scheduledMedia.file.size / 1024 / 1024).toFixed(2)} MB
+                                        </p>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                        onClick={clearScheduledMedia}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-2">
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="outline" size="sm" className="rounded-lg">
+                                            <Paperclip className="h-4 w-4 mr-2" />
+                                            Ajouter un média
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="start">
+                                          <DropdownMenuItem onClick={() => {
+                                            const input = document.createElement('input');
+                                            input.type = 'file';
+                                            input.accept = 'image/*';
+                                            input.onchange = (e) => handleScheduledMediaSelect(e as any, 'image');
+                                            input.click();
+                                          }}>
+                                            <ImageIcon className="h-4 w-4 mr-2 text-green-500" />
+                                            Image
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => {
+                                            const input = document.createElement('input');
+                                            input.type = 'file';
+                                            input.accept = '.pdf,.doc,.docx';
+                                            input.onchange = (e) => handleScheduledMediaSelect(e as any, 'document');
+                                            input.click();
+                                          }}>
+                                            <FileText className="h-4 w-4 mr-2 text-blue-500" />
+                                            Document
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </div>
+                                  )}
                                 </div>
                               </motion.div>
                             )}
