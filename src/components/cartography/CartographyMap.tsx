@@ -4,6 +4,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { RestaurantWithGeo, SimulatedLocation } from "@/pages/Cartography";
 import { useMapboxToken } from "@/hooks/useMapboxToken";
 import { Loader2, AlertCircle } from "lucide-react";
+import csLogo from "@/assets/cs-logo.jpeg";
 
 interface CartographyMapProps {
   restaurants: RestaurantWithGeo[];
@@ -217,30 +218,49 @@ export const CartographyMap = ({
 
       const el = document.createElement("div");
       el.className = "flex items-center justify-center";
-      el.style.width = isSelected ? "36px" : "28px";
-      el.style.height = isSelected ? "36px" : "28px";
-      el.style.borderRadius = "50%";
       el.style.cursor = "pointer";
       el.style.transition = "all 0.2s ease";
       
       if (loc.isSimulated) {
+        // Simulated locations keep the circle style
+        el.style.width = isSelected ? "36px" : "28px";
+        el.style.height = isSelected ? "36px" : "28px";
+        el.style.borderRadius = "50%";
         el.style.backgroundColor = "#3b82f6";
         el.style.border = "3px dashed white";
-      } else if (isOverlapping) {
-        el.style.backgroundColor = "#ef4444";
-        el.style.border = "3px solid white";
+        el.style.boxShadow = isSelected 
+          ? "0 0 0 3px rgba(59, 130, 246, 0.5), 0 4px 12px rgba(0,0,0,0.3)"
+          : "0 2px 8px rgba(0,0,0,0.2)";
+        
+        const inner = document.createElement("div");
+        inner.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+        el.appendChild(inner);
       } else {
-        el.style.backgroundColor = "#22c55e";
-        el.style.border = "3px solid white";
+        // Real restaurants use CS logo
+        const size = isSelected ? 40 : 32;
+        el.style.width = `${size}px`;
+        el.style.height = `${size}px`;
+        el.style.borderRadius = "50%";
+        el.style.overflow = "hidden";
+        el.style.border = isOverlapping 
+          ? "3px solid #ef4444" 
+          : isSelected 
+            ? "3px solid #3b82f6"
+            : "2px solid white";
+        el.style.boxShadow = isSelected 
+          ? "0 0 0 3px rgba(59, 130, 246, 0.5), 0 4px 12px rgba(0,0,0,0.3)"
+          : isOverlapping
+            ? "0 0 0 2px rgba(239, 68, 68, 0.3), 0 2px 8px rgba(0,0,0,0.2)"
+            : "0 2px 8px rgba(0,0,0,0.2)";
+        
+        const img = document.createElement("img");
+        img.src = csLogo;
+        img.alt = loc.name;
+        img.style.width = "100%";
+        img.style.height = "100%";
+        img.style.objectFit = "cover";
+        el.appendChild(img);
       }
-      
-      el.style.boxShadow = isSelected 
-        ? "0 0 0 3px rgba(59, 130, 246, 0.5), 0 4px 12px rgba(0,0,0,0.3)"
-        : "0 2px 8px rgba(0,0,0,0.2)";
-
-      const inner = document.createElement("div");
-      inner.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
-      el.appendChild(inner);
 
       const marker = new mapboxgl.Marker({ element: el })
         .setLngLat([loc.lng, loc.lat])

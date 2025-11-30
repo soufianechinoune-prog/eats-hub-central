@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { RestaurantWithGeo, SimulatedLocation, CannibalismAlert } from "@/pages/Cartography";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
@@ -51,6 +51,17 @@ export const CartographySidebar = ({
 }: CartographySidebarProps) => {
   const [search, setSearch] = useState("");
   const [localRadii, setLocalRadii] = useState<Record<string, number>>({});
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Scroll to selected restaurant when selection changes from map
+  useEffect(() => {
+    if (selectedRestaurantId && cardRefs.current[selectedRestaurantId]) {
+      cardRefs.current[selectedRestaurantId]?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [selectedRestaurantId]);
 
   const geocodedRestaurants = restaurants.filter(r => r.latitude && r.longitude);
   const unGeocodedRestaurants = restaurants.filter(r => !r.latitude || !r.longitude);
@@ -181,12 +192,16 @@ export const CartographySidebar = ({
                 return (
                   <Card
                     key={restaurant.id}
+                    ref={(el) => { cardRefs.current[restaurant.id] = el; }}
                     className={cn(
                       "cursor-pointer transition-all",
                       isSelected && "ring-2 ring-primary",
                       hasAlert && "border-destructive/50"
                     )}
-                    onClick={() => onSelectRestaurant(restaurant.id)}
+                    onClick={() => {
+                      onSelectRestaurant(restaurant.id);
+                      onFocusRestaurant(restaurant.id);
+                    }}
                   >
                     <CardHeader className="p-3 pb-2">
                       <div className="flex items-start justify-between">
