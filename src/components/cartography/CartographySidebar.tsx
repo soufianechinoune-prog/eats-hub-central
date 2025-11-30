@@ -16,7 +16,11 @@ import {
   Search,
   MapPinOff,
   Locate,
-  Play
+  Play,
+  EyeOff,
+  Eye,
+  X,
+  RotateCcw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +28,8 @@ interface CartographySidebarProps {
   restaurants: RestaurantWithGeo[];
   simulatedLocations: SimulatedLocation[];
   cannibalismAlerts: CannibalismAlert[];
+  ignoredAlerts: CannibalismAlert[];
+  showIgnoredAlerts: boolean;
   selectedRestaurantId: string | null;
   isSimulationMode: boolean;
   onSelectRestaurant: (id: string | null) => void;
@@ -33,12 +39,19 @@ interface CartographySidebarProps {
   onUpdateSimulationRadius: (id: string, radius: number) => void;
   onToggleSimulationMode: () => void;
   onGeocodeRestaurant: (id: string) => void;
+  onIgnoreAlert: (alert: CannibalismAlert) => void;
+  onRestoreAlert: (alert: CannibalismAlert) => void;
+  onIgnoreAllAlerts: () => void;
+  onRestoreAllAlerts: () => void;
+  onToggleShowIgnored: () => void;
 }
 
 export const CartographySidebar = ({
   restaurants,
   simulatedLocations,
   cannibalismAlerts,
+  ignoredAlerts,
+  showIgnoredAlerts,
   selectedRestaurantId,
   isSimulationMode,
   onSelectRestaurant,
@@ -48,6 +61,11 @@ export const CartographySidebar = ({
   onUpdateSimulationRadius,
   onToggleSimulationMode,
   onGeocodeRestaurant,
+  onIgnoreAlert,
+  onRestoreAlert,
+  onIgnoreAllAlerts,
+  onRestoreAllAlerts,
+  onToggleShowIgnored,
 }: CartographySidebarProps) => {
   const [search, setSearch] = useState("");
   const [localRadii, setLocalRadii] = useState<Record<string, number>>({});
@@ -124,7 +142,7 @@ export const CartographySidebar = ({
           </TabsTrigger>
           <TabsTrigger value="alerts" className="text-xs">
             <AlertTriangle className="h-3 w-3 mr-1" />
-            Alertes ({cannibalismAlerts.length})
+            Alertes ({cannibalismAlerts.length}{ignoredAlerts.length > 0 ? `/${cannibalismAlerts.length + ignoredAlerts.length}` : ''})
           </TabsTrigger>
           <TabsTrigger value="ungeo" className="text-xs">
             <MapPinOff className="h-3 w-3 mr-1" />
@@ -271,38 +289,138 @@ export const CartographySidebar = ({
         <TabsContent value="alerts" className="flex-1 m-0 min-h-0">
           <ScrollArea className="h-full">
             <div className="p-4 space-y-3">
-              {cannibalismAlerts.length === 0 ? (
+              {/* Global controls */}
+              {(cannibalismAlerts.length > 0 || ignoredAlerts.length > 0) && (
+                <div className="flex items-center gap-2 pb-2 border-b">
+                  {cannibalismAlerts.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs flex-1"
+                      onClick={onIgnoreAllAlerts}
+                    >
+                      <EyeOff className="h-3 w-3 mr-1" />
+                      Tout ignorer
+                    </Button>
+                  )}
+                  {ignoredAlerts.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs flex-1"
+                      onClick={onRestoreAllAlerts}
+                    >
+                      <RotateCcw className="h-3 w-3 mr-1" />
+                      Tout restaurer
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Active alerts */}
+              {cannibalismAlerts.length === 0 && ignoredAlerts.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">Aucun chevauchement détecté</p>
                   <p className="text-xs mt-1">Vos zones de couverture sont bien séparées</p>
                 </div>
+              ) : cannibalismAlerts.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  <EyeOff className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Tous les chevauchements sont ignorés</p>
+                </div>
               ) : (
                 cannibalismAlerts.map((alert, index) => (
                   <Card key={index} className="border-destructive/30 bg-destructive/5">
                     <CardHeader className="p-3 pb-2">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-destructive" />
-                        <CardTitle className="text-sm font-medium text-destructive">
-                          Cannibalisme détecté
-                        </CardTitle>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-destructive" />
+                          <CardTitle className="text-sm font-medium text-destructive">
+                            Cannibalisme
+                          </CardTitle>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={() => onIgnoreAlert(alert)}
+                          title="Ignorer ce chevauchement"
+                        >
+                          <EyeOff className="h-3 w-3" />
+                        </Button>
                       </div>
                     </CardHeader>
                     <CardContent className="p-3 pt-0 space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{alert.restaurant1}</span>
+                        <span className="font-medium text-xs">{alert.restaurant1}</span>
                         <span className="text-muted-foreground">↔</span>
-                        <span className="font-medium">{alert.restaurant2}</span>
+                        <span className="font-medium text-xs">{alert.restaurant2}</span>
                       </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Distance: {alert.distance} km</span>
                         <Badge variant="destructive" className="text-xs">
-                          {alert.overlapPercentage}% chevauchement
+                          {alert.overlapPercentage}%
                         </Badge>
                       </div>
                     </CardContent>
                   </Card>
                 ))
+              )}
+
+              {/* Ignored alerts section */}
+              {ignoredAlerts.length > 0 && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs text-muted-foreground"
+                    onClick={onToggleShowIgnored}
+                  >
+                    {showIgnoredAlerts ? (
+                      <>
+                        <Eye className="h-3 w-3 mr-1" />
+                        Masquer les ignorés ({ignoredAlerts.length})
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="h-3 w-3 mr-1" />
+                        Voir les ignorés ({ignoredAlerts.length})
+                      </>
+                    )}
+                  </Button>
+
+                  {showIgnoredAlerts && (
+                    <div className="space-y-2 pt-2 border-t border-dashed">
+                      {ignoredAlerts.map((alert, index) => (
+                        <Card key={`ignored-${index}`} className="border-muted bg-muted/20 opacity-60">
+                          <CardContent className="p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <EyeOff className="h-3 w-3" />
+                                <span>Ignoré</span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                onClick={() => onRestoreAlert(alert)}
+                                title="Restaurer ce chevauchement"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-medium">{alert.restaurant1}</span>
+                              <span className="text-muted-foreground">↔</span>
+                              <span className="font-medium">{alert.restaurant2}</span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </ScrollArea>
