@@ -42,13 +42,19 @@ All colors MUST be HSL.
     --input: 220 13% 91%;
     --ring: 239 84% 67%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
     /* Platform colors */
     --uber: 142 76% 36%;
     --uber-light: 142 76% 95%;
     --deliveroo: 187 92% 45%;
     --deliveroo-light: 187 92% 95%;
+
+    /* WhatsApp colors */
+    --whatsapp: 142 70% 45%;
+    --whatsapp-light: 142 70% 95%;
+    --whatsapp-bubble-out: 142 70% 92%;
+    --whatsapp-bubble-in: 0 0% 100%;
 
     /* Accent colors for stats */
     --stat-revenue: 239 84% 67%;
@@ -70,10 +76,14 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 77%));
     --gradient-uber: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
     --gradient-deliveroo: linear-gradient(135deg, hsl(187 92% 45%), hsl(187 92% 55%));
-    --shadow-elegant: 0 10px 30px -10px hsl(239 84% 67% / 0.2);
+    --gradient-whatsapp: linear-gradient(135deg, hsl(142 70% 45%), hsl(142 70% 55%));
+    --shadow-elegant: 0 4px 20px -4px hsl(222 47% 11% / 0.08);
+    --shadow-card: 0 1px 3px hsl(222 47% 11% / 0.04), 0 4px 12px hsl(222 47% 11% / 0.06);
+    --shadow-hover: 0 8px 24px -4px hsl(222 47% 11% / 0.1);
     --shadow-uber: 0 10px 30px -10px hsl(142 76% 36% / 0.3);
     --shadow-deliveroo: 0 10px 30px -10px hsl(187 92% 45% / 0.3);
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   .dark {
@@ -117,6 +127,12 @@ All colors MUST be HSL.
     --deliveroo: 187 92% 45%;
     --deliveroo-light: 187 80% 15%;
 
+    /* WhatsApp colors */
+    --whatsapp: 142 70% 45%;
+    --whatsapp-light: 142 50% 20%;
+    --whatsapp-bubble-out: 142 50% 25%;
+    --whatsapp-bubble-in: 217 33% 20%;
+
     /* Accent colors for stats */
     --stat-revenue: 239 84% 67%;
     --stat-orders: 280 70% 60%;
@@ -137,10 +153,14 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 77%));
     --gradient-uber: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
     --gradient-deliveroo: linear-gradient(135deg, hsl(187 92% 45%), hsl(187 92% 55%));
-    --shadow-elegant: 0 10px 30px -10px hsl(239 84% 67% / 0.3);
+    --gradient-whatsapp: linear-gradient(135deg, hsl(142 70% 45%), hsl(142 70% 55%));
+    --shadow-elegant: 0 4px 20px -4px hsl(0 0% 0% / 0.2);
+    --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.1), 0 4px 12px hsl(0 0% 0% / 0.15);
+    --shadow-hover: 0 8px 24px -4px hsl(0 0% 0% / 0.25);
     --shadow-uber: 0 10px 30px -10px hsl(142 76% 36% / 0.4);
     --shadow-deliveroo: 0 10px 30px -10px hsl(187 92% 45% / 0.4);
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 }
 
