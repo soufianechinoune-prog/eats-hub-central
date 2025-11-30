@@ -17,6 +17,8 @@ interface SendRequest {
   recipients: Recipient[];
   message: string;
   scheduled_message_id?: string;
+  // Optional: skip campaign creation for 1-to-1 messages
+  skip_campaign?: boolean;
 }
 
 serve(async (req) => {
@@ -42,7 +44,7 @@ serve(async (req) => {
       ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
       : null;
 
-    const { recipients, message, scheduled_message_id }: SendRequest = await req.json();
+    const { recipients, message, scheduled_message_id, skip_campaign }: SendRequest = await req.json();
 
     if (!recipients || recipients.length === 0) {
       return new Response(
@@ -60,7 +62,34 @@ serve(async (req) => {
 
     console.log(`Sending WhatsApp to ${recipients.length} recipients`);
 
+    // Create campaign for bulk messages (more than 1 recipient) unless skip_campaign is true
+    let campaignId: string | null = null;
+    const shouldCreateCampaign = supabase && recipients.length > 1 && !skip_campaign;
+    
+    if (shouldCreateCampaign) {
+      console.log('Creating message campaign...');
+      const { data: campaign, error: campaignError } = await supabase
+        .from('message_campaigns')
+        .insert({
+          message_template: message,
+          recipient_count: recipients.length,
+          status: 'sending',
+          sent_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (campaignError) {
+        console.error('Error creating campaign:', campaignError);
+      } else {
+        campaignId = campaign.id;
+        console.log(`Campaign created with ID: ${campaignId}`);
+      }
+    }
+
     const results = [];
+    let sentCount = 0;
+    let failedCount = 0;
 
     for (const recipient of recipients) {
       // Personalize message with variables
@@ -97,8 +126,9 @@ serve(async (req) => {
         
         if (response.ok && data.sent === 'true') {
           console.log(`Message sent successfully to ${phone}, ID: ${data.id}`);
+          sentCount++;
           
-          // Log to message_history
+          // Log to message_history with campaign_id
           if (supabase) {
             await supabase.from('message_history').insert({
               restaurant_id: recipient.restaurant_id || null,
@@ -110,6 +140,7 @@ serve(async (req) => {
               status: 'sent',
               sent_at: new Date().toISOString(),
               scheduled_message_id: scheduled_message_id || null,
+              campaign_id: campaignId,
             });
           }
 
@@ -121,8 +152,9 @@ serve(async (req) => {
           });
         } else {
           console.error(`Failed to send to ${phone}:`, data);
+          failedCount++;
           
-          // Log failed message to history
+          // Log failed message to history with campaign_id
           if (supabase) {
             await supabase.from('message_history').insert({
               restaurant_id: recipient.restaurant_id || null,
@@ -133,6 +165,7 @@ serve(async (req) => {
               status: 'failed',
               error_message: data.error || 'Unknown error',
               scheduled_message_id: scheduled_message_id || null,
+              campaign_id: campaignId,
             });
           }
 
@@ -146,8 +179,9 @@ serve(async (req) => {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         console.error(`Error sending to ${phone}:`, errorMessage);
+        failedCount++;
         
-        // Log error to history
+        // Log error to history with campaign_id
         if (supabase) {
           await supabase.from('message_history').insert({
             restaurant_id: recipient.restaurant_id || null,
@@ -158,6 +192,7 @@ serve(async (req) => {
             status: 'failed',
             error_message: errorMessage,
             scheduled_message_id: scheduled_message_id || null,
+            campaign_id: campaignId,
           });
         }
 
@@ -175,17 +210,30 @@ serve(async (req) => {
       }
     }
 
-    const successCount = results.filter(r => r.success).length;
-    const failCount = results.filter(r => !r.success).length;
+    // Update campaign with final counts and status
+    if (supabase && campaignId) {
+      const finalStatus = failedCount === 0 ? 'sent' : (sentCount === 0 ? 'failed' : 'partial');
+      console.log(`Updating campaign ${campaignId}: sent=${sentCount}, failed=${failedCount}, status=${finalStatus}`);
+      
+      await supabase
+        .from('message_campaigns')
+        .update({
+          sent_count: sentCount,
+          failed_count: failedCount,
+          status: finalStatus,
+        })
+        .eq('id', campaignId);
+    }
 
-    console.log(`Completed: ${successCount} sent, ${failCount} failed`);
+    console.log(`Completed: ${sentCount} sent, ${failedCount} failed`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        sent: successCount,
-        failed: failCount,
+        sent: sentCount,
+        failed: failedCount,
         results,
+        campaign_id: campaignId,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

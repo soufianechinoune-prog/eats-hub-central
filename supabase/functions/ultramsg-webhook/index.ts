@@ -102,6 +102,18 @@ serve(async (req) => {
 
       console.log(`Updating message ${messageId} to status: ${newStatus}`);
 
+      // First, get the message to find its campaign_id
+      const { data: messageData, error: fetchError } = await supabase
+        .from('message_history')
+        .select('id, campaign_id, status')
+        .eq('ultramsg_message_id', messageId)
+        .maybeSingle();
+
+      if (fetchError) {
+        console.error('Error fetching message:', fetchError);
+      }
+
+      // Update message status
       const { error } = await supabase
         .from('message_history')
         .update(updateData)
@@ -111,6 +123,48 @@ serve(async (req) => {
         console.error('Error updating message status:', error);
       } else {
         console.log(`Message ${messageId} updated to ${newStatus}`);
+
+        // Update campaign counters if message belongs to a campaign
+        if (messageData?.campaign_id) {
+          const campaignId = messageData.campaign_id;
+          const previousStatus = messageData.status;
+          
+          // Only increment delivered/read counts when status changes
+          if (newStatus === 'delivered' && previousStatus !== 'delivered' && previousStatus !== 'read') {
+            console.log(`Incrementing delivered_count for campaign ${campaignId}`);
+            const { data: campaign } = await supabase
+              .from('message_campaigns')
+              .select('delivered_count')
+              .eq('id', campaignId)
+              .single();
+            
+            if (campaign) {
+              await supabase
+                .from('message_campaigns')
+                .update({ delivered_count: (campaign.delivered_count || 0) + 1 })
+                .eq('id', campaignId);
+            }
+          } else if (newStatus === 'read' && previousStatus !== 'read') {
+            console.log(`Incrementing read_count for campaign ${campaignId}`);
+            const { data: campaign } = await supabase
+              .from('message_campaigns')
+              .select('read_count, delivered_count')
+              .eq('id', campaignId)
+              .single();
+            
+            if (campaign) {
+              // Also increment delivered if it wasn't delivered before
+              const updates: Record<string, number> = { read_count: (campaign.read_count || 0) + 1 };
+              if (previousStatus !== 'delivered') {
+                updates.delivered_count = (campaign.delivered_count || 0) + 1;
+              }
+              await supabase
+                .from('message_campaigns')
+                .update(updates)
+                .eq('id', campaignId);
+            }
+          }
+        }
       }
     }
 

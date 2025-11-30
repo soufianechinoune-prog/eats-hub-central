@@ -330,8 +330,54 @@ export type Database = {
         }
         Relationships: []
       }
+      message_campaigns: {
+        Row: {
+          created_at: string
+          delivered_count: number
+          failed_count: number
+          id: string
+          media_type: string | null
+          media_url: string | null
+          message_template: string
+          read_count: number
+          recipient_count: number
+          sent_at: string
+          sent_count: number
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_template: string
+          read_count?: number
+          recipient_count?: number
+          sent_at?: string
+          sent_count?: number
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_template?: string
+          read_count?: number
+          recipient_count?: number
+          sent_at?: string
+          sent_count?: number
+          status?: string
+        }
+        Relationships: []
+      }
       message_history: {
         Row: {
+          campaign_id: string | null
           created_at: string
           delivered_at: string | null
           direction: string
@@ -352,6 +398,7 @@ export type Database = {
           ultramsg_message_id: string | null
         }
         Insert: {
+          campaign_id?: string | null
           created_at?: string
           delivered_at?: string | null
           direction?: string
@@ -372,6 +419,7 @@ export type Database = {
           ultramsg_message_id?: string | null
         }
         Update: {
+          campaign_id?: string | null
           created_at?: string
           delivered_at?: string | null
           direction?: string
@@ -392,6 +440,13 @@ export type Database = {
           ultramsg_message_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "message_history_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "message_campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "message_history_restaurant_id_fkey"
             columns: ["restaurant_id"]
