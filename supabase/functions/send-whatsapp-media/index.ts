@@ -121,7 +121,7 @@ serve(async (req) => {
     if (response.ok && data.sent === 'true') {
       console.log(`Media sent successfully to ${formattedPhone}, ID: ${data.id}`);
       
-      // Log to message_history
+      // Log to message_history with media_url
       if (supabase) {
         await supabase.from('message_history').insert({
           restaurant_id: restaurant_id || null,
@@ -133,6 +133,8 @@ serve(async (req) => {
           status: 'sent',
           sent_at: new Date().toISOString(),
           direction: 'outbound',
+          media_url: mediaUrl,
+          media_type: mediaType,
         });
       }
 
@@ -146,7 +148,7 @@ serve(async (req) => {
     } else {
       console.error(`Failed to send media to ${formattedPhone}:`, data);
       
-      // Log failed message
+      // Log failed message with media info
       if (supabase) {
         await supabase.from('message_history').insert({
           restaurant_id: restaurant_id || null,
@@ -157,6 +159,8 @@ serve(async (req) => {
           status: 'failed',
           error_message: data.error || 'Unknown error',
           direction: 'outbound',
+          media_url: mediaUrl,
+          media_type: mediaType,
         });
       }
 

@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useVoiceRecorder, formatRecordingTime } from "@/hooks/useVoiceRecorder";
+import { AudioPlayer } from "@/components/messaging/AudioPlayer";
 
 interface Message {
   id: string;
@@ -54,6 +55,8 @@ interface Message {
   created_at: string;
   restaurant_name: string | null;
   recipient_name: string | null;
+  media_url: string | null;
+  media_type: string | null;
 }
 
 interface Conversation {
@@ -532,8 +535,35 @@ export default function ConversationView() {
   };
 
   // Render message content (detect media messages)
-  const renderMessageContent = (content: string) => {
+  const renderMessageContent = (msg: Message) => {
+    const content = msg.message_content;
+    
+    // Audio message with URL - show audio player
+    if (msg.media_type === 'audio' && msg.media_url) {
+      return (
+        <div className="min-w-[200px]">
+          <AudioPlayer src={msg.media_url} />
+        </div>
+      );
+    }
+    
+    // Image message
     if (content.startsWith('📷 Image')) {
+      if (msg.media_url) {
+        return (
+          <div className="space-y-2">
+            <img 
+              src={msg.media_url} 
+              alt="Image" 
+              className="max-w-[240px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => window.open(msg.media_url!, '_blank')}
+            />
+            {content.replace('📷 Image', '').replace(': ', '') && (
+              <p className="text-sm">{content.replace('📷 Image', '').replace(': ', '')}</p>
+            )}
+          </div>
+        );
+      }
       return (
         <div className="flex items-center gap-2">
           <ImageIcon className="h-4 w-4 text-whatsapp" />
@@ -541,14 +571,28 @@ export default function ConversationView() {
         </div>
       );
     }
+    
+    // Document message
     if (content.startsWith('📄 Document')) {
       return (
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-blue-500" />
           <span>{content.replace('📄 ', '')}</span>
+          {msg.media_url && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => window.open(msg.media_url!, '_blank')}
+            >
+              Ouvrir
+            </Button>
+          )}
         </div>
       );
     }
+    
+    // Voice message without URL (fallback)
     if (content.startsWith('🎤 Message vocal')) {
       return (
         <div className="flex items-center gap-2">
@@ -557,6 +601,7 @@ export default function ConversationView() {
         </div>
       );
     }
+    
     return <span className="whitespace-pre-wrap break-words">{content}</span>;
   };
 
@@ -785,7 +830,7 @@ export default function ConversationView() {
                             transition={{ duration: 0.1 }}
                           >
                             <p className="text-[15px] leading-relaxed">
-                              {renderMessageContent(msg.message_content)}
+                              {renderMessageContent(msg)}
                             </p>
                             <div
                               className={cn(
