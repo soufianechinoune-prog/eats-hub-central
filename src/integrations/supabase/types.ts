@@ -983,6 +983,48 @@ export type Database = {
           },
         ]
       }
+      scheduled_messages: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          failed_count: number | null
+          id: string
+          message: string
+          recipients: Json
+          results: Json | null
+          scheduled_at: string
+          sent_at: string | null
+          sent_count: number | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          failed_count?: number | null
+          id?: string
+          message: string
+          recipients: Json
+          results?: Json | null
+          scheduled_at: string
+          sent_at?: string | null
+          sent_count?: number | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          failed_count?: number | null
+          id?: string
+          message?: string
+          recipients?: Json
+          results?: Json | null
+          scheduled_at?: string
+          sent_at?: string | null
+          sent_count?: number | null
+          status?: string
+        }
+        Relationships: []
+      }
       uber_connections: {
         Row: {
           access_token: string | null
