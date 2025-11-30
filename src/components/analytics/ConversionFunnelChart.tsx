@@ -545,29 +545,6 @@ export function ConversionFunnelChart({
           </TooltipProvider>
         </div>
 
-        {/* Alert badges for significant drops */}
-        <AnimatePresence>
-          {alertMonths.length > 0 && viewMode === "rates" && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex flex-wrap gap-2"
-            >
-              {alertMonths.slice(0, 3).map((alert, i) => (
-                <Badge key={i} variant="destructive" className="gap-1.5">
-                  <AlertTriangle className="h-3 w-3" />
-                  {alert.month} : {alert.metric} -{alert.drop.toFixed(0)}%
-                </Badge>
-              ))}
-              {alertMonths.length > 3 && (
-                <Badge variant="outline" className="text-destructive border-destructive/30">
-                  +{alertMonths.length - 3} alertes
-                </Badge>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Interactive Legend for Volumes view */}
         <AnimatePresence mode="wait">
