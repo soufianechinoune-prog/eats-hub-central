@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { RestaurantWithGeo, SimulatedLocation } from "@/pages/Cartography";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { useMapboxToken } from "@/hooks/useMapboxToken";
+import { Loader2, AlertCircle } from "lucide-react";
 
 interface CartographyMapProps {
   restaurants: RestaurantWithGeo[];
@@ -25,76 +25,59 @@ export const CartographyMap = ({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const circleSourcesRef = useRef<string[]>([]);
 
-  // Initialize map with token from edge function
+  const { token, isLoading: tokenLoading, error: tokenError } = useMapboxToken();
+
+  // Initialize map when token is available
   useEffect(() => {
-    if (!mapContainer.current || map.current) return;
+    if (!mapContainer.current || !token || map.current) return;
 
-    const initMap = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+    console.log("Initializing map with token...");
 
-        // Fetch Mapbox token from edge function
-        const { data, error: fnError } = await supabase.functions.invoke('get-mapbox-token');
-        
-        if (fnError) {
-          throw new Error(fnError.message);
-        }
-        
-        if (data?.error) {
-          throw new Error(data.error);
-        }
+    try {
+      mapboxgl.accessToken = token;
 
-        if (!data?.token) {
-          throw new Error('Token not returned from server');
-        }
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/light-v11",
+        center: center,
+        zoom: zoom,
+      });
 
-        mapboxgl.accessToken = data.token;
+      map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+      map.current.addControl(new mapboxgl.FullscreenControl(), "top-right");
 
-        map.current = new mapboxgl.Map({
-          container: mapContainer.current!,
-          style: "mapbox://styles/mapbox/light-v11",
-          center: center,
-          zoom: zoom,
-        });
+      map.current.on("load", () => {
+        console.log("Map loaded successfully");
+        setMapLoaded(true);
+      });
 
-        map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
-        map.current.addControl(new mapboxgl.FullscreenControl(), "top-right");
+      map.current.on("error", (e) => {
+        console.error("Map error:", e);
+      });
 
-        map.current.on("load", () => {
-          setMapLoaded(true);
-          setIsLoading(false);
-        });
-
-        map.current.on("click", () => {
-          onSelectRestaurant(null);
-        });
-
-      } catch (err) {
-        console.error('Error initializing map:', err);
-        setError(err instanceof Error ? err.message : 'Failed to initialize map');
-        setIsLoading(false);
-      }
-    };
-
-    initMap();
+      map.current.on("click", () => {
+        onSelectRestaurant(null);
+      });
+    } catch (err) {
+      console.error('Error initializing map:', err);
+    }
 
     return () => {
-      map.current?.remove();
-      map.current = null;
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
     };
-  }, []);
+  }, [token]);
 
   // Update map center and zoom
   useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !mapLoaded) return;
     map.current.flyTo({ center, zoom, duration: 1000 });
-  }, [center, zoom]);
+  }, [center, zoom, mapLoaded]);
 
   // Render markers and coverage circles
   useEffect(() => {
@@ -125,16 +108,15 @@ export const CartographyMap = ({
         const angle = (i / points) * 2 * Math.PI;
         const dx = radiusKm * Math.cos(angle);
         const dy = radiusKm * Math.sin(angle);
-        // Approximate conversion from km to degrees
         const latOffset = dy / 111;
         const lngOffset = dx / (111 * Math.cos(lat * Math.PI / 180));
         coords.push([lng + lngOffset, lat + latOffset]);
       }
-      coords.push(coords[0]); // Close the polygon
+      coords.push(coords[0]);
       return coords;
     };
 
-    // Check for overlaps between circles
+    // All locations
     const allLocations = [
       ...restaurants.map(r => ({
         id: r.id,
@@ -154,7 +136,7 @@ export const CartographyMap = ({
       })),
     ];
 
-    // Calculate which restaurants have overlaps
+    // Calculate overlaps
     const hasOverlap = new Set<string>();
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
       const R = 6371;
@@ -195,23 +177,19 @@ export const CartographyMap = ({
         },
       });
 
-      // Fill layer
       const fillColor = loc.isSimulated 
-        ? "rgba(59, 130, 246, 0.15)" // Blue for simulated
+        ? "rgba(59, 130, 246, 0.15)"
         : isOverlapping 
-          ? "rgba(239, 68, 68, 0.2)" // Red for overlapping
-          : "rgba(34, 197, 94, 0.15)"; // Green for normal
+          ? "rgba(239, 68, 68, 0.2)"
+          : "rgba(34, 197, 94, 0.15)";
 
       map.current!.addLayer({
         id: `${sourceId}-fill`,
         type: "fill",
         source: sourceId,
-        paint: {
-          "fill-color": fillColor,
-        },
+        paint: { "fill-color": fillColor },
       });
 
-      // Outline layer
       const outlineColor = loc.isSimulated
         ? "#3b82f6"
         : isOverlapping
@@ -260,7 +238,6 @@ export const CartographyMap = ({
         ? "0 0 0 3px rgba(59, 130, 246, 0.5), 0 4px 12px rgba(0,0,0,0.3)"
         : "0 2px 8px rgba(0,0,0,0.2)";
 
-      // Add inner icon
       const inner = document.createElement("div");
       inner.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
       el.appendChild(inner);
@@ -292,7 +269,7 @@ export const CartographyMap = ({
   }, [restaurants, simulatedLocations, mapLoaded, selectedRestaurantId, onSelectRestaurant]);
 
   // Loading state
-  if (isLoading) {
+  if (tokenLoading) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-muted/30">
         <div className="text-center space-y-4">
@@ -304,16 +281,16 @@ export const CartographyMap = ({
   }
 
   // Error state
-  if (error) {
+  if (tokenError) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-muted/30">
         <div className="text-center space-y-4 max-w-md px-4">
           <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-            <span className="text-3xl">🗺️</span>
+            <AlertCircle className="w-8 h-8 text-destructive" />
           </div>
           <div>
             <p className="text-lg font-medium text-destructive">Erreur de chargement</p>
-            <p className="text-sm text-muted-foreground mt-1">{error}</p>
+            <p className="text-sm text-muted-foreground mt-1">{tokenError}</p>
           </div>
         </div>
       </div>
