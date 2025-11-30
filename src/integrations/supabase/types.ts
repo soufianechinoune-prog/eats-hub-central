@@ -971,6 +971,7 @@ export type Database = {
           impact_value: number | null
           platform: string | null
           restaurant_id: string | null
+          restaurant_ids: string[] | null
           start_date: string
           target_item_ids: string[] | null
           title: string
@@ -988,6 +989,7 @@ export type Database = {
           impact_value?: number | null
           platform?: string | null
           restaurant_id?: string | null
+          restaurant_ids?: string[] | null
           start_date: string
           target_item_ids?: string[] | null
           title: string
@@ -1005,6 +1007,7 @@ export type Database = {
           impact_value?: number | null
           platform?: string | null
           restaurant_id?: string | null
+          restaurant_ids?: string[] | null
           start_date?: string
           target_item_ids?: string[] | null
           title?: string
