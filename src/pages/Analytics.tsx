@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { AnalyticsFilters, PeriodMode } from "@/components/analytics/AnalyticsFilters";
 import { AnalyticsCharts, ChartActionsConfig, ActionCategoryFilter } from "@/components/analytics/AnalyticsCharts";
+import { RestaurantRanking } from "@/components/analytics/RestaurantRanking";
 import { useAnalyticsPdfExport } from "@/hooks/useAnalyticsPdfExport";
 import { useRestaurantActions } from "@/hooks/useRestaurantActions";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
@@ -546,7 +547,18 @@ export default function Analytics() {
           </div>
         ) : (
           <div ref={chartsRef}>
-            <TabsContent value="uber_eats" className="mt-6">
+            <TabsContent value="uber_eats" className="mt-6 space-y-6">
+              <RestaurantRanking
+                restaurants={restaurants}
+                revenueData={uberRevenueData}
+                conversionData={uberConversionData}
+                feesData={uberFeesData}
+                prevRevenueData={uberPrevRevenueData}
+                prevConversionData={uberPrevConversionData}
+                prevFeesData={uberPrevFeesData}
+                startMonth={effectiveStartMonth}
+                endMonth={effectiveEndMonth}
+              />
               <AnalyticsCharts
                 revenueData={uberRevenueData}
                 conversionData={uberConversionData}
@@ -566,7 +578,18 @@ export default function Analytics() {
               />
             </TabsContent>
 
-            <TabsContent value="deliveroo" className="mt-6">
+            <TabsContent value="deliveroo" className="mt-6 space-y-6">
+              <RestaurantRanking
+                restaurants={restaurants}
+                revenueData={deliverooRevenueData}
+                conversionData={deliverooConversionData}
+                feesData={deliverooFeesData}
+                prevRevenueData={deliverooPrevRevenueData}
+                prevConversionData={deliverooPrevConversionData}
+                prevFeesData={deliverooPrevFeesData}
+                startMonth={effectiveStartMonth}
+                endMonth={effectiveEndMonth}
+              />
               <AnalyticsCharts
                 revenueData={deliverooRevenueData}
                 conversionData={deliverooConversionData}
@@ -586,7 +609,18 @@ export default function Analytics() {
               />
             </TabsContent>
 
-            <TabsContent value="global" className="mt-6">
+            <TabsContent value="global" className="mt-6 space-y-6">
+              <RestaurantRanking
+                restaurants={restaurants}
+                revenueData={globalRevenueData}
+                conversionData={globalConversionData}
+                feesData={globalFeesData}
+                prevRevenueData={globalPrevRevenueData}
+                prevConversionData={globalPrevConversionData}
+                prevFeesData={globalPrevFeesData}
+                startMonth={effectiveStartMonth}
+                endMonth={effectiveEndMonth}
+              />
               <AnalyticsCharts
                 revenueData={globalRevenueData}
                 conversionData={globalConversionData}
