@@ -89,6 +89,7 @@ interface MenuItem {
 interface RestaurantAction {
   id: string;
   restaurant_id: string | null;
+  restaurant_ids: string[] | null;
   category: string;
   action_type: string;
   title: string;
@@ -374,8 +375,13 @@ export default function RestaurantActions() {
       ? changeContext.time 
       : (action.end_date || "");
     
+    // Utiliser restaurant_ids si disponible, sinon fallback sur restaurant_id
+    const restaurantIds = action.restaurant_ids && action.restaurant_ids.length > 0 
+      ? action.restaurant_ids 
+      : (action.restaurant_id ? [action.restaurant_id] : []);
+    
     setFormData({
-      restaurant_ids: action.restaurant_id ? [action.restaurant_id] : [],
+      restaurant_ids: restaurantIds,
       category: action.category,
       action_type: isCustomType ? "Autre" : action.action_type,
       title: action.title,
@@ -490,27 +496,24 @@ export default function RestaurantActions() {
       changeContext.time = formData.end_date;
     }
     
-    // Si aucun restaurant sélectionné, on crée une seule action avec restaurant_id = null
-    // Sinon on crée une action par restaurant sélectionné
-    const restaurantIdsToUse = formData.restaurant_ids.length > 0 ? formData.restaurant_ids : [null];
+    // Préparer les données de l'action - une seule entrée avec restaurant_ids[]
+    const actionData = {
+      restaurant_id: formData.restaurant_ids.length === 1 ? formData.restaurant_ids[0] : null,
+      restaurant_ids: formData.restaurant_ids.length > 0 ? formData.restaurant_ids : [],
+      category: formData.category,
+      action_type: finalActionType,
+      title: formData.title.trim(),
+      description: formData.description.trim() || null,
+      start_date: formData.start_date,
+      end_date: config.dateType === "datetime" ? null : (formData.end_date || null),
+      impact_value: formData.impact_value ? parseFloat(formData.impact_value) : null,
+      impact_unit: formData.impact_unit || null,
+      target_item_ids: productScope === "all" ? [] : formData.target_item_ids,
+      platform: formData.platform,
+      change_context: Object.keys(changeContext).length > 0 ? changeContext : null,
+    };
 
     if (editingAction) {
-      // En édition, on met à jour seulement l'action existante avec le premier restaurant
-      const actionData = {
-        restaurant_id: formData.restaurant_ids.length > 0 ? formData.restaurant_ids[0] : null,
-        category: formData.category,
-        action_type: finalActionType,
-        title: formData.title.trim(),
-        description: formData.description.trim() || null,
-        start_date: formData.start_date,
-        end_date: config.dateType === "datetime" ? null : (formData.end_date || null),
-        impact_value: formData.impact_value ? parseFloat(formData.impact_value) : null,
-        impact_unit: formData.impact_unit || null,
-        target_item_ids: productScope === "all" ? [] : formData.target_item_ids,
-        platform: formData.platform,
-        change_context: Object.keys(changeContext).length > 0 ? changeContext : null,
-      };
-
       const { error } = await supabase
         .from("restaurant_actions")
         .update(actionData)
@@ -522,36 +525,15 @@ export default function RestaurantActions() {
       }
       toast({ title: "Succès", description: "Action modifiée" });
     } else {
-      // En création, on crée une action par restaurant sélectionné
-      const actionsToInsert = restaurantIdsToUse.map(restaurantId => ({
-        restaurant_id: restaurantId,
-        category: formData.category,
-        action_type: finalActionType,
-        title: formData.title.trim(),
-        description: formData.description.trim() || null,
-        start_date: formData.start_date,
-        end_date: config.dateType === "datetime" ? null : (formData.end_date || null),
-        impact_value: formData.impact_value ? parseFloat(formData.impact_value) : null,
-        impact_unit: formData.impact_unit || null,
-        target_item_ids: productScope === "all" ? [] : formData.target_item_ids,
-        platform: formData.platform,
-        change_context: Object.keys(changeContext).length > 0 ? changeContext : null,
-      }));
-
       const { error } = await supabase
         .from("restaurant_actions")
-        .insert(actionsToInsert);
+        .insert([actionData]);
 
       if (error) {
         toast({ title: "Erreur", description: "Impossible de créer l'action", variant: "destructive" });
         return;
       }
-      toast({ 
-        title: "Succès", 
-        description: actionsToInsert.length > 1 
-          ? `${actionsToInsert.length} actions créées` 
-          : "Action créée" 
-      });
+      toast({ title: "Succès", description: "Action créée" });
     }
 
     setIsDialogOpen(false);
@@ -599,7 +581,14 @@ export default function RestaurantActions() {
   const filteredActions = actions
     .filter(a => categoryFilter === "all" || a.category === categoryFilter)
     .filter(a => platformFilter === "all" || a.platform === platformFilter)
-    .filter(a => restaurantFilters.length === 0 || (a.restaurant_id && restaurantFilters.includes(a.restaurant_id)))
+    .filter(a => {
+      if (restaurantFilters.length === 0) return true;
+      // Check restaurant_ids array first, then fallback to restaurant_id
+      const actionRestaurantIds = a.restaurant_ids && a.restaurant_ids.length > 0 
+        ? a.restaurant_ids 
+        : (a.restaurant_id ? [a.restaurant_id] : []);
+      return restaurantFilters.some(filterId => actionRestaurantIds.includes(filterId));
+    })
     .filter(a => actionTypeFilter === "all" || a.action_type === actionTypeFilter)
     .filter(a => {
       if (statusFilter === "all") return true;
@@ -1207,7 +1196,6 @@ export default function RestaurantActions() {
                     const Icon = CATEGORY_ICONS[action.category] || Zap;
                     const status = getActionStatus(action);
                     const targetItems = menuItems.filter(item => action.target_item_ids?.includes(item.id));
-                    const restaurantName = getRestaurantName(action.restaurant_id);
                     const isHighlighted = action.id === highlightedActionId;
                     
                     return (
@@ -1346,13 +1334,59 @@ export default function RestaurantActions() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {restaurantName ? (
-                            <span className="text-xs truncate max-w-[130px] block">
-                              {restaurantName}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">Tous</span>
-                          )}
+                          {(() => {
+                            // Get all restaurant ids for this action
+                            const actionRestaurantIds = action.restaurant_ids && action.restaurant_ids.length > 0 
+                              ? action.restaurant_ids 
+                              : (action.restaurant_id ? [action.restaurant_id] : []);
+                            
+                            if (actionRestaurantIds.length === 0) {
+                              return <span className="text-muted-foreground text-xs">Tous</span>;
+                            }
+                            
+                            if (actionRestaurantIds.length === 1) {
+                              const name = getRestaurantName(actionRestaurantIds[0]);
+                              return (
+                                <span className="text-xs truncate max-w-[130px] block">
+                                  {name || "Restaurant inconnu"}
+                                </span>
+                              );
+                            }
+                            
+                            // Multiple restaurants - show count with popover
+                            const restaurantNames = actionRestaurantIds
+                              .map(id => restaurants.find(r => r.id === id)?.name)
+                              .filter(Boolean);
+                            
+                            return (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Badge 
+                                    variant="secondary" 
+                                    className="cursor-pointer text-xs hover:bg-secondary/80"
+                                  >
+                                    <Store className="h-3 w-3 mr-1" />
+                                    {actionRestaurantIds.length} restaurants
+                                  </Badge>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-64 p-0" align="start">
+                                  <div className="p-3 border-b">
+                                    <p className="text-sm font-medium">
+                                      {actionRestaurantIds.length} restaurants associés
+                                    </p>
+                                  </div>
+                                  <div className="max-h-48 overflow-y-auto p-2">
+                                    {restaurantNames.map((name, idx) => (
+                                      <div key={idx} className="flex items-center gap-2 py-1.5 px-2 text-sm hover:bg-muted/50 rounded">
+                                        <Store className="h-3 w-3 text-muted-foreground shrink-0" />
+                                        <span className="truncate">{name}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">

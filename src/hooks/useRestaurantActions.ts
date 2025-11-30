@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface RestaurantAction {
   id: string;
   restaurant_id: string | null;
+  restaurant_ids: string[] | null;
   category: string;
   action_type: string;
   title: string;
@@ -36,11 +37,6 @@ export function useRestaurantActions(
           .lte("start_date", `${year}-12-31`);
       }
 
-      // Filter by restaurants if provided
-      if (restaurantIds && restaurantIds.length > 0) {
-        query = query.in("restaurant_id", restaurantIds);
-      }
-
       // Filter by platform if not global
       if (platform && platform !== "global") {
         query = query.or(`platform.eq.${platform},platform.eq.all`);
@@ -49,7 +45,26 @@ export function useRestaurantActions(
       const { data, error } = await query;
 
       if (error) throw error;
-      return data as RestaurantAction[];
+      
+      // Filter by restaurants client-side (since we need to check both restaurant_id and restaurant_ids array)
+      let filteredData = data as RestaurantAction[];
+      
+      if (restaurantIds && restaurantIds.length > 0) {
+        filteredData = filteredData.filter(action => {
+          // Check restaurant_ids array first
+          if (action.restaurant_ids && action.restaurant_ids.length > 0) {
+            return restaurantIds.some(id => action.restaurant_ids!.includes(id));
+          }
+          // Fallback to restaurant_id
+          if (action.restaurant_id) {
+            return restaurantIds.includes(action.restaurant_id);
+          }
+          // No restaurant associated = applies to all
+          return true;
+        });
+      }
+      
+      return filteredData;
     },
     enabled: !!year,
   });
