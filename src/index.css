@@ -64,6 +64,13 @@ All colors MUST be HSL.
     --stat-fees: 0 84% 60%;
     --stat-payout: 142 70% 40%;
 
+    /* Chart colors - couleurs distinctes pour graphiques */
+    --chart-1: 239 84% 67%;
+    --chart-2: 142 76% 45%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 280 70% 60%;
+    --chart-5: 187 92% 45%;
+
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 239 84% 67%;
@@ -140,6 +147,13 @@ All colors MUST be HSL.
     --stat-conversion: 142 76% 45%;
     --stat-fees: 0 84% 60%;
     --stat-payout: 142 70% 40%;
+
+    /* Chart colors - couleurs distinctes pour graphiques */
+    --chart-1: 239 84% 67%;
+    --chart-2: 142 76% 45%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 280 70% 60%;
+    --chart-5: 187 92% 45%;
 
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 98%;
