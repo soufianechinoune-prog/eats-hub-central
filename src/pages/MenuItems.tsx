@@ -46,6 +46,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Plus, 
   Pencil, 
@@ -63,16 +64,21 @@ import {
   ChevronRight,
   X,
   Upload,
+  ArrowRightLeft,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { CsvImportDialog } from "@/components/menu/CsvImportDialog";
 import { MenuItemChangeConfirmDialog } from "@/components/menu/MenuItemChangeConfirmDialog";
+import { CatalogComparison } from "@/components/menu/CatalogComparison";
+import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
 
 interface MenuItem {
   id: string;
   name: string;
   category: string | null;
   description: string | null;
+  description_uber: string | null;
+  description_deliveroo: string | null;
   price_uber: number | null;
   price_deliveroo: number | null;
   food_cost: number | null;
@@ -89,6 +95,7 @@ const CATEGORIES = [
   "Menus Burgers",
   "Menus Burgers Naan",
   "Menu Xtra",
+  "Menus Family",
   "Fried Chicken",
   "Bowls Street",
   "Burgers",
@@ -99,6 +106,7 @@ const CATEGORIES = [
   "À partager",
   "Desserts",
   "À la carte",
+  "Extras",
   "Salades",
   "Boissons",
   "Sauces",
@@ -118,7 +126,11 @@ export default function MenuItems() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isDeliverooImportDialogOpen, setIsDeliverooImportDialogOpen] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"catalog" | "comparison">("catalog");
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
   
@@ -135,6 +147,8 @@ export default function MenuItems() {
     name: "",
     category: "",
     description: "",
+    description_uber: "",
+    description_deliveroo: "",
     price_uber: "",
     price_deliveroo: "",
     food_cost: "",
@@ -184,6 +198,8 @@ export default function MenuItems() {
       name: "",
       category: "",
       description: "",
+      description_uber: "",
+      description_deliveroo: "",
       price_uber: "",
       price_deliveroo: "",
       food_cost: "",
@@ -198,6 +214,8 @@ export default function MenuItems() {
       name: item.name,
       category: item.category || "",
       description: item.description || "",
+      description_uber: item.description_uber || "",
+      description_deliveroo: item.description_deliveroo || "",
       price_uber: item.price_uber?.toString() || "",
       price_deliveroo: item.price_deliveroo?.toString() || "",
       food_cost: item.food_cost?.toString() || "",
@@ -230,6 +248,8 @@ export default function MenuItems() {
       name: formData.name.trim(),
       category: formData.category || null,
       description: formData.description.trim() || null,
+      description_uber: formData.description_uber.trim() || null,
+      description_deliveroo: formData.description_deliveroo.trim() || null,
       price_uber: formData.price_uber ? parseFloat(formData.price_uber) : null,
       price_deliveroo: formData.price_deliveroo ? parseFloat(formData.price_deliveroo) : null,
       food_cost: formData.food_cost ? parseFloat(formData.food_cost) : null,
@@ -523,12 +543,35 @@ export default function MenuItems() {
             <Upload className="h-4 w-4" />
             Import CSV
           </Button>
+          <Button variant="outline" onClick={() => setIsDeliverooImportDialogOpen(true)} className="gap-2">
+            <DeliverooIcon className="h-4 w-4" />
+            Import Deliveroo
+          </Button>
           <Button onClick={openCreateDialog} className="gap-2">
             <Plus className="h-4 w-4" />
             Ajouter un produit
           </Button>
         </div>
       </div>
+
+      {/* Tabs for Catalog / Comparison */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison")}>
+        <TabsList>
+          <TabsTrigger value="catalog" className="gap-2">
+            <Package className="h-4 w-4" />
+            Catalogue
+          </TabsTrigger>
+          <TabsTrigger value="comparison" className="gap-2">
+            <ArrowRightLeft className="h-4 w-4" />
+            Comparaison
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="comparison" className="mt-6">
+          <CatalogComparison menuItems={menuItems} onRefresh={fetchMenuItems} />
+        </TabsContent>
+
+        <TabsContent value="catalog" className="mt-6 space-y-6">
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -891,6 +934,8 @@ export default function MenuItems() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -934,15 +979,37 @@ export default function MenuItems() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Description du produit (ingrédients, composition...)"
-                rows={3}
-              />
+            {/* Platform-specific descriptions */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Description par plateforme</Label>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2">
+                    <UberEatsIcon className="h-4 w-4" />
+                    <Label htmlFor="description_uber" className="text-xs">Description Uber Eats</Label>
+                  </div>
+                  <Textarea
+                    id="description_uber"
+                    value={formData.description_uber}
+                    onChange={(e) => setFormData({ ...formData, description_uber: e.target.value })}
+                    placeholder="Description pour Uber Eats..."
+                    rows={2}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2">
+                    <DeliverooIcon className="h-4 w-4" />
+                    <Label htmlFor="description_deliveroo" className="text-xs">Description Deliveroo</Label>
+                  </div>
+                  <Textarea
+                    id="description_deliveroo"
+                    value={formData.description_deliveroo}
+                    onChange={(e) => setFormData({ ...formData, description_deliveroo: e.target.value })}
+                    placeholder="Description pour Deliveroo..."
+                    rows={2}
+                  />
+                </div>
+              </div>
             </div>
             
             {/* Platform-specific prices */}
@@ -1036,6 +1103,14 @@ export default function MenuItems() {
         onOpenChange={setIsImportDialogOpen}
         onImportComplete={fetchMenuItems}
         existingCategories={existingCategories as string[]}
+      />
+
+      {/* Deliveroo Import Dialog */}
+      <DeliverooImportDialog
+        open={isDeliverooImportDialogOpen}
+        onOpenChange={setIsDeliverooImportDialogOpen}
+        onImportComplete={fetchMenuItems}
+        existingItems={menuItems.map(i => ({ id: i.id, name: i.name, price_deliveroo: i.price_deliveroo }))}
       />
     </div>
   );

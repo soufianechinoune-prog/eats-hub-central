@@ -284,6 +284,8 @@ export type Database = {
           category: string | null
           created_at: string
           description: string | null
+          description_deliveroo: string | null
+          description_uber: string | null
           food_cost: number | null
           id: string
           is_active: boolean | null
@@ -296,6 +298,8 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
+          description_deliveroo?: string | null
+          description_uber?: string | null
           food_cost?: number | null
           id?: string
           is_active?: boolean | null
@@ -308,6 +312,8 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
+          description_deliveroo?: string | null
+          description_uber?: string | null
           food_cost?: number | null
           id?: string
           is_active?: boolean | null
