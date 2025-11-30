@@ -29,6 +29,8 @@ import {
   Trash2,
   Bell,
   BellOff,
+  ExternalLink,
+  MoreVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
@@ -590,6 +592,24 @@ export default function ConversationView() {
     }
   };
 
+  // Delete message from history
+  const deleteMessage = async (messageId: string) => {
+    try {
+      const { error } = await supabase
+        .from("message_history")
+        .delete()
+        .eq("id", messageId);
+
+      if (error) throw error;
+
+      toast.success("Message supprimé de l'historique");
+      queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
+    } catch (err) {
+      console.error("Error deleting message:", err);
+      toast.error("Erreur lors de la suppression");
+    }
+  };
+
   // Render message content (detect media messages)
   const renderMessageContent = (msg: Message) => {
     const content = msg.message_content;
@@ -630,19 +650,33 @@ export default function ConversationView() {
     
     // Document message
     if (content.startsWith('📄 Document')) {
+      // Try to extract filename and reconstruct URL if media_url is missing
+      let documentUrl = msg.media_url;
+      if (!documentUrl && content.includes(': ')) {
+        const filename = content.replace('📄 Document: ', '').trim();
+        // Search for a likely filename pattern in storage
+        documentUrl = `https://akcicojkrzeirffefdet.supabase.co/storage/v1/object/public/whatsapp-media/${encodeURIComponent(filename)}`;
+      }
+      
+      const filename = content.replace('📄 Document: ', '').trim();
+      
       return (
-        <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-blue-500" />
-          <span>{content.replace('📄 ', '')}</span>
-          {msg.media_url && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs"
-              onClick={() => window.open(msg.media_url!, '_blank')}
-            >
-              Ouvrir
-            </Button>
+        <div 
+          className={cn(
+            "flex items-center gap-3 p-3 bg-secondary/50 rounded-lg",
+            documentUrl && "cursor-pointer hover:bg-secondary/70 transition-colors"
+          )}
+          onClick={() => documentUrl && window.open(documentUrl, '_blank')}
+        >
+          <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+            <FileText className="h-5 w-5 text-blue-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{filename}</p>
+            <p className="text-xs text-muted-foreground">Document</p>
+          </div>
+          {documentUrl && (
+            <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
           )}
         </div>
       );
@@ -889,35 +923,62 @@ export default function ConversationView() {
                           )}
                         </AnimatePresence>
                         <motion.div 
-                          className={cn("flex", isOutbound ? "justify-end" : "justify-start")}
+                          className={cn("flex group", isOutbound ? "justify-end" : "justify-start")}
                           variants={messageVariants}
                           initial="hidden"
                           animate="visible"
                           layout
                         >
-                          <motion.div
-                            className={cn(
-                              "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm relative",
-                              isOutbound
-                                ? "bg-whatsapp-bubble-out text-foreground rounded-br-md"
-                                : "bg-card text-foreground rounded-bl-md"
-                            )}
-                            whileHover={{ scale: 1.01 }}
-                            transition={{ duration: 0.1 }}
-                          >
-                            <p className="text-[15px] leading-relaxed">
-                              {renderMessageContent(msg)}
-                            </p>
-                            <div
+                          <div className={cn(
+                            "flex items-center gap-1",
+                            isOutbound ? "flex-row" : "flex-row-reverse"
+                          )}>
+                            {/* Delete dropdown */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                                >
+                                  <MoreVertical className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align={isOutbound ? "end" : "start"} className="w-48">
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => deleteMessage(msg.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Supprimer de l'historique
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            <motion.div
                               className={cn(
-                                "flex items-center gap-1 mt-1 text-[11px]",
-                                isOutbound ? "justify-end text-muted-foreground/70" : "text-muted-foreground/60"
+                                "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm relative",
+                                isOutbound
+                                  ? "bg-whatsapp-bubble-out text-foreground rounded-br-md"
+                                  : "bg-card text-foreground rounded-bl-md"
                               )}
+                              whileHover={{ scale: 1.01 }}
+                              transition={{ duration: 0.1 }}
                             >
-                              <span>{format(new Date(msg.created_at), "HH:mm")}</span>
-                              {getStatusIcon(msg)}
-                            </div>
-                          </motion.div>
+                              <p className="text-[15px] leading-relaxed">
+                                {renderMessageContent(msg)}
+                              </p>
+                              <div
+                                className={cn(
+                                  "flex items-center gap-1 mt-1 text-[11px]",
+                                  isOutbound ? "justify-end text-muted-foreground/70" : "text-muted-foreground/60"
+                                )}
+                              >
+                                <span>{format(new Date(msg.created_at), "HH:mm")}</span>
+                                {getStatusIcon(msg)}
+                              </div>
+                            </motion.div>
+                          </div>
                         </motion.div>
                       </div>
                     );
