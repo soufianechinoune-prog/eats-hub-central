@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,13 +37,15 @@ import {
   CheckCircle2,
   X,
   Phone,
-  User,
   Store,
   Loader2,
   AlertCircle,
   Clock,
   Calendar,
   Trash2,
+  History,
+  CheckCheck,
+  Eye,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -88,6 +90,22 @@ interface ScheduledMessage {
   created_at: string;
 }
 
+interface MessageHistoryItem {
+  id: string;
+  restaurant_id: string | null;
+  recipient_phone: string;
+  recipient_name: string | null;
+  restaurant_name: string | null;
+  message_content: string;
+  ultramsg_message_id: string | null;
+  status: string;
+  error_message: string | null;
+  sent_at: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
 export default function Messaging() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
@@ -105,6 +123,9 @@ export default function Messaging() {
   const [sendProgress, setSendProgress] = useState(0);
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
+
+  // History filters
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<string>("all");
 
   // Fetch restaurants
   const { data: restaurants = [], isLoading } = useQuery({
@@ -137,6 +158,44 @@ export default function Messaging() {
       })) as ScheduledMessage[];
     },
   });
+
+  // Fetch message history
+  const { data: messageHistory = [], isLoading: isLoadingHistory } = useQuery({
+    queryKey: ["message-history"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("message_history")
+        .select("*")
+        .order("sent_at", { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+      return data as MessageHistoryItem[];
+    },
+  });
+
+  // Subscribe to realtime updates for message_history
+  useEffect(() => {
+    const channel = supabase
+      .channel("message-history-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "message_history",
+        },
+        () => {
+          // Refresh history when any change occurs
+          queryClient.invalidateQueries({ queryKey: ["message-history"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Get unique departments
   const departments = useMemo(() => {
@@ -176,6 +235,12 @@ export default function Messaging() {
   const selectedRestaurantsList = useMemo(() => {
     return restaurantsWithWhatsApp.filter((r) => selectedRestaurants.has(r.id));
   }, [restaurantsWithWhatsApp, selectedRestaurants]);
+
+  // Filtered message history
+  const filteredHistory = useMemo(() => {
+    if (historyStatusFilter === "all") return messageHistory;
+    return messageHistory.filter((m) => m.status === historyStatusFilter);
+  }, [messageHistory, historyStatusFilter]);
 
   // Toggle selection
   const toggleRestaurant = (id: string) => {
@@ -218,6 +283,7 @@ export default function Messaging() {
 
     try {
       const recipients = selectedRestaurantsList.map((r) => ({
+        restaurant_id: r.id,
         phone: r.manager_whatsapp || "",
         name: `${r.manager_first_name || ""} ${r.manager_last_name || ""}`.trim(),
         restaurantName: r.name,
@@ -245,6 +311,9 @@ export default function Messaging() {
       }
 
       setShowResultsDialog(true);
+
+      // Refresh history
+      queryClient.invalidateQueries({ queryKey: ["message-history"] });
 
       if (data.failed === 0) {
         setSelectedRestaurants(new Set());
@@ -297,14 +366,12 @@ export default function Messaging() {
 
       toast.success(`Message programmé pour le ${format(scheduledAt, "d MMMM à HH:mm", { locale: fr })}`);
       
-      // Reset form
       setSelectedRestaurants(new Set());
       setMessage("");
       setScheduledDate("");
       setScheduledTime("");
       setSendMode("immediate");
       
-      // Refresh scheduled messages list
       queryClient.invalidateQueries({ queryKey: ["scheduled-messages"] });
 
     } catch (err) {
@@ -343,7 +410,7 @@ export default function Messaging() {
   };
 
   // Get status badge for scheduled messages
-  const getStatusBadge = (status: string) => {
+  const getScheduledStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
         return <Badge variant="outline" className="text-amber-500 border-amber-500"><Clock className="h-3 w-3 mr-1" />En attente</Badge>;
@@ -359,6 +426,33 @@ export default function Messaging() {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
+
+  // Get status badge for message history
+  const getHistoryStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="outline" className="text-amber-500 border-amber-500"><Clock className="h-3 w-3 mr-1" />En attente</Badge>;
+      case "sent":
+        return <Badge variant="outline" className="text-blue-500 border-blue-500"><Send className="h-3 w-3 mr-1" />Envoyé</Badge>;
+      case "delivered":
+        return <Badge variant="outline" className="text-green-500 border-green-500"><CheckCheck className="h-3 w-3 mr-1" />Délivré</Badge>;
+      case "read":
+        return <Badge variant="outline" className="text-primary border-primary"><Eye className="h-3 w-3 mr-1" />Lu</Badge>;
+      case "failed":
+        return <Badge variant="outline" className="text-destructive border-destructive"><AlertCircle className="h-3 w-3 mr-1" />Échec</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  // History stats
+  const historyStats = useMemo(() => {
+    const sent = messageHistory.filter((m) => m.status === "sent").length;
+    const delivered = messageHistory.filter((m) => m.status === "delivered").length;
+    const read = messageHistory.filter((m) => m.status === "read").length;
+    const failed = messageHistory.filter((m) => m.status === "failed").length;
+    return { sent, delivered, read, failed, total: messageHistory.length };
+  }, [messageHistory]);
 
   return (
     <div className="space-y-6">
@@ -388,6 +482,15 @@ export default function Messaging() {
             {scheduledMessages.filter(m => m.status === "pending").length > 0 && (
               <Badge variant="secondary" className="ml-1">
                 {scheduledMessages.filter(m => m.status === "pending").length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            Historique
+            {historyStats.total > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {historyStats.total}
               </Badge>
             )}
           </TabsTrigger>
@@ -742,7 +845,7 @@ Variables disponibles :
                             <p className="text-sm truncate max-w-[300px]">{msg.message}</p>
                           </TableCell>
                           <TableCell>
-                            {getStatusBadge(msg.status)}
+                            {getScheduledStatusBadge(msg.status)}
                             {msg.status !== "pending" && msg.sent_count !== undefined && (
                               <div className="text-xs text-muted-foreground mt-1">
                                 {msg.sent_count} / {msg.recipients.length}
@@ -759,6 +862,122 @@ Variables disponibles :
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Historique des messages
+                </CardTitle>
+                <Select value={historyStatusFilter} onValueChange={setHistoryStatusFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filtrer par statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous ({historyStats.total})</SelectItem>
+                    <SelectItem value="sent">Envoyés ({historyStats.sent})</SelectItem>
+                    <SelectItem value="delivered">Délivrés ({historyStats.delivered})</SelectItem>
+                    <SelectItem value="read">Lus ({historyStats.read})</SelectItem>
+                    <SelectItem value="failed">Échecs ({historyStats.failed})</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Stats summary */}
+              {historyStats.total > 0 && (
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                  <div className="p-3 bg-blue-500/10 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-blue-500">{historyStats.sent}</div>
+                    <div className="text-xs text-muted-foreground">Envoyés</div>
+                  </div>
+                  <div className="p-3 bg-green-500/10 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-500">{historyStats.delivered}</div>
+                    <div className="text-xs text-muted-foreground">Délivrés</div>
+                  </div>
+                  <div className="p-3 bg-primary/10 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-primary">{historyStats.read}</div>
+                    <div className="text-xs text-muted-foreground">Lus</div>
+                  </div>
+                  <div className="p-3 bg-destructive/10 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-destructive">{historyStats.failed}</div>
+                    <div className="text-xs text-muted-foreground">Échecs</div>
+                  </div>
+                </div>
+              )}
+
+              {isLoadingHistory ? (
+                <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+              ) : filteredHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <History className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Aucun message dans l'historique</p>
+                  <p className="text-sm">Les messages envoyés apparaîtront ici</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[450px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Restaurant</TableHead>
+                        <TableHead>Destinataire</TableHead>
+                        <TableHead>Message</TableHead>
+                        <TableHead>Statut</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredHistory.map((msg) => (
+                        <TableRow key={msg.id}>
+                          <TableCell>
+                            <div className="font-medium text-sm">
+                              {msg.sent_at ? format(new Date(msg.sent_at), "d MMM", { locale: fr }) : "-"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {msg.sent_at ? format(new Date(msg.sent_at), "HH:mm", { locale: fr }) : "-"}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-sm">{msg.restaurant_name || "-"}</div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">{msg.recipient_name || "-"}</div>
+                            <div className="text-xs text-muted-foreground font-mono">{msg.recipient_phone}</div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="text-sm truncate max-w-[250px]" title={msg.message_content}>
+                              {msg.message_content}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            {getHistoryStatusBadge(msg.status)}
+                            {msg.status === "delivered" && msg.delivered_at && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {format(new Date(msg.delivered_at), "HH:mm", { locale: fr })}
+                              </div>
+                            )}
+                            {msg.status === "read" && msg.read_at && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {format(new Date(msg.read_at), "HH:mm", { locale: fr })}
+                              </div>
+                            )}
+                            {msg.status === "failed" && msg.error_message && (
+                              <div className="text-xs text-destructive mt-1 truncate max-w-[100px]" title={msg.error_message}>
+                                {msg.error_message}
+                              </div>
                             )}
                           </TableCell>
                         </TableRow>

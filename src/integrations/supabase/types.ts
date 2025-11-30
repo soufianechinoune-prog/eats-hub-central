@@ -318,6 +318,72 @@ export type Database = {
         }
         Relationships: []
       }
+      message_history: {
+        Row: {
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          message_content: string
+          read_at: string | null
+          recipient_name: string | null
+          recipient_phone: string
+          restaurant_id: string | null
+          restaurant_name: string | null
+          scheduled_message_id: string | null
+          sent_at: string | null
+          status: string
+          ultramsg_message_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_content: string
+          read_at?: string | null
+          recipient_name?: string | null
+          recipient_phone: string
+          restaurant_id?: string | null
+          restaurant_name?: string | null
+          scheduled_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          ultramsg_message_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_content?: string
+          read_at?: string | null
+          recipient_name?: string | null
+          recipient_phone?: string
+          restaurant_id?: string | null
+          restaurant_name?: string | null
+          scheduled_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          ultramsg_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_history_scheduled_message_id_fkey"
+            columns: ["scheduled_message_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monthly_conversion: {
         Row: {
           add_to_cart: number

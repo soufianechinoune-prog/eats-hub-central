@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.process-scheduled-messages]
 verify_jwt = false
+
+[functions.ultramsg-webhook]
+verify_jwt = false

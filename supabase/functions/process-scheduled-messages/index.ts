@@ -116,16 +116,56 @@ serve(async (req) => {
 
           if (response.ok && data.sent === 'true') {
             console.log(`Message sent to ${phone}, ID: ${data.id}`);
+            
+            // Log to message_history
+            await supabase.from('message_history').insert({
+              restaurant_id: recipient.restaurant_id || null,
+              recipient_phone: recipient.phone,
+              recipient_name: recipient.name,
+              restaurant_name: recipient.restaurantName,
+              message_content: personalizedMessage,
+              ultramsg_message_id: data.id,
+              status: 'sent',
+              sent_at: new Date().toISOString(),
+              scheduled_message_id: scheduledMsg.id,
+            });
+
             results.push({ phone, name: recipient.name, success: true, messageId: data.id });
             successCount++;
           } else {
             console.error(`Failed to send to ${phone}:`, data);
+            
+            // Log failed message
+            await supabase.from('message_history').insert({
+              restaurant_id: recipient.restaurant_id || null,
+              recipient_phone: recipient.phone,
+              recipient_name: recipient.name,
+              restaurant_name: recipient.restaurantName,
+              message_content: personalizedMessage,
+              status: 'failed',
+              error_message: data.error || 'Unknown error',
+              scheduled_message_id: scheduledMsg.id,
+            });
+
             results.push({ phone, name: recipient.name, success: false, error: data.error || 'Unknown error' });
             failCount++;
           }
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error';
           console.error(`Error sending to ${phone}:`, errorMessage);
+          
+          // Log error
+          await supabase.from('message_history').insert({
+            restaurant_id: recipient.restaurant_id || null,
+            recipient_phone: recipient.phone,
+            recipient_name: recipient.name,
+            restaurant_name: recipient.restaurantName,
+            message_content: personalizedMessage,
+            status: 'failed',
+            error_message: errorMessage,
+            scheduled_message_id: scheduledMsg.id,
+          });
+
           results.push({ phone, name: recipient.name, success: false, error: errorMessage });
           failCount++;
         }
