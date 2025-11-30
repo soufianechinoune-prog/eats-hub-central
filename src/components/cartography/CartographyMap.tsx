@@ -5,7 +5,6 @@ import { RestaurantWithGeo, SimulatedLocation } from "@/pages/Cartography";
 import { useMapboxToken } from "@/hooks/useMapboxToken";
 import { Loader2, AlertCircle } from "lucide-react";
 import csLogo from "@/assets/cs-logo.jpeg";
-import { generateDensityFeatures } from "@/data/france-population-density";
 import { CommuneDensityLayer } from "./CommuneDensityLayer";
 
 interface CartographyMapProps {
@@ -15,8 +14,7 @@ interface CartographyMapProps {
   center: [number, number];
   zoom: number;
   showDensityLayer: boolean;
-  showCommuneDensity: boolean;
-  communeDensityLevels: number[];
+  densityLevels: number[];
   onSelectRestaurant: (id: string | null) => void;
 }
 
@@ -27,8 +25,7 @@ export const CartographyMap = ({
   center,
   zoom,
   showDensityLayer,
-  showCommuneDensity,
-  communeDensityLevels,
+  densityLevels,
   onSelectRestaurant,
 }: CartographyMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -87,72 +84,6 @@ export const CartographyMap = ({
     if (!map.current || !mapLoaded) return;
     map.current.flyTo({ center, zoom, duration: 1000 });
   }, [center, zoom, mapLoaded]);
-
-  // Handle density layer visibility
-  useEffect(() => {
-    if (!map.current || !mapLoaded) return;
-
-    const densitySourceId = "density-source";
-    const densityLayerId = "density-fill";
-
-    if (showDensityLayer) {
-      // Add density layer if not exists
-      if (!map.current.getSource(densitySourceId)) {
-        const features = generateDensityFeatures();
-        
-        map.current.addSource(densitySourceId, {
-          type: "geojson",
-          data: {
-            type: "FeatureCollection",
-            features,
-          },
-        });
-
-        map.current.addLayer({
-          id: densityLayerId,
-          type: "fill",
-          source: densitySourceId,
-          paint: {
-            "fill-color": [
-              "interpolate",
-              ["linear"],
-              ["get", "density"],
-              0, "rgba(0, 127, 255, 0.25)",
-              50, "rgba(0, 255, 0, 0.3)",
-              100, "rgba(255, 255, 0, 0.35)",
-              200, "rgba(255, 127, 0, 0.4)",
-              500, "rgba(255, 0, 0, 0.45)",
-              1000, "rgba(127, 0, 255, 0.5)",
-            ],
-            "fill-opacity": 0.7,
-          },
-        }, "road-label"); // Insert below labels
-
-        // Add density outline
-        map.current.addLayer({
-          id: `${densityLayerId}-outline`,
-          type: "line",
-          source: densitySourceId,
-          paint: {
-            "line-color": "#666",
-            "line-width": 0.5,
-            "line-opacity": 0.5,
-          },
-        }, "road-label");
-      }
-    } else {
-      // Remove density layer if exists
-      if (map.current.getLayer(`${densityLayerId}-outline`)) {
-        map.current.removeLayer(`${densityLayerId}-outline`);
-      }
-      if (map.current.getLayer(densityLayerId)) {
-        map.current.removeLayer(densityLayerId);
-      }
-      if (map.current.getSource(densitySourceId)) {
-        map.current.removeSource(densitySourceId);
-      }
-    }
-  }, [showDensityLayer, mapLoaded]);
 
   // Render markers and coverage circles
   useEffect(() => {
@@ -397,8 +328,8 @@ export const CartographyMap = ({
       <CommuneDensityLayer
         map={map.current}
         mapLoaded={mapLoaded}
-        visible={showCommuneDensity}
-        filteredLevels={communeDensityLevels}
+        visible={showDensityLayer}
+        filteredLevels={densityLevels}
       />
     </>
   );
