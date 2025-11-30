@@ -42,6 +42,40 @@ const Cartography = () => {
   const [isSimulationMode, setIsSimulationMode] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>([2.3522, 46.6034]); // France center
   const [mapZoom, setMapZoom] = useState(5.5);
+  const [ignoredAlerts, setIgnoredAlerts] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('cartography-ignored-alerts');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+  const [showIgnoredAlerts, setShowIgnoredAlerts] = useState(false);
+
+  // Persist ignored alerts
+  useEffect(() => {
+    localStorage.setItem('cartography-ignored-alerts', JSON.stringify([...ignoredAlerts]));
+  }, [ignoredAlerts]);
+
+  const getAlertKey = (alert: CannibalismAlert) => 
+    [alert.restaurant1, alert.restaurant2].sort().join('|');
+
+  const handleIgnoreAlert = (alert: CannibalismAlert) => {
+    setIgnoredAlerts(prev => new Set([...prev, getAlertKey(alert)]));
+  };
+
+  const handleRestoreAlert = (alert: CannibalismAlert) => {
+    setIgnoredAlerts(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(getAlertKey(alert));
+      return newSet;
+    });
+  };
+
+  const handleIgnoreAllAlerts = () => {
+    const allKeys = cannibalismAlerts().map(getAlertKey);
+    setIgnoredAlerts(new Set(allKeys));
+  };
+
+  const handleRestoreAllAlerts = () => {
+    setIgnoredAlerts(new Set());
+  };
 
   // Fetch restaurants with geo data
   const { data: restaurants = [], isLoading } = useQuery({
@@ -172,7 +206,9 @@ const Cartography = () => {
 
   const geocodedRestaurants = restaurants.filter(r => r.latitude && r.longitude);
   const unGeocodedRestaurants = restaurants.filter(r => !r.latitude || !r.longitude);
-  const alerts = cannibalismAlerts();
+  const allAlerts = cannibalismAlerts();
+  const activeAlerts = allAlerts.filter(a => !ignoredAlerts.has(getAlertKey(a)));
+  const ignoredAlertsList = allAlerts.filter(a => ignoredAlerts.has(getAlertKey(a)));
 
   return (
     <AppLayout>
@@ -193,10 +229,17 @@ const Cartography = () => {
               <div className="w-3 h-3 rounded-full bg-amber-500" />
               <span className="text-muted-foreground">À géolocaliser: {unGeocodedRestaurants.length}</span>
             </div>
-            {alerts.length > 0 && (
+            {allAlerts.length > 0 && (
               <div className="flex items-center gap-2 text-sm">
                 <div className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-                <span className="text-destructive font-medium">{alerts.length} chevauchement(s)</span>
+                <span className="text-destructive font-medium">
+                  {activeAlerts.length} chevauchement(s) actif(s)
+                  {ignoredAlertsList.length > 0 && (
+                    <span className="text-muted-foreground font-normal ml-1">
+                      ({ignoredAlertsList.length} ignoré{ignoredAlertsList.length > 1 ? 's' : ''})
+                    </span>
+                  )}
+                </span>
               </div>
             )}
           </div>
@@ -207,7 +250,9 @@ const Cartography = () => {
           <CartographySidebar
             restaurants={restaurants}
             simulatedLocations={simulatedLocations}
-            cannibalismAlerts={alerts}
+            cannibalismAlerts={activeAlerts}
+            ignoredAlerts={ignoredAlertsList}
+            showIgnoredAlerts={showIgnoredAlerts}
             selectedRestaurantId={selectedRestaurantId}
             isSimulationMode={isSimulationMode}
             onSelectRestaurant={setSelectedRestaurantId}
@@ -216,6 +261,11 @@ const Cartography = () => {
             onRemoveSimulation={handleRemoveSimulation}
             onUpdateSimulationRadius={handleUpdateSimulationRadius}
             onToggleSimulationMode={() => setIsSimulationMode(!isSimulationMode)}
+            onIgnoreAlert={handleIgnoreAlert}
+            onRestoreAlert={handleRestoreAlert}
+            onIgnoreAllAlerts={handleIgnoreAllAlerts}
+            onRestoreAllAlerts={handleRestoreAllAlerts}
+            onToggleShowIgnored={() => setShowIgnoredAlerts(!showIgnoredAlerts)}
             onGeocodeRestaurant={async (id) => {
               const restaurant = restaurants.find(r => r.id === id);
               if (!restaurant) return;
