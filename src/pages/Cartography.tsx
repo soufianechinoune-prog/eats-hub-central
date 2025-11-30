@@ -215,6 +215,29 @@ const Cartography = () => {
     }
   };
 
+  const handleFocusAlert = (alert: CannibalismAlert) => {
+    // Find both restaurants
+    const allLocations = [
+      ...restaurants.filter(r => r.latitude && r.longitude),
+      ...simulatedLocations,
+    ];
+    
+    const loc1 = allLocations.find(r => r.name === alert.restaurant1);
+    const loc2 = allLocations.find(r => r.name === alert.restaurant2);
+    
+    if (loc1?.latitude && loc1?.longitude && loc2?.latitude && loc2?.longitude) {
+      // Center between the two restaurants
+      const centerLat = (loc1.latitude + loc2.latitude) / 2;
+      const centerLng = (loc1.longitude + loc2.longitude) / 2;
+      setMapCenter([centerLng, centerLat]);
+      // Zoom level based on distance - closer restaurants = higher zoom
+      const zoom = alert.distance < 1 ? 14 : alert.distance < 3 ? 13 : 12;
+      setMapZoom(zoom);
+      // Clear selection to highlight both
+      setSelectedRestaurantId(null);
+    }
+  };
+
   const geocodedRestaurants = restaurants.filter(r => r.latitude && r.longitude);
   const unGeocodedRestaurants = restaurants.filter(r => !r.latitude || !r.longitude);
   const allAlerts = cannibalismAlerts();
@@ -278,6 +301,7 @@ const Cartography = () => {
             onToggleDensityLayer={() => setShowDensityLayer(!showDensityLayer)}
             onToggleCommuneDensity={() => setShowCommuneDensity(!showCommuneDensity)}
             onToggleCommuneDensityLevel={handleToggleCommuneDensityLevel}
+            onFocusAlert={handleFocusAlert}
             onIgnoreAlert={handleIgnoreAlert}
             onRestoreAlert={handleRestoreAlert}
             onIgnoreAllAlerts={handleIgnoreAllAlerts}
