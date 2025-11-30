@@ -1743,7 +1743,15 @@ export default function RestaurantActions() {
               </div>
               
               <div className="space-y-3">
-                <Label className="text-xs text-muted-foreground">Restaurants</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Restaurants</Label>
+                  {editingAction && formData.restaurant_ids.length > 0 && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Pencil className="h-3 w-3" />
+                      Cliquez pour modifier
+                    </span>
+                  )}
+                </div>
                 
                 {/* Selected restaurants display */}
                 {formData.restaurant_ids.length > 0 && (
