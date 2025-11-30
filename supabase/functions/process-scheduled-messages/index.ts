@@ -21,6 +21,7 @@ interface ScheduledMessage {
   status: string;
   media_url: string | null;
   media_type: string | null;
+  subject: string | null;
 }
 
 serve(async (req) => {
@@ -80,6 +81,35 @@ serve(async (req) => {
         .from('scheduled_messages')
         .update({ status: 'processing' })
         .eq('id', scheduledMsg.id);
+
+      // Create a campaign record to track this scheduled message
+      const campaignMessage = scheduledMsg.subject 
+        ? `📌 ${scheduledMsg.subject}\n\n${scheduledMsg.message}`
+        : scheduledMsg.message;
+
+      const { data: campaignData, error: campaignError } = await supabase
+        .from('message_campaigns')
+        .insert({
+          message_template: campaignMessage,
+          recipient_count: scheduledMsg.recipients.length,
+          sent_count: 0,
+          delivered_count: 0,
+          read_count: 0,
+          failed_count: 0,
+          status: 'sending',
+          sent_at: new Date().toISOString(),
+          media_url: scheduledMsg.media_url,
+          media_type: scheduledMsg.media_type,
+        })
+        .select('id')
+        .single();
+
+      if (campaignError) {
+        console.error('Failed to create campaign:', campaignError);
+      }
+
+      const campaignId = campaignData?.id || null;
+      console.log(`Created campaign ${campaignId} for scheduled message ${scheduledMsg.id}`);
 
       const results = [];
       let successCount = 0;
@@ -160,7 +190,7 @@ serve(async (req) => {
           if (response.ok && data.sent === 'true') {
             console.log(`Message sent to ${phone}, ID: ${data.id}`);
             
-            // Log to message_history
+            // Log to message_history with campaign_id
             await supabase.from('message_history').insert({
               restaurant_id: recipient.restaurant_id || null,
               recipient_phone: recipient.phone,
@@ -171,6 +201,7 @@ serve(async (req) => {
               status: 'sent',
               sent_at: new Date().toISOString(),
               scheduled_message_id: scheduledMsg.id,
+              campaign_id: campaignId,
               media_url: hasMedia ? scheduledMsg.media_url : null,
               media_type: hasMedia ? scheduledMsg.media_type : null,
             });
@@ -180,7 +211,7 @@ serve(async (req) => {
           } else {
             console.error(`Failed to send to ${phone}:`, data);
             
-            // Log failed message
+            // Log failed message with campaign_id
             await supabase.from('message_history').insert({
               restaurant_id: recipient.restaurant_id || null,
               recipient_phone: recipient.phone,
@@ -190,6 +221,7 @@ serve(async (req) => {
               status: 'failed',
               error_message: data.error || 'Unknown error',
               scheduled_message_id: scheduledMsg.id,
+              campaign_id: campaignId,
             });
 
             results.push({ phone, name: recipient.name, success: false, error: data.error || 'Unknown error' });
@@ -199,7 +231,7 @@ serve(async (req) => {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error';
           console.error(`Error sending to ${phone}:`, errorMessage);
           
-          // Log error
+          // Log error with campaign_id
           await supabase.from('message_history').insert({
             restaurant_id: recipient.restaurant_id || null,
             recipient_phone: recipient.phone,
@@ -209,6 +241,7 @@ serve(async (req) => {
             status: 'failed',
             error_message: errorMessage,
             scheduled_message_id: scheduledMsg.id,
+            campaign_id: campaignId,
           });
 
           results.push({ phone, name: recipient.name, success: false, error: errorMessage });
@@ -235,10 +268,25 @@ serve(async (req) => {
         })
         .eq('id', scheduledMsg.id);
 
+      // Update campaign with final counts
+      if (campaignId) {
+        await supabase
+          .from('message_campaigns')
+          .update({
+            status: finalStatus,
+            sent_count: successCount,
+            failed_count: failCount,
+          })
+          .eq('id', campaignId);
+        
+        console.log(`Updated campaign ${campaignId} with status ${finalStatus}`);
+      }
+
       console.log(`Message ${scheduledMsg.id} completed: ${successCount} sent, ${failCount} failed`);
 
       processedResults.push({
         id: scheduledMsg.id,
+        campaignId,
         status: finalStatus,
         sent: successCount,
         failed: failCount,
