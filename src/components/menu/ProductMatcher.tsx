@@ -81,6 +81,10 @@ export function ProductMatcher({ menuItems, onRefresh }: ProductMatcherProps) {
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
   const [selectedUberItem, setSelectedUberItem] = useState<MenuItem | null>(null);
   const [selectedDeliverooItem, setSelectedDeliverooItem] = useState<MenuItem | null>(null);
+  
+  // Search states for manual merge dialog
+  const [uberSearchQuery, setUberSearchQuery] = useState("");
+  const [deliverooSearchQuery, setDeliverooSearchQuery] = useState("");
 
   // Separate items by platform
   const { uberOnlyItems, deliverooOnlyItems, matchSuggestions } = useMemo(() => {
@@ -229,8 +233,23 @@ export function ProductMatcher({ menuItems, onRefresh }: ProductMatcherProps) {
   const openManualMergeDialog = () => {
     setSelectedUberItem(null);
     setSelectedDeliverooItem(null);
+    setUberSearchQuery("");
+    setDeliverooSearchQuery("");
     setIsMergeDialogOpen(true);
   };
+
+  // Filtered lists for manual merge dialog
+  const filteredUberItems = useMemo(() => {
+    if (!uberSearchQuery) return uberOnlyItems;
+    const query = uberSearchQuery.toLowerCase();
+    return uberOnlyItems.filter(item => item.name.toLowerCase().includes(query));
+  }, [uberOnlyItems, uberSearchQuery]);
+
+  const filteredDeliverooItems = useMemo(() => {
+    if (!deliverooSearchQuery) return deliverooOnlyItems;
+    const query = deliverooSearchQuery.toLowerCase();
+    return deliverooOnlyItems.filter(item => item.name.toLowerCase().includes(query));
+  }, [deliverooOnlyItems, deliverooSearchQuery]);
 
   const handleManualMerge = () => {
     if (selectedUberItem && selectedDeliverooItem) {
@@ -487,21 +506,34 @@ export function ProductMatcher({ menuItems, onRefresh }: ProductMatcherProps) {
                 <UberEatsIcon className="h-4 w-4" />
                 <span className="font-medium">Produit Uber</span>
               </div>
-              <ScrollArea className="h-[300px] border rounded-lg p-2">
-                {uberOnlyItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`p-2 rounded cursor-pointer mb-1 ${
-                      selectedUberItem?.id === item.id 
-                        ? "bg-primary/20 border border-primary" 
-                        : "hover:bg-muted"
-                    }`}
-                    onClick={() => setSelectedUberItem(item)}
-                  >
-                    <p className="font-medium text-sm">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{formatPrice(item.price_uber)}</p>
-                  </div>
-                ))}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher un produit Uber..."
+                  value={uberSearchQuery}
+                  onChange={(e) => setUberSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <ScrollArea className="h-[250px] border rounded-lg p-2">
+                {filteredUberItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Aucun produit trouvé</p>
+                ) : (
+                  filteredUberItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-2 rounded cursor-pointer mb-1 ${
+                        selectedUberItem?.id === item.id 
+                          ? "bg-primary/20 border border-primary" 
+                          : "hover:bg-muted"
+                      }`}
+                      onClick={() => setSelectedUberItem(item)}
+                    >
+                      <p className="font-medium text-sm">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{formatPrice(item.price_uber)}</p>
+                    </div>
+                  ))
+                )}
               </ScrollArea>
             </div>
 
@@ -511,21 +543,34 @@ export function ProductMatcher({ menuItems, onRefresh }: ProductMatcherProps) {
                 <DeliverooIcon className="h-4 w-4" />
                 <span className="font-medium">Produit Deliveroo</span>
               </div>
-              <ScrollArea className="h-[300px] border rounded-lg p-2">
-                {deliverooOnlyItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`p-2 rounded cursor-pointer mb-1 ${
-                      selectedDeliverooItem?.id === item.id 
-                        ? "bg-primary/20 border border-primary" 
-                        : "hover:bg-muted"
-                    }`}
-                    onClick={() => setSelectedDeliverooItem(item)}
-                  >
-                    <p className="font-medium text-sm">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{formatPrice(item.price_deliveroo)}</p>
-                  </div>
-                ))}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher un produit Deliveroo..."
+                  value={deliverooSearchQuery}
+                  onChange={(e) => setDeliverooSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <ScrollArea className="h-[250px] border rounded-lg p-2">
+                {filteredDeliverooItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Aucun produit trouvé</p>
+                ) : (
+                  filteredDeliverooItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-2 rounded cursor-pointer mb-1 ${
+                        selectedDeliverooItem?.id === item.id 
+                          ? "bg-primary/20 border border-primary" 
+                          : "hover:bg-muted"
+                      }`}
+                      onClick={() => setSelectedDeliverooItem(item)}
+                    >
+                      <p className="font-medium text-sm">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{formatPrice(item.price_deliveroo)}</p>
+                    </div>
+                  ))
+                )}
               </ScrollArea>
             </div>
           </div>
