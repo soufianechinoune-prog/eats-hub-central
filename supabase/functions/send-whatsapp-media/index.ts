@@ -9,7 +9,7 @@ const corsHeaders = {
 interface MediaRequest {
   phone: string;
   mediaUrl: string;
-  mediaType: 'image' | 'document';
+  mediaType: 'image' | 'document' | 'audio';
   caption?: string;
   filename?: string;
   restaurant_id?: string;
@@ -70,9 +70,14 @@ serve(async (req) => {
     console.log(`Sending ${mediaType} to ${formattedPhone}: ${mediaUrl}`);
 
     // Determine endpoint based on media type
-    const endpoint = mediaType === 'image' 
-      ? `https://api.ultramsg.com/${INSTANCE_ID}/messages/image`
-      : `https://api.ultramsg.com/${INSTANCE_ID}/messages/document`;
+    let endpoint: string;
+    if (mediaType === 'image') {
+      endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/image`;
+    } else if (mediaType === 'audio') {
+      endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/audio`;
+    } else {
+      endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/document`;
+    }
 
     // Prepare request body
     const body: Record<string, string> = {
@@ -83,6 +88,8 @@ serve(async (req) => {
     if (mediaType === 'image') {
       body.image = mediaUrl;
       if (caption) body.caption = caption;
+    } else if (mediaType === 'audio') {
+      body.audio = mediaUrl;
     } else {
       body.document = mediaUrl;
       if (filename) body.filename = filename;
@@ -102,9 +109,14 @@ serve(async (req) => {
     console.log('Ultramsg response:', data);
 
     // Create message content description
-    const messageContent = mediaType === 'image' 
-      ? `📷 Image${caption ? `: ${caption}` : ''}`
-      : `📄 Document: ${filename || 'file'}${caption ? ` - ${caption}` : ''}`;
+    let messageContent: string;
+    if (mediaType === 'image') {
+      messageContent = `📷 Image${caption ? `: ${caption}` : ''}`;
+    } else if (mediaType === 'audio') {
+      messageContent = `🎤 Message vocal`;
+    } else {
+      messageContent = `📄 Document: ${filename || 'file'}${caption ? ` - ${caption}` : ''}`;
+    }
 
     if (response.ok && data.sent === 'true') {
       console.log(`Media sent successfully to ${formattedPhone}, ID: ${data.id}`);
