@@ -24,6 +24,9 @@ import {
   Image as ImageIcon,
   FileText,
   X,
+  Mic,
+  Square,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
@@ -36,6 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useVoiceRecorder, formatRecordingTime } from "@/hooks/useVoiceRecorder";
 
 interface Message {
   id: string;
@@ -104,8 +108,20 @@ export default function ConversationView() {
   const [isSending, setIsSending] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<MediaPreview | null>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [isSendingVoice, setIsSendingVoice] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice recorder hook
+  const {
+    isRecording,
+    recordingTime,
+    audioBlob,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    clearRecording,
+  } = useVoiceRecorder();
 
   // Fetch all messages
   const { data: messages = [], isLoading } = useQuery({
@@ -446,6 +462,67 @@ export default function ConversationView() {
     }
   };
 
+  // Send voice message
+  const sendVoiceMessage = async () => {
+    if (!selectedConversation || !audioBlob) return;
+
+    setIsSendingVoice(true);
+
+    try {
+      const restaurant = restaurants.find(
+        (r) => r.manager_whatsapp && normalizePhone(r.manager_whatsapp) === normalizePhone(selectedConversation.phone)
+      );
+
+      // Create file from blob
+      const fileName = `voice-${Date.now()}.ogg`;
+      const file = new File([audioBlob], fileName, { type: audioBlob.type });
+
+      // Upload to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('whatsapp-media')
+        .upload(fileName, file);
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error('Erreur lors de l\'upload du message vocal');
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('whatsapp-media')
+        .getPublicUrl(fileName);
+
+      console.log('Voice uploaded, public URL:', publicUrl);
+
+      // Send via edge function
+      const { data, error } = await supabase.functions.invoke("send-whatsapp-media", {
+        body: {
+          phone: selectedConversation.phone,
+          mediaUrl: publicUrl,
+          mediaType: 'audio',
+          restaurant_id: restaurant?.id,
+          recipient_name: selectedConversation.contactName,
+          restaurant_name: selectedConversation.restaurantName,
+        },
+      });
+
+      if (error) throw new Error(error.message);
+
+      if (data.success) {
+        toast.success("Message vocal envoyé");
+        clearRecording();
+        queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
+      } else {
+        toast.error(data.error || "Échec de l'envoi");
+      }
+    } catch (err) {
+      console.error("Error sending voice message:", err);
+      toast.error("Erreur lors de l'envoi du message vocal");
+    } finally {
+      setIsSendingVoice(false);
+    }
+  };
+
   // Handle enter key to send
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -469,6 +546,14 @@ export default function ConversationView() {
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-blue-500" />
           <span>{content.replace('📄 ', '')}</span>
+        </div>
+      );
+    }
+    if (content.startsWith('🎤 Message vocal')) {
+      return (
+        <div className="flex items-center gap-2">
+          <Mic className="h-4 w-4 text-orange-500" />
+          <span>Message vocal</span>
         </div>
       );
     }
@@ -769,95 +854,218 @@ export default function ConversationView() {
 
               {/* Input */}
               <div className="p-4 bg-card/95 backdrop-blur-sm border-t border-border/50">
-                <div className="flex items-end gap-2 max-w-3xl mx-auto">
-                  {/* Attachment Menu */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                <AnimatePresence mode="wait">
+                  {isRecording ? (
+                    /* Recording UI */
+                    <motion.div
+                      key="recording"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="flex items-center gap-3 max-w-3xl mx-auto"
+                    >
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-11 w-11 rounded-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+                        onClick={cancelRecording}
+                        className="h-11 w-11 rounded-full shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                       >
-                        <Paperclip className="h-5 w-5" />
+                        <Trash2 className="h-5 w-5" />
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-48">
-                      <DropdownMenuItem
-                        onClick={() => {
-                          const input = document.createElement('input');
-                          input.type = 'file';
-                          input.accept = 'image/*';
-                          input.onchange = (e) => handleFileSelect(e as any, 'image');
-                          input.click();
-                        }}
-                        className="gap-3 cursor-pointer"
-                      >
-                        <div className="h-8 w-8 rounded-full bg-whatsapp/10 flex items-center justify-center">
-                          <ImageIcon className="h-4 w-4 text-whatsapp" />
-                        </div>
-                        <span>Image</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          const input = document.createElement('input');
-                          input.type = 'file';
-                          input.accept = '.pdf,.doc,.docx';
-                          input.onchange = (e) => handleFileSelect(e as any, 'document');
-                          input.click();
-                        }}
-                        className="gap-3 cursor-pointer"
-                      >
-                        <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                          <FileText className="h-4 w-4 text-blue-500" />
-                        </div>
-                        <span>Document</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  <div className="flex-1 relative">
-                    <Input
-                      placeholder={mediaPreview ? "Ajouter une légende..." : "Écrire un message..."}
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      disabled={isSending || isUploadingMedia}
-                      className="h-11 pr-12 rounded-full bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors text-[15px]"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
-                      type="button"
-                    >
-                      <Smile className="h-5 w-5" />
-                    </Button>
-                  </div>
-                  <motion.div whileTap={{ scale: 0.9 }}>
-                    <Button
-                      size="icon"
-                      onClick={sendReply}
-                      disabled={(!newMessage.trim() && !mediaPreview) || isSending || isUploadingMedia}
-                      className={cn(
-                        "h-11 w-11 rounded-full shrink-0 transition-all",
-                        (newMessage.trim() || mediaPreview)
-                          ? "bg-whatsapp hover:bg-whatsapp/90" 
-                          : "bg-secondary text-muted-foreground"
-                      )}
-                    >
-                      {(isSending || isUploadingMedia) ? (
+                      
+                      <div className="flex-1 flex items-center gap-3 px-4 h-11 rounded-full bg-secondary/50">
                         <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="h-3 w-3 rounded-full bg-destructive"
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                        />
+                        <span className="font-medium text-sm text-foreground">
+                          {formatRecordingTime(recordingTime)}
+                        </span>
+                        <div className="flex-1 flex items-center gap-0.5 justify-center">
+                          {[...Array(20)].map((_, i) => (
+                            <motion.div
+                              key={i}
+                              className="w-1 bg-foreground/30 rounded-full"
+                              animate={{
+                                height: [4, Math.random() * 16 + 4, 4],
+                              }}
+                              transition={{
+                                duration: 0.5,
+                                repeat: Infinity,
+                                delay: i * 0.05,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <motion.div whileTap={{ scale: 0.9 }}>
+                        <Button
+                          size="icon"
+                          onClick={stopRecording}
+                          className="h-11 w-11 rounded-full shrink-0 bg-destructive hover:bg-destructive/90"
                         >
-                          <Loader2 className="h-5 w-5" />
-                        </motion.div>
-                      ) : (
-                        <Send className="h-5 w-5" />
-                      )}
-                    </Button>
-                  </motion.div>
-                </div>
+                          <Square className="h-4 w-4 fill-current" />
+                        </Button>
+                      </motion.div>
+                    </motion.div>
+                  ) : audioBlob ? (
+                    /* Audio Preview UI */
+                    <motion.div
+                      key="preview"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="flex items-center gap-3 max-w-3xl mx-auto"
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={clearRecording}
+                        className="h-11 w-11 rounded-full shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </Button>
+                      
+                      <div className="flex-1 flex items-center gap-3 px-4 h-11 rounded-full bg-secondary/50">
+                        <Mic className="h-4 w-4 text-orange-500" />
+                        <span className="text-sm text-foreground">
+                          Message vocal ({formatRecordingTime(recordingTime)})
+                        </span>
+                      </div>
+                      
+                      <motion.div whileTap={{ scale: 0.9 }}>
+                        <Button
+                          size="icon"
+                          onClick={sendVoiceMessage}
+                          disabled={isSendingVoice}
+                          className="h-11 w-11 rounded-full shrink-0 bg-whatsapp hover:bg-whatsapp/90"
+                        >
+                          {isSendingVoice ? (
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            >
+                              <Loader2 className="h-5 w-5" />
+                            </motion.div>
+                          ) : (
+                            <Send className="h-5 w-5" />
+                          )}
+                        </Button>
+                      </motion.div>
+                    </motion.div>
+                  ) : (
+                    /* Normal Input UI */
+                    <motion.div
+                      key="input"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex items-end gap-2 max-w-3xl mx-auto"
+                    >
+                      {/* Attachment Menu */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-11 w-11 rounded-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+                          >
+                            <Paperclip className="h-5 w-5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-48">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = 'image/*';
+                              input.onchange = (e) => handleFileSelect(e as any, 'image');
+                              input.click();
+                            }}
+                            className="gap-3 cursor-pointer"
+                          >
+                            <div className="h-8 w-8 rounded-full bg-whatsapp/10 flex items-center justify-center">
+                              <ImageIcon className="h-4 w-4 text-whatsapp" />
+                            </div>
+                            <span>Image</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = '.pdf,.doc,.docx';
+                              input.onchange = (e) => handleFileSelect(e as any, 'document');
+                              input.click();
+                            }}
+                            className="gap-3 cursor-pointer"
+                          >
+                            <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                              <FileText className="h-4 w-4 text-blue-500" />
+                            </div>
+                            <span>Document</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <div className="flex-1 relative">
+                        <Input
+                          placeholder={mediaPreview ? "Ajouter une légende..." : "Écrire un message..."}
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          disabled={isSending || isUploadingMedia}
+                          className="h-11 pr-12 rounded-full bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors text-[15px]"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
+                          type="button"
+                        >
+                          <Smile className="h-5 w-5" />
+                        </Button>
+                      </div>
+                      
+                      <motion.div whileTap={{ scale: 0.9 }}>
+                        {(newMessage.trim() || mediaPreview) ? (
+                          <Button
+                            size="icon"
+                            onClick={sendReply}
+                            disabled={isSending || isUploadingMedia}
+                            className="h-11 w-11 rounded-full shrink-0 bg-whatsapp hover:bg-whatsapp/90"
+                          >
+                            {(isSending || isUploadingMedia) ? (
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                              >
+                                <Loader2 className="h-5 w-5" />
+                              </motion.div>
+                            ) : (
+                              <Send className="h-5 w-5" />
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="icon"
+                            onClick={async () => {
+                              try {
+                                await startRecording();
+                              } catch (err) {
+                                toast.error("Impossible d'accéder au microphone");
+                              }
+                            }}
+                            className="h-11 w-11 rounded-full shrink-0 bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                          >
+                            <Mic className="h-5 w-5" />
+                          </Button>
+                        )}
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           ) : (
