@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   TrendingUp,
   TrendingDown,
@@ -42,6 +43,81 @@ import {
   ReferenceLine,
   ReferenceArea,
 } from "recharts";
+
+// Animation constants for charts
+const CHART_ANIMATION_DURATION = 500;
+const CHART_ANIMATION_EASING = "ease-out";
+
+// Interactive Legend Component with animations
+interface LegendItem {
+  key: string;
+  label: string;
+  color: string;
+}
+
+interface InteractiveLegendProps {
+  items: LegendItem[];
+  hiddenKeys: Set<string>;
+  onToggle: (key: string) => void;
+  onReset: () => void;
+}
+
+function InteractiveLegend({ items, hiddenKeys, onToggle, onReset }: InteractiveLegendProps) {
+  return (
+    <div className="flex flex-wrap gap-2 mb-4">
+      {items.map((item, index) => {
+        const isHidden = hiddenKeys.has(item.key);
+        return (
+          <motion.button
+            key={item.key}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05, duration: 0.2 }}
+            onClick={() => onToggle(item.key)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200",
+              isHidden
+                ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
+                : "bg-background shadow-sm border-border hover:shadow-md"
+            )}
+          >
+            <motion.span
+              animate={{ 
+                opacity: isHidden ? 0.3 : 1,
+                scale: isHidden ? 0.8 : 1
+              }}
+              transition={{ duration: 0.2 }}
+              className="w-3 h-3 rounded-sm"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className={cn(
+              "transition-all duration-200",
+              isHidden && "line-through"
+            )}>
+              {item.label}
+            </span>
+          </motion.button>
+        );
+      })}
+      <AnimatePresence>
+        {hiddenKeys.size > 0 && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.2 }}
+            onClick={onReset}
+            className="text-xs text-muted-foreground hover:text-foreground underline ml-2 transition-colors"
+          >
+            Tout afficher
+          </motion.button>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 const MONTHS = [
   "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
@@ -869,44 +945,16 @@ export function AnalyticsCharts({
         </CardHeader>
         <CardContent>
           {/* Interactive Legend */}
-          <div className="flex flex-wrap gap-3 mb-4">
-            {[
+          <InteractiveLegend
+            items={[
               { key: 'revenue', label: `CA ${selectedYear}`, color: 'hsl(var(--primary))' },
               ...(hasPrevData ? [{ key: 'prevRevenue', label: `CA ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
               { key: 'orders', label: 'Commandes', color: 'hsl(var(--chart-2))' },
-            ].map(item => {
-              const isHidden = hiddenRevenueBars.has(item.key);
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => toggleRevenueBar(item.key)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border",
-                    isHidden
-                      ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
-                      : "bg-background shadow-sm border-border hover:shadow-md"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "w-3 h-3 rounded-sm transition-opacity",
-                      isHidden && "opacity-30"
-                    )}
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className={cn(isHidden && "line-through")}>{item.label}</span>
-                </button>
-              );
-            })}
-            {hiddenRevenueBars.size > 0 && (
-              <button
-                onClick={() => setHiddenRevenueBars(new Set())}
-                className="text-xs text-muted-foreground hover:text-foreground underline ml-2"
-              >
-                Tout afficher
-              </button>
-            )}
-          </div>
+            ]}
+            hiddenKeys={hiddenRevenueBars}
+            onToggle={toggleRevenueBar}
+            onReset={() => setHiddenRevenueBars(new Set())}
+          />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={aggregatedRevenueData}>
@@ -943,11 +991,11 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                {!hiddenRevenueBars.has('revenue') && <Bar yAxisId="left" dataKey="revenue" name={`CA ${selectedYear} (€)`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />}
+                {!hiddenRevenueBars.has('revenue') && <Bar yAxisId="left" dataKey="revenue" name={`CA ${selectedYear} (€)`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
                 {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
-                  <Bar yAxisId="left" dataKey="prevRevenue" name={`CA ${prevYear} (€)`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} />
+                  <Bar yAxisId="left" dataKey="prevRevenue" name={`CA ${prevYear} (€)`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
                 )}
-                {!hiddenRevenueBars.has('orders') && <Line yAxisId="right" type="monotone" dataKey="orders" name="Commandes" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-2))' }} />}
+                {!hiddenRevenueBars.has('orders') && <Line yAxisId="right" type="monotone" dataKey="orders" name="Commandes" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-2))' }} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -970,45 +1018,17 @@ export function AnalyticsCharts({
         </CardHeader>
         <CardContent>
           {/* Interactive Legend */}
-          <div className="flex flex-wrap gap-3 mb-4">
-            {[
+          <InteractiveLegend
+            items={[
               { key: 'visits', label: 'Visites', color: 'hsl(var(--chart-1))' },
               { key: 'views', label: 'Vues menu', color: 'hsl(var(--chart-2))' },
               { key: 'cart', label: 'Ajouts panier', color: 'hsl(var(--chart-3))' },
               { key: 'orders', label: 'Commandes', color: 'hsl(var(--chart-4))' },
-            ].map(item => {
-              const isHidden = hiddenFunnelAreas.has(item.key);
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => toggleFunnelArea(item.key)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border",
-                    isHidden
-                      ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
-                      : "bg-background shadow-sm border-border hover:shadow-md"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "w-3 h-3 rounded-sm transition-opacity",
-                      isHidden && "opacity-30"
-                    )}
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className={cn(isHidden && "line-through")}>{item.label}</span>
-                </button>
-              );
-            })}
-            {hiddenFunnelAreas.size > 0 && (
-              <button
-                onClick={() => setHiddenFunnelAreas(new Set())}
-                className="text-xs text-muted-foreground hover:text-foreground underline ml-2"
-              >
-                Tout afficher
-              </button>
-            )}
-          </div>
+            ]}
+            hiddenKeys={hiddenFunnelAreas}
+            onToggle={toggleFunnelArea}
+            onReset={() => setHiddenFunnelAreas(new Set())}
+          />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={aggregatedConversionData}>
@@ -1040,10 +1060,10 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                {!hiddenFunnelAreas.has('visits') && <Area type="monotone" dataKey="visits" name="Visites" stackId="1" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />}
-                {!hiddenFunnelAreas.has('views') && <Area type="monotone" dataKey="views" name="Vues menu" stackId="2" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} />}
-                {!hiddenFunnelAreas.has('cart') && <Area type="monotone" dataKey="cart" name="Ajouts panier" stackId="3" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.6} />}
-                {!hiddenFunnelAreas.has('orders') && <Area type="monotone" dataKey="orders" name="Commandes" stackId="4" stroke="hsl(var(--chart-4))" fill="hsl(var(--chart-4))" fillOpacity={0.6} />}
+                {!hiddenFunnelAreas.has('visits') && <Area type="monotone" dataKey="visits" name="Visites" stackId="1" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+                {!hiddenFunnelAreas.has('views') && <Area type="monotone" dataKey="views" name="Vues menu" stackId="2" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+                {!hiddenFunnelAreas.has('cart') && <Area type="monotone" dataKey="cart" name="Ajouts panier" stackId="3" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.6} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+                {!hiddenFunnelAreas.has('orders') && <Area type="monotone" dataKey="orders" name="Commandes" stackId="4" stroke="hsl(var(--chart-4))" fill="hsl(var(--chart-4))" fillOpacity={0.6} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -1248,45 +1268,17 @@ export function AnalyticsCharts({
         </CardHeader>
         <CardContent>
           {/* Interactive Legend */}
-          <div className="flex flex-wrap gap-3 mb-4">
-            {[
+          <InteractiveLegend
+            items={[
               { key: 'uber', label: 'Commission', color: 'hsl(var(--chart-1))' },
               { key: 'marketing', label: 'Marketing', color: 'hsl(var(--chart-2))' },
               { key: 'offers', label: 'Offres', color: 'hsl(var(--chart-3))' },
               { key: 'ads', label: 'Publicité', color: 'hsl(var(--chart-4))' },
-            ].map(item => {
-              const isHidden = hiddenFeesBars.has(item.key);
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => toggleFeesBar(item.key)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border",
-                    isHidden
-                      ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
-                      : "bg-background shadow-sm border-border hover:shadow-md"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "w-3 h-3 rounded-sm transition-opacity",
-                      isHidden && "opacity-30"
-                    )}
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className={cn(isHidden && "line-through")}>{item.label}</span>
-                </button>
-              );
-            })}
-            {hiddenFeesBars.size > 0 && (
-              <button
-                onClick={() => setHiddenFeesBars(new Set())}
-                className="text-xs text-muted-foreground hover:text-foreground underline ml-2"
-              >
-                Tout afficher
-              </button>
-            )}
-          </div>
+            ]}
+            hiddenKeys={hiddenFeesBars}
+            onToggle={toggleFeesBar}
+            onReset={() => setHiddenFeesBars(new Set())}
+          />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={aggregatedFeesData}>
@@ -1318,10 +1310,10 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                {!hiddenFeesBars.has('uber') && <Bar dataKey="uber" name="Commission" stackId="a" fill="hsl(var(--chart-1))" />}
-                {!hiddenFeesBars.has('marketing') && <Bar dataKey="marketing" name="Marketing" stackId="a" fill="hsl(var(--chart-2))" />}
-                {!hiddenFeesBars.has('offers') && <Bar dataKey="offers" name="Offres" stackId="a" fill="hsl(var(--chart-3))" />}
-                {!hiddenFeesBars.has('ads') && <Bar dataKey="ads" name="Publicité" stackId="a" fill="hsl(var(--chart-4))" />}
+                {!hiddenFeesBars.has('uber') && <Bar dataKey="uber" name="Commission" stackId="a" fill="hsl(var(--chart-1))" animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+                {!hiddenFeesBars.has('marketing') && <Bar dataKey="marketing" name="Marketing" stackId="a" fill="hsl(var(--chart-2))" animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+                {!hiddenFeesBars.has('offers') && <Bar dataKey="offers" name="Offres" stackId="a" fill="hsl(var(--chart-3))" animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+                {!hiddenFeesBars.has('ads') && <Bar dataKey="ads" name="Publicité" stackId="a" fill="hsl(var(--chart-4))" animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -1345,44 +1337,16 @@ export function AnalyticsCharts({
         </CardHeader>
         <CardContent>
           {/* Interactive Legend */}
-          <div className="flex flex-wrap gap-3 mb-4">
-            {[
+          <InteractiveLegend
+            items={[
               { key: 'net', label: `Versement ${selectedYear}`, color: 'hsl(var(--primary))' },
               ...(hasPrevData ? [{ key: 'prevNet', label: `Versement ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
               { key: 'totalFees', label: 'Total Frais', color: 'hsl(var(--destructive))' },
-            ].map(item => {
-              const isHidden = hiddenNetPayoutBars.has(item.key);
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => toggleNetPayoutBar(item.key)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border",
-                    isHidden
-                      ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
-                      : "bg-background shadow-sm border-border hover:shadow-md"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "w-3 h-3 rounded-sm transition-opacity",
-                      isHidden && "opacity-30"
-                    )}
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className={cn(isHidden && "line-through")}>{item.label}</span>
-                </button>
-              );
-            })}
-            {hiddenNetPayoutBars.size > 0 && (
-              <button
-                onClick={() => setHiddenNetPayoutBars(new Set())}
-                className="text-xs text-muted-foreground hover:text-foreground underline ml-2"
-              >
-                Tout afficher
-              </button>
-            )}
-          </div>
+            ]}
+            hiddenKeys={hiddenNetPayoutBars}
+            onToggle={toggleNetPayoutBar}
+            onReset={() => setHiddenNetPayoutBars(new Set())}
+          />
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={aggregatedFeesData}>
@@ -1414,11 +1378,11 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                {!hiddenNetPayoutBars.has('net') && <Bar dataKey="net" name={`Versement ${selectedYear}`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />}
+                {!hiddenNetPayoutBars.has('net') && <Bar dataKey="net" name={`Versement ${selectedYear}`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
                 {hasPrevData && !hiddenNetPayoutBars.has('prevNet') && (
-                  <Bar dataKey="prevNet" name={`Versement ${prevYear}`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} />
+                  <Bar dataKey="prevNet" name={`Versement ${prevYear}`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
                 )}
-                {!hiddenNetPayoutBars.has('totalFees') && <Line type="monotone" dataKey="totalFees" name="Total Frais" stroke="hsl(var(--destructive))" strokeWidth={2} />}
+                {!hiddenNetPayoutBars.has('totalFees') && <Line type="monotone" dataKey="totalFees" name="Total Frais" stroke="hsl(var(--destructive))" strokeWidth={2} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -1442,45 +1406,17 @@ export function AnalyticsCharts({
         </CardHeader>
         <CardContent>
           {/* Interactive Legend */}
-          <div className="flex flex-wrap gap-3 mb-4">
-            {[
+          <InteractiveLegend
+            items={[
               { key: 'revenue', label: 'CA TTC', color: 'hsl(var(--muted))' },
               { key: 'netPayout', label: 'Versement Net', color: 'hsl(var(--primary))' },
               { key: 'profitability', label: `Rentabilité ${selectedYear}`, color: 'hsl(142.1 76.2% 36.3%)' },
               ...(hasPrevData ? [{ key: 'prevProfitability', label: `Rentabilité ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
-            ].map(item => {
-              const isHidden = hiddenProfitBars.has(item.key);
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => toggleProfitBar(item.key)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border",
-                    isHidden
-                      ? "bg-muted/50 text-muted-foreground border-transparent opacity-50"
-                      : "bg-background shadow-sm border-border hover:shadow-md"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "w-3 h-3 rounded-sm transition-opacity",
-                      isHidden && "opacity-30"
-                    )}
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className={cn(isHidden && "line-through")}>{item.label}</span>
-                </button>
-              );
-            })}
-            {hiddenProfitBars.size > 0 && (
-              <button
-                onClick={() => setHiddenProfitBars(new Set())}
-                className="text-xs text-muted-foreground hover:text-foreground underline ml-2"
-              >
-                Tout afficher
-              </button>
-            )}
-          </div>
+            ]}
+            hiddenKeys={hiddenProfitBars}
+            onToggle={toggleProfitBar}
+            onReset={() => setHiddenProfitBars(new Set())}
+          />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={profitabilityData}>
@@ -1517,8 +1453,8 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                {!hiddenProfitBars.has('revenue') && <Bar yAxisId="left" dataKey="revenue" name="CA TTC" fill="hsl(var(--muted))" radius={[4, 4, 0, 0]} opacity={0.5} />}
-                {!hiddenProfitBars.has('netPayout') && <Bar yAxisId="left" dataKey="netPayout" name="Versement Net" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />}
+                {!hiddenProfitBars.has('revenue') && <Bar yAxisId="left" dataKey="revenue" name="CA TTC" fill="hsl(var(--muted))" radius={[4, 4, 0, 0]} opacity={0.5} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+                {!hiddenProfitBars.has('netPayout') && <Bar yAxisId="left" dataKey="netPayout" name="Versement Net" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
                 {!hiddenProfitBars.has('profitability') && (
                   <Line 
                     yAxisId="right" 
@@ -1528,6 +1464,8 @@ export function AnalyticsCharts({
                     stroke="hsl(142.1 76.2% 36.3%)" 
                     strokeWidth={3}
                     dot={{ fill: 'hsl(142.1 76.2% 36.3%)', strokeWidth: 2, r: 4 }}
+                    animationDuration={CHART_ANIMATION_DURATION}
+                    animationEasing={CHART_ANIMATION_EASING}
                   />
                 )}
                 {hasPrevData && !hiddenProfitBars.has('prevProfitability') && (
@@ -1540,6 +1478,8 @@ export function AnalyticsCharts({
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     dot={{ fill: 'hsl(var(--muted-foreground))', strokeWidth: 1, r: 3 }}
+                    animationDuration={CHART_ANIMATION_DURATION}
+                    animationEasing={CHART_ANIMATION_EASING}
                   />
                 )}
               </ComposedChart>
