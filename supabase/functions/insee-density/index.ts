@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// data.gouv.fr API endpoint for 200m grid population data (Filosofi)
-const DATAGOUV_API_URL = "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/population-carreaux-200m-metropole-filosofi-2019/records";
+// Géoplateforme API endpoint for 200m grid population data (INSEE carroyées)
+const GEOPF_API_URL = "https://data.geopf.fr/api/explore/v2.1/catalog/datasets/demographyref-france-donnees-carroyees-200m-millesime/records";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -24,40 +24,67 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Fetching density data for departments: ${departments.join(', ')}`);
+    // Filter valid French department codes (2 digits, or 2A/2B for Corsica, or 97x for DOM)
+    const validDepartments = departments.filter((dept: string) => {
+      const normalized = dept.toString().padStart(2, '0');
+      return /^[0-9]{2}$|^2[AB]$|^97[1-6]$/.test(normalized);
+    });
 
-    // For each department, fetch density data
-    // The dataset uses idcar_200m field which contains location info
-    // We'll filter using idk field which is the department code
+    console.log(`Fetching density data for ${validDepartments.length} valid departments: ${validDepartments.join(', ')}`);
+
+    if (validDepartments.length === 0) {
+      console.log('No valid French departments provided');
+      return new Response(
+        JSON.stringify({ 
+          type: "FeatureCollection", 
+          features: [],
+          message: "No valid French departments provided"
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const allFeatures: any[] = [];
     
-    for (const dept of departments) {
-      // Format department code (2 digits, or 3 for DOM)
-      const deptCode = dept.padStart(2, '0');
+    // Batch departments to reduce API calls - fetch multiple departments at once
+    const batchSize = 5;
+    for (let i = 0; i < validDepartments.length; i += batchSize) {
+      const batch = validDepartments.slice(i, i + batchSize);
       
-      // Use bounding box approach based on department
-      // This is more reliable than filtering by field
+      // Build WHERE clause for multiple departments using depcom (starts with dept code)
+      const whereConditions = batch.map((dept: string) => {
+        const deptCode = dept.toString().padStart(2, '0');
+        return `depcom LIKE '${deptCode}%'`;
+      }).join(' OR ');
+
       const params = new URLSearchParams({
-        limit: '100',
-        select: 'geo_point_2d,ind',
-        // Filter by population > 0 to get relevant cells
-        where: `ind > 10`,
+        limit: '500',
+        select: 'geo_point_2d,ind,depcom',
+        where: `(${whereConditions}) AND ind > 100`, // Only cells with population > 100
       });
 
-      console.log(`Fetching data for department ${deptCode}...`);
+      const url = `${GEOPF_API_URL}?${params.toString()}`;
+      console.log(`Fetching batch ${Math.floor(i/batchSize) + 1}: ${url}`);
       
       try {
-        const response = await fetch(`${DATAGOUV_API_URL}?${params.toString()}`);
+        const response = await fetch(url);
         
         if (!response.ok) {
-          console.warn(`API returned ${response.status} for dept ${deptCode}`);
+          console.warn(`API returned ${response.status} for batch: ${batch.join(', ')}`);
+          const errorText = await response.text();
+          console.warn(`Error response: ${errorText.substring(0, 200)}`);
           continue;
         }
 
         const data = await response.json();
+        console.log(`Received ${data.results?.length || 0} records for batch ${batch.join(', ')}`);
         
         if (data.results && data.results.length > 0) {
-          // Transform to features
+          // Log sample record structure for debugging
+          if (allFeatures.length === 0 && data.results[0]) {
+            console.log('Sample record structure:', JSON.stringify(data.results[0]));
+          }
+
           const features = data.results
             .filter((r: any) => r.geo_point_2d && r.ind)
             .map((r: any) => ({
@@ -68,29 +95,29 @@ serve(async (req) => {
               },
               properties: {
                 population: r.ind || 0,
-                id: `${deptCode}_${r.geo_point_2d.lat}_${r.geo_point_2d.lon}`
+                depcom: r.depcom || '',
+                id: `${r.depcom}_${r.geo_point_2d.lat}_${r.geo_point_2d.lon}`
               }
             }));
           
           allFeatures.push(...features);
-          console.log(`Got ${features.length} features for dept ${deptCode}`);
         }
       } catch (fetchError) {
-        console.warn(`Failed to fetch for dept ${deptCode}:`, fetchError);
+        console.warn(`Failed to fetch batch ${batch.join(', ')}:`, fetchError);
       }
     }
 
     console.log(`Total features collected: ${allFeatures.length}`);
 
-    // If API didn't return data, fall back to commune-based data
+    // Return empty collection with info if no data
     if (allFeatures.length === 0) {
-      console.log('No API data received, using fallback');
+      console.log('No data received from API');
       return new Response(
         JSON.stringify({ 
           type: "FeatureCollection", 
           features: [],
           fallback: true,
-          message: "API returned no data, using local fallback"
+          message: "API returned no data for requested departments"
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
