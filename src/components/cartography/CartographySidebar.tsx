@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { CommuneDensityLegend } from "./CommuneDensityLayer";
+import { DistanceMeasurePanel, DistancePoint } from "./DistanceMeasurePanel";
 
 interface CartographySidebarProps {
   restaurants: RestaurantWithGeo[];
@@ -38,6 +39,10 @@ interface CartographySidebarProps {
   densityLevels: number[];
   selectedRestaurantId: string | null;
   isSimulationMode: boolean;
+  isDistanceMode: boolean;
+  distancePointA: DistancePoint | null;
+  distancePointB: DistancePoint | null;
+  calculatedDistance: number | null;
   onSelectRestaurant: (id: string | null) => void;
   onFocusRestaurant: (id: string) => void;
   onFocusAlert: (alert: CannibalismAlert) => void;
@@ -53,6 +58,12 @@ interface CartographySidebarProps {
   onIgnoreAllAlerts: () => void;
   onRestoreAllAlerts: () => void;
   onToggleShowIgnored: () => void;
+  onToggleDistanceMode: () => void;
+  onClearDistancePointA: () => void;
+  onClearDistancePointB: () => void;
+  onSwapDistancePoints: () => void;
+  onResetDistance: () => void;
+  onDistancePointSelect: (id: string) => void;
 }
 
 export const CartographySidebar = ({
@@ -65,6 +76,10 @@ export const CartographySidebar = ({
   densityLevels,
   selectedRestaurantId,
   isSimulationMode,
+  isDistanceMode,
+  distancePointA,
+  distancePointB,
+  calculatedDistance,
   onSelectRestaurant,
   onFocusRestaurant,
   onFocusAlert,
@@ -80,6 +95,12 @@ export const CartographySidebar = ({
   onIgnoreAllAlerts,
   onRestoreAllAlerts,
   onToggleShowIgnored,
+  onToggleDistanceMode,
+  onClearDistancePointA,
+  onClearDistancePointB,
+  onSwapDistancePoints,
+  onResetDistance,
+  onDistancePointSelect,
 }: CartographySidebarProps) => {
   const [search, setSearch] = useState("");
   const [localRadii, setLocalRadii] = useState<Record<string, number>>({});
@@ -145,6 +166,19 @@ export const CartographySidebar = ({
           <Play className="h-4 w-4 mr-2" />
           {isSimulationMode ? "Mode simulation actif" : "Simuler une implantation"}
         </Button>
+
+        {/* Distance Measure Panel */}
+        <DistanceMeasurePanel
+          isDistanceMode={isDistanceMode}
+          pointA={distancePointA}
+          pointB={distancePointB}
+          distance={calculatedDistance}
+          onToggleMode={onToggleDistanceMode}
+          onClearPointA={onClearDistancePointA}
+          onClearPointB={onClearDistancePointB}
+          onSwapPoints={onSwapDistancePoints}
+          onReset={onResetDistance}
+        />
         
         {/* Density Layer Toggle */}
         <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
@@ -243,6 +277,9 @@ export const CartographySidebar = ({
                 const hasAlert = cannibalismAlerts.some(
                   a => a.restaurant1 === restaurant.name || a.restaurant2 === restaurant.name
                 );
+                const isDistancePointA = distancePointA?.id === restaurant.id;
+                const isDistancePointB = distancePointB?.id === restaurant.id;
+                const isDistancePoint = isDistancePointA || isDistancePointB;
 
                 return (
                   <Card
@@ -250,21 +287,35 @@ export const CartographySidebar = ({
                     ref={(el) => { cardRefs.current[restaurant.id] = el; }}
                     className={cn(
                       "cursor-pointer transition-all",
-                      isSelected && "ring-2 ring-primary",
-                      hasAlert && "border-destructive/50"
+                      isSelected && !isDistanceMode && "ring-2 ring-primary",
+                      hasAlert && "border-destructive/50",
+                      isDistancePoint && "ring-2 ring-amber-500 border-amber-500/50 bg-amber-500/5"
                     )}
                     onClick={() => {
-                      onSelectRestaurant(restaurant.id);
-                      onFocusRestaurant(restaurant.id);
+                      if (isDistanceMode) {
+                        onDistancePointSelect(restaurant.id);
+                      } else {
+                        onSelectRestaurant(restaurant.id);
+                        onFocusRestaurant(restaurant.id);
+                      }
                     }}
                   >
                     <CardHeader className="p-3 pb-2">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
-                          <MapPin className={cn(
-                            "h-4 w-4",
-                            hasAlert ? "text-destructive" : "text-emerald-500"
-                          )} />
+                          {isDistancePoint ? (
+                            <div className={cn(
+                              "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0",
+                              isDistancePointA ? "bg-amber-500" : "bg-orange-600"
+                            )}>
+                              {isDistancePointA ? "A" : "B"}
+                            </div>
+                          ) : (
+                            <MapPin className={cn(
+                              "h-4 w-4",
+                              hasAlert ? "text-destructive" : "text-emerald-500"
+                            )} />
+                          )}
                           <CardTitle className="text-sm font-medium">{restaurant.name}</CardTitle>
                         </div>
                         <Button
@@ -284,7 +335,7 @@ export const CartographySidebar = ({
                           .filter(Boolean)
                           .join(", ") || "Adresse non renseignée"}
                       </p>
-                      {hasAlert && (
+                      {hasAlert && !isDistancePoint && (
                         <Badge variant="destructive" className="w-fit text-xs">
                           Chevauchement
                         </Badge>

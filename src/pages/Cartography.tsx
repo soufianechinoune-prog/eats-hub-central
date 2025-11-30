@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useInseeDensity } from "@/hooks/useInseeDensity";
+import { DistancePoint } from "@/components/cartography/DistanceMeasurePanel";
 
 export interface RestaurantWithGeo {
   id: string;
@@ -50,6 +51,11 @@ const Cartography = () => {
   const [showIgnoredAlerts, setShowIgnoredAlerts] = useState(false);
   const [showDensityLayer, setShowDensityLayer] = useState(false);
   const [densityLevels, setDensityLevels] = useState<number[]>([1, 2, 3, 4]);
+  
+  // Distance measurement state
+  const [isDistanceMode, setIsDistanceMode] = useState(false);
+  const [distancePointA, setDistancePointA] = useState<DistancePoint | null>(null);
+  const [distancePointB, setDistancePointB] = useState<DistancePoint | null>(null);
 
   const handleToggleDensityLevel = (level: number) => {
     setDensityLevels(prev => 
@@ -254,6 +260,67 @@ const Cartography = () => {
     }
   };
 
+  // Distance measurement handlers
+  const handleDistancePointSelect = useCallback((id: string) => {
+    const allLocations = [
+      ...restaurants.filter(r => r.latitude && r.longitude),
+      ...simulatedLocations,
+    ];
+    const location = allLocations.find(loc => loc.id === id);
+    if (!location || !location.latitude || !location.longitude) return;
+
+    const point: DistancePoint = {
+      id: location.id,
+      name: location.name,
+      lat: location.latitude,
+      lng: location.longitude,
+    };
+
+    if (!distancePointA) {
+      setDistancePointA(point);
+    } else if (!distancePointB && point.id !== distancePointA.id) {
+      setDistancePointB(point);
+      // Auto zoom to show both points
+      const centerLat = (distancePointA.lat + point.lat) / 2;
+      const centerLng = (distancePointA.lng + point.lng) / 2;
+      const dist = calculateDistance(distancePointA.lat, distancePointA.lng, point.lat, point.lng);
+      const zoom = dist < 2 ? 13 : dist < 5 ? 12 : dist < 15 ? 10 : 8;
+      setMapCenter([centerLng, centerLat]);
+      setMapZoom(zoom);
+    } else if (point.id !== distancePointA?.id) {
+      // Replace point B if both are already selected
+      setDistancePointB(point);
+    }
+  }, [restaurants, simulatedLocations, distancePointA, distancePointB, calculateDistance]);
+
+  const calculatedDistance = useMemo(() => {
+    if (!distancePointA || !distancePointB) return null;
+    return calculateDistance(
+      distancePointA.lat, 
+      distancePointA.lng, 
+      distancePointB.lat, 
+      distancePointB.lng
+    );
+  }, [distancePointA, distancePointB, calculateDistance]);
+
+  const handleSwapDistancePoints = () => {
+    const temp = distancePointA;
+    setDistancePointA(distancePointB);
+    setDistancePointB(temp);
+  };
+
+  const handleResetDistance = () => {
+    setDistancePointA(null);
+    setDistancePointB(null);
+  };
+
+  const handleToggleDistanceMode = () => {
+    setIsDistanceMode(!isDistanceMode);
+    if (isDistanceMode) {
+      handleResetDistance();
+    }
+  };
+
   const geocodedRestaurants = restaurants.filter(r => r.latitude && r.longitude);
   const unGeocodedRestaurants = restaurants.filter(r => !r.latitude || !r.longitude);
   const allAlerts = cannibalismAlerts();
@@ -307,6 +374,10 @@ const Cartography = () => {
             densityLevels={densityLevels}
             selectedRestaurantId={selectedRestaurantId}
             isSimulationMode={isSimulationMode}
+            isDistanceMode={isDistanceMode}
+            distancePointA={distancePointA}
+            distancePointB={distancePointB}
+            calculatedDistance={calculatedDistance}
             onSelectRestaurant={setSelectedRestaurantId}
             onFocusRestaurant={handleFocusRestaurant}
             onRadiusChange={handleRadiusChange}
@@ -321,6 +392,12 @@ const Cartography = () => {
             onIgnoreAllAlerts={handleIgnoreAllAlerts}
             onRestoreAllAlerts={handleRestoreAllAlerts}
             onToggleShowIgnored={() => setShowIgnoredAlerts(!showIgnoredAlerts)}
+            onToggleDistanceMode={handleToggleDistanceMode}
+            onClearDistancePointA={() => setDistancePointA(null)}
+            onClearDistancePointB={() => setDistancePointB(null)}
+            onSwapDistancePoints={handleSwapDistancePoints}
+            onResetDistance={handleResetDistance}
+            onDistancePointSelect={handleDistancePointSelect}
             onGeocodeRestaurant={async (id) => {
               const restaurant = restaurants.find(r => r.id === id);
               if (!restaurant) return;
@@ -365,7 +442,11 @@ const Cartography = () => {
               densityLevels={densityLevels}
               inseeDensityData={inseeDensityData}
               isDensityLoading={isDensityLoading}
+              isDistanceMode={isDistanceMode}
+              distancePointA={distancePointA}
+              distancePointB={distancePointB}
               onSelectRestaurant={setSelectedRestaurantId}
+              onDistancePointSelect={handleDistancePointSelect}
             />
             
             {/* Simulation Panel Overlay */}
