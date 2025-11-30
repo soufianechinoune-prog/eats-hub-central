@@ -96,6 +96,11 @@ export default function ConversationView() {
     },
   });
 
+  // Normalize phone number for comparison
+  const normalizePhone = (phone: string) => {
+    return phone.replace(/[\s\-\(\)]/g, "").replace(/^\+/, "");
+  };
+
   // Subscribe to realtime updates
   useEffect(() => {
     const channel = supabase
@@ -118,10 +123,49 @@ export default function ConversationView() {
     };
   }, [queryClient]);
 
-  // Normalize phone number for comparison
-  const normalizePhone = (phone: string) => {
-    return phone.replace(/[\s\-\(\)]/g, "").replace(/^\+/, "");
-  };
+  // Mark messages as read when opening a conversation
+  useEffect(() => {
+    const markMessagesAsRead = async () => {
+      if (!selectedPhone) return;
+
+      const normalizedSelected = normalizePhone(selectedPhone);
+      
+      // Find unread inbound messages for this conversation
+      const unreadMessages = messages.filter((msg) => {
+        const msgPhone = msg.direction === "inbound" 
+          ? msg.sender_phone || msg.recipient_phone
+          : msg.recipient_phone;
+        return (
+          normalizePhone(msgPhone) === normalizedSelected &&
+          msg.direction === "inbound" &&
+          msg.status !== "read"
+        );
+      });
+
+      if (unreadMessages.length === 0) return;
+
+      // Update all unread messages to "read"
+      const messageIds = unreadMessages.map((m) => m.id);
+      
+      const { error } = await supabase
+        .from("message_history")
+        .update({ 
+          status: "read", 
+          read_at: new Date().toISOString() 
+        })
+        .in("id", messageIds);
+
+      if (error) {
+        console.error("Error marking messages as read:", error);
+      } else {
+        // Refresh to update UI
+        queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
+        queryClient.invalidateQueries({ queryKey: ["message-history"] });
+      }
+    };
+
+    markMessagesAsRead();
+  }, [selectedPhone, messages, queryClient]);
 
   // Group messages into conversations by phone number
   const conversations = useMemo(() => {
