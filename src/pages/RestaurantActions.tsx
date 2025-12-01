@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +48,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { cn } from "@/lib/utils";
 import { 
   Plus, 
@@ -678,10 +680,16 @@ export default function RestaurantActions() {
   };
 
   // Stats (based on scoped actions)
-  const totalActions = scopedActions.length;
-  const activeActions = scopedActions.filter(a => !a.end_date || new Date(a.end_date) >= new Date()).length;
-  const uberActions = scopedActions.filter(a => a.platform === "uber_eats").length;
-  const deliverooActions = scopedActions.filter(a => a.platform === "deliveroo").length;
+  const totalActionsRaw = scopedActions.length;
+  const activeActionsRaw = scopedActions.filter(a => !a.end_date || new Date(a.end_date) >= new Date()).length;
+  const uberActionsRaw = scopedActions.filter(a => a.platform === "uber_eats").length;
+  const deliverooActionsRaw = scopedActions.filter(a => a.platform === "deliveroo").length;
+  
+  // Animated counters
+  const totalActions = useAnimatedCounter(totalActionsRaw, 600);
+  const activeActions = useAnimatedCounter(activeActionsRaw, 600);
+  const uberActions = useAnimatedCounter(uberActionsRaw, 600);
+  const deliverooActions = useAnimatedCounter(deliverooActionsRaw, 600);
   
   const actionsByCategory = categories.map(cat => ({
     ...cat,
@@ -1121,7 +1129,9 @@ export default function RestaurantActions() {
                     <Icon className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-lg font-bold">{cat.count}</p>
+                    <p className="text-lg font-bold">
+                      <AnimatedNumber value={cat.count} duration={600} />
+                    </p>
                     <p className="text-xs text-muted-foreground">{cat.label}</p>
                   </div>
                 </div>
