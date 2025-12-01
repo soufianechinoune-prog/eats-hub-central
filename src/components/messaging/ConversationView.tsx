@@ -771,14 +771,12 @@ export default function ConversationView() {
         (r) => r.manager_whatsapp && normalizePhone(r.manager_whatsapp) === normalizePhone(selectedConversation.phone)
       );
 
-      // Determine file extension based on blob type (WhatsApp-compatible formats only)
-      const fileExtension = audioBlob.type.includes('mp4') ? 'm4a' :
-                           audioBlob.type.includes('ogg') ? 'ogg' : 
-                           'm4a'; // Fallback to m4a for compatibility
+      // Always upload as OGG for storage + Ultramsg compatibility
+      const fileExtension = 'ogg';
       const fileName = `voice-${Date.now()}.${fileExtension}`;
-      const file = new File([audioBlob], fileName, { type: audioBlob.type });
+      const file = new File([audioBlob], fileName, { type: 'audio/ogg' });
 
-      console.log('Uploading voice message:', fileName, 'type:', audioBlob.type, 'size:', audioBlob.size);
+      console.log('Uploading voice message:', fileName, 'original type:', audioBlob.type, 'size:', audioBlob.size);
 
       // Upload to Supabase storage
       const { data: uploadData, error: uploadError } = await supabase.storage
