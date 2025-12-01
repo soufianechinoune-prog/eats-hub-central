@@ -771,10 +771,10 @@ export default function ConversationView() {
         (r) => r.manager_whatsapp && normalizePhone(r.manager_whatsapp) === normalizePhone(selectedConversation.phone)
       );
 
-      // Determine file extension based on blob type
-      const fileExtension = audioBlob.type.includes('ogg') ? 'ogg' : 
-                           audioBlob.type.includes('webm') ? 'webm' : 
-                           'ogg';
+      // Determine file extension based on blob type (WhatsApp-compatible formats only)
+      const fileExtension = audioBlob.type.includes('mp4') ? 'm4a' :
+                           audioBlob.type.includes('ogg') ? 'ogg' : 
+                           'm4a'; // Fallback to m4a for compatibility
       const fileName = `voice-${Date.now()}.${fileExtension}`;
       const file = new File([audioBlob], fileName, { type: audioBlob.type });
 

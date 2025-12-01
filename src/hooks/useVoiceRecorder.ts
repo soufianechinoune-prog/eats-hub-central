@@ -51,12 +51,15 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
       setRecordingTime(0);
       setAudioBlob(null);
 
-      // Use OGG Opus which is widely supported by WhatsApp
-      const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
-        ? 'audio/ogg;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm';
+      // Try formats in order of WhatsApp/Ultramsg compatibility
+      // M4A (audio/mp4) is best supported by WhatsApp
+      const mimeType = MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+          ? 'audio/ogg;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus'
+            : 'audio/ogg'; // Fallback to basic OGG
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
