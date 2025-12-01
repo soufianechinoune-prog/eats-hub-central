@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,9 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Euro, Users, Percent, Trophy, TrendingUp, TrendingDown, Minus, Calculator } from "lucide-react";
+import { ArrowLeft, Euro, Users, Percent, Trophy, TrendingUp, TrendingDown, Minus, Calculator, FileDown, Loader2 } from "lucide-react";
 import { RankingDistributionChart } from "@/components/analytics/RankingDistributionChart";
 import { RankingTable } from "@/components/analytics/RankingTable";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 type MetricType = "revenue" | "conversion" | "profitability";
 
@@ -409,6 +411,110 @@ export default function RankingDetail() {
   const totalTrend = prevKpis.total > 0 ? calcTrend(kpis.total, prevKpis.total) : null;
   const avgTrend = prevKpis.average > 0 ? calcTrend(kpis.average, prevKpis.average) : null;
 
+  // PDF Export
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const getPlatformLabel = (platform: string) => {
+    if (platform === "uber_eats") return "Uber Eats";
+    if (platform === "deliveroo") return "Deliveroo";
+    return "Global";
+  };
+
+  const getMonthLabel = (month: number) => MONTHS.find(m => m.value === month)?.label || "";
+
+  const exportToPdf = useCallback(async () => {
+    if (!contentRef.current) return;
+
+    setIsExporting(true);
+
+    try {
+      const canvas = await html2canvas(contentRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+
+      // Header
+      pdf.setFillColor(16, 185, 129);
+      pdf.rect(0, 0, pageWidth, 25, "F");
+
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(16);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(`Classement - ${config.title}`, margin, 12);
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(`${ranking.length} restaurants classés`, margin, 19);
+
+      pdf.text(getPlatformLabel(selectedPlatform), pageWidth - margin - pdf.getTextWidth(getPlatformLabel(selectedPlatform)), 12);
+
+      // Meta info
+      pdf.setFillColor(249, 250, 251);
+      pdf.rect(0, 25, pageWidth, 12, "F");
+      
+      pdf.setTextColor(107, 114, 128);
+      pdf.setFontSize(9);
+      const periodText = `Période: ${getMonthLabel(startMonth)} - ${getMonthLabel(endMonth)} ${selectedYear}`;
+      pdf.text(periodText, margin, 32);
+      
+      const dateStr = new Date().toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      pdf.text(`Généré le ${dateStr}`, pageWidth - margin - pdf.getTextWidth(`Généré le ${dateStr}`), 32);
+
+      // Content
+      const contentY = 42;
+      const contentWidth = pageWidth - margin * 2;
+      const contentHeight = pageHeight - contentY - margin - 10;
+      
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(contentWidth / imgWidth, contentHeight / imgHeight);
+      const scaledWidth = imgWidth * ratio;
+      const scaledHeight = imgHeight * ratio;
+
+      const xOffset = margin + (contentWidth - scaledWidth) / 2;
+      
+      pdf.addImage(imgData, "PNG", xOffset, contentY, scaledWidth, scaledHeight);
+
+      // Footer
+      pdf.setDrawColor(229, 231, 235);
+      pdf.line(margin, pageHeight - 8, pageWidth - margin, pageHeight - 8);
+      
+      pdf.setFontSize(8);
+      pdf.setTextColor(156, 163, 175);
+      pdf.text("CS Delivery Performance - Classement", margin, pageHeight - 4);
+      pdf.text("Page 1/1", pageWidth - margin - pdf.getTextWidth("Page 1/1"), pageHeight - 4);
+
+      const filename = `classement_${metricType}_${selectedPlatform}_${selectedYear}.pdf`;
+      pdf.save(filename);
+    } catch (error) {
+      console.error("Error exporting PDF:", error);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [config.title, ranking.length, selectedPlatform, startMonth, endMonth, selectedYear, metricType]);
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -433,6 +539,18 @@ export default function RankingDetail() {
               Classement détaillé et évolution
             </p>
           </div>
+          <Button 
+            variant="outline" 
+            onClick={exportToPdf}
+            disabled={isExporting || ranking.length === 0}
+          >
+            {isExporting ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4 mr-2" />
+            )}
+            Export PDF
+          </Button>
         </div>
 
         {/* Filters */}
@@ -577,20 +695,23 @@ export default function RankingDetail() {
           </Card>
         </div>
 
-        {/* Distribution Chart */}
-        <RankingDistributionChart
-          ranking={ranking}
-          metricLabel={config.label}
-          formatValue={config.formatValue}
-          colorClass={config.colorClass}
-        />
+        {/* Exportable content */}
+        <div ref={contentRef} className="space-y-6">
+          {/* Distribution Chart */}
+          <RankingDistributionChart
+            ranking={ranking}
+            metricLabel={config.label}
+            formatValue={config.formatValue}
+            colorClass={config.colorClass}
+          />
 
-        {/* Full Table */}
-        <RankingTable
-          ranking={ranking}
-          metricLabel={config.label}
-          formatValue={config.formatValue}
-        />
+          {/* Full Table */}
+          <RankingTable
+            ranking={ranking}
+            metricLabel={config.label}
+            formatValue={config.formatValue}
+          />
+        </div>
       </div>
     </AppLayout>
   );
