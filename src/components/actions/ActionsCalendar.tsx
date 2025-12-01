@@ -17,7 +17,7 @@ import {
 import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Globe, Store, Layers } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Globe, Store, Layers, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CalendarEventBar, CalendarEvent } from "./CalendarEventBar";
 import { MiniCalendar } from "./MiniCalendar";
@@ -327,7 +327,7 @@ export function ActionsCalendar({
                       <div
                         key={day.toISOString()}
                         className={cn(
-                          "border-r last:border-r-0 relative transition-colors",
+                          "border-r last:border-r-0 relative transition-colors group",
                           !isCurrentMonth && "bg-muted/20",
                           isWeekend && "bg-muted/30",
                           "hover:bg-accent/50 cursor-pointer"
@@ -335,7 +335,11 @@ export function ActionsCalendar({
                         onClick={() => onDateClick?.(day)}
                       >
                         {/* Day Number */}
-                        <div className="p-1 flex justify-end">
+                        <div className="p-1 flex justify-between items-start">
+                          {/* Plus icon on hover */}
+                          <span className="h-5 w-5 flex items-center justify-center rounded-full bg-primary/0 group-hover:bg-primary text-primary-foreground opacity-0 group-hover:opacity-100 transition-all text-xs">
+                            <Plus className="h-3 w-3" />
+                          </span>
                           <span
                             className={cn(
                               "h-7 w-7 flex items-center justify-center text-sm rounded-full",
