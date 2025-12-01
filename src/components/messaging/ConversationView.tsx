@@ -145,6 +145,7 @@ export default function ConversationView() {
   });
   const [conversationToDelete, setConversationToDelete] = useState<Conversation | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
@@ -407,11 +408,23 @@ export default function ConversationView() {
     ).length;
   }, [conversations, archivedPhones]);
 
-  // Get selected conversation
+  // Get selected conversation with filtered messages
   const selectedConversation = useMemo(() => {
     if (!selectedPhone) return null;
-    return conversations.find((c) => normalizePhone(c.phone) === normalizePhone(selectedPhone));
-  }, [selectedPhone, conversations]);
+    const conv = conversations.find((c) => normalizePhone(c.phone) === normalizePhone(selectedPhone));
+    if (!conv) return null;
+    
+    // Filter messages by search query if present
+    if (messageSearchQuery.trim()) {
+      const query = messageSearchQuery.toLowerCase();
+      const filteredMessages = conv.messages.filter(msg => 
+        msg.message_content.toLowerCase().includes(query)
+      );
+      return { ...conv, messages: filteredMessages };
+    }
+    
+    return conv;
+  }, [selectedPhone, conversations, messageSearchQuery]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -1127,7 +1140,7 @@ export default function ConversationView() {
               transition={{ duration: 0.2 }}
             >
               {/* Header */}
-              <div className="p-4 border-b border-border/50 bg-card/95 backdrop-blur-sm">
+              <div className="p-4 border-b border-border/50 bg-card/95 backdrop-blur-sm space-y-3">
                 <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
@@ -1161,6 +1174,45 @@ export default function ConversationView() {
                       {selectedConversation.phone}
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                      className="text-foreground/60 hover:text-foreground h-9 w-9 rounded-full"
+                    >
+                      {notificationsEnabled ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSelectedPhone(null)}
+                      className="hidden lg:flex text-foreground/60 hover:text-foreground h-9 w-9 rounded-full"
+                    >
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Search in conversation */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={messageSearchQuery}
+                    onChange={(e) => setMessageSearchQuery(e.target.value)}
+                    placeholder="Rechercher dans la conversation..."
+                    className="pl-9 pr-9 h-9 rounded-xl bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors"
+                  />
+                  {messageSearchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setMessageSearchQuery("")}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
               </div>
 
