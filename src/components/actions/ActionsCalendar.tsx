@@ -16,7 +16,8 @@ import {
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Globe, Store, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CalendarEventBar, CalendarEvent } from "./CalendarEventBar";
 import { MiniCalendar } from "./MiniCalendar";
@@ -26,6 +27,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+
+type ScopeFilter = "all" | "national" | "local";
 
 interface RestaurantAction {
   id: string;
@@ -84,6 +87,7 @@ export function ActionsCalendar({
   onDateClick,
 }: ActionsCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return actions.map((action) => {
@@ -113,6 +117,17 @@ export function ActionsCalendar({
     });
   }, [actions, restaurants]);
 
+  // Filter events by scope
+  const filteredEvents = useMemo(() => {
+    if (scopeFilter === "all") return calendarEvents;
+    if (scopeFilter === "national") return calendarEvents.filter(e => e.isNational);
+    return calendarEvents.filter(e => !e.isNational);
+  }, [calendarEvents, scopeFilter]);
+
+  // Stats for the filter badges
+  const nationalCount = calendarEvents.filter(e => e.isNational).length;
+  const localCount = calendarEvents.filter(e => !e.isNational).length;
+
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const calendarStart = startOfWeek(monthStart, { locale: fr });
@@ -132,7 +147,7 @@ export function ActionsCalendar({
 
   // Get events for each day with their positions
   const getEventsForDay = (date: Date) => {
-    return calendarEvents.filter((event) => {
+    return filteredEvents.filter((event) => {
       const eventStart = event.start;
       const eventEnd = event.end || event.start;
       return date >= eventStart && date <= eventEnd;
@@ -174,32 +189,77 @@ export function ActionsCalendar({
           <MiniCalendar
             currentDate={currentDate}
             onDateSelect={setCurrentDate}
-            events={calendarEvents}
+            events={filteredEvents}
           />
         </div>
 
         {/* Main Calendar */}
         <div className="flex-1 bg-card rounded-lg border shadow-sm overflow-hidden">
           {/* Calendar Header */}
-          <div className="flex items-center justify-between p-4 border-b bg-muted/30">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={goToToday}>
-                Aujourd'hui
-              </Button>
-              <div className="flex items-center">
-                <Button variant="ghost" size="icon" onClick={goToPreviousMonth}>
-                  <ChevronLeft className="h-4 w-4" />
+          <div className="flex flex-col gap-3 p-4 border-b bg-muted/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={goToToday}>
+                  Aujourd'hui
                 </Button>
-                <Button variant="ghost" size="icon" onClick={goToNextMonth}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center">
+                  <Button variant="ghost" size="icon" onClick={goToPreviousMonth}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={goToNextMonth}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <h2 className="text-xl font-semibold capitalize">
+                {format(currentDate, "MMMM yyyy", { locale: fr })}
+              </h2>
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5 text-muted-foreground" />
               </div>
             </div>
-            <h2 className="text-xl font-semibold capitalize">
-              {format(currentDate, "MMMM yyyy", { locale: fr })}
-            </h2>
+            
+            {/* Scope Filter */}
             <div className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground mr-1">Portée :</span>
+              <div className="flex items-center bg-background rounded-lg p-0.5 border">
+                <Button
+                  variant={scopeFilter === "all" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={() => setScopeFilter("all")}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  Toutes
+                  <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                    {calendarEvents.length}
+                  </Badge>
+                </Button>
+                <Button
+                  variant={scopeFilter === "national" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={() => setScopeFilter("national")}
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  Nationales
+                  <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px] bg-blue-500/10 text-blue-600">
+                    {nationalCount}
+                  </Badge>
+                </Button>
+                <Button
+                  variant={scopeFilter === "local" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={() => setScopeFilter("local")}
+                >
+                  <Store className="h-3.5 w-3.5" />
+                  Par restaurant
+                  <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px] bg-emerald-500/10 text-emerald-600">
+                    {localCount}
+                  </Badge>
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -222,7 +282,7 @@ export function ActionsCalendar({
           <div className="divide-y">
             {weeks.map((week, weekIndex) => {
               // Get all events that appear in this week
-              const weekEvents = calendarEvents.filter((event) => {
+              const weekEvents = filteredEvents.filter((event) => {
                 const eventEnd = event.end || event.start;
                 return week.some(
                   (day) => day >= event.start && day <= eventEnd
