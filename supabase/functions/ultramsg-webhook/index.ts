@@ -29,6 +29,11 @@ serve(async (req) => {
     // Ultramsg wraps message data in a "data" object for received messages
     const messageData = payload.data || payload;
 
+    // Helper function to normalize phone numbers (remove spaces, dashes, dots, parentheses)
+    const normalizePhoneNumber = (phone: string): string => {
+      return phone.replace(/[\s\-\.\(\)]/g, '');
+    };
+
     // Handle incoming messages (new feature for bidirectional conversations)
     // Ultramsg sends incoming messages with: { "event_type": "message_received", "data": { "from": "phone@c.us", "body": "message", "type": "chat", ... } }
     if (messageData.from && messageData.body && messageData.type === 'chat') {
@@ -36,14 +41,23 @@ serve(async (req) => {
       
       // Extract phone number (remove @c.us suffix if present)
       const senderPhone = messageData.from.replace(/@c\.us$/, '').replace(/@s\.whatsapp\.net$/, '');
-      const normalizedPhone = senderPhone.startsWith('+') ? senderPhone : `+${senderPhone}`;
+      const normalizedPhone = normalizePhoneNumber(senderPhone.startsWith('+') ? senderPhone : `+${senderPhone}`);
+      
+      console.log('Normalized sender phone:', normalizedPhone);
       
       // Try to find associated restaurant by manager_whatsapp
-      const { data: restaurant } = await supabase
+      // Fetch all restaurants and match with normalized phone comparison
+      const { data: restaurants } = await supabase
         .from('restaurants')
-        .select('id, name, manager_first_name, manager_last_name')
-        .or(`manager_whatsapp.ilike.%${senderPhone}%,manager_whatsapp.ilike.%${normalizedPhone}%`)
-        .maybeSingle();
+        .select('id, name, manager_first_name, manager_last_name, manager_whatsapp')
+        .not('manager_whatsapp', 'is', null);
+      
+      // Find restaurant by comparing normalized phone numbers
+      const restaurant = restaurants?.find(r => {
+        if (!r.manager_whatsapp) return false;
+        const normalizedManagerPhone = normalizePhoneNumber(r.manager_whatsapp);
+        return normalizedManagerPhone.includes(normalizedPhone) || normalizedPhone.includes(normalizedManagerPhone);
+      }) || null;
       
       console.log('Associated restaurant:', restaurant?.name || 'None found');
 
