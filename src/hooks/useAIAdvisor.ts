@@ -65,6 +65,17 @@ export const useAIAdvisor = () => {
     await loadConversations();
   };
 
+  const renameConversation = async (conversationId: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+    
+    await supabase
+      .from('ai_conversations')
+      .update({ title: newTitle.trim(), updated_at: new Date().toISOString() })
+      .eq('id', conversationId);
+    
+    await loadConversations();
+  };
+
   const sendMessage = async (userMessage: string) => {
     if (!userMessage.trim()) return;
 
@@ -219,5 +230,6 @@ export const useAIAdvisor = () => {
     loadConversation,
     startNewConversation,
     deleteConversation,
+    renameConversation,
   };
 };
