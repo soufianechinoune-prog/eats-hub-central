@@ -2,7 +2,6 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -271,7 +270,6 @@ export function RestaurantRanking({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
-  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(["revenue", "conversion", "profitability"]);
 
   const checkScroll = () => {
     if (scrollRef.current) {
@@ -289,27 +287,13 @@ export function RestaurantRanking({
 
   const scroll = (direction: "left" | "right") => {
     if (scrollRef.current) {
-      const scrollAmount = 150;
+      const scrollAmount = 320;
       scrollRef.current.scrollBy({
         left: direction === "left" ? -scrollAmount : scrollAmount,
         behavior: "smooth",
       });
       setTimeout(checkScroll, 300);
     }
-  };
-
-  const toggleMetric = (metric: MetricKey) => {
-    setSelectedMetrics(prev => {
-      if (prev.includes(metric)) {
-        if (prev.length <= 1) return prev; // Keep at least 1
-        return prev.filter(m => m !== metric);
-      }
-      if (prev.length >= 3) {
-        // Replace the last one
-        return [...prev.slice(0, 2), metric];
-      }
-      return [...prev, metric];
-    });
   };
 
   // Calculate all rankings
@@ -508,17 +492,17 @@ export function RestaurantRanking({
           Classement des restaurants
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Scrollable badges */}
+      <CardContent>
+        {/* Scrollable ranking cards */}
         <div className="relative">
           {canScrollLeft && (
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-6 w-6 rounded-full bg-background/90 backdrop-blur-sm shadow-sm"
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-background/90 backdrop-blur-sm shadow-md border"
               onClick={() => scroll("left")}
             >
-              <ChevronLeft className="h-3 w-3" />
+              <ChevronLeft className="h-4 w-4" />
             </Button>
           )}
           
@@ -526,64 +510,39 @@ export function RestaurantRanking({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-6 w-6 rounded-full bg-background/90 backdrop-blur-sm shadow-sm"
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-background/90 backdrop-blur-sm shadow-md border"
               onClick={() => scroll("right")}
             >
-              <ChevronRight className="h-3 w-3" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
           )}
 
           {canScrollLeft && (
-            <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-card to-transparent z-[5] pointer-events-none" />
+            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-card to-transparent z-[5] pointer-events-none" />
           )}
           {canScrollRight && (
-            <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-card to-transparent z-[5] pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card to-transparent z-[5] pointer-events-none" />
           )}
 
           <div 
             ref={scrollRef}
-            className="flex gap-2 overflow-x-auto scrollbar-thin pb-1 scroll-smooth px-1"
+            className="flex gap-4 overflow-x-auto scrollbar-thin scrollbar-thumb-muted pb-2 scroll-smooth"
             onScroll={checkScroll}
           >
-            {METRICS.map((metric) => {
-              const Icon = metric.icon;
-              const isSelected = selectedMetrics.includes(metric.key);
-              return (
-                <Badge
-                  key={metric.key}
-                  variant={isSelected ? "default" : "outline"}
-                  className={cn(
-                    "cursor-pointer whitespace-nowrap transition-all hover:scale-105 flex items-center gap-1.5 px-3 py-1.5",
-                    isSelected && "ring-2 ring-primary/20"
-                  )}
-                  onClick={() => toggleMetric(metric.key)}
-                >
-                  <Icon className={cn("h-3.5 w-3.5", isSelected ? "" : metric.colorClass)} />
-                  {metric.title}
-                </Badge>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Ranking cards - original 3-column layout */}
-        <div className="flex flex-wrap gap-4">
-          {selectedMetrics.slice(0, 3).map((metricKey) => {
-            const metric = METRICS.find(m => m.key === metricKey)!;
-            return (
+            {METRICS.map((metric) => (
               <RankingCard
-                key={metricKey}
+                key={metric.key}
                 title={metric.title}
                 icon={metric.icon}
-                data={rankings[metricKey]}
+                data={rankings[metric.key]}
                 formatValue={metric.formatValue}
-                maxValue={getMaxValue(metricKey)}
+                maxValue={getMaxValue(metric.key)}
                 colorClass={metric.colorClass}
-                metricKey={metricKey}
+                metricKey={metric.key}
                 inverseTrend={metric.inverseTrend}
               />
-            );
-          })}
+            ))}
+          </div>
         </div>
       </CardContent>
     </Card>
