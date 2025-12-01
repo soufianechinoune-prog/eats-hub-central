@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { formatPhoneNumber } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -158,7 +159,12 @@ const RestaurantDetail = () => {
   const handleSave = () => {
     const updates: Record<string, string | null> = {};
     Object.entries(formData).forEach(([key, value]) => {
-      updates[key] = value || null;
+      // Format WhatsApp number before saving
+      if (key === "manager_whatsapp" && value) {
+        updates[key] = formatPhoneNumber(value);
+      } else {
+        updates[key] = value || null;
+      }
     });
     updateMutation.mutate(updates);
   };
