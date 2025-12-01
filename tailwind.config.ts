@@ -127,6 +127,10 @@ export default {
           "25%": { transform: "rotate(-2deg)" },
           "75%": { transform: "rotate(2deg)" },
         },
+        "subtle-pulse": {
+          "0%, 100%": { boxShadow: "0 0 0 0 hsl(var(--primary) / 0.4)" },
+          "50%": { boxShadow: "0 0 0 4px hsl(var(--primary) / 0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -139,6 +143,7 @@ export default {
         "shimmer": "shimmer 2s linear infinite",
         "bounce-soft": "bounce-soft 0.5s ease-in-out",
         "wiggle": "wiggle 0.3s ease-in-out",
+        "subtle-pulse": "subtle-pulse 2s ease-in-out infinite",
       },
     },
   },
