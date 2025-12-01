@@ -364,7 +364,7 @@ export default function RestaurantActions() {
     setLoading(false);
   };
 
-  const openCreateDialog = () => {
+  const openCreateDialog = (initialDates?: { start_date?: string; end_date?: string }) => {
     setEditingAction(null);
     setFormData({
       restaurant_ids: [],
@@ -372,8 +372,8 @@ export default function RestaurantActions() {
       action_type: "",
       title: "",
       description: "",
-      start_date: "",
-      end_date: "",
+      start_date: initialDates?.start_date || "",
+      end_date: initialDates?.end_date || "",
       impact_value: "",
       impact_unit: "",
       target_item_ids: [],
@@ -721,7 +721,7 @@ export default function RestaurantActions() {
               <span className="hidden sm:inline">Calendrier</span>
             </Button>
           </div>
-          <Button onClick={openCreateDialog} className="gap-2">
+          <Button onClick={() => openCreateDialog()} className="gap-2">
             <Plus className="h-4 w-4" />
             Nouvelle action
           </Button>
@@ -1506,21 +1506,15 @@ export default function RestaurantActions() {
             setIsDeleteDialogOpen(true);
           }}
           onDateClick={(date) => {
-            // Pre-fill the start date when clicking on a day
-            setFormData((prev) => ({ 
-              ...prev, 
-              start_date: date.toISOString().split("T")[0] 
-            }));
-            openCreateDialog();
+            openCreateDialog({
+              start_date: date.toISOString().split("T")[0]
+            });
           }}
           onDateRangeSelect={(startDate, endDate) => {
-            // Pre-fill both start and end dates for range selection
-            setFormData((prev) => ({ 
-              ...prev, 
+            openCreateDialog({
               start_date: startDate.toISOString().split("T")[0],
               end_date: endDate.toISOString().split("T")[0]
-            }));
-            openCreateDialog();
+            });
           }}
           onActionDrop={(actionId, newStartDate, newEndDate) => {
             // Find the action to get its title and original date
