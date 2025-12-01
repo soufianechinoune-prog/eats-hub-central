@@ -1262,6 +1262,25 @@ export default function RestaurantActions() {
                   <span className="ml-1">×</span>
                 </Badge>
               )}
+              {(categoryFilters.length > 0 || platformFilters.length > 0 || restaurantFilters.length > 0 || actionTypeFilter !== "all" || statusFilter !== "all" || startDateFilter || endDateFilter) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setCategoryFilters([]);
+                    setPlatformFilters([]);
+                    setRestaurantFilters([]);
+                    setActionTypeFilter("all");
+                    setStatusFilter("all");
+                    setStartDateFilter(undefined);
+                    setEndDateFilter(undefined);
+                  }}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Réinitialiser
+                </Button>
+              )}
             </div>
             
             {/* Filter Controls */}
