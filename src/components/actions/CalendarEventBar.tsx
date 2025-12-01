@@ -55,24 +55,28 @@ export function CalendarEventBar({
   const leftPercent = (dayIndex / 7) * 100;
   const widthPercent = (span / 7) * 100;
 
+  // National vs Local visual distinction
+  const scopeStyles = event.isNational
+    ? "border-l-[3px] border-l-blue-500 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.3)]"
+    : "border-l-[3px] border-l-emerald-500 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.3)]";
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
           className={cn(
-            "absolute h-5 px-1.5 text-xs flex items-center gap-1 cursor-pointer transition-all",
-            "hover:shadow-md hover:z-20 z-10",
+            "absolute h-6 px-1.5 text-xs flex items-center gap-1.5 cursor-pointer transition-all",
+            "hover:shadow-lg hover:z-20 z-10 hover:scale-[1.02]",
             event.color.bg,
             event.color.text,
+            scopeStyles,
             isStart && "rounded-l-md ml-0.5",
-            isEnd && "rounded-r-md mr-0.5",
-            !isStart && "border-l-0",
-            !isEnd && "border-r-0"
+            isEnd && "rounded-r-md mr-0.5"
           )}
           style={{
             left: `calc(${leftPercent}% + ${isStart ? 2 : 0}px)`,
             width: `calc(${widthPercent}% - ${(isStart ? 2 : 0) + (isEnd ? 4 : 0)}px)`,
-            top: `${32 + row * 24}px`,
+            top: `${32 + row * 26}px`,
           }}
           onClick={(e) => {
             e.stopPropagation();
@@ -82,9 +86,13 @@ export function CalendarEventBar({
           {isStart && (
             <>
               {event.isNational ? (
-                <Globe className="h-3 w-3 flex-shrink-0" />
+                <span className="flex items-center justify-center h-4 w-4 rounded-full bg-blue-500 text-white flex-shrink-0">
+                  <Globe className="h-2.5 w-2.5" />
+                </span>
               ) : (
-                <Store className="h-3 w-3 flex-shrink-0" />
+                <span className="flex items-center justify-center h-4 w-4 rounded-full bg-emerald-500 text-white flex-shrink-0">
+                  <Store className="h-2.5 w-2.5" />
+                </span>
               )}
               <span className="truncate font-medium">{event.title}</span>
             </>
