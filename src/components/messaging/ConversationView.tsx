@@ -1171,6 +1171,7 @@ export default function ConversationView() {
                         <AnimatePresence>
                           {conv.unreadCount > 0 && (
                             <motion.span 
+                              key={`unread-${conv.phone}`}
                               className="ml-2 flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-whatsapp text-white"
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
@@ -1353,6 +1354,7 @@ export default function ConversationView() {
                           <AnimatePresence>
                             {showDate && (
                               <motion.div 
+                                key={`date-${msg.id}`}
                                 className="flex justify-center my-4"
                                 initial={{ opacity: 0, y: -10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -1438,6 +1440,7 @@ export default function ConversationView() {
               <AnimatePresence>
                 {mediaPreview && (
                   <motion.div
+                    key="media-preview"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
