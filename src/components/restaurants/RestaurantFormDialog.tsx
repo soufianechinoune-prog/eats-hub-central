@@ -14,6 +14,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { Plus, Building2, User, Tablet, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { formatPhoneNumber } from "@/lib/utils";
 
 interface RestaurantForm {
   name: string;
@@ -124,7 +125,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
       manager_first_name: newRestaurant.manager_first_name || null,
       manager_last_name: newRestaurant.manager_last_name || null,
       phone: newRestaurant.phone || null,
-      manager_whatsapp: newRestaurant.manager_whatsapp || null,
+      manager_whatsapp: formatPhoneNumber(newRestaurant.manager_whatsapp) || null,
       tablet_email: newRestaurant.tablet_email || null,
       tablet_password: newRestaurant.tablet_password || null,
       account_manager_name: newRestaurant.account_manager_name || null,
