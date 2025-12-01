@@ -979,23 +979,40 @@ export default function RestaurantActions() {
                 {/* Display selected restaurants as badges */}
                 {scopeRestaurantFilters.length > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {scopeRestaurantFilters.slice(0, 3).map(id => {
-                      const r = restaurants.find(r => r.id === id);
-                      return r ? (
-                        <Badge 
-                          key={id} 
-                          variant="secondary" 
-                          className="gap-1 cursor-pointer"
-                          onClick={() => setScopeRestaurantFilters(scopeRestaurantFilters.filter(rid => rid !== id))}
+                    <AnimatePresence mode="popLayout">
+                      {scopeRestaurantFilters.slice(0, 3).map((id, index) => {
+                        const r = restaurants.find(r => r.id === id);
+                        return r ? (
+                          <motion.div
+                            key={id}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ duration: 0.15, delay: index * 0.05 }}
+                          >
+                            <Badge 
+                              variant="secondary" 
+                              className="gap-1 cursor-pointer hover:scale-105 transition-transform"
+                              onClick={() => setScopeRestaurantFilters(scopeRestaurantFilters.filter(rid => rid !== id))}
+                            >
+                              {r.name}
+                              <X className="h-3 w-3" />
+                            </Badge>
+                          </motion.div>
+                        ) : null;
+                      })}
+                      {scopeRestaurantFilters.length > 3 && (
+                        <motion.div
+                          key="more"
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={{ duration: 0.15, delay: 0.15 }}
                         >
-                          {r.name}
-                          <X className="h-3 w-3" />
-                        </Badge>
-                      ) : null;
-                    })}
-                    {scopeRestaurantFilters.length > 3 && (
-                      <Badge variant="outline">+{scopeRestaurantFilters.length - 3}</Badge>
-                    )}
+                          <Badge variant="outline">+{scopeRestaurantFilters.length - 3}</Badge>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
                 </motion.div>
