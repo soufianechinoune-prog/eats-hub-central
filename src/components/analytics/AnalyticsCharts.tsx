@@ -186,6 +186,7 @@ interface AnalyticsChartsProps {
   onActionClick?: (actionId: string) => void;
   selectedCategories?: ActionCategoryFilter;
   onCategoryToggle?: (category: string) => void;
+  viewMode?: "all" | "revenue" | "conversion" | "finances";
 }
 
 // Action category colors
@@ -440,6 +441,7 @@ export function AnalyticsCharts({
   onActionClick,
   selectedCategories,
   onCategoryToggle,
+  viewMode = "all",
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
   
@@ -770,10 +772,24 @@ export function AnalyticsCharts({
     );
   }
 
+  // Determine which sections to show based on viewMode
+  const showKPIs = viewMode === "all" || viewMode === "revenue" || viewMode === "conversion" || viewMode === "finances";
+  const showRevenue = viewMode === "all" || viewMode === "revenue";
+  const showConversion = viewMode === "all" || viewMode === "conversion";
+  const showFinances = viewMode === "all" || viewMode === "finances";
+
+  // Determine which KPIs to show based on viewMode
+  const showRevenueKPIs = viewMode === "all" || viewMode === "revenue";
+  const showConversionKPIs = viewMode === "all" || viewMode === "conversion";
+  const showFinanceKPIs = viewMode === "all" || viewMode === "finances";
+
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {showKPIs && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {showRevenueKPIs && (
+        <>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -793,7 +809,10 @@ export function AnalyticsCharts({
             )}
           </CardContent>
         </Card>
+        </>
+        )}
         
+        {showConversionKPIs && (
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -811,7 +830,10 @@ export function AnalyticsCharts({
             </p>
           </CardContent>
         </Card>
+        )}
         
+        {showFinanceKPIs && (
+        <>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -859,7 +881,10 @@ export function AnalyticsCharts({
             </p>
           </CardContent>
         </Card>
-      </div>
+        </>
+        )}
+        </div>
+      )}
 
       {/* Actions Legend */}
       {config.global && actions && actions.length > 0 && (
@@ -928,6 +953,7 @@ export function AnalyticsCharts({
       )}
 
       {/* Revenue Chart with N-1 comparison */}
+      {showRevenue && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
@@ -1000,8 +1026,10 @@ export function AnalyticsCharts({
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Conversion Funnel Chart - New Enhanced Component */}
+      {showConversion && (
       <ConversionFunnelChart
         data={aggregatedConversionData}
         selectedYear={selectedYear}
@@ -1010,8 +1038,10 @@ export function AnalyticsCharts({
         actionsByMonth={actionsByMonth}
         onActionClick={onActionClick}
       />
+      )}
 
       {/* Conversion Rate Chart with N-1 */}
+      {showConversion && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
@@ -1192,8 +1222,10 @@ export function AnalyticsCharts({
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Fees Breakdown Chart */}
+      {showFinances && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
@@ -1260,8 +1292,10 @@ export function AnalyticsCharts({
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Net Payout Chart with N-1 */}
+      {showFinances && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
@@ -1329,8 +1363,10 @@ export function AnalyticsCharts({
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Profitability Rate Chart with N-1 */}
+      {showFinances && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
@@ -1428,6 +1464,7 @@ export function AnalyticsCharts({
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
