@@ -50,13 +50,16 @@ export const AIAdvisorChat = () => {
     currentConversationId,
     loadConversation,
     startNewConversation,
-    deleteConversation 
+    deleteConversation,
+    renameConversation 
   } = useAIAdvisor();
   const [input, setInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
+  const [editingConvId, setEditingConvId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
 
   // Filter conversations based on search query
   const filteredConversations = conversations.filter(conv => 
@@ -92,6 +95,29 @@ export const AIAdvisorChat = () => {
       await deleteConversation(conversationToDelete);
       setDeleteDialogOpen(false);
       setConversationToDelete(null);
+    }
+  };
+
+  const startEditingTitle = (conv: { id: string; title: string | null }) => {
+    setEditingConvId(conv.id);
+    setEditingTitle(conv.title || '');
+  };
+
+  const saveTitle = async () => {
+    if (editingConvId && editingTitle.trim()) {
+      await renameConversation(editingConvId, editingTitle);
+    }
+    setEditingConvId(null);
+    setEditingTitle('');
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveTitle();
+    } else if (e.key === 'Escape') {
+      setEditingConvId(null);
+      setEditingTitle('');
     }
   };
 
@@ -174,18 +200,37 @@ export const AIAdvisorChat = () => {
                 >
                   <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {searchQuery ? (
-                        <span dangerouslySetInnerHTML={{
-                          __html: (conv.title || 'Sans titre').replace(
-                            new RegExp(`(${searchQuery})`, 'gi'),
-                            '<mark class="bg-ai-gradient-start/30 text-foreground px-0.5 rounded">$1</mark>'
-                          )
-                        }} />
-                      ) : (
-                        conv.title || 'Sans titre'
-                      )}
-                    </p>
+                    {editingConvId === conv.id ? (
+                      <input
+                        type="text"
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onBlur={saveTitle}
+                        onKeyDown={handleTitleKeyDown}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                        className="w-full text-sm font-medium px-1 py-0.5 rounded border border-ai-gradient-start/50 bg-background focus:outline-none focus:ring-1 focus:ring-ai-gradient-start/30"
+                      />
+                    ) : (
+                      <p 
+                        className="text-sm font-medium truncate cursor-text hover:text-ai-gradient-start transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditingTitle(conv);
+                        }}
+                      >
+                        {searchQuery ? (
+                          <span dangerouslySetInnerHTML={{
+                            __html: (conv.title || 'Sans titre').replace(
+                              new RegExp(`(${searchQuery})`, 'gi'),
+                              '<mark class="bg-ai-gradient-start/30 text-foreground px-0.5 rounded">$1</mark>'
+                            )
+                          }} />
+                        ) : (
+                          conv.title || 'Sans titre'
+                        )}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(conv.updated_at), 'dd MMM', { locale: fr })}
                     </p>
