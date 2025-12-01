@@ -31,6 +31,10 @@ import {
   BellOff,
   ExternalLink,
   MoreVertical,
+  Filter,
+  Archive,
+  MailOpen,
+  Inbox,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
@@ -53,6 +57,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useVoiceRecorder, formatRecordingTime } from "@/hooks/useVoiceRecorder";
 import { AudioPlayer } from "@/components/messaging/AudioPlayer";
 import { useMessageNotifications } from "@/hooks/useMessageNotifications";
@@ -129,10 +138,25 @@ export default function ConversationView() {
   const [isSendingVoice, setIsSendingVoice] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
+  const [conversationFilter, setConversationFilter] = useState<'all' | 'unread'>('all');
+  const [archivedPhones, setArchivedPhones] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('archivedConversations');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+  const [conversationToDelete, setConversationToDelete] = useState<Conversation | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
   const isInitialLoadRef = useRef(true);
+
+  // Common emojis for quick selection
+  const commonEmojis = [
+    "😀", "😊", "😂", "🤣", "😍", "🥰", "😘", "😎",
+    "👍", "👋", "🙏", "💪", "🎉", "🔥", "❤️", "💯",
+    "✅", "⭐", "🍔", "🍕", "🍗", "🥗", "🍟", "🥤",
+    "📱", "📞", "📍", "🏠", "🚗", "⏰", "📅", "💬",
+  ];
 
   // Voice recorder hook
   const {
@@ -338,17 +362,38 @@ export default function ConversationView() {
     );
   }, [messages, restaurants]);
 
-  // Filter conversations by search
+  // Filter conversations by search and filter type
   const filteredConversations = useMemo(() => {
-    if (!searchQuery) return conversations;
-    const query = searchQuery.toLowerCase();
+    let filtered = conversations;
+    
+    // Filter out archived conversations
+    filtered = filtered.filter(conv => !archivedPhones.has(normalizePhone(conv.phone)));
+    
+    // Apply unread filter
+    if (conversationFilter === 'unread') {
+      filtered = filtered.filter(conv => conv.unreadCount > 0);
+    }
+    
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (conv) =>
+          conv.phone.includes(query) ||
+          conv.restaurantName?.toLowerCase().includes(query) ||
+          conv.contactName?.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [conversations, searchQuery, conversationFilter, archivedPhones]);
+
+  // Count unread conversations
+  const unreadConversationsCount = useMemo(() => {
     return conversations.filter(
-      (conv) =>
-        conv.phone.includes(query) ||
-        conv.restaurantName?.toLowerCase().includes(query) ||
-        conv.contactName?.toLowerCase().includes(query)
-    );
-  }, [conversations, searchQuery]);
+      conv => !archivedPhones.has(normalizePhone(conv.phone)) && conv.unreadCount > 0
+    ).length;
+  }, [conversations, archivedPhones]);
 
   // Get selected conversation
   const selectedConversation = useMemo(() => {
@@ -377,6 +422,67 @@ export default function ConversationView() {
     if (isToday(d)) return format(d, "HH:mm");
     if (isYesterday(d)) return "Hier";
     return format(d, "d MMM", { locale: fr });
+  };
+
+  // Archive a conversation
+  const archiveConversation = (phone: string) => {
+    const normalized = normalizePhone(phone);
+    const newArchived = new Set(archivedPhones);
+    newArchived.add(normalized);
+    setArchivedPhones(newArchived);
+    localStorage.setItem('archivedConversations', JSON.stringify([...newArchived]));
+    if (selectedPhone && normalizePhone(selectedPhone) === normalized) {
+      setSelectedPhone(null);
+    }
+    toast.success("Conversation archivée");
+  };
+
+  // Mark conversation as unread
+  const markConversationAsUnread = async (conv: Conversation) => {
+    // Find the last inbound message to mark as unread
+    const lastInbound = [...conv.messages].reverse().find(m => m.direction === 'inbound');
+    if (lastInbound) {
+      const { error } = await supabase
+        .from("message_history")
+        .update({ status: "delivered", read_at: null })
+        .eq("id", lastInbound.id);
+      
+      if (error) {
+        toast.error("Erreur lors du marquage");
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
+        toast.success("Marqué comme non lu");
+      }
+    } else {
+      toast.info("Aucun message entrant à marquer");
+    }
+  };
+
+  // Delete entire conversation
+  const deleteConversation = async (conv: Conversation) => {
+    const messageIds = conv.messages.map(m => m.id);
+    
+    const { error } = await supabase
+      .from("message_history")
+      .delete()
+      .in("id", messageIds);
+    
+    if (error) {
+      toast.error("Erreur lors de la suppression");
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
+      if (selectedPhone && normalizePhone(selectedPhone) === normalizePhone(conv.phone)) {
+        setSelectedPhone(null);
+      }
+      toast.success("Conversation supprimée");
+    }
+    setConversationToDelete(null);
+  };
+
+  // Add emoji to message
+  const addEmoji = (emoji: string) => {
+    setNewMessage(prev => prev + emoji);
+    setShowEmojiPicker(false);
   };
 
   // Get status icon for outbound messages
@@ -749,6 +855,44 @@ export default function ConversationView() {
               )}
             </Button>
           </div>
+          
+          {/* Filter tabs */}
+          <div className="flex gap-2 mb-3">
+            <Button
+              variant={conversationFilter === 'all' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setConversationFilter('all')}
+              className={cn(
+                "h-8 px-3 rounded-lg text-xs font-medium transition-all",
+                conversationFilter === 'all' 
+                  ? "bg-whatsapp hover:bg-whatsapp/90" 
+                  : "hover:bg-secondary"
+              )}
+            >
+              <Inbox className="h-3.5 w-3.5 mr-1.5" />
+              Toutes
+            </Button>
+            <Button
+              variant={conversationFilter === 'unread' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setConversationFilter('unread')}
+              className={cn(
+                "h-8 px-3 rounded-lg text-xs font-medium transition-all",
+                conversationFilter === 'unread' 
+                  ? "bg-whatsapp hover:bg-whatsapp/90" 
+                  : "hover:bg-secondary"
+              )}
+            >
+              <MailOpen className="h-3.5 w-3.5 mr-1.5" />
+              Non lues
+              {unreadConversationsCount > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full bg-white/20">
+                  {unreadConversationsCount}
+                </span>
+              )}
+            </Button>
+          </div>
+          
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -788,7 +932,7 @@ export default function ConversationView() {
                     initial="hidden"
                     animate="visible"
                     className={cn(
-                      "flex items-center gap-3 p-4 cursor-pointer transition-all duration-200 border-l-2",
+                      "flex items-center gap-3 p-4 cursor-pointer transition-all duration-200 border-l-2 group",
                       isSelected 
                         ? "bg-whatsapp/5 border-l-whatsapp" 
                         : "border-l-transparent hover:bg-secondary/50"
@@ -818,12 +962,55 @@ export default function ConversationView() {
                         )}>
                           {conv.restaurantName || conv.contactName || conv.phone}
                         </span>
-                        <span className={cn(
-                          "text-xs shrink-0 ml-2",
-                          conv.unreadCount > 0 ? "text-whatsapp font-medium" : "text-muted-foreground"
-                        )}>
-                          {formatConversationDate(conv.lastMessageAt)}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className={cn(
+                            "text-xs shrink-0",
+                            conv.unreadCount > 0 ? "text-whatsapp font-medium" : "text-muted-foreground"
+                          )}>
+                            {formatConversationDate(conv.lastMessageAt)}
+                          </span>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
+                              >
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  markConversationAsUnread(conv);
+                                }}
+                              >
+                                <MailOpen className="h-4 w-4 mr-2" />
+                                Marquer non lu
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  archiveConversation(conv.phone);
+                                }}
+                              >
+                                <Archive className="h-4 w-4 mr-2" />
+                                Archiver
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConversationToDelete(conv);
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <p className={cn(
@@ -1215,14 +1402,36 @@ export default function ConversationView() {
                           disabled={isSending || isUploadingMedia}
                           className="h-11 pr-12 rounded-full bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors text-[15px]"
                         />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
-                          type="button"
-                        >
-                          <Smile className="h-5 w-5" />
-                        </Button>
+                        <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
+                              type="button"
+                            >
+                              <Smile className="h-5 w-5" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent 
+                            className="w-64 p-2" 
+                            side="top" 
+                            align="end"
+                            sideOffset={8}
+                          >
+                            <div className="grid grid-cols-8 gap-1">
+                              {commonEmojis.map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  onClick={() => addEmoji(emoji)}
+                                  className="h-8 w-8 flex items-center justify-center text-lg hover:bg-secondary rounded-md transition-colors"
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </div>
                       
                       <motion.div whileTap={{ scale: 0.9 }}>
@@ -1309,6 +1518,45 @@ export default function ConversationView() {
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeleteMessage}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Conversation Dialog */}
+      <AlertDialog open={!!conversationToDelete} onOpenChange={(open) => !open && setConversationToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette conversation ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tous les messages de cette conversation seront supprimés de votre historique. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {conversationToDelete && (
+            <div className="p-3 bg-secondary/50 rounded-lg my-2">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-whatsapp/10 flex items-center justify-center">
+                  <Store className="h-5 w-5 text-whatsapp" />
+                </div>
+                <div>
+                  <p className="font-medium">
+                    {conversationToDelete.restaurantName || conversationToDelete.contactName || conversationToDelete.phone}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {conversationToDelete.messages.length} message{conversationToDelete.messages.length > 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => conversationToDelete && deleteConversation(conversationToDelete)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               <Trash2 className="h-4 w-4 mr-2" />
