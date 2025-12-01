@@ -1,34 +1,28 @@
 import { useState, useMemo } from "react";
 import {
   format,
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  addDays,
   addMonths,
   subMonths,
-  isSameMonth,
-  isSameDay,
-  isToday,
+  addWeeks,
+  subWeeks,
+  addDays,
+  subDays,
   parseISO,
-  differenceInDays,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Globe, Store, Layers, Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { CalendarEventBar, CalendarEvent } from "./CalendarEventBar";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Globe, Store, Layers } from "lucide-react";
+import { CalendarEvent } from "./CalendarEventBar";
 import { MiniCalendar } from "./MiniCalendar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { CalendarMonthView } from "./CalendarMonthView";
+import { CalendarWeekView } from "./CalendarWeekView";
+import { CalendarDayView } from "./CalendarDayView";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 type ScopeFilter = "all" | "national" | "local";
+type ViewMode = "month" | "week" | "day";
 
 interface RestaurantAction {
   id: string;
@@ -88,6 +82,7 @@ export function ActionsCalendar({
 }: ActionsCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("month");
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return actions.map((action) => {
@@ -128,58 +123,48 @@ export function ActionsCalendar({
   const nationalCount = calendarEvents.filter(e => e.isNational).length;
   const localCount = calendarEvents.filter(e => !e.isNational).length;
 
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const calendarStart = startOfWeek(monthStart, { locale: fr });
-  const calendarEnd = endOfWeek(monthEnd, { locale: fr });
-
-  // Generate weeks
-  const weeks: Date[][] = [];
-  let day = calendarStart;
-  while (day <= calendarEnd) {
-    const week: Date[] = [];
-    for (let i = 0; i < 7; i++) {
-      week.push(day);
-      day = addDays(day, 1);
-    }
-    weeks.push(week);
-  }
-
-  // Get events for each day with their positions
-  const getEventsForDay = (date: Date) => {
-    return filteredEvents.filter((event) => {
-      const eventStart = event.start;
-      const eventEnd = event.end || event.start;
-      return date >= eventStart && date <= eventEnd;
-    });
-  };
-
-  // Check if event starts on this day
-  const isEventStart = (event: CalendarEvent, date: Date) => {
-    return isSameDay(event.start, date);
-  };
-
-  // Get event duration from this day to end of week or event end
-  const getEventSpan = (event: CalendarEvent, date: Date, weekDays: Date[]) => {
-    const eventEnd = event.end || event.start;
-    const dayIndex = weekDays.findIndex((d) => isSameDay(d, date));
-    let span = 1;
-    
-    for (let i = dayIndex + 1; i < weekDays.length; i++) {
-      if (weekDays[i] <= eventEnd) {
-        span++;
-      } else {
+  // Navigation handlers based on view mode
+  const goToPrevious = () => {
+    switch (viewMode) {
+      case "month":
+        setCurrentDate(subMonths(currentDate, 1));
         break;
-      }
+      case "week":
+        setCurrentDate(subWeeks(currentDate, 1));
+        break;
+      case "day":
+        setCurrentDate(subDays(currentDate, 1));
+        break;
     }
-    return span;
   };
 
-  const goToPreviousMonth = () => setCurrentDate(subMonths(currentDate, 1));
-  const goToNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
+  const goToNext = () => {
+    switch (viewMode) {
+      case "month":
+        setCurrentDate(addMonths(currentDate, 1));
+        break;
+      case "week":
+        setCurrentDate(addWeeks(currentDate, 1));
+        break;
+      case "day":
+        setCurrentDate(addDays(currentDate, 1));
+        break;
+    }
+  };
+
   const goToToday = () => setCurrentDate(new Date());
 
-  const weekDays = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+  // Get title based on view mode
+  const getTitle = () => {
+    switch (viewMode) {
+      case "month":
+        return format(currentDate, "MMMM yyyy", { locale: fr });
+      case "week":
+        return `Semaine du ${format(currentDate, "d MMMM yyyy", { locale: fr })}`;
+      case "day":
+        return format(currentDate, "EEEE d MMMM yyyy", { locale: fr });
+    }
+  };
 
   return (
     <TooltipProvider>
@@ -188,7 +173,12 @@ export function ActionsCalendar({
         <div className="hidden lg:block w-64 flex-shrink-0">
           <MiniCalendar
             currentDate={currentDate}
-            onDateSelect={setCurrentDate}
+            onDateSelect={(date) => {
+              setCurrentDate(date);
+              if (viewMode === "month") {
+                setViewMode("day");
+              }
+            }}
             events={filteredEvents}
           />
         </div>
@@ -203,18 +193,45 @@ export function ActionsCalendar({
                   Aujourd'hui
                 </Button>
                 <div className="flex items-center">
-                  <Button variant="ghost" size="icon" onClick={goToPreviousMonth}>
+                  <Button variant="ghost" size="icon" onClick={goToPrevious}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={goToNextMonth}>
+                  <Button variant="ghost" size="icon" onClick={goToNext}>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
               <h2 className="text-xl font-semibold capitalize">
-                {format(currentDate, "MMMM yyyy", { locale: fr })}
+                {getTitle()}
               </h2>
               <div className="flex items-center gap-2">
+                {/* View Mode Toggle */}
+                <div className="flex items-center bg-background rounded-lg p-0.5 border">
+                  <Button
+                    variant={viewMode === "month" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setViewMode("month")}
+                  >
+                    Mois
+                  </Button>
+                  <Button
+                    variant={viewMode === "week" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setViewMode("week")}
+                  >
+                    Semaine
+                  </Button>
+                  <Button
+                    variant={viewMode === "day" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setViewMode("day")}
+                  >
+                    Jour
+                  </Button>
+                </div>
                 <CalendarIcon className="h-5 w-5 text-muted-foreground" />
               </div>
             </div>
@@ -263,129 +280,31 @@ export function ActionsCalendar({
             </div>
           </div>
 
-          {/* Week Days Header */}
-          <div className="grid grid-cols-7 border-b">
-            {weekDays.map((day, index) => (
-              <div
-                key={day}
-                className={cn(
-                  "px-2 py-3 text-center text-sm font-medium text-muted-foreground",
-                  index >= 5 && "bg-muted/30"
-                )}
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* Calendar Grid */}
-          <div className="divide-y">
-            {weeks.map((week, weekIndex) => {
-              // Get all events that appear in this week
-              const weekEvents = filteredEvents.filter((event) => {
-                const eventEnd = event.end || event.start;
-                return week.some(
-                  (day) => day >= event.start && day <= eventEnd
-                );
-              });
-
-              // Track which rows events occupy
-              const eventRows: Map<string, number> = new Map();
-              let maxRow = 0;
-
-              weekEvents.forEach((event) => {
-                // Find first available row
-                let row = 0;
-                while (true) {
-                  const hasConflict = Array.from(eventRows.entries()).some(
-                    ([eventId, eventRow]) => {
-                      if (eventRow !== row) return false;
-                      const otherEvent = weekEvents.find((e) => e.id === eventId);
-                      if (!otherEvent) return false;
-                      const otherEnd = otherEvent.end || otherEvent.start;
-                      const thisEnd = event.end || event.start;
-                      return !(thisEnd < otherEvent.start || event.start > otherEnd);
-                    }
-                  );
-                  if (!hasConflict) break;
-                  row++;
-                }
-                eventRows.set(event.id, row);
-                maxRow = Math.max(maxRow, row);
-              });
-
-              const minHeight = Math.max(100, 32 + (maxRow + 1) * 26);
-
-              return (
-                <div key={weekIndex} className="grid grid-cols-7 relative" style={{ minHeight }}>
-                  {week.map((day, dayIndex) => {
-                    const isCurrentMonth = isSameMonth(day, currentDate);
-                    const dayEvents = getEventsForDay(day);
-                    const isWeekend = dayIndex >= 5;
-
-                    return (
-                      <div
-                        key={day.toISOString()}
-                        className={cn(
-                          "border-r last:border-r-0 relative transition-colors group",
-                          !isCurrentMonth && "bg-muted/20",
-                          isWeekend && "bg-muted/30",
-                          "hover:bg-accent/50 cursor-pointer"
-                        )}
-                        onClick={() => onDateClick?.(day)}
-                      >
-                        {/* Day Number */}
-                        <div className="p-1 flex justify-between items-start">
-                          {/* Plus icon on hover */}
-                          <span className="h-5 w-5 flex items-center justify-center rounded-full bg-primary/0 group-hover:bg-primary text-primary-foreground opacity-0 group-hover:opacity-100 transition-all text-xs">
-                            <Plus className="h-3 w-3" />
-                          </span>
-                          <span
-                            className={cn(
-                              "h-7 w-7 flex items-center justify-center text-sm rounded-full",
-                              isToday(day) && "bg-primary text-primary-foreground font-bold",
-                              !isCurrentMonth && "text-muted-foreground"
-                            )}
-                          >
-                            {format(day, "d")}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {/* Event Bars - Rendered as overlays */}
-                  {weekEvents.map((event) => {
-                    const startDay = week.find(
-                      (d) => isSameDay(d, event.start) || (d >= event.start && d <= (event.end || event.start))
-                    );
-                    if (!startDay) return null;
-
-                    const dayIndex = week.findIndex((d) => isSameDay(d, startDay));
-                    const isStart = isEventStart(event, startDay) || dayIndex === 0;
-                    const span = getEventSpan(event, startDay, week);
-                    const row = eventRows.get(event.id) || 0;
-                    const isEnd = !event.end || 
-                      isSameDay(addDays(startDay, span - 1), event.end) ||
-                      dayIndex + span === 7;
-
-                    return (
-                      <CalendarEventBar
-                        key={`${event.id}-${weekIndex}`}
-                        event={event}
-                        dayIndex={dayIndex}
-                        span={span}
-                        row={row}
-                        isStart={isStart}
-                        isEnd={isEnd}
-                        onClick={() => onActionClick?.(event.originalAction)}
-                      />
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
+          {/* Calendar View */}
+          {viewMode === "month" && (
+            <CalendarMonthView
+              currentDate={currentDate}
+              events={filteredEvents}
+              onActionClick={onActionClick}
+              onDateClick={onDateClick}
+            />
+          )}
+          {viewMode === "week" && (
+            <CalendarWeekView
+              currentDate={currentDate}
+              events={filteredEvents}
+              onActionClick={onActionClick}
+              onDateClick={onDateClick}
+            />
+          )}
+          {viewMode === "day" && (
+            <CalendarDayView
+              currentDate={currentDate}
+              events={filteredEvents}
+              onActionClick={onActionClick}
+              onDateClick={onDateClick}
+            />
+          )}
 
           {/* Legend */}
           <div className="p-3 border-t bg-muted/30 flex flex-wrap gap-3">
