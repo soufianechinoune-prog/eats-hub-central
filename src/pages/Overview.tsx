@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +14,7 @@ type PeriodOption = "7d" | "30d" | "current_month" | "year";
 
 const Overview = () => {
   const [period, setPeriod] = useState<PeriodOption>("7d");
+  const navigate = useNavigate();
 
   // Calculate date range based on selected period
   const getDateRange = () => {
@@ -45,10 +47,10 @@ const Overview = () => {
     queryFn: async () => {
       console.log("Fetching network health data...");
       
-      // Fetch restaurants count
-      const { count: totalRestaurants, error: restaurantsError } = await supabase
+      // Fetch all active restaurants with their data
+      const { data: restaurants, error: restaurantsError } = await supabase
         .from("restaurants")
-        .select("*", { count: "exact", head: true })
+        .select("*")
         .eq("is_active", true);
       
       if (restaurantsError) {
@@ -56,45 +58,105 @@ const Overview = () => {
         throw restaurantsError;
       }
 
-      console.log("Total restaurants:", totalRestaurants);
+      console.log("Total restaurants:", restaurants?.length);
 
-      // Mock data for now - will be replaced with real data from tables
-      const mockData = {
+      // Fetch monthly fees for profitability calculation
+      const { data: feesData, error: feesError } = await supabase
+        .from("monthly_fees")
+        .select("restaurant_id, platform, net_payout, uber_fee, marketing_fee, offers_cost, ads_cost, error_adjustments, eco_contribution")
+        .gte("created_at", startDate.toISOString())
+        .lte("created_at", endDate.toISOString());
+
+      if (feesError) {
+        console.error("Error fetching fees:", feesError);
+      }
+
+      // Fetch monthly revenue for profitability calculation
+      const { data: revenueData, error: revenueError } = await supabase
+        .from("monthly_revenue")
+        .select("restaurant_id, platform, revenue_ttc, order_count")
+        .gte("created_at", startDate.toISOString())
+        .lte("created_at", endDate.toISOString());
+
+      if (revenueError) {
+        console.error("Error fetching revenue:", revenueError);
+      }
+
+      // Calculate restaurant performance metrics
+      const restaurantMetrics = restaurants?.map(resto => {
+        // Calculate profitability from fees and revenue
+        const restoFees = feesData?.filter(f => f.restaurant_id === resto.id) || [];
+        const restoRevenue = revenueData?.filter(r => r.restaurant_id === resto.id) || [];
+        
+        const totalPayout = restoFees.reduce((sum, f) => sum + (Number(f.net_payout) || 0), 0);
+        const totalRevenue = restoRevenue.reduce((sum, r) => sum + (Number(r.revenue_ttc) || 0), 0);
+        
+        const profitability = totalRevenue > 0 ? (totalPayout / totalRevenue) * 100 : 0;
+
+        // Mock data for metrics not yet available in DB
+        const rating = 3.5 + Math.random() * 1.3; // Random between 3.5 and 4.8
+        
+        return {
+          id: resto.id,
+          name: resto.name,
+          city: resto.city,
+          rating: parseFloat(rating.toFixed(1)),
+          profitability: parseFloat(profitability.toFixed(1)),
+        };
+      }) || [];
+
+      // Sort and get top/flop
+      const sortedByRating = [...restaurantMetrics].sort((a, b) => b.rating - a.rating);
+      const topRestaurants = sortedByRating.slice(0, 3);
+      const flopRestaurants = sortedByRating.slice(-3).reverse();
+
+      // Calculate network-wide averages
+      const avgRating = restaurantMetrics.reduce((sum, r) => sum + r.rating, 0) / (restaurantMetrics.length || 1);
+      const avgProfitability = restaurantMetrics.reduce((sum, r) => sum + r.profitability, 0) / (restaurantMetrics.length || 1);
+
+      // Calculate platform-specific metrics
+      const uberFees = feesData?.filter(f => f.platform === "uber_eats") || [];
+      const deliverooFees = feesData?.filter(f => f.platform === "deliveroo") || [];
+      const uberRevenue = revenueData?.filter(r => r.platform === "uber_eats") || [];
+      const deliverooRevenue = revenueData?.filter(r => r.platform === "deliveroo") || [];
+
+      const uberTotalPayout = uberFees.reduce((sum, f) => sum + (Number(f.net_payout) || 0), 0);
+      const uberTotalRevenue = uberRevenue.reduce((sum, r) => sum + (Number(r.revenue_ttc) || 0), 0);
+      const uberProfitability = uberTotalRevenue > 0 ? (uberTotalPayout / uberTotalRevenue) * 100 : 0;
+
+      const deliverooTotalPayout = deliverooFees.reduce((sum, f) => sum + (Number(f.net_payout) || 0), 0);
+      const deliverooTotalRevenue = deliverooRevenue.reduce((sum, r) => sum + (Number(r.revenue_ttc) || 0), 0);
+      const deliverooProfitability = deliverooTotalRevenue > 0 ? (deliverooTotalPayout / deliverooTotalRevenue) * 100 : 0;
+
+      // Return combined real + mock data
+      const result = {
         global: {
-          rating: 4.2,
-          prepTime: 18,
-          errorRate: 2.3,
-          incorrectOrderRate: 1.8,
-          profitability: 62.5,
-          downtime: 45,
-          productRating: 4.5,
+          rating: parseFloat(avgRating.toFixed(1)),
+          prepTime: 18, // Mock - will come from delivery_stats
+          errorRate: 2.3, // Mock - will come from order_errors
+          incorrectOrderRate: 1.8, // Mock - will come from order_errors
+          profitability: parseFloat(avgProfitability.toFixed(1)),
+          downtime: 45, // Mock - will come from downtime_logs
+          productRating: 4.5, // Mock - will come from menu_item_reviews
         },
         uber: {
-          rating: 4.3,
-          prepTime: 17,
-          errorRate: 2.1,
-          incorrectOrderRate: 1.6,
-          profitability: 64.2,
-          downtime: 38,
+          rating: parseFloat((avgRating + 0.1).toFixed(1)), // Mock adjustment
+          prepTime: 17, // Mock
+          errorRate: 2.1, // Mock
+          incorrectOrderRate: 1.6, // Mock
+          profitability: parseFloat(uberProfitability.toFixed(1)),
+          downtime: 38, // Mock
         },
         deliveroo: {
-          rating: 4.1,
-          prepTime: 19,
-          errorRate: 2.5,
-          incorrectOrderRate: 2.0,
-          profitability: 60.8,
-          downtime: 52,
+          rating: parseFloat((avgRating - 0.1).toFixed(1)), // Mock adjustment
+          prepTime: 19, // Mock
+          errorRate: 2.5, // Mock
+          incorrectOrderRate: 2.0, // Mock
+          profitability: parseFloat(deliverooProfitability.toFixed(1)),
+          downtime: 52, // Mock
         },
-        topRestaurants: [
-          { id: "1", name: "Restaurant A", city: "Paris", rating: 4.8, profitability: 72.5 },
-          { id: "2", name: "Restaurant B", city: "Lyon", rating: 4.7, profitability: 71.2 },
-          { id: "3", name: "Restaurant C", city: "Marseille", rating: 4.6, profitability: 70.8 },
-        ],
-        flopRestaurants: [
-          { id: "4", name: "Restaurant D", city: "Nice", rating: 3.2, profitability: 48.5 },
-          { id: "5", name: "Restaurant E", city: "Toulouse", rating: 3.4, profitability: 50.2 },
-          { id: "6", name: "Restaurant F", city: "Bordeaux", rating: 3.5, profitability: 51.8 },
-        ],
+        topRestaurants,
+        flopRestaurants,
         topProducts: [
           { name: "Menu Burger", rating: 4.9, reviews: 156 },
           { name: "Pizza Margherita", rating: 4.8, reviews: 203 },
@@ -105,11 +167,11 @@ const Overview = () => {
           { name: "Dessert Tiramisu", rating: 3.4, reviews: 67 },
           { name: "Wrap Poulet", rating: 3.5, reviews: 89 },
         ],
-        totalRestaurants: totalRestaurants || 0,
+        totalRestaurants: restaurants?.length || 0,
       };
 
-      console.log("Returning mock data:", mockData);
-      return mockData;
+      console.log("Returning data:", result);
+      return result;
     },
   });
 
@@ -239,12 +301,16 @@ const Overview = () => {
                   </TableHeader>
                   <TableBody>
                     {networkData?.topRestaurants.map((resto, idx) => (
-                      <TableRow key={resto.id} className="cursor-pointer hover:bg-muted/50">
+                      <TableRow 
+                        key={resto.id} 
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => navigate(`/restaurants/${resto.id}`)}
+                      >
                         <TableCell className="font-semibold">
                           <Badge variant="secondary" className="bg-accent/10 text-accent">{idx + 1}</Badge>
                         </TableCell>
                         <TableCell className="font-medium">{resto.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{resto.city}</TableCell>
+                        <TableCell className="text-muted-foreground">{resto.city || "—"}</TableCell>
                         <TableCell className="text-right">
                           <span className="flex items-center justify-end gap-1">
                             <Star className="h-3 w-3 fill-warning text-warning" />
@@ -284,12 +350,16 @@ const Overview = () => {
                   </TableHeader>
                   <TableBody>
                     {networkData?.flopRestaurants.map((resto, idx) => (
-                      <TableRow key={resto.id} className="cursor-pointer hover:bg-muted/50">
+                      <TableRow 
+                        key={resto.id} 
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => navigate(`/restaurants/${resto.id}`)}
+                      >
                         <TableCell className="font-semibold">
                           <Badge variant="secondary" className="bg-destructive/10 text-destructive">{idx + 1}</Badge>
                         </TableCell>
                         <TableCell className="font-medium">{resto.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{resto.city}</TableCell>
+                        <TableCell className="text-muted-foreground">{resto.city || "—"}</TableCell>
                         <TableCell className="text-right">
                           <span className="flex items-center justify-end gap-1">
                             <Star className="h-3 w-3 fill-destructive/50 text-destructive/50" />
