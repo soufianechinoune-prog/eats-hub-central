@@ -1199,6 +1199,34 @@ export default function RestaurantActions() {
             }));
             openCreateDialog();
           }}
+          onActionDrop={async (actionId, newStartDate, newEndDate) => {
+            // Update the action dates via drag & drop
+            const updateData: any = {
+              start_date: format(newStartDate, "yyyy-MM-dd"),
+            };
+            if (newEndDate) {
+              updateData.end_date = format(newEndDate, "yyyy-MM-dd");
+            }
+            
+            const { error } = await supabase
+              .from("restaurant_actions")
+              .update(updateData)
+              .eq("id", actionId);
+            
+            if (error) {
+              toast({ 
+                title: "Erreur", 
+                description: "Impossible de déplacer l'action", 
+                variant: "destructive" 
+              });
+            } else {
+              toast({ 
+                title: "Action déplacée", 
+                description: `Nouvelle date : ${format(newStartDate, "d MMMM yyyy", { locale: fr })}` 
+              });
+              fetchActions();
+            }
+          }}
         />
       )}
 

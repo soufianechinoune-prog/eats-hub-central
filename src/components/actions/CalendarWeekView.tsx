@@ -1,16 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   format,
   startOfWeek,
   addDays,
   isSameDay,
   isToday,
+  differenceInDays,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CalendarEvent } from "./CalendarEventBar";
 import { Badge } from "@/components/ui/badge";
-import { Globe, Store, Plus } from "lucide-react";
+import { Globe, Store, Plus, GripVertical } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -23,6 +24,7 @@ interface CalendarWeekViewProps {
   events: CalendarEvent[];
   onActionClick?: (action: any) => void;
   onDateClick?: (date: Date) => void;
+  onActionDrop?: (eventId: string, newStartDate: Date, newEndDate: Date | null) => void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -39,7 +41,9 @@ export function CalendarWeekView({
   events,
   onActionClick,
   onDateClick,
+  onActionDrop,
 }: CalendarWeekViewProps) {
+  const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
   const weekStart = startOfWeek(currentDate, { locale: fr });
 
   const weekDays = useMemo(() => {
@@ -52,6 +56,56 @@ export function CalendarWeekView({
       const eventEnd = event.end || event.start;
       return date >= event.start && date <= eventEnd;
     });
+  };
+
+  // Handle drag
+  const handleDragStart = (e: React.DragEvent, event: CalendarEvent) => {
+    e.dataTransfer.setData("application/json", JSON.stringify({
+      eventId: event.id,
+      originalStart: event.start.toISOString(),
+      originalEnd: event.end?.toISOString() || null,
+    }));
+    e.dataTransfer.effectAllowed = "move";
+    (e.target as HTMLElement).style.opacity = "0.5";
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    (e.target as HTMLElement).style.opacity = "1";
+  };
+
+  const handleDragOver = (e: React.DragEvent, day: Date) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverDate(day);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverDate(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetDate: Date) => {
+    e.preventDefault();
+    setDragOverDate(null);
+    
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      const { eventId, originalStart, originalEnd } = data;
+      
+      const originalStartDate = new Date(originalStart);
+      const daysDiff = differenceInDays(targetDate, originalStartDate);
+      
+      const newStartDate = targetDate;
+      let newEndDate: Date | null = null;
+      
+      if (originalEnd) {
+        const originalEndDate = new Date(originalEnd);
+        newEndDate = addDays(originalEndDate, daysDiff);
+      }
+      
+      onActionDrop?.(eventId, newStartDate, newEndDate);
+    } catch (error) {
+      console.error("Error handling drop:", error);
+    }
   };
 
   return (
@@ -86,6 +140,7 @@ export function CalendarWeekView({
         {weekDays.map((day, index) => {
           const dayEvents = getEventsForDay(day);
           const isWeekend = index >= 5;
+          const isDragOver = dragOverDate && isSameDay(dragOverDate, day);
 
           return (
             <div
@@ -93,9 +148,13 @@ export function CalendarWeekView({
               className={cn(
                 "border-r last:border-r-0 p-2 relative group cursor-pointer transition-colors",
                 isWeekend && "bg-muted/30",
-                "hover:bg-accent/30"
+                "hover:bg-accent/30",
+                isDragOver && "bg-primary/20 ring-2 ring-primary ring-inset"
               )}
               onClick={() => onDateClick?.(day)}
+              onDragOver={(e) => handleDragOver(e, day)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, day)}
             >
               {/* Plus icon on hover */}
               <div className="absolute top-2 left-2 h-5 w-5 flex items-center justify-center rounded-full bg-primary/0 group-hover:bg-primary text-primary-foreground opacity-0 group-hover:opacity-100 transition-all">
@@ -108,9 +167,13 @@ export function CalendarWeekView({
                   <Tooltip key={event.id}>
                     <TooltipTrigger asChild>
                       <div
+                        draggable={!!onActionDrop}
+                        onDragStart={(e) => handleDragStart(e, event)}
+                        onDragEnd={handleDragEnd}
                         className={cn(
                           "p-2 rounded-md text-xs cursor-pointer transition-all",
                           "hover:shadow-md hover:scale-[1.02]",
+                          onActionDrop && "cursor-grab active:cursor-grabbing",
                           event.color.bg,
                           event.color.text,
                           event.isNational
@@ -123,6 +186,9 @@ export function CalendarWeekView({
                         }}
                       >
                         <div className="flex items-center gap-1.5 mb-1">
+                          {onActionDrop && (
+                            <GripVertical className="h-3 w-3 opacity-40 flex-shrink-0" />
+                          )}
                           {event.isNational ? (
                             <span className="flex items-center justify-center h-4 w-4 rounded-full bg-blue-500 text-white flex-shrink-0">
                               <Globe className="h-2.5 w-2.5" />
@@ -168,6 +234,11 @@ export function CalendarWeekView({
                             {event.restaurants.length === 1
                               ? event.restaurants[0]
                               : `${event.restaurants.length} restaurants`}
+                          </div>
+                        )}
+                        {onActionDrop && (
+                          <div className="text-[10px] text-muted-foreground/60 border-t pt-1 mt-1">
+                            Glisser-déposer pour changer la date
                           </div>
                         )}
                       </div>

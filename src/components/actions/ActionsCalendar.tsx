@@ -54,6 +54,7 @@ interface ActionsCalendarProps {
   restaurants: Restaurant[];
   onActionClick?: (action: RestaurantAction) => void;
   onDateClick?: (date: Date) => void;
+  onActionDrop?: (actionId: string, newStartDate: Date, newEndDate: Date | null) => void;
 }
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -79,6 +80,7 @@ export function ActionsCalendar({
   restaurants,
   onActionClick,
   onDateClick,
+  onActionDrop,
 }: ActionsCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
@@ -287,6 +289,7 @@ export function ActionsCalendar({
               events={filteredEvents}
               onActionClick={onActionClick}
               onDateClick={onDateClick}
+              onActionDrop={onActionDrop}
             />
           )}
           {viewMode === "week" && (
@@ -295,6 +298,7 @@ export function ActionsCalendar({
               events={filteredEvents}
               onActionClick={onActionClick}
               onDateClick={onDateClick}
+              onActionDrop={onActionDrop}
             />
           )}
           {viewMode === "day" && (

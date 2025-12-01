@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
-import { Globe, Store } from "lucide-react";
+import { Globe, Store, GripVertical } from "lucide-react";
 
 export interface CalendarEvent {
   id: string;
@@ -32,6 +32,7 @@ interface CalendarEventBarProps {
   isStart: boolean;
   isEnd: boolean;
   onClick?: () => void;
+  isDraggable?: boolean;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -51,6 +52,7 @@ export function CalendarEventBar({
   isStart,
   isEnd,
   onClick,
+  isDraggable = true,
 }: CalendarEventBarProps) {
   const leftPercent = (dayIndex / 7) * 100;
   const widthPercent = (span / 7) * 100;
@@ -60,13 +62,34 @@ export function CalendarEventBar({
     ? "border-l-[3px] border-l-blue-500 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.3)]"
     : "border-l-[3px] border-l-emerald-500 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.3)]";
 
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData("application/json", JSON.stringify({
+      eventId: event.id,
+      originalStart: event.start.toISOString(),
+      originalEnd: event.end?.toISOString() || null,
+    }));
+    e.dataTransfer.effectAllowed = "move";
+    // Add drag image styling
+    const target = e.target as HTMLElement;
+    target.style.opacity = "0.5";
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    const target = e.target as HTMLElement;
+    target.style.opacity = "1";
+  };
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
+          draggable={isDraggable}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
           className={cn(
-            "absolute h-6 px-1.5 text-xs flex items-center gap-1.5 cursor-pointer transition-all",
+            "absolute h-6 px-1.5 text-xs flex items-center gap-1 cursor-pointer transition-all",
             "hover:shadow-lg hover:z-20 z-10 hover:scale-[1.02]",
+            isDraggable && "cursor-grab active:cursor-grabbing",
             event.color.bg,
             event.color.text,
             scopeStyles,
@@ -85,6 +108,9 @@ export function CalendarEventBar({
         >
           {isStart && (
             <>
+              {isDraggable && (
+                <GripVertical className="h-3 w-3 opacity-40 flex-shrink-0" />
+              )}
               {event.isNational ? (
                 <span className="flex items-center justify-center h-4 w-4 rounded-full bg-blue-500 text-white flex-shrink-0">
                   <Globe className="h-2.5 w-2.5" />
@@ -132,6 +158,11 @@ export function CalendarEventBar({
                 : `${event.restaurants.length} restaurants`}
             </div>
           ) : null}
+          {isDraggable && (
+            <div className="text-[10px] text-muted-foreground/60 border-t pt-1 mt-1">
+              Glisser-déposer pour changer la date
+            </div>
+          )}
         </div>
       </TooltipContent>
     </Tooltip>

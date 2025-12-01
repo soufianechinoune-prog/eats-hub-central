@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   format,
   startOfMonth,
@@ -9,6 +9,7 @@ import {
   isSameMonth,
   isSameDay,
   isToday,
+  differenceInDays,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ interface CalendarMonthViewProps {
   events: CalendarEvent[];
   onActionClick?: (action: any) => void;
   onDateClick?: (date: Date) => void;
+  onActionDrop?: (eventId: string, newStartDate: Date, newEndDate: Date | null) => void;
 }
 
 export function CalendarMonthView({
@@ -27,7 +29,10 @@ export function CalendarMonthView({
   events,
   onActionClick,
   onDateClick,
+  onActionDrop,
 }: CalendarMonthViewProps) {
+  const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
+
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const calendarStart = startOfWeek(monthStart, { locale: fr });
@@ -50,14 +55,6 @@ export function CalendarMonthView({
 
   const weekDays = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-  // Get events for each day
-  const getEventsForDay = (date: Date) => {
-    return events.filter((event) => {
-      const eventEnd = event.end || event.start;
-      return date >= event.start && date <= eventEnd;
-    });
-  };
-
   // Check if event starts on this day
   const isEventStart = (event: CalendarEvent, date: Date) => {
     return isSameDay(event.start, date);
@@ -77,6 +74,44 @@ export function CalendarMonthView({
       }
     }
     return span;
+  };
+
+  // Handle drag over
+  const handleDragOver = (e: React.DragEvent, day: Date) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverDate(day);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverDate(null);
+  };
+
+  // Handle drop
+  const handleDrop = (e: React.DragEvent, targetDate: Date) => {
+    e.preventDefault();
+    setDragOverDate(null);
+    
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      const { eventId, originalStart, originalEnd } = data;
+      
+      const originalStartDate = new Date(originalStart);
+      const daysDiff = differenceInDays(targetDate, originalStartDate);
+      
+      // Calculate new dates
+      const newStartDate = targetDate;
+      let newEndDate: Date | null = null;
+      
+      if (originalEnd) {
+        const originalEndDate = new Date(originalEnd);
+        newEndDate = addDays(originalEndDate, daysDiff);
+      }
+      
+      onActionDrop?.(eventId, newStartDate, newEndDate);
+    } catch (error) {
+      console.error("Error handling drop:", error);
+    }
   };
 
   return (
@@ -138,6 +173,7 @@ export function CalendarMonthView({
               {week.map((day, dayIndex) => {
                 const isCurrentMonth = isSameMonth(day, currentDate);
                 const isWeekend = dayIndex >= 5;
+                const isDragOver = dragOverDate && isSameDay(dragOverDate, day);
 
                 return (
                   <div
@@ -146,9 +182,13 @@ export function CalendarMonthView({
                       "border-r last:border-r-0 relative transition-colors group",
                       !isCurrentMonth && "bg-muted/20",
                       isWeekend && "bg-muted/30",
-                      "hover:bg-accent/50 cursor-pointer"
+                      "hover:bg-accent/50 cursor-pointer",
+                      isDragOver && "bg-primary/20 ring-2 ring-primary ring-inset"
                     )}
                     onClick={() => onDateClick?.(day)}
+                    onDragOver={(e) => handleDragOver(e, day)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, day)}
                   >
                     <div className="p-1 flex justify-between items-start">
                       <span className="h-5 w-5 flex items-center justify-center rounded-full bg-primary/0 group-hover:bg-primary text-primary-foreground opacity-0 group-hover:opacity-100 transition-all text-xs">
@@ -192,6 +232,7 @@ export function CalendarMonthView({
                     row={row}
                     isStart={isStart}
                     isEnd={isEnd}
+                    isDraggable={!!onActionDrop}
                     onClick={() => onActionClick?.(event.originalAction)}
                   />
                 );
