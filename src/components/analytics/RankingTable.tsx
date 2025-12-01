@@ -30,6 +30,8 @@ import {
   ArrowDown,
   Download,
   ExternalLink,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 interface RankedRestaurant {
@@ -42,13 +44,18 @@ interface RankedRestaurant {
   rank: number;
 }
 
+interface RankedRestaurantWithPrevRank extends RankedRestaurant {
+  prevRank: number | null;
+  rankChange: number | null;
+}
+
 interface RankingTableProps {
   ranking: RankedRestaurant[];
   metricLabel: string;
   formatValue: (v: number) => string;
 }
 
-type SortField = "rank" | "name" | "city" | "value" | "prevValue" | "trend";
+type SortField = "rank" | "name" | "city" | "value" | "prevValue" | "trend" | "rankChange";
 type SortDirection = "asc" | "desc";
 
 function RankMedal({ rank }: { rank: number }) {
@@ -83,6 +90,47 @@ function TrendIndicator({ trend }: { trend: number | null }) {
   );
 }
 
+function RankChangeIndicator({ change }: { change: number | null }) {
+  if (change === null || change === 0) {
+    return (
+      <span className="text-muted-foreground text-xs">—</span>
+    );
+  }
+  
+  // Positive change means rank improved (e.g., from 5 to 3 = +2 positions gained)
+  const isPositive = change > 0;
+  
+  return isPositive ? (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-0.5 text-emerald-600">
+            <ChevronUp className="h-4 w-4" />
+            <span className="text-xs font-semibold">{change}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{change} position{change > 1 ? "s" : ""} gagnée{change > 1 ? "s" : ""}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  ) : (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-0.5 text-red-600">
+            <ChevronDown className="h-4 w-4" />
+            <span className="text-xs font-semibold">{Math.abs(change)}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{Math.abs(change)} position{Math.abs(change) > 1 ? "s" : ""} perdue{Math.abs(change) > 1 ? "s" : ""}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export function RankingTable({ ranking, metricLabel, formatValue }: RankingTableProps) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -91,8 +139,27 @@ export function RankingTable({ ranking, metricLabel, formatValue }: RankingTable
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
+  // Calculate previous ranks based on prevValue
+  const rankingWithPrevRank = useMemo((): RankedRestaurantWithPrevRank[] => {
+    // Sort by prevValue to get previous ranks
+    const sortedByPrev = [...ranking]
+      .filter(r => r.prevValue > 0)
+      .sort((a, b) => b.prevValue - a.prevValue);
+    
+    const prevRankMap = new Map<string, number>();
+    sortedByPrev.forEach((r, idx) => {
+      prevRankMap.set(r.id, idx + 1);
+    });
+    
+    return ranking.map(r => {
+      const prevRank = prevRankMap.get(r.id) || null;
+      const rankChange = prevRank !== null ? prevRank - r.rank : null;
+      return { ...r, prevRank, rankChange };
+    });
+  }, [ranking]);
+
   const filteredAndSorted = useMemo(() => {
-    let result = [...ranking];
+    let result = [...rankingWithPrevRank];
     
     // Filter by search
     if (search) {
@@ -125,12 +192,15 @@ export function RankingTable({ ranking, metricLabel, formatValue }: RankingTable
         case "trend":
           comparison = (a.trend || 0) - (b.trend || 0);
           break;
+        case "rankChange":
+          comparison = (a.rankChange || 0) - (b.rankChange || 0);
+          break;
       }
       return sortDirection === "asc" ? comparison : -comparison;
     });
     
     return result;
-  }, [ranking, search, sortField, sortDirection]);
+  }, [rankingWithPrevRank, search, sortField, sortDirection]);
 
   const paginatedData = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -156,9 +226,10 @@ export function RankingTable({ ranking, metricLabel, formatValue }: RankingTable
   };
 
   const exportCSV = () => {
-    const headers = ["Rang", "Restaurant", "Ville", "Valeur actuelle", "Valeur N-1", "Variation %"];
+    const headers = ["Rang", "Δ Position", "Restaurant", "Ville", "Valeur actuelle", "Valeur N-1", "Variation %"];
     const rows = filteredAndSorted.map(r => [
       r.rank,
+      r.rankChange !== null ? (r.rankChange > 0 ? `+${r.rankChange}` : r.rankChange) : "",
       r.name,
       r.city || "",
       r.value,
@@ -212,6 +283,24 @@ export function RankingTable({ ranking, metricLabel, formatValue }: RankingTable
                   </div>
                 </TableHead>
                 <TableHead 
+                  className="w-[60px] cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort("rankChange")}
+                >
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center">
+                          Δ
+                          <SortIcon field="rankChange" />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Variation de position vs N-1</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableHead>
+                <TableHead 
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort("name")}
                 >
@@ -262,7 +351,7 @@ export function RankingTable({ ranking, metricLabel, formatValue }: RankingTable
             <TableBody>
               {paginatedData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     Aucun résultat trouvé
                   </TableCell>
                 </TableRow>
@@ -275,6 +364,9 @@ export function RankingTable({ ranking, metricLabel, formatValue }: RankingTable
                   >
                     <TableCell>
                       <RankMedal rank={restaurant.rank} />
+                    </TableCell>
+                    <TableCell>
+                      <RankChangeIndicator change={restaurant.rankChange} />
                     </TableCell>
                     <TableCell className="font-medium">
                       <TooltipProvider>
