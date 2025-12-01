@@ -83,6 +83,7 @@ interface Message {
   recipient_name: string | null;
   media_url: string | null;
   media_type: string | null;
+  duration: number | null;
 }
 
 interface Conversation {
@@ -168,10 +169,12 @@ export default function ConversationView() {
     isRecording,
     recordingTime,
     audioBlob,
+    audioDuration,
     startRecording,
     stopRecording,
     cancelRecording,
     clearRecording,
+    convertToMp3,
   } = useVoiceRecorder();
 
   // Notification hook
@@ -721,9 +724,14 @@ export default function ConversationView() {
         (r) => r.manager_whatsapp && normalizePhone(r.manager_whatsapp) === normalizePhone(selectedConversation.phone)
       );
 
-      // Create file from blob
-      const fileName = `voice-${Date.now()}.ogg`;
-      const file = new File([audioBlob], fileName, { type: audioBlob.type });
+      // Convert to MP3
+      console.log('Converting audio to MP3...');
+      const mp3Blob = await convertToMp3(audioBlob);
+      console.log('MP3 conversion complete, size:', mp3Blob.size);
+
+      // Create file from MP3 blob
+      const fileName = `voice-${Date.now()}.mp3`;
+      const file = new File([mp3Blob], fileName, { type: 'audio/mp3' });
 
       // Upload to Supabase storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -742,7 +750,7 @@ export default function ConversationView() {
 
       console.log('Voice uploaded, public URL:', publicUrl);
 
-      // Send via edge function
+      // Send via edge function with duration
       const { data, error } = await supabase.functions.invoke("send-whatsapp-media", {
         body: {
           phone: selectedConversation.phone,
@@ -751,6 +759,7 @@ export default function ConversationView() {
           restaurant_id: restaurant?.id,
           recipient_name: selectedConversation.contactName,
           restaurant_name: selectedConversation.restaurantName,
+          duration: audioDuration, // Pass the recorded duration
         },
       });
 
@@ -840,7 +849,7 @@ export default function ConversationView() {
     if (msg.media_type === 'audio' && msg.media_url) {
       return (
         <div className="min-w-[200px]">
-          <AudioPlayer src={msg.media_url} />
+          <AudioPlayer src={msg.media_url} storedDuration={msg.duration || undefined} />
         </div>
       );
     }
