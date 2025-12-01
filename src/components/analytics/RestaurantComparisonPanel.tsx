@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, GitCompareArrows, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { X, GitCompareArrows, TrendingUp, TrendingDown, Minus, FileDown, Loader2 } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -15,6 +15,8 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
 interface RankedRestaurant {
   id: string;
@@ -57,6 +59,69 @@ export function RestaurantComparisonPanel({
   metricLabel,
   formatValue,
 }: RestaurantComparisonPanelProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportToPdf = useCallback(async () => {
+    if (!contentRef.current || selectedRestaurants.length === 0) return;
+    
+    setIsExporting(true);
+    try {
+      const canvas = await html2canvas(contentRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+
+      // Header
+      pdf.setFontSize(16);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Comparaison de restaurants", margin, 20);
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(100);
+      const restaurantNames = selectedRestaurants.map(r => r.name).join(" vs ");
+      pdf.text(restaurantNames.length > 80 ? restaurantNames.substring(0, 80) + "..." : restaurantNames, margin, 28);
+      pdf.text(`Généré le ${new Date().toLocaleDateString("fr-FR")}`, margin, 34);
+
+      // Content
+      const imgWidth = pageWidth - margin * 2;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const startY = 42;
+
+      if (imgHeight > pageHeight - startY - 15) {
+        const scaleFactor = (pageHeight - startY - 15) / imgHeight;
+        pdf.addImage(imgData, "PNG", margin, startY, imgWidth * scaleFactor, imgHeight * scaleFactor);
+      } else {
+        pdf.addImage(imgData, "PNG", margin, startY, imgWidth, imgHeight);
+      }
+
+      // Footer
+      pdf.setFontSize(8);
+      pdf.setTextColor(150);
+      pdf.text("CS Delivery Performance", margin, pageHeight - 10);
+
+      pdf.save(`comparaison-restaurants-${new Date().toISOString().split("T")[0]}.pdf`);
+    } catch (error) {
+      console.error("PDF export error:", error);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [selectedRestaurants]);
+
   const chartData = useMemo(() => {
     const months = Array.from({ length: 12 }, (_, i) => i + 1);
     
@@ -101,9 +166,24 @@ export function RestaurantComparisonPanel({
               Comparaison ({selectedRestaurants.length}/3 restaurants)
             </CardTitle>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClear}>
-            Effacer
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={exportToPdf}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4" />
+              )}
+              <span className="ml-1">PDF</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClear}>
+              Effacer
+            </Button>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2 mt-2">
           {selectedRestaurants.map((restaurant, index) => (
@@ -127,7 +207,7 @@ export function RestaurantComparisonPanel({
           ))}
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6" ref={contentRef}>
         {/* Summary KPIs */}
         <div className="grid grid-cols-3 gap-4">
           {selectedRestaurants.map((restaurant, index) => (
