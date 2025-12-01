@@ -71,6 +71,13 @@ All colors MUST be HSL.
     --chart-4: 280 70% 60%;
     --chart-5: 187 92% 45%;
 
+    /* AI-specific colors */
+    --ai-glow: 239 84% 67%;
+    --ai-gradient-start: 239 84% 67%;
+    --ai-gradient-end: 280 70% 60%;
+    --ai-surface: 239 30% 97%;
+    --ai-bubble-assistant: 239 20% 96%;
+
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 239 84% 67%;
@@ -154,6 +161,13 @@ All colors MUST be HSL.
     --chart-3: 38 92% 50%;
     --chart-4: 280 70% 60%;
     --chart-5: 187 92% 45%;
+
+    /* AI-specific colors */
+    --ai-glow: 239 84% 67%;
+    --ai-gradient-start: 239 84% 67%;
+    --ai-gradient-end: 280 70% 60%;
+    --ai-surface: 239 20% 25%;
+    --ai-bubble-assistant: 217 33% 20%;
 
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 98%;
