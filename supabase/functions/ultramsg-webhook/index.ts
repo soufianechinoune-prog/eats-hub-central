@@ -61,6 +61,25 @@ serve(async (req) => {
       
       console.log('Associated restaurant:', restaurant?.name || 'None found');
 
+      // Check if this is an "echo" message (already sent as outbound in the last 30 seconds)
+      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+      const { data: recentOutbound } = await supabase
+        .from('message_history')
+        .select('id')
+        .eq('direction', 'outbound')
+        .eq('recipient_phone', normalizedPhone)
+        .eq('message_content', messageData.body)
+        .gte('created_at', thirtySecondsAgo)
+        .maybeSingle();
+
+      if (recentOutbound) {
+        console.log('Ignoring echo message - already exists as outbound');
+        return new Response(
+          JSON.stringify({ success: true, type: 'echo_ignored' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Insert incoming message into message_history
       const { error: insertError } = await supabase
         .from('message_history')
