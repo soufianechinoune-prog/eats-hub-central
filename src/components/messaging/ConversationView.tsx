@@ -761,7 +761,7 @@ export default function ConversationView() {
         </div>
 
         {/* Conversations */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto messaging-scrollbar">
           {isLoading ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -909,7 +909,7 @@ export default function ConversationView() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 min-h-0 overflow-y-auto p-4">
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 messaging-scrollbar">
                 <div className="space-y-3 max-w-3xl mx-auto">
                   {selectedConversation.messages.map((msg, index) => {
                     const isOutbound = msg.direction === "outbound";
