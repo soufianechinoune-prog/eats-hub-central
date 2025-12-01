@@ -547,97 +547,271 @@ export default function Analytics() {
           </div>
         ) : (
           <div ref={chartsRef}>
-            <TabsContent value="uber_eats" className="mt-6 space-y-6">
-              <RestaurantRanking
-                restaurants={restaurants}
-                revenueData={uberRevenueData}
-                conversionData={uberConversionData}
-                feesData={uberFeesData}
-                prevRevenueData={uberPrevRevenueData}
-                prevConversionData={uberPrevConversionData}
-                prevFeesData={uberPrevFeesData}
-                startMonth={effectiveStartMonth}
-                endMonth={effectiveEndMonth}
-              />
-              <AnalyticsCharts
-                revenueData={uberRevenueData}
-                conversionData={uberConversionData}
-                feesData={uberFeesData}
-                prevRevenueData={uberPrevRevenueData}
-                prevConversionData={uberPrevConversionData}
-                prevFeesData={uberPrevFeesData}
-                startMonth={effectiveStartMonth}
-                endMonth={effectiveEndMonth}
-                selectedYear={selectedYear}
-                actions={uberActions}
-                chartActionsConfig={chartActionsConfig}
-                onChartActionsConfigChange={handleChartActionsConfigChange}
-                onActionClick={handleActionClick}
-                selectedCategories={selectedCategories}
-                onCategoryToggle={handleCategoryToggle}
-              />
+            {/* Uber Eats Platform */}
+            <TabsContent value="uber_eats" className="mt-6">
+              <Tabs defaultValue="overview" className="w-full">
+                <TabsList className="grid w-full max-w-[700px] grid-cols-4 mb-6">
+                  <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
+                  <TabsTrigger value="revenue">Revenus</TabsTrigger>
+                  <TabsTrigger value="conversion">Conversion</TabsTrigger>
+                  <TabsTrigger value="finances">Finances</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview" className="space-y-6">
+                  <RestaurantRanking
+                    restaurants={restaurants}
+                    revenueData={uberRevenueData}
+                    conversionData={uberConversionData}
+                    feesData={uberFeesData}
+                    prevRevenueData={uberPrevRevenueData}
+                    prevConversionData={uberPrevConversionData}
+                    prevFeesData={uberPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                  />
+                </TabsContent>
+
+                <TabsContent value="revenue" className="space-y-6">
+                  <AnalyticsCharts
+                    revenueData={uberRevenueData}
+                    conversionData={uberConversionData}
+                    feesData={uberFeesData}
+                    prevRevenueData={uberPrevRevenueData}
+                    prevConversionData={uberPrevConversionData}
+                    prevFeesData={uberPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                    selectedYear={selectedYear}
+                    actions={uberActions}
+                    chartActionsConfig={chartActionsConfig}
+                    onChartActionsConfigChange={handleChartActionsConfigChange}
+                    onActionClick={handleActionClick}
+                    selectedCategories={selectedCategories}
+                    onCategoryToggle={handleCategoryToggle}
+                    viewMode="revenue"
+                  />
+                </TabsContent>
+
+                <TabsContent value="conversion" className="space-y-6">
+                  <AnalyticsCharts
+                    revenueData={uberRevenueData}
+                    conversionData={uberConversionData}
+                    feesData={uberFeesData}
+                    prevRevenueData={uberPrevRevenueData}
+                    prevConversionData={uberPrevConversionData}
+                    prevFeesData={uberPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                    selectedYear={selectedYear}
+                    actions={uberActions}
+                    chartActionsConfig={chartActionsConfig}
+                    onChartActionsConfigChange={handleChartActionsConfigChange}
+                    onActionClick={handleActionClick}
+                    selectedCategories={selectedCategories}
+                    onCategoryToggle={handleCategoryToggle}
+                    viewMode="conversion"
+                  />
+                </TabsContent>
+
+                <TabsContent value="finances" className="space-y-6">
+                  <AnalyticsCharts
+                    revenueData={uberRevenueData}
+                    conversionData={uberConversionData}
+                    feesData={uberFeesData}
+                    prevRevenueData={uberPrevRevenueData}
+                    prevConversionData={uberPrevConversionData}
+                    prevFeesData={uberPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                    selectedYear={selectedYear}
+                    actions={uberActions}
+                    chartActionsConfig={chartActionsConfig}
+                    onChartActionsConfigChange={handleChartActionsConfigChange}
+                    onActionClick={handleActionClick}
+                    selectedCategories={selectedCategories}
+                    onCategoryToggle={handleCategoryToggle}
+                    viewMode="finances"
+                  />
+                </TabsContent>
+              </Tabs>
             </TabsContent>
 
-            <TabsContent value="deliveroo" className="mt-6 space-y-6">
-              <RestaurantRanking
-                restaurants={restaurants}
-                revenueData={deliverooRevenueData}
-                conversionData={deliverooConversionData}
-                feesData={deliverooFeesData}
-                prevRevenueData={deliverooPrevRevenueData}
-                prevConversionData={deliverooPrevConversionData}
-                prevFeesData={deliverooPrevFeesData}
-                startMonth={effectiveStartMonth}
-                endMonth={effectiveEndMonth}
-              />
-              <AnalyticsCharts
-                revenueData={deliverooRevenueData}
-                conversionData={deliverooConversionData}
-                feesData={deliverooFeesData}
-                prevRevenueData={deliverooPrevRevenueData}
-                prevConversionData={deliverooPrevConversionData}
-                prevFeesData={deliverooPrevFeesData}
-                startMonth={effectiveStartMonth}
-                endMonth={effectiveEndMonth}
-                selectedYear={selectedYear}
-                actions={deliverooActions}
-                chartActionsConfig={chartActionsConfig}
-                onChartActionsConfigChange={handleChartActionsConfigChange}
-                onActionClick={handleActionClick}
-                selectedCategories={selectedCategories}
-                onCategoryToggle={handleCategoryToggle}
-              />
+            {/* Deliveroo Platform */}
+            <TabsContent value="deliveroo" className="mt-6">
+              <Tabs defaultValue="overview" className="w-full">
+                <TabsList className="grid w-full max-w-[700px] grid-cols-4 mb-6">
+                  <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
+                  <TabsTrigger value="revenue">Revenus</TabsTrigger>
+                  <TabsTrigger value="conversion">Conversion</TabsTrigger>
+                  <TabsTrigger value="finances">Finances</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview" className="space-y-6">
+                  <RestaurantRanking
+                    restaurants={restaurants}
+                    revenueData={deliverooRevenueData}
+                    conversionData={deliverooConversionData}
+                    feesData={deliverooFeesData}
+                    prevRevenueData={deliverooPrevRevenueData}
+                    prevConversionData={deliverooPrevConversionData}
+                    prevFeesData={deliverooPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                  />
+                </TabsContent>
+
+                <TabsContent value="revenue" className="space-y-6">
+                  <AnalyticsCharts
+                    revenueData={deliverooRevenueData}
+                    conversionData={deliverooConversionData}
+                    feesData={deliverooFeesData}
+                    prevRevenueData={deliverooPrevRevenueData}
+                    prevConversionData={deliverooPrevConversionData}
+                    prevFeesData={deliverooPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                    selectedYear={selectedYear}
+                    actions={deliverooActions}
+                    chartActionsConfig={chartActionsConfig}
+                    onChartActionsConfigChange={handleChartActionsConfigChange}
+                    onActionClick={handleActionClick}
+                    selectedCategories={selectedCategories}
+                    onCategoryToggle={handleCategoryToggle}
+                    viewMode="revenue"
+                  />
+                </TabsContent>
+
+                <TabsContent value="conversion" className="space-y-6">
+                  <AnalyticsCharts
+                    revenueData={deliverooRevenueData}
+                    conversionData={deliverooConversionData}
+                    feesData={deliverooFeesData}
+                    prevRevenueData={deliverooPrevRevenueData}
+                    prevConversionData={deliverooPrevConversionData}
+                    prevFeesData={deliverooPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                    selectedYear={selectedYear}
+                    actions={deliverooActions}
+                    chartActionsConfig={chartActionsConfig}
+                    onChartActionsConfigChange={handleChartActionsConfigChange}
+                    onActionClick={handleActionClick}
+                    selectedCategories={selectedCategories}
+                    onCategoryToggle={handleCategoryToggle}
+                    viewMode="conversion"
+                  />
+                </TabsContent>
+
+                <TabsContent value="finances" className="space-y-6">
+                  <AnalyticsCharts
+                    revenueData={deliverooRevenueData}
+                    conversionData={deliverooConversionData}
+                    feesData={deliverooFeesData}
+                    prevRevenueData={deliverooPrevRevenueData}
+                    prevConversionData={deliverooPrevConversionData}
+                    prevFeesData={deliverooPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                    selectedYear={selectedYear}
+                    actions={deliverooActions}
+                    chartActionsConfig={chartActionsConfig}
+                    onChartActionsConfigChange={handleChartActionsConfigChange}
+                    onActionClick={handleActionClick}
+                    selectedCategories={selectedCategories}
+                    onCategoryToggle={handleCategoryToggle}
+                    viewMode="finances"
+                  />
+                </TabsContent>
+              </Tabs>
             </TabsContent>
 
-            <TabsContent value="global" className="mt-6 space-y-6">
-              <RestaurantRanking
-                restaurants={restaurants}
-                revenueData={globalRevenueData}
-                conversionData={globalConversionData}
-                feesData={globalFeesData}
-                prevRevenueData={globalPrevRevenueData}
-                prevConversionData={globalPrevConversionData}
-                prevFeesData={globalPrevFeesData}
-                startMonth={effectiveStartMonth}
-                endMonth={effectiveEndMonth}
-              />
-              <AnalyticsCharts
-                revenueData={globalRevenueData}
-                conversionData={globalConversionData}
-                feesData={globalFeesData}
-                prevRevenueData={globalPrevRevenueData}
-                prevConversionData={globalPrevConversionData}
-                prevFeesData={globalPrevFeesData}
-                startMonth={effectiveStartMonth}
-                endMonth={effectiveEndMonth}
-                selectedYear={selectedYear}
-                actions={globalActions}
-                chartActionsConfig={chartActionsConfig}
-                onChartActionsConfigChange={handleChartActionsConfigChange}
-                onActionClick={handleActionClick}
-                selectedCategories={selectedCategories}
-                onCategoryToggle={handleCategoryToggle}
-              />
+            {/* Global Platform */}
+            <TabsContent value="global" className="mt-6">
+              <Tabs defaultValue="overview" className="w-full">
+                <TabsList className="grid w-full max-w-[700px] grid-cols-4 mb-6">
+                  <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
+                  <TabsTrigger value="revenue">Revenus</TabsTrigger>
+                  <TabsTrigger value="conversion">Conversion</TabsTrigger>
+                  <TabsTrigger value="finances">Finances</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview" className="space-y-6">
+                  <RestaurantRanking
+                    restaurants={restaurants}
+                    revenueData={globalRevenueData}
+                    conversionData={globalConversionData}
+                    feesData={globalFeesData}
+                    prevRevenueData={globalPrevRevenueData}
+                    prevConversionData={globalPrevConversionData}
+                    prevFeesData={globalPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                  />
+                </TabsContent>
+
+                <TabsContent value="revenue" className="space-y-6">
+                  <AnalyticsCharts
+                    revenueData={globalRevenueData}
+                    conversionData={globalConversionData}
+                    feesData={globalFeesData}
+                    prevRevenueData={globalPrevRevenueData}
+                    prevConversionData={globalPrevConversionData}
+                    prevFeesData={globalPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                    selectedYear={selectedYear}
+                    actions={globalActions}
+                    chartActionsConfig={chartActionsConfig}
+                    onChartActionsConfigChange={handleChartActionsConfigChange}
+                    onActionClick={handleActionClick}
+                    selectedCategories={selectedCategories}
+                    onCategoryToggle={handleCategoryToggle}
+                    viewMode="revenue"
+                  />
+                </TabsContent>
+
+                <TabsContent value="conversion" className="space-y-6">
+                  <AnalyticsCharts
+                    revenueData={globalRevenueData}
+                    conversionData={globalConversionData}
+                    feesData={globalFeesData}
+                    prevRevenueData={globalPrevRevenueData}
+                    prevConversionData={globalPrevConversionData}
+                    prevFeesData={globalPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                    selectedYear={selectedYear}
+                    actions={globalActions}
+                    chartActionsConfig={chartActionsConfig}
+                    onChartActionsConfigChange={handleChartActionsConfigChange}
+                    onActionClick={handleActionClick}
+                    selectedCategories={selectedCategories}
+                    onCategoryToggle={handleCategoryToggle}
+                    viewMode="conversion"
+                  />
+                </TabsContent>
+
+                <TabsContent value="finances" className="space-y-6">
+                  <AnalyticsCharts
+                    revenueData={globalRevenueData}
+                    conversionData={globalConversionData}
+                    feesData={globalFeesData}
+                    prevRevenueData={globalPrevRevenueData}
+                    prevConversionData={globalPrevConversionData}
+                    prevFeesData={globalPrevFeesData}
+                    startMonth={effectiveStartMonth}
+                    endMonth={effectiveEndMonth}
+                    selectedYear={selectedYear}
+                    actions={globalActions}
+                    chartActionsConfig={chartActionsConfig}
+                    onChartActionsConfigChange={handleChartActionsConfigChange}
+                    onActionClick={handleActionClick}
+                    selectedCategories={selectedCategories}
+                    onCategoryToggle={handleCategoryToggle}
+                    viewMode="finances"
+                  />
+                </TabsContent>
+              </Tabs>
             </TabsContent>
           </div>
         )}
