@@ -76,7 +76,8 @@ serve(async (req) => {
     if (mediaType === 'image') {
       endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/image`;
     } else if (mediaType === 'audio') {
-      endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/audio`;
+      // Use the "voice" endpoint for WhatsApp voice notes (.ogg Opus)
+      endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/voice`;
     } else {
       endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/document`;
     }
