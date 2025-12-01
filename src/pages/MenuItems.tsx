@@ -966,12 +966,9 @@ export default function MenuItems() {
                               const marginDeliveroo = calculateMargin(item.price_deliveroo, item.food_cost);
                               
                               return (
-                                <motion.tr 
+                                <TableRow 
                                   key={item.id}
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  transition={{ delay: itemIdx * 0.03 }}
-                                  className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                                  className="border-b transition-all duration-200 hover:bg-muted/50 data-[state=selected]:bg-muted"
                                 >
                                   <TableCell className="font-medium">
                                     <div className="flex items-center gap-1">
@@ -1057,7 +1054,7 @@ export default function MenuItems() {
                                       </motion.div>
                                     </div>
                                   </TableCell>
-                                </motion.tr>
+                                </TableRow>
                               );
                             })}
                           </TableBody>
