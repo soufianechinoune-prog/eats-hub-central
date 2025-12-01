@@ -49,14 +49,22 @@ export const CommuneDensityLayer = ({
 
     // Remove existing layers and source
     const cleanup = () => {
-      if (map.getLayer(labelLayerId)) {
-        map.removeLayer(labelLayerId);
-      }
-      if (map.getLayer(heatmapLayerId)) {
-        map.removeLayer(heatmapLayerId);
-      }
-      if (map.getSource(sourceId)) {
-        map.removeSource(sourceId);
+      // Check if map and style are still valid before accessing layers
+      if (!map || !map.getStyle()) return;
+      
+      try {
+        if (map.getLayer(labelLayerId)) {
+          map.removeLayer(labelLayerId);
+        }
+        if (map.getLayer(heatmapLayerId)) {
+          map.removeLayer(heatmapLayerId);
+        }
+        if (map.getSource(sourceId)) {
+          map.removeSource(sourceId);
+        }
+      } catch (error) {
+        // Ignore errors during cleanup if map is being destroyed
+        console.debug("Cleanup error (expected during map destruction):", error);
       }
     };
 
