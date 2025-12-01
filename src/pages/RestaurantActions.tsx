@@ -1108,8 +1108,8 @@ export default function RestaurantActions() {
         </Card>
         <Card 
           className={cn(
-            "cursor-pointer transition-all hover:shadow-md",
-            platformFilters.includes("uber_eats") && "ring-2 ring-[#06C167]",
+            "cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02]",
+            platformFilters.includes("uber_eats") && "ring-2 ring-[#06C167] scale-[1.03] shadow-md",
             uberActionsRaw === 0 && "opacity-40 pointer-events-none"
           )}
           onClick={() => setPlatformFilters(prev => 
@@ -1132,8 +1132,8 @@ export default function RestaurantActions() {
         </Card>
         <Card 
           className={cn(
-            "cursor-pointer transition-all hover:shadow-md",
-            platformFilters.includes("deliveroo") && "ring-2 ring-[#00CCBC]",
+            "cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02]",
+            platformFilters.includes("deliveroo") && "ring-2 ring-[#00CCBC] scale-[1.03] shadow-md",
             deliverooActionsRaw === 0 && "opacity-40 pointer-events-none"
           )}
           onClick={() => setPlatformFilters(prev => 
@@ -1164,8 +1164,8 @@ export default function RestaurantActions() {
             <Card 
               key={cat.id} 
               className={cn(
-                "cursor-pointer transition-all hover:shadow-md",
-                categoryFilters.includes(cat.id) && "ring-2 ring-primary",
+                "cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02]",
+                categoryFilters.includes(cat.id) && "ring-2 ring-primary scale-[1.03] shadow-md",
                 cat.count === 0 && "opacity-40 pointer-events-none"
               )}
               onClick={() => setCategoryFilters(prev => 
