@@ -62,30 +62,10 @@ export function CalendarEventBar({
     ? "border-l-[3px] border-l-blue-500 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.3)]"
     : "border-l-[3px] border-l-emerald-500 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.3)]";
 
-  const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData("application/json", JSON.stringify({
-      eventId: event.id,
-      originalStart: event.start.toISOString(),
-      originalEnd: event.end?.toISOString() || null,
-    }));
-    e.dataTransfer.effectAllowed = "move";
-    // Add drag image styling
-    const target = e.target as HTMLElement;
-    target.style.opacity = "0.5";
-  };
-
-  const handleDragEnd = (e: React.DragEvent) => {
-    const target = e.target as HTMLElement;
-    target.style.opacity = "1";
-  };
-
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          draggable={isDraggable}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
           className={cn(
             "absolute h-6 px-1.5 text-xs flex items-center gap-1 cursor-pointer transition-all",
             "hover:shadow-lg hover:z-20 z-10 hover:scale-[1.02]",

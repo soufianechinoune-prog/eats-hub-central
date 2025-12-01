@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   format,
   startOfMonth,
@@ -14,6 +14,7 @@ import {
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CalendarEventBar, CalendarEvent } from "./CalendarEventBar";
+import { DragPreview } from "./DragPreview";
 import { Plus } from "lucide-react";
 
 interface CalendarMonthViewProps {
@@ -32,6 +33,8 @@ export function CalendarMonthView({
   onActionDrop,
 }: CalendarMonthViewProps) {
   const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
+  const [draggedEvent, setDraggedEvent] = useState<CalendarEvent | null>(null);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -76,21 +79,35 @@ export function CalendarMonthView({
     return span;
   };
 
-  // Handle drag over
-  const handleDragOver = (e: React.DragEvent, day: Date) => {
+  // Handle drag start - capture the event being dragged
+  const handleDragStartCapture = useCallback((event: CalendarEvent) => {
+    setDraggedEvent(event);
+  }, []);
+
+  // Handle drag over with position tracking
+  const handleDragOver = useCallback((e: React.DragEvent, day: Date) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     setDragOverDate(day);
-  };
+    setDragPosition({ x: e.clientX, y: e.clientY });
+  }, []);
 
-  const handleDragLeave = () => {
+  const handleDragLeave = useCallback(() => {
+    // Don't clear immediately to prevent flickering
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
     setDragOverDate(null);
-  };
+    setDraggedEvent(null);
+    setDragPosition(null);
+  }, []);
 
   // Handle drop
-  const handleDrop = (e: React.DragEvent, targetDate: Date) => {
+  const handleDrop = useCallback((e: React.DragEvent, targetDate: Date) => {
     e.preventDefault();
     setDragOverDate(null);
+    setDraggedEvent(null);
+    setDragPosition(null);
     
     try {
       const data = JSON.parse(e.dataTransfer.getData("application/json"));
@@ -99,7 +116,9 @@ export function CalendarMonthView({
       const originalStartDate = new Date(originalStart);
       const daysDiff = differenceInDays(targetDate, originalStartDate);
       
-      // Calculate new dates
+      // Don't do anything if dropped on same date
+      if (daysDiff === 0) return;
+      
       const newStartDate = targetDate;
       let newEndDate: Date | null = null;
       
@@ -112,7 +131,25 @@ export function CalendarMonthView({
     } catch (error) {
       console.error("Error handling drop:", error);
     }
-  };
+  }, [onActionDrop]);
+
+  // Custom drag start handler to capture event
+  const handleEventDragStart = useCallback((e: React.DragEvent, event: CalendarEvent) => {
+    e.dataTransfer.setData("application/json", JSON.stringify({
+      eventId: event.id,
+      originalStart: event.start.toISOString(),
+      originalEnd: event.end?.toISOString() || null,
+    }));
+    e.dataTransfer.effectAllowed = "move";
+    setDraggedEvent(event);
+    
+    // Create a custom drag image
+    const dragImage = document.createElement("div");
+    dragImage.style.opacity = "0";
+    document.body.appendChild(dragImage);
+    e.dataTransfer.setDragImage(dragImage, 0, 0);
+    setTimeout(() => document.body.removeChild(dragImage), 0);
+  }, []);
 
   return (
     <>
@@ -179,11 +216,11 @@ export function CalendarMonthView({
                   <div
                     key={day.toISOString()}
                     className={cn(
-                      "border-r last:border-r-0 relative transition-colors group",
+                      "border-r last:border-r-0 relative transition-all duration-150 group",
                       !isCurrentMonth && "bg-muted/20",
                       isWeekend && "bg-muted/30",
                       "hover:bg-accent/50 cursor-pointer",
-                      isDragOver && "bg-primary/20 ring-2 ring-primary ring-inset"
+                      isDragOver && "bg-primary/20 ring-2 ring-primary ring-inset scale-[1.02]"
                     )}
                     onClick={() => onDateClick?.(day)}
                     onDragOver={(e) => handleDragOver(e, day)}
@@ -196,14 +233,24 @@ export function CalendarMonthView({
                       </span>
                       <span
                         className={cn(
-                          "h-7 w-7 flex items-center justify-center text-sm rounded-full",
+                          "h-7 w-7 flex items-center justify-center text-sm rounded-full transition-all",
                           isToday(day) && "bg-primary text-primary-foreground font-bold",
-                          !isCurrentMonth && "text-muted-foreground"
+                          !isCurrentMonth && "text-muted-foreground",
+                          isDragOver && "bg-primary text-primary-foreground font-bold scale-110"
                         )}
                       >
                         {format(day, "d")}
                       </span>
                     </div>
+                    
+                    {/* Drop zone indicator */}
+                    {isDragOver && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
+                          {format(day, "d MMM", { locale: fr })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -222,25 +269,43 @@ export function CalendarMonthView({
                 const isEnd = !event.end || 
                   isSameDay(addDays(startDay, span - 1), event.end) ||
                   dayIndex + span === 7;
+                const isBeingDragged = draggedEvent?.id === event.id;
 
                 return (
-                  <CalendarEventBar
+                  <div
                     key={`${event.id}-${weekIndex}`}
-                    event={event}
-                    dayIndex={dayIndex}
-                    span={span}
-                    row={row}
-                    isStart={isStart}
-                    isEnd={isEnd}
-                    isDraggable={!!onActionDrop}
-                    onClick={() => onActionClick?.(event.originalAction)}
-                  />
+                    draggable={!!onActionDrop}
+                    onDragStart={(e) => handleEventDragStart(e, event)}
+                    onDragEnd={handleDragEnd}
+                    className={cn(
+                      "transition-opacity duration-150",
+                      isBeingDragged && "opacity-40"
+                    )}
+                  >
+                    <CalendarEventBar
+                      event={event}
+                      dayIndex={dayIndex}
+                      span={span}
+                      row={row}
+                      isStart={isStart}
+                      isEnd={isEnd}
+                      isDraggable={!!onActionDrop}
+                      onClick={() => onActionClick?.(event.originalAction)}
+                    />
+                  </div>
                 );
               })}
             </div>
           );
         })}
       </div>
+
+      {/* Drag Preview */}
+      <DragPreview
+        event={draggedEvent}
+        targetDate={dragOverDate}
+        position={dragPosition}
+      />
     </>
   );
 }
