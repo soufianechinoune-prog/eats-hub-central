@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
+import Overview from "./pages/Overview";
 import Dashboard from "./pages/Dashboard";
 import Restaurants from "./pages/Restaurants";
 import RestaurantMenu from "./pages/RestaurantMenu";
@@ -76,6 +77,16 @@ const App = () => {
             <Route path="/auth" element={<Navigate to="/" replace />} />
             <Route
               path="/"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <Overview />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/classements"
               element={
                 <ProtectedRoute session={session}>
                   <AppLayout>
