@@ -12,6 +12,11 @@ import {
   MessageSquare,
   Settings2,
   Map,
+  ChevronRight,
+  Eye,
+  Euro,
+  TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -24,8 +29,16 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import csLogo from "@/assets/cs-logo.jpeg";
@@ -68,17 +81,20 @@ const dataItems = [
   },
 ];
 
-// Pilotage & Analyse
+// Analytics sub-items
+const analyticsSubItems = [
+  { title: "Vue d'ensemble", url: "/analytics?view=overview", icon: Eye },
+  { title: "Revenus & Ventes", url: "/analytics?view=revenue", icon: Euro },
+  { title: "Conversion", url: "/analytics?view=conversion", icon: TrendingUp },
+  { title: "Finances & Frais", url: "/analytics?view=finances", icon: Wallet },
+];
+
+// Pilotage & Analyse (without Analytics)
 const analysisItems = [
   {
     title: "Actions & Events",
     url: "/actions",
     icon: Zap,
-  },
-  {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
   },
   {
     title: "Cartographie",
@@ -115,6 +131,13 @@ export function AppSidebar() {
       return location.pathname === "/";
     }
     return location.pathname.startsWith(path);
+  };
+
+  const isAnalyticsActive = () => location.pathname.startsWith("/analytics");
+  
+  const getActiveAnalyticsView = () => {
+    const params = new URLSearchParams(location.search);
+    return params.get("view") || "overview";
   };
 
   const getBadgeCount = (url: string) => {
@@ -222,6 +245,59 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              
+              {/* Analytics Collapsible Menu */}
+              <Collapsible
+                open={isAnalyticsActive()}
+                className="group/collapsible"
+              >
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      className={
+                        isAnalyticsActive()
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : ""
+                      }
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      {!collapsed && <span>Analytics</span>}
+                      {!collapsed && (
+                        <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      )}
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  {!collapsed && (
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {analyticsSubItems.map((subItem) => {
+                          const isSubActive = 
+                            isAnalyticsActive() && 
+                            getActiveAnalyticsView() === subItem.url.split("view=")[1];
+                          
+                          return (
+                            <SidebarMenuSubItem key={subItem.title}>
+                              <SidebarMenuSubButton
+                                asChild
+                                className={
+                                  isSubActive
+                                    ? "bg-sidebar-accent/50 text-sidebar-accent-foreground font-medium"
+                                    : ""
+                                }
+                              >
+                                <NavLink to={subItem.url}>
+                                  <subItem.icon className="h-4 w-4" />
+                                  <span>{subItem.title}</span>
+                                </NavLink>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          );
+                        })}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  )}
+                </SidebarMenuItem>
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
