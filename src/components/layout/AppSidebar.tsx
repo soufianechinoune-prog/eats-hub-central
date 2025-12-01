@@ -19,6 +19,8 @@ import {
   Euro,
   TrendingUp,
   Wallet,
+  Trophy,
+  Home,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -45,13 +47,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import csLogo from "@/assets/cs-logo.jpeg";
 
-// Navigation principale
+// Analytics sub-items (first in sidebar, includes dashboard)
+const analyticsSubItems = [
+  { title: "Vue d'ensemble", url: "/", icon: Home },
+  { title: "Revenus & Ventes", url: "/analytics?view=revenue", icon: Euro },
+  { title: "Conversion", url: "/analytics?view=conversion", icon: TrendingUp },
+  { title: "Finances & Frais", url: "/analytics?view=finances", icon: Wallet },
+  { title: "Classements", url: "/analytics/ranking/revenue", icon: Trophy },
+];
+
+// Navigation principale (after Analytics)
 const mainItems = [
-  {
-    title: "Vue d'ensemble",
-    url: "/",
-    icon: LayoutDashboard,
-  },
   {
     title: "Restaurants",
     url: "/restaurants",
@@ -83,15 +89,7 @@ const dataItems = [
   },
 ];
 
-// Analytics sub-items
-const analyticsSubItems = [
-  { title: "Vue d'ensemble", url: "/analytics?view=overview", icon: Eye },
-  { title: "Revenus & Ventes", url: "/analytics?view=revenue", icon: Euro },
-  { title: "Conversion", url: "/analytics?view=conversion", icon: TrendingUp },
-  { title: "Finances & Frais", url: "/analytics?view=finances", icon: Wallet },
-];
-
-// Pilotage & Analyse (without Analytics)
+// Pilotage & Analyse
 const analysisItems = [
   {
     title: "Actions & Events",
@@ -136,11 +134,24 @@ export function AppSidebar() {
     return location.pathname.startsWith(path);
   };
 
-  const isAnalyticsActive = () => location.pathname.startsWith("/analytics");
+  const isAnalyticsActive = () => {
+    return location.pathname === "/" || 
+           location.pathname.startsWith("/analytics");
+  };
   
-  const getActiveAnalyticsView = () => {
-    const params = new URLSearchParams(location.search);
-    return params.get("view") || "overview";
+  const getActiveAnalyticsSubItem = (url: string) => {
+    if (url === "/") {
+      return location.pathname === "/";
+    }
+    if (url.startsWith("/analytics?view=")) {
+      const params = new URLSearchParams(location.search);
+      const view = params.get("view");
+      return location.pathname === "/analytics" && url.includes(`view=${view}`);
+    }
+    if (url.startsWith("/analytics/ranking")) {
+      return location.pathname.startsWith("/analytics/ranking");
+    }
+    return false;
   };
 
   const getBadgeCount = (url: string) => {
@@ -164,6 +175,87 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              {/* Analytics Collapsible Menu - First Item */}
+              <Collapsible
+                open={analyticsOpen || isAnalyticsActive()}
+                onOpenChange={setAnalyticsOpen}
+                className="group/collapsible"
+              >
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      className={
+                        isAnalyticsActive()
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : ""
+                      }
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      {!collapsed && <span>Analytics</span>}
+                      {!collapsed && (
+                        <motion.div
+                          animate={{ rotate: (analyticsOpen || isAnalyticsActive()) ? 90 : 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="ml-auto"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </motion.div>
+                      )}
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  {!collapsed && (
+                    <CollapsibleContent className="overflow-hidden">
+                      <AnimatePresence>
+                        {(analyticsOpen || isAnalyticsActive()) && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                          >
+                            <SidebarMenuSub>
+                              {analyticsSubItems.map((subItem, index) => {
+                                const isSubActive = getActiveAnalyticsSubItem(subItem.url);
+                                
+                                return (
+                                  <motion.div
+                                    key={subItem.title}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ 
+                                      duration: 0.2, 
+                                      delay: index * 0.05,
+                                      ease: "easeOut"
+                                    }}
+                                  >
+                                    <SidebarMenuSubItem>
+                                      <SidebarMenuSubButton
+                                        asChild
+                                        className={
+                                          isSubActive
+                                            ? "bg-sidebar-accent/50 text-sidebar-accent-foreground font-medium"
+                                            : ""
+                                        }
+                                      >
+                                        <NavLink to={subItem.url} end={subItem.url === "/"}>
+                                          <subItem.icon className="h-4 w-4" />
+                                          <span>{subItem.title}</span>
+                                        </NavLink>
+                                      </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                  </motion.div>
+                                );
+                              })}
+                            </SidebarMenuSub>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </CollapsibleContent>
+                  )}
+                </SidebarMenuItem>
+              </Collapsible>
+
+              {/* Main Items - After Analytics */}
               {mainItems.map((item) => {
                 const badgeCount = getBadgeCount(item.url);
                 return (
@@ -248,88 +340,6 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              
-              {/* Analytics Collapsible Menu */}
-              <Collapsible
-                open={analyticsOpen || isAnalyticsActive()}
-                onOpenChange={setAnalyticsOpen}
-                className="group/collapsible"
-              >
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton
-                      className={
-                        isAnalyticsActive()
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : ""
-                      }
-                    >
-                      <BarChart3 className="h-4 w-4" />
-                      {!collapsed && <span>Analytics</span>}
-                      {!collapsed && (
-                        <motion.div
-                          animate={{ rotate: (analyticsOpen || isAnalyticsActive()) ? 90 : 0 }}
-                          transition={{ duration: 0.2, ease: "easeInOut" }}
-                          className="ml-auto"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </motion.div>
-                      )}
-                    </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  {!collapsed && (
-                    <CollapsibleContent className="overflow-hidden">
-                      <AnimatePresence>
-                        {(analyticsOpen || isAnalyticsActive()) && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.3, ease: "easeInOut" }}
-                          >
-                            <SidebarMenuSub>
-                              {analyticsSubItems.map((subItem, index) => {
-                                const isSubActive = 
-                                  isAnalyticsActive() && 
-                                  getActiveAnalyticsView() === subItem.url.split("view=")[1];
-                                
-                                return (
-                                  <motion.div
-                                    key={subItem.title}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ 
-                                      duration: 0.2, 
-                                      delay: index * 0.05,
-                                      ease: "easeOut"
-                                    }}
-                                  >
-                                    <SidebarMenuSubItem>
-                                      <SidebarMenuSubButton
-                                        asChild
-                                        className={
-                                          isSubActive
-                                            ? "bg-sidebar-accent/50 text-sidebar-accent-foreground font-medium"
-                                            : ""
-                                        }
-                                      >
-                                        <NavLink to={subItem.url}>
-                                          <subItem.icon className="h-4 w-4" />
-                                          <span>{subItem.title}</span>
-                                        </NavLink>
-                                      </SidebarMenuSubButton>
-                                    </SidebarMenuSubItem>
-                                  </motion.div>
-                                );
-                              })}
-                            </SidebarMenuSub>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </CollapsibleContent>
-                  )}
-                </SidebarMenuItem>
-              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
