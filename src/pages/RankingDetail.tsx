@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Euro, Users, Percent, Trophy, TrendingUp, TrendingDown, Minus, Calculator } from "lucide-react";
-import { RankingEvolutionChart } from "@/components/analytics/RankingEvolutionChart";
 import { RankingDistributionChart } from "@/components/analytics/RankingDistributionChart";
 import { RankingTable } from "@/components/analytics/RankingTable";
 
@@ -364,60 +363,6 @@ export default function RankingDetail() {
       .map((r, i) => ({ ...r, rank: i + 1 }));
   }, [metricType, restaurants, revenueData, prevRevenueData, conversionData, prevConversionData, feesData, prevFeesData, startMonth, endMonth]);
 
-  // Calculate monthly data for evolution chart
-  const monthlyChartData = useMemo(() => {
-    if (metricType === "revenue" && revenueData) {
-      return revenueData
-        .filter(r => r.month >= startMonth && r.month <= endMonth)
-        .map(r => ({
-          restaurant_id: r.restaurant_id,
-          month: r.month,
-          value: Number(r.revenue_ttc) || 0,
-        }));
-    }
-    
-    if (metricType === "conversion" && conversionData) {
-      return conversionData
-        .filter(r => r.month >= startMonth && r.month <= endMonth)
-        .map(r => ({
-          restaurant_id: r.restaurant_id,
-          month: r.month,
-          value: Number(r.visits) > 0 ? (Number(r.orders) / Number(r.visits)) * 100 : 0,
-        }));
-    }
-    
-    if (metricType === "profitability" && revenueData && feesData) {
-      const revenueByMonth = new Map<string, number>();
-      const payoutByMonth = new Map<string, number>();
-      
-      revenueData
-        .filter(r => r.month >= startMonth && r.month <= endMonth)
-        .forEach(r => {
-          const key = `${r.restaurant_id}-${r.month}`;
-          revenueByMonth.set(key, Number(r.revenue_ttc) || 0);
-        });
-      
-      feesData
-        .filter(r => r.month >= startMonth && r.month <= endMonth)
-        .forEach(r => {
-          const key = `${r.restaurant_id}-${r.month}`;
-          payoutByMonth.set(key, Number(r.net_payout) || 0);
-        });
-      
-      const result: { restaurant_id: string; month: number; value: number }[] = [];
-      revenueByMonth.forEach((revenue, key) => {
-        const [restaurantId, monthStr] = key.split("-");
-        const month = parseInt(monthStr);
-        const payout = payoutByMonth.get(key) || 0;
-        const profitability = revenue > 0 ? (payout / revenue) * 100 : 0;
-        result.push({ restaurant_id: restaurantId, month, value: profitability });
-      });
-      
-      return result;
-    }
-    
-    return [];
-  }, [metricType, revenueData, conversionData, feesData, startMonth, endMonth]);
 
   // KPI calculations
   const kpis = useMemo(() => {
@@ -632,22 +577,13 @@ export default function RankingDetail() {
           </Card>
         </div>
 
-        {/* Charts */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <RankingEvolutionChart
-            ranking={ranking}
-            monthlyData={monthlyChartData}
-            metricLabel={config.label}
-            formatValue={config.formatValue}
-            colorClass={config.colorClass}
-          />
-          <RankingDistributionChart
-            ranking={ranking}
-            metricLabel={config.label}
-            formatValue={config.formatValue}
-            colorClass={config.colorClass}
-          />
-        </div>
+        {/* Distribution Chart */}
+        <RankingDistributionChart
+          ranking={ranking}
+          metricLabel={config.label}
+          formatValue={config.formatValue}
+          colorClass={config.colorClass}
+        />
 
         {/* Full Table */}
         <RankingTable
