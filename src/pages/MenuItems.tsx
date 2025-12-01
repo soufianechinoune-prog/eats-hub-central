@@ -67,6 +67,9 @@ import {
   Upload,
   ArrowRightLeft,
   Link2,
+  LayoutList,
+  LayoutGrid,
+  Kanban,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { CsvImportDialog } from "@/components/menu/CsvImportDialog";
@@ -74,6 +77,19 @@ import { MenuItemChangeConfirmDialog } from "@/components/menu/MenuItemChangeCon
 import { CatalogComparison } from "@/components/menu/CatalogComparison";
 import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
 import { ProductMatcher } from "@/components/menu/ProductMatcher";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  useDroppable,
+} from "@dnd-kit/core";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 
 interface MenuItem {
   id: string;
@@ -118,6 +134,287 @@ const CATEGORIES = [
   "Autre",
 ];
 
+// Draggable Item Component for Kanban
+function DraggableKanbanCard({ item, formatPrice, calculateMargin, openEditDialog, handleDeleteClick }: {
+  item: MenuItem;
+  formatPrice: (price: number | null) => string;
+  calculateMargin: (price: number | null, foodCost: number | null) => number | null;
+  openEditDialog: (item: MenuItem) => void;
+  handleDeleteClick: (item: MenuItem) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    isDragging,
+  } = useDraggable({ id: item.id });
+
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    opacity: isDragging ? 0.5 : 1,
+  } : undefined;
+
+  const marginUber = calculateMargin(item.price_uber, item.food_cost);
+  const marginDeliveroo = calculateMargin(item.price_deliveroo, item.food_cost);
+
+  return (
+    <motion.div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.02, y: -4 }}
+      className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/40 rounded-xl p-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_32px_-8px_rgba(0,0,0,0.15)] transition-all duration-300 cursor-grab active:cursor-grabbing"
+    >
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-base truncate">{item.name}</h3>
+            {item.category && (
+              <Badge variant="secondary" className="mt-1 text-xs bg-primary/10 text-primary">
+                {item.category}
+              </Badge>
+            )}
+          </div>
+          <div className="flex gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 hover:bg-primary/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                openEditDialog(item);
+              }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteClick(item);
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-1.5">
+              <UberEatsIcon className="h-4 w-4" />
+              <span className="text-muted-foreground">Uber</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-semibold">{formatPrice(item.price_uber)}</span>
+              {marginUber !== null && (
+                <Badge 
+                  variant={marginUber >= 70 ? "default" : marginUber >= 50 ? "secondary" : "destructive"}
+                  className={`text-xs ${marginUber >= 70 ? "bg-emerald-500" : ""}`}
+                >
+                  {marginUber.toFixed(0)}%
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-1.5">
+              <DeliverooIcon className="h-4 w-4" />
+              <span className="text-muted-foreground">Deliveroo</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-semibold">{formatPrice(item.price_deliveroo)}</span>
+              {marginDeliveroo !== null && (
+                <Badge 
+                  variant={marginDeliveroo >= 70 ? "default" : marginDeliveroo >= 50 ? "secondary" : "destructive"}
+                  className={`text-xs ${marginDeliveroo >= 70 ? "bg-emerald-500" : ""}`}
+                >
+                  {marginDeliveroo.toFixed(0)}%
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          {item.food_cost && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
+              <span>Food Cost</span>
+              <span className="font-mono">{formatPrice(item.food_cost)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// Droppable Zone Component
+function DroppableZone({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`min-h-[400px] space-y-3 p-4 rounded-xl border-2 border-dashed transition-all duration-300 ${
+        id === "active"
+          ? `border-emerald-500/30 bg-emerald-500/5 backdrop-blur-sm ${isOver ? "border-emerald-500 bg-emerald-500/10" : ""}`
+          : `border-gray-500/30 bg-gray-500/5 backdrop-blur-sm ${isOver ? "border-gray-500 bg-gray-500/10" : ""}`
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Kanban View Component
+function KanbanView({ 
+  items, 
+  loading, 
+  onDragStart, 
+  onDragEnd, 
+  sensors,
+  draggedItem,
+  formatPrice,
+  calculateMargin,
+  openEditDialog,
+  handleDeleteClick,
+}: {
+  items: MenuItem[];
+  loading: boolean;
+  onDragStart: (event: DragStartEvent) => void;
+  onDragEnd: (event: DragEndEvent) => void;
+  sensors: any;
+  draggedItem: MenuItem | null;
+  formatPrice: (price: number | null) => string;
+  calculateMargin: (price: number | null, foodCost: number | null) => number | null;
+  openEditDialog: (item: MenuItem) => void;
+  handleDeleteClick: (item: MenuItem) => void;
+}) {
+  const activeItems = items.filter(item => item.is_active);
+  const inactiveItems = items.filter(item => !item.is_active);
+
+  if (loading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="flex items-center justify-center py-24"
+      >
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+      </motion.div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="text-center py-24 text-muted-foreground"
+      >
+        Aucun produit dans le catalogue
+      </motion.div>
+    );
+  }
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+      >
+        {/* Active Column */}
+        <div className="space-y-4">
+          <Card className="border-0 bg-emerald-500/10 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(16,185,129,0.2)]">
+            <div className="absolute inset-0 border-2 border-emerald-500/30 rounded-lg pointer-events-none" />
+            <CardHeader className="relative pb-3">
+              <CardTitle className="flex items-center gap-2 text-emerald-600">
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                Produits Actifs
+                <Badge className="ml-auto bg-emerald-500">{activeItems.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <DroppableZone id="active">
+            {activeItems.map((item) => (
+              <DraggableKanbanCard
+                key={item.id}
+                item={item}
+                formatPrice={formatPrice}
+                calculateMargin={calculateMargin}
+                openEditDialog={openEditDialog}
+                handleDeleteClick={handleDeleteClick}
+              />
+            ))}
+            {activeItems.length === 0 && (
+              <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+                Glissez des produits ici pour les activer
+              </div>
+            )}
+          </DroppableZone>
+        </div>
+
+        {/* Inactive Column */}
+        <div className="space-y-4">
+          <Card className="border-0 bg-gray-500/10 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(100,116,139,0.2)]">
+            <div className="absolute inset-0 border-2 border-gray-500/30 rounded-lg pointer-events-none" />
+            <CardHeader className="relative pb-3">
+              <CardTitle className="flex items-center gap-2 text-gray-600">
+                <div className="h-2 w-2 rounded-full bg-gray-500" />
+                Produits Inactifs
+                <Badge className="ml-auto bg-gray-500">{inactiveItems.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <DroppableZone id="inactive">
+            {inactiveItems.map((item) => (
+              <DraggableKanbanCard
+                key={item.id}
+                item={item}
+                formatPrice={formatPrice}
+                calculateMargin={calculateMargin}
+                openEditDialog={openEditDialog}
+                handleDeleteClick={handleDeleteClick}
+              />
+            ))}
+            {inactiveItems.length === 0 && (
+              <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+                Glissez des produits ici pour les désactiver
+              </div>
+            )}
+          </DroppableZone>
+        </div>
+      </motion.div>
+
+      <DragOverlay>
+        {draggedItem ? (
+          <div className="bg-white/90 dark:bg-white/10 backdrop-blur-xl border-2 border-primary rounded-xl p-4 shadow-2xl rotate-3">
+            <div className="font-semibold">{draggedItem.name}</div>
+            <Badge variant="secondary" className="mt-1 text-xs">
+              {draggedItem.category}
+            </Badge>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
 export default function MenuItems() {
   const { toast } = useToast();
   const { detectChanges, trackChange } = useMenuItemTracking();
@@ -126,6 +423,8 @@ export default function MenuItems() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+  const [draggedItem, setDraggedItem] = useState<MenuItem | null>(null);
   
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -499,6 +798,51 @@ export default function MenuItems() {
   // Get unique categories from items
   const existingCategories = [...new Set(menuItems.map(item => item.category).filter(Boolean))];
 
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  // Handle drag start
+  const handleDragStart = (event: DragStartEvent) => {
+    const item = menuItems.find((item) => item.id === event.active.id);
+    if (item) {
+      setDraggedItem(item);
+    }
+  };
+
+  // Handle drag end
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setDraggedItem(null);
+
+    if (!over) return;
+
+    const itemId = active.id as string;
+    const newStatus = over.id === "active";
+    const item = menuItems.find((i) => i.id === itemId);
+
+    if (!item || item.is_active === newStatus) return;
+
+    // Update status with tracking
+    const changeType = newStatus ? "activated" : "deactivated";
+    const changes: FieldChange[] = [
+      { field: "is_active", fieldLabel: "Statut", from: item.is_active, to: newStatus },
+    ];
+
+    setPendingChange({
+      changeType,
+      itemName: item.name,
+      changes,
+      itemData: { itemId: item.id },
+    });
+    setIsConfirmDialogOpen(true);
+  };
+
   // Stats
   const totalItems = menuItems.length;
   const activeItems = menuItems.filter(i => i.is_active).length;
@@ -824,260 +1168,305 @@ export default function MenuItems() {
                 </div>
               )}
             </div>
+            <div className="flex gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewMode === "list" ? "default" : "ghost"}
+                      size="icon"
+                      onClick={() => setViewMode("list")}
+                      className="transition-all duration-200 ease-out"
+                    >
+                      <LayoutList className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Vue Liste</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewMode === "kanban" ? "default" : "ghost"}
+                      size="icon"
+                      onClick={() => setViewMode("kanban")}
+                      className="transition-all duration-200 ease-out"
+                    >
+                      <Kanban className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Vue Kanban</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </div>
         </CardContent>
       </Card>
       </motion.div>
 
-      {/* Products Table */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
-        <Card className="border-0 bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.15)] transition-all duration-500">
-          <div className="absolute inset-0 border border-white/30 rounded-lg pointer-events-none" />
-          <CardHeader className="relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5" />
-            <CardTitle className="relative">Produits ({filteredItems.length})</CardTitle>
-            <CardDescription className="relative">
-              Catalogue partagé avec prix différenciés par plateforme
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="relative">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              {menuItems.length === 0 
-                ? "Aucun produit dans le catalogue"
-                : "Aucun produit ne correspond aux filtres"
-              }
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {/* Expand/Collapse all */}
-              <div className="flex justify-end gap-2 mb-4">
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => toggleAllCategories(true)}
-                    className="text-xs hover:shadow-sm transition-shadow"
-                  >
-                    Tout déplier
-                  </Button>
-                </motion.div>
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => toggleAllCategories(false)}
-                    className="text-xs hover:shadow-sm transition-shadow"
-                  >
-                    Tout replier
-                  </Button>
-                </motion.div>
+      {/* Products View */}
+      {viewMode === "list" ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <Card className="border-0 bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.15)] transition-all duration-500">
+            <div className="absolute inset-0 border border-white/30 rounded-lg pointer-events-none" />
+            <CardHeader className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5" />
+              <CardTitle className="relative">Produits ({filteredItems.length})</CardTitle>
+              <CardDescription className="relative">
+                Catalogue partagé avec prix différenciés par plateforme
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="relative">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
-
-              {sortedCategories.map((category, idx) => {
-                const categoryItems = groupedItems[category];
-                const isExpanded = expandedCategories.has(category);
-                
-                return (
-                  <motion.div
-                    key={category}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.45 + idx * 0.05 }}
-                  >
-                    <Collapsible 
-                      open={isExpanded}
-                      onOpenChange={() => toggleCategoryExpanded(category)}
+            ) : filteredItems.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                {menuItems.length === 0 
+                  ? "Aucun produit dans le catalogue"
+                  : "Aucun produit ne correspond aux filtres"
+                }
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {/* Expand/Collapse all */}
+                <div className="flex justify-end gap-2 mb-4">
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => toggleAllCategories(true)}
+                      className="text-xs hover:shadow-sm transition-shadow"
                     >
-                      <CollapsibleTrigger asChild>
-                        <motion.div 
-                          className="flex items-center gap-3 p-4 bg-white/60 dark:bg-white/5 backdrop-blur-lg rounded-xl cursor-pointer hover:bg-white/80 transition-all duration-500 hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-white/40 hover:border-primary/30"
-                          whileHover={{ x: 6, scale: 1.01 }}
-                          transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                        >
-                          <motion.div
-                            animate={{ rotate: isExpanded ? 0 : -90 }}
-                            transition={{ duration: 0.3, type: "spring" }}
-                          >
-                            <ChevronDown className="h-5 w-5 text-primary" />
-                          </motion.div>
-                          <span className="font-semibold text-base tracking-tight">{category}</span>
-                          <Badge variant="secondary" className="shadow-sm bg-primary/10 text-primary backdrop-blur-sm border-white/40">{categoryItems.length} produit{categoryItems.length > 1 ? 's' : ''}</Badge>
-                        </motion.div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                      <motion.div 
-                        className="overflow-x-auto mt-3 border-0 rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] bg-white/50 dark:bg-white/5 backdrop-blur-md"
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.4, type: "spring" }}
-                      >
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead 
-                                className="cursor-pointer hover:bg-muted/50"
-                                onClick={() => handleSort("name")}
-                              >
-                                <div className="flex items-center gap-1">
-                                  Nom
-                                  <ArrowUpDown className="h-3 w-3" />
-                                </div>
-                              </TableHead>
-                              <TableHead 
-                                className="cursor-pointer hover:bg-muted/50 text-right"
-                                onClick={() => handleSort("price_uber")}
-                              >
-                                <div className="flex items-center gap-1 justify-end">
-                                  <UberEatsIcon className="h-4 w-4" />
-                                  Prix Uber
-                                  <ArrowUpDown className="h-3 w-3" />
-                                </div>
-                              </TableHead>
-                              <TableHead 
-                                className="cursor-pointer hover:bg-muted/50 text-right"
-                                onClick={() => handleSort("price_deliveroo")}
-                              >
-                                <div className="flex items-center gap-1 justify-end">
-                                  <DeliverooIcon className="h-4 w-4" />
-                                  Prix Deliveroo
-                                  <ArrowUpDown className="h-3 w-3" />
-                                </div>
-                              </TableHead>
-                              <TableHead 
-                                className="cursor-pointer hover:bg-muted/50 text-right"
-                                onClick={() => handleSort("food_cost")}
-                              >
-                                <div className="flex items-center gap-1 justify-end">
-                                  Food Cost
-                                  <ArrowUpDown className="h-3 w-3" />
-                                </div>
-                              </TableHead>
-                              <TableHead className="text-right">Marge Uber</TableHead>
-                              <TableHead className="text-right">Marge Deliveroo</TableHead>
-                              <TableHead className="text-center">Statut</TableHead>
-                              <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {categoryItems.map((item, itemIdx) => {
-                              const marginUber = calculateMargin(item.price_uber, item.food_cost);
-                              const marginDeliveroo = calculateMargin(item.price_deliveroo, item.food_cost);
-                              
-                              return (
-                                <TableRow 
-                                  key={item.id}
-                                  className="border-b transition-all duration-200 hover:bg-muted/50 data-[state=selected]:bg-muted"
-                                >
-                                  <TableCell className="font-medium">
-                                    <div className="flex items-center gap-1">
-                                      {item.name}
-                                      {item.description && (
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                            </TooltipTrigger>
-                                            <TooltipContent className="max-w-xs">
-                                              <p className="text-sm">{item.description}</p>
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono">
-                                    {formatPrice(item.price_uber)}
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono">
-                                    {formatPrice(item.price_deliveroo)}
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono">
-                                    {item.food_cost ? formatPrice(item.food_cost) : (
-                                      <span className="text-muted-foreground">-</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {marginUber !== null ? (
-                                      <Badge 
-                                        variant={marginUber >= 70 ? "default" : marginUber >= 50 ? "secondary" : "destructive"}
-                                        className={marginUber >= 70 ? "bg-emerald-500" : ""}
-                                      >
-                                        {marginUber.toFixed(1)}%
-                                      </Badge>
-                                    ) : (
-                                      <span className="text-muted-foreground">-</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {marginDeliveroo !== null ? (
-                                      <Badge 
-                                        variant={marginDeliveroo >= 70 ? "default" : marginDeliveroo >= 50 ? "secondary" : "destructive"}
-                                        className={marginDeliveroo >= 70 ? "bg-emerald-500" : ""}
-                                      >
-                                        {marginDeliveroo.toFixed(1)}%
-                                      </Badge>
-                                    ) : (
-                                      <span className="text-muted-foreground">-</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <div className="flex justify-center">
-                                      <Switch
-                                        checked={item.is_active}
-                                        onCheckedChange={() => toggleItemActive(item)}
-                                      />
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <div className="flex justify-end gap-1">
-                                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => openEditDialog(item)}
-                                          className="hover:bg-primary/10 hover:text-primary transition-colors"
-                                        >
-                                          <Pencil className="h-4 w-4" />
-                                        </Button>
-                                      </motion.div>
-                                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => handleDeleteClick(item)}
-                                          className="hover:bg-destructive/10 hover:text-destructive transition-colors"
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </motion.div>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </motion.div>
-                    </CollapsibleContent>
-                  </Collapsible>
+                      Tout déplier
+                    </Button>
                   </motion.div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      </motion.div>
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => toggleAllCategories(false)}
+                      className="text-xs hover:shadow-sm transition-shadow"
+                    >
+                      Tout replier
+                    </Button>
+                  </motion.div>
+                </div>
+
+                {sortedCategories.map((category, idx) => {
+                  const categoryItems = groupedItems[category];
+                  const isExpanded = expandedCategories.has(category);
+                  
+                  return (
+                    <motion.div
+                      key={category}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.45 + idx * 0.05 }}
+                    >
+                      <Collapsible 
+                        open={isExpanded}
+                        onOpenChange={() => toggleCategoryExpanded(category)}
+                      >
+                        <CollapsibleTrigger asChild>
+                          <motion.div 
+                            className="flex items-center gap-3 p-4 bg-white/60 dark:bg-white/5 backdrop-blur-lg rounded-xl cursor-pointer hover:bg-white/80 transition-all duration-500 hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-white/40 hover:border-primary/30"
+                            whileHover={{ x: 6, scale: 1.01 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                          >
+                            <motion.div
+                              animate={{ rotate: isExpanded ? 0 : -90 }}
+                              transition={{ duration: 0.3, type: "spring" }}
+                            >
+                              <ChevronDown className="h-5 w-5 text-primary" />
+                            </motion.div>
+                            <span className="font-semibold text-base tracking-tight">{category}</span>
+                            <Badge variant="secondary" className="shadow-sm bg-primary/10 text-primary backdrop-blur-sm border-white/40">{categoryItems.length} produit{categoryItems.length > 1 ? 's' : ''}</Badge>
+                          </motion.div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                        <motion.div 
+                          className="overflow-x-auto mt-3 border-0 rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] bg-white/50 dark:bg-white/5 backdrop-blur-md"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.4, type: "spring" }}
+                        >
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead 
+                                  className="cursor-pointer hover:bg-muted/50"
+                                  onClick={() => handleSort("name")}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    Nom
+                                    <ArrowUpDown className="h-3 w-3" />
+                                  </div>
+                                </TableHead>
+                                <TableHead 
+                                  className="cursor-pointer hover:bg-muted/50 text-right"
+                                  onClick={() => handleSort("price_uber")}
+                                >
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <UberEatsIcon className="h-4 w-4" />
+                                    Prix Uber
+                                    <ArrowUpDown className="h-3 w-3" />
+                                  </div>
+                                </TableHead>
+                                <TableHead 
+                                  className="cursor-pointer hover:bg-muted/50 text-right"
+                                  onClick={() => handleSort("price_deliveroo")}
+                                >
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <DeliverooIcon className="h-4 w-4" />
+                                    Prix Deliveroo
+                                    <ArrowUpDown className="h-3 w-3" />
+                                  </div>
+                                </TableHead>
+                                <TableHead 
+                                  className="cursor-pointer hover:bg-muted/50 text-right"
+                                  onClick={() => handleSort("food_cost")}
+                                >
+                                  <div className="flex items-center gap-1 justify-end">
+                                    Food Cost
+                                    <ArrowUpDown className="h-3 w-3" />
+                                  </div>
+                                </TableHead>
+                                <TableHead className="text-right">Marge Uber</TableHead>
+                                <TableHead className="text-right">Marge Deliveroo</TableHead>
+                                <TableHead className="text-center">Statut</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {categoryItems.map((item, itemIdx) => {
+                                const marginUber = calculateMargin(item.price_uber, item.food_cost);
+                                const marginDeliveroo = calculateMargin(item.price_deliveroo, item.food_cost);
+                                
+                                return (
+                                  <TableRow 
+                                    key={item.id}
+                                    className="border-b transition-all duration-200 hover:bg-muted/50 data-[state=selected]:bg-muted"
+                                  >
+                                    <TableCell className="font-medium">
+                                      <div className="flex items-center gap-1">
+                                        {item.name}
+                                        {item.description && (
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                              </TooltipTrigger>
+                                              <TooltipContent className="max-w-xs">
+                                                <p className="text-sm">{item.description}</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">
+                                      {formatPrice(item.price_uber)}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">
+                                      {formatPrice(item.price_deliveroo)}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">
+                                      {item.food_cost ? formatPrice(item.food_cost) : (
+                                        <span className="text-muted-foreground">-</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {marginUber !== null ? (
+                                        <Badge 
+                                          variant={marginUber >= 70 ? "default" : marginUber >= 50 ? "secondary" : "destructive"}
+                                          className={marginUber >= 70 ? "bg-emerald-500" : ""}
+                                        >
+                                          {marginUber.toFixed(1)}%
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-muted-foreground">-</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {marginDeliveroo !== null ? (
+                                        <Badge 
+                                          variant={marginDeliveroo >= 70 ? "default" : marginDeliveroo >= 50 ? "secondary" : "destructive"}
+                                          className={marginDeliveroo >= 70 ? "bg-emerald-500" : ""}
+                                        >
+                                          {marginDeliveroo.toFixed(1)}%
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-muted-foreground">-</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      <div className="flex justify-center">
+                                        <Switch
+                                          checked={item.is_active}
+                                          onCheckedChange={() => toggleItemActive(item)}
+                                        />
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      <div className="flex justify-end gap-1">
+                                        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => openEditDialog(item)}
+                                            className="hover:bg-primary/10 hover:text-primary transition-colors"
+                                          >
+                                            <Pencil className="h-4 w-4" />
+                                          </Button>
+                                        </motion.div>
+                                        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleDeleteClick(item)}
+                                            className="hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </motion.div>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </motion.div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        </motion.div>
+      ) : (
+        <KanbanView
+          items={filteredItems}
+          loading={loading}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          sensors={sensors}
+          draggedItem={draggedItem}
+          formatPrice={formatPrice}
+          calculateMargin={calculateMargin}
+          openEditDialog={openEditDialog}
+          handleDeleteClick={handleDeleteClick}
+        />
+      )}
         </TabsContent>
       </Tabs>
 
