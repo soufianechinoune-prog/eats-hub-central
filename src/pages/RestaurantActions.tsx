@@ -740,7 +740,7 @@ export default function RestaurantActions() {
                 <Button
                   variant={scopeFilter === "all" ? "default" : "ghost"}
                   size="sm"
-                  className="h-8 gap-1.5 text-sm transition-all duration-200 ease-out"
+                  className="h-8 gap-1.5 text-sm transition-all duration-200 ease-out hover:scale-[1.03]"
                   onClick={() => {
                     setScopeFilter("all");
                     setScopeRestaurantFilters([]);
@@ -755,7 +755,7 @@ export default function RestaurantActions() {
                 <Button
                   variant={scopeFilter === "national" ? "default" : "ghost"}
                   size="sm"
-                  className="h-8 gap-1.5 text-sm transition-all duration-200 ease-out"
+                  className="h-8 gap-1.5 text-sm transition-all duration-200 ease-out hover:scale-[1.03]"
                   onClick={() => {
                     setScopeFilter("national");
                     setScopeRestaurantFilters([]);
@@ -770,7 +770,7 @@ export default function RestaurantActions() {
                 <Button
                   variant={scopeFilter === "local" ? "default" : "ghost"}
                   size="sm"
-                  className="h-8 gap-1.5 text-sm transition-all duration-200 ease-out"
+                  className="h-8 gap-1.5 text-sm transition-all duration-200 ease-out hover:scale-[1.03]"
                   onClick={() => setScopeFilter("local")}
                 >
                   <Store className="h-4 w-4" />
