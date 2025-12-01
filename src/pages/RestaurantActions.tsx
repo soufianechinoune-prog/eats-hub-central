@@ -1107,6 +1107,7 @@ export default function RestaurantActions() {
           </CardContent>
         </Card>
         <motion.div
+          className="h-full"
           animate={{ 
             scale: platformFilters.includes("uber_eats") ? 1.03 : 1 
           }}
@@ -1116,7 +1117,7 @@ export default function RestaurantActions() {
         >
           <Card 
             className={cn(
-              "cursor-pointer transition-shadow duration-200 hover:shadow-md relative overflow-hidden",
+              "cursor-pointer transition-shadow duration-200 hover:shadow-md relative overflow-hidden h-full",
               "bg-[#06C167]/10",
               platformFilters.includes("uber_eats") && "ring-2 ring-[#06C167] shadow-md",
               uberActionsRaw === 0 && "opacity-40 pointer-events-none"
@@ -1127,15 +1128,16 @@ export default function RestaurantActions() {
                 : [...prev, "uber_eats"]
             )}
           >
-            <CardContent className="pt-6 pb-6 flex items-center justify-center">
-              <UberEatsLogo size={40} className="opacity-90" />
-              <div className="absolute top-2 right-2 bg-[#06C167] text-white text-sm font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center">
+            <CardContent className="pt-6 h-full flex items-center justify-center">
+              <UberEatsLogo size={56} />
+              <div className="absolute top-2 right-2 bg-[#06C167] text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
                 {uberActions}
               </div>
             </CardContent>
           </Card>
         </motion.div>
         <motion.div
+          className="h-full"
           animate={{ 
             scale: platformFilters.includes("deliveroo") ? 1.03 : 1 
           }}
@@ -1145,7 +1147,7 @@ export default function RestaurantActions() {
         >
           <Card 
             className={cn(
-              "cursor-pointer transition-shadow duration-200 hover:shadow-md relative overflow-hidden",
+              "cursor-pointer transition-shadow duration-200 hover:shadow-md relative overflow-hidden h-full",
               "bg-[#00CCBC]/10",
               platformFilters.includes("deliveroo") && "ring-2 ring-[#00CCBC] shadow-md",
               deliverooActionsRaw === 0 && "opacity-40 pointer-events-none"
@@ -1156,9 +1158,9 @@ export default function RestaurantActions() {
                 : [...prev, "deliveroo"]
             )}
           >
-            <CardContent className="pt-6 pb-6 flex items-center justify-center">
-              <DeliverooLogo size={40} className="opacity-90" />
-              <div className="absolute top-2 right-2 bg-[#00CCBC] text-white text-sm font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center">
+            <CardContent className="pt-6 h-full flex items-center justify-center">
+              <DeliverooLogo size={56} />
+              <div className="absolute top-2 right-2 bg-[#00CCBC] text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
                 {deliverooActions}
               </div>
             </CardContent>
