@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import csLogo from "@/assets/cs-logo.jpeg";
+import { AIAdvisorWidget } from "@/components/ai/AIAdvisorWidget";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -24,6 +25,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
             {children}
           </div>
         </main>
+        <AIAdvisorWidget />
       </div>
     </SidebarProvider>
   );

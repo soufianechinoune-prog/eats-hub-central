@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.insee-density]
 verify_jwt = false
+
+[functions.ai-advisor]
+verify_jwt = false
