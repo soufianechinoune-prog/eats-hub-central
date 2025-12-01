@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import {
   format,
   startOfWeek,
@@ -93,9 +93,24 @@ export function CalendarWeekView({
     setDragPosition({ x: e.clientX, y: e.clientY });
   }, []);
 
-  const handleDragLeave = useCallback(() => {
-    // Don't clear to prevent flickering
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
+      setTimeout(() => setDragOverDate(null), 50);
+    }
   }, []);
+
+  // Safety timeout for stuck drag state
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (dragOverDate && !draggedEvent) {
+      timeoutId = setTimeout(() => {
+        setDragOverDate(null);
+        setDragPosition(null);
+      }, 3000);
+    }
+    return () => clearTimeout(timeoutId);
+  }, [dragOverDate, draggedEvent]);
 
   const handleDrop = useCallback((e: React.DragEvent, targetDate: Date) => {
     e.preventDefault();
