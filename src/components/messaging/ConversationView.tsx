@@ -766,6 +766,29 @@ export default function ConversationView() {
     }
   };
 
+  // Highlight search terms in text
+  const highlightSearchTerms = (text: string) => {
+    if (!messageSearchQuery.trim()) return text;
+    
+    const query = messageSearchQuery.trim();
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return (
+      <>
+        {parts.map((part, index) => 
+          regex.test(part) ? (
+            <mark key={index} className="bg-amber-200/80 dark:bg-amber-500/30 text-foreground rounded px-0.5">
+              {part}
+            </mark>
+          ) : (
+            <span key={index}>{part}</span>
+          )
+        )}
+      </>
+    );
+  };
+
   // Render message content (detect media messages)
   const renderMessageContent = (msg: Message) => {
     const content = msg.message_content;
@@ -782,6 +805,7 @@ export default function ConversationView() {
     // Image message
     if (content.startsWith('📷 Image')) {
       if (msg.media_url) {
+        const caption = content.replace('📷 Image', '').replace(': ', '');
         return (
           <div className="space-y-2">
             <img 
@@ -790,8 +814,8 @@ export default function ConversationView() {
               className="max-w-[240px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
               onClick={() => window.open(msg.media_url!, '_blank')}
             />
-            {content.replace('📷 Image', '').replace(': ', '') && (
-              <p className="text-sm">{content.replace('📷 Image', '').replace(': ', '')}</p>
+            {caption && (
+              <p className="text-sm">{highlightSearchTerms(caption)}</p>
             )}
           </div>
         );
@@ -799,7 +823,7 @@ export default function ConversationView() {
       return (
         <div className="flex items-center gap-2">
           <ImageIcon className="h-4 w-4 text-whatsapp" />
-          <span>{content.replace('📷 ', '')}</span>
+          <span>{highlightSearchTerms(content.replace('📷 ', ''))}</span>
         </div>
       );
     }
@@ -848,7 +872,7 @@ export default function ConversationView() {
       );
     }
     
-    return <span className="whitespace-pre-wrap break-words">{content}</span>;
+    return <span className="whitespace-pre-wrap break-words">{highlightSearchTerms(content)}</span>;
   };
 
   return (
