@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowUp, Loader2, Sparkles, Plus, Trash2, MessageSquare, TrendingUp, Award, Lightbulb, DollarSign } from 'lucide-react';
+import { ArrowUp, Loader2, Sparkles, Plus, Trash2, MessageSquare, TrendingUp, Award, Lightbulb, DollarSign, Search, X as XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -53,9 +53,15 @@ export const AIAdvisorChat = () => {
     deleteConversation 
   } = useAIAdvisor();
   const [input, setInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
+
+  // Filter conversations based on search query
+  const filteredConversations = conversations.filter(conv => 
+    conv.title?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -93,7 +99,7 @@ export const AIAdvisorChat = () => {
     <div className="flex h-[536px]">
       {/* Sidebar des conversations */}
       <div className="w-64 border-r border-border/50 flex flex-col bg-gradient-to-b from-ai-surface/30 to-transparent">
-        <div className="p-3 border-b border-border/50">
+        <div className="p-3 border-b border-border/50 space-y-2">
           <Button
             onClick={startNewConversation}
             variant="outline"
@@ -103,12 +109,56 @@ export const AIAdvisorChat = () => {
             <Plus className="h-4 w-4" />
             Nouvelle conversation
           </Button>
+          
+          {/* Search input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher..."
+              className="w-full h-9 pl-9 pr-8 rounded-lg border border-border/50 bg-background/50 backdrop-blur-sm text-sm focus:outline-none focus:ring-2 focus:ring-ai-gradient-start/20 focus:border-ai-gradient-start/50 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded-full hover:bg-muted/50 transition-colors"
+              >
+                <XIcon className="h-3 w-3 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+          
+          {/* Results counter */}
+          {searchQuery && (
+            <p className="text-xs text-muted-foreground px-1">
+              {filteredConversations.length} résultat{filteredConversations.length > 1 ? 's' : ''}
+            </p>
+          )}
         </div>
         
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1">
-            <AnimatePresence>
-              {conversations.map((conv) => (
+            {filteredConversations.length === 0 && searchQuery ? (
+              <div className="text-center py-8 px-4">
+                <p className="text-sm text-muted-foreground mb-2">Aucune conversation trouvée</p>
+                <Button
+                  onClick={() => {
+                    setSearchQuery('');
+                    startNewConversation();
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Plus className="h-3 w-3" />
+                  Nouvelle conversation
+                </Button>
+              </div>
+            ) : (
+              <AnimatePresence>
+                {filteredConversations.map((conv) => (
                 <motion.div
                   key={conv.id}
                   initial={{ opacity: 0, x: -10 }}
@@ -125,7 +175,16 @@ export const AIAdvisorChat = () => {
                   <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {conv.title || 'Sans titre'}
+                      {searchQuery ? (
+                        <span dangerouslySetInnerHTML={{
+                          __html: (conv.title || 'Sans titre').replace(
+                            new RegExp(`(${searchQuery})`, 'gi'),
+                            '<mark class="bg-ai-gradient-start/30 text-foreground px-0.5 rounded">$1</mark>'
+                          )
+                        }} />
+                      ) : (
+                        conv.title || 'Sans titre'
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(conv.updated_at), 'dd MMM', { locale: fr })}
@@ -145,6 +204,7 @@ export const AIAdvisorChat = () => {
                 </motion.div>
               ))}
             </AnimatePresence>
+            )}
           </div>
         </ScrollArea>
       </div>
@@ -194,7 +254,7 @@ export const AIAdvisorChat = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
             >
-              Votre conseiller IA personnel
+              CS Advisor
             </motion.h4>
             
             <motion.p 
@@ -203,7 +263,7 @@ export const AIAdvisorChat = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
             >
-              Posez-moi n'importe quelle question sur vos performances
+              Votre conseiller IA pour Chicken Street
             </motion.p>
             
             <div className="grid grid-cols-2 gap-3 w-full max-w-lg">

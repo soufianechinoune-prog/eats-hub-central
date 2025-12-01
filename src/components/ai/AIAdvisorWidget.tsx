@@ -40,7 +40,7 @@ export const AIAdvisorWidget = () => {
                   <Sparkles className="h-5 w-5 text-white" />
                 </motion.div>
                 <div>
-                  <h3 className="font-semibold text-foreground">Performance Advisor</h3>
+                  <h3 className="font-semibold text-foreground">CS Advisor</h3>
                   <motion.p 
                     className="text-xs text-muted-foreground"
                     animate={{ opacity: [0.5, 1, 0.5] }}
