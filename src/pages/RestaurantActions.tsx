@@ -2312,8 +2312,10 @@ export default function RestaurantActions() {
                       </div>
                       
                       {/* Restaurant list */}
-                      <ScrollArea className="h-[280px]">
-                        <div className="pr-3">
+                      <div 
+                        className="max-h-[280px] overflow-y-auto overscroll-contain"
+                        style={{ scrollbarGutter: 'stable' }}
+                      >
                         {(() => {
                           let filtered = restaurants.filter(r =>
                             r.name.toLowerCase().includes(restaurantSearch.toLowerCase())
@@ -2411,8 +2413,7 @@ export default function RestaurantActions() {
                             </>
                           );
                         })()}
-                        </div>
-                      </ScrollArea>
+                      </div>
                       
                       {/* Footer with count */}
                       <div className="border-t px-3 py-2 text-xs text-muted-foreground bg-muted/30 flex justify-between">
