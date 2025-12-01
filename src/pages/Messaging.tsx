@@ -666,13 +666,14 @@ export default function Messaging() {
         </TabsList>
 
         <AnimatePresence mode="wait">
-          <TabsContent value="conversations" className="mt-6" asChild>
+          <TabsContent value="conversations" className="mt-6 h-[calc(100vh-200px)] min-h-[500px]" asChild>
             <motion.div
               key="conversations"
               variants={tabContentVariants}
               initial="hidden"
               animate="visible"
               exit="exit"
+              className="h-full"
             >
               <ConversationView />
             </motion.div>
