@@ -35,6 +35,7 @@ export function CalendarMonthView({
   const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
   const [draggedEvent, setDraggedEvent] = useState<CalendarEvent | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -96,18 +97,13 @@ export function CalendarMonthView({
     // Don't clear immediately to prevent flickering
   }, []);
 
-  const handleDragEnd = useCallback(() => {
-    setDragOverDate(null);
-    setDraggedEvent(null);
-    setDragPosition(null);
-  }, []);
-
   // Handle drop
   const handleDrop = useCallback((e: React.DragEvent, targetDate: Date) => {
     e.preventDefault();
     setDragOverDate(null);
     setDraggedEvent(null);
     setDragPosition(null);
+    setIsDragging(false);
     
     try {
       const data = JSON.parse(e.dataTransfer.getData("application/json"));
@@ -148,6 +144,7 @@ export function CalendarMonthView({
     }));
     e.dataTransfer.effectAllowed = "move";
     setDraggedEvent(event);
+    setIsDragging(true);
     
     // Create a custom drag image
     const dragImage = document.createElement("div");
@@ -155,6 +152,13 @@ export function CalendarMonthView({
     document.body.appendChild(dragImage);
     e.dataTransfer.setDragImage(dragImage, 0, 0);
     setTimeout(() => document.body.removeChild(dragImage), 0);
+  }, []);
+
+  const handleDragEndFull = useCallback(() => {
+    setDragOverDate(null);
+    setDraggedEvent(null);
+    setDragPosition(null);
+    setIsDragging(false);
   }, []);
 
   return (
@@ -282,7 +286,9 @@ export function CalendarMonthView({
                     key={`${event.id}-${weekIndex}`}
                     className={cn(
                       "transition-opacity duration-150",
-                      isBeingDragged && "opacity-40"
+                      isBeingDragged && "opacity-40",
+                      // Allow drops through events when dragging
+                      isDragging && !isBeingDragged && "pointer-events-none"
                     )}
                   >
                     <CalendarEventBar
@@ -295,7 +301,7 @@ export function CalendarMonthView({
                       isDraggable={!!onActionDrop}
                       onClick={() => onActionClick?.(event.originalAction)}
                       onDragStart={(e) => handleEventDragStart(e, event)}
-                      onDragEnd={handleDragEnd}
+                      onDragEnd={handleDragEndFull}
                     />
                   </div>
                 );
