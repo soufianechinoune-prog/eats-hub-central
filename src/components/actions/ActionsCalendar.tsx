@@ -314,7 +314,7 @@ export function ActionsCalendar({
                 maxRow = Math.max(maxRow, row);
               });
 
-              const minHeight = Math.max(100, 32 + (maxRow + 1) * 24);
+              const minHeight = Math.max(100, 32 + (maxRow + 1) * 26);
 
               return (
                 <div key={weekIndex} className="grid grid-cols-7 relative" style={{ minHeight }}>
