@@ -69,7 +69,10 @@ import {
   Check,
   ChevronsUpDown,
   MapPin,
+  List,
+  LayoutGrid,
 } from "lucide-react";
+import { ActionsCalendar } from "@/components/actions/ActionsCalendar";
 import { UberEatsIcon, DeliverooIcon, UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -201,6 +204,9 @@ export default function RestaurantActions() {
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightedActionId = searchParams.get("highlight");
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
+  
+  // View mode: list or calendar
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   
   const [categories, setCategories] = useState<ActionCategory[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -650,10 +656,33 @@ export default function RestaurantActions() {
             Suivez les actions par plateforme pour analyser leur impact sur les performances
           </p>
         </div>
-        <Button onClick={openCreateDialog} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Nouvelle action
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-muted rounded-lg p-1">
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="sm"
+              className="gap-1.5 h-8"
+              onClick={() => setViewMode("list")}
+            >
+              <List className="h-4 w-4" />
+              <span className="hidden sm:inline">Liste</span>
+            </Button>
+            <Button
+              variant={viewMode === "calendar" ? "secondary" : "ghost"}
+              size="sm"
+              className="gap-1.5 h-8"
+              onClick={() => setViewMode("calendar")}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden sm:inline">Calendrier</span>
+            </Button>
+          </div>
+          <Button onClick={openCreateDialog} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Nouvelle action
+          </Button>
+        </div>
       </div>
 
       {/* Platform Stats */}
@@ -1156,16 +1185,34 @@ export default function RestaurantActions() {
         </CardContent>
       </Card>
 
+      {/* Calendar View */}
+      {viewMode === "calendar" && (
+        <ActionsCalendar
+          actions={filteredActions}
+          restaurants={restaurants}
+          onActionClick={(action) => openEditDialog(action)}
+          onDateClick={(date) => {
+            // Pre-fill the start date when clicking on a day
+            setFormData((prev) => ({ 
+              ...prev, 
+              start_date: date.toISOString().split("T")[0] 
+            }));
+            openCreateDialog();
+          }}
+        />
+      )}
+
       {/* Actions List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Historique des actions</CardTitle>
-          <CardDescription>
-            Actions triées par date de début (plus récentes en premier)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
+      {viewMode === "list" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Historique des actions</CardTitle>
+            <CardDescription>
+              Actions triées par date de début (plus récentes en premier)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
@@ -1414,6 +1461,7 @@ export default function RestaurantActions() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
