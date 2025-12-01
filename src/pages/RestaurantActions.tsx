@@ -71,11 +71,15 @@ import {
   MapPin,
   List,
   LayoutGrid,
+  Globe,
+  Layers,
 } from "lucide-react";
 import { ActionsCalendar } from "@/components/actions/ActionsCalendar";
 import { UberEatsIcon, DeliverooIcon, UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+
+type ScopeFilter = "all" | "national" | "local";
 
 interface ActionCategory {
   id: string;
@@ -207,6 +211,15 @@ export default function RestaurantActions() {
   
   // View mode: list or calendar
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  
+  // Page-level scope filter
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
+  const [scopeRestaurantFilters, setScopeRestaurantFilters] = useState<string[]>([]);
+  const [isScopeRestaurantPopoverOpen, setIsScopeRestaurantPopoverOpen] = useState(false);
+  const [scopeRestaurantSearch, setScopeRestaurantSearch] = useState("");
+  const [scopeRestaurantFilterType, setScopeRestaurantFilterType] = useState<"all" | "department" | "manager">("all");
+  const [scopeSelectedDepartment, setScopeSelectedDepartment] = useState<string>("");
+  const [scopeSelectedManager, setScopeSelectedManager] = useState<string>("");
   
   const [categories, setCategories] = useState<ActionCategory[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -584,7 +597,28 @@ export default function RestaurantActions() {
     return "en_cours";
   };
 
-  const filteredActions = actions
+  // Helper to check if an action is national
+  const isNational = (action: RestaurantAction): boolean => {
+    return !action.restaurant_ids?.length && !action.restaurant_id;
+  };
+  
+  // Scope-filtered actions (applied first, affects everything)
+  const scopedActions = actions.filter(a => {
+    if (scopeFilter === "all") return true;
+    if (scopeFilter === "national") return isNational(a);
+    // local scope
+    if (scopeRestaurantFilters.length === 0) return !isNational(a);
+    const actionRestaurantIds = a.restaurant_ids && a.restaurant_ids.length > 0 
+      ? a.restaurant_ids 
+      : (a.restaurant_id ? [a.restaurant_id] : []);
+    return scopeRestaurantFilters.some(id => actionRestaurantIds.includes(id));
+  });
+  
+  // Stats based on scoped actions
+  const nationalCount = actions.filter(a => isNational(a)).length;
+  const localCount = actions.filter(a => !isNational(a)).length;
+  
+  const filteredActions = scopedActions
     .filter(a => categoryFilter === "all" || a.category === categoryFilter)
     .filter(a => platformFilter === "all" || a.platform === platformFilter)
     .filter(a => {
@@ -612,7 +646,7 @@ export default function RestaurantActions() {
     });
   
   // Récupérer tous les types d'action uniques
-  const uniqueActionTypes = [...new Set(actions.map(a => a.action_type))].sort();
+  const uniqueActionTypes = [...new Set(scopedActions.map(a => a.action_type))].sort();
 
   const clearDateFilters = () => {
     setStartDateFilter(undefined);
@@ -632,15 +666,15 @@ export default function RestaurantActions() {
     return format(new Date(dateStr), "d MMM yyyy", { locale: fr });
   };
 
-  // Stats
-  const totalActions = actions.length;
-  const activeActions = actions.filter(a => !a.end_date || new Date(a.end_date) >= new Date()).length;
-  const uberActions = actions.filter(a => a.platform === "uber_eats").length;
-  const deliverooActions = actions.filter(a => a.platform === "deliveroo").length;
+  // Stats (based on scoped actions)
+  const totalActions = scopedActions.length;
+  const activeActions = scopedActions.filter(a => !a.end_date || new Date(a.end_date) >= new Date()).length;
+  const uberActions = scopedActions.filter(a => a.platform === "uber_eats").length;
+  const deliverooActions = scopedActions.filter(a => a.platform === "deliveroo").length;
   
   const actionsByCategory = categories.map(cat => ({
     ...cat,
-    count: actions.filter(a => a.category === cat.id).length
+    count: scopedActions.filter(a => a.category === cat.id).length
   }));
 
   return (
@@ -684,6 +718,273 @@ export default function RestaurantActions() {
           </Button>
         </div>
       </div>
+
+      {/* Page-Level Scope Filter */}
+      <Card className="bg-gradient-to-r from-primary/5 to-transparent border-primary/20">
+        <CardContent className="py-4">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Portée :</span>
+              <div className="flex items-center bg-background rounded-lg p-0.5 border shadow-sm">
+                <Button
+                  variant={scopeFilter === "all" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 gap-1.5 text-sm"
+                  onClick={() => {
+                    setScopeFilter("all");
+                    setScopeRestaurantFilters([]);
+                  }}
+                >
+                  <Layers className="h-4 w-4" />
+                  Toutes
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                    {actions.length}
+                  </Badge>
+                </Button>
+                <Button
+                  variant={scopeFilter === "national" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 gap-1.5 text-sm"
+                  onClick={() => {
+                    setScopeFilter("national");
+                    setScopeRestaurantFilters([]);
+                  }}
+                >
+                  <Globe className="h-4 w-4" />
+                  Nationales
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-blue-500/10 text-blue-600">
+                    {nationalCount}
+                  </Badge>
+                </Button>
+                <Button
+                  variant={scopeFilter === "local" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 gap-1.5 text-sm"
+                  onClick={() => setScopeFilter("local")}
+                >
+                  <Store className="h-4 w-4" />
+                  Par restaurant
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-emerald-500/10 text-emerald-600">
+                    {localCount}
+                  </Badge>
+                </Button>
+              </div>
+            </div>
+            
+            {/* Restaurant Selector for Local Scope */}
+            {scopeFilter === "local" && (
+              <div className="flex items-center gap-2 flex-1">
+                <Popover open={isScopeRestaurantPopoverOpen} onOpenChange={setIsScopeRestaurantPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={isScopeRestaurantPopoverOpen}
+                      className="w-[280px] justify-between"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <Store className="h-4 w-4 text-muted-foreground shrink-0" />
+                        {scopeRestaurantFilters.length === 0
+                          ? "Tous les restaurants locaux"
+                          : scopeRestaurantFilters.length === 1
+                          ? restaurants.find(r => r.id === scopeRestaurantFilters[0])?.name
+                          : `${scopeRestaurantFilters.length} restaurants sélectionnés`}
+                      </div>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[350px] p-0" align="start">
+                    <div className="p-3 border-b space-y-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Rechercher..."
+                          value={scopeRestaurantSearch}
+                          onChange={(e) => setScopeRestaurantSearch(e.target.value)}
+                          className="pl-9 h-9"
+                        />
+                      </div>
+                      
+                      <div className="flex gap-1">
+                        <Button
+                          variant={scopeRestaurantFilterType === "all" ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setScopeRestaurantFilterType("all")}
+                        >
+                          Tous
+                        </Button>
+                        <Button
+                          variant={scopeRestaurantFilterType === "department" ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => setScopeRestaurantFilterType("department")}
+                        >
+                          <MapPin className="h-3 w-3" />
+                          Département
+                        </Button>
+                        <Button
+                          variant={scopeRestaurantFilterType === "manager" ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setScopeRestaurantFilterType("manager")}
+                        >
+                          Manager
+                        </Button>
+                      </div>
+                      
+                      {scopeRestaurantFilterType === "department" && (
+                        <Select value={scopeSelectedDepartment} onValueChange={setScopeSelectedDepartment}>
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Choisir un département" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[...new Set(restaurants.filter(r => r.postal_code).map(r => r.postal_code!.substring(0, 2)))].sort().map((dept) => (
+                              <SelectItem key={dept} value={dept}>
+                                {dept} ({restaurants.filter(r => r.postal_code?.startsWith(dept)).length})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      
+                      {scopeRestaurantFilterType === "manager" && (
+                        <Select value={scopeSelectedManager} onValueChange={setScopeSelectedManager}>
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Choisir un account manager" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[...new Set(restaurants.filter(r => r.account_manager_name).map(r => r.account_manager_name!))].sort().map((manager) => (
+                              <SelectItem key={manager} value={manager}>
+                                {manager} ({restaurants.filter(r => r.account_manager_name === manager).length})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    
+                    <div className="max-h-[250px] overflow-y-auto p-2">
+                      {(() => {
+                        let filtered = restaurants;
+                        
+                        if (scopeRestaurantSearch) {
+                          const search = scopeRestaurantSearch.toLowerCase();
+                          filtered = filtered.filter(r => 
+                            r.name.toLowerCase().includes(search) ||
+                            r.postal_code?.toLowerCase().includes(search) ||
+                            r.account_manager_name?.toLowerCase().includes(search)
+                          );
+                        }
+                        
+                        if (scopeRestaurantFilterType === "department" && scopeSelectedDepartment) {
+                          filtered = filtered.filter(r => r.postal_code?.startsWith(scopeSelectedDepartment));
+                        }
+                        
+                        if (scopeRestaurantFilterType === "manager" && scopeSelectedManager) {
+                          filtered = filtered.filter(r => r.account_manager_name === scopeSelectedManager);
+                        }
+                        
+                        if (filtered.length === 0) {
+                          return <p className="text-sm text-muted-foreground text-center py-4">Aucun restaurant trouvé</p>;
+                        }
+                        
+                        return (
+                          <>
+                            <div className="flex justify-between mb-2 px-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs"
+                                onClick={() => setScopeRestaurantFilters([...new Set([...scopeRestaurantFilters, ...filtered.map(r => r.id)])])}
+                              >
+                                Tout sélectionner
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs text-muted-foreground"
+                                onClick={() => setScopeRestaurantFilters(scopeRestaurantFilters.filter(id => !filtered.find(r => r.id === id)))}
+                              >
+                                Désélectionner
+                              </Button>
+                            </div>
+                            {filtered.map((restaurant) => (
+                              <div
+                                key={restaurant.id}
+                                className="flex items-center space-x-2 p-2 hover:bg-muted/50 rounded cursor-pointer"
+                                onClick={() => {
+                                  const isSelected = scopeRestaurantFilters.includes(restaurant.id);
+                                  if (isSelected) {
+                                    setScopeRestaurantFilters(scopeRestaurantFilters.filter(id => id !== restaurant.id));
+                                  } else {
+                                    setScopeRestaurantFilters([...scopeRestaurantFilters, restaurant.id]);
+                                  }
+                                }}
+                              >
+                                <Checkbox checked={scopeRestaurantFilters.includes(restaurant.id)} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm truncate">{restaurant.name}</p>
+                                  {(restaurant.postal_code || restaurant.account_manager_name) && (
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {restaurant.postal_code?.substring(0, 2)}
+                                      {restaurant.postal_code && restaurant.account_manager_name && " • "}
+                                      {restaurant.account_manager_name}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </div>
+                    
+                    <div className="p-2 border-t flex justify-between items-center">
+                      <span className="text-xs text-muted-foreground">
+                        {scopeRestaurantFilters.length} / {restaurants.length} sélectionné(s)
+                      </span>
+                      {scopeRestaurantFilters.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setScopeRestaurantFilters([])}
+                        >
+                          Effacer
+                        </Button>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                
+                {/* Display selected restaurants as badges */}
+                {scopeRestaurantFilters.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {scopeRestaurantFilters.slice(0, 3).map(id => {
+                      const r = restaurants.find(r => r.id === id);
+                      return r ? (
+                        <Badge 
+                          key={id} 
+                          variant="secondary" 
+                          className="gap-1 cursor-pointer"
+                          onClick={() => setScopeRestaurantFilters(scopeRestaurantFilters.filter(rid => rid !== id))}
+                        >
+                          {r.name}
+                          <X className="h-3 w-3" />
+                        </Badge>
+                      ) : null;
+                    })}
+                    {scopeRestaurantFilters.length > 3 && (
+                      <Badge variant="outline">+{scopeRestaurantFilters.length - 3}</Badge>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Platform Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

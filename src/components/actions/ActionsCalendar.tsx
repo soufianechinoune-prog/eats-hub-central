@@ -11,8 +11,7 @@ import {
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Globe, Store, Layers } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import { CalendarEvent } from "./CalendarEventBar";
 import { MiniCalendar } from "./MiniCalendar";
 import { CalendarMonthView } from "./CalendarMonthView";
@@ -21,7 +20,6 @@ import { CalendarDayView } from "./CalendarDayView";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-type ScopeFilter = "all" | "national" | "local";
 type ViewMode = "month" | "week" | "day";
 
 interface RestaurantAction {
@@ -83,7 +81,6 @@ export function ActionsCalendar({
   onActionDrop,
 }: ActionsCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("month");
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
@@ -113,17 +110,6 @@ export function ActionsCalendar({
       };
     });
   }, [actions, restaurants]);
-
-  // Filter events by scope
-  const filteredEvents = useMemo(() => {
-    if (scopeFilter === "all") return calendarEvents;
-    if (scopeFilter === "national") return calendarEvents.filter(e => e.isNational);
-    return calendarEvents.filter(e => !e.isNational);
-  }, [calendarEvents, scopeFilter]);
-
-  // Stats for the filter badges
-  const nationalCount = calendarEvents.filter(e => e.isNational).length;
-  const localCount = calendarEvents.filter(e => !e.isNational).length;
 
   // Navigation handlers based on view mode
   const goToPrevious = () => {
@@ -181,104 +167,59 @@ export function ActionsCalendar({
                 setViewMode("day");
               }
             }}
-            events={filteredEvents}
+            events={calendarEvents}
           />
         </div>
 
         {/* Main Calendar */}
         <div className="flex-1 bg-card rounded-lg border shadow-sm overflow-hidden">
           {/* Calendar Header */}
-          <div className="flex flex-col gap-3 p-4 border-b bg-muted/30">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={goToToday}>
-                  Aujourd'hui
+          <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={goToToday}>
+                Aujourd'hui
+              </Button>
+              <div className="flex items-center">
+                <Button variant="ghost" size="icon" onClick={goToPrevious}>
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <div className="flex items-center">
-                  <Button variant="ghost" size="icon" onClick={goToPrevious}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={goToNext}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <h2 className="text-xl font-semibold capitalize">
-                {getTitle()}
-              </h2>
-              <div className="flex items-center gap-2">
-                {/* View Mode Toggle */}
-                <div className="flex items-center bg-background rounded-lg p-0.5 border">
-                  <Button
-                    variant={viewMode === "month" ? "secondary" : "ghost"}
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setViewMode("month")}
-                  >
-                    Mois
-                  </Button>
-                  <Button
-                    variant={viewMode === "week" ? "secondary" : "ghost"}
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setViewMode("week")}
-                  >
-                    Semaine
-                  </Button>
-                  <Button
-                    variant={viewMode === "day" ? "secondary" : "ghost"}
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setViewMode("day")}
-                  >
-                    Jour
-                  </Button>
-                </div>
-                <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+                <Button variant="ghost" size="icon" onClick={goToNext}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-            
-            {/* Scope Filter */}
+            <h2 className="text-xl font-semibold capitalize">
+              {getTitle()}
+            </h2>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground mr-1">Portée :</span>
+              {/* View Mode Toggle */}
               <div className="flex items-center bg-background rounded-lg p-0.5 border">
                 <Button
-                  variant={scopeFilter === "all" ? "secondary" : "ghost"}
+                  variant={viewMode === "month" ? "secondary" : "ghost"}
                   size="sm"
-                  className="h-7 gap-1.5 text-xs"
-                  onClick={() => setScopeFilter("all")}
+                  className="h-7 text-xs"
+                  onClick={() => setViewMode("month")}
                 >
-                  <Layers className="h-3.5 w-3.5" />
-                  Toutes
-                  <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
-                    {calendarEvents.length}
-                  </Badge>
+                  Mois
                 </Button>
                 <Button
-                  variant={scopeFilter === "national" ? "secondary" : "ghost"}
+                  variant={viewMode === "week" ? "secondary" : "ghost"}
                   size="sm"
-                  className="h-7 gap-1.5 text-xs"
-                  onClick={() => setScopeFilter("national")}
+                  className="h-7 text-xs"
+                  onClick={() => setViewMode("week")}
                 >
-                  <Globe className="h-3.5 w-3.5" />
-                  Nationales
-                  <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px] bg-blue-500/10 text-blue-600">
-                    {nationalCount}
-                  </Badge>
+                  Semaine
                 </Button>
                 <Button
-                  variant={scopeFilter === "local" ? "secondary" : "ghost"}
+                  variant={viewMode === "day" ? "secondary" : "ghost"}
                   size="sm"
-                  className="h-7 gap-1.5 text-xs"
-                  onClick={() => setScopeFilter("local")}
+                  className="h-7 text-xs"
+                  onClick={() => setViewMode("day")}
                 >
-                  <Store className="h-3.5 w-3.5" />
-                  Par restaurant
-                  <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px] bg-emerald-500/10 text-emerald-600">
-                    {localCount}
-                  </Badge>
+                  Jour
                 </Button>
               </div>
+              <CalendarIcon className="h-5 w-5 text-muted-foreground" />
             </div>
           </div>
 
@@ -286,7 +227,7 @@ export function ActionsCalendar({
           {viewMode === "month" && (
             <CalendarMonthView
               currentDate={currentDate}
-              events={filteredEvents}
+              events={calendarEvents}
               onActionClick={onActionClick}
               onDateClick={onDateClick}
               onActionDrop={onActionDrop}
@@ -295,7 +236,7 @@ export function ActionsCalendar({
           {viewMode === "week" && (
             <CalendarWeekView
               currentDate={currentDate}
-              events={filteredEvents}
+              events={calendarEvents}
               onActionClick={onActionClick}
               onDateClick={onDateClick}
               onActionDrop={onActionDrop}
@@ -304,7 +245,7 @@ export function ActionsCalendar({
           {viewMode === "day" && (
             <CalendarDayView
               currentDate={currentDate}
-              events={filteredEvents}
+              events={calendarEvents}
               onActionClick={onActionClick}
               onDateClick={onDateClick}
             />
