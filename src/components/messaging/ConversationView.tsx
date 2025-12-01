@@ -760,69 +760,13 @@ export default function ConversationView() {
     }
   };
 
-  // Send voice message
+  // Send voice message (disabled for now at user request)
   const sendVoiceMessage = async () => {
-    if (!selectedConversation || !audioBlob) return;
+    if (!audioBlob) return;
 
-    setIsSendingVoice(true);
-
-    try {
-      const restaurant = restaurants.find(
-        (r) => r.manager_whatsapp && normalizePhone(r.manager_whatsapp) === normalizePhone(selectedConversation.phone)
-      );
-
-      // Always upload as OGG for storage + Ultramsg compatibility
-      const fileExtension = 'ogg';
-      const fileName = `voice-${Date.now()}.${fileExtension}`;
-      const file = new File([audioBlob], fileName, { type: 'audio/ogg' });
-
-      console.log('Uploading voice message:', fileName, 'original type:', audioBlob.type, 'size:', audioBlob.size);
-
-      // Upload to Supabase storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('whatsapp-media')
-        .upload(fileName, file);
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw new Error('Erreur lors de l\'upload du message vocal');
-      }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('whatsapp-media')
-        .getPublicUrl(fileName);
-
-      console.log('Voice uploaded, public URL:', publicUrl);
-
-      // Send via edge function with duration
-      const { data, error } = await supabase.functions.invoke("send-whatsapp-media", {
-        body: {
-          phone: selectedConversation.phone,
-          mediaUrl: publicUrl,
-          mediaType: 'audio',
-          restaurant_id: restaurant?.id,
-          recipient_name: selectedConversation.contactName,
-          restaurant_name: selectedConversation.restaurantName,
-          duration: audioDuration,
-        },
-      });
-
-      if (error) throw new Error(error.message);
-
-      if (data.success) {
-        toast.success("Message vocal envoyé");
-        clearRecording();
-        queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
-      } else {
-        toast.error(data.error || "Échec de l'envoi");
-      }
-    } catch (err) {
-      console.error("Error sending voice message:", err);
-      toast.error("Erreur lors de l'envoi du message vocal");
-    } finally {
-      setIsSendingVoice(false);
-    }
+    // Do not call storage or edge functions anymore
+    toast.error("Les messages vocaux sont désactivés pour le moment.");
+    clearRecording();
   };
 
   // Handle enter key to send
