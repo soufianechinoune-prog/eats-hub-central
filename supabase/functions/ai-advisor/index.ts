@@ -72,6 +72,12 @@ Deno.serve(async (req) => {
       .order('start_date', { ascending: false })
       .limit(50);
 
+    // Get menu items catalog with prices
+    const { data: menuItems } = await supabase
+      .from('menu_items')
+      .select('id, name, name_uber, name_deliveroo, price_uber, price_deliveroo, category, food_cost, is_active')
+      .eq('is_active', true);
+
     // Build context for AI
     const contextData = {
       restaurants: restaurants || [],
@@ -79,6 +85,7 @@ Deno.serve(async (req) => {
       conversion: conversionData || [],
       fees: feesData || [],
       actions: actionsData || [],
+      menuItems: menuItems || [],
       currentPeriod: { year: currentYear, month: currentMonth }
     };
 
@@ -90,6 +97,7 @@ Tu as accès aux données suivantes:
 - Données de conversion (visites, vues menu, ajouts panier, commandes)
 - Données de frais (commissions, marketing, offres, publicité)
 - Historique des actions marketing
+- ${contextData.menuItems.length} produits du catalogue avec prix Uber/Deliveroo (name, price_uber, price_deliveroo, category, food_cost)
 
 DONNÉES DISPONIBLES:
 ${JSON.stringify(contextData, null, 2)}
