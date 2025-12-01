@@ -138,7 +138,7 @@ export default function ConversationView() {
   const [isSendingVoice, setIsSendingVoice] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
-  const [conversationFilter, setConversationFilter] = useState<'all' | 'unread'>('all');
+  const [conversationFilter, setConversationFilter] = useState<'all' | 'unread' | 'archived'>('all');
   const [archivedPhones, setArchivedPhones] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('archivedConversations');
     return saved ? new Set(JSON.parse(saved)) : new Set();
@@ -366,12 +366,17 @@ export default function ConversationView() {
   const filteredConversations = useMemo(() => {
     let filtered = conversations;
     
-    // Filter out archived conversations
-    filtered = filtered.filter(conv => !archivedPhones.has(normalizePhone(conv.phone)));
-    
-    // Apply unread filter
-    if (conversationFilter === 'unread') {
-      filtered = filtered.filter(conv => conv.unreadCount > 0);
+    // Handle archived filter differently
+    if (conversationFilter === 'archived') {
+      filtered = filtered.filter(conv => archivedPhones.has(normalizePhone(conv.phone)));
+    } else {
+      // Filter out archived conversations for all/unread views
+      filtered = filtered.filter(conv => !archivedPhones.has(normalizePhone(conv.phone)));
+      
+      // Apply unread filter
+      if (conversationFilter === 'unread') {
+        filtered = filtered.filter(conv => conv.unreadCount > 0);
+      }
     }
     
     // Apply search filter
@@ -392,6 +397,13 @@ export default function ConversationView() {
   const unreadConversationsCount = useMemo(() => {
     return conversations.filter(
       conv => !archivedPhones.has(normalizePhone(conv.phone)) && conv.unreadCount > 0
+    ).length;
+  }, [conversations, archivedPhones]);
+
+  // Count archived conversations
+  const archivedConversationsCount = useMemo(() => {
+    return conversations.filter(
+      conv => archivedPhones.has(normalizePhone(conv.phone))
     ).length;
   }, [conversations, archivedPhones]);
 
@@ -435,6 +447,16 @@ export default function ConversationView() {
       setSelectedPhone(null);
     }
     toast.success("Conversation archivée");
+  };
+
+  // Unarchive a conversation
+  const unarchiveConversation = (phone: string) => {
+    const normalized = normalizePhone(phone);
+    const newArchived = new Set(archivedPhones);
+    newArchived.delete(normalized);
+    setArchivedPhones(newArchived);
+    localStorage.setItem('archivedConversations', JSON.stringify([...newArchived]));
+    toast.success("Conversation désarchivée");
   };
 
   // Mark conversation as unread
@@ -891,6 +913,25 @@ export default function ConversationView() {
                 </span>
               )}
             </Button>
+            <Button
+              variant={conversationFilter === 'archived' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setConversationFilter('archived')}
+              className={cn(
+                "h-8 px-3 rounded-lg text-xs font-medium transition-all",
+                conversationFilter === 'archived' 
+                  ? "bg-muted-foreground hover:bg-muted-foreground/90" 
+                  : "hover:bg-secondary"
+              )}
+            >
+              <Archive className="h-3.5 w-3.5 mr-1.5" />
+              Archivées
+              {archivedConversationsCount > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full bg-white/20">
+                  {archivedConversationsCount}
+                </span>
+              )}
+            </Button>
           </div>
           
           <div className="relative">
@@ -914,10 +955,26 @@ export default function ConversationView() {
           ) : filteredConversations.length === 0 ? (
             <div className="text-center py-16 px-6 text-muted-foreground">
               <div className="h-16 w-16 rounded-full bg-secondary/50 flex items-center justify-center mx-auto mb-4">
-                <MessageSquare className="h-8 w-8 opacity-40" />
+                {conversationFilter === 'archived' ? (
+                  <Archive className="h-8 w-8 opacity-40" />
+                ) : (
+                  <MessageSquare className="h-8 w-8 opacity-40" />
+                )}
               </div>
-              <p className="font-medium">Aucune conversation</p>
-              <p className="text-sm mt-1 opacity-70">Envoyez un message pour commencer</p>
+              <p className="font-medium">
+                {conversationFilter === 'archived' 
+                  ? "Aucune conversation archivée" 
+                  : conversationFilter === 'unread'
+                    ? "Aucun message non lu"
+                    : "Aucune conversation"}
+              </p>
+              <p className="text-sm mt-1 opacity-70">
+                {conversationFilter === 'archived' 
+                  ? "Les conversations archivées apparaîtront ici" 
+                  : conversationFilter === 'unread'
+                    ? "Vous êtes à jour !"
+                    : "Envoyez un message pour commencer"}
+              </p>
             </div>
           ) : (
             <div>
@@ -989,15 +1046,27 @@ export default function ConversationView() {
                                 <MailOpen className="h-4 w-4 mr-2" />
                                 Marquer non lu
                               </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  archiveConversation(conv.phone);
-                                }}
-                              >
-                                <Archive className="h-4 w-4 mr-2" />
-                                Archiver
-                              </DropdownMenuItem>
+                              {conversationFilter === 'archived' ? (
+                                <DropdownMenuItem 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    unarchiveConversation(conv.phone);
+                                  }}
+                                >
+                                  <Inbox className="h-4 w-4 mr-2" />
+                                  Désarchiver
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    archiveConversation(conv.phone);
+                                  }}
+                                >
+                                  <Archive className="h-4 w-4 mr-2" />
+                                  Archiver
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem 
                                 onClick={(e) => {
                                   e.stopPropagation();
