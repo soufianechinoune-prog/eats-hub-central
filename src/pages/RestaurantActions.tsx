@@ -1116,7 +1116,8 @@ export default function RestaurantActions() {
         >
           <Card 
             className={cn(
-              "cursor-pointer transition-shadow duration-200 hover:shadow-md",
+              "cursor-pointer transition-shadow duration-200 hover:shadow-md relative overflow-hidden",
+              "bg-[#06C167]/10",
               platformFilters.includes("uber_eats") && "ring-2 ring-[#06C167] shadow-md",
               uberActionsRaw === 0 && "opacity-40 pointer-events-none"
             )}
@@ -1126,15 +1127,10 @@ export default function RestaurantActions() {
                 : [...prev, "uber_eats"]
             )}
           >
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#06C167]/10 rounded-lg">
-                  <UberEatsIcon className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{uberActions}</p>
-                  <p className="text-xs text-muted-foreground">Uber Eats</p>
-                </div>
+            <CardContent className="pt-6 pb-6 flex items-center justify-center">
+              <UberEatsLogo size={40} className="opacity-90" />
+              <div className="absolute top-2 right-2 bg-[#06C167] text-white text-sm font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center">
+                {uberActions}
               </div>
             </CardContent>
           </Card>
@@ -1149,7 +1145,8 @@ export default function RestaurantActions() {
         >
           <Card 
             className={cn(
-              "cursor-pointer transition-shadow duration-200 hover:shadow-md",
+              "cursor-pointer transition-shadow duration-200 hover:shadow-md relative overflow-hidden",
+              "bg-[#00CCBC]/10",
               platformFilters.includes("deliveroo") && "ring-2 ring-[#00CCBC] shadow-md",
               deliverooActionsRaw === 0 && "opacity-40 pointer-events-none"
             )}
@@ -1159,15 +1156,10 @@ export default function RestaurantActions() {
                 : [...prev, "deliveroo"]
             )}
           >
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#00CCBC]/10 rounded-lg">
-                  <DeliverooIcon className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{deliverooActions}</p>
-                  <p className="text-xs text-muted-foreground">Deliveroo</p>
-                </div>
+            <CardContent className="pt-6 pb-6 flex items-center justify-center">
+              <DeliverooLogo size={40} className="opacity-90" />
+              <div className="absolute top-2 right-2 bg-[#00CCBC] text-white text-sm font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center">
+                {deliverooActions}
               </div>
             </CardContent>
           </Card>
