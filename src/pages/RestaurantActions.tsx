@@ -679,11 +679,28 @@ export default function RestaurantActions() {
     return format(new Date(dateStr), "d MMM yyyy", { locale: fr });
   };
 
-  // Stats (based on scoped actions)
-  const totalActionsRaw = scopedActions.length;
-  const activeActionsRaw = scopedActions.filter(a => !a.end_date || new Date(a.end_date) >= new Date()).length;
-  const uberActionsRaw = scopedActions.filter(a => a.platform === "uber_eats").length;
-  const deliverooActionsRaw = scopedActions.filter(a => a.platform === "deliveroo").length;
+  // Cross-filtered action sets for dynamic counters
+  // Actions filtered by category only (for platform counters)
+  const actionsFilteredByCategory = scopedActions.filter(a => 
+    categoryFilters.length === 0 || categoryFilters.includes(a.category)
+  );
+  
+  // Actions filtered by platform only (for category counters)
+  const actionsFilteredByPlatform = scopedActions.filter(a => 
+    platformFilters.length === 0 || platformFilters.includes(a.platform)
+  );
+  
+  // Actions filtered by both (for general counters)
+  const actionsFilteredByBoth = scopedActions.filter(a => 
+    (categoryFilters.length === 0 || categoryFilters.includes(a.category)) &&
+    (platformFilters.length === 0 || platformFilters.includes(a.platform))
+  );
+
+  // Stats with cross-filtering
+  const totalActionsRaw = actionsFilteredByBoth.length;
+  const activeActionsRaw = actionsFilteredByBoth.filter(a => !a.end_date || new Date(a.end_date) >= new Date()).length;
+  const uberActionsRaw = actionsFilteredByCategory.filter(a => a.platform === "uber_eats").length;
+  const deliverooActionsRaw = actionsFilteredByCategory.filter(a => a.platform === "deliveroo").length;
   
   // Animated counters
   const totalActions = useAnimatedCounter(totalActionsRaw, 600);
@@ -691,9 +708,10 @@ export default function RestaurantActions() {
   const uberActions = useAnimatedCounter(uberActionsRaw, 600);
   const deliverooActions = useAnimatedCounter(deliverooActionsRaw, 600);
   
+  // Category counters filtered by selected platforms
   const actionsByCategory = categories.map(cat => ({
     ...cat,
-    count: scopedActions.filter(a => a.category === cat.id).length
+    count: actionsFilteredByPlatform.filter(a => a.category === cat.id).length
   }));
 
   return (
