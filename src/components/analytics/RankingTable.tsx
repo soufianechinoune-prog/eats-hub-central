@@ -59,7 +59,7 @@ interface RankingTableProps {
   onToggleComparison?: (restaurant: RankedRestaurant) => void;
 }
 
-type SortField = "rank" | "name" | "city" | "value" | "prevValue" | "trend" | "rankChange";
+type SortField = "rank" | "name" | "city" | "value" | "trend" | "rankChange";
 type SortDirection = "asc" | "desc";
 
 function RankMedal({ rank }: { rank: number }) {
@@ -190,9 +190,6 @@ export function RankingTable({ ranking, metricLabel, formatValue, selectedForCom
         case "value":
           comparison = a.value - b.value;
           break;
-        case "prevValue":
-          comparison = a.prevValue - b.prevValue;
-          break;
         case "trend":
           comparison = (a.trend || 0) - (b.trend || 0);
           break;
@@ -230,14 +227,13 @@ export function RankingTable({ ranking, metricLabel, formatValue, selectedForCom
   };
 
   const exportCSV = () => {
-    const headers = ["Rang", "Δ Position", "Restaurant", "Ville", "Valeur actuelle", "Valeur N-1", "Variation %"];
+    const headers = ["Rang", "Δ Position", "Restaurant", "Ville", "Valeur actuelle", "Variation %"];
     const rows = filteredAndSorted.map(r => [
       r.rank,
       r.rankChange !== null ? (r.rankChange > 0 ? `+${r.rankChange}` : r.rankChange) : "",
       r.name,
       r.city || "",
       r.value,
-      r.prevValue,
       r.trend !== null ? r.trend.toFixed(1) : ""
     ]);
     
@@ -349,15 +345,6 @@ export function RankingTable({ ranking, metricLabel, formatValue, selectedForCom
                 </TableHead>
                 <TableHead 
                   className="text-right cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort("prevValue")}
-                >
-                  <div className="flex items-center justify-end">
-                    N-1
-                    <SortIcon field="prevValue" />
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="text-right cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort("trend")}
                 >
                   <div className="flex items-center justify-end">
@@ -371,7 +358,7 @@ export function RankingTable({ ranking, metricLabel, formatValue, selectedForCom
             <TableBody>
               {paginatedData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={onToggleComparison ? 9 : 8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={onToggleComparison ? 8 : 7} className="text-center py-8 text-muted-foreground">
                     Aucun résultat trouvé
                   </TableCell>
                 </TableRow>
@@ -421,9 +408,6 @@ export function RankingTable({ ranking, metricLabel, formatValue, selectedForCom
                       </TableCell>
                       <TableCell className="text-right font-semibold tabular-nums">
                         {formatValue(restaurant.value)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {restaurant.prevValue > 0 ? formatValue(restaurant.prevValue) : "-"}
                       </TableCell>
                       <TableCell className="text-right">
                         <TrendIndicator trend={restaurant.trend} />
