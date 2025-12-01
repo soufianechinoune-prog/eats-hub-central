@@ -33,6 +33,8 @@ interface CalendarEventBarProps {
   isEnd: boolean;
   onClick?: () => void;
   isDraggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -53,6 +55,8 @@ export function CalendarEventBar({
   isEnd,
   onClick,
   isDraggable = true,
+  onDragStart,
+  onDragEnd,
 }: CalendarEventBarProps) {
   const leftPercent = (dayIndex / 7) * 100;
   const widthPercent = (span / 7) * 100;
@@ -66,6 +70,9 @@ export function CalendarEventBar({
     <Tooltip>
       <TooltipTrigger asChild>
         <div
+          draggable={isDraggable}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
           className={cn(
             "absolute h-6 px-1.5 text-xs flex items-center gap-1 cursor-pointer transition-all",
             "hover:shadow-lg hover:z-20 z-10 hover:scale-[1.02]",

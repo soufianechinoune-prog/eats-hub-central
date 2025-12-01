@@ -111,13 +111,17 @@ export function CalendarMonthView({
     
     try {
       const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      console.log("Drop data received:", data);
       const { eventId, originalStart, originalEnd } = data;
       
       const originalStartDate = new Date(originalStart);
       const daysDiff = differenceInDays(targetDate, originalStartDate);
       
       // Don't do anything if dropped on same date
-      if (daysDiff === 0) return;
+      if (daysDiff === 0) {
+        console.log("Dropped on same date, ignoring");
+        return;
+      }
       
       const newStartDate = targetDate;
       let newEndDate: Date | null = null;
@@ -127,6 +131,7 @@ export function CalendarMonthView({
         newEndDate = addDays(originalEndDate, daysDiff);
       }
       
+      console.log("Calling onActionDrop:", eventId, newStartDate, newEndDate);
       onActionDrop?.(eventId, newStartDate, newEndDate);
     } catch (error) {
       console.error("Error handling drop:", error);
@@ -135,6 +140,7 @@ export function CalendarMonthView({
 
   // Custom drag start handler to capture event
   const handleEventDragStart = useCallback((e: React.DragEvent, event: CalendarEvent) => {
+    console.log("Drag started for event:", event.title, event.id);
     e.dataTransfer.setData("application/json", JSON.stringify({
       eventId: event.id,
       originalStart: event.start.toISOString(),
@@ -274,9 +280,6 @@ export function CalendarMonthView({
                 return (
                   <div
                     key={`${event.id}-${weekIndex}`}
-                    draggable={!!onActionDrop}
-                    onDragStart={(e) => handleEventDragStart(e, event)}
-                    onDragEnd={handleDragEnd}
                     className={cn(
                       "transition-opacity duration-150",
                       isBeingDragged && "opacity-40"
@@ -291,6 +294,8 @@ export function CalendarMonthView({
                       isEnd={isEnd}
                       isDraggable={!!onActionDrop}
                       onClick={() => onActionClick?.(event.originalAction)}
+                      onDragStart={(e) => handleEventDragStart(e, event)}
+                      onDragEnd={handleDragEnd}
                     />
                   </div>
                 );
