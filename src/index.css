@@ -87,6 +87,14 @@ All colors MUST be HSL.
     --sidebar-border: 217 33% 17%;
     --sidebar-ring: 239 84% 67%;
 
+    /* Glassmorphism effects */
+    --glass-bg: 0 0% 100% / 0.7;
+    --glass-bg-strong: 0 0% 100% / 0.85;
+    --glass-border: 0 0% 100% / 0.3;
+    --glass-shadow: 0 8px 32px -8px hsl(222 47% 11% / 0.15);
+    --glass-shadow-hover: 0 16px 48px -12px hsl(222 47% 11% / 0.2);
+    --blur-amount: 20px;
+
     --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 77%));
     --gradient-uber: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
     --gradient-deliveroo: linear-gradient(135deg, hsl(187 92% 45%), hsl(187 92% 55%));
@@ -177,6 +185,14 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217 33% 17%;
     --sidebar-ring: 239 84% 67%;
+
+    /* Glassmorphism effects */
+    --glass-bg: 0 0% 100% / 0.1;
+    --glass-bg-strong: 0 0% 100% / 0.15;
+    --glass-border: 0 0% 100% / 0.2;
+    --glass-shadow: 0 8px 32px -8px hsl(0 0% 0% / 0.3);
+    --glass-shadow-hover: 0 16px 48px -12px hsl(0 0% 0% / 0.4);
+    --blur-amount: 20px;
 
     --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 77%));
     --gradient-uber: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));

@@ -553,21 +553,21 @@ export default function MenuItems() {
           </p>
         </div>
         <div className="flex gap-2">
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} className="gap-2 hover:shadow-md transition-shadow">
-              <Upload className="h-4 w-4" />
+          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} className="gap-2 bg-white/60 dark:bg-white/5 backdrop-blur-sm border-white/40 hover:bg-white/80 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.15)] hover:border-primary/30 transition-all duration-500">
+              <Upload className="h-5 w-5" />
               Import CSV
             </Button>
           </motion.div>
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button variant="outline" onClick={() => setIsDeliverooImportDialogOpen(true)} className="gap-2 hover:shadow-md transition-shadow">
-              <DeliverooIcon className="h-4 w-4" />
+          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+            <Button variant="outline" onClick={() => setIsDeliverooImportDialogOpen(true)} className="gap-2 bg-white/60 dark:bg-white/5 backdrop-blur-sm border-white/40 hover:bg-white/80 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.15)] hover:border-[#00CCBC]/50 transition-all duration-500">
+              <DeliverooIcon className="h-5 w-5" />
               Import Deliveroo
             </Button>
           </motion.div>
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button onClick={openCreateDialog} className="gap-2 shadow-lg hover:shadow-xl transition-shadow">
-              <Plus className="h-4 w-4" />
+          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+            <Button onClick={openCreateDialog} className="gap-2 bg-gradient-to-r from-primary via-primary to-primary/90 shadow-[0_8px_24px_-8px_rgba(99,102,241,0.5)] hover:shadow-[0_16px_40px_-8px_rgba(99,102,241,0.6)] hover:scale-105 transition-all duration-500">
+              <Plus className="h-5 w-5" />
               Ajouter un produit
             </Button>
           </motion.div>
@@ -604,25 +604,26 @@ export default function MenuItems() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          whileHover={{ y: -4, transition: { duration: 0.2 } }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
+          whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
         >
-          <Card className="relative overflow-hidden hover:shadow-lg transition-shadow duration-300 border-primary/20">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
+          <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent" />
+            <div className="absolute inset-0 border border-white/40 rounded-lg" />
             <CardContent className="pt-6 relative">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <motion.div 
-                  className="p-2 bg-primary/10 rounded-lg"
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 400 }}
+                  className="p-3 bg-primary/15 backdrop-blur-sm rounded-xl shadow-lg"
+                  whileHover={{ scale: 1.15, rotate: 8 }}
+                  transition={{ type: "spring", stiffness: 500 }}
                 >
-                  <Package className="h-5 w-5 text-primary" />
+                  <Package className="h-7 w-7 text-primary" />
                 </motion.div>
                 <div>
-                  <p className="text-2xl font-bold">{totalItems}</p>
-                  <p className="text-xs text-muted-foreground">Produits total</p>
+                  <p className="text-3xl font-bold tracking-tight">{totalItems}</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Produits total</p>
                 </div>
               </div>
             </CardContent>
@@ -630,25 +631,26 @@ export default function MenuItems() {
         </motion.div>
         
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          whileHover={{ y: -4, transition: { duration: 0.2 } }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.15, type: "spring", stiffness: 200 }}
+          whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
         >
-          <Card className="relative overflow-hidden hover:shadow-lg transition-shadow duration-300 border-emerald-500/20">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
+          <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent" />
+            <div className="absolute inset-0 border border-white/40 rounded-lg" />
             <CardContent className="pt-6 relative">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <motion.div 
-                  className="p-2 bg-emerald-500/10 rounded-lg"
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 400 }}
+                  className="p-3 bg-emerald-500/15 backdrop-blur-sm rounded-xl shadow-lg"
+                  whileHover={{ scale: 1.15, rotate: 8 }}
+                  transition={{ type: "spring", stiffness: 500 }}
                 >
-                  <Package className="h-5 w-5 text-emerald-500" />
+                  <Package className="h-7 w-7 text-emerald-500" />
                 </motion.div>
                 <div>
-                  <p className="text-2xl font-bold">{activeItems}</p>
-                  <p className="text-xs text-muted-foreground">Produits actifs</p>
+                  <p className="text-3xl font-bold tracking-tight">{activeItems}</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Produits actifs</p>
                 </div>
               </div>
             </CardContent>
@@ -656,25 +658,26 @@ export default function MenuItems() {
         </motion.div>
         
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          whileHover={{ y: -4, transition: { duration: 0.2 } }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+          whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
         >
-          <Card className="relative overflow-hidden hover:shadow-lg transition-shadow duration-300 border-[#06C167]/20">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#06C167]/5 to-transparent" />
+          <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#06C167]/15 via-[#06C167]/5 to-transparent" />
+            <div className="absolute inset-0 border border-white/40 rounded-lg" />
             <CardContent className="pt-6 relative">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <motion.div 
-                  className="p-2 bg-[#06C167]/10 rounded-lg"
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 400 }}
+                  className="p-3 bg-[#06C167]/15 backdrop-blur-sm rounded-xl shadow-lg"
+                  whileHover={{ scale: 1.15, rotate: 8 }}
+                  transition={{ type: "spring", stiffness: 500 }}
                 >
-                  <UberEatsIcon className="h-5 w-5" />
+                  <UberEatsIcon className="h-7 w-7" />
                 </motion.div>
                 <div>
-                  <p className="text-2xl font-bold">{formatPrice(avgPriceUber)}</p>
-                  <p className="text-xs text-muted-foreground">Prix moyen Uber</p>
+                  <p className="text-3xl font-bold tracking-tight">{formatPrice(avgPriceUber)}</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Prix moyen Uber</p>
                 </div>
               </div>
             </CardContent>
@@ -682,25 +685,26 @@ export default function MenuItems() {
         </motion.div>
         
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          whileHover={{ y: -4, transition: { duration: 0.2 } }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.25, type: "spring", stiffness: 200 }}
+          whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
         >
-          <Card className="relative overflow-hidden hover:shadow-lg transition-shadow duration-300 border-[#00CCBC]/20">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#00CCBC]/5 to-transparent" />
+          <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#00CCBC]/15 via-[#00CCBC]/5 to-transparent" />
+            <div className="absolute inset-0 border border-white/40 rounded-lg" />
             <CardContent className="pt-6 relative">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <motion.div 
-                  className="p-2 bg-[#00CCBC]/10 rounded-lg"
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 400 }}
+                  className="p-3 bg-[#00CCBC]/15 backdrop-blur-sm rounded-xl shadow-lg"
+                  whileHover={{ scale: 1.15, rotate: 8 }}
+                  transition={{ type: "spring", stiffness: 500 }}
                 >
-                  <DeliverooIcon className="h-5 w-5" />
+                  <DeliverooIcon className="h-7 w-7" />
                 </motion.div>
                 <div>
-                  <p className="text-2xl font-bold">{formatPrice(avgPriceDeliveroo)}</p>
-                  <p className="text-xs text-muted-foreground">Prix moyen Deliveroo</p>
+                  <p className="text-3xl font-bold tracking-tight">{formatPrice(avgPriceDeliveroo)}</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Prix moyen Deliveroo</p>
                 </div>
               </div>
             </CardContent>
@@ -708,27 +712,28 @@ export default function MenuItems() {
         </motion.div>
         
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          whileHover={{ y: -4, transition: { duration: 0.2 } }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+          whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
         >
-          <Card className="relative overflow-hidden hover:shadow-lg transition-shadow duration-300 border-blue-500/20">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
+          <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/15 via-blue-500/5 to-transparent" />
+            <div className="absolute inset-0 border border-white/40 rounded-lg" />
             <CardContent className="pt-6 relative">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <motion.div 
-                  className="p-2 bg-blue-500/10 rounded-lg"
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 400 }}
+                  className="p-3 bg-blue-500/15 backdrop-blur-sm rounded-xl shadow-lg"
+                  whileHover={{ scale: 1.15, rotate: 8 }}
+                  transition={{ type: "spring", stiffness: 500 }}
                 >
-                  <TrendingUp className="h-5 w-5 text-blue-500" />
+                  <TrendingUp className="h-7 w-7 text-blue-500" />
                 </motion.div>
                 <div>
-                  <p className="text-2xl font-bold">
+                  <p className="text-3xl font-bold tracking-tight">
                     {priceDifference !== null ? `${priceDifference > 0 ? "+" : ""}${priceDifference.toFixed(1)}%` : "-"}
                   </p>
-                  <p className="text-xs text-muted-foreground">Écart prix</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Écart prix</p>
                 </div>
               </div>
             </CardContent>
@@ -742,17 +747,18 @@ export default function MenuItems() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.35 }}
       >
-        <Card className="shadow-sm hover:shadow-md transition-shadow duration-300">
-          <CardContent className="pt-6">
+        <Card className="border-0 bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.15)] transition-all duration-500">
+          <div className="absolute inset-0 border border-white/30 rounded-lg pointer-events-none" />
+          <CardContent className="pt-6 relative">
             <div className="flex flex-col sm:flex-row gap-4 justify-between">
               <div className="flex flex-col sm:flex-row gap-3 flex-1">
                 <div className="relative flex-1 max-w-sm group">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary group-focus-within:scale-110 transition-all duration-300" />
                   <Input
                     placeholder="Rechercher un produit..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 focus:ring-2 focus:ring-primary/20 transition-all"
+                    className="pl-9 bg-white/80 dark:bg-white/5 backdrop-blur-sm border-white/40 focus:ring-2 focus:ring-primary/30 focus:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all duration-300"
                   />
                 </div>
               <Popover>
@@ -829,14 +835,16 @@ export default function MenuItems() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
       >
-        <Card className="shadow-sm hover:shadow-md transition-shadow duration-300">
-          <CardHeader>
-            <CardTitle>Produits ({filteredItems.length})</CardTitle>
-            <CardDescription>
+        <Card className="border-0 bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.15)] transition-all duration-500">
+          <div className="absolute inset-0 border border-white/30 rounded-lg pointer-events-none" />
+          <CardHeader className="relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5" />
+            <CardTitle className="relative">Produits ({filteredItems.length})</CardTitle>
+            <CardDescription className="relative">
               Catalogue partagé avec prix différenciés par plateforme
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="relative">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -891,27 +899,27 @@ export default function MenuItems() {
                     >
                       <CollapsibleTrigger asChild>
                         <motion.div 
-                          className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl cursor-pointer hover:bg-muted transition-all hover:shadow-sm border border-transparent hover:border-primary/20"
-                          whileHover={{ x: 4 }}
-                          transition={{ type: "spring", stiffness: 400 }}
+                          className="flex items-center gap-3 p-4 bg-white/60 dark:bg-white/5 backdrop-blur-lg rounded-xl cursor-pointer hover:bg-white/80 transition-all duration-500 hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-white/40 hover:border-primary/30"
+                          whileHover={{ x: 6, scale: 1.01 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 20 }}
                         >
                           <motion.div
                             animate={{ rotate: isExpanded ? 0 : -90 }}
-                            transition={{ duration: 0.2 }}
+                            transition={{ duration: 0.3, type: "spring" }}
                           >
-                            <ChevronDown className="h-4 w-4" />
+                            <ChevronDown className="h-5 w-5 text-primary" />
                           </motion.div>
-                          <span className="font-semibold">{category}</span>
-                          <Badge variant="secondary" className="shadow-sm">{categoryItems.length} produit{categoryItems.length > 1 ? 's' : ''}</Badge>
+                          <span className="font-semibold text-base tracking-tight">{category}</span>
+                          <Badge variant="secondary" className="shadow-sm bg-primary/10 text-primary backdrop-blur-sm border-white/40">{categoryItems.length} produit{categoryItems.length > 1 ? 's' : ''}</Badge>
                         </motion.div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                       <motion.div 
-                        className="overflow-x-auto mt-2 border rounded-xl shadow-sm"
+                        className="overflow-x-auto mt-3 border-0 rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] bg-white/50 dark:bg-white/5 backdrop-blur-md"
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.3 }}
+                        transition={{ duration: 0.4, type: "spring" }}
                       >
                         <Table>
                           <TableHeader>
