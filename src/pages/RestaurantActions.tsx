@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -2311,7 +2312,8 @@ export default function RestaurantActions() {
                       </div>
                       
                       {/* Restaurant list */}
-                      <div className="max-h-[280px] overflow-y-auto">
+                      <ScrollArea className="h-[280px]">
+                        <div className="pr-3">
                         {(() => {
                           let filtered = restaurants.filter(r =>
                             r.name.toLowerCase().includes(restaurantSearch.toLowerCase())
@@ -2409,7 +2411,8 @@ export default function RestaurantActions() {
                             </>
                           );
                         })()}
-                      </div>
+                        </div>
+                      </ScrollArea>
                       
                       {/* Footer with count */}
                       <div className="border-t px-3 py-2 text-xs text-muted-foreground bg-muted/30 flex justify-between">

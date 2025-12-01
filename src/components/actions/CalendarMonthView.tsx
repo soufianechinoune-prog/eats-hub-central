@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import {
   format,
   startOfMonth,
@@ -171,6 +171,34 @@ export function CalendarMonthView({
     setDraggedEvent(null);
     setDragPosition(null);
     setIsDragging(false);
+  }, []);
+
+  // Reset drag state when drag ends outside the calendar
+  useEffect(() => {
+    const handleGlobalDragEnd = () => {
+      setDragOverDate(null);
+      setDraggedEvent(null);
+      setDragPosition(null);
+      setIsDragging(false);
+    };
+
+    // Listen for dragend anywhere on the document
+    document.addEventListener("dragend", handleGlobalDragEnd);
+    
+    // Escape key to cancel drag
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleGlobalDragEnd();
+        setRangeStart(null);
+        setRangeEnd(null);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("dragend", handleGlobalDragEnd);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   return (
