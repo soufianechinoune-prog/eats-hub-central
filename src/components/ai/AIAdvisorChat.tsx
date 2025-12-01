@@ -1,10 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Sparkles } from 'lucide-react';
+import { Send, Loader2, Sparkles, Plus, Trash2, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAIAdvisor } from '@/hooks/useAIAdvisor';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const EXAMPLE_QUESTIONS = [
   "Quel est mon meilleur restaurant ce mois-ci ?",
@@ -14,9 +26,20 @@ const EXAMPLE_QUESTIONS = [
 ];
 
 export const AIAdvisorChat = () => {
-  const { messages, isLoading, sendMessage } = useAIAdvisor();
+  const { 
+    messages, 
+    isLoading, 
+    sendMessage, 
+    conversations, 
+    currentConversationId,
+    loadConversation,
+    startNewConversation,
+    deleteConversation 
+  } = useAIAdvisor();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -37,8 +60,80 @@ export const AIAdvisorChat = () => {
     }
   };
 
+  const handleDeleteClick = (id: string) => {
+    setConversationToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (conversationToDelete) {
+      await deleteConversation(conversationToDelete);
+      setDeleteDialogOpen(false);
+      setConversationToDelete(null);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-[536px]">
+    <div className="flex h-[536px]">
+      {/* Sidebar des conversations */}
+      <div className="w-64 border-r border-border flex flex-col">
+        <div className="p-3 border-b border-border">
+          <Button
+            onClick={startNewConversation}
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Nouvelle conversation
+          </Button>
+        </div>
+        
+        <ScrollArea className="flex-1">
+          <div className="p-2 space-y-1">
+            <AnimatePresence>
+              {conversations.map((conv) => (
+                <motion.div
+                  key={conv.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className={`group relative flex items-start gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                    conv.id === currentConversationId 
+                      ? 'bg-primary/10 text-primary' 
+                      : 'hover:bg-muted'
+                  }`}
+                  onClick={() => loadConversation(conv.id)}
+                >
+                  <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {conv.title || 'Sans titre'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(conv.updated_at), 'dd MMM', { locale: fr })}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(conv.id);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Zone de chat principale */}
+      <div className="flex-1 flex flex-col">
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
@@ -129,7 +224,24 @@ export const AIAdvisorChat = () => {
             )}
           </Button>
         </div>
+        </div>
       </div>
+
+      {/* Dialog de confirmation de suppression */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer la conversation ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Tous les messages de cette conversation seront supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Supprimer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
