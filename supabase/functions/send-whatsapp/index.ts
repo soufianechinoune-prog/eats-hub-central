@@ -131,6 +131,7 @@ serve(async (req) => {
           // Log to message_history with campaign_id
           if (supabase) {
             await supabase.from('message_history').insert({
+              direction: 'outbound',
               restaurant_id: recipient.restaurant_id || null,
               recipient_phone: recipient.phone,
               recipient_name: recipient.name,
@@ -157,6 +158,7 @@ serve(async (req) => {
           // Log failed message to history with campaign_id
           if (supabase) {
             await supabase.from('message_history').insert({
+              direction: 'outbound',
               restaurant_id: recipient.restaurant_id || null,
               recipient_phone: recipient.phone,
               recipient_name: recipient.name,
@@ -184,6 +186,7 @@ serve(async (req) => {
         // Log error to history with campaign_id
         if (supabase) {
           await supabase.from('message_history').insert({
+            direction: 'outbound',
             restaurant_id: recipient.restaurant_id || null,
             recipient_phone: recipient.phone,
             recipient_name: recipient.name,
