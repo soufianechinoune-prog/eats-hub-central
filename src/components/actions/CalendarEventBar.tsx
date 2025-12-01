@@ -5,10 +5,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
-import { Globe, Store, GripVertical } from "lucide-react";
+import { Globe, Store, GripVertical, Trash2, Pencil } from "lucide-react";
 
 export interface CalendarEvent {
   id: string;
@@ -32,6 +33,7 @@ interface CalendarEventBarProps {
   isStart: boolean;
   isEnd: boolean;
   onClick?: () => void;
+  onDelete?: () => void;
   isDraggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
@@ -54,6 +56,7 @@ export function CalendarEventBar({
   isStart,
   isEnd,
   onClick,
+  onDelete,
   isDraggable = true,
   onDragStart,
   onDragEnd,
@@ -112,8 +115,8 @@ export function CalendarEventBar({
           )}
         </div>
       </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        <div className="space-y-2">
+      <TooltipContent side="top" className="max-w-xs p-0 overflow-hidden">
+        <div className="p-3 space-y-2">
           <div className="font-semibold">{event.title}</div>
           <div className="flex items-center gap-2 text-xs">
             <Badge variant="secondary" className={cn("text-[10px]", event.color.bg, event.color.text)}>
@@ -146,9 +149,39 @@ export function CalendarEventBar({
             </div>
           ) : null}
           {isDraggable && (
-            <div className="text-[10px] text-muted-foreground/60 border-t pt-1 mt-1">
+            <div className="text-[10px] text-muted-foreground/60">
               Glisser-déposer pour changer la date
             </div>
+          )}
+        </div>
+        
+        {/* Action buttons */}
+        <div className="flex border-t bg-muted/30">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 h-8 rounded-none text-xs gap-1.5 hover:bg-muted"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick?.();
+            }}
+          >
+            <Pencil className="h-3 w-3" />
+            Modifier
+          </Button>
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex-1 h-8 rounded-none text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+            >
+              <Trash2 className="h-3 w-3" />
+              Supprimer
+            </Button>
           )}
         </div>
       </TooltipContent>

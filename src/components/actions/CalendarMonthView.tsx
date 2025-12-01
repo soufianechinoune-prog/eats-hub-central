@@ -10,18 +10,24 @@ import {
   isSameDay,
   isToday,
   differenceInDays,
+  isBefore,
+  isAfter,
+  isWithinInterval,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CalendarEventBar, CalendarEvent } from "./CalendarEventBar";
 import { DragPreview } from "./DragPreview";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface CalendarMonthViewProps {
   currentDate: Date;
   events: CalendarEvent[];
   onActionClick?: (action: any) => void;
+  onActionDelete?: (action: any) => void;
   onDateClick?: (date: Date) => void;
+  onDateRangeSelect?: (startDate: Date, endDate: Date) => void;
   onActionDrop?: (eventId: string, newStartDate: Date, newEndDate: Date | null) => void;
 }
 
@@ -29,13 +35,19 @@ export function CalendarMonthView({
   currentDate,
   events,
   onActionClick,
+  onActionDelete,
   onDateClick,
+  onDateRangeSelect,
   onActionDrop,
 }: CalendarMonthViewProps) {
   const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
   const [draggedEvent, setDraggedEvent] = useState<CalendarEvent | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Date range selection state
+  const [rangeStart, setRangeStart] = useState<Date | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<Date | null>(null);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -163,6 +175,40 @@ export function CalendarMonthView({
 
   return (
     <>
+      {/* Date Range Selection Indicator */}
+      {rangeStart && (
+        <div className="flex items-center justify-between px-4 py-2 bg-primary/10 border-b border-primary/20 animate-fade-in">
+          <div className="flex items-center gap-2 text-sm">
+            <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+            <span className="font-medium text-primary">
+              {rangeEnd ? (
+                <>
+                  Plage sélectionnée : {format(isBefore(rangeStart, rangeEnd) ? rangeStart : rangeEnd, "d MMM", { locale: fr })} 
+                  → {format(isAfter(rangeStart, rangeEnd) ? rangeStart : rangeEnd, "d MMM", { locale: fr })}
+                </>
+              ) : (
+                <>
+                  Date de début : {format(rangeStart, "d MMM yyyy", { locale: fr })}
+                  <span className="text-muted-foreground ml-2">• Cliquez sur une autre date pour définir la fin</span>
+                </>
+              )}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs gap-1"
+            onClick={() => {
+              setRangeStart(null);
+              setRangeEnd(null);
+            }}
+          >
+            <X className="h-3 w-3" />
+            Annuler
+          </Button>
+        </div>
+      )}
+      
       {/* Week Days Header */}
       <div className="grid grid-cols-7 border-b">
         {weekDays.map((day, index) => (
@@ -221,6 +267,42 @@ export function CalendarMonthView({
                 const isCurrentMonth = isSameMonth(day, currentDate);
                 const isWeekend = dayIndex >= 5;
                 const isDragOver = dragOverDate && isSameDay(dragOverDate, day);
+                
+                // Check if day is in selected range
+                const isRangeStart = rangeStart && isSameDay(rangeStart, day);
+                const isRangeEnd = rangeEnd && isSameDay(rangeEnd, day);
+                const isInRange = rangeStart && rangeEnd && isWithinInterval(day, {
+                  start: isBefore(rangeStart, rangeEnd) ? rangeStart : rangeEnd,
+                  end: isAfter(rangeStart, rangeEnd) ? rangeStart : rangeEnd,
+                });
+                const isRangeSelected = isRangeStart || isRangeEnd || isInRange;
+
+                // Handle day click for range selection
+                const handleDayClick = () => {
+                  if (!rangeStart) {
+                    // First click - set start date
+                    setRangeStart(day);
+                    setRangeEnd(null);
+                  } else if (!rangeEnd) {
+                    // Second click - set end date and trigger callback
+                    const start = isBefore(rangeStart, day) ? rangeStart : day;
+                    const end = isAfter(rangeStart, day) ? rangeStart : day;
+                    setRangeEnd(day);
+                    
+                    if (onDateRangeSelect) {
+                      onDateRangeSelect(start, end);
+                    }
+                    // Clear selection after callback
+                    setTimeout(() => {
+                      setRangeStart(null);
+                      setRangeEnd(null);
+                    }, 100);
+                  } else {
+                    // Third click - reset and start new selection
+                    setRangeStart(day);
+                    setRangeEnd(null);
+                  }
+                };
 
                 return (
                   <div
@@ -230,9 +312,13 @@ export function CalendarMonthView({
                       !isCurrentMonth && "bg-muted/20",
                       isWeekend && "bg-muted/30",
                       "hover:bg-accent/50 cursor-pointer",
-                      isDragOver && "bg-primary/15 scale-[1.03] z-10"
+                      isDragOver && "bg-primary/15 scale-[1.03] z-10",
+                      // Range selection styling
+                      isRangeStart && "bg-primary/30 rounded-l-lg",
+                      isRangeEnd && "bg-primary/30 rounded-r-lg",
+                      isInRange && !isRangeStart && !isRangeEnd && "bg-primary/15"
                     )}
-                    onClick={() => onDateClick?.(day)}
+                    onClick={handleDayClick}
                     onDragOver={(e) => handleDragOver(e, day)}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, day)}
@@ -250,7 +336,9 @@ export function CalendarMonthView({
                         "h-5 w-5 flex items-center justify-center rounded-full transition-all text-xs",
                         isDragOver 
                           ? "bg-primary text-primary-foreground opacity-100 scale-110" 
-                          : "bg-primary/0 group-hover:bg-primary text-primary-foreground opacity-0 group-hover:opacity-100"
+                          : isRangeSelected
+                            ? "bg-primary text-primary-foreground opacity-100"
+                            : "bg-primary/0 group-hover:bg-primary text-primary-foreground opacity-0 group-hover:opacity-100"
                       )}>
                         <Plus className="h-3 w-3" />
                       </span>
@@ -259,7 +347,8 @@ export function CalendarMonthView({
                           "h-7 w-7 flex items-center justify-center text-sm rounded-full transition-all duration-200",
                           isToday(day) && "bg-primary text-primary-foreground font-bold",
                           !isCurrentMonth && "text-muted-foreground",
-                          isDragOver && "bg-primary text-primary-foreground font-bold scale-125 shadow-lg"
+                          isDragOver && "bg-primary text-primary-foreground font-bold scale-125 shadow-lg",
+                          (isRangeStart || isRangeEnd) && !isToday(day) && "bg-primary text-primary-foreground font-bold"
                         )}
                       >
                         {format(day, "d")}
@@ -313,6 +402,7 @@ export function CalendarMonthView({
                       isEnd={isEnd}
                       isDraggable={!!onActionDrop}
                       onClick={() => onActionClick?.(event.originalAction)}
+                      onDelete={onActionDelete ? () => onActionDelete(event.originalAction) : undefined}
                       onDragStart={(e) => handleEventDragStart(e, event)}
                       onDragEnd={handleDragEndFull}
                     />

@@ -1501,11 +1501,24 @@ export default function RestaurantActions() {
           actions={filteredActions}
           restaurants={restaurants}
           onActionClick={(action) => openEditDialog(action)}
+          onActionDelete={(action) => {
+            setActionToDelete(action);
+            setIsDeleteDialogOpen(true);
+          }}
           onDateClick={(date) => {
             // Pre-fill the start date when clicking on a day
             setFormData((prev) => ({ 
               ...prev, 
               start_date: date.toISOString().split("T")[0] 
+            }));
+            openCreateDialog();
+          }}
+          onDateRangeSelect={(startDate, endDate) => {
+            // Pre-fill both start and end dates for range selection
+            setFormData((prev) => ({ 
+              ...prev, 
+              start_date: startDate.toISOString().split("T")[0],
+              end_date: endDate.toISOString().split("T")[0]
             }));
             openCreateDialog();
           }}
