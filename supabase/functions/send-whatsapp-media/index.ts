@@ -15,7 +15,6 @@ interface MediaRequest {
   restaurant_id?: string;
   recipient_name?: string;
   restaurant_name?: string;
-  duration?: number; // Duration in seconds for audio messages
 }
 
 serve(async (req) => {
@@ -49,8 +48,7 @@ serve(async (req) => {
       filename,
       restaurant_id,
       recipient_name,
-      restaurant_name,
-      duration
+      restaurant_name
     }: MediaRequest = await req.json();
 
     if (!phone || !mediaUrl || !mediaType) {
@@ -76,8 +74,7 @@ serve(async (req) => {
     if (mediaType === 'image') {
       endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/image`;
     } else if (mediaType === 'audio') {
-      // Use the "voice" endpoint for WhatsApp voice notes (.ogg Opus)
-      endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/voice`;
+      endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/audio`;
     } else {
       endpoint = `https://api.ultramsg.com/${INSTANCE_ID}/messages/document`;
     }
@@ -124,7 +121,7 @@ serve(async (req) => {
     if (response.ok && data.sent === 'true') {
       console.log(`Media sent successfully to ${formattedPhone}, ID: ${data.id}`);
       
-      // Log to message_history with media_url and duration
+      // Log to message_history with media_url
       if (supabase) {
         await supabase.from('message_history').insert({
           restaurant_id: restaurant_id || null,
@@ -138,7 +135,6 @@ serve(async (req) => {
           direction: 'outbound',
           media_url: mediaUrl,
           media_type: mediaType,
-          duration: duration || null,
         });
       }
 
@@ -165,7 +161,6 @@ serve(async (req) => {
           direction: 'outbound',
           media_url: mediaUrl,
           media_type: mediaType,
-          duration: duration || null,
         });
       }
 

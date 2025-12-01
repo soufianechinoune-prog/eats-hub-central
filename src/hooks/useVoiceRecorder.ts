@@ -4,7 +4,6 @@ interface UseVoiceRecorderReturn {
   isRecording: boolean;
   recordingTime: number;
   audioBlob: Blob | null;
-  audioDuration: number;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   cancelRecording: () => void;
@@ -15,7 +14,6 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [audioDuration, setAudioDuration] = useState(0);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -51,12 +49,12 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
       setRecordingTime(0);
       setAudioBlob(null);
 
-      // Use OGG Opus when possible (Ultramsg supports .ogg extension). Fallback to WebM.
+      // Use mp3 or ogg if available, fallback to webm
       const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
         ? 'audio/ogg;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
-          : 'audio/ogg';
+          : 'audio/webm';
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
@@ -70,7 +68,6 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
         setAudioBlob(blob);
-        setAudioDuration(recordingTime);
         clearTimer();
         stopStream();
       };
@@ -111,7 +108,6 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
   const clearRecording = useCallback(() => {
     setAudioBlob(null);
     setRecordingTime(0);
-    setAudioDuration(0);
     chunksRef.current = [];
   }, []);
 
@@ -119,7 +115,6 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
     isRecording,
     recordingTime,
     audioBlob,
-    audioDuration,
     startRecording,
     stopRecording,
     cancelRecording,
