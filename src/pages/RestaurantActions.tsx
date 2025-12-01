@@ -1106,54 +1106,72 @@ export default function RestaurantActions() {
             </div>
           </CardContent>
         </Card>
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02]",
-            platformFilters.includes("uber_eats") && "ring-2 ring-[#06C167] scale-[1.03] shadow-md",
-            uberActionsRaw === 0 && "opacity-40 pointer-events-none"
-          )}
-          onClick={() => setPlatformFilters(prev => 
-            prev.includes("uber_eats") 
-              ? prev.filter(p => p !== "uber_eats") 
-              : [...prev, "uber_eats"]
-          )}
+        <motion.div
+          animate={{ 
+            scale: platformFilters.includes("uber_eats") ? 1.03 : 1 
+          }}
+          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+          whileHover={uberActionsRaw > 0 ? { scale: 1.02 } : undefined}
+          whileTap={uberActionsRaw > 0 ? { scale: 0.98 } : undefined}
         >
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#06C167]/10 rounded-lg">
-                <UberEatsIcon className="h-5 w-5" />
+          <Card 
+            className={cn(
+              "cursor-pointer transition-shadow duration-200 hover:shadow-md",
+              platformFilters.includes("uber_eats") && "ring-2 ring-[#06C167] shadow-md",
+              uberActionsRaw === 0 && "opacity-40 pointer-events-none"
+            )}
+            onClick={() => setPlatformFilters(prev => 
+              prev.includes("uber_eats") 
+                ? prev.filter(p => p !== "uber_eats") 
+                : [...prev, "uber_eats"]
+            )}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-[#06C167]/10 rounded-lg">
+                  <UberEatsIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{uberActions}</p>
+                  <p className="text-xs text-muted-foreground">Uber Eats</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{uberActions}</p>
-                <p className="text-xs text-muted-foreground">Uber Eats</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02]",
-            platformFilters.includes("deliveroo") && "ring-2 ring-[#00CCBC] scale-[1.03] shadow-md",
-            deliverooActionsRaw === 0 && "opacity-40 pointer-events-none"
-          )}
-          onClick={() => setPlatformFilters(prev => 
-            prev.includes("deliveroo") 
-              ? prev.filter(p => p !== "deliveroo") 
-              : [...prev, "deliveroo"]
-          )}
+            </CardContent>
+          </Card>
+        </motion.div>
+        <motion.div
+          animate={{ 
+            scale: platformFilters.includes("deliveroo") ? 1.03 : 1 
+          }}
+          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+          whileHover={deliverooActionsRaw > 0 ? { scale: 1.02 } : undefined}
+          whileTap={deliverooActionsRaw > 0 ? { scale: 0.98 } : undefined}
         >
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#00CCBC]/10 rounded-lg">
-                <DeliverooIcon className="h-5 w-5" />
+          <Card 
+            className={cn(
+              "cursor-pointer transition-shadow duration-200 hover:shadow-md",
+              platformFilters.includes("deliveroo") && "ring-2 ring-[#00CCBC] shadow-md",
+              deliverooActionsRaw === 0 && "opacity-40 pointer-events-none"
+            )}
+            onClick={() => setPlatformFilters(prev => 
+              prev.includes("deliveroo") 
+                ? prev.filter(p => p !== "deliveroo") 
+                : [...prev, "deliveroo"]
+            )}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-[#00CCBC]/10 rounded-lg">
+                  <DeliverooIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{deliverooActions}</p>
+                  <p className="text-xs text-muted-foreground">Deliveroo</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{deliverooActions}</p>
-                <p className="text-xs text-muted-foreground">Deliveroo</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Category Stats */}
@@ -1161,33 +1179,42 @@ export default function RestaurantActions() {
         {actionsByCategory.map((cat) => {
           const Icon = CATEGORY_ICONS[cat.id] || Zap;
           return (
-            <Card 
-              key={cat.id} 
-              className={cn(
-                "cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02]",
-                categoryFilters.includes(cat.id) && "ring-2 ring-primary scale-[1.03] shadow-md",
-                cat.count === 0 && "opacity-40 pointer-events-none"
-              )}
-              onClick={() => setCategoryFilters(prev => 
-                prev.includes(cat.id) 
-                  ? prev.filter(c => c !== cat.id) 
-                  : [...prev, cat.id]
-              )}
+            <motion.div
+              key={cat.id}
+              animate={{ 
+                scale: categoryFilters.includes(cat.id) ? 1.03 : 1 
+              }}
+              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+              whileHover={cat.count > 0 ? { scale: 1.02 } : undefined}
+              whileTap={cat.count > 0 ? { scale: 0.98 } : undefined}
             >
-              <CardContent className="pt-4 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className={`p-1.5 rounded ${CATEGORY_COLORS[cat.id]}`}>
-                    <Icon className="h-4 w-4" />
+              <Card 
+                className={cn(
+                  "cursor-pointer transition-shadow duration-200 hover:shadow-md",
+                  categoryFilters.includes(cat.id) && "ring-2 ring-primary shadow-md",
+                  cat.count === 0 && "opacity-40 pointer-events-none"
+                )}
+                onClick={() => setCategoryFilters(prev => 
+                  prev.includes(cat.id) 
+                    ? prev.filter(c => c !== cat.id) 
+                    : [...prev, cat.id]
+                )}
+              >
+                <CardContent className="pt-4 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1.5 rounded ${CATEGORY_COLORS[cat.id]}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold">
+                        <AnimatedNumber value={cat.count} duration={600} />
+                      </p>
+                      <p className="text-xs text-muted-foreground">{cat.label}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-lg font-bold">
-                      <AnimatedNumber value={cat.count} duration={600} />
-                    </p>
-                    <p className="text-xs text-muted-foreground">{cat.label}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </motion.div>
           );
         })}
       </div>
