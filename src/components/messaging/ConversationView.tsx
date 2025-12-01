@@ -37,7 +37,7 @@ import {
   Inbox,
   ChevronUp,
   ChevronDown,
-  RotateCw,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
@@ -1456,7 +1456,7 @@ export default function ConversationView() {
                                       className="text-primary focus:text-primary"
                                       onClick={() => retryFailedMessage(msg)}
                                     >
-                                      <RotateCw className="h-4 w-4 mr-2" />
+                                      <RefreshCw className="h-4 w-4 mr-2" />
                                       Réessayer l'envoi
                                     </DropdownMenuItem>
                                   )}
