@@ -35,6 +35,8 @@ import {
   Archive,
   MailOpen,
   Inbox,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
@@ -146,10 +148,12 @@ export default function ConversationView() {
   const [conversationToDelete, setConversationToDelete] = useState<Conversation | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState("");
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
   const isInitialLoadRef = useRef(true);
+  const searchResultRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   // Common emojis for quick selection
   const commonEmojis = [
@@ -414,17 +418,48 @@ export default function ConversationView() {
     const conv = conversations.find((c) => normalizePhone(c.phone) === normalizePhone(selectedPhone));
     if (!conv) return null;
     
-    // Filter messages by search query if present
-    if (messageSearchQuery.trim()) {
-      const query = messageSearchQuery.toLowerCase();
-      const filteredMessages = conv.messages.filter(msg => 
-        msg.message_content.toLowerCase().includes(query)
-      );
-      return { ...conv, messages: filteredMessages };
-    }
-    
+    // Don't filter messages, we need them all for navigation
     return conv;
-  }, [selectedPhone, conversations, messageSearchQuery]);
+  }, [selectedPhone, conversations]);
+
+  // Count search results in conversation
+  const searchResultsCount = useMemo(() => {
+    if (!selectedConversation || !messageSearchQuery.trim()) return 0;
+    const query = messageSearchQuery.toLowerCase();
+    return selectedConversation.messages.filter(msg => 
+      msg.message_content.toLowerCase().includes(query)
+    ).length;
+  }, [selectedConversation, messageSearchQuery]);
+
+  // Reset search index when search query changes
+  useEffect(() => {
+    setCurrentSearchIndex(0);
+    searchResultRefs.current.clear();
+  }, [messageSearchQuery]);
+
+  // Navigate to next search result
+  const goToNextResult = () => {
+    if (searchResultsCount === 0) return;
+    const nextIndex = (currentSearchIndex + 1) % searchResultsCount;
+    setCurrentSearchIndex(nextIndex);
+  };
+
+  // Navigate to previous search result
+  const goToPrevResult = () => {
+    if (searchResultsCount === 0) return;
+    const prevIndex = currentSearchIndex === 0 ? searchResultsCount - 1 : currentSearchIndex - 1;
+    setCurrentSearchIndex(prevIndex);
+  };
+
+  // Scroll to active search result
+  useEffect(() => {
+    if (searchResultsCount > 0) {
+      const activeElement = searchResultRefs.current.get(currentSearchIndex);
+      if (activeElement) {
+        activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [currentSearchIndex, searchResultsCount]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -767,7 +802,7 @@ export default function ConversationView() {
   };
 
   // Highlight search terms in text
-  const highlightSearchTerms = (text: string) => {
+  const highlightSearchTerms = (text: string, isActiveResult: boolean = false) => {
     if (!messageSearchQuery.trim()) return text;
     
     const query = messageSearchQuery.trim();
@@ -778,7 +813,15 @@ export default function ConversationView() {
       <>
         {parts.map((part, index) => 
           regex.test(part) ? (
-            <mark key={index} className="bg-amber-200/80 dark:bg-amber-500/30 text-foreground rounded px-0.5">
+            <mark 
+              key={index} 
+              className={cn(
+                "text-foreground rounded px-0.5 transition-colors",
+                isActiveResult 
+                  ? "bg-orange-400 dark:bg-orange-500 font-medium" 
+                  : "bg-amber-200/80 dark:bg-amber-500/30"
+              )}
+            >
               {part}
             </mark>
           ) : (
@@ -790,7 +833,7 @@ export default function ConversationView() {
   };
 
   // Render message content (detect media messages)
-  const renderMessageContent = (msg: Message) => {
+  const renderMessageContent = (msg: Message, isActiveResult: boolean = false) => {
     const content = msg.message_content;
     
     // Audio message with URL - show audio player
@@ -815,7 +858,7 @@ export default function ConversationView() {
               onClick={() => window.open(msg.media_url!, '_blank')}
             />
             {caption && (
-              <p className="text-sm">{highlightSearchTerms(caption)}</p>
+              <p className="text-sm">{highlightSearchTerms(caption, isActiveResult)}</p>
             )}
           </div>
         );
@@ -823,7 +866,7 @@ export default function ConversationView() {
       return (
         <div className="flex items-center gap-2">
           <ImageIcon className="h-4 w-4 text-whatsapp" />
-          <span>{highlightSearchTerms(content.replace('📷 ', ''))}</span>
+          <span>{highlightSearchTerms(content.replace('📷 ', ''), isActiveResult)}</span>
         </div>
       );
     }
@@ -872,7 +915,7 @@ export default function ConversationView() {
       );
     }
     
-    return <span className="whitespace-pre-wrap break-words">{highlightSearchTerms(content)}</span>;
+    return <span className="whitespace-pre-wrap break-words">{highlightSearchTerms(content, isActiveResult)}</span>;
   };
 
   return (
@@ -1225,13 +1268,46 @@ export default function ConversationView() {
                     value={messageSearchQuery}
                     onChange={(e) => setMessageSearchQuery(e.target.value)}
                     placeholder="Rechercher dans la conversation..."
-                    className="pl-9 pr-9 h-9 rounded-xl bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors"
+                    className={cn(
+                      "pl-9 h-9 rounded-xl bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors",
+                      searchResultsCount > 0 ? "pr-32" : "pr-9"
+                    )}
                   />
+                  {messageSearchQuery && searchResultsCount > 0 && (
+                    <div className="absolute right-20 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground font-medium">
+                        {currentSearchIndex + 1}/{searchResultsCount}
+                      </span>
+                      <div className="flex items-center border-l border-border/50 pl-1 ml-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={goToPrevResult}
+                          className="h-6 w-6 hover:bg-secondary"
+                          title="Résultat précédent"
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={goToNextResult}
+                          className="h-6 w-6 hover:bg-secondary"
+                          title="Résultat suivant"
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {messageSearchQuery && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setMessageSearchQuery("")}
+                      onClick={() => {
+                        setMessageSearchQuery("");
+                        setCurrentSearchIndex(0);
+                      }}
                       className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
                     >
                       <X className="h-3 w-3" />
@@ -1243,93 +1319,117 @@ export default function ConversationView() {
               {/* Messages */}
               <div className="flex-1 min-h-0 overflow-y-auto p-4 messaging-scrollbar">
                 <div className="space-y-3 max-w-3xl mx-auto">
-                  {selectedConversation.messages.map((msg, index) => {
-                    const isOutbound = msg.direction === "outbound";
-                    const showDate = index === 0 || 
-                      new Date(msg.created_at).toDateString() !== 
-                      new Date(selectedConversation.messages[index - 1].created_at).toDateString();
+                  {(() => {
+                    // Build search results index map
+                    let searchResultIndex = 0;
+                    const searchQuery = messageSearchQuery.trim().toLowerCase();
+                    const hasSearch = searchQuery.length > 0;
                     
-                    return (
-                      <div key={msg.id}>
-                        <AnimatePresence>
-                          {showDate && (
-                            <motion.div 
-                              className="flex justify-center my-4"
-                              initial={{ opacity: 0, y: -10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              <span className="px-3 py-1 text-xs font-medium text-muted-foreground bg-card/80 rounded-full shadow-sm">
-                                {isToday(new Date(msg.created_at)) 
-                                  ? "Aujourd'hui" 
-                                  : isYesterday(new Date(msg.created_at))
-                                    ? "Hier"
-                                    : format(new Date(msg.created_at), "d MMMM yyyy", { locale: fr })}
-                              </span>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                        <motion.div 
-                          className={cn("flex group", isOutbound ? "justify-end" : "justify-start")}
-                          variants={messageVariants}
-                          initial="hidden"
-                          animate="visible"
-                          layout
+                    return selectedConversation.messages.map((msg, index) => {
+                      const isOutbound = msg.direction === "outbound";
+                      const showDate = index === 0 || 
+                        new Date(msg.created_at).toDateString() !== 
+                        new Date(selectedConversation.messages[index - 1].created_at).toDateString();
+                      
+                      // Check if this message matches search
+                      const isSearchResult = hasSearch && msg.message_content.toLowerCase().includes(searchQuery);
+                      const currentResultIndex = isSearchResult ? searchResultIndex : -1;
+                      const isActiveResult = isSearchResult && currentResultIndex === currentSearchIndex;
+                      
+                      // Increment search result index for next message
+                      if (isSearchResult) {
+                        searchResultIndex++;
+                      }
+                      
+                      return (
+                        <div 
+                          key={msg.id}
+                          ref={(el) => {
+                            if (el && isSearchResult) {
+                              searchResultRefs.current.set(currentResultIndex, el);
+                            }
+                          }}
                         >
-                          <div className={cn(
-                            "flex items-center gap-1",
-                            isOutbound ? "flex-row" : "flex-row-reverse"
-                          )}>
-                            {/* Delete dropdown */}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                                >
-                                  <MoreVertical className="h-3.5 w-3.5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align={isOutbound ? "end" : "start"} className="w-48">
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={() => setMessageToDelete(msg)}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Supprimer de l'historique
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            <motion.div
-                              className={cn(
-                                "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm relative",
-                                isOutbound
-                                  ? "bg-whatsapp-bubble-out text-foreground rounded-br-md"
-                                  : "bg-card text-foreground rounded-bl-md"
-                              )}
-                              whileHover={{ scale: 1.01 }}
-                              transition={{ duration: 0.1 }}
-                            >
-                              <p className="text-[15px] leading-relaxed">
-                                {renderMessageContent(msg)}
-                              </p>
-                              <div
-                                className={cn(
-                                  "flex items-center gap-1 mt-1 text-[11px]",
-                                  isOutbound ? "justify-end text-muted-foreground/70" : "text-muted-foreground/60"
-                                )}
+                          <AnimatePresence>
+                            {showDate && (
+                              <motion.div 
+                                className="flex justify-center my-4"
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2 }}
                               >
-                                <span>{format(new Date(msg.created_at), "HH:mm")}</span>
-                                {getStatusIcon(msg)}
-                              </div>
-                            </motion.div>
-                          </div>
-                        </motion.div>
-                      </div>
-                    );
-                  })}
+                                <span className="px-3 py-1 text-xs font-medium text-muted-foreground bg-card/80 rounded-full shadow-sm">
+                                  {isToday(new Date(msg.created_at)) 
+                                    ? "Aujourd'hui" 
+                                    : isYesterday(new Date(msg.created_at))
+                                      ? "Hier"
+                                      : format(new Date(msg.created_at), "d MMMM yyyy", { locale: fr })}
+                                </span>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                          <motion.div 
+                            className={cn("flex group", isOutbound ? "justify-end" : "justify-start")}
+                            variants={messageVariants}
+                            initial="hidden"
+                            animate="visible"
+                            layout
+                          >
+                            <div className={cn(
+                              "flex items-center gap-1",
+                              isOutbound ? "flex-row" : "flex-row-reverse"
+                            )}>
+                              {/* Delete dropdown */}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                                  >
+                                    <MoreVertical className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align={isOutbound ? "end" : "start"} className="w-48">
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => setMessageToDelete(msg)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Supprimer de l'historique
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+
+                              <motion.div
+                                className={cn(
+                                  "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm relative",
+                                  isOutbound
+                                    ? "bg-whatsapp-bubble-out text-foreground rounded-br-md"
+                                    : "bg-card text-foreground rounded-bl-md"
+                                )}
+                                whileHover={{ scale: 1.01 }}
+                                transition={{ duration: 0.1 }}
+                              >
+                                <p className="text-[15px] leading-relaxed">
+                                  {renderMessageContent(msg, isActiveResult)}
+                                </p>
+                                <div
+                                  className={cn(
+                                    "flex items-center gap-1 mt-1 text-[11px]",
+                                    isOutbound ? "justify-end text-muted-foreground/70" : "text-muted-foreground/60"
+                                  )}
+                                >
+                                  <span>{format(new Date(msg.created_at), "HH:mm")}</span>
+                                  {getStatusIcon(msg)}
+                                </div>
+                              </motion.div>
+                            </div>
+                          </motion.div>
+                        </div>
+                      );
+                    });
+                  })()}
                   <div ref={messagesEndRef} />
                 </div>
               </div>
