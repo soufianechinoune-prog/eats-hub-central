@@ -26,13 +26,16 @@ serve(async (req) => {
     
     console.log('Received Ultramsg webhook:', JSON.stringify(payload));
 
+    // Ultramsg wraps message data in a "data" object for received messages
+    const messageData = payload.data || payload;
+
     // Handle incoming messages (new feature for bidirectional conversations)
-    // Ultramsg sends incoming messages with: { "from": "phone@c.us", "body": "message", "type": "chat", ... }
-    if (payload.from && payload.body && payload.type === 'chat') {
-      console.log('Processing incoming message from:', payload.from);
+    // Ultramsg sends incoming messages with: { "event_type": "message_received", "data": { "from": "phone@c.us", "body": "message", "type": "chat", ... } }
+    if (messageData.from && messageData.body && messageData.type === 'chat') {
+      console.log('Processing incoming message from:', messageData.from);
       
       // Extract phone number (remove @c.us suffix if present)
-      const senderPhone = payload.from.replace(/@c\.us$/, '').replace(/@s\.whatsapp\.net$/, '');
+      const senderPhone = messageData.from.replace(/@c\.us$/, '').replace(/@s\.whatsapp\.net$/, '');
       const normalizedPhone = senderPhone.startsWith('+') ? senderPhone : `+${senderPhone}`;
       
       // Try to find associated restaurant by manager_whatsapp
@@ -56,8 +59,8 @@ serve(async (req) => {
             : null,
           restaurant_id: restaurant?.id || null,
           restaurant_name: restaurant?.name || null,
-          message_content: payload.body,
-          ultramsg_message_id: payload.id || null,
+          message_content: messageData.body,
+          ultramsg_message_id: messageData.id || messageData.sid || null,
           status: 'received',
           sent_at: new Date().toISOString(),
         });
