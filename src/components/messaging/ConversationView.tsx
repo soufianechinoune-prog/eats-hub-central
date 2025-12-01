@@ -37,6 +37,7 @@ import {
   Inbox,
   ChevronUp,
   ChevronDown,
+  RotateCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
@@ -572,9 +573,56 @@ export default function ConversationView() {
       case "pending":
         return <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />;
       case "failed":
-        return <AlertCircle className="h-3.5 w-3.5 text-destructive" />;
+        return (
+          <div className="flex items-center gap-1">
+            <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+            <span className="text-destructive text-[10px]">Échec</span>
+          </div>
+        );
       default:
         return null;
+    }
+  };
+
+  // Retry failed voice message
+  const retryFailedMessage = async (msg: Message) => {
+    if (!msg.media_url || msg.media_type !== 'audio') return;
+
+    try {
+      const restaurant = restaurants.find(
+        (r) => r.manager_whatsapp && normalizePhone(r.manager_whatsapp) === normalizePhone(msg.recipient_phone)
+      );
+
+      // Send via edge function with duration
+      const { data, error } = await supabase.functions.invoke("send-whatsapp-media", {
+        body: {
+          phone: msg.recipient_phone,
+          mediaUrl: msg.media_url,
+          mediaType: 'audio',
+          restaurant_id: restaurant?.id,
+          recipient_name: msg.recipient_name,
+          restaurant_name: msg.restaurant_name,
+          duration: msg.duration,
+        },
+      });
+
+      if (error) throw new Error(error.message);
+
+      if (data.success) {
+        toast.success("Message vocal renvoyé");
+        // Delete the failed message
+        await supabase
+          .from("message_history")
+          .delete()
+          .eq("id", msg.id);
+        
+        queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
+      } else {
+        toast.error(data.error || "Échec du renvoi");
+      }
+    } catch (err) {
+      console.error("Error retrying voice message:", err);
+      toast.error("Erreur lors du renvoi du message vocal");
     }
   };
 
@@ -1402,6 +1450,16 @@ export default function ConversationView() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align={isOutbound ? "end" : "start"} className="w-48">
+                                  {/* Retry option for failed voice messages */}
+                                  {msg.status === 'failed' && msg.media_type === 'audio' && (
+                                    <DropdownMenuItem
+                                      className="text-primary focus:text-primary"
+                                      onClick={() => retryFailedMessage(msg)}
+                                    >
+                                      <RotateCw className="h-4 w-4 mr-2" />
+                                      Réessayer l'envoi
+                                    </DropdownMenuItem>
+                                  )}
                                   <DropdownMenuItem
                                     className="text-destructive focus:text-destructive"
                                     onClick={() => setMessageToDelete(msg)}
