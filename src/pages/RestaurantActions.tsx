@@ -255,6 +255,17 @@ export default function RestaurantActions() {
     actionId: string;
     actionTitle: string;
     originalDate: Date;
+    originalEndDate: Date | null;
+    newStartDate: Date;
+    newEndDate: Date | null;
+  } | null>(null);
+  
+  // Undo state for drag & drop
+  const [lastCompletedDrop, setLastCompletedDrop] = useState<{
+    actionId: string;
+    actionTitle: string;
+    originalStartDate: Date;
+    originalEndDate: Date | null;
     newStartDate: Date;
     newEndDate: Date | null;
   } | null>(null);
@@ -313,6 +324,45 @@ export default function RestaurantActions() {
       return () => clearTimeout(timer);
     }
   }, [highlightedActionId, actions, setSearchParams]);
+
+  // Ctrl+Z to undo last drag & drop
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && lastCompletedDrop) {
+        e.preventDefault();
+        
+        const updateData: any = {
+          start_date: format(lastCompletedDrop.originalStartDate, "yyyy-MM-dd"),
+        };
+        if (lastCompletedDrop.originalEndDate) {
+          updateData.end_date = format(lastCompletedDrop.originalEndDate, "yyyy-MM-dd");
+        }
+        
+        const { error } = await supabase
+          .from("restaurant_actions")
+          .update(updateData)
+          .eq("id", lastCompletedDrop.actionId);
+        
+        if (error) {
+          toast({ 
+            title: "Erreur", 
+            description: "Impossible d'annuler le déplacement", 
+            variant: "destructive" 
+          });
+        } else {
+          toast({ 
+            title: "Déplacement annulé", 
+            description: `"${lastCompletedDrop.actionTitle}" restauré au ${format(lastCompletedDrop.originalStartDate, "d MMMM yyyy", { locale: fr })}` 
+          });
+          setLastCompletedDrop(null);
+          fetchActions();
+        }
+      }
+    };
+    
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [lastCompletedDrop, toast]);
 
   const fetchCategories = async () => {
     const { data, error } = await supabase
@@ -1691,6 +1741,7 @@ export default function RestaurantActions() {
               actionId,
               actionTitle: action.title,
               originalDate: new Date(action.start_date),
+              originalEndDate: action.end_date ? new Date(action.end_date) : null,
               newStartDate,
               newEndDate,
             });
@@ -2924,6 +2975,16 @@ export default function RestaurantActions() {
               onClick={async () => {
                 if (!pendingDrop) return;
                 
+                // Store for undo before updating
+                const undoData = {
+                  actionId: pendingDrop.actionId,
+                  actionTitle: pendingDrop.actionTitle,
+                  originalStartDate: pendingDrop.originalDate,
+                  originalEndDate: pendingDrop.originalEndDate,
+                  newStartDate: pendingDrop.newStartDate,
+                  newEndDate: pendingDrop.newEndDate,
+                };
+                
                 const updateData: any = {
                   start_date: format(pendingDrop.newStartDate, "yyyy-MM-dd"),
                 };
@@ -2943,9 +3004,16 @@ export default function RestaurantActions() {
                     variant: "destructive" 
                   });
                 } else {
+                  // Store for undo
+                  setLastCompletedDrop(undoData);
+                  
                   toast({ 
                     title: "Action déplacée", 
-                    description: `Nouvelle date : ${format(pendingDrop.newStartDate, "d MMMM yyyy", { locale: fr })}` 
+                    description: (
+                      <div className="flex items-center justify-between gap-4">
+                        <span>Ctrl+Z pour annuler</span>
+                      </div>
+                    ),
                   });
                   fetchActions();
                 }
