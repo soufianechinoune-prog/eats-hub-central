@@ -79,6 +79,19 @@ export default {
           fees: "hsl(var(--stat-fees))",
           payout: "hsl(var(--stat-payout))",
         },
+        glass: {
+          bg: "hsl(var(--glass-bg))",
+          "bg-strong": "hsl(var(--glass-bg-strong))",
+          border: "hsl(var(--glass-border))",
+        },
+      },
+      backdropBlur: {
+        xs: "2px",
+        "3xl": "64px",
+      },
+      boxShadow: {
+        glass: "var(--glass-shadow)",
+        "glass-hover": "var(--glass-shadow-hover)",
       },
       borderRadius: {
         lg: "var(--radius)",
