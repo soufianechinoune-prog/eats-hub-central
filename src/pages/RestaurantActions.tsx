@@ -1618,17 +1618,25 @@ export default function RestaurantActions() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredActions.map((action) => {
+                  {filteredActions.map((action, index) => {
                     const Icon = CATEGORY_ICONS[action.category] || Zap;
                     const status = getActionStatus(action);
                     const targetItems = menuItems.filter(item => action.target_item_ids?.includes(item.id));
                     const isHighlighted = action.id === highlightedActionId;
                     
                     return (
-                      <TableRow 
+                      <motion.tr 
                         key={action.id}
                         ref={isHighlighted ? highlightedRowRef : undefined}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ 
+                          duration: 0.3,
+                          delay: Math.min(index * 0.05, 1),
+                          ease: "easeOut"
+                        }}
                         className={cn(
+                          "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
                           isHighlighted && "bg-primary/10 animate-pulse ring-2 ring-primary ring-inset"
                         )}
                       >
@@ -1831,7 +1839,7 @@ export default function RestaurantActions() {
                             </Button>
                           </div>
                         </TableCell>
-                      </TableRow>
+                      </motion.tr>
                     );
                   })}
                 </TableBody>
