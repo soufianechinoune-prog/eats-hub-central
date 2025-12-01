@@ -65,7 +65,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useVoiceRecorder, formatRecordingTime } from "@/hooks/useVoiceRecorder";
 import { AudioPlayer } from "@/components/messaging/AudioPlayer";
 import { useMessageNotifications } from "@/hooks/useMessageNotifications";
 
@@ -165,17 +164,7 @@ export default function ConversationView() {
     "📱", "📞", "📍", "🏠", "🚗", "⏰", "📅", "💬",
   ];
 
-  // Voice recorder hook
-  const {
-    isRecording,
-    recordingTime,
-    audioBlob,
-    audioDuration,
-    startRecording,
-    stopRecording,
-    cancelRecording,
-    clearRecording,
-  } = useVoiceRecorder();
+  // Voice recorder removed - no local audio recording
 
   // Notification hook
   const { notify } = useMessageNotifications({
@@ -760,13 +749,9 @@ export default function ConversationView() {
     }
   };
 
-  // Send voice message (disabled for now at user request)
+  // Voice messages no longer supported
   const sendVoiceMessage = async () => {
-    if (!audioBlob) return;
-
-    // Do not call storage or edge functions anymore
-    toast.error("Les messages vocaux sont désactivés pour le moment.");
-    clearRecording();
+    toast.error("Les messages vocaux ne sont plus supportés.");
   };
 
   // Handle enter key to send
@@ -1390,25 +1375,15 @@ export default function ConversationView() {
                                     <MoreVertical className="h-3.5 w-3.5" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align={isOutbound ? "end" : "start"} className="w-48">
-                                  {/* Retry option for failed voice messages */}
-                                  {msg.status === 'failed' && msg.media_type === 'audio' && (
-                                    <DropdownMenuItem
-                                      className="text-primary focus:text-primary"
-                                      onClick={() => retryFailedMessage(msg)}
-                                    >
-                                      <RefreshCw className="h-4 w-4 mr-2" />
-                                      Réessayer l'envoi
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive"
-                                    onClick={() => setMessageToDelete(msg)}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Supprimer de l'historique
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
+                                 <DropdownMenuContent align={isOutbound ? "end" : "start"} className="w-48">
+                                   <DropdownMenuItem
+                                     className="text-destructive focus:text-destructive"
+                                     onClick={() => setMessageToDelete(msg)}
+                                   >
+                                     <Trash2 className="h-4 w-4 mr-2" />
+                                     Supprimer de l'historique
+                                   </DropdownMenuItem>
+                                 </DropdownMenuContent>
                               </DropdownMenu>
 
                               <motion.div
@@ -1495,94 +1470,77 @@ export default function ConversationView() {
               {/* Input */}
               <div className="p-4 bg-card/95 backdrop-blur-sm border-t border-border/50">
                 <AnimatePresence mode="wait">
-                  {isRecording ? (
-                    /* Recording UI */
-                    <motion.div
-                      key="recording"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      className="flex items-center gap-3 max-w-3xl mx-auto"
-                    >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={cancelRecording}
-                        className="h-11 w-11 rounded-full shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </Button>
-                      
-                      <div className="flex-1 flex items-center gap-3 px-4 h-11 rounded-full bg-secondary/50">
-                        <motion.div
-                          className="h-3 w-3 rounded-full bg-destructive"
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ duration: 1, repeat: Infinity }}
-                        />
-                        <span className="font-medium text-sm text-foreground">
-                          {formatRecordingTime(recordingTime)}
-                        </span>
-                        <div className="flex-1 flex items-center gap-0.5 justify-center">
-                          {[...Array(20)].map((_, i) => (
-                            <motion.div
-                              key={i}
-                              className="w-1 bg-foreground/30 rounded-full"
-                              animate={{
-                                height: [4, Math.random() * 16 + 4, 4],
-                              }}
-                              transition={{
-                                duration: 0.5,
-                                repeat: Infinity,
-                                delay: i * 0.05,
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <motion.div whileTap={{ scale: 0.9 }}>
+                  {/* Voice recording UI removed - only text + media input */}
+                  <motion.div
+                    key="input"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-end gap-2 max-w-3xl mx-auto"
+                  >
+                    {/* Attachment Menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <Button
+                          variant="ghost"
                           size="icon"
-                          onClick={stopRecording}
-                          className="h-11 w-11 rounded-full shrink-0 bg-destructive hover:bg-destructive/90"
+                          className="h-11 w-11 rounded-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-secondary/80"
                         >
-                          <Square className="h-4 w-4 fill-current" />
+                          <Paperclip className="h-5 w-5" />
                         </Button>
-                      </motion.div>
-                    </motion.div>
-                  ) : audioBlob ? (
-                    /* Audio Preview UI */
-                    <motion.div
-                      key="preview"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      className="flex items-center gap-3 max-w-3xl mx-auto"
-                    >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={clearRecording}
-                        className="h-11 w-11 rounded-full shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </Button>
-                      
-                      <div className="flex-1 flex items-center gap-3 px-4 h-11 rounded-full bg-secondary/50">
-                        <Mic className="h-4 w-4 text-orange-500" />
-                        <span className="text-sm text-foreground">
-                          Message vocal ({formatRecordingTime(recordingTime)})
-                        </span>
-                      </div>
-                      
-                      <motion.div whileTap={{ scale: 0.9 }}>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-48">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.onchange = (e) => handleFileSelect(e as any, 'image');
+                            input.click();
+                          }}
+                          className="gap-3 cursor-pointer"
+                        >
+                          <div className="h-8 w-8 rounded-full bg-whatsapp/10 flex items-center justify-center">
+                            <ImageIcon className="h-4 w-4 text-whatsapp" />
+                          </div>
+                          <span>Image</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = '.pdf,.doc,.docx';
+                            input.onchange = (e) => handleFileSelect(e as any, 'document');
+                            input.click();
+                          }}
+                          className="gap-3 cursor-pointer"
+                        >
+                          <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                            <FileText className="h-4 w-4 text-blue-500" />
+                          </div>
+                          <span>Document</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Text area */}
+                    <div className="flex-1 flex flex-col gap-2">
+                      <div className="flex items-end gap-2">
+                        <Textarea
+                          placeholder="Écrivez un message..."
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          onKeyDown={handleKeyPress}
+                          rows={1}
+                          className="resize-none rounded-2xl bg-secondary/50 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-[15px] leading-relaxed max-h-32"
+                        />
                         <Button
                           size="icon"
-                          onClick={sendVoiceMessage}
-                          disabled={isSendingVoice}
+                          disabled={isSending || !newMessage.trim()}
+                          onClick={sendReply}
                           className="h-11 w-11 rounded-full shrink-0 bg-whatsapp hover:bg-whatsapp/90"
                         >
-                          {isSendingVoice ? (
+                          {isSending ? (
                             <motion.div
                               animate={{ rotate: 360 }}
                               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -1593,141 +1551,11 @@ export default function ConversationView() {
                             <Send className="h-5 w-5" />
                           )}
                         </Button>
-                      </motion.div>
-                    </motion.div>
-                  ) : (
-                    /* Normal Input UI */
-                    <motion.div
-                      key="input"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="flex items-end gap-2 max-w-3xl mx-auto"
-                    >
-                      {/* Attachment Menu */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-11 w-11 rounded-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-secondary/80"
-                          >
-                            <Paperclip className="h-5 w-5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-48">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              const input = document.createElement('input');
-                              input.type = 'file';
-                              input.accept = 'image/*';
-                              input.onchange = (e) => handleFileSelect(e as any, 'image');
-                              input.click();
-                            }}
-                            className="gap-3 cursor-pointer"
-                          >
-                            <div className="h-8 w-8 rounded-full bg-whatsapp/10 flex items-center justify-center">
-                              <ImageIcon className="h-4 w-4 text-whatsapp" />
-                            </div>
-                            <span>Image</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              const input = document.createElement('input');
-                              input.type = 'file';
-                              input.accept = '.pdf,.doc,.docx';
-                              input.onchange = (e) => handleFileSelect(e as any, 'document');
-                              input.click();
-                            }}
-                            className="gap-3 cursor-pointer"
-                          >
-                            <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                              <FileText className="h-4 w-4 text-blue-500" />
-                            </div>
-                            <span>Document</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-
-                      <div className="flex-1 relative">
-                        <Input
-                          placeholder={mediaPreview ? "Ajouter une légende..." : "Écrire un message..."}
-                          value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                          onKeyPress={handleKeyPress}
-                          disabled={isSending || isUploadingMedia}
-                          className="h-11 pr-12 rounded-full bg-secondary/50 border-0 focus:bg-secondary focus:ring-0 transition-colors text-[15px]"
-                        />
-                        <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
-                              type="button"
-                            >
-                              <Smile className="h-5 w-5" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent 
-                            className="w-64 p-2" 
-                            side="top" 
-                            align="end"
-                            sideOffset={8}
-                          >
-                            <div className="grid grid-cols-8 gap-1">
-                              {commonEmojis.map((emoji) => (
-                                <button
-                                  key={emoji}
-                                  onClick={() => addEmoji(emoji)}
-                                  className="h-8 w-8 flex items-center justify-center text-lg hover:bg-secondary rounded-md transition-colors"
-                                >
-                                  {emoji}
-                                </button>
-                              ))}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
                       </div>
-                      
-                      <motion.div whileTap={{ scale: 0.9 }}>
-                        {(newMessage.trim() || mediaPreview) ? (
-                          <Button
-                            size="icon"
-                            onClick={sendReply}
-                            disabled={isSending || isUploadingMedia}
-                            className="h-11 w-11 rounded-full shrink-0 bg-whatsapp hover:bg-whatsapp/90"
-                          >
-                            {(isSending || isUploadingMedia) ? (
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                              >
-                                <Loader2 className="h-5 w-5" />
-                              </motion.div>
-                            ) : (
-                              <Send className="h-5 w-5" />
-                            )}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="icon"
-                            onClick={async () => {
-                              try {
-                                await startRecording();
-                              } catch (err) {
-                                toast.error("Impossible d'accéder au microphone");
-                              }
-                            }}
-                            className="h-11 w-11 rounded-full shrink-0 bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-                          >
-                            <Mic className="h-5 w-5" />
-                          </Button>
-                        )}
-                      </motion.div>
-                    </motion.div>
-                  )}
+                    </div>
+                  </motion.div>
                 </AnimatePresence>
+              </div>
               </div>
             </motion.div>
           ) : (
