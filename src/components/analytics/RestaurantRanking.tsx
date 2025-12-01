@@ -166,7 +166,7 @@ function RankingCard({
 
   return (
     <Card 
-      className="flex-1 min-w-[280px] cursor-pointer transition-all hover:shadow-md hover:border-primary/50 group"
+      className="w-[300px] min-w-[300px] flex-shrink-0 cursor-pointer transition-all hover:shadow-md hover:border-primary/50 group"
       onClick={handleCardClick}
     >
       <CardHeader className="pb-3">
