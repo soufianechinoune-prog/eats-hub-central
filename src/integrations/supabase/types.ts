@@ -381,6 +381,7 @@ export type Database = {
           created_at: string
           delivered_at: string | null
           direction: string
+          duration: number | null
           error_message: string | null
           id: string
           media_type: string | null
@@ -402,6 +403,7 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           direction?: string
+          duration?: number | null
           error_message?: string | null
           id?: string
           media_type?: string | null
@@ -423,6 +425,7 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           direction?: string
+          duration?: number | null
           error_message?: string | null
           id?: string
           media_type?: string | null
