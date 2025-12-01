@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Euro, Users, Percent, Trophy, TrendingUp, TrendingDown, Minus, Calculator, FileDown, Loader2 } from "lucide-react";
 import { RankingDistributionChart } from "@/components/analytics/RankingDistributionChart";
 import { RankingTable } from "@/components/analytics/RankingTable";
+import { RestaurantComparisonPanel } from "@/components/analytics/RestaurantComparisonPanel";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -87,6 +88,7 @@ export default function RankingDetail() {
   const [selectedYear, setSelectedYear] = useState(yearParam);
   const [startMonth, setStartMonth] = useState(startMonthParam);
   const [endMonth, setEndMonth] = useState(endMonthParam);
+  const [comparisonIds, setComparisonIds] = useState<string[]>([]);
 
   const prevYear = selectedYear - 1;
 
@@ -364,6 +366,85 @@ export default function RankingDetail() {
       .sort((a, b) => b.value - a.value)
       .map((r, i) => ({ ...r, rank: i + 1 }));
   }, [metricType, restaurants, revenueData, prevRevenueData, conversionData, prevConversionData, feesData, prevFeesData, startMonth, endMonth]);
+
+  // Calculate monthly data for comparison chart
+  const monthlyChartData = useMemo(() => {
+    if (metricType === "revenue" && revenueData) {
+      return revenueData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .map(r => ({
+          restaurant_id: r.restaurant_id,
+          month: r.month,
+          value: Number(r.revenue_ttc) || 0,
+        }));
+    }
+    
+    if (metricType === "conversion" && conversionData) {
+      return conversionData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .map(r => ({
+          restaurant_id: r.restaurant_id,
+          month: r.month,
+          value: Number(r.visits) > 0 ? (Number(r.orders) / Number(r.visits)) * 100 : 0,
+        }));
+    }
+    
+    if (metricType === "profitability" && revenueData && feesData) {
+      const revenueByMonth = new Map<string, number>();
+      const payoutByMonth = new Map<string, number>();
+      
+      revenueData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .forEach(r => {
+          const key = `${r.restaurant_id}-${r.month}`;
+          revenueByMonth.set(key, Number(r.revenue_ttc) || 0);
+        });
+      
+      feesData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .forEach(r => {
+          const key = `${r.restaurant_id}-${r.month}`;
+          payoutByMonth.set(key, Number(r.net_payout) || 0);
+        });
+      
+      const result: { restaurant_id: string; month: number; value: number }[] = [];
+      revenueByMonth.forEach((revenue, key) => {
+        const [restaurantId, monthStr] = key.split("-");
+        const month = parseInt(monthStr);
+        const payout = payoutByMonth.get(key) || 0;
+        const profitability = revenue > 0 ? (payout / revenue) * 100 : 0;
+        result.push({ restaurant_id: restaurantId, month, value: profitability });
+      });
+      
+      return result;
+    }
+    
+    return [];
+  }, [metricType, revenueData, conversionData, feesData, startMonth, endMonth]);
+
+  // Selected restaurants for comparison
+  const selectedRestaurants = useMemo(() => {
+    return ranking.filter(r => comparisonIds.includes(r.id));
+  }, [ranking, comparisonIds]);
+
+  // Comparison handlers
+  const handleToggleComparison = useCallback((restaurant: typeof ranking[0]) => {
+    setComparisonIds(prev => {
+      if (prev.includes(restaurant.id)) {
+        return prev.filter(id => id !== restaurant.id);
+      }
+      if (prev.length >= 3) return prev;
+      return [...prev, restaurant.id];
+    });
+  }, []);
+
+  const handleRemoveFromComparison = useCallback((id: string) => {
+    setComparisonIds(prev => prev.filter(i => i !== id));
+  }, []);
+
+  const handleClearComparison = useCallback(() => {
+    setComparisonIds([]);
+  }, []);
 
 
   // KPI calculations
@@ -695,6 +776,18 @@ export default function RankingDetail() {
           </Card>
         </div>
 
+        {/* Comparison Panel */}
+        {selectedRestaurants.length > 0 && (
+          <RestaurantComparisonPanel
+            selectedRestaurants={selectedRestaurants}
+            onRemove={handleRemoveFromComparison}
+            onClear={handleClearComparison}
+            monthlyData={monthlyChartData}
+            metricLabel={config.label}
+            formatValue={config.formatValue}
+          />
+        )}
+
         {/* Exportable content */}
         <div ref={contentRef} className="space-y-6">
           {/* Distribution Chart */}
@@ -710,6 +803,8 @@ export default function RankingDetail() {
             ranking={ranking}
             metricLabel={config.label}
             formatValue={config.formatValue}
+            selectedForComparison={comparisonIds}
+            onToggleComparison={handleToggleComparison}
           />
         </div>
       </div>
