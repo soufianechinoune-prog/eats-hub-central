@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -20,7 +20,14 @@ import {
   Percent,
   Medal,
   ExternalLink,
+  ShoppingCart,
+  ShoppingBag,
+  Eye,
+  Receipt,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Restaurant {
   id: string;
@@ -46,6 +53,10 @@ interface MonthlyFees {
   restaurant_id: string;
   month: number;
   net_payout: number;
+  uber_fee: number;
+  marketing_fee: number;
+  offers_cost: number;
+  ads_cost: number;
 }
 
 interface RestaurantRankingProps {
@@ -69,6 +80,8 @@ interface RankedRestaurant {
   trend: number | null;
   rank: number;
 }
+
+type MetricKey = "revenue" | "orders" | "basket" | "conversion" | "visits" | "fees" | "profitability";
 
 // Calculate trend as percentage change
 const calcTrend = (current: number, previous: number): number | null => {
@@ -113,6 +126,7 @@ function RankingCard({
   maxValue,
   colorClass,
   metricKey,
+  inverseTrend = false,
 }: {
   title: string;
   icon: React.ElementType;
@@ -120,7 +134,8 @@ function RankingCard({
   formatValue: (v: number) => string;
   maxValue: number;
   colorClass: string;
-  metricKey: "revenue" | "conversion" | "profitability";
+  metricKey: MetricKey;
+  inverseTrend?: boolean;
 }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -132,7 +147,7 @@ function RankingCard({
 
   return (
     <Card 
-      className="flex-1 min-w-[280px] cursor-pointer transition-all hover:shadow-md hover:border-primary/50 group"
+      className="flex-shrink-0 w-[280px] cursor-pointer transition-all hover:shadow-md hover:border-primary/50 group"
       onClick={handleCardClick}
     >
       <CardHeader className="pb-3">
@@ -185,7 +200,7 @@ function RankingCard({
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger>
-                          <TrendIndicator trend={restaurant.trend} />
+                          <TrendIndicator trend={restaurant.trend} inverse={inverseTrend} />
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="text-xs">
@@ -233,13 +248,41 @@ export function RestaurantRanking({
   startMonth = 1,
   endMonth = 12,
 }: RestaurantRankingProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const checkScroll = () => {
+    if (scrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+      setCanScrollLeft(scrollLeft > 0);
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+    }
+  };
+
+  useEffect(() => {
+    checkScroll();
+    window.addEventListener("resize", checkScroll);
+    return () => window.removeEventListener("resize", checkScroll);
+  }, []);
+
+  const scroll = (direction: "left" | "right") => {
+    if (scrollRef.current) {
+      const scrollAmount = 300;
+      scrollRef.current.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      });
+      setTimeout(checkScroll, 300);
+    }
+  };
+
   // Calculate revenue ranking
   const revenueRanking = useMemo(() => {
     if (!restaurants || !revenueData) return [];
 
     const aggregated = new Map<string, { current: number; prev: number }>();
     
-    // Aggregate current year
     revenueData
       .filter(r => r.month >= startMonth && r.month <= endMonth)
       .forEach(r => {
@@ -248,7 +291,6 @@ export function RestaurantRanking({
         aggregated.set(r.restaurant_id, existing);
       });
 
-    // Aggregate previous year
     prevRevenueData
       ?.filter(r => r.month >= startMonth && r.month <= endMonth)
       .forEach(r => {
@@ -277,13 +319,100 @@ export function RestaurantRanking({
     return ranked;
   }, [restaurants, revenueData, prevRevenueData, startMonth, endMonth]);
 
+  // Calculate orders ranking
+  const ordersRanking = useMemo(() => {
+    if (!restaurants || !revenueData) return [];
+
+    const aggregated = new Map<string, { current: number; prev: number }>();
+    
+    revenueData
+      .filter(r => r.month >= startMonth && r.month <= endMonth)
+      .forEach(r => {
+        const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+        existing.current += Number(r.order_count) || 0;
+        aggregated.set(r.restaurant_id, existing);
+      });
+
+    prevRevenueData
+      ?.filter(r => r.month >= startMonth && r.month <= endMonth)
+      .forEach(r => {
+        const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+        existing.prev += Number(r.order_count) || 0;
+        aggregated.set(r.restaurant_id, existing);
+      });
+
+    const ranked: RankedRestaurant[] = Array.from(aggregated.entries())
+      .map(([id, { current, prev }]) => {
+        const restaurant = restaurants.find(r => r.id === id);
+        return {
+          id,
+          name: restaurant?.name || "Inconnu",
+          city: restaurant?.city || "",
+          value: current,
+          prevValue: prev,
+          trend: calcTrend(current, prev),
+          rank: 0,
+        };
+      })
+      .filter(r => r.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .map((r, i) => ({ ...r, rank: i + 1 }));
+
+    return ranked;
+  }, [restaurants, revenueData, prevRevenueData, startMonth, endMonth]);
+
+  // Calculate basket ranking
+  const basketRanking = useMemo(() => {
+    if (!restaurants || !revenueData) return [];
+
+    const aggregated = new Map<string, { currentRevenue: number; currentOrders: number; prevRevenue: number; prevOrders: number }>();
+    
+    revenueData
+      .filter(r => r.month >= startMonth && r.month <= endMonth)
+      .forEach(r => {
+        const existing = aggregated.get(r.restaurant_id) || { currentRevenue: 0, currentOrders: 0, prevRevenue: 0, prevOrders: 0 };
+        existing.currentRevenue += Number(r.revenue_ttc) || 0;
+        existing.currentOrders += Number(r.order_count) || 0;
+        aggregated.set(r.restaurant_id, existing);
+      });
+
+    prevRevenueData
+      ?.filter(r => r.month >= startMonth && r.month <= endMonth)
+      .forEach(r => {
+        const existing = aggregated.get(r.restaurant_id) || { currentRevenue: 0, currentOrders: 0, prevRevenue: 0, prevOrders: 0 };
+        existing.prevRevenue += Number(r.revenue_ttc) || 0;
+        existing.prevOrders += Number(r.order_count) || 0;
+        aggregated.set(r.restaurant_id, existing);
+      });
+
+    const ranked: RankedRestaurant[] = Array.from(aggregated.entries())
+      .map(([id, data]) => {
+        const restaurant = restaurants.find(r => r.id === id);
+        const currentBasket = data.currentOrders > 0 ? data.currentRevenue / data.currentOrders : 0;
+        const prevBasket = data.prevOrders > 0 ? data.prevRevenue / data.prevOrders : 0;
+        return {
+          id,
+          name: restaurant?.name || "Inconnu",
+          city: restaurant?.city || "",
+          value: currentBasket,
+          prevValue: prevBasket,
+          trend: calcTrend(currentBasket, prevBasket),
+          rank: 0,
+        };
+      })
+      .filter(r => r.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .map((r, i) => ({ ...r, rank: i + 1 }));
+
+    return ranked;
+  }, [restaurants, revenueData, prevRevenueData, startMonth, endMonth]);
+
   // Calculate conversion ranking
   const conversionRanking = useMemo(() => {
     if (!restaurants || !conversionData) return [];
 
     const aggregated = new Map<string, { currentVisits: number; currentOrders: number; prevVisits: number; prevOrders: number }>();
     
-    // Aggregate current year
     conversionData
       .filter(r => r.month >= startMonth && r.month <= endMonth)
       .forEach(r => {
@@ -293,7 +422,6 @@ export function RestaurantRanking({
         aggregated.set(r.restaurant_id, existing);
       });
 
-    // Aggregate previous year
     prevConversionData
       ?.filter(r => r.month >= startMonth && r.month <= endMonth)
       .forEach(r => {
@@ -326,13 +454,98 @@ export function RestaurantRanking({
     return ranked;
   }, [restaurants, conversionData, prevConversionData, startMonth, endMonth]);
 
+  // Calculate visits ranking
+  const visitsRanking = useMemo(() => {
+    if (!restaurants || !conversionData) return [];
+
+    const aggregated = new Map<string, { current: number; prev: number }>();
+    
+    conversionData
+      .filter(r => r.month >= startMonth && r.month <= endMonth)
+      .forEach(r => {
+        const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+        existing.current += Number(r.visits) || 0;
+        aggregated.set(r.restaurant_id, existing);
+      });
+
+    prevConversionData
+      ?.filter(r => r.month >= startMonth && r.month <= endMonth)
+      .forEach(r => {
+        const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+        existing.prev += Number(r.visits) || 0;
+        aggregated.set(r.restaurant_id, existing);
+      });
+
+    const ranked: RankedRestaurant[] = Array.from(aggregated.entries())
+      .map(([id, { current, prev }]) => {
+        const restaurant = restaurants.find(r => r.id === id);
+        return {
+          id,
+          name: restaurant?.name || "Inconnu",
+          city: restaurant?.city || "",
+          value: current,
+          prevValue: prev,
+          trend: calcTrend(current, prev),
+          rank: 0,
+        };
+      })
+      .filter(r => r.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .map((r, i) => ({ ...r, rank: i + 1 }));
+
+    return ranked;
+  }, [restaurants, conversionData, prevConversionData, startMonth, endMonth]);
+
+  // Calculate fees ranking (total fees = uber_fee + marketing_fee + offers_cost + ads_cost)
+  const feesRanking = useMemo(() => {
+    if (!restaurants || !feesData) return [];
+
+    const aggregated = new Map<string, { current: number; prev: number }>();
+    
+    feesData
+      .filter(r => r.month >= startMonth && r.month <= endMonth)
+      .forEach(r => {
+        const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+        const totalFees = (Number(r.uber_fee) || 0) + (Number(r.marketing_fee) || 0) + (Number(r.offers_cost) || 0) + (Number(r.ads_cost) || 0);
+        existing.current += totalFees;
+        aggregated.set(r.restaurant_id, existing);
+      });
+
+    prevFeesData
+      ?.filter(r => r.month >= startMonth && r.month <= endMonth)
+      .forEach(r => {
+        const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+        const totalFees = (Number((r as any).uber_fee) || 0) + (Number((r as any).marketing_fee) || 0) + (Number((r as any).offers_cost) || 0) + (Number((r as any).ads_cost) || 0);
+        existing.prev += totalFees;
+        aggregated.set(r.restaurant_id, existing);
+      });
+
+    const ranked: RankedRestaurant[] = Array.from(aggregated.entries())
+      .map(([id, { current, prev }]) => {
+        const restaurant = restaurants.find(r => r.id === id);
+        return {
+          id,
+          name: restaurant?.name || "Inconnu",
+          city: restaurant?.city || "",
+          value: current,
+          prevValue: prev,
+          trend: calcTrend(current, prev),
+          rank: 0,
+        };
+      })
+      .filter(r => r.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .map((r, i) => ({ ...r, rank: i + 1 }));
+
+    return ranked;
+  }, [restaurants, feesData, prevFeesData, startMonth, endMonth]);
+
   // Calculate profitability ranking
   const profitabilityRanking = useMemo(() => {
     if (!restaurants || !revenueData || !feesData) return [];
 
     const aggregated = new Map<string, { currentRevenue: number; currentPayout: number; prevRevenue: number; prevPayout: number }>();
     
-    // Aggregate current year revenue
     revenueData
       .filter(r => r.month >= startMonth && r.month <= endMonth)
       .forEach(r => {
@@ -341,7 +554,6 @@ export function RestaurantRanking({
         aggregated.set(r.restaurant_id, existing);
       });
 
-    // Aggregate current year payout
     feesData
       .filter(r => r.month >= startMonth && r.month <= endMonth)
       .forEach(r => {
@@ -350,7 +562,6 @@ export function RestaurantRanking({
         aggregated.set(r.restaurant_id, existing);
       });
 
-    // Aggregate previous year revenue
     prevRevenueData
       ?.filter(r => r.month >= startMonth && r.month <= endMonth)
       .forEach(r => {
@@ -359,7 +570,6 @@ export function RestaurantRanking({
         aggregated.set(r.restaurant_id, existing);
       });
 
-    // Aggregate previous year payout
     prevFeesData
       ?.filter(r => r.month >= startMonth && r.month <= endMonth)
       .forEach(r => {
@@ -392,13 +602,20 @@ export function RestaurantRanking({
   }, [restaurants, revenueData, feesData, prevRevenueData, prevFeesData, startMonth, endMonth]);
 
   const maxRevenue = revenueRanking[0]?.value || 0;
+  const maxOrders = ordersRanking[0]?.value || 0;
+  const maxBasket = basketRanking[0]?.value || 0;
   const maxConversion = conversionRanking[0]?.value || 100;
+  const maxVisits = visitsRanking[0]?.value || 0;
+  const maxFees = feesRanking[0]?.value || 0;
   const maxProfitability = profitabilityRanking[0]?.value || 100;
 
   const formatCurrency = (v: number) => 
     new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
   
   const formatPercent = (v: number) => `${v.toFixed(1)}%`;
+  
+  const formatNumber = (v: number) => 
+    new Intl.NumberFormat("fr-FR").format(Math.round(v));
 
   return (
     <Card>
@@ -409,34 +626,110 @@ export function RestaurantRanking({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-wrap gap-4">
-          <RankingCard
-            title="Chiffre d'affaires"
-            icon={Euro}
-            data={revenueRanking}
-            formatValue={formatCurrency}
-            maxValue={maxRevenue}
-            colorClass="text-emerald-500"
-            metricKey="revenue"
-          />
-          <RankingCard
-            title="Taux de conversion"
-            icon={Users}
-            data={conversionRanking}
-            formatValue={formatPercent}
-            maxValue={maxConversion}
-            colorClass="text-blue-500"
-            metricKey="conversion"
-          />
-          <RankingCard
-            title="Rentabilité"
-            icon={Percent}
-            data={profitabilityRanking}
-            formatValue={formatPercent}
-            maxValue={maxProfitability}
-            colorClass="text-violet-500"
-            metricKey="profitability"
-          />
+        <div className="relative">
+          {/* Left scroll button */}
+          {canScrollLeft && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-background/90 backdrop-blur-sm shadow-md"
+              onClick={() => scroll("left")}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          )}
+          
+          {/* Right scroll button */}
+          {canScrollRight && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-background/90 backdrop-blur-sm shadow-md"
+              onClick={() => scroll("right")}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
+
+          {/* Fade edges */}
+          {canScrollLeft && (
+            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-card to-transparent z-[5] pointer-events-none" />
+          )}
+          {canScrollRight && (
+            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card to-transparent z-[5] pointer-events-none" />
+          )}
+
+          {/* Scrollable container */}
+          <div 
+            ref={scrollRef}
+            className="flex gap-4 overflow-x-auto scrollbar-thin scrollbar-thumb-muted pb-2 scroll-smooth"
+            onScroll={checkScroll}
+          >
+            <RankingCard
+              title="Chiffre d'affaires"
+              icon={Euro}
+              data={revenueRanking}
+              formatValue={formatCurrency}
+              maxValue={maxRevenue}
+              colorClass="text-emerald-500"
+              metricKey="revenue"
+            />
+            <RankingCard
+              title="Commandes"
+              icon={ShoppingCart}
+              data={ordersRanking}
+              formatValue={formatNumber}
+              maxValue={maxOrders}
+              colorClass="text-orange-500"
+              metricKey="orders"
+            />
+            <RankingCard
+              title="Panier moyen"
+              icon={ShoppingBag}
+              data={basketRanking}
+              formatValue={formatCurrency}
+              maxValue={maxBasket}
+              colorClass="text-amber-500"
+              metricKey="basket"
+            />
+            <RankingCard
+              title="Taux de conversion"
+              icon={Users}
+              data={conversionRanking}
+              formatValue={formatPercent}
+              maxValue={maxConversion}
+              colorClass="text-blue-500"
+              metricKey="conversion"
+            />
+            <RankingCard
+              title="Visites"
+              icon={Eye}
+              data={visitsRanking}
+              formatValue={formatNumber}
+              maxValue={maxVisits}
+              colorClass="text-cyan-500"
+              metricKey="visits"
+            />
+            <RankingCard
+              title="Frais totaux"
+              icon={Receipt}
+              data={feesRanking}
+              formatValue={formatCurrency}
+              maxValue={maxFees}
+              colorClass="text-red-500"
+              metricKey="fees"
+              inverseTrend={true}
+            />
+            <RankingCard
+              title="Rentabilité"
+              icon={Percent}
+              data={profitabilityRanking}
+              formatValue={formatPercent}
+              maxValue={maxProfitability}
+              colorClass="text-violet-500"
+              metricKey="profitability"
+            />
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -13,14 +13,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Euro, Users, Percent, Trophy, TrendingUp, TrendingDown, Minus, Calculator, FileDown, Loader2 } from "lucide-react";
+import { ArrowLeft, Euro, Users, Percent, Trophy, TrendingUp, TrendingDown, Minus, Calculator, FileDown, Loader2, ShoppingCart, ShoppingBag, Eye, Receipt } from "lucide-react";
 import { RankingDistributionChart } from "@/components/analytics/RankingDistributionChart";
 import { RankingTable } from "@/components/analytics/RankingTable";
 import { RestaurantComparisonPanel } from "@/components/analytics/RestaurantComparisonPanel";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
-type MetricType = "revenue" | "conversion" | "profitability";
+type MetricType = "revenue" | "conversion" | "profitability" | "orders" | "basket" | "visits" | "fees";
 
 interface RankedRestaurant {
   id: string;
@@ -46,12 +46,40 @@ const METRIC_CONFIG: Record<MetricType, {
     formatValue: (v) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v),
     label: "CA (€)",
   },
+  orders: {
+    title: "Commandes",
+    icon: ShoppingCart,
+    colorClass: "text-orange-500",
+    formatValue: (v) => new Intl.NumberFormat("fr-FR").format(Math.round(v)),
+    label: "Commandes",
+  },
+  basket: {
+    title: "Panier moyen",
+    icon: ShoppingBag,
+    colorClass: "text-amber-500",
+    formatValue: (v) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(v),
+    label: "Panier (€)",
+  },
   conversion: {
     title: "Taux de conversion",
     icon: Users,
     colorClass: "text-blue-500",
     formatValue: (v) => `${v.toFixed(1)}%`,
     label: "Taux (%)",
+  },
+  visits: {
+    title: "Visites",
+    icon: Eye,
+    colorClass: "text-cyan-500",
+    formatValue: (v) => new Intl.NumberFormat("fr-FR").format(Math.round(v)),
+    label: "Visites",
+  },
+  fees: {
+    title: "Frais totaux",
+    icon: Receipt,
+    colorClass: "text-red-500",
+    formatValue: (v) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v),
+    label: "Frais (€)",
   },
   profitability: {
     title: "Rentabilité",
@@ -226,6 +254,7 @@ export default function RankingDetail() {
   const ranking = useMemo((): RankedRestaurant[] => {
     if (!restaurants) return [];
 
+    // Revenue ranking
     if (metricType === "revenue") {
       if (!revenueData) return [];
       
@@ -265,6 +294,91 @@ export default function RankingDetail() {
         .map((r, i) => ({ ...r, rank: i + 1 }));
     }
 
+    // Orders ranking
+    if (metricType === "orders") {
+      if (!revenueData) return [];
+      
+      const aggregated = new Map<string, { current: number; prev: number }>();
+      
+      revenueData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .forEach(r => {
+          const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+          existing.current += Number(r.order_count) || 0;
+          aggregated.set(r.restaurant_id, existing);
+        });
+
+      prevRevenueData
+        ?.filter(r => r.month >= startMonth && r.month <= endMonth)
+        .forEach(r => {
+          const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+          existing.prev += Number(r.order_count) || 0;
+          aggregated.set(r.restaurant_id, existing);
+        });
+
+      return Array.from(aggregated.entries())
+        .map(([id, { current, prev }]) => {
+          const restaurant = restaurants.find(r => r.id === id);
+          return {
+            id,
+            name: restaurant?.name || "Inconnu",
+            city: restaurant?.city || "",
+            value: current,
+            prevValue: prev,
+            trend: calcTrend(current, prev),
+            rank: 0,
+          };
+        })
+        .filter(r => r.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+    }
+
+    // Basket ranking
+    if (metricType === "basket") {
+      if (!revenueData) return [];
+      
+      const aggregated = new Map<string, { currentRevenue: number; currentOrders: number; prevRevenue: number; prevOrders: number }>();
+      
+      revenueData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .forEach(r => {
+          const existing = aggregated.get(r.restaurant_id) || { currentRevenue: 0, currentOrders: 0, prevRevenue: 0, prevOrders: 0 };
+          existing.currentRevenue += Number(r.revenue_ttc) || 0;
+          existing.currentOrders += Number(r.order_count) || 0;
+          aggregated.set(r.restaurant_id, existing);
+        });
+
+      prevRevenueData
+        ?.filter(r => r.month >= startMonth && r.month <= endMonth)
+        .forEach(r => {
+          const existing = aggregated.get(r.restaurant_id) || { currentRevenue: 0, currentOrders: 0, prevRevenue: 0, prevOrders: 0 };
+          existing.prevRevenue += Number(r.revenue_ttc) || 0;
+          existing.prevOrders += Number(r.order_count) || 0;
+          aggregated.set(r.restaurant_id, existing);
+        });
+
+      return Array.from(aggregated.entries())
+        .map(([id, data]) => {
+          const restaurant = restaurants.find(r => r.id === id);
+          const currentBasket = data.currentOrders > 0 ? data.currentRevenue / data.currentOrders : 0;
+          const prevBasket = data.prevOrders > 0 ? data.prevRevenue / data.prevOrders : 0;
+          return {
+            id,
+            name: restaurant?.name || "Inconnu",
+            city: restaurant?.city || "",
+            value: currentBasket,
+            prevValue: prevBasket,
+            trend: calcTrend(currentBasket, prevBasket),
+            rank: 0,
+          };
+        })
+        .filter(r => r.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+    }
+
+    // Conversion ranking
     if (metricType === "conversion") {
       if (!conversionData) return [];
       
@@ -301,6 +415,88 @@ export default function RankingDetail() {
             value: currentRate,
             prevValue: prevRate,
             trend: calcTrend(currentRate, prevRate),
+            rank: 0,
+          };
+        })
+        .filter(r => r.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+    }
+
+    // Visits ranking
+    if (metricType === "visits") {
+      if (!conversionData) return [];
+      
+      const aggregated = new Map<string, { current: number; prev: number }>();
+      
+      conversionData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .forEach(r => {
+          const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+          existing.current += Number(r.visits) || 0;
+          aggregated.set(r.restaurant_id, existing);
+        });
+
+      prevConversionData
+        ?.filter(r => r.month >= startMonth && r.month <= endMonth)
+        .forEach(r => {
+          const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+          existing.prev += Number(r.visits) || 0;
+          aggregated.set(r.restaurant_id, existing);
+        });
+
+      return Array.from(aggregated.entries())
+        .map(([id, { current, prev }]) => {
+          const restaurant = restaurants.find(r => r.id === id);
+          return {
+            id,
+            name: restaurant?.name || "Inconnu",
+            city: restaurant?.city || "",
+            value: current,
+            prevValue: prev,
+            trend: calcTrend(current, prev),
+            rank: 0,
+          };
+        })
+        .filter(r => r.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+    }
+
+    // Fees ranking
+    if (metricType === "fees") {
+      if (!feesData) return [];
+      
+      const aggregated = new Map<string, { current: number; prev: number }>();
+      
+      feesData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .forEach(r => {
+          const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+          const totalFees = (Number(r.uber_fee) || 0) + (Number(r.marketing_fee) || 0) + (Number(r.offers_cost) || 0) + (Number(r.ads_cost) || 0);
+          existing.current += totalFees;
+          aggregated.set(r.restaurant_id, existing);
+        });
+
+      prevFeesData
+        ?.filter(r => r.month >= startMonth && r.month <= endMonth)
+        .forEach(r => {
+          const existing = aggregated.get(r.restaurant_id) || { current: 0, prev: 0 };
+          const totalFees = (Number(r.uber_fee) || 0) + (Number(r.marketing_fee) || 0) + (Number(r.offers_cost) || 0) + (Number(r.ads_cost) || 0);
+          existing.prev += totalFees;
+          aggregated.set(r.restaurant_id, existing);
+        });
+
+      return Array.from(aggregated.entries())
+        .map(([id, { current, prev }]) => {
+          const restaurant = restaurants.find(r => r.id === id);
+          return {
+            id,
+            name: restaurant?.name || "Inconnu",
+            city: restaurant?.city || "",
+            value: current,
+            prevValue: prev,
+            trend: calcTrend(current, prev),
             rank: 0,
           };
         })
@@ -378,6 +574,26 @@ export default function RankingDetail() {
           value: Number(r.revenue_ttc) || 0,
         }));
     }
+
+    if (metricType === "orders" && revenueData) {
+      return revenueData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .map(r => ({
+          restaurant_id: r.restaurant_id,
+          month: r.month,
+          value: Number(r.order_count) || 0,
+        }));
+    }
+
+    if (metricType === "basket" && revenueData) {
+      return revenueData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .map(r => ({
+          restaurant_id: r.restaurant_id,
+          month: r.month,
+          value: Number(r.order_count) > 0 ? Number(r.revenue_ttc) / Number(r.order_count) : 0,
+        }));
+    }
     
     if (metricType === "conversion" && conversionData) {
       return conversionData
@@ -386,6 +602,26 @@ export default function RankingDetail() {
           restaurant_id: r.restaurant_id,
           month: r.month,
           value: Number(r.visits) > 0 ? (Number(r.orders) / Number(r.visits)) * 100 : 0,
+        }));
+    }
+
+    if (metricType === "visits" && conversionData) {
+      return conversionData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .map(r => ({
+          restaurant_id: r.restaurant_id,
+          month: r.month,
+          value: Number(r.visits) || 0,
+        }));
+    }
+
+    if (metricType === "fees" && feesData) {
+      return feesData
+        .filter(r => r.month >= startMonth && r.month <= endMonth)
+        .map(r => ({
+          restaurant_id: r.restaurant_id,
+          month: r.month,
+          value: (Number(r.uber_fee) || 0) + (Number(r.marketing_fee) || 0) + (Number(r.offers_cost) || 0) + (Number(r.ads_cost) || 0),
         }));
     }
     
@@ -712,7 +948,11 @@ export default function RankingDetail() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="revenue">Chiffre d'affaires</SelectItem>
+                    <SelectItem value="orders">Commandes</SelectItem>
+                    <SelectItem value="basket">Panier moyen</SelectItem>
                     <SelectItem value="conversion">Taux de conversion</SelectItem>
+                    <SelectItem value="visits">Visites</SelectItem>
+                    <SelectItem value="fees">Frais totaux</SelectItem>
                     <SelectItem value="profitability">Rentabilité</SelectItem>
                   </SelectContent>
                 </Select>
