@@ -748,8 +748,15 @@ export default function RestaurantActions() {
                 >
                   <Layers className="h-4 w-4" />
                   Toutes
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                    {actions.length}
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs overflow-hidden">
+                    <motion.span
+                      key={actions.length}
+                      initial={{ y: -10, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                    >
+                      {actions.length}
+                    </motion.span>
                   </Badge>
                 </Button>
                 <Button
@@ -763,8 +770,15 @@ export default function RestaurantActions() {
                 >
                   <Globe className="h-4 w-4" />
                   Nationales
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-blue-500/10 text-blue-600">
-                    {nationalCount}
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-blue-500/10 text-blue-600 overflow-hidden">
+                    <motion.span
+                      key={nationalCount}
+                      initial={{ y: -10, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                    >
+                      {nationalCount}
+                    </motion.span>
                   </Badge>
                 </Button>
                 <Button
@@ -775,8 +789,15 @@ export default function RestaurantActions() {
                 >
                   <Store className="h-4 w-4" />
                   Par restaurant
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-emerald-500/10 text-emerald-600">
-                    {localCount}
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-emerald-500/10 text-emerald-600 overflow-hidden">
+                    <motion.span
+                      key={localCount}
+                      initial={{ y: -10, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                    >
+                      {localCount}
+                    </motion.span>
                   </Badge>
                 </Button>
               </div>
