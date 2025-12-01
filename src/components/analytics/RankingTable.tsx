@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -32,6 +33,7 @@ import {
   ExternalLink,
   ChevronUp,
   ChevronDown,
+  GitCompareArrows,
 } from "lucide-react";
 
 interface RankedRestaurant {
@@ -53,6 +55,8 @@ interface RankingTableProps {
   ranking: RankedRestaurant[];
   metricLabel: string;
   formatValue: (v: number) => string;
+  selectedForComparison?: string[];
+  onToggleComparison?: (restaurant: RankedRestaurant) => void;
 }
 
 type SortField = "rank" | "name" | "city" | "value" | "prevValue" | "trend" | "rankChange";
@@ -131,7 +135,7 @@ function RankChangeIndicator({ change }: { change: number | null }) {
   );
 }
 
-export function RankingTable({ ranking, metricLabel, formatValue }: RankingTableProps) {
+export function RankingTable({ ranking, metricLabel, formatValue, selectedForComparison = [], onToggleComparison }: RankingTableProps) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("rank");
@@ -273,6 +277,22 @@ export function RankingTable({ ranking, metricLabel, formatValue }: RankingTable
           <Table>
             <TableHeader>
               <TableRow>
+                {onToggleComparison && (
+                  <TableHead className="w-[40px]">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center justify-center">
+                            <GitCompareArrows className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Comparer (max 3)</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                )}
                 <TableHead 
                   className="w-[60px] cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort("rank")}
@@ -351,54 +371,69 @@ export function RankingTable({ ranking, metricLabel, formatValue }: RankingTable
             <TableBody>
               {paginatedData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={onToggleComparison ? 9 : 8} className="text-center py-8 text-muted-foreground">
                     Aucun résultat trouvé
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedData.map((restaurant) => (
-                  <TableRow 
-                    key={restaurant.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => navigate(`/restaurants/${restaurant.id}`)}
-                  >
-                    <TableCell>
-                      <RankMedal rank={restaurant.rank} />
-                    </TableCell>
-                    <TableCell>
-                      <RankChangeIndicator change={restaurant.rankChange} />
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="truncate max-w-[200px] block">
-                              {restaurant.name}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{restaurant.name}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {restaurant.city || "-"}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">
-                      {formatValue(restaurant.value)}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground tabular-nums">
-                      {restaurant.prevValue > 0 ? formatValue(restaurant.prevValue) : "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <TrendIndicator trend={restaurant.trend} />
-                    </TableCell>
-                    <TableCell>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                    </TableCell>
-                  </TableRow>
-                ))
+                paginatedData.map((restaurant) => {
+                  const isSelected = selectedForComparison.includes(restaurant.id);
+                  const canSelect = selectedForComparison.length < 3 || isSelected;
+                  
+                  return (
+                    <TableRow 
+                      key={restaurant.id}
+                      className={`cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-primary/5" : ""}`}
+                      onClick={() => navigate(`/restaurants/${restaurant.id}`)}
+                    >
+                      {onToggleComparison && (
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isSelected}
+                            disabled={!canSelect}
+                            onCheckedChange={() => onToggleComparison(restaurant)}
+                            className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <RankMedal rank={restaurant.rank} />
+                      </TableCell>
+                      <TableCell>
+                        <RankChangeIndicator change={restaurant.rankChange} />
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="truncate max-w-[200px] block">
+                                {restaurant.name}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{restaurant.name}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {restaurant.city || "-"}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {formatValue(restaurant.value)}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {restaurant.prevValue > 0 ? formatValue(restaurant.prevValue) : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <TrendIndicator trend={restaurant.trend} />
+                      </TableCell>
+                      <TableCell>
+                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
