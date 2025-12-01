@@ -49,11 +49,11 @@ import csLogo from "@/assets/cs-logo.jpeg";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
-  { title: "Vue d'ensemble", url: "/", icon: Home },
+  { title: "Vue d'ensemble", url: "/", icon: Eye },
   { title: "Revenus & Ventes", url: "/analytics?view=revenue", icon: Euro },
   { title: "Conversion", url: "/analytics?view=conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics?view=finances", icon: Wallet },
-  { title: "Classements", url: "/analytics/ranking/revenue", icon: Trophy },
+  { title: "Classements", url: "/classements", icon: Trophy },
 ];
 
 // Navigation principale (after Analytics)
@@ -136,12 +136,16 @@ export function AppSidebar() {
 
   const isAnalyticsActive = () => {
     return location.pathname === "/" || 
-           location.pathname.startsWith("/analytics");
+           location.pathname.startsWith("/analytics") ||
+           location.pathname === "/classements";
   };
   
   const getActiveAnalyticsSubItem = (url: string) => {
     if (url === "/") {
       return location.pathname === "/";
+    }
+    if (url === "/classements") {
+      return location.pathname === "/classements";
     }
     if (url.startsWith("/analytics?view=")) {
       const params = new URLSearchParams(location.search);
