@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -114,6 +115,7 @@ export function AppSidebar() {
   const { toast } = useToast();
   const collapsed = state === "collapsed";
   const unreadCount = useUnreadMessages();
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -248,7 +250,8 @@ export function AppSidebar() {
               
               {/* Analytics Collapsible Menu */}
               <Collapsible
-                open={isAnalyticsActive()}
+                open={analyticsOpen || isAnalyticsActive()}
+                onOpenChange={setAnalyticsOpen}
                 className="group/collapsible"
               >
                 <SidebarMenuItem>
