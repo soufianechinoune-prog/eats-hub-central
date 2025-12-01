@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -782,9 +783,16 @@ export default function RestaurantActions() {
             </div>
             
             {/* Restaurant Selector for Local Scope */}
-            {scopeFilter === "local" && (
-              <div className="flex items-center gap-2 flex-1">
-                <Popover open={isScopeRestaurantPopoverOpen} onOpenChange={setIsScopeRestaurantPopoverOpen}>
+            <AnimatePresence>
+              {scopeFilter === "local" && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: -10, scale: 0.95 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="flex items-center gap-2 flex-1"
+                >
+                  <Popover open={isScopeRestaurantPopoverOpen} onOpenChange={setIsScopeRestaurantPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -990,8 +998,9 @@ export default function RestaurantActions() {
                     )}
                   </div>
                 )}
-              </div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </CardContent>
       </Card>
