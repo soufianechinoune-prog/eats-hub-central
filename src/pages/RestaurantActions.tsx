@@ -246,6 +246,15 @@ export default function RestaurantActions() {
   const [editingAction, setEditingAction] = useState<RestaurantAction | null>(null);
   const [actionToDelete, setActionToDelete] = useState<RestaurantAction | null>(null);
   
+  // Drag & drop confirmation state
+  const [pendingDrop, setPendingDrop] = useState<{
+    actionId: string;
+    actionTitle: string;
+    originalDate: Date;
+    newStartDate: Date;
+    newEndDate: Date | null;
+  } | null>(null);
+  
   // Form state
   const [formData, setFormData] = useState({
     restaurant_ids: [] as string[],
@@ -1500,33 +1509,19 @@ export default function RestaurantActions() {
             }));
             openCreateDialog();
           }}
-          onActionDrop={async (actionId, newStartDate, newEndDate) => {
-            // Update the action dates via drag & drop
-            const updateData: any = {
-              start_date: format(newStartDate, "yyyy-MM-dd"),
-            };
-            if (newEndDate) {
-              updateData.end_date = format(newEndDate, "yyyy-MM-dd");
-            }
+          onActionDrop={(actionId, newStartDate, newEndDate) => {
+            // Find the action to get its title and original date
+            const action = actions.find(a => a.id === actionId);
+            if (!action) return;
             
-            const { error } = await supabase
-              .from("restaurant_actions")
-              .update(updateData)
-              .eq("id", actionId);
-            
-            if (error) {
-              toast({ 
-                title: "Erreur", 
-                description: "Impossible de déplacer l'action", 
-                variant: "destructive" 
-              });
-            } else {
-              toast({ 
-                title: "Action déplacée", 
-                description: `Nouvelle date : ${format(newStartDate, "d MMMM yyyy", { locale: fr })}` 
-              });
-              fetchActions();
-            }
+            // Show confirmation dialog
+            setPendingDrop({
+              actionId,
+              actionTitle: action.title,
+              originalDate: new Date(action.start_date),
+              newStartDate,
+              newEndDate,
+            });
           }}
         />
       )}
@@ -2712,6 +2707,70 @@ export default function RestaurantActions() {
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
               Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Drag & Drop Confirmation */}
+      <AlertDialog open={!!pendingDrop} onOpenChange={(open) => !open && setPendingDrop(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Déplacer cette action ?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>Voulez-vous déplacer l'action "{pendingDrop?.actionTitle}" ?</p>
+              <div className="flex items-center gap-3 p-3 bg-muted rounded-lg text-sm">
+                <div className="text-center">
+                  <p className="text-muted-foreground text-xs">De</p>
+                  <p className="font-medium">
+                    {pendingDrop && format(pendingDrop.originalDate, "d MMM yyyy", { locale: fr })}
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <div className="text-center">
+                  <p className="text-muted-foreground text-xs">À</p>
+                  <p className="font-medium text-primary">
+                    {pendingDrop && format(pendingDrop.newStartDate, "d MMM yyyy", { locale: fr })}
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={async () => {
+                if (!pendingDrop) return;
+                
+                const updateData: any = {
+                  start_date: format(pendingDrop.newStartDate, "yyyy-MM-dd"),
+                };
+                if (pendingDrop.newEndDate) {
+                  updateData.end_date = format(pendingDrop.newEndDate, "yyyy-MM-dd");
+                }
+                
+                const { error } = await supabase
+                  .from("restaurant_actions")
+                  .update(updateData)
+                  .eq("id", pendingDrop.actionId);
+                
+                if (error) {
+                  toast({ 
+                    title: "Erreur", 
+                    description: "Impossible de déplacer l'action", 
+                    variant: "destructive" 
+                  });
+                } else {
+                  toast({ 
+                    title: "Action déplacée", 
+                    description: `Nouvelle date : ${format(pendingDrop.newStartDate, "d MMMM yyyy", { locale: fr })}` 
+                  });
+                  fetchActions();
+                }
+                setPendingDrop(null);
+              }}
+            >
+              Déplacer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
