@@ -15,6 +15,7 @@ interface MediaRequest {
   restaurant_id?: string;
   recipient_name?: string;
   restaurant_name?: string;
+  duration?: number; // Duration in seconds for audio messages
 }
 
 serve(async (req) => {
@@ -48,7 +49,8 @@ serve(async (req) => {
       filename,
       restaurant_id,
       recipient_name,
-      restaurant_name
+      restaurant_name,
+      duration
     }: MediaRequest = await req.json();
 
     if (!phone || !mediaUrl || !mediaType) {
@@ -121,7 +123,7 @@ serve(async (req) => {
     if (response.ok && data.sent === 'true') {
       console.log(`Media sent successfully to ${formattedPhone}, ID: ${data.id}`);
       
-      // Log to message_history with media_url
+      // Log to message_history with media_url and duration
       if (supabase) {
         await supabase.from('message_history').insert({
           restaurant_id: restaurant_id || null,
@@ -135,6 +137,7 @@ serve(async (req) => {
           direction: 'outbound',
           media_url: mediaUrl,
           media_type: mediaType,
+          duration: duration || null,
         });
       }
 
@@ -161,6 +164,7 @@ serve(async (req) => {
           direction: 'outbound',
           media_url: mediaUrl,
           media_type: mediaType,
+          duration: duration || null,
         });
       }
 

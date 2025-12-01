@@ -7,22 +7,32 @@ import { motion } from "framer-motion";
 interface AudioPlayerProps {
   src: string;
   className?: string;
+  storedDuration?: number; // Duration in seconds from database
 }
 
-export function AudioPlayer({ src, className }: AudioPlayerProps) {
+export function AudioPlayer({ src, className, storedDuration }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(storedDuration || 0);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
+    // If we have a stored duration, use it immediately
+    if (storedDuration) {
+      setDuration(storedDuration);
+      setIsLoading(false);
+    }
+
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
+      // Only update duration if we don't have a stored one
+      if (!storedDuration && audio.duration) {
+        setDuration(audio.duration);
+      }
       setIsLoading(false);
     };
 
@@ -57,7 +67,7 @@ export function AudioPlayer({ src, className }: AudioPlayerProps) {
       audio.removeEventListener("error", handleError);
       audio.removeEventListener("canplay", handleCanPlay);
     };
-  }, []);
+  }, [storedDuration]);
 
   const togglePlayPause = () => {
     const audio = audioRef.current;
