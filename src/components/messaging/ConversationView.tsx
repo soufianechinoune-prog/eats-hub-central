@@ -175,7 +175,6 @@ export default function ConversationView() {
     stopRecording,
     cancelRecording,
     clearRecording,
-    convertToMp3,
   } = useVoiceRecorder();
 
   // Notification hook
@@ -772,14 +771,14 @@ export default function ConversationView() {
         (r) => r.manager_whatsapp && normalizePhone(r.manager_whatsapp) === normalizePhone(selectedConversation.phone)
       );
 
-      // Convert to MP3
-      console.log('Converting audio to MP3...');
-      const mp3Blob = await convertToMp3(audioBlob);
-      console.log('MP3 conversion complete, size:', mp3Blob.size);
+      // Determine file extension based on blob type
+      const fileExtension = audioBlob.type.includes('ogg') ? 'ogg' : 
+                           audioBlob.type.includes('webm') ? 'webm' : 
+                           'ogg';
+      const fileName = `voice-${Date.now()}.${fileExtension}`;
+      const file = new File([audioBlob], fileName, { type: audioBlob.type });
 
-      // Create file from MP3 blob
-      const fileName = `voice-${Date.now()}.mp3`;
-      const file = new File([mp3Blob], fileName, { type: 'audio/mp3' });
+      console.log('Uploading voice message:', fileName, 'type:', audioBlob.type, 'size:', audioBlob.size);
 
       // Upload to Supabase storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -807,7 +806,7 @@ export default function ConversationView() {
           restaurant_id: restaurant?.id,
           recipient_name: selectedConversation.contactName,
           restaurant_name: selectedConversation.restaurantName,
-          duration: audioDuration, // Pass the recorded duration
+          duration: audioDuration,
         },
       });
 
