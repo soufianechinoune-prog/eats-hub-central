@@ -230,8 +230,8 @@ export default function RestaurantActions() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [actions, setActions] = useState<RestaurantAction[]>([]);
   const [loading, setLoading] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [platformFilter, setPlatformFilter] = useState<string>("all");
+  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+  const [platformFilters, setPlatformFilters] = useState<string[]>([]);
   const [restaurantFilters, setRestaurantFilters] = useState<string[]>([]);
   const [actionTypeFilter, setActionTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -632,8 +632,8 @@ export default function RestaurantActions() {
   const localCount = actions.filter(a => !isNational(a)).length;
   
   const filteredActions = scopedActions
-    .filter(a => categoryFilter === "all" || a.category === categoryFilter)
-    .filter(a => platformFilter === "all" || a.platform === platformFilter)
+    .filter(a => categoryFilters.length === 0 || categoryFilters.includes(a.category))
+    .filter(a => platformFilters.length === 0 || platformFilters.includes(a.platform))
     .filter(a => {
       if (restaurantFilters.length === 0) return true;
       // Check restaurant_ids array first, then fallback to restaurant_id
@@ -1089,8 +1089,12 @@ export default function RestaurantActions() {
           </CardContent>
         </Card>
         <Card 
-          className={`cursor-pointer transition-all hover:shadow-md ${platformFilter === "uber_eats" ? 'ring-2 ring-[#06C167]' : ''}`}
-          onClick={() => setPlatformFilter(platformFilter === "uber_eats" ? "all" : "uber_eats")}
+          className={`cursor-pointer transition-all hover:shadow-md ${platformFilters.includes("uber_eats") ? 'ring-2 ring-[#06C167]' : ''}`}
+          onClick={() => setPlatformFilters(prev => 
+            prev.includes("uber_eats") 
+              ? prev.filter(p => p !== "uber_eats") 
+              : [...prev, "uber_eats"]
+          )}
         >
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -1105,8 +1109,12 @@ export default function RestaurantActions() {
           </CardContent>
         </Card>
         <Card 
-          className={`cursor-pointer transition-all hover:shadow-md ${platformFilter === "deliveroo" ? 'ring-2 ring-[#00CCBC]' : ''}`}
-          onClick={() => setPlatformFilter(platformFilter === "deliveroo" ? "all" : "deliveroo")}
+          className={`cursor-pointer transition-all hover:shadow-md ${platformFilters.includes("deliveroo") ? 'ring-2 ring-[#00CCBC]' : ''}`}
+          onClick={() => setPlatformFilters(prev => 
+            prev.includes("deliveroo") 
+              ? prev.filter(p => p !== "deliveroo") 
+              : [...prev, "deliveroo"]
+          )}
         >
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -1129,8 +1137,12 @@ export default function RestaurantActions() {
           return (
             <Card 
               key={cat.id} 
-              className={`cursor-pointer transition-all hover:shadow-md ${categoryFilter === cat.id ? 'ring-2 ring-primary' : ''}`}
-              onClick={() => setCategoryFilter(categoryFilter === cat.id ? "all" : cat.id)}
+              className={`cursor-pointer transition-all hover:shadow-md ${categoryFilters.includes(cat.id) ? 'ring-2 ring-primary' : ''}`}
+              onClick={() => setCategoryFilters(prev => 
+                prev.includes(cat.id) 
+                  ? prev.filter(c => c !== cat.id) 
+                  : [...prev, cat.id]
+              )}
             >
               <CardContent className="pt-4 pb-3">
                 <div className="flex items-center gap-2">
@@ -1160,28 +1172,30 @@ export default function RestaurantActions() {
                 <Calendar className="h-3 w-3" />
                 {filteredActions.length} actions
               </Badge>
-              {categoryFilter !== "all" && (
+              {categoryFilters.map(catId => (
                 <Badge 
+                  key={catId}
                   variant="secondary" 
                   className="gap-1 cursor-pointer"
-                  onClick={() => setCategoryFilter("all")}
+                  onClick={() => setCategoryFilters(prev => prev.filter(c => c !== catId))}
                 >
                   <Filter className="h-3 w-3" />
-                  {getCategoryLabel(categoryFilter)}
+                  {getCategoryLabel(catId)}
                   <span className="ml-1">×</span>
                 </Badge>
-              )}
-              {platformFilter !== "all" && (
+              ))}
+              {platformFilters.map(platform => (
                 <Badge 
+                  key={platform}
                   variant="secondary" 
                   className="gap-1 cursor-pointer"
-                  onClick={() => setPlatformFilter("all")}
+                  onClick={() => setPlatformFilters(prev => prev.filter(p => p !== platform))}
                 >
-                  {platformFilter === "uber_eats" ? <UberEatsIcon className="h-3 w-3" /> : <DeliverooIcon className="h-3 w-3" />}
-                  {platformFilter === "uber_eats" ? "Uber Eats" : "Deliveroo"}
+                  {platform === "uber_eats" ? <UberEatsIcon className="h-3 w-3" /> : <DeliverooIcon className="h-3 w-3" />}
+                  {platform === "uber_eats" ? "Uber Eats" : "Deliveroo"}
                   <span className="ml-1">×</span>
                 </Badge>
-              )}
+              ))}
               {restaurantFilters.length > 0 && (
                 <Badge 
                   variant="secondary" 
@@ -1235,9 +1249,23 @@ export default function RestaurantActions() {
             {/* Filter Controls */}
             <div className="flex items-center gap-2 flex-wrap">
               {/* Platform Filter */}
-              <Select value={platformFilter} onValueChange={setPlatformFilter}>
+              <Select 
+                value={platformFilters.length === 0 ? "all" : platformFilters.length === 1 ? platformFilters[0] : "multiple"} 
+                onValueChange={(val) => {
+                  if (val === "all") setPlatformFilters([]);
+                  else if (val === "uber_eats" || val === "deliveroo") {
+                    setPlatformFilters(prev => 
+                      prev.includes(val) ? prev.filter(p => p !== val) : [...prev, val]
+                    );
+                  }
+                }}
+              >
                 <SelectTrigger className="w-[140px] h-9">
-                  <SelectValue placeholder="Plateforme" />
+                  <SelectValue placeholder="Plateforme">
+                    {platformFilters.length === 0 ? "Toutes" : 
+                     platformFilters.length === 2 ? "Toutes" :
+                     platformFilters[0] === "uber_eats" ? "Uber Eats" : "Deliveroo"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes</SelectItem>
