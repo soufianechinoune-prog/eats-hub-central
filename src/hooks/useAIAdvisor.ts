@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Message {
@@ -6,9 +6,64 @@ interface Message {
   content: string;
 }
 
+interface Conversation {
+  id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export const useAIAdvisor = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+
+  // Load conversations on mount
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  const loadConversations = async () => {
+    const { data } = await supabase
+      .from('ai_conversations')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    
+    if (data) {
+      setConversations(data);
+    }
+  };
+
+  const loadConversation = async (conversationId: string) => {
+    const { data } = await supabase
+      .from('ai_messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+    
+    if (data) {
+      setMessages(data.map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content })));
+      setCurrentConversationId(conversationId);
+    }
+  };
+
+  const startNewConversation = () => {
+    setMessages([]);
+    setCurrentConversationId(null);
+  };
+
+  const deleteConversation = async (conversationId: string) => {
+    await supabase
+      .from('ai_conversations')
+      .delete()
+      .eq('id', conversationId);
+    
+    if (conversationId === currentConversationId) {
+      startNewConversation();
+    }
+    await loadConversations();
+  };
 
   const sendMessage = async (userMessage: string) => {
     if (!userMessage.trim()) return;
@@ -18,6 +73,39 @@ export const useAIAdvisor = () => {
     setIsLoading(true);
 
     try {
+      // Create or use existing conversation
+      let conversationId = currentConversationId;
+      if (!conversationId) {
+        const title = userMessage.slice(0, 50) + (userMessage.length > 50 ? '...' : '');
+        const { data: newConv } = await supabase
+          .from('ai_conversations')
+          .insert({ title })
+          .select()
+          .single();
+        
+        if (newConv) {
+          conversationId = newConv.id;
+          setCurrentConversationId(conversationId);
+          await loadConversations();
+        }
+      }
+
+      // Save user message
+      if (conversationId) {
+        await supabase
+          .from('ai_messages')
+          .insert({
+            conversation_id: conversationId,
+            role: 'user',
+            content: userMessage
+          });
+        
+        // Update conversation timestamp
+        await supabase
+          .from('ai_conversations')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', conversationId);
+      }
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-advisor`,
         {
@@ -90,6 +178,23 @@ export const useAIAdvisor = () => {
         }
       }
 
+      // Save assistant message
+      if (conversationId && assistantContent) {
+        await supabase
+          .from('ai_messages')
+          .insert({
+            conversation_id: conversationId,
+            role: 'assistant',
+            content: assistantContent
+          });
+        
+        // Update conversation timestamp
+        await supabase
+          .from('ai_conversations')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', conversationId);
+      }
+
       setIsLoading(false);
 
     } catch (error: any) {
@@ -105,14 +210,14 @@ export const useAIAdvisor = () => {
     }
   };
 
-  const clearMessages = () => {
-    setMessages([]);
-  };
-
   return {
     messages,
     isLoading,
     sendMessage,
-    clearMessages,
+    currentConversationId,
+    conversations,
+    loadConversation,
+    startNewConversation,
+    deleteConversation,
   };
 };
