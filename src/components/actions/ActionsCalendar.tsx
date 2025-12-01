@@ -254,6 +254,7 @@ export function ActionsCalendar({
               events={calendarEvents}
               onActionClick={onActionClick}
               onDateClick={onDateClick}
+              onActionDrop={onActionDrop}
             />
           )}
 
