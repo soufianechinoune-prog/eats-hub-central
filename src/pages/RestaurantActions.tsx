@@ -737,7 +737,7 @@ export default function RestaurantActions() {
               <span className="text-sm font-medium text-muted-foreground">Portée :</span>
               <div className="flex items-center bg-background rounded-lg p-0.5 border shadow-sm">
                 <Button
-                  variant={scopeFilter === "all" ? "secondary" : "ghost"}
+                  variant={scopeFilter === "all" ? "default" : "ghost"}
                   size="sm"
                   className="h-8 gap-1.5 text-sm"
                   onClick={() => {
@@ -752,7 +752,7 @@ export default function RestaurantActions() {
                   </Badge>
                 </Button>
                 <Button
-                  variant={scopeFilter === "national" ? "secondary" : "ghost"}
+                  variant={scopeFilter === "national" ? "default" : "ghost"}
                   size="sm"
                   className="h-8 gap-1.5 text-sm"
                   onClick={() => {
@@ -767,7 +767,7 @@ export default function RestaurantActions() {
                   </Badge>
                 </Button>
                 <Button
-                  variant={scopeFilter === "local" ? "secondary" : "ghost"}
+                  variant={scopeFilter === "local" ? "default" : "ghost"}
                   size="sm"
                   className="h-8 gap-1.5 text-sm"
                   onClick={() => setScopeFilter("local")}
