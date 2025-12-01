@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -138,7 +139,6 @@ export default function ConversationView() {
   const [isSending, setIsSending] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<MediaPreview | null>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-  const [isSendingVoice, setIsSendingVoice] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
   const [conversationFilter, setConversationFilter] = useState<'all' | 'unread' | 'archived'>('all');
@@ -1555,7 +1555,6 @@ export default function ConversationView() {
                     </div>
                   </motion.div>
                 </AnimatePresence>
-              </div>
               </div>
             </motion.div>
           ) : (
