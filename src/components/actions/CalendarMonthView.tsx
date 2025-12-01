@@ -226,38 +226,51 @@ export function CalendarMonthView({
                   <div
                     key={day.toISOString()}
                     className={cn(
-                      "border-r last:border-r-0 relative transition-all duration-150 group",
+                      "border-r last:border-r-0 relative transition-all duration-200 group",
                       !isCurrentMonth && "bg-muted/20",
                       isWeekend && "bg-muted/30",
                       "hover:bg-accent/50 cursor-pointer",
-                      isDragOver && "bg-primary/20 ring-2 ring-primary ring-inset scale-[1.02]"
+                      isDragOver && "bg-primary/15 scale-[1.03] z-10"
                     )}
                     onClick={() => onDateClick?.(day)}
                     onDragOver={(e) => handleDragOver(e, day)}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, day)}
                   >
-                    <div className="p-1 flex justify-between items-start">
-                      <span className="h-5 w-5 flex items-center justify-center rounded-full bg-primary/0 group-hover:bg-primary text-primary-foreground opacity-0 group-hover:opacity-100 transition-all text-xs">
+                    {/* Drop zone animated border */}
+                    {isDragOver && (
+                      <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-md">
+                        <div className="absolute inset-0 border-2 border-primary rounded-md animate-pulse" />
+                        <div className="absolute inset-0 bg-gradient-to-b from-primary/20 to-transparent" />
+                      </div>
+                    )}
+                    
+                    <div className="p-1 flex justify-between items-start relative z-10">
+                      <span className={cn(
+                        "h-5 w-5 flex items-center justify-center rounded-full transition-all text-xs",
+                        isDragOver 
+                          ? "bg-primary text-primary-foreground opacity-100 scale-110" 
+                          : "bg-primary/0 group-hover:bg-primary text-primary-foreground opacity-0 group-hover:opacity-100"
+                      )}>
                         <Plus className="h-3 w-3" />
                       </span>
                       <span
                         className={cn(
-                          "h-7 w-7 flex items-center justify-center text-sm rounded-full transition-all",
+                          "h-7 w-7 flex items-center justify-center text-sm rounded-full transition-all duration-200",
                           isToday(day) && "bg-primary text-primary-foreground font-bold",
                           !isCurrentMonth && "text-muted-foreground",
-                          isDragOver && "bg-primary text-primary-foreground font-bold scale-110"
+                          isDragOver && "bg-primary text-primary-foreground font-bold scale-125 shadow-lg"
                         )}
                       >
                         {format(day, "d")}
                       </span>
                     </div>
                     
-                    {/* Drop zone indicator */}
+                    {/* Drop zone label */}
                     {isDragOver && (
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
-                          {format(day, "d MMM", { locale: fr })}
+                        <div className="animate-fade-in text-xs font-semibold text-primary bg-background/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg border border-primary/30">
+                          Déposer ici • {format(day, "d MMM", { locale: fr })}
                         </div>
                       </div>
                     )}
