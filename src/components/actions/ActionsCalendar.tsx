@@ -51,7 +51,9 @@ interface ActionsCalendarProps {
   actions: RestaurantAction[];
   restaurants: Restaurant[];
   onActionClick?: (action: RestaurantAction) => void;
+  onActionDelete?: (action: RestaurantAction) => void;
   onDateClick?: (date: Date) => void;
+  onDateRangeSelect?: (startDate: Date, endDate: Date) => void;
   onActionDrop?: (actionId: string, newStartDate: Date, newEndDate: Date | null) => void;
 }
 
@@ -77,7 +79,9 @@ export function ActionsCalendar({
   actions,
   restaurants,
   onActionClick,
+  onActionDelete,
   onDateClick,
+  onDateRangeSelect,
   onActionDrop,
 }: ActionsCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -229,7 +233,9 @@ export function ActionsCalendar({
               currentDate={currentDate}
               events={calendarEvents}
               onActionClick={onActionClick}
+              onActionDelete={onActionDelete}
               onDateClick={onDateClick}
+              onDateRangeSelect={onDateRangeSelect}
               onActionDrop={onActionDrop}
             />
           )}
