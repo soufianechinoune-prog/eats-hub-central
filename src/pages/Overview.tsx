@@ -40,24 +40,26 @@ const Overview = () => {
   const { startDate, endDate } = getDateRange();
 
   // Fetch network health data
-  const { data: networkData, isLoading } = useQuery({
-    queryKey: ["network-health", period, startDate, endDate],
+  const { data: networkData, isLoading, error } = useQuery({
+    queryKey: ["network-health", period],
     queryFn: async () => {
-      // Fetch profitability data from monthly_fees
-      const { data: feesData } = await supabase
-        .from("monthly_fees")
-        .select("platform, net_payout")
-        .gte("created_at", startDate.toISOString())
-        .lte("created_at", endDate.toISOString());
-
+      console.log("Fetching network health data...");
+      
       // Fetch restaurants count
-      const { count: totalRestaurants } = await supabase
+      const { count: totalRestaurants, error: restaurantsError } = await supabase
         .from("restaurants")
         .select("*", { count: "exact", head: true })
         .eq("is_active", true);
+      
+      if (restaurantsError) {
+        console.error("Error fetching restaurants:", restaurantsError);
+        throw restaurantsError;
+      }
 
-      // For now, return mock data structure that will be filled with real data later
-      return {
+      console.log("Total restaurants:", totalRestaurants);
+
+      // Mock data for now - will be replaced with real data from tables
+      const mockData = {
         global: {
           rating: 4.2,
           prepTime: 18,
@@ -103,10 +105,15 @@ const Overview = () => {
           { name: "Dessert Tiramisu", rating: 3.4, reviews: 67 },
           { name: "Wrap Poulet", rating: 3.5, reviews: 89 },
         ],
-        totalRestaurants,
+        totalRestaurants: totalRestaurants || 0,
       };
+
+      console.log("Returning mock data:", mockData);
+      return mockData;
     },
   });
+
+  console.log("Query state - isLoading:", isLoading, "error:", error, "data:", networkData);
 
   const getPeriodLabel = () => {
     switch (period) {
@@ -139,7 +146,13 @@ const Overview = () => {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12">Chargement des données...</div>
+        <div className="text-center py-12">
+          <div className="animate-pulse">Chargement des données...</div>
+        </div>
+      ) : error ? (
+        <div className="text-center py-12 text-destructive">
+          Erreur lors du chargement des données: {String(error)}
+        </div>
       ) : (
         <>
           {/* KPIs Globaux - Priority Section */}
