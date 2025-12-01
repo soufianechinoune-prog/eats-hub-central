@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useMenuItemTracking, type MenuItem as TrackingMenuItem, type FieldChange } from "@/hooks/useMenuItemTracking";
@@ -532,31 +533,46 @@ export default function MenuItems() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+      >
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <UtensilsCrossed className="h-8 w-8 text-primary" />
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <motion.div
+              whileHover={{ rotate: 15, scale: 1.1 }}
+              transition={{ type: "spring", stiffness: 400 }}
+            >
+              <UtensilsCrossed className="h-8 w-8 text-primary" />
+            </motion.div>
             Catalogue Produits
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1.5">
             Gérez le catalogue de produits commun avec les prix par plateforme
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} className="gap-2">
-            <Upload className="h-4 w-4" />
-            Import CSV
-          </Button>
-          <Button variant="outline" onClick={() => setIsDeliverooImportDialogOpen(true)} className="gap-2">
-            <DeliverooIcon className="h-4 w-4" />
-            Import Deliveroo
-          </Button>
-          <Button onClick={openCreateDialog} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Ajouter un produit
-          </Button>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} className="gap-2 hover:shadow-md transition-shadow">
+              <Upload className="h-4 w-4" />
+              Import CSV
+            </Button>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button variant="outline" onClick={() => setIsDeliverooImportDialogOpen(true)} className="gap-2 hover:shadow-md transition-shadow">
+              <DeliverooIcon className="h-4 w-4" />
+              Import Deliveroo
+            </Button>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button onClick={openCreateDialog} className="gap-2 shadow-lg hover:shadow-xl transition-shadow">
+              <Plus className="h-4 w-4" />
+              Ajouter un produit
+            </Button>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Tabs for Catalog / Comparison */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "matcher")}>
@@ -587,89 +603,158 @@ export default function MenuItems() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Package className="h-5 w-5 text-primary" />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          whileHover={{ y: -4, transition: { duration: 0.2 } }}
+        >
+          <Card className="relative overflow-hidden hover:shadow-lg transition-shadow duration-300 border-primary/20">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
+            <CardContent className="pt-6 relative">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="p-2 bg-primary/10 rounded-lg"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: "spring", stiffness: 400 }}
+                >
+                  <Package className="h-5 w-5 text-primary" />
+                </motion.div>
+                <div>
+                  <p className="text-2xl font-bold">{totalItems}</p>
+                  <p className="text-xs text-muted-foreground">Produits total</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{totalItems}</p>
-                <p className="text-xs text-muted-foreground">Produits total</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          whileHover={{ y: -4, transition: { duration: 0.2 } }}
+        >
+          <Card className="relative overflow-hidden hover:shadow-lg transition-shadow duration-300 border-emerald-500/20">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
+            <CardContent className="pt-6 relative">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="p-2 bg-emerald-500/10 rounded-lg"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: "spring", stiffness: 400 }}
+                >
+                  <Package className="h-5 w-5 text-emerald-500" />
+                </motion.div>
+                <div>
+                  <p className="text-2xl font-bold">{activeItems}</p>
+                  <p className="text-xs text-muted-foreground">Produits actifs</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-500/10 rounded-lg">
-                <Package className="h-5 w-5 text-emerald-500" />
+            </CardContent>
+          </Card>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          whileHover={{ y: -4, transition: { duration: 0.2 } }}
+        >
+          <Card className="relative overflow-hidden hover:shadow-lg transition-shadow duration-300 border-[#06C167]/20">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#06C167]/5 to-transparent" />
+            <CardContent className="pt-6 relative">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="p-2 bg-[#06C167]/10 rounded-lg"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: "spring", stiffness: 400 }}
+                >
+                  <UberEatsIcon className="h-5 w-5" />
+                </motion.div>
+                <div>
+                  <p className="text-2xl font-bold">{formatPrice(avgPriceUber)}</p>
+                  <p className="text-xs text-muted-foreground">Prix moyen Uber</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{activeItems}</p>
-                <p className="text-xs text-muted-foreground">Produits actifs</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          whileHover={{ y: -4, transition: { duration: 0.2 } }}
+        >
+          <Card className="relative overflow-hidden hover:shadow-lg transition-shadow duration-300 border-[#00CCBC]/20">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#00CCBC]/5 to-transparent" />
+            <CardContent className="pt-6 relative">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="p-2 bg-[#00CCBC]/10 rounded-lg"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: "spring", stiffness: 400 }}
+                >
+                  <DeliverooIcon className="h-5 w-5" />
+                </motion.div>
+                <div>
+                  <p className="text-2xl font-bold">{formatPrice(avgPriceDeliveroo)}</p>
+                  <p className="text-xs text-muted-foreground">Prix moyen Deliveroo</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#06C167]/10 rounded-lg">
-                <UberEatsIcon className="h-5 w-5" />
+            </CardContent>
+          </Card>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          whileHover={{ y: -4, transition: { duration: 0.2 } }}
+        >
+          <Card className="relative overflow-hidden hover:shadow-lg transition-shadow duration-300 border-blue-500/20">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
+            <CardContent className="pt-6 relative">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="p-2 bg-blue-500/10 rounded-lg"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: "spring", stiffness: 400 }}
+                >
+                  <TrendingUp className="h-5 w-5 text-blue-500" />
+                </motion.div>
+                <div>
+                  <p className="text-2xl font-bold">
+                    {priceDifference !== null ? `${priceDifference > 0 ? "+" : ""}${priceDifference.toFixed(1)}%` : "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Écart prix</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{formatPrice(avgPriceUber)}</p>
-                <p className="text-xs text-muted-foreground">Prix moyen Uber</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#00CCBC]/10 rounded-lg">
-                <DeliverooIcon className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{formatPrice(avgPriceDeliveroo)}</p>
-                <p className="text-xs text-muted-foreground">Prix moyen Deliveroo</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg">
-                <TrendingUp className="h-5 w-5 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {priceDifference !== null ? `${priceDifference > 0 ? "+" : ""}${priceDifference.toFixed(1)}%` : "-"}
-                </p>
-                <p className="text-xs text-muted-foreground">Écart prix</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Filters and Actions */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4 justify-between">
-            <div className="flex flex-col sm:flex-row gap-3 flex-1">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher un produit..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+      >
+        <Card className="shadow-sm hover:shadow-md transition-shadow duration-300">
+          <CardContent className="pt-6">
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <div className="flex flex-col sm:flex-row gap-3 flex-1">
+                <div className="relative flex-1 max-w-sm group">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                  <Input
+                    placeholder="Rechercher un produit..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 focus:ring-2 focus:ring-primary/20 transition-all"
+                  />
+                </div>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-[200px] justify-between">
@@ -736,16 +821,22 @@ export default function MenuItems() {
           </div>
         </CardContent>
       </Card>
+      </motion.div>
 
       {/* Products Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Produits ({filteredItems.length})</CardTitle>
-          <CardDescription>
-            Catalogue partagé avec prix différenciés par plateforme
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+        <Card className="shadow-sm hover:shadow-md transition-shadow duration-300">
+          <CardHeader>
+            <CardTitle>Produits ({filteredItems.length})</CardTitle>
+            <CardDescription>
+              Catalogue partagé avec prix différenciés par plateforme
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -761,47 +852,67 @@ export default function MenuItems() {
             <div className="space-y-2">
               {/* Expand/Collapse all */}
               <div className="flex justify-end gap-2 mb-4">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => toggleAllCategories(true)}
-                  className="text-xs"
-                >
-                  Tout déplier
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => toggleAllCategories(false)}
-                  className="text-xs"
-                >
-                  Tout replier
-                </Button>
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => toggleAllCategories(true)}
+                    className="text-xs hover:shadow-sm transition-shadow"
+                  >
+                    Tout déplier
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => toggleAllCategories(false)}
+                    className="text-xs hover:shadow-sm transition-shadow"
+                  >
+                    Tout replier
+                  </Button>
+                </motion.div>
               </div>
 
-              {sortedCategories.map((category) => {
+              {sortedCategories.map((category, idx) => {
                 const categoryItems = groupedItems[category];
                 const isExpanded = expandedCategories.has(category);
                 
                 return (
-                  <Collapsible 
-                    key={category} 
-                    open={isExpanded}
-                    onOpenChange={() => toggleCategoryExpanded(category)}
+                  <motion.div
+                    key={category}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.45 + idx * 0.05 }}
                   >
-                    <CollapsibleTrigger asChild>
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors">
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                        <span className="font-semibold">{category}</span>
-                        <Badge variant="secondary">{categoryItems.length} produit{categoryItems.length > 1 ? 's' : ''}</Badge>
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="overflow-x-auto mt-1 border rounded-lg">
+                    <Collapsible 
+                      open={isExpanded}
+                      onOpenChange={() => toggleCategoryExpanded(category)}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <motion.div 
+                          className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl cursor-pointer hover:bg-muted transition-all hover:shadow-sm border border-transparent hover:border-primary/20"
+                          whileHover={{ x: 4 }}
+                          transition={{ type: "spring", stiffness: 400 }}
+                        >
+                          <motion.div
+                            animate={{ rotate: isExpanded ? 0 : -90 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </motion.div>
+                          <span className="font-semibold">{category}</span>
+                          <Badge variant="secondary" className="shadow-sm">{categoryItems.length} produit{categoryItems.length > 1 ? 's' : ''}</Badge>
+                        </motion.div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                      <motion.div 
+                        className="overflow-x-auto mt-2 border rounded-xl shadow-sm"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -850,12 +961,18 @@ export default function MenuItems() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {categoryItems.map((item) => {
+                            {categoryItems.map((item, itemIdx) => {
                               const marginUber = calculateMargin(item.price_uber, item.food_cost);
                               const marginDeliveroo = calculateMargin(item.price_deliveroo, item.food_cost);
                               
                               return (
-                                <TableRow key={item.id}>
+                                <motion.tr 
+                                  key={item.id}
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  transition={{ delay: itemIdx * 0.03 }}
+                                  className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                                >
                                   <TableCell className="font-medium">
                                     <div className="flex items-center gap-1">
                                       {item.name}
@@ -909,43 +1026,53 @@ export default function MenuItems() {
                                     )}
                                   </TableCell>
                                   <TableCell className="text-center">
-                                    <Switch
-                                      checked={item.is_active}
-                                      onCheckedChange={() => toggleItemActive(item)}
-                                    />
+                                    <div className="flex justify-center">
+                                      <Switch
+                                        checked={item.is_active}
+                                        onCheckedChange={() => toggleItemActive(item)}
+                                      />
+                                    </div>
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <div className="flex justify-end gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => openEditDialog(item)}
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleDeleteClick(item)}
-                                      >
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                      </Button>
+                                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => openEditDialog(item)}
+                                          className="hover:bg-primary/10 hover:text-primary transition-colors"
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                      </motion.div>
+                                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => handleDeleteClick(item)}
+                                          className="hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </motion.div>
                                     </div>
                                   </TableCell>
-                                </TableRow>
+                                </motion.tr>
                               );
                             })}
                           </TableBody>
                         </Table>
-                      </div>
+                      </motion.div>
                     </CollapsibleContent>
                   </Collapsible>
+                  </motion.div>
                 );
               })}
             </div>
           )}
         </CardContent>
       </Card>
+      </motion.div>
         </TabsContent>
       </Tabs>
 
