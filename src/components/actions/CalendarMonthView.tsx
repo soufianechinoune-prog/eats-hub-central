@@ -105,8 +105,15 @@ export function CalendarMonthView({
     setDragPosition({ x: e.clientX, y: e.clientY });
   }, []);
 
-  const handleDragLeave = useCallback(() => {
-    // Don't clear immediately to prevent flickering
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Check if we're really leaving the drop zone
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
+      // Short delay to prevent flickering when moving between cells
+      setTimeout(() => {
+        setDragOverDate(null);
+      }, 50);
+    }
   }, []);
 
   // Handle drop
@@ -200,6 +207,19 @@ export function CalendarMonthView({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+  // Safety timeout: clear drag state if it gets stuck
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (dragOverDate && !isDragging) {
+      timeoutId = setTimeout(() => {
+        setDragOverDate(null);
+        setDraggedEvent(null);
+        setDragPosition(null);
+      }, 3000);
+    }
+    return () => clearTimeout(timeoutId);
+  }, [dragOverDate, isDragging]);
 
   return (
     <>
@@ -307,6 +327,11 @@ export function CalendarMonthView({
 
                 // Handle day click for range selection
                 const handleDayClick = () => {
+                  // Always clear drag states on click
+                  setDragOverDate(null);
+                  setDraggedEvent(null);
+                  setDragPosition(null);
+                  
                   if (!rangeStart) {
                     // First click - set start date
                     setRangeStart(day);
