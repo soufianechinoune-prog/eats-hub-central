@@ -34,6 +34,7 @@ import MenuHistory from "./pages/MenuHistory";
 import Messaging from "./pages/Messaging";
 import Operations from "./pages/Operations";
 import Cartography from "./pages/Cartography";
+import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 
 const queryClient = new QueryClient();
 
@@ -79,9 +80,11 @@ const App = () => {
               path="/"
               element={
                 <ProtectedRoute session={session}>
-                  <AppLayout>
-                    <Overview />
-                  </AppLayout>
+                  <AnalyticsProvider>
+                    <AppLayout>
+                      <Overview />
+                    </AppLayout>
+                  </AnalyticsProvider>
                 </ProtectedRoute>
               }
             />
@@ -89,9 +92,11 @@ const App = () => {
               path="/classements"
               element={
                 <ProtectedRoute session={session}>
-                  <AppLayout>
-                    <Dashboard />
-                  </AppLayout>
+                  <AnalyticsProvider>
+                    <AppLayout>
+                      <Dashboard />
+                    </AppLayout>
+                  </AnalyticsProvider>
                 </ProtectedRoute>
               }
             />
@@ -219,9 +224,11 @@ const App = () => {
               path="/analytics"
               element={
                 <ProtectedRoute session={session}>
-                  <AppLayout>
-                    <Analytics />
-                  </AppLayout>
+                  <AnalyticsProvider>
+                    <AppLayout>
+                      <Analytics />
+                    </AppLayout>
+                  </AnalyticsProvider>
                 </ProtectedRoute>
               }
             />
@@ -229,7 +236,9 @@ const App = () => {
               path="/analytics/ranking/:metric"
               element={
                 <ProtectedRoute session={session}>
-                  <RankingDetail />
+                  <AnalyticsProvider>
+                    <RankingDetail />
+                  </AnalyticsProvider>
                 </ProtectedRoute>
               }
             />
