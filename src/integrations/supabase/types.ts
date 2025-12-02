@@ -153,6 +153,109 @@ export type Database = {
           },
         ]
       }
+      daily_conversion: {
+        Row: {
+          add_to_cart: number
+          cart_rate: number | null
+          conversion_rate: number | null
+          created_at: string
+          date: string
+          id: string
+          menu_views: number
+          orders: number
+          overall_rate: number | null
+          platform: string
+          restaurant_id: string
+          updated_at: string
+          view_rate: number | null
+          visits: number
+        }
+        Insert: {
+          add_to_cart?: number
+          cart_rate?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          date: string
+          id?: string
+          menu_views?: number
+          orders?: number
+          overall_rate?: number | null
+          platform?: string
+          restaurant_id: string
+          updated_at?: string
+          view_rate?: number | null
+          visits?: number
+        }
+        Update: {
+          add_to_cart?: number
+          cart_rate?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          date?: string
+          id?: string
+          menu_views?: number
+          orders?: number
+          overall_rate?: number | null
+          platform?: string
+          restaurant_id?: string
+          updated_at?: string
+          view_rate?: number | null
+          visits?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_conversion_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_revenue: {
+        Row: {
+          average_basket: number | null
+          created_at: string
+          date: string
+          id: string
+          order_count: number
+          platform: string
+          restaurant_id: string
+          revenue_ttc: number
+          updated_at: string
+        }
+        Insert: {
+          average_basket?: number | null
+          created_at?: string
+          date: string
+          id?: string
+          order_count?: number
+          platform?: string
+          restaurant_id: string
+          revenue_ttc?: number
+          updated_at?: string
+        }
+        Update: {
+          average_basket?: number | null
+          created_at?: string
+          date?: string
+          id?: string
+          order_count?: number
+          platform?: string
+          restaurant_id?: string
+          revenue_ttc?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_revenue_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_stats: {
         Row: {
           courier_id: string | null
