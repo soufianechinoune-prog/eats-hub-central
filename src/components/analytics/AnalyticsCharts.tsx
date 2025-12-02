@@ -1,4 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -544,80 +546,181 @@ export function AnalyticsCharts({
   const aggregatedRevenueData = useMemo(() => {
     if (!revenueData) return [];
     
-    const monthlyData: { [key: number]: { revenue: number; orders: number } } = {};
-    const prevMonthlyData: { [key: number]: { revenue: number; orders: number } } = {};
+    // Detect if we have daily data (presence of 'date' field)
+    const isDailyData = revenueData.length > 0 && 'date' in revenueData[0];
     
-    revenueData.forEach((item) => {
-      if (!monthlyData[item.month]) {
-        monthlyData[item.month] = { revenue: 0, orders: 0 };
-      }
-      monthlyData[item.month].revenue += Number(item.revenue_ttc) || 0;
-      monthlyData[item.month].orders += item.order_count || 0;
-    });
+    if (isDailyData) {
+      // Daily granularity: group by date
+      const dailyMap: { [key: string]: { revenue: number; orders: number; date: string } } = {};
+      const prevDailyMap: { [key: string]: { revenue: number; orders: number; date: string } } = {};
+      
+      revenueData.forEach((item: any) => {
+        if (!dailyMap[item.date]) {
+          dailyMap[item.date] = { revenue: 0, orders: 0, date: item.date };
+        }
+        dailyMap[item.date].revenue += Number(item.revenue_ttc) || 0;
+        dailyMap[item.date].orders += item.order_count || 0;
+      });
+      
+      prevRevenueData?.forEach((item: any) => {
+        if (!prevDailyMap[item.date]) {
+          prevDailyMap[item.date] = { revenue: 0, orders: 0, date: item.date };
+        }
+        prevDailyMap[item.date].revenue += Number(item.revenue_ttc) || 0;
+        prevDailyMap[item.date].orders += item.order_count || 0;
+      });
+      
+      // Sort by date and format labels
+      return Object.keys(dailyMap)
+        .sort()
+        .map(dateStr => {
+          const date = new Date(dateStr);
+          const prevDate = new Date(date);
+          prevDate.setFullYear(prevDate.getFullYear() - 1);
+          const prevDateStr = prevDate.toISOString().split('T')[0];
+          
+          return {
+            month: format(date, 'dd/MM', { locale: fr }), // Short date label
+            monthNum: date.getDate(),
+            fullDate: dateStr,
+            revenue: dailyMap[dateStr].revenue,
+            orders: dailyMap[dateStr].orders,
+            avgBasket: dailyMap[dateStr].orders > 0 
+              ? dailyMap[dateStr].revenue / dailyMap[dateStr].orders 
+              : 0,
+            prevRevenue: prevDailyMap[prevDateStr]?.revenue || 0,
+            prevOrders: prevDailyMap[prevDateStr]?.orders || 0,
+          };
+        });
+    } else {
+      // Monthly granularity: group by month (existing behavior)
+      const monthlyData: { [key: number]: { revenue: number; orders: number } } = {};
+      const prevMonthlyData: { [key: number]: { revenue: number; orders: number } } = {};
+      
+      revenueData.forEach((item: any) => {
+        if (!monthlyData[item.month]) {
+          monthlyData[item.month] = { revenue: 0, orders: 0 };
+        }
+        monthlyData[item.month].revenue += Number(item.revenue_ttc) || 0;
+        monthlyData[item.month].orders += item.order_count || 0;
+      });
 
-    prevRevenueData?.forEach((item) => {
-      if (!prevMonthlyData[item.month]) {
-        prevMonthlyData[item.month] = { revenue: 0, orders: 0 };
-      }
-      prevMonthlyData[item.month].revenue += Number(item.revenue_ttc) || 0;
-      prevMonthlyData[item.month].orders += item.order_count || 0;
-    });
-    
-    return Array.from({ length: 12 }, (_, i) => ({
-      month: MONTHS[i],
-      monthNum: i + 1,
-      revenue: monthlyData[i + 1]?.revenue || 0,
-      orders: monthlyData[i + 1]?.orders || 0,
-      avgBasket: monthlyData[i + 1]?.orders > 0 
-        ? monthlyData[i + 1].revenue / monthlyData[i + 1].orders 
-        : 0,
-      prevRevenue: prevMonthlyData[i + 1]?.revenue || 0,
-      prevOrders: prevMonthlyData[i + 1]?.orders || 0,
-    })).filter(d => filterByRange(d.monthNum));
+      prevRevenueData?.forEach((item: any) => {
+        if (!prevMonthlyData[item.month]) {
+          prevMonthlyData[item.month] = { revenue: 0, orders: 0 };
+        }
+        prevMonthlyData[item.month].revenue += Number(item.revenue_ttc) || 0;
+        prevMonthlyData[item.month].orders += item.order_count || 0;
+      });
+      
+      return Array.from({ length: 12 }, (_, i) => ({
+        month: MONTHS[i],
+        monthNum: i + 1,
+        revenue: monthlyData[i + 1]?.revenue || 0,
+        orders: monthlyData[i + 1]?.orders || 0,
+        avgBasket: monthlyData[i + 1]?.orders > 0 
+          ? monthlyData[i + 1].revenue / monthlyData[i + 1].orders 
+          : 0,
+        prevRevenue: prevMonthlyData[i + 1]?.revenue || 0,
+        prevOrders: prevMonthlyData[i + 1]?.orders || 0,
+      })).filter(d => filterByRange(d.monthNum));
+    }
   }, [revenueData, prevRevenueData, startMonth, endMonth]);
 
   // Aggregate conversion data
   const aggregatedConversionData = useMemo(() => {
     if (!conversionData) return [];
     
-    const monthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
-    const prevMonthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
+    const isDailyData = conversionData.length > 0 && 'date' in conversionData[0];
     
-    conversionData.forEach((item) => {
-      if (!monthlyData[item.month]) {
-        monthlyData[item.month] = { visits: 0, views: 0, cart: 0, orders: 0 };
-      }
-      monthlyData[item.month].visits += item.visits || 0;
-      monthlyData[item.month].views += item.menu_views || 0;
-      monthlyData[item.month].cart += item.add_to_cart || 0;
-      monthlyData[item.month].orders += item.orders || 0;
-    });
+    if (isDailyData) {
+      const dailyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; date: string } } = {};
+      const prevDailyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; date: string } } = {};
+      
+      conversionData.forEach((item: any) => {
+        if (!dailyMap[item.date]) {
+          dailyMap[item.date] = { visits: 0, views: 0, cart: 0, orders: 0, date: item.date };
+        }
+        dailyMap[item.date].visits += item.visits || 0;
+        dailyMap[item.date].views += item.menu_views || 0;
+        dailyMap[item.date].cart += item.add_to_cart || 0;
+        dailyMap[item.date].orders += item.orders || 0;
+      });
+      
+      prevConversionData?.forEach((item: any) => {
+        if (!prevDailyMap[item.date]) {
+          prevDailyMap[item.date] = { visits: 0, views: 0, cart: 0, orders: 0, date: item.date };
+        }
+        prevDailyMap[item.date].visits += item.visits || 0;
+        prevDailyMap[item.date].views += item.menu_views || 0;
+        prevDailyMap[item.date].cart += item.add_to_cart || 0;
+        prevDailyMap[item.date].orders += item.orders || 0;
+      });
+      
+      return Object.keys(dailyMap)
+        .sort()
+        .map(dateStr => {
+          const date = new Date(dateStr);
+          const prevDate = new Date(date);
+          prevDate.setFullYear(prevDate.getFullYear() - 1);
+          const prevDateStr = prevDate.toISOString().split('T')[0];
+          
+          const data = dailyMap[dateStr];
+          const prevData = prevDailyMap[prevDateStr];
+          
+          return {
+            month: format(date, 'dd/MM', { locale: fr }),
+            monthNum: date.getDate(),
+            fullDate: dateStr,
+            visits: data.visits,
+            views: data.views,
+            cart: data.cart,
+            orders: data.orders,
+            conversionRate: data.visits > 0 ? ((data.orders / data.visits) * 100) : 0,
+            prevVisits: prevData?.visits || 0,
+            prevConversionRate: prevData && prevData.visits > 0 ? ((prevData.orders / prevData.visits) * 100) : 0,
+          };
+        });
+    } else {
+      const monthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
+      const prevMonthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
+      
+      conversionData.forEach((item: any) => {
+        if (!monthlyData[item.month]) {
+          monthlyData[item.month] = { visits: 0, views: 0, cart: 0, orders: 0 };
+        }
+        monthlyData[item.month].visits += item.visits || 0;
+        monthlyData[item.month].views += item.menu_views || 0;
+        monthlyData[item.month].cart += item.add_to_cart || 0;
+        monthlyData[item.month].orders += item.orders || 0;
+      });
 
-    prevConversionData?.forEach((item) => {
-      if (!prevMonthlyData[item.month]) {
-        prevMonthlyData[item.month] = { visits: 0, views: 0, cart: 0, orders: 0 };
-      }
-      prevMonthlyData[item.month].visits += item.visits || 0;
-      prevMonthlyData[item.month].views += item.menu_views || 0;
-      prevMonthlyData[item.month].cart += item.add_to_cart || 0;
-      prevMonthlyData[item.month].orders += item.orders || 0;
-    });
-    
-    return Array.from({ length: 12 }, (_, i) => {
-      const data = monthlyData[i + 1];
-      const prevData = prevMonthlyData[i + 1];
-      return {
-        month: MONTHS[i],
-        monthNum: i + 1,
-        visits: data?.visits || 0,
-        views: data?.views || 0,
-        cart: data?.cart || 0,
-        orders: data?.orders || 0,
-        conversionRate: data?.visits > 0 ? ((data.orders / data.visits) * 100) : 0,
-        prevVisits: prevData?.visits || 0,
-        prevConversionRate: prevData?.visits > 0 ? ((prevData.orders / prevData.visits) * 100) : 0,
-      };
-    }).filter(d => filterByRange(d.monthNum));
+      prevConversionData?.forEach((item: any) => {
+        if (!prevMonthlyData[item.month]) {
+          prevMonthlyData[item.month] = { visits: 0, views: 0, cart: 0, orders: 0 };
+        }
+        prevMonthlyData[item.month].visits += item.visits || 0;
+        prevMonthlyData[item.month].views += item.menu_views || 0;
+        prevMonthlyData[item.month].cart += item.add_to_cart || 0;
+        prevMonthlyData[item.month].orders += item.orders || 0;
+      });
+      
+      return Array.from({ length: 12 }, (_, i) => {
+        const data = monthlyData[i + 1];
+        const prevData = prevMonthlyData[i + 1];
+        return {
+          month: MONTHS[i],
+          monthNum: i + 1,
+          visits: data?.visits || 0,
+          views: data?.views || 0,
+          cart: data?.cart || 0,
+          orders: data?.orders || 0,
+          conversionRate: data?.visits > 0 ? ((data.orders / data.visits) * 100) : 0,
+          prevVisits: prevData?.visits || 0,
+          prevConversionRate: prevData?.visits > 0 ? ((prevData.orders / prevData.visits) * 100) : 0,
+        };
+      }).filter(d => filterByRange(d.monthNum));
+    }
   }, [conversionData, prevConversionData, startMonth, endMonth]);
 
   // Aggregate fees data
