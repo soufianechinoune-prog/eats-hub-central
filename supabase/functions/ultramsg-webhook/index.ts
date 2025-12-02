@@ -187,6 +187,10 @@ CAPACITÉS:
 1. Répondre aux questions sur les performances (CA, commandes, conversion, frais)
 2. Donner des comparaisons et tendances
 3. Fournir des conseils d'amélioration basés sur les données
+4. CRÉER DES ACTIONS/RAPPELS - Si le manager demande de créer une action, rappel ou promo, ajoute ce tag dans ta réponse:
+   [ACTION:Titre de l'action|YYYY-MM-DD|categorie]
+   Catégories disponibles: marketing, menu, promotion, operation, other
+   Exemple: "Je te crée ça ! [ACTION:Push notification match PSG|2024-12-15|marketing]"
 
 RÈGLES IMPORTANTES:
 - Réponds de manière CONCISE et DIRECTE (c'est WhatsApp, pas un email)
@@ -195,7 +199,8 @@ RÈGLES IMPORTANTES:
 - Tutoie le manager (ton familier et sympathique)
 - Si les données sont à 0, dis que les données ne sont pas encore disponibles
 - Ne réponds QUE sur les sujets liés au restaurant et ses performances
-- Si la question n'est pas liée au restaurant, dis poliment que tu ne peux pas aider`;
+- Si la question n'est pas liée au restaurant, dis poliment que tu ne peux pas aider
+- Pour les demandes d'action, UTILISE TOUJOURS le format [ACTION:...] pour que je puisse créer l'action automatiquement`;
 }
 
 // Detect intent from query
@@ -335,6 +340,67 @@ async function sendWhatsAppReply(phone: string, message: string): Promise<boolea
   }
 }
 
+// Parse and create action from AI response
+async function parseAndCreateAction(
+  supabase: any,
+  response: string,
+  restaurantId: string
+): Promise<{ modifiedResponse: string; actionCreated: boolean; actionTitle?: string }> {
+  // Pattern: [ACTION:Titre|YYYY-MM-DD|categorie]
+  const actionPattern = /\[ACTION:([^|]+)\|(\d{4}-\d{2}-\d{2})\|([^\]]+)\]/g;
+  let modifiedResponse = response;
+  let actionCreated = false;
+  let actionTitle: string | undefined;
+
+  const matches = [...response.matchAll(actionPattern)];
+  
+  for (const match of matches) {
+    const [fullMatch, title, date, category] = match;
+    
+    // Validate category
+    const validCategories = ['marketing', 'menu', 'promotion', 'operation', 'other'];
+    const normalizedCategory = category.toLowerCase().trim();
+    const finalCategory = validCategories.includes(normalizedCategory) ? normalizedCategory : 'other';
+    
+    try {
+      // Create the action in database
+      const { error } = await supabase.from('restaurant_actions').insert({
+        restaurant_id: restaurantId,
+        restaurant_ids: [restaurantId],
+        title: title.trim(),
+        category: finalCategory,
+        action_type: 'chatbot_created',
+        start_date: date,
+        description: `Action créée via WhatsApp chatbot`,
+        platform: 'all',
+      });
+
+      if (error) {
+        console.error('Error creating action:', error);
+        modifiedResponse = modifiedResponse.replace(fullMatch, `❌ Erreur lors de la création de l'action "${title}"`);
+      } else {
+        console.log(`✓ Action created: ${title} for ${date}`);
+        modifiedResponse = modifiedResponse.replace(fullMatch, `✅ Action "${title}" créée pour le ${formatDateFR(date)}`);
+        actionCreated = true;
+        actionTitle = title.trim();
+      }
+    } catch (err) {
+      console.error('Exception creating action:', err);
+      modifiedResponse = modifiedResponse.replace(fullMatch, `❌ Erreur: impossible de créer l'action`);
+    }
+  }
+
+  return { modifiedResponse, actionCreated, actionTitle };
+}
+
+// Format date in French
+function formatDateFR(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-');
+  const months = ['', 'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 
+                  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  return `${parseInt(day)} ${months[parseInt(month)]} ${year}`;
+}
+
 // Main handler for manager queries
 async function handleManagerQuery(
   supabase: any,
@@ -361,30 +427,44 @@ async function handleManagerQuery(
   const aiResult = await callAI(systemPrompt, query);
   const managerName = `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim();
 
+  // Process action commands if present in AI response
+  let finalResponse = aiResult.content;
+  let actionCreated = false;
+  
+  if (finalResponse && finalResponse.includes('[ACTION:')) {
+    const actionResult = await parseAndCreateAction(supabase, finalResponse, restaurant.id);
+    finalResponse = actionResult.modifiedResponse;
+    actionCreated = actionResult.actionCreated;
+    
+    if (actionCreated) {
+      console.log(`✓ Action command processed: ${actionResult.actionTitle}`);
+    }
+  }
+
   // Log interaction to chatbot_interactions
   const interactionLog = {
     restaurant_id: restaurant.id,
     manager_phone: phone,
     manager_name: managerName || null,
     query,
-    response: aiResult.content,
-    intent,
-    detected_entities: entities,
+    response: finalResponse,
+    intent: actionCreated ? 'action_request' : intent,
+    detected_entities: { ...entities, action_created: actionCreated },
     response_time_ms: aiResult.responseTimeMs,
     ai_model: 'google/gemini-2.5-flash',
     tokens_used: aiResult.tokensUsed || null,
-    was_successful: !!aiResult.content,
+    was_successful: !!finalResponse,
     error_message: aiResult.error || null,
   };
 
   await supabase.from('chatbot_interactions').insert(interactionLog);
-  console.log(`✓ Interaction logged (${aiResult.responseTimeMs}ms, intent: ${intent})`);
+  console.log(`✓ Interaction logged (${aiResult.responseTimeMs}ms, intent: ${interactionLog.intent})`);
 
-  if (aiResult.content) {
-    console.log(`AI Response: ${aiResult.content.substring(0, 100)}...`);
+  if (finalResponse) {
+    console.log(`Final Response: ${finalResponse.substring(0, 100)}...`);
     
     // Send response via WhatsApp
-    const sent = await sendWhatsAppReply(phone, aiResult.content);
+    const sent = await sendWhatsAppReply(phone, finalResponse);
     
     if (sent) {
       // Save chatbot response to message_history
@@ -395,7 +475,7 @@ async function handleManagerQuery(
         recipient_name: managerName,
         restaurant_id: restaurant.id,
         restaurant_name: restaurant.name,
-        message_content: aiResult.content,
+        message_content: finalResponse,
         status: 'sent',
         sent_at: new Date().toISOString(),
       });
