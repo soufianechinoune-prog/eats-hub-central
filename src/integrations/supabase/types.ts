@@ -106,6 +106,68 @@ export type Database = {
         }
         Relationships: []
       }
+      chatbot_interactions: {
+        Row: {
+          ai_model: string | null
+          created_at: string | null
+          detected_entities: Json | null
+          error_message: string | null
+          id: string
+          intent: string | null
+          manager_name: string | null
+          manager_phone: string
+          query: string
+          response: string | null
+          response_time_ms: number | null
+          restaurant_id: string | null
+          satisfaction_rating: number | null
+          tokens_used: number | null
+          was_successful: boolean | null
+        }
+        Insert: {
+          ai_model?: string | null
+          created_at?: string | null
+          detected_entities?: Json | null
+          error_message?: string | null
+          id?: string
+          intent?: string | null
+          manager_name?: string | null
+          manager_phone: string
+          query: string
+          response?: string | null
+          response_time_ms?: number | null
+          restaurant_id?: string | null
+          satisfaction_rating?: number | null
+          tokens_used?: number | null
+          was_successful?: boolean | null
+        }
+        Update: {
+          ai_model?: string | null
+          created_at?: string | null
+          detected_entities?: Json | null
+          error_message?: string | null
+          id?: string
+          intent?: string | null
+          manager_name?: string | null
+          manager_phone?: string
+          query?: string
+          response?: string | null
+          response_time_ms?: number | null
+          restaurant_id?: string | null
+          satisfaction_rating?: number | null
+          tokens_used?: number | null
+          was_successful?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbot_interactions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_reviews: {
         Row: {
           created_at: string
