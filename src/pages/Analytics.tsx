@@ -161,7 +161,7 @@ export default function Analytics() {
         .select("id, name, city")
         .order("name");
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
@@ -584,6 +584,8 @@ export default function Analytics() {
                   selectedCategories={selectedCategories}
                   onCategoryToggle={handleCategoryToggle}
                   viewMode={viewMode}
+                  restaurants={restaurants}
+                  selectedRestaurants={selectedRestaurants}
                 />
               )}
             </TabsContent>
@@ -620,6 +622,8 @@ export default function Analytics() {
                   selectedCategories={selectedCategories}
                   onCategoryToggle={handleCategoryToggle}
                   viewMode={viewMode}
+                  restaurants={restaurants}
+                  selectedRestaurants={selectedRestaurants}
                 />
               )}
             </TabsContent>
@@ -656,6 +660,8 @@ export default function Analytics() {
                   selectedCategories={selectedCategories}
                   onCategoryToggle={handleCategoryToggle}
                   viewMode={viewMode}
+                  restaurants={restaurants}
+                  selectedRestaurants={selectedRestaurants}
                 />
               )}
             </TabsContent>
