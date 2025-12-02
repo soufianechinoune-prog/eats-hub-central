@@ -713,6 +713,15 @@ export function AnalyticsCharts({
     return averageBasketData.filter(d => d.avgBasket > 0 || d.avgBasketN1 > 0);
   }, [averageBasketData]);
 
+  // Prepare chart data: avoid drawing lines down to 0 when there is no data
+  const chartAvgBasketData = useMemo(() => {
+    return filteredAvgBasketData.map(d => ({
+      ...d,
+      avgBasket: d.avgBasket > 0 ? d.avgBasket : null,
+      avgBasketN1: d.avgBasketN1 > 0 ? d.avgBasketN1 : null,
+    }));
+  }, [filteredAvgBasketData]);
+
   // Calculate dynamic domain for average basket chart to zoom on variations
   const avgBasketDomain = useMemo(() => {
     const values = filteredAvgBasketData.flatMap(d => 
@@ -723,9 +732,14 @@ export function AnalyticsCharts({
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = max - min;
-    
-    // Padding: 20% de l'écart ou minimum 2€ pour voir les variations
-    const padding = Math.max(range * 0.2, 2);
+
+    // If variations are very small, tighten the axis around the values
+    let padding: number;
+    if (range < 1) {
+      padding = Math.max(range * 2, 0.2);
+    } else {
+      padding = Math.max(range * 0.2, 1);
+    }
     
     return [
       Math.floor(min - padding),
@@ -1177,7 +1191,7 @@ export function AnalyticsCharts({
         <CardContent>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={filteredAvgBasketData}>
+              <LineChart data={chartAvgBasketData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis 
