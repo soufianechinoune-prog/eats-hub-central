@@ -9,14 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { AnalyticsFilters, PeriodMode } from "@/components/analytics/AnalyticsFilters";
 import { AnalyticsCharts, ChartActionsConfig, ActionCategoryFilter } from "@/components/analytics/AnalyticsCharts";
 import { RestaurantRanking } from "@/components/analytics/RestaurantRanking";
 import { useAnalyticsPdfExport } from "@/hooks/useAnalyticsPdfExport";
 import { useRestaurantActions } from "@/hooks/useRestaurantActions";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
-import type { DateRange } from "react-day-picker";
 
 const DEFAULT_CHART_ACTIONS_CONFIG: ChartActionsConfig = {
   global: true,
@@ -38,15 +38,17 @@ const currentMonth = new Date().getMonth() + 1;
 
 export default function Analytics() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get("platform") || "uber_eats";
   const viewMode = (searchParams.get("view") || "overview") as "overview" | "revenue" | "conversion" | "finances";
   
-  const [selectedTab, setSelectedTab] = useState(initialTab);
-  const [selectedRestaurants, setSelectedRestaurants] = useState<string[]>([]);
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
-  const [periodMode, setPeriodMode] = useState<PeriodMode>("year");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const {
+    selectedRestaurants,
+    selectedPlatform,
+    selectedYear,
+    selectedMonth,
+    periodMode,
+    dateRange,
+  } = useAnalyticsContext();
+
   const [chartActionsConfig, setChartActionsConfig] = useState<ChartActionsConfig>(() => {
     const saved = localStorage.getItem('analyticsChartActionsConfig');
     if (saved) {
@@ -66,7 +68,7 @@ export default function Analytics() {
   const prevYear = selectedYear - 1;
 
   const handleTabChange = (value: string) => {
-    setSelectedTab(value);
+    // Tab changes are now handled by Analytics context platform selector
     setSearchParams({ platform: value });
   };
 
@@ -135,6 +137,12 @@ export default function Analytics() {
   };
 
   const { start: effectiveStartMonth, end: effectiveEndMonth } = getEffectiveMonthRange();
+
+  // Sync selectedTab with context platform
+  useMemo(() => {
+    // Update search params when platform changes from context
+    setSearchParams({ platform: selectedPlatform });
+  }, [selectedPlatform, setSearchParams]);
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
@@ -442,7 +450,7 @@ export default function Analytics() {
   };
 
   const getPlatformDisplay = () => {
-    switch (selectedTab) {
+    switch (selectedPlatform) {
       case "uber_eats": return "Uber Eats";
       case "deliveroo": return "Deliveroo";
       default: return "Global";
@@ -487,20 +495,8 @@ export default function Analytics() {
         </Button>
       </div>
 
-      {/* Filters Section */}
-      <AnalyticsFilters
-        restaurants={restaurants}
-        selectedRestaurants={selectedRestaurants}
-        onRestaurantsChange={setSelectedRestaurants}
-        selectedYear={selectedYear}
-        onYearChange={setSelectedYear}
-        selectedMonth={selectedMonth}
-        onMonthChange={setSelectedMonth}
-        periodMode={periodMode}
-        onPeriodModeChange={setPeriodMode}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-      />
+      {/* Analytics Header with shared filters */}
+      <AnalyticsHeader />
 
       {/* Actions Toggle */}
       <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border">
@@ -516,7 +512,7 @@ export default function Analytics() {
           onCheckedChange={handleGlobalToggleChange}
         />
         <span className="text-xs text-muted-foreground">
-          ({(selectedTab === "uber_eats" ? uberActions : selectedTab === "deliveroo" ? deliverooActions : globalActions)?.length || 0} actions)
+          ({(selectedPlatform === "uber_eats" ? uberActions : selectedPlatform === "deliveroo" ? deliverooActions : globalActions)?.length || 0} actions)
         </span>
         {chartActionsConfig.global && (
           <span className="text-xs text-muted-foreground ml-2 border-l pl-3">
@@ -526,7 +522,7 @@ export default function Analytics() {
       </div>
 
       {/* Platform Tabs */}
-      <Tabs value={selectedTab} onValueChange={handleTabChange} className="w-full">
+      <Tabs value={selectedPlatform} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full max-w-[600px] grid-cols-3">
           <TabsTrigger value="uber_eats" className="flex items-center gap-2">
             <img src={uberEatsLogo} alt="Uber Eats" className="h-4 w-4 object-contain" />
