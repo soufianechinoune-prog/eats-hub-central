@@ -816,6 +816,7 @@ export default function Analytics() {
                   viewMode={viewMode}
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
+                  granularity={granularity}
                 />
               )}
             </TabsContent>
@@ -854,6 +855,7 @@ export default function Analytics() {
                   viewMode={viewMode}
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
+                  granularity={granularity}
                 />
               )}
             </TabsContent>
@@ -892,6 +894,7 @@ export default function Analytics() {
                   viewMode={viewMode}
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
+                  granularity={granularity}
                 />
               )}
             </TabsContent>
