@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Star, Clock, TrendingDown, Percent, DollarSign, PauseCircle, Award, Euro } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Star, Clock, TrendingDown, Percent, DollarSign, PauseCircle, Award, Euro, FileDown, FileSpreadsheet } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { useOverviewExport } from "@/hooks/useOverviewExport";
 
 type PeriodOption = "7d" | "30d" | "current_month" | "year";
 
@@ -17,6 +19,8 @@ const Overview = () => {
   const [period, setPeriod] = useState<PeriodOption>("7d");
   const [rankingTab, setRankingTab] = useState<"rating" | "revenue" | "profitability">("rating");
   const navigate = useNavigate();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { exportToPdf, exportToExcel, isExporting } = useOverviewExport();
 
   // Calculate date range based on selected period
   const getDateRange = () => {
@@ -98,6 +102,8 @@ const Overview = () => {
 
         // Mock data for metrics not yet available in DB
         const rating = 3.5 + Math.random() * 1.3; // Random between 3.5 and 4.8
+        const prepTime = 15 + Math.random() * 10; // Random between 15 and 25 minutes
+        const errorRate = 1 + Math.random() * 3; // Random between 1% and 4%
         // Use real revenue if available, otherwise generate mock data
         const revenue = totalRevenue > 0 ? totalRevenue : 50000 + Math.random() * 150000;
         
@@ -106,6 +112,8 @@ const Overview = () => {
           name: resto.name,
           city: resto.city,
           rating: parseFloat(rating.toFixed(1)),
+          prepTime: parseFloat(prepTime.toFixed(0)),
+          errorRate: parseFloat(errorRate.toFixed(1)),
           profitability: parseFloat(profitability.toFixed(1)),
           revenue: parseFloat(revenue.toFixed(0)),
         };
@@ -204,6 +212,46 @@ const Overview = () => {
     }
   };
 
+  const handleExportPdf = () => {
+    const rankingType = rankingTab === "rating" ? "Note" : rankingTab === "revenue" ? "CA" : "Rentabilité";
+    const topRestaurants = rankingTab === "rating" ? networkData?.topByRating : rankingTab === "revenue" ? networkData?.topByRevenue : networkData?.topByProfitability;
+    const flopRestaurants = rankingTab === "rating" ? networkData?.flopByRating : rankingTab === "revenue" ? networkData?.flopByRevenue : networkData?.flopByProfitability;
+    
+    exportToPdf(contentRef.current, {
+      title: "Vue d'ensemble",
+      period: getPeriodLabel(),
+      globalMetrics: {
+        avgRating: networkData?.global.rating || 0,
+        avgPrepTime: networkData?.global.prepTime || 0,
+        avgErrorRate: networkData?.global.errorRate || 0,
+        avgProfitability: networkData?.global.profitability || 0,
+      },
+      topRestaurants: topRestaurants || [],
+      flopRestaurants: flopRestaurants || [],
+      rankingType,
+    });
+  };
+
+  const handleExportExcel = () => {
+    const rankingType = rankingTab === "rating" ? "Note" : rankingTab === "revenue" ? "CA" : "Rentabilité";
+    const topRestaurants = rankingTab === "rating" ? networkData?.topByRating : rankingTab === "revenue" ? networkData?.topByRevenue : networkData?.topByProfitability;
+    const flopRestaurants = rankingTab === "rating" ? networkData?.flopByRating : rankingTab === "revenue" ? networkData?.flopByRevenue : networkData?.flopByProfitability;
+    
+    exportToExcel({
+      title: "Vue d'ensemble",
+      period: getPeriodLabel(),
+      globalMetrics: {
+        avgRating: networkData?.global.rating || 0,
+        avgPrepTime: networkData?.global.prepTime || 0,
+        avgErrorRate: networkData?.global.errorRate || 0,
+        avgProfitability: networkData?.global.profitability || 0,
+      },
+      topRestaurants: topRestaurants || [],
+      flopRestaurants: flopRestaurants || [],
+      rankingType,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-8 space-y-8">
       {/* Header with glassmorphism */}
@@ -221,17 +269,37 @@ const Overview = () => {
             <span>restaurants actifs</span>
           </p>
         </div>
-        <Select value={period} onValueChange={(v) => setPeriod(v as PeriodOption)}>
-          <SelectTrigger className="w-[240px] h-12 border-2 bg-background/50 backdrop-blur">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">7 derniers jours</SelectItem>
-            <SelectItem value="30d">30 derniers jours</SelectItem>
-            <SelectItem value="current_month">Mois en cours</SelectItem>
-            <SelectItem value="year">Année en cours</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={handleExportPdf}
+            disabled={isExporting}
+            variant="outline"
+            className="gap-2"
+          >
+            <FileDown className="h-4 w-4" />
+            PDF
+          </Button>
+          <Button
+            onClick={handleExportExcel}
+            disabled={isExporting}
+            variant="outline"
+            className="gap-2"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Excel
+          </Button>
+          <Select value={period} onValueChange={(v) => setPeriod(v as PeriodOption)}>
+            <SelectTrigger className="w-[240px] h-12 border-2 bg-background/50 backdrop-blur">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">7 derniers jours</SelectItem>
+              <SelectItem value="30d">30 derniers jours</SelectItem>
+              <SelectItem value="current_month">Mois en cours</SelectItem>
+              <SelectItem value="year">Année en cours</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {isLoading ? (
@@ -243,7 +311,7 @@ const Overview = () => {
           Erreur lors du chargement des données: {String(error)}
         </div>
       ) : (
-        <>
+        <div ref={contentRef}>
           {/* KPIs Globaux - Priority Section with Modern Design */}
           <div className="grid gap-8 lg:grid-cols-3">
             {/* Global Card */}
@@ -705,7 +773,7 @@ const Overview = () => {
               </CardContent>
             </Card>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
