@@ -50,7 +50,7 @@ import csLogo from "@/assets/cs-logo.jpeg";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
-  { title: "Dashboard", url: "/", icon: Eye },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Revenus & Ventes", url: "/analytics?view=revenue", icon: Euro },
   { title: "Conversion", url: "/analytics?view=conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics?view=finances", icon: Wallet },
