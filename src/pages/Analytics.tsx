@@ -17,6 +17,7 @@ import { useRestaurantActions } from "@/hooks/useRestaurantActions";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
+import Reviews from "@/pages/Reviews";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
 
@@ -41,7 +42,7 @@ const currentMonth = new Date().getMonth() + 1;
 
 export default function Analytics() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const viewMode = (searchParams.get("view") || "overview") as "overview" | "revenue" | "conversion" | "finances";
+  const viewMode = (searchParams.get("view") || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews";
   
   const {
     selectedRestaurants,
@@ -784,7 +785,9 @@ export default function Analytics() {
           <div ref={chartsRef}>
             {/* Uber Eats Platform */}
             <TabsContent value="uber_eats" className="mt-6 space-y-6">
-              {viewMode === "overview" ? (
+              {viewMode === "reviews" ? (
+                <Reviews />
+              ) : viewMode === "overview" ? (
                 <RestaurantRanking
                   restaurants={restaurants}
                   revenueData={uberRevenueData}
@@ -813,7 +816,7 @@ export default function Analytics() {
                   onActionClick={handleActionClick}
                   selectedCategories={selectedCategories}
                   onCategoryToggle={handleCategoryToggle}
-                  viewMode={viewMode}
+                  viewMode={viewMode as "revenue" | "conversion" | "finances"}
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
                   granularity={granularity}
@@ -823,7 +826,9 @@ export default function Analytics() {
 
             {/* Deliveroo Platform */}
             <TabsContent value="deliveroo" className="mt-6 space-y-6">
-              {viewMode === "overview" ? (
+              {viewMode === "reviews" ? (
+                <Reviews />
+              ) : viewMode === "overview" ? (
                 <RestaurantRanking
                   restaurants={restaurants}
                   revenueData={deliverooRevenueData}
@@ -852,7 +857,7 @@ export default function Analytics() {
                   onActionClick={handleActionClick}
                   selectedCategories={selectedCategories}
                   onCategoryToggle={handleCategoryToggle}
-                  viewMode={viewMode}
+                  viewMode={viewMode as "revenue" | "conversion" | "finances"}
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
                   granularity={granularity}
@@ -862,7 +867,9 @@ export default function Analytics() {
 
             {/* Global Platform */}
             <TabsContent value="global" className="mt-6 space-y-6">
-              {viewMode === "overview" ? (
+              {viewMode === "reviews" ? (
+                <Reviews />
+              ) : viewMode === "overview" ? (
                 <RestaurantRanking
                   restaurants={restaurants}
                   revenueData={globalRevenueData}
@@ -891,7 +898,7 @@ export default function Analytics() {
                   onActionClick={handleActionClick}
                   selectedCategories={selectedCategories}
                   onCategoryToggle={handleCategoryToggle}
-                  viewMode={viewMode}
+                  viewMode={viewMode as "revenue" | "conversion" | "finances"}
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
                   granularity={granularity}

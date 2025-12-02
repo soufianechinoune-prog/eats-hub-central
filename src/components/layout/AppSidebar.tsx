@@ -21,6 +21,7 @@ import {
   Wallet,
   Trophy,
   Home,
+  Star,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +55,7 @@ const analyticsSubItems = [
   { title: "Conversion", url: "/analytics?view=conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics?view=finances", icon: Wallet },
   { title: "Classements", url: "/classements", icon: Trophy },
+  { title: "Avis", url: "/analytics?view=reviews", icon: Star },
 ];
 
 // Navigation principale (after Analytics)

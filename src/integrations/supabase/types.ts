@@ -110,37 +110,58 @@ export type Database = {
         Row: {
           created_at: string
           customer_comment: string | null
+          customer_name: string | null
+          customer_type: string | null
           delivery_rating: number | null
           food_rating: number | null
           id: string
           order_id: string | null
+          order_total: number | null
           overall_rating: number | null
+          platform: string | null
+          response_status: string | null
+          response_text: string | null
           restaurant_id: string
           review_date: string | null
+          tags: string[] | null
           uber_order_id: string | null
         }
         Insert: {
           created_at?: string
           customer_comment?: string | null
+          customer_name?: string | null
+          customer_type?: string | null
           delivery_rating?: number | null
           food_rating?: number | null
           id?: string
           order_id?: string | null
+          order_total?: number | null
           overall_rating?: number | null
+          platform?: string | null
+          response_status?: string | null
+          response_text?: string | null
           restaurant_id: string
           review_date?: string | null
+          tags?: string[] | null
           uber_order_id?: string | null
         }
         Update: {
           created_at?: string
           customer_comment?: string | null
+          customer_name?: string | null
+          customer_type?: string | null
           delivery_rating?: number | null
           food_rating?: number | null
           id?: string
           order_id?: string | null
+          order_total?: number | null
           overall_rating?: number | null
+          platform?: string | null
+          response_status?: string | null
+          response_text?: string | null
           restaurant_id?: string
           review_date?: string | null
+          tags?: string[] | null
           uber_order_id?: string | null
         }
         Relationships: [
@@ -403,9 +424,11 @@ export type Database = {
           id: string
           item_id: string
           item_title: string
+          platform: string | null
           rating: number
           restaurant_id: string
           review_date: string | null
+          tags: string[] | null
           thumb_down: number | null
           thumb_up: number | null
         }
@@ -415,9 +438,11 @@ export type Database = {
           id?: string
           item_id: string
           item_title: string
+          platform?: string | null
           rating: number
           restaurant_id: string
           review_date?: string | null
+          tags?: string[] | null
           thumb_down?: number | null
           thumb_up?: number | null
         }
@@ -427,9 +452,11 @@ export type Database = {
           id?: string
           item_id?: string
           item_title?: string
+          platform?: string | null
           rating?: number
           restaurant_id?: string
           review_date?: string | null
+          tags?: string[] | null
           thumb_down?: number | null
           thumb_up?: number | null
         }
