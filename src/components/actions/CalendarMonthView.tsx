@@ -13,17 +13,21 @@ import {
   isBefore,
   isAfter,
   isWithinInterval,
+  parseISO,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CalendarEventBar, CalendarEvent } from "./CalendarEventBar";
+import { ContextualEventBar } from "./ContextualEventBar";
 import { DragPreview } from "./DragPreview";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { ContextualEvent } from "@/hooks/useSchoolHolidays";
 
 interface CalendarMonthViewProps {
   currentDate: Date;
   events: CalendarEvent[];
+  contextualEvents?: ContextualEvent[];
   onActionClick?: (action: any) => void;
   onActionDelete?: (action: any) => void;
   onDateClick?: (date: Date) => void;
@@ -34,6 +38,7 @@ interface CalendarMonthViewProps {
 export function CalendarMonthView({
   currentDate,
   events,
+  contextualEvents = [],
   onActionClick,
   onActionDelete,
   onDateClick,

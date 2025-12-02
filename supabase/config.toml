@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.ai-advisor]
 verify_jwt = false
+
+[functions.fetch-school-holidays]
+verify_jwt = false

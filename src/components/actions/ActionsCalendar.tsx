@@ -17,8 +17,10 @@ import { MiniCalendar } from "./MiniCalendar";
 import { CalendarMonthView } from "./CalendarMonthView";
 import { CalendarWeekView } from "./CalendarWeekView";
 import { CalendarDayView } from "./CalendarDayView";
+import { ContextualEventsToggle } from "./ContextualEventsToggle";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useSchoolHolidays, type ContextualEvent } from "@/hooks/useSchoolHolidays";
 
 type ViewMode = "month" | "week" | "day";
 
@@ -86,6 +88,14 @@ export function ActionsCalendar({
 }: ActionsCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [showSchoolHolidays, setShowSchoolHolidays] = useState(false);
+
+  // Fetch school holidays
+  const { contextualEvents, loading: holidaysLoading, relevantZones } = useSchoolHolidays(
+    currentDate.getFullYear(),
+    restaurants,
+    showSchoolHolidays
+  );
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return actions.map((action) => {
@@ -160,20 +170,30 @@ export function ActionsCalendar({
 
   return (
     <TooltipProvider>
-      <div className="flex gap-4">
-        {/* Mini Calendar Sidebar */}
-        <div className="hidden lg:block w-64 flex-shrink-0">
-          <MiniCalendar
-            currentDate={currentDate}
-            onDateSelect={(date) => {
-              setCurrentDate(date);
-              if (viewMode === "month") {
-                setViewMode("day");
-              }
-            }}
-            events={calendarEvents}
-          />
-        </div>
+      <div className="space-y-4">
+        {/* Contextual Events Toggle */}
+        <ContextualEventsToggle
+          showSchoolHolidays={showSchoolHolidays}
+          onToggleSchoolHolidays={setShowSchoolHolidays}
+          loading={holidaysLoading}
+          relevantZones={relevantZones}
+        />
+
+        <div className="flex gap-4">
+          {/* Mini Calendar Sidebar */}
+          <div className="hidden lg:block w-64 flex-shrink-0">
+            <MiniCalendar
+              currentDate={currentDate}
+              onDateSelect={(date) => {
+                setCurrentDate(date);
+                if (viewMode === "month") {
+                  setViewMode("day");
+                }
+              }}
+              events={calendarEvents}
+              contextualEvents={showSchoolHolidays ? contextualEvents : []}
+            />
+          </div>
 
         {/* Main Calendar */}
         <div className="flex-1 bg-card rounded-lg border shadow-sm overflow-hidden">
@@ -232,6 +252,7 @@ export function ActionsCalendar({
             <CalendarMonthView
               currentDate={currentDate}
               events={calendarEvents}
+              contextualEvents={showSchoolHolidays ? contextualEvents : []}
               onActionClick={onActionClick}
               onActionDelete={onActionDelete}
               onDateClick={onDateClick}
@@ -243,6 +264,7 @@ export function ActionsCalendar({
             <CalendarWeekView
               currentDate={currentDate}
               events={calendarEvents}
+              contextualEvents={showSchoolHolidays ? contextualEvents : []}
               onActionClick={onActionClick}
               onDateClick={onDateClick}
               onActionDrop={onActionDrop}
@@ -252,6 +274,7 @@ export function ActionsCalendar({
             <CalendarDayView
               currentDate={currentDate}
               events={calendarEvents}
+              contextualEvents={showSchoolHolidays ? contextualEvents : []}
               onActionClick={onActionClick}
               onDateClick={onDateClick}
               onActionDrop={onActionDrop}
@@ -272,7 +295,14 @@ export function ActionsCalendar({
                 <span className="text-xs text-muted-foreground">{label}</span>
               </div>
             ))}
+            {showSchoolHolidays && (
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded-sm bg-orange-500/20 border border-dashed border-orange-500" />
+                <span className="text-xs text-muted-foreground">Vacances scolaires</span>
+              </div>
+            )}
           </div>
+        </div>
         </div>
       </div>
     </TooltipProvider>
