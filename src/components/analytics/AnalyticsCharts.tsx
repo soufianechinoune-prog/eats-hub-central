@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { format } from "date-fns";
+import { format, startOfWeek, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -192,6 +192,7 @@ interface AnalyticsChartsProps {
   viewMode?: "all" | "revenue" | "conversion" | "finances";
   restaurants?: { id: string; name: string; city?: string }[];
   selectedRestaurants?: string[];
+  granularity?: "daily" | "weekly" | "monthly";
 }
 
 // Action category colors
@@ -449,6 +450,7 @@ export function AnalyticsCharts({
   viewMode = "all",
   restaurants = [],
   selectedRestaurants = [],
+  granularity = "monthly",
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
   
@@ -549,7 +551,56 @@ export function AnalyticsCharts({
     // Detect if we have daily data (presence of 'date' field)
     const isDailyData = revenueData.length > 0 && 'date' in revenueData[0];
     
-    if (isDailyData) {
+    if (isDailyData && granularity === "weekly") {
+      // Weekly granularity: group by week
+      const weeklyMap: { [key: string]: { revenue: number; orders: number; weekStart: Date } } = {};
+      const prevWeeklyMap: { [key: string]: { revenue: number; orders: number; weekStart: Date } } = {};
+      
+      revenueData.forEach((item: any) => {
+        const weekStart = startOfWeek(parseISO(item.date), { locale: fr });
+        const weekKey = format(weekStart, 'yyyy-MM-dd');
+        
+        if (!weeklyMap[weekKey]) {
+          weeklyMap[weekKey] = { revenue: 0, orders: 0, weekStart };
+        }
+        weeklyMap[weekKey].revenue += Number(item.revenue_ttc) || 0;
+        weeklyMap[weekKey].orders += item.order_count || 0;
+      });
+      
+      prevRevenueData?.forEach((item: any) => {
+        const weekStart = startOfWeek(parseISO(item.date), { locale: fr });
+        const weekKey = format(weekStart, 'yyyy-MM-dd');
+        
+        if (!prevWeeklyMap[weekKey]) {
+          prevWeeklyMap[weekKey] = { revenue: 0, orders: 0, weekStart };
+        }
+        prevWeeklyMap[weekKey].revenue += Number(item.revenue_ttc) || 0;
+        prevWeeklyMap[weekKey].orders += item.order_count || 0;
+      });
+      
+      // Sort by week and format labels
+      return Object.keys(weeklyMap)
+        .sort()
+        .map(weekKey => {
+          const weekStart = weeklyMap[weekKey].weekStart;
+          const prevWeekStart = new Date(weekStart);
+          prevWeekStart.setFullYear(prevWeekStart.getFullYear() - 1);
+          const prevWeekKey = format(prevWeekStart, 'yyyy-MM-dd');
+          
+          return {
+            month: format(weekStart, 'dd/MM', { locale: fr }), // Week start date label
+            monthNum: weekStart.getDate(),
+            fullDate: weekKey,
+            revenue: weeklyMap[weekKey].revenue,
+            orders: weeklyMap[weekKey].orders,
+            avgBasket: weeklyMap[weekKey].orders > 0 
+              ? weeklyMap[weekKey].revenue / weeklyMap[weekKey].orders 
+              : 0,
+            prevRevenue: prevWeeklyMap[prevWeekKey]?.revenue || 0,
+            prevOrders: prevWeeklyMap[prevWeekKey]?.orders || 0,
+          };
+        });
+    } else if (isDailyData) {
       // Daily granularity: group by date
       const dailyMap: { [key: string]: { revenue: number; orders: number; date: string } } = {};
       const prevDailyMap: { [key: string]: { revenue: number; orders: number; date: string } } = {};
@@ -625,7 +676,7 @@ export function AnalyticsCharts({
         prevOrders: prevMonthlyData[i + 1]?.orders || 0,
       })).filter(d => filterByRange(d.monthNum));
     }
-  }, [revenueData, prevRevenueData, startMonth, endMonth]);
+  }, [revenueData, prevRevenueData, startMonth, endMonth, granularity]);
 
   // Aggregate conversion data
   const aggregatedConversionData = useMemo(() => {
@@ -633,7 +684,62 @@ export function AnalyticsCharts({
     
     const isDailyData = conversionData.length > 0 && 'date' in conversionData[0];
     
-    if (isDailyData) {
+    if (isDailyData && granularity === "weekly") {
+      // Weekly granularity: group by week
+      const weeklyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; weekStart: Date } } = {};
+      const prevWeeklyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; weekStart: Date } } = {};
+      
+      conversionData.forEach((item: any) => {
+        const weekStart = startOfWeek(parseISO(item.date), { locale: fr });
+        const weekKey = format(weekStart, 'yyyy-MM-dd');
+        
+        if (!weeklyMap[weekKey]) {
+          weeklyMap[weekKey] = { visits: 0, views: 0, cart: 0, orders: 0, weekStart };
+        }
+        weeklyMap[weekKey].visits += item.visits || 0;
+        weeklyMap[weekKey].views += item.menu_views || 0;
+        weeklyMap[weekKey].cart += item.add_to_cart || 0;
+        weeklyMap[weekKey].orders += item.orders || 0;
+      });
+      
+      prevConversionData?.forEach((item: any) => {
+        const weekStart = startOfWeek(parseISO(item.date), { locale: fr });
+        const weekKey = format(weekStart, 'yyyy-MM-dd');
+        
+        if (!prevWeeklyMap[weekKey]) {
+          prevWeeklyMap[weekKey] = { visits: 0, views: 0, cart: 0, orders: 0, weekStart };
+        }
+        prevWeeklyMap[weekKey].visits += item.visits || 0;
+        prevWeeklyMap[weekKey].views += item.menu_views || 0;
+        prevWeeklyMap[weekKey].cart += item.add_to_cart || 0;
+        prevWeeklyMap[weekKey].orders += item.orders || 0;
+      });
+      
+      return Object.keys(weeklyMap)
+        .sort()
+        .map(weekKey => {
+          const weekStart = weeklyMap[weekKey].weekStart;
+          const prevWeekStart = new Date(weekStart);
+          prevWeekStart.setFullYear(prevWeekStart.getFullYear() - 1);
+          const prevWeekKey = format(prevWeekStart, 'yyyy-MM-dd');
+          
+          const data = weeklyMap[weekKey];
+          const prevData = prevWeeklyMap[prevWeekKey];
+          
+          return {
+            month: format(weekStart, 'dd/MM', { locale: fr }), // Week start date label
+            monthNum: weekStart.getDate(),
+            fullDate: weekKey,
+            visits: data.visits,
+            views: data.views,
+            cart: data.cart,
+            orders: data.orders,
+            conversionRate: data.visits > 0 ? ((data.orders / data.visits) * 100) : 0,
+            prevVisits: prevData?.visits || 0,
+            prevConversionRate: prevData && prevData.visits > 0 ? ((prevData.orders / prevData.visits) * 100) : 0,
+          };
+        });
+    } else if (isDailyData) {
       const dailyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; date: string } } = {};
       const prevDailyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; date: string } } = {};
       
@@ -721,7 +827,7 @@ export function AnalyticsCharts({
         };
       }).filter(d => filterByRange(d.monthNum));
     }
-  }, [conversionData, prevConversionData, startMonth, endMonth]);
+  }, [conversionData, prevConversionData, startMonth, endMonth, granularity]);
 
   // Aggregate fees data
   const aggregatedFeesData = useMemo(() => {
