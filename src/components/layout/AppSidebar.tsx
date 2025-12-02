@@ -54,8 +54,8 @@ const analyticsSubItems = [
   { title: "Revenus & Ventes", url: "/analytics?view=revenue", icon: Euro },
   { title: "Conversion", url: "/analytics?view=conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics?view=finances", icon: Wallet },
-  { title: "Classements", url: "/classements", icon: Trophy },
-  { title: "Avis", url: "/analytics?view=reviews", icon: Star },
+  { title: "Vue d'ensemble", url: "/analytics?view=overview", icon: Trophy },
+  { title: "Analytics", url: "/analytics?view=reviews", icon: Star },
 ];
 
 // Navigation principale (after Analytics)
