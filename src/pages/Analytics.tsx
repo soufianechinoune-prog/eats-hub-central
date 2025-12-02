@@ -693,13 +693,32 @@ export default function Analytics() {
     });
   };
 
+  const getTitleByViewMode = (mode: string) => {
+    switch (mode) {
+      case "revenue":
+        return { title: "Revenus & Ventes", subtitle: "Analyse du chiffre d'affaires et des commandes" };
+      case "conversion":
+        return { title: "Conversion", subtitle: "Analyse du funnel de conversion" };
+      case "finances":
+        return { title: "Finances & Frais", subtitle: "Analyse des frais et de la rentabilité" };
+      case "reviews":
+        return { title: "Avis", subtitle: "Analyse des avis clients et produits" };
+      case "overview":
+        return { title: "Vue d'ensemble", subtitle: "Classement des restaurants par performance" };
+      default:
+        return { title: "Analytics", subtitle: "Analyse de vos performances mensuelles" };
+    }
+  };
+
+  const pageTitle = getTitleByViewMode(viewMode);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
+          <h1 className="text-3xl font-bold text-foreground">{pageTitle.title}</h1>
           <p className="text-muted-foreground mt-1">
-            Analyse de vos performances mensuelles
+            {pageTitle.subtitle}
           </p>
         </div>
         <Button
