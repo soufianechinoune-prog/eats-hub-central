@@ -165,6 +165,7 @@ export interface ChartActionsConfig {
   fees: boolean;
   netPayout: boolean;
   profitability: boolean;
+  avgBasket: boolean;
 }
 
 export type ActionCategoryFilter = Set<string>;
@@ -531,6 +532,7 @@ export function AnalyticsCharts({
     fees: true,
     netPayout: true,
     profitability: true,
+    avgBasket: true,
   };
   
   // Filter months for range
@@ -1187,6 +1189,12 @@ export function AnalyticsCharts({
             Évolution du Panier Moyen
             {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
+          <ChartActionToggle
+            chartKey="avgBasket"
+            config={config}
+            onChange={handleChartToggle}
+            hasActions={!!hasActions}
+          />
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
@@ -1245,6 +1253,23 @@ export function AnalyticsCharts({
                     animationEasing={CHART_ANIMATION_EASING}
                   />
                 )}
+                {/* Action markers */}
+                {shouldShowActionsForChart("avgBasket") && actionMonths.map(monthNum => {
+                  const monthActions = actionsByMonth[monthNum] || [];
+                  const primaryAction = monthActions[0];
+                  if (!primaryAction) return null;
+                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                  return (
+                    <ReferenceLine
+                      key={`action-avgbasket-${monthNum}`}
+                      x={MONTHS[monthNum - 1]}
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                    />
+                  );
+                })}
               </LineChart>
             </ResponsiveContainer>
           </div>
