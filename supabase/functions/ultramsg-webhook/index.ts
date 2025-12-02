@@ -191,6 +191,10 @@ CAPACITÉS:
    [ACTION:Titre de l'action|YYYY-MM-DD|categorie]
    Catégories disponibles: marketing, menu, promotion, operation, other
    Exemple: "Je te crée ça ! [ACTION:Push notification match PSG|2024-12-15|marketing]"
+5. ENVOYER UN RAPPORT - Si le manager demande un rapport, ajoute ce tag:
+   [RAPPORT:type]
+   Types disponibles: semaine (7 derniers jours), mois (mois en cours)
+   Exemple: "Je t'envoie ça ! [RAPPORT:semaine]"
 
 RÈGLES IMPORTANTES:
 - Réponds de manière CONCISE et DIRECTE (c'est WhatsApp, pas un email)
@@ -200,7 +204,8 @@ RÈGLES IMPORTANTES:
 - Si les données sont à 0, dis que les données ne sont pas encore disponibles
 - Ne réponds QUE sur les sujets liés au restaurant et ses performances
 - Si la question n'est pas liée au restaurant, dis poliment que tu ne peux pas aider
-- Pour les demandes d'action, UTILISE TOUJOURS le format [ACTION:...] pour que je puisse créer l'action automatiquement`;
+- Pour les demandes d'action, UTILISE TOUJOURS le format [ACTION:...] pour que je puisse créer l'action automatiquement
+- Pour les demandes de rapport, UTILISE TOUJOURS le format [RAPPORT:...] pour déclencher l'envoi`;
 }
 
 // Detect intent from query
@@ -401,6 +406,170 @@ function formatDateFR(dateStr: string): string {
   return `${parseInt(day)} ${months[parseInt(month)]} ${year}`;
 }
 
+// Generate report text for WhatsApp
+async function generateReport(
+  supabase: any,
+  restaurantId: string,
+  restaurantName: string,
+  reportType: 'semaine' | 'mois'
+): Promise<string> {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const months = ['', 'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 
+                  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+  let reportTitle = '';
+  let periodStart = '';
+  let periodEnd = now.toISOString().split('T')[0];
+
+  if (reportType === 'semaine') {
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    periodStart = weekAgo.toISOString().split('T')[0];
+    reportTitle = `📊 RAPPORT HEBDOMADAIRE\n${restaurantName}\n${formatDateFR(periodStart)} → ${formatDateFR(periodEnd)}`;
+  } else {
+    reportTitle = `📊 RAPPORT MENSUEL\n${restaurantName}\n${months[currentMonth]} ${currentYear}`;
+  }
+
+  // Fetch monthly data
+  const { data: monthlyRevenue } = await supabase
+    .from('monthly_revenue')
+    .select('*')
+    .eq('restaurant_id', restaurantId)
+    .eq('year', currentYear)
+    .eq('month', currentMonth)
+    .maybeSingle();
+
+  const { data: monthlyConversion } = await supabase
+    .from('monthly_conversion')
+    .select('*')
+    .eq('restaurant_id', restaurantId)
+    .eq('year', currentYear)
+    .eq('month', currentMonth)
+    .maybeSingle();
+
+  const { data: monthlyFees } = await supabase
+    .from('monthly_fees')
+    .select('*')
+    .eq('restaurant_id', restaurantId)
+    .eq('year', currentYear)
+    .eq('month', currentMonth)
+    .maybeSingle();
+
+  // Fetch previous month for comparison
+  const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+  const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+  
+  const { data: prevRevenue } = await supabase
+    .from('monthly_revenue')
+    .select('revenue_ttc, order_count')
+    .eq('restaurant_id', restaurantId)
+    .eq('year', prevYear)
+    .eq('month', prevMonth)
+    .maybeSingle();
+
+  // Calculate variations
+  const revenue = monthlyRevenue?.revenue_ttc || 0;
+  const orders = monthlyRevenue?.order_count || 0;
+  const avgBasket = monthlyRevenue?.average_basket || 0;
+  const prevRevenueVal = prevRevenue?.revenue_ttc || 0;
+  const revenueVariation = prevRevenueVal > 0 
+    ? ((revenue - prevRevenueVal) / prevRevenueVal * 100).toFixed(1) 
+    : 'N/A';
+  const variationEmoji = parseFloat(revenueVariation) >= 0 ? '📈' : '📉';
+
+  // Calculate profitability
+  const netPayout = monthlyFees?.net_payout || 0;
+  const profitability = revenue > 0 ? ((netPayout / revenue) * 100).toFixed(1) : 'N/A';
+
+  // Build report text
+  let report = `${reportTitle}\n`;
+  report += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  
+  report += `💰 *CHIFFRE D'AFFAIRES*\n`;
+  report += `• CA: ${revenue.toLocaleString('fr-FR')}€\n`;
+  report += `• vs mois précédent: ${revenueVariation}% ${variationEmoji}\n\n`;
+  
+  report += `📦 *COMMANDES*\n`;
+  report += `• Total: ${orders} commandes\n`;
+  report += `• Panier moyen: ${avgBasket.toFixed(2)}€\n\n`;
+  
+  if (monthlyConversion) {
+    const convRate = ((monthlyConversion.orders / monthlyConversion.visits) * 100) || 0;
+    report += `📈 *CONVERSION*\n`;
+    report += `• Visites: ${monthlyConversion.visits}\n`;
+    report += `• Taux global: ${convRate.toFixed(1)}%\n\n`;
+  }
+  
+  if (monthlyFees) {
+    const totalFees = (monthlyFees.uber_fee || 0) + (monthlyFees.marketing_fee || 0) + 
+                      (monthlyFees.offers_cost || 0) + (monthlyFees.ads_cost || 0);
+    report += `💸 *FRAIS & RENTABILITÉ*\n`;
+    report += `• Frais totaux: ${totalFees.toLocaleString('fr-FR')}€\n`;
+    report += `• Versement net: ${netPayout.toLocaleString('fr-FR')}€\n`;
+    report += `• Rentabilité: ${profitability}%\n\n`;
+  }
+  
+  report += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  report += `_Généré automatiquement par CS Advisor_`;
+
+  return report;
+}
+
+// Parse and send report from AI response
+async function parseAndSendReport(
+  supabase: any,
+  response: string,
+  restaurantId: string,
+  restaurantName: string,
+  phone: string
+): Promise<{ modifiedResponse: string; reportSent: boolean }> {
+  // Pattern: [RAPPORT:type]
+  const reportPattern = /\[RAPPORT:(semaine|mois)\]/gi;
+  let modifiedResponse = response;
+  let reportSent = false;
+
+  const matches = [...response.matchAll(reportPattern)];
+  
+  for (const match of matches) {
+    const [fullMatch, type] = match;
+    const reportType = type.toLowerCase() as 'semaine' | 'mois';
+    
+    try {
+      // Generate the report
+      const reportText = await generateReport(supabase, restaurantId, restaurantName, reportType);
+      
+      // Send report via WhatsApp
+      const sent = await sendWhatsAppReply(phone, reportText);
+      
+      if (sent) {
+        console.log(`✓ Report sent: ${reportType}`);
+        modifiedResponse = modifiedResponse.replace(fullMatch, `✅ Rapport ${reportType === 'semaine' ? 'hebdomadaire' : 'mensuel'} envoyé !`);
+        reportSent = true;
+        
+        // Save report to message_history
+        await supabase.from('message_history').insert({
+          direction: 'outbound',
+          recipient_phone: phone,
+          restaurant_id: restaurantId,
+          restaurant_name: restaurantName,
+          message_content: reportText,
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+        });
+      } else {
+        modifiedResponse = modifiedResponse.replace(fullMatch, `❌ Erreur lors de l'envoi du rapport`);
+      }
+    } catch (err) {
+      console.error('Exception sending report:', err);
+      modifiedResponse = modifiedResponse.replace(fullMatch, `❌ Erreur: impossible d'envoyer le rapport`);
+    }
+  }
+
+  return { modifiedResponse, reportSent };
+}
+
 // Main handler for manager queries
 async function handleManagerQuery(
   supabase: any,
@@ -430,6 +599,7 @@ async function handleManagerQuery(
   // Process action commands if present in AI response
   let finalResponse = aiResult.content;
   let actionCreated = false;
+  let reportSent = false;
   
   if (finalResponse && finalResponse.includes('[ACTION:')) {
     const actionResult = await parseAndCreateAction(supabase, finalResponse, restaurant.id);
@@ -441,6 +611,28 @@ async function handleManagerQuery(
     }
   }
 
+  // Process report commands if present in AI response
+  if (finalResponse && finalResponse.includes('[RAPPORT:')) {
+    const reportResult = await parseAndSendReport(
+      supabase, 
+      finalResponse, 
+      restaurant.id, 
+      restaurant.name, 
+      phone
+    );
+    finalResponse = reportResult.modifiedResponse;
+    reportSent = reportResult.reportSent;
+    
+    if (reportSent) {
+      console.log(`✓ Report command processed`);
+    }
+  }
+
+  // Determine final intent
+  let finalIntent = intent;
+  if (actionCreated) finalIntent = 'action_request';
+  if (reportSent) finalIntent = 'report_request';
+
   // Log interaction to chatbot_interactions
   const interactionLog = {
     restaurant_id: restaurant.id,
@@ -448,8 +640,8 @@ async function handleManagerQuery(
     manager_name: managerName || null,
     query,
     response: finalResponse,
-    intent: actionCreated ? 'action_request' : intent,
-    detected_entities: { ...entities, action_created: actionCreated },
+    intent: finalIntent,
+    detected_entities: { ...entities, action_created: actionCreated, report_sent: reportSent },
     response_time_ms: aiResult.responseTimeMs,
     ai_model: 'google/gemini-2.5-flash',
     tokens_used: aiResult.tokensUsed || null,
@@ -458,7 +650,7 @@ async function handleManagerQuery(
   };
 
   await supabase.from('chatbot_interactions').insert(interactionLog);
-  console.log(`✓ Interaction logged (${aiResult.responseTimeMs}ms, intent: ${interactionLog.intent})`);
+  console.log(`✓ Interaction logged (${aiResult.responseTimeMs}ms, intent: ${finalIntent})`);
 
   if (finalResponse) {
     console.log(`Final Response: ${finalResponse.substring(0, 100)}...`);
