@@ -26,6 +26,7 @@ const DEFAULT_CHART_ACTIONS_CONFIG: ChartActionsConfig = {
   fees: true,
   netPayout: true,
   profitability: true,
+  avgBasket: true,
 };
 
 const MONTHS_FULL = [
