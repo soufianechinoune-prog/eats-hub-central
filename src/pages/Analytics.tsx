@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -69,7 +69,11 @@ export default function Analytics() {
 
   const handleTabChange = (value: string) => {
     // Tab changes are now handled by Analytics context platform selector
-    setSearchParams({ platform: value });
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      newParams.set('platform', value);
+      return newParams;
+    });
   };
 
   const handleChartActionsConfigChange = (newConfig: ChartActionsConfig) => {
@@ -139,9 +143,13 @@ export default function Analytics() {
   const { start: effectiveStartMonth, end: effectiveEndMonth } = getEffectiveMonthRange();
 
   // Sync selectedTab with context platform
-  useMemo(() => {
-    // Update search params when platform changes from context
-    setSearchParams({ platform: selectedPlatform });
+  useEffect(() => {
+    // Update search params when platform changes from context, preserving other params
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      newParams.set('platform', selectedPlatform);
+      return newParams;
+    });
   }, [selectedPlatform, setSearchParams]);
 
   // Fetch restaurants
