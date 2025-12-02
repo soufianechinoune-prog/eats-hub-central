@@ -15,6 +15,7 @@ import { useAnalyticsPdfExport } from "@/hooks/useAnalyticsPdfExport";
 import { useRestaurantActions } from "@/hooks/useRestaurantActions";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
+import { useDataGranularity } from "@/hooks/useDataGranularity";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
 
@@ -67,6 +68,14 @@ export default function Analytics() {
   const { exportToPdf, isExporting } = useAnalyticsPdfExport();
 
   const prevYear = selectedYear - 1;
+
+  // Determine data granularity based on selected period
+  const { granularity, startDate, endDate, periodDays } = useDataGranularity({
+    periodMode,
+    selectedYear,
+    selectedMonth,
+    dateRange,
+  });
 
   const handleTabChange = (value: string) => {
     // Tab changes are now handled by Analytics context platform selector
@@ -171,22 +180,48 @@ export default function Analytics() {
 
   // ========== UBER EATS DATA (Current Year) ==========
   const { data: uberRevenueData, isLoading: loadingUberRevenue } = useQuery({
-    queryKey: ["analytics_revenue_uber", restaurantFilter, selectedYear],
+    queryKey: ["analytics_revenue_uber", restaurantFilter, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      let query = supabase
-        .from("monthly_revenue")
-        .select("*")
-        .eq("year", selectedYear)
-        .eq("platform", "uber_eats")
-        .order("month");
-      
-      if (restaurantFilter) {
-        query = query.in("restaurant_id", restaurantFilter);
+      if (granularity === "daily") {
+        // Fetch daily data and transform to monthly-like format
+        let query = supabase
+          .from("daily_revenue")
+          .select("*")
+          .eq("platform", "uber_eats")
+          .gte("date", format(startDate, "yyyy-MM-dd"))
+          .lte("date", format(endDate, "yyyy-MM-dd"))
+          .order("date");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        // Transform daily data to include month info for compatibility
+        return data?.map(item => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+      } else {
+        // Fetch monthly data
+        let query = supabase
+          .from("monthly_revenue")
+          .select("*")
+          .eq("year", selectedYear)
+          .eq("platform", "uber_eats")
+          .order("month");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
     },
   });
 
