@@ -198,13 +198,63 @@ RÈGLES IMPORTANTES:
 - Si la question n'est pas liée au restaurant, dis poliment que tu ne peux pas aider`;
 }
 
+// Detect intent from query
+function detectIntent(query: string): { intent: string; entities: Record<string, any> } {
+  const lowerQuery = query.toLowerCase();
+  const entities: Record<string, any> = {};
+  
+  // Detect period
+  if (lowerQuery.includes('hier')) entities.period = 'yesterday';
+  else if (lowerQuery.includes('aujourd')) entities.period = 'today';
+  else if (lowerQuery.includes('semaine')) entities.period = 'week';
+  else if (lowerQuery.includes('mois')) entities.period = 'month';
+  
+  // Detect metric
+  if (lowerQuery.includes('ca') || lowerQuery.includes('chiffre') || lowerQuery.includes('revenu') || lowerQuery.includes('vente')) {
+    entities.metric = 'revenue';
+  } else if (lowerQuery.includes('commande')) {
+    entities.metric = 'orders';
+  } else if (lowerQuery.includes('panier')) {
+    entities.metric = 'basket';
+  } else if (lowerQuery.includes('conversion') || lowerQuery.includes('taux')) {
+    entities.metric = 'conversion';
+  } else if (lowerQuery.includes('frais') || lowerQuery.includes('commission')) {
+    entities.metric = 'fees';
+  }
+  
+  // Detect intent
+  let intent = 'unknown';
+  if (lowerQuery.includes('rapport') || lowerQuery.includes('envoie') || lowerQuery.includes('pdf')) {
+    intent = 'report_request';
+  } else if (lowerQuery.includes('action') || lowerQuery.includes('rappel') || lowerQuery.includes('promo') || lowerQuery.includes('créer')) {
+    intent = 'action_request';
+  } else if (lowerQuery.includes('comparer') || lowerQuery.includes('vs') || lowerQuery.includes('versus')) {
+    intent = 'comparison';
+    entities.comparison = true;
+  } else if (lowerQuery.includes('bonjour') || lowerQuery.includes('salut') || lowerQuery.includes('hello') || lowerQuery.includes('coucou')) {
+    intent = 'greeting';
+  } else if (entities.metric || entities.period) {
+    intent = 'analytics';
+  }
+  
+  return { intent, entities };
+}
+
 // Call Lovable AI to generate a response
-async function callAI(systemPrompt: string, userMessage: string): Promise<string | null> {
+interface AIResult {
+  content: string | null;
+  responseTimeMs: number;
+  tokensUsed?: number;
+  error?: string;
+}
+
+async function callAI(systemPrompt: string, userMessage: string): Promise<AIResult> {
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  const startTime = Date.now();
   
   if (!LOVABLE_API_KEY) {
     console.error('LOVABLE_API_KEY not configured');
-    return null;
+    return { content: null, responseTimeMs: Date.now() - startTime, error: 'API key not configured' };
   }
 
   try {
@@ -221,21 +271,30 @@ async function callAI(systemPrompt: string, userMessage: string): Promise<string
           { role: 'user', content: userMessage }
         ],
         stream: false,
-        max_tokens: 300, // Keep responses short for WhatsApp
+        max_tokens: 300,
       }),
     });
+
+    const responseTimeMs = Date.now() - startTime;
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('AI API error:', response.status, errorText);
-      return null;
+      return { content: null, responseTimeMs, error: `API error: ${response.status}` };
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || null;
+    const content = data.choices?.[0]?.message?.content || null;
+    const tokensUsed = data.usage?.total_tokens;
+    
+    return { content, responseTimeMs, tokensUsed };
   } catch (error) {
     console.error('Error calling AI:', error);
-    return null;
+    return { 
+      content: null, 
+      responseTimeMs: Date.now() - startTime, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
   }
 }
 
@@ -287,6 +346,10 @@ async function handleManagerQuery(
   console.log(`Restaurant: ${restaurant.name}`);
   console.log(`Query: ${query}`);
 
+  // Detect intent and entities
+  const { intent, entities } = detectIntent(query);
+  console.log(`Detected intent: ${intent}`, entities);
+
   // Fetch restaurant performance data
   const restaurantData = await fetchRestaurantData(supabase, restaurant.id);
   console.log('Fetched restaurant data');
@@ -295,13 +358,33 @@ async function handleManagerQuery(
   const systemPrompt = buildManagerPrompt(restaurant, restaurantData);
 
   // Call AI
-  const aiResponse = await callAI(systemPrompt, query);
+  const aiResult = await callAI(systemPrompt, query);
+  const managerName = `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim();
 
-  if (aiResponse) {
-    console.log(`AI Response: ${aiResponse.substring(0, 100)}...`);
+  // Log interaction to chatbot_interactions
+  const interactionLog = {
+    restaurant_id: restaurant.id,
+    manager_phone: phone,
+    manager_name: managerName || null,
+    query,
+    response: aiResult.content,
+    intent,
+    detected_entities: entities,
+    response_time_ms: aiResult.responseTimeMs,
+    ai_model: 'google/gemini-2.5-flash',
+    tokens_used: aiResult.tokensUsed || null,
+    was_successful: !!aiResult.content,
+    error_message: aiResult.error || null,
+  };
+
+  await supabase.from('chatbot_interactions').insert(interactionLog);
+  console.log(`✓ Interaction logged (${aiResult.responseTimeMs}ms, intent: ${intent})`);
+
+  if (aiResult.content) {
+    console.log(`AI Response: ${aiResult.content.substring(0, 100)}...`);
     
     // Send response via WhatsApp
-    const sent = await sendWhatsAppReply(phone, aiResponse);
+    const sent = await sendWhatsAppReply(phone, aiResult.content);
     
     if (sent) {
       // Save chatbot response to message_history
@@ -309,10 +392,10 @@ async function handleManagerQuery(
         direction: 'outbound',
         sender_phone: null,
         recipient_phone: phone,
-        recipient_name: `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim(),
+        recipient_name: managerName,
         restaurant_id: restaurant.id,
         restaurant_name: restaurant.name,
-        message_content: aiResponse,
+        message_content: aiResult.content,
         status: 'sent',
         sent_at: new Date().toISOString(),
       });
