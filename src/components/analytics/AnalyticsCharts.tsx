@@ -187,6 +187,8 @@ interface AnalyticsChartsProps {
   selectedCategories?: ActionCategoryFilter;
   onCategoryToggle?: (category: string) => void;
   viewMode?: "all" | "revenue" | "conversion" | "finances";
+  restaurants?: { id: string; name: string; city?: string }[];
+  selectedRestaurants?: string[];
 }
 
 // Action category colors
@@ -442,6 +444,8 @@ export function AnalyticsCharts({
   selectedCategories,
   onCategoryToggle,
   viewMode = "all",
+  restaurants = [],
+  selectedRestaurants = [],
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
   
@@ -688,6 +692,113 @@ export function AnalyticsCharts({
       };
     }).filter(d => filterByRange(d.monthNum));
   }, [aggregatedRevenueData, aggregatedFeesData, startMonth, endMonth]);
+
+  // Determine if showing multi-restaurant view
+  const isMultiRestaurant = selectedRestaurants.length === 0 || selectedRestaurants.length > 1;
+
+  // Average Basket Evolution data
+  const averageBasketData = useMemo(() => {
+    return aggregatedRevenueData.map(item => ({
+      month: item.month,
+      monthNum: item.monthNum,
+      avgBasket: item.avgBasket,
+      avgBasketN1: item.prevOrders > 0 ? item.prevRevenue / item.prevOrders : 0,
+      orders: item.orders,
+      prevOrders: item.prevOrders,
+    }));
+  }, [aggregatedRevenueData]);
+
+  // Top 10 Restaurants by Revenue (aggregated over period)
+  const topRestaurantsData = useMemo(() => {
+    if (!revenueData || !restaurants || restaurants.length === 0) return [];
+    
+    // Group by restaurant_id and sum revenue
+    const restaurantTotals: Record<string, { revenue: number; orders: number }> = {};
+    
+    revenueData.forEach((item: any) => {
+      const restaurantId = item.restaurant_id;
+      if (!restaurantTotals[restaurantId]) {
+        restaurantTotals[restaurantId] = { revenue: 0, orders: 0 };
+      }
+      restaurantTotals[restaurantId].revenue += Number(item.revenue_ttc) || 0;
+      restaurantTotals[restaurantId].orders += item.order_count || 0;
+    });
+
+    // Map to restaurant names and sort by revenue
+    const restaurantList = Object.entries(restaurantTotals)
+      .map(([id, data]) => {
+        const restaurant = restaurants.find(r => r.id === id);
+        return {
+          id,
+          name: restaurant?.name || id,
+          city: restaurant?.city || '',
+          revenue: data.revenue,
+          orders: data.orders,
+        };
+      })
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10); // Top 10
+
+    return restaurantList;
+  }, [revenueData, restaurants]);
+
+  // Revenue by Restaurant (monthly evolution)
+  const revenueByRestaurantData = useMemo(() => {
+    if (!revenueData || !restaurants || restaurants.length === 0) return [];
+    
+    // Get unique restaurant IDs
+    const restaurantIds = Array.from(new Set(revenueData.map((item: any) => item.restaurant_id)));
+    const topRestaurantIds = restaurantIds.slice(0, 10); // Limit to 10 for readability
+    
+    // Build monthly data with series per restaurant
+    const monthlyData: Record<number, any> = {};
+    
+    Array.from({ length: 12 }, (_, i) => {
+      const monthNum = i + 1;
+      if (!filterByRange(monthNum)) return;
+      
+      monthlyData[monthNum] = {
+        month: MONTHS[i],
+        monthNum,
+      };
+      
+      topRestaurantIds.forEach(restaurantId => {
+        const restaurant = restaurants.find(r => r.id === restaurantId);
+        const restaurantName = restaurant?.name || restaurantId;
+        monthlyData[monthNum][restaurantName] = 0;
+      });
+    });
+
+    // Fill in revenue data
+    revenueData.forEach((item: any) => {
+      const restaurantId = item.restaurant_id;
+      if (!topRestaurantIds.includes(restaurantId)) return;
+      if (!filterByRange(item.month)) return;
+      
+      const restaurant = restaurants.find(r => r.id === restaurantId);
+      const restaurantName = restaurant?.name || restaurantId;
+      
+      if (monthlyData[item.month]) {
+        monthlyData[item.month][restaurantName] += Number(item.revenue_ttc) || 0;
+      }
+    });
+
+    return Object.values(monthlyData).filter(d => d.monthNum);
+  }, [revenueData, restaurants, startMonth, endMonth]);
+
+  // Colors for restaurant series
+  const restaurantColors = [
+    'hsl(var(--chart-1))',
+    'hsl(var(--chart-2))',
+    'hsl(var(--chart-3))',
+    'hsl(var(--chart-4))',
+    'hsl(var(--chart-5))',
+    '#8b5cf6',
+    '#ec4899',
+    '#f59e0b',
+    '#10b981',
+    '#06b6d4',
+  ];
 
   // Dynamic Y-axis domain for conversion rate chart (inclut l'objectif)
   const conversionYDomain = useMemo(() => {
@@ -1022,6 +1133,182 @@ export function AnalyticsCharts({
                 )}
                 {!hiddenRevenueBars.has('orders') && <Line yAxisId="right" type="monotone" dataKey="orders" name="Commandes" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-2))' }} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
               </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+      )}
+
+      {/* Average Basket Evolution Chart */}
+      {showRevenue && (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Évolution du Panier Moyen
+            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={averageBasketData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis dataKey="month" className="text-xs" />
+                <YAxis className="text-xs" />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--background))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number, name: string) => {
+                    const item = averageBasketData.find(d => d.monthNum === (averageBasketData.indexOf(d as any) + 1));
+                    if (name.includes(String(selectedYear))) {
+                      return [
+                        `${value.toFixed(2)} €`,
+                        `${name} (${item?.orders || 0} commandes)`
+                      ];
+                    }
+                    return [
+                      `${value.toFixed(2)} €`,
+                      `${name} (${item?.prevOrders || 0} commandes)`
+                    ];
+                  }}
+                  labelFormatter={(label) => label}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="avgBasket" 
+                  name={`Panier moyen ${selectedYear}`} 
+                  stroke="hsl(var(--chart-1))" 
+                  strokeWidth={3}
+                  dot={{ fill: 'hsl(var(--chart-1))', r: 4 }} 
+                  animationDuration={CHART_ANIMATION_DURATION} 
+                  animationEasing={CHART_ANIMATION_EASING}
+                />
+                {hasPrevData && (
+                  <Line 
+                    type="monotone" 
+                    dataKey="avgBasketN1" 
+                    name={`Panier moyen ${prevYear}`} 
+                    stroke="hsl(var(--muted-foreground))" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={{ fill: 'hsl(var(--muted-foreground))', r: 3 }} 
+                    opacity={0.6}
+                    animationDuration={CHART_ANIMATION_DURATION} 
+                    animationEasing={CHART_ANIMATION_EASING}
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+      )}
+
+      {/* Top 10 Restaurants by Revenue */}
+      {showRevenue && isMultiRestaurant && topRestaurantsData.length > 0 && (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Top 10 Restaurants par CA
+            <span className="text-sm font-normal text-muted-foreground ml-2">(Période sélectionnée)</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topRestaurantsData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis type="number" className="text-xs" />
+                <YAxis 
+                  type="category" 
+                  dataKey="name" 
+                  className="text-xs" 
+                  width={150}
+                  tick={{ fontSize: 11 }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--background))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number, name: string, props: any) => {
+                    const totalRevenue = topRestaurantsData.reduce((sum, r) => sum + r.revenue, 0);
+                    const percentage = totalRevenue > 0 ? ((value / totalRevenue) * 100).toFixed(1) : '0';
+                    return [
+                      `${value.toLocaleString('fr-FR')} € (${percentage}%)`,
+                      `${props.payload.orders} commandes`
+                    ];
+                  }}
+                  labelFormatter={(label, payload) => {
+                    if (payload && payload[0]) {
+                      const index = topRestaurantsData.findIndex(r => r.name === payload[0].payload.name);
+                      const medals = ['🥇', '🥈', '🥉'];
+                      const medal = index < 3 ? medals[index] : `#${index + 1}`;
+                      return `${medal} ${label}`;
+                    }
+                    return label;
+                  }}
+                />
+                <Bar 
+                  dataKey="revenue" 
+                  name="Chiffre d'affaires" 
+                  fill="hsl(var(--primary))"
+                  radius={[0, 4, 4, 0]}
+                  animationDuration={CHART_ANIMATION_DURATION}
+                  animationEasing={CHART_ANIMATION_EASING}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+      )}
+
+      {/* Revenue Distribution by Restaurant (Monthly) */}
+      {showRevenue && isMultiRestaurant && revenueByRestaurantData.length > 0 && (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Répartition mensuelle par Restaurant
+            <span className="text-sm font-normal text-muted-foreground ml-2">(Max 10 restaurants)</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[350px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={revenueByRestaurantData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis dataKey="month" className="text-xs" />
+                <YAxis className="text-xs" />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--background))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number) => value.toLocaleString('fr-FR') + ' €'}
+                />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                {/* Dynamically render bars for each restaurant */}
+                {topRestaurantsData.slice(0, 10).map((restaurant, index) => (
+                  <Bar 
+                    key={restaurant.id}
+                    dataKey={restaurant.name}
+                    name={restaurant.name}
+                    fill={restaurantColors[index % restaurantColors.length]}
+                    radius={[4, 4, 0, 0]}
+                    animationDuration={CHART_ANIMATION_DURATION}
+                    animationEasing={CHART_ANIMATION_EASING}
+                  />
+                ))}
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
