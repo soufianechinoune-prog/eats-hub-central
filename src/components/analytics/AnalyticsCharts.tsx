@@ -708,9 +708,14 @@ export function AnalyticsCharts({
     }));
   }, [aggregatedRevenueData]);
 
+  // Filter out months with no data to prevent 0 values from distorting the chart
+  const filteredAvgBasketData = useMemo(() => {
+    return averageBasketData.filter(d => d.avgBasket > 0 || d.avgBasketN1 > 0);
+  }, [averageBasketData]);
+
   // Calculate dynamic domain for average basket chart to zoom on variations
   const avgBasketDomain = useMemo(() => {
-    const values = averageBasketData.flatMap(d => 
+    const values = filteredAvgBasketData.flatMap(d => 
       [d.avgBasket, d.avgBasketN1].filter(v => v > 0)
     );
     if (values.length === 0) return [0, 100];
@@ -726,7 +731,7 @@ export function AnalyticsCharts({
       Math.floor(min - padding),
       Math.ceil(max + padding)
     ];
-  }, [averageBasketData]);
+  }, [filteredAvgBasketData]);
 
   // Top 10 Restaurants by Revenue (aggregated over period)
   const topRestaurantsData = useMemo(() => {
@@ -1172,7 +1177,7 @@ export function AnalyticsCharts({
         <CardContent>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={averageBasketData}>
+              <LineChart data={filteredAvgBasketData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis 
