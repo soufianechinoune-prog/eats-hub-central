@@ -1,17 +1,20 @@
 import { useState, useCallback, useEffect } from "react";
-import { format, isToday, addDays, differenceInDays } from "date-fns";
+import { format, isToday, addDays, differenceInDays, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CalendarEvent } from "./CalendarEventBar";
+import { ContextualEventBar } from "./ContextualEventBar";
 import { DragPreview } from "./DragPreview";
 import { Badge } from "@/components/ui/badge";
 import { Globe, Store, Plus, Calendar, GripVertical, ChevronLeft, ChevronRight } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { Button } from "@/components/ui/button";
+import type { ContextualEvent } from "@/hooks/useSchoolHolidays";
 
 interface CalendarDayViewProps {
   currentDate: Date;
   events: CalendarEvent[];
+  contextualEvents?: ContextualEvent[];
   onActionClick?: (action: any) => void;
   onDateClick?: (date: Date) => void;
   onActionDrop?: (eventId: string, newStartDate: Date, newEndDate: Date | null) => void;
@@ -29,6 +32,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export function CalendarDayView({
   currentDate,
   events,
+  contextualEvents = [],
   onActionClick,
   onDateClick,
   onActionDrop,
@@ -41,6 +45,13 @@ export function CalendarDayView({
   const dayEvents = events.filter((event) => {
     const eventEnd = event.end || event.start;
     return currentDate >= event.start && currentDate <= eventEnd;
+  });
+
+  // Get contextual events for the current day
+  const dayContextualEvents = contextualEvents.filter((event) => {
+    const start = parseISO(event.start_date);
+    const end = parseISO(event.end_date);
+    return currentDate >= start && currentDate <= end;
   });
 
   // Adjacent days for quick drop targets
@@ -198,9 +209,24 @@ export function CalendarDayView({
         </div>
       )}
 
+      {/* Contextual Events Banner */}
+      {dayContextualEvents.length > 0 && (
+        <div className="p-4 bg-orange-500/10 border-b border-orange-500/20">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">🎒</span>
+            <span className="font-medium text-orange-700 dark:text-orange-300">Événements contextuels</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {dayContextualEvents.map((event) => (
+              <ContextualEventBar key={event.id} event={event} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Events List */}
       <div className="flex-1 p-4 overflow-auto">
-        {dayEvents.length === 0 ? (
+        {dayEvents.length === 0 && dayContextualEvents.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
             <Calendar className="h-12 w-12 mb-4 opacity-30" />
             <p className="text-lg">Aucune action ce jour</p>

@@ -6,10 +6,12 @@ import {
   isSameDay,
   isToday,
   differenceInDays,
+  parseISO,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CalendarEvent } from "./CalendarEventBar";
+import { ContextualEventBar } from "./ContextualEventBar";
 import { DragPreview } from "./DragPreview";
 import { Badge } from "@/components/ui/badge";
 import { Globe, Store, Plus, GripVertical } from "lucide-react";
@@ -19,10 +21,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
+import type { ContextualEvent } from "@/hooks/useSchoolHolidays";
 
 interface CalendarWeekViewProps {
   currentDate: Date;
   events: CalendarEvent[];
+  contextualEvents?: ContextualEvent[];
   onActionClick?: (action: any) => void;
   onDateClick?: (date: Date) => void;
   onActionDrop?: (eventId: string, newStartDate: Date, newEndDate: Date | null) => void;
@@ -40,6 +44,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export function CalendarWeekView({
   currentDate,
   events,
+  contextualEvents = [],
   onActionClick,
   onDateClick,
   onActionDrop,
@@ -59,6 +64,15 @@ export function CalendarWeekView({
     return events.filter((event) => {
       const eventEnd = event.end || event.start;
       return date >= event.start && date <= eventEnd;
+    });
+  };
+
+  // Get contextual events for a specific day
+  const getContextualEventsForDay = (date: Date) => {
+    return contextualEvents.filter((event) => {
+      const start = parseISO(event.start_date);
+      const end = parseISO(event.end_date);
+      return date >= start && date <= end;
     });
   };
 
@@ -172,6 +186,7 @@ export function CalendarWeekView({
       <div className="grid grid-cols-7 flex-1 min-h-[400px]">
         {weekDays.map((day, index) => {
           const dayEvents = getEventsForDay(day);
+          const dayContextualEvents = getContextualEventsForDay(day);
           const isWeekend = index >= 5;
           const isDragOver = dragOverDate && isSameDay(dragOverDate, day);
 
@@ -181,6 +196,7 @@ export function CalendarWeekView({
               className={cn(
                 "border-r last:border-r-0 p-2 relative group cursor-pointer transition-all duration-150",
                 isWeekend && "bg-muted/30",
+                dayContextualEvents.length > 0 && "bg-orange-500/5",
                 "hover:bg-accent/30",
                 isDragOver && "bg-primary/20 ring-2 ring-primary ring-inset scale-[1.01]"
               )}
@@ -201,8 +217,17 @@ export function CalendarWeekView({
                 </div>
               )}
 
+              {/* Contextual Events */}
+              {dayContextualEvents.length > 0 && (
+                <div className="space-y-1 mb-2 mt-6">
+                  {dayContextualEvents.slice(0, 1).map((event) => (
+                    <ContextualEventBar key={event.id} event={event} compact />
+                  ))}
+                </div>
+              )}
+
               {/* Events */}
-              <div className="space-y-1.5 mt-6">
+              <div className={cn("space-y-1.5", dayContextualEvents.length === 0 && "mt-6")}>
                 {dayEvents.map((event) => {
                   const isBeingDragged = draggedEvent?.id === event.id;
                   

@@ -11,20 +11,23 @@ import {
   isSameMonth,
   isSameDay,
   isToday,
+  parseISO,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CalendarEvent } from "./CalendarEventBar";
+import type { ContextualEvent } from "@/hooks/useSchoolHolidays";
 
 interface MiniCalendarProps {
   currentDate: Date;
   onDateSelect: (date: Date) => void;
   events: CalendarEvent[];
+  contextualEvents?: ContextualEvent[];
 }
 
-export function MiniCalendar({ currentDate, onDateSelect, events }: MiniCalendarProps) {
+export function MiniCalendar({ currentDate, onDateSelect, events, contextualEvents = [] }: MiniCalendarProps) {
   const [viewDate, setViewDate] = useState(currentDate);
 
   const monthStart = startOfMonth(viewDate);
@@ -44,6 +47,14 @@ export function MiniCalendar({ currentDate, onDateSelect, events }: MiniCalendar
     return events.some((event) => {
       const eventEnd = event.end || event.start;
       return date >= event.start && date <= eventEnd;
+    });
+  };
+
+  const hasContextualEvents = (date: Date) => {
+    return contextualEvents.some((event) => {
+      const start = parseISO(event.start_date);
+      const end = parseISO(event.end_date);
+      return date >= start && date <= end;
     });
   };
 
@@ -93,6 +104,8 @@ export function MiniCalendar({ currentDate, onDateSelect, events }: MiniCalendar
           const isSelected = isSameDay(d, currentDate);
           const dayHasEvents = hasEvents(d);
 
+          const dayHasContextual = hasContextualEvents(d);
+          
           return (
             <button
               key={d.toISOString()}
@@ -102,13 +115,19 @@ export function MiniCalendar({ currentDate, onDateSelect, events }: MiniCalendar
                 !isCurrentMonth && "text-muted-foreground/50",
                 isSelected && "bg-primary text-primary-foreground",
                 isToday(d) && !isSelected && "border border-primary text-primary",
+                dayHasContextual && !isSelected && "bg-orange-500/10",
                 !isSelected && "hover:bg-accent"
               )}
             >
               {format(d, "d")}
-              {dayHasEvents && !isSelected && (
-                <span className="absolute bottom-0.5 h-1 w-1 rounded-full bg-primary" />
-              )}
+              <div className="absolute bottom-0.5 flex gap-0.5">
+                {dayHasEvents && !isSelected && (
+                  <span className="h-1 w-1 rounded-full bg-primary" />
+                )}
+                {dayHasContextual && !isSelected && (
+                  <span className="h-1 w-1 rounded-full bg-orange-500" />
+                )}
+              </div>
             </button>
           );
         })}
