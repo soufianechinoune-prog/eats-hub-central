@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, FileDown, Zap } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { AnalyticsCharts, ChartActionsConfig, ActionCategoryFilter } from "@/components/analytics/AnalyticsCharts";
@@ -226,22 +227,45 @@ export default function Analytics() {
   });
 
   const { data: uberConversionData, isLoading: loadingUberConversion } = useQuery({
-    queryKey: ["analytics_conversion_uber", restaurantFilter, selectedYear],
+    queryKey: ["analytics_conversion_uber", restaurantFilter, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      let query = supabase
-        .from("monthly_conversion")
-        .select("*")
-        .eq("year", selectedYear)
-        .eq("platform", "uber_eats")
-        .order("month");
-      
-      if (restaurantFilter) {
-        query = query.in("restaurant_id", restaurantFilter);
+      if (granularity === "daily") {
+        let query = supabase
+          .from("daily_conversion")
+          .select("*")
+          .eq("platform", "uber_eats")
+          .gte("date", format(startDate, "yyyy-MM-dd"))
+          .lte("date", format(endDate, "yyyy-MM-dd"))
+          .order("date");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        return data?.map(item => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+      } else {
+        let query = supabase
+          .from("monthly_conversion")
+          .select("*")
+          .eq("year", selectedYear)
+          .eq("platform", "uber_eats")
+          .order("month");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
     },
   });
 
@@ -267,42 +291,99 @@ export default function Analytics() {
 
   // ========== UBER EATS DATA (Previous Year - N-1) ==========
   const { data: uberPrevRevenueData } = useQuery({
-    queryKey: ["analytics_revenue_uber_prev", restaurantFilter, prevYear],
+    queryKey: ["analytics_revenue_uber_prev", restaurantFilter, prevYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      let query = supabase
-        .from("monthly_revenue")
-        .select("*")
-        .eq("year", prevYear)
-        .eq("platform", "uber_eats")
-        .order("month");
-      
-      if (restaurantFilter) {
-        query = query.in("restaurant_id", restaurantFilter);
+      if (granularity === "daily") {
+        // For daily prev year, offset by 1 year
+        const prevStartDate = new Date(startDate);
+        prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
+        const prevEndDate = new Date(endDate);
+        prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
+        
+        let query = supabase
+          .from("daily_revenue")
+          .select("*")
+          .eq("platform", "uber_eats")
+          .gte("date", format(prevStartDate, "yyyy-MM-dd"))
+          .lte("date", format(prevEndDate, "yyyy-MM-dd"))
+          .order("date");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        return data?.map(item => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+      } else {
+        let query = supabase
+          .from("monthly_revenue")
+          .select("*")
+          .eq("year", prevYear)
+          .eq("platform", "uber_eats")
+          .order("month");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
     },
   });
 
   const { data: uberPrevConversionData } = useQuery({
-    queryKey: ["analytics_conversion_uber_prev", restaurantFilter, prevYear],
+    queryKey: ["analytics_conversion_uber_prev", restaurantFilter, prevYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      let query = supabase
-        .from("monthly_conversion")
-        .select("*")
-        .eq("year", prevYear)
-        .eq("platform", "uber_eats")
-        .order("month");
-      
-      if (restaurantFilter) {
-        query = query.in("restaurant_id", restaurantFilter);
+      if (granularity === "daily") {
+        const prevStartDate = new Date(startDate);
+        prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
+        const prevEndDate = new Date(endDate);
+        prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
+        
+        let query = supabase
+          .from("daily_conversion")
+          .select("*")
+          .eq("platform", "uber_eats")
+          .gte("date", format(prevStartDate, "yyyy-MM-dd"))
+          .lte("date", format(prevEndDate, "yyyy-MM-dd"))
+          .order("date");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        return data?.map(item => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+      } else {
+        let query = supabase
+          .from("monthly_conversion")
+          .select("*")
+          .eq("year", prevYear)
+          .eq("platform", "uber_eats")
+          .order("month");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
     },
   });
 
@@ -328,42 +409,88 @@ export default function Analytics() {
 
   // ========== DELIVEROO DATA (Current Year) ==========
   const { data: deliverooRevenueData, isLoading: loadingDeliverooRevenue } = useQuery({
-    queryKey: ["analytics_revenue_deliveroo", restaurantFilter, selectedYear],
+    queryKey: ["analytics_revenue_deliveroo", restaurantFilter, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      let query = supabase
-        .from("monthly_revenue")
-        .select("*")
-        .eq("year", selectedYear)
-        .eq("platform", "deliveroo")
-        .order("month");
-      
-      if (restaurantFilter) {
-        query = query.in("restaurant_id", restaurantFilter);
+      if (granularity === "daily") {
+        let query = supabase
+          .from("daily_revenue")
+          .select("*")
+          .eq("platform", "deliveroo")
+          .gte("date", format(startDate, "yyyy-MM-dd"))
+          .lte("date", format(endDate, "yyyy-MM-dd"))
+          .order("date");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        return data?.map(item => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+      } else {
+        let query = supabase
+          .from("monthly_revenue")
+          .select("*")
+          .eq("year", selectedYear)
+          .eq("platform", "deliveroo")
+          .order("month");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
     },
   });
 
   const { data: deliverooConversionData, isLoading: loadingDeliverooConversion } = useQuery({
-    queryKey: ["analytics_conversion_deliveroo", restaurantFilter, selectedYear],
+    queryKey: ["analytics_conversion_deliveroo", restaurantFilter, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      let query = supabase
-        .from("monthly_conversion")
-        .select("*")
-        .eq("year", selectedYear)
-        .eq("platform", "deliveroo")
-        .order("month");
-      
-      if (restaurantFilter) {
-        query = query.in("restaurant_id", restaurantFilter);
+      if (granularity === "daily") {
+        let query = supabase
+          .from("daily_conversion")
+          .select("*")
+          .eq("platform", "deliveroo")
+          .gte("date", format(startDate, "yyyy-MM-dd"))
+          .lte("date", format(endDate, "yyyy-MM-dd"))
+          .order("date");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        return data?.map(item => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+      } else {
+        let query = supabase
+          .from("monthly_conversion")
+          .select("*")
+          .eq("year", selectedYear)
+          .eq("platform", "deliveroo")
+          .order("month");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
     },
   });
 
@@ -389,42 +516,98 @@ export default function Analytics() {
 
   // ========== DELIVEROO DATA (Previous Year - N-1) ==========
   const { data: deliverooPrevRevenueData } = useQuery({
-    queryKey: ["analytics_revenue_deliveroo_prev", restaurantFilter, prevYear],
+    queryKey: ["analytics_revenue_deliveroo_prev", restaurantFilter, prevYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      let query = supabase
-        .from("monthly_revenue")
-        .select("*")
-        .eq("year", prevYear)
-        .eq("platform", "deliveroo")
-        .order("month");
-      
-      if (restaurantFilter) {
-        query = query.in("restaurant_id", restaurantFilter);
+      if (granularity === "daily") {
+        const prevStartDate = new Date(startDate);
+        prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
+        const prevEndDate = new Date(endDate);
+        prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
+        
+        let query = supabase
+          .from("daily_revenue")
+          .select("*")
+          .eq("platform", "deliveroo")
+          .gte("date", format(prevStartDate, "yyyy-MM-dd"))
+          .lte("date", format(prevEndDate, "yyyy-MM-dd"))
+          .order("date");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        return data?.map(item => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+      } else {
+        let query = supabase
+          .from("monthly_revenue")
+          .select("*")
+          .eq("year", prevYear)
+          .eq("platform", "deliveroo")
+          .order("month");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
     },
   });
 
   const { data: deliverooPrevConversionData } = useQuery({
-    queryKey: ["analytics_conversion_deliveroo_prev", restaurantFilter, prevYear],
+    queryKey: ["analytics_conversion_deliveroo_prev", restaurantFilter, prevYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      let query = supabase
-        .from("monthly_conversion")
-        .select("*")
-        .eq("year", prevYear)
-        .eq("platform", "deliveroo")
-        .order("month");
-      
-      if (restaurantFilter) {
-        query = query.in("restaurant_id", restaurantFilter);
+      if (granularity === "daily") {
+        const prevStartDate = new Date(startDate);
+        prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
+        const prevEndDate = new Date(endDate);
+        prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
+        
+        let query = supabase
+          .from("daily_conversion")
+          .select("*")
+          .eq("platform", "deliveroo")
+          .gte("date", format(prevStartDate, "yyyy-MM-dd"))
+          .lte("date", format(prevEndDate, "yyyy-MM-dd"))
+          .order("date");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        return data?.map(item => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+      } else {
+        let query = supabase
+          .from("monthly_conversion")
+          .select("*")
+          .eq("year", prevYear)
+          .eq("platform", "deliveroo")
+          .order("month");
+        
+        if (restaurantFilter) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
       }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
     },
   });
 
@@ -542,27 +725,38 @@ export default function Analytics() {
       {/* Analytics Header with shared filters */}
       <AnalyticsHeader />
 
-      {/* Actions Toggle */}
-      <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border">
-        <div className="flex items-center gap-2">
-          <Zap className="h-4 w-4 text-primary" />
-          <Label htmlFor="show-actions" className="text-sm font-medium cursor-pointer">
-            Afficher les actions sur les graphiques
-          </Label>
-        </div>
-        <Switch
-          id="show-actions"
-          checked={chartActionsConfig.global}
-          onCheckedChange={handleGlobalToggleChange}
-        />
-        <span className="text-xs text-muted-foreground">
-          ({(selectedPlatform === "uber_eats" ? uberActions : selectedPlatform === "deliveroo" ? deliverooActions : globalActions)?.length || 0} actions)
-        </span>
-        {chartActionsConfig.global && (
-          <span className="text-xs text-muted-foreground ml-2 border-l pl-3">
-            Utilisez ⚡ sur chaque graphique pour affiner
+      {/* Granularity Badge and Actions Toggle */}
+      <div className="flex items-center justify-between gap-3 p-4 bg-muted/30 rounded-lg border">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary" />
+            <Label htmlFor="show-actions" className="text-sm font-medium cursor-pointer">
+              Afficher les actions sur les graphiques
+            </Label>
+          </div>
+          <Switch
+            id="show-actions"
+            checked={chartActionsConfig.global}
+            onCheckedChange={handleGlobalToggleChange}
+          />
+          <span className="text-xs text-muted-foreground">
+            ({(selectedPlatform === "uber_eats" ? uberActions : selectedPlatform === "deliveroo" ? deliverooActions : globalActions)?.length || 0} actions)
           </span>
-        )}
+          {chartActionsConfig.global && (
+            <span className="text-xs text-muted-foreground ml-2 border-l pl-3">
+              Utilisez ⚡ sur chaque graphique pour affiner
+            </span>
+          )}
+        </div>
+        <Badge 
+          variant={granularity === "daily" ? "default" : "secondary"} 
+          className="text-xs font-medium gap-1.5 px-3 py-1"
+        >
+          {granularity === "daily" && "📅"}
+          {granularity === "weekly" && "📊"}
+          {granularity === "monthly" && "📆"}
+          {granularity === "daily" ? "Données quotidiennes" : granularity === "weekly" ? "Données hebdomadaires" : "Données mensuelles"}
+        </Badge>
       </div>
 
       {/* Platform Tabs */}
