@@ -708,6 +708,26 @@ export function AnalyticsCharts({
     }));
   }, [aggregatedRevenueData]);
 
+  // Calculate dynamic domain for average basket chart to zoom on variations
+  const avgBasketDomain = useMemo(() => {
+    const values = averageBasketData.flatMap(d => 
+      [d.avgBasket, d.avgBasketN1].filter(v => v > 0)
+    );
+    if (values.length === 0) return [0, 100];
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min;
+    
+    // Padding: 20% de l'écart ou minimum 2€ pour voir les variations
+    const padding = Math.max(range * 0.2, 2);
+    
+    return [
+      Math.floor(min - padding),
+      Math.ceil(max + padding)
+    ];
+  }, [averageBasketData]);
+
   // Top 10 Restaurants by Revenue (aggregated over period)
   const topRestaurantsData = useMemo(() => {
     if (!revenueData || !restaurants || restaurants.length === 0) return [];
@@ -1155,7 +1175,12 @@ export function AnalyticsCharts({
               <LineChart data={averageBasketData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
-                <YAxis className="text-xs" />
+                <YAxis 
+                  className="text-xs" 
+                  domain={avgBasketDomain}
+                  tickFormatter={(value) => `${value}€`}
+                  allowDataOverflow={false}
+                />
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--background))',
