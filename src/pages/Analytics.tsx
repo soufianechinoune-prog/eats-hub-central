@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, FileDown, Zap } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -18,8 +18,6 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import Reviews from "@/pages/Reviews";
-import uberEatsLogo from "@/assets/uber-eats-logo.png";
-import deliverooLogo from "@/assets/deliveroo-logo.png";
 
 const DEFAULT_CHART_ACTIONS_CONFIG: ChartActionsConfig = {
   global: true,
@@ -760,57 +758,87 @@ export default function Analytics() {
         </Badge>
       </div>
 
-      {/* Platform Tabs */}
-      <Tabs value={selectedPlatform} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full max-w-[600px] grid-cols-3">
-          <TabsTrigger value="uber_eats" className="flex items-center gap-2">
-            <img src={uberEatsLogo} alt="Uber Eats" className="h-4 w-4 object-contain" />
-            <span className="hidden sm:inline">Uber Eats</span>
-          </TabsTrigger>
-          <TabsTrigger value="deliveroo" className="flex items-center gap-2">
-            <img src={deliverooLogo} alt="Deliveroo" className="h-4 w-4 object-contain" />
-            <span className="hidden sm:inline">Deliveroo</span>
-          </TabsTrigger>
-          <TabsTrigger value="global" className="flex items-center gap-2">
-            🌐
-            <span className="hidden sm:inline">Global</span>
-          </TabsTrigger>
-        </TabsList>
+      {/* Content based on selected platform from context */}
+      {isLoading ? (
+        <div className="flex justify-center items-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div ref={chartsRef} className="mt-6 space-y-6">
+          {(() => {
+            // Select data based on platform
+            const currentRevenueData = selectedPlatform === "uber_eats" 
+              ? uberRevenueData 
+              : selectedPlatform === "deliveroo" 
+                ? deliverooRevenueData 
+                : globalRevenueData;
+            
+            const currentConversionData = selectedPlatform === "uber_eats"
+              ? uberConversionData
+              : selectedPlatform === "deliveroo"
+                ? deliverooConversionData
+                : globalConversionData;
+            
+            const currentFeesData = selectedPlatform === "uber_eats"
+              ? uberFeesData
+              : selectedPlatform === "deliveroo"
+                ? deliverooFeesData
+                : globalFeesData;
+            
+            const currentPrevRevenueData = selectedPlatform === "uber_eats"
+              ? uberPrevRevenueData
+              : selectedPlatform === "deliveroo"
+                ? deliverooPrevRevenueData
+                : globalPrevRevenueData;
+            
+            const currentPrevConversionData = selectedPlatform === "uber_eats"
+              ? uberPrevConversionData
+              : selectedPlatform === "deliveroo"
+                ? deliverooPrevConversionData
+                : globalPrevConversionData;
+            
+            const currentPrevFeesData = selectedPlatform === "uber_eats"
+              ? uberPrevFeesData
+              : selectedPlatform === "deliveroo"
+                ? deliverooPrevFeesData
+                : globalPrevFeesData;
+            
+            const currentActions = selectedPlatform === "uber_eats"
+              ? uberActions
+              : selectedPlatform === "deliveroo"
+                ? deliverooActions
+                : globalActions;
 
-        {isLoading ? (
-          <div className="flex justify-center items-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : (
-          <div ref={chartsRef}>
-            {/* Uber Eats Platform */}
-            <TabsContent value="uber_eats" className="mt-6 space-y-6">
-              {viewMode === "reviews" ? (
-                <Reviews />
-              ) : viewMode === "overview" ? (
+            // Render appropriate view
+            if (viewMode === "reviews") {
+              return <Reviews />;
+            } else if (viewMode === "overview") {
+              return (
                 <RestaurantRanking
                   restaurants={restaurants}
-                  revenueData={uberRevenueData}
-                  conversionData={uberConversionData}
-                  feesData={uberFeesData}
-                  prevRevenueData={uberPrevRevenueData}
-                  prevConversionData={uberPrevConversionData}
-                  prevFeesData={uberPrevFeesData}
+                  revenueData={currentRevenueData}
+                  conversionData={currentConversionData}
+                  feesData={currentFeesData}
+                  prevRevenueData={currentPrevRevenueData}
+                  prevConversionData={currentPrevConversionData}
+                  prevFeesData={currentPrevFeesData}
                   startMonth={effectiveStartMonth}
                   endMonth={effectiveEndMonth}
                 />
-              ) : (
+              );
+            } else {
+              return (
                 <AnalyticsCharts
-                  revenueData={uberRevenueData}
-                  conversionData={uberConversionData}
-                  feesData={uberFeesData}
-                  prevRevenueData={uberPrevRevenueData}
-                  prevConversionData={uberPrevConversionData}
-                  prevFeesData={uberPrevFeesData}
+                  revenueData={currentRevenueData}
+                  conversionData={currentConversionData}
+                  feesData={currentFeesData}
+                  prevRevenueData={currentPrevRevenueData}
+                  prevConversionData={currentPrevConversionData}
+                  prevFeesData={currentPrevFeesData}
                   startMonth={effectiveStartMonth}
                   endMonth={effectiveEndMonth}
                   selectedYear={selectedYear}
-                  actions={uberActions}
+                  actions={currentActions}
                   chartActionsConfig={chartActionsConfig}
                   onChartActionsConfigChange={handleChartActionsConfigChange}
                   onActionClick={handleActionClick}
@@ -821,93 +849,11 @@ export default function Analytics() {
                   selectedRestaurants={selectedRestaurants}
                   granularity={granularity}
                 />
-              )}
-            </TabsContent>
-
-            {/* Deliveroo Platform */}
-            <TabsContent value="deliveroo" className="mt-6 space-y-6">
-              {viewMode === "reviews" ? (
-                <Reviews />
-              ) : viewMode === "overview" ? (
-                <RestaurantRanking
-                  restaurants={restaurants}
-                  revenueData={deliverooRevenueData}
-                  conversionData={deliverooConversionData}
-                  feesData={deliverooFeesData}
-                  prevRevenueData={deliverooPrevRevenueData}
-                  prevConversionData={deliverooPrevConversionData}
-                  prevFeesData={deliverooPrevFeesData}
-                  startMonth={effectiveStartMonth}
-                  endMonth={effectiveEndMonth}
-                />
-              ) : (
-                <AnalyticsCharts
-                  revenueData={deliverooRevenueData}
-                  conversionData={deliverooConversionData}
-                  feesData={deliverooFeesData}
-                  prevRevenueData={deliverooPrevRevenueData}
-                  prevConversionData={deliverooPrevConversionData}
-                  prevFeesData={deliverooPrevFeesData}
-                  startMonth={effectiveStartMonth}
-                  endMonth={effectiveEndMonth}
-                  selectedYear={selectedYear}
-                  actions={deliverooActions}
-                  chartActionsConfig={chartActionsConfig}
-                  onChartActionsConfigChange={handleChartActionsConfigChange}
-                  onActionClick={handleActionClick}
-                  selectedCategories={selectedCategories}
-                  onCategoryToggle={handleCategoryToggle}
-                  viewMode={viewMode as "revenue" | "conversion" | "finances"}
-                  restaurants={restaurants}
-                  selectedRestaurants={selectedRestaurants}
-                  granularity={granularity}
-                />
-              )}
-            </TabsContent>
-
-            {/* Global Platform */}
-            <TabsContent value="global" className="mt-6 space-y-6">
-              {viewMode === "reviews" ? (
-                <Reviews />
-              ) : viewMode === "overview" ? (
-                <RestaurantRanking
-                  restaurants={restaurants}
-                  revenueData={globalRevenueData}
-                  conversionData={globalConversionData}
-                  feesData={globalFeesData}
-                  prevRevenueData={globalPrevRevenueData}
-                  prevConversionData={globalPrevConversionData}
-                  prevFeesData={globalPrevFeesData}
-                  startMonth={effectiveStartMonth}
-                  endMonth={effectiveEndMonth}
-                />
-              ) : (
-                <AnalyticsCharts
-                  revenueData={globalRevenueData}
-                  conversionData={globalConversionData}
-                  feesData={globalFeesData}
-                  prevRevenueData={globalPrevRevenueData}
-                  prevConversionData={globalPrevConversionData}
-                  prevFeesData={globalPrevFeesData}
-                  startMonth={effectiveStartMonth}
-                  endMonth={effectiveEndMonth}
-                  selectedYear={selectedYear}
-                  actions={globalActions}
-                  chartActionsConfig={chartActionsConfig}
-                  onChartActionsConfigChange={handleChartActionsConfigChange}
-                  onActionClick={handleActionClick}
-                  selectedCategories={selectedCategories}
-                  onCategoryToggle={handleCategoryToggle}
-                  viewMode={viewMode as "revenue" | "conversion" | "finances"}
-                  restaurants={restaurants}
-                  selectedRestaurants={selectedRestaurants}
-                  granularity={granularity}
-                />
-              )}
-            </TabsContent>
-          </div>
-        )}
-      </Tabs>
+              );
+            }
+          })()}
+        </div>
+      )}
     </div>
   );
 }
