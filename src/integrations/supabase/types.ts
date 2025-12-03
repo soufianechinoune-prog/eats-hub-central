@@ -949,44 +949,128 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string
+          estimated_weight: number | null
+          external_data: string | null
+          final_count: number | null
+          final_quantity: number | null
+          final_weight: number | null
           id: string
+          imported_from_report: boolean | null
           item_id: string
+          item_promo_excl_vat: number | null
+          item_promo_incl_vat: number | null
           item_title: string
           modifiers: Json | null
           order_id: string
           quantity: number
+          refund_excl_vat: number | null
+          refund_incl_vat: number | null
+          report_import_date: string | null
+          requested_count: number | null
+          requested_quantity: number | null
+          requested_weight: number | null
+          sales_excl_vat: number | null
+          sales_incl_vat: number | null
+          sold_by_unit: string | null
           tax_amount: number | null
           tax_rate: number | null
           total_price: number
+          uber_flow_id: string | null
+          uber_order_id: string | null
           unit_price: number
+          vat_1_item_promo: number | null
+          vat_1_refund: number | null
+          vat_1_sales: number | null
+          vat_2_item_promo: number | null
+          vat_2_refund: number | null
+          vat_2_sales: number | null
+          vat_3_item_promo: number | null
+          vat_3_refund: number | null
+          vat_3_sales: number | null
         }
         Insert: {
           category?: string | null
           created_at?: string
+          estimated_weight?: number | null
+          external_data?: string | null
+          final_count?: number | null
+          final_quantity?: number | null
+          final_weight?: number | null
           id?: string
+          imported_from_report?: boolean | null
           item_id: string
+          item_promo_excl_vat?: number | null
+          item_promo_incl_vat?: number | null
           item_title: string
           modifiers?: Json | null
           order_id: string
           quantity: number
+          refund_excl_vat?: number | null
+          refund_incl_vat?: number | null
+          report_import_date?: string | null
+          requested_count?: number | null
+          requested_quantity?: number | null
+          requested_weight?: number | null
+          sales_excl_vat?: number | null
+          sales_incl_vat?: number | null
+          sold_by_unit?: string | null
           tax_amount?: number | null
           tax_rate?: number | null
           total_price: number
+          uber_flow_id?: string | null
+          uber_order_id?: string | null
           unit_price: number
+          vat_1_item_promo?: number | null
+          vat_1_refund?: number | null
+          vat_1_sales?: number | null
+          vat_2_item_promo?: number | null
+          vat_2_refund?: number | null
+          vat_2_sales?: number | null
+          vat_3_item_promo?: number | null
+          vat_3_refund?: number | null
+          vat_3_sales?: number | null
         }
         Update: {
           category?: string | null
           created_at?: string
+          estimated_weight?: number | null
+          external_data?: string | null
+          final_count?: number | null
+          final_quantity?: number | null
+          final_weight?: number | null
           id?: string
+          imported_from_report?: boolean | null
           item_id?: string
+          item_promo_excl_vat?: number | null
+          item_promo_incl_vat?: number | null
           item_title?: string
           modifiers?: Json | null
           order_id?: string
           quantity?: number
+          refund_excl_vat?: number | null
+          refund_incl_vat?: number | null
+          report_import_date?: string | null
+          requested_count?: number | null
+          requested_quantity?: number | null
+          requested_weight?: number | null
+          sales_excl_vat?: number | null
+          sales_incl_vat?: number | null
+          sold_by_unit?: string | null
           tax_amount?: number | null
           tax_rate?: number | null
           total_price?: number
+          uber_flow_id?: string | null
+          uber_order_id?: string | null
           unit_price?: number
+          vat_1_item_promo?: number | null
+          vat_1_refund?: number | null
+          vat_1_sales?: number | null
+          vat_2_item_promo?: number | null
+          vat_2_refund?: number | null
+          vat_2_sales?: number | null
+          vat_3_item_promo?: number | null
+          vat_3_refund?: number | null
+          vat_3_sales?: number | null
         }
         Relationships: [
           {
