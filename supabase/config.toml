@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.fetch-football-matches]
 verify_jwt = false
+
+[functions.parse-payment-report]
+verify_jwt = false
