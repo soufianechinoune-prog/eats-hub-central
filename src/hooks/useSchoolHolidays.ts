@@ -50,10 +50,17 @@ export interface ContextualEvent {
   description: string;
   start_date: string;
   end_date: string;
-  type: "school_holiday";
+  type: "school_holiday" | "football_match";
   zones: string[];
   color: { bg: string; text: string; border: string };
   icon: string;
+  // Football match specific fields
+  home_team?: string;
+  away_team?: string;
+  home_team_logo?: string;
+  away_team_logo?: string;
+  time?: string;
+  venue?: string;
 }
 
 export function useSchoolHolidays(

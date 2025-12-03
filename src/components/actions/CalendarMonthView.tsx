@@ -370,7 +370,7 @@ export function CalendarMonthView({
                 // Get football matches for this day
                 const dayStr = format(day, "yyyy-MM-dd");
                 const footballMatchesForDay = contextualEvents.filter(
-                  event => event.icon === "⚽" && event.start_date === dayStr
+                  event => event.type === "football_match" && event.start_date === dayStr
                 );
 
                 return (
@@ -426,31 +426,78 @@ export function CalendarMonthView({
                     
                     {/* Football Match Indicators */}
                     {footballMatchesForDay.length > 0 && (
-                      <div className="absolute bottom-1 left-1 right-1 flex flex-wrap gap-0.5 z-20">
+                      <div className="absolute bottom-1 left-1 right-1 flex flex-wrap gap-1 z-20">
                         {footballMatchesForDay.map((match) => (
                           <Tooltip key={match.id}>
                             <TooltipTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <div className="h-5 w-5 flex items-center justify-center bg-blue-600/20 rounded-full cursor-pointer hover:bg-blue-600/40 hover:scale-110 transition-all border border-blue-500/30">
-                                <span className="text-xs">⚽</span>
+                              <div className="flex items-center gap-0.5 bg-gradient-to-r from-blue-600/20 to-blue-500/10 rounded-full px-1 py-0.5 cursor-pointer hover:from-blue-600/40 hover:to-blue-500/20 hover:scale-105 transition-all border border-blue-500/30 shadow-sm">
+                                {match.home_team_logo ? (
+                                  <img 
+                                    src={match.home_team_logo} 
+                                    alt={match.home_team || ''} 
+                                    className="h-4 w-4 rounded-full object-contain bg-white"
+                                  />
+                                ) : (
+                                  <span className="text-xs">⚽</span>
+                                )}
+                                <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400">vs</span>
+                                {match.away_team_logo ? (
+                                  <img 
+                                    src={match.away_team_logo} 
+                                    alt={match.away_team || ''} 
+                                    className="h-4 w-4 rounded-full object-contain bg-white"
+                                  />
+                                ) : (
+                                  <span className="text-xs">⚽</span>
+                                )}
                               </div>
                             </TooltipTrigger>
                             <TooltipContent 
                               side="top" 
-                              className="max-w-xs bg-card border shadow-lg p-3"
+                              className="max-w-sm bg-card border shadow-xl p-0 overflow-hidden"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <div className="space-y-1.5">
-                                <div className="font-semibold text-sm text-blue-600 dark:text-blue-400">
-                                  {match.title.replace("⚽ ", "")}
+                              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-white/80 text-xs">⚽ Champions League</span>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {match.description}
+                              </div>
+                              <div className="p-3 space-y-3">
+                                <div className="flex items-center justify-center gap-3">
+                                  <div className="flex flex-col items-center gap-1">
+                                    {match.home_team_logo && (
+                                      <img 
+                                        src={match.home_team_logo} 
+                                        alt={match.home_team || ''} 
+                                        className="h-10 w-10 rounded-full object-contain bg-muted p-1"
+                                      />
+                                    )}
+                                    <span className="text-xs font-medium text-center max-w-[80px] truncate">
+                                      {match.home_team}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col items-center">
+                                    <span className="text-lg font-bold text-muted-foreground">vs</span>
+                                    <span className="text-xs text-muted-foreground">{match.time}</span>
+                                  </div>
+                                  <div className="flex flex-col items-center gap-1">
+                                    {match.away_team_logo && (
+                                      <img 
+                                        src={match.away_team_logo} 
+                                        alt={match.away_team || ''} 
+                                        className="h-10 w-10 rounded-full object-contain bg-muted p-1"
+                                      />
+                                    )}
+                                    <span className="text-xs font-medium text-center max-w-[80px] truncate">
+                                      {match.away_team}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1.5 text-xs">
-                                  <span className="px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-700 dark:text-blue-300 font-medium">
-                                    Champions League
-                                  </span>
-                                </div>
+                                {match.venue && (
+                                  <div className="text-xs text-muted-foreground text-center border-t pt-2">
+                                    📍 {match.venue}
+                                  </div>
+                                )}
                               </div>
                             </TooltipContent>
                           </Tooltip>
