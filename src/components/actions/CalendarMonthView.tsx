@@ -373,6 +373,24 @@ export function CalendarMonthView({
                   event => event.type === "football_match" && event.start_date === dayStr
                 );
 
+                // Get public holidays for this day
+                const publicHolidaysForDay = contextualEvents.filter(
+                  event => event.type === "public_holiday" && event.start_date === dayStr
+                );
+
+                // Get school holidays that include this day
+                const schoolHolidaysForDay = contextualEvents.filter(event => {
+                  if (event.type !== "school_holiday") return false;
+                  const startDate = parseISO(event.start_date);
+                  const endDate = parseISO(event.end_date);
+                  return day >= startDate && day <= endDate;
+                });
+
+                // Check if day is within a school holiday period
+                const isInSchoolHoliday = schoolHolidaysForDay.length > 0;
+                const isSchoolHolidayStart = schoolHolidaysForDay.some(h => isSameDay(parseISO(h.start_date), day));
+                const isSchoolHolidayEnd = schoolHolidaysForDay.some(h => isSameDay(parseISO(h.end_date), day));
+
                 return (
                   <div
                     key={day.toISOString()}
@@ -382,6 +400,12 @@ export function CalendarMonthView({
                       isWeekend && "bg-muted/30",
                       "hover:bg-accent/50 cursor-pointer",
                       isDragOver && "bg-primary/15 scale-[1.03] z-10",
+                      // School holiday background
+                      isInSchoolHoliday && !isDragOver && "bg-orange-500/10",
+                      isSchoolHolidayStart && "rounded-l-md",
+                      isSchoolHolidayEnd && "rounded-r-md",
+                      // Public holiday background
+                      publicHolidaysForDay.length > 0 && !isDragOver && "bg-red-500/10",
                       // Range selection styling
                       isRangeStart && "bg-primary/30 rounded-l-lg",
                       isRangeEnd && "bg-primary/30 rounded-r-lg",
@@ -392,6 +416,21 @@ export function CalendarMonthView({
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, day)}
                   >
+                    {/* School holiday indicator bar */}
+                    {isInSchoolHoliday && (
+                      <div className={cn(
+                        "absolute top-0 left-0 right-0 h-1 bg-orange-500/60",
+                        isSchoolHolidayStart && "rounded-tl-md ml-1",
+                        isSchoolHolidayEnd && "rounded-tr-md mr-1",
+                        !isSchoolHolidayStart && !isSchoolHolidayEnd && "mx-0"
+                      )} />
+                    )}
+                    
+                    {/* Public holiday indicator */}
+                    {publicHolidaysForDay.length > 0 && (
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-red-500/80 rounded-t-md mx-1" />
+                    )}
+                    
                     {/* Drop zone animated border */}
                     {isDragOver && (
                       <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-md">
@@ -401,16 +440,49 @@ export function CalendarMonthView({
                     )}
                     
                     <div className="p-1 flex justify-between items-start relative z-10">
-                      <span className={cn(
-                        "h-5 w-5 flex items-center justify-center rounded-full transition-all text-xs",
-                        isDragOver 
-                          ? "bg-primary text-primary-foreground opacity-100 scale-110" 
-                          : isRangeSelected
-                            ? "bg-primary text-primary-foreground opacity-100"
-                            : "bg-primary/0 group-hover:bg-primary text-primary-foreground opacity-0 group-hover:opacity-100"
-                      )}>
-                        <Plus className="h-3 w-3" />
-                      </span>
+                      {/* Public holiday / school holiday icon indicator */}
+                      <div className="flex items-center gap-0.5">
+                        {publicHolidaysForDay.length > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <span className="text-xs cursor-default">🇫🇷</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <div className="space-y-1">
+                                <div className="font-semibold text-red-600">{publicHolidaysForDay[0].title}</div>
+                                <div className="text-xs text-muted-foreground">Jour férié</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {isSchoolHolidayStart && schoolHolidaysForDay.length > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <span className="text-xs cursor-default">🎒</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <div className="space-y-1">
+                                <div className="font-semibold text-orange-600">{schoolHolidaysForDay[0].title}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {schoolHolidaysForDay[0].zones.join(', ')}
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {!publicHolidaysForDay.length && !isSchoolHolidayStart && (
+                          <span className={cn(
+                            "h-5 w-5 flex items-center justify-center rounded-full transition-all text-xs",
+                            isDragOver 
+                              ? "bg-primary text-primary-foreground opacity-100 scale-110" 
+                              : isRangeSelected
+                                ? "bg-primary text-primary-foreground opacity-100"
+                                : "bg-primary/0 group-hover:bg-primary text-primary-foreground opacity-0 group-hover:opacity-100"
+                          )}>
+                            <Plus className="h-3 w-3" />
+                          </span>
+                        )}
+                      </div>
                       <span
                         className={cn(
                           "h-7 w-7 flex items-center justify-center text-sm rounded-full transition-all duration-200",

@@ -211,10 +211,32 @@ export function CalendarDayView({
 
       {/* Contextual Events Banner */}
       {dayContextualEvents.length > 0 && (
-        <div className="p-4 bg-orange-500/10 border-b border-orange-500/20">
+        <div className={cn(
+          "p-4 border-b",
+          dayContextualEvents.some(e => e.type === "public_holiday") 
+            ? "bg-red-500/10 border-red-500/20"
+            : dayContextualEvents.some(e => e.type === "football_match")
+              ? "bg-blue-500/10 border-blue-500/20"
+              : "bg-orange-500/10 border-orange-500/20"
+        )}>
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-lg">🎒</span>
-            <span className="font-medium text-orange-700 dark:text-orange-300">Événements contextuels</span>
+            <span className="text-lg">
+              {dayContextualEvents.some(e => e.type === "public_holiday") 
+                ? "🇫🇷" 
+                : dayContextualEvents.some(e => e.type === "football_match")
+                  ? "⚽"
+                  : "🎒"}
+            </span>
+            <span className={cn(
+              "font-medium",
+              dayContextualEvents.some(e => e.type === "public_holiday") 
+                ? "text-red-700 dark:text-red-300"
+                : dayContextualEvents.some(e => e.type === "football_match")
+                  ? "text-blue-700 dark:text-blue-300"
+                  : "text-orange-700 dark:text-orange-300"
+            )}>
+              Événements contextuels
+            </span>
           </div>
           <div className="flex flex-wrap gap-2">
             {dayContextualEvents.map((event) => (
