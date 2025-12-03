@@ -104,7 +104,7 @@ export function ContextualEventsToggle({
               disabled={footballLoading}
             />
             <Label htmlFor="football-matches" className="text-sm cursor-pointer">
-              Matchs de foot
+              Matchs (UCL + CAN)
             </Label>
             {footballLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </div>

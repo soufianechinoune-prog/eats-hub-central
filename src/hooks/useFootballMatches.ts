@@ -43,6 +43,9 @@ export interface FootballEvent {
 // French teams in Champions League 2024-25
 const CHAMPIONS_LEAGUE_TEAMS = ["Paris Saint-Germain", "PSG", "LOSC Lille", "Lille", "AS Monaco", "Monaco", "Stade Brestois", "Brest"];
 
+// CAN 2025 teams
+const CAN_TEAMS = ["Maroc", "Algérie", "Tunisie"];
+
 export function useFootballMatches(
   year: number,
   _restaurants: Restaurant[],
@@ -109,19 +112,27 @@ export function useFootballMatches(
     }));
   }, [matches, enabled]);
 
-  // Return relevant teams for display
+  // Return relevant teams for display (UCL + CAN)
   const relevantTeams = useMemo(() => {
     if (!enabled || matches.length === 0) return [];
     const teams = new Set<string>();
     matches.forEach(m => {
+      // Champions League teams
       if (CHAMPIONS_LEAGUE_TEAMS.some(t => m.home_team.includes(t))) {
         teams.add(m.home_team);
       }
       if (CHAMPIONS_LEAGUE_TEAMS.some(t => m.away_team.includes(t))) {
         teams.add(m.away_team);
       }
+      // CAN teams
+      if (CAN_TEAMS.includes(m.home_team)) {
+        teams.add(m.home_team);
+      }
+      if (CAN_TEAMS.includes(m.away_team)) {
+        teams.add(m.away_team);
+      }
     });
-    return Array.from(teams).slice(0, 4); // Max 4 teams
+    return Array.from(teams).slice(0, 7); // Max 7 teams (4 UCL + 3 CAN)
   }, [matches, enabled]);
 
   return {
