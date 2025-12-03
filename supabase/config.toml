@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.parse-payment-report]
 verify_jwt = false
+
+[functions.parse-item-report]
+verify_jwt = false

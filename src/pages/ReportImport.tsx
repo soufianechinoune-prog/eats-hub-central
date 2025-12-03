@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 const REPORT_TYPES = [
   { value: "payment_order_level", label: "Informations de paiement (niveau commande)", description: "Détail financier par commande" },
   { value: "payment_item_level", label: "Informations de paiement (niveau articles)", description: "Détail par article commandé" },
-  { value: "payout_summary", label: "Récapitulatif des versements", description: "Résumé des versements Uber" },
+  { value: "payout_summary", label: "Récapitulatif des versements", description: "Résumé des versements Uber", disabled: true },
 ];
 
 interface ParsedRow {
@@ -167,7 +167,10 @@ export default function ReportImport() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("parse-payment-report", {
+      // Choose the appropriate edge function based on report type
+      const functionName = reportType === "payment_item_level" ? "parse-item-report" : "parse-payment-report";
+      
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           csvContent,
           reportType,
@@ -180,9 +183,12 @@ export default function ReportImport() {
       setStep("complete");
 
       if (data.success) {
+        const statsMessage = reportType === "payment_item_level"
+          ? `${data.stats?.inserted || 0} articles insérés, ${data.stats?.updated || 0} mis à jour, ${data.stats?.orphaned || 0} orphelins`
+          : `${data.stats?.inserted || 0} commandes insérées, ${data.stats?.updated || 0} mises à jour`;
         toast({
           title: "Import réussi",
-          description: `${data.stats.inserted} commandes insérées, ${data.stats.updated} mises à jour`,
+          description: statsMessage,
         });
       } else {
         toast({
@@ -282,10 +288,10 @@ export default function ReportImport() {
 
               <Alert className="mt-4">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Important</AlertTitle>
+                <AlertTitle>Types supportés</AlertTitle>
                 <AlertDescription>
-                  Seul le rapport "Informations de paiement (niveau commande)" est actuellement supporté.
-                  Les autres types seront ajoutés prochainement.
+                  Les rapports "niveau commande" et "niveau articles" sont supportés.
+                  Importez d'abord les commandes avant les articles pour permettre la liaison.
                 </AlertDescription>
               </Alert>
             </CardContent>
