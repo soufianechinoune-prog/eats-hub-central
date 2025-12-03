@@ -65,11 +65,71 @@ const isQueryMessage = (message: string): boolean => {
   return queryKeywords.test(message) || questionMark || message.length > 10;
 };
 
-// Fetch contextual events (school holidays + football matches)
+// Calculate Easter Sunday using the Anonymous Gregorian algorithm
+function calculateEasterDate(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+// Get French public holidays for a given year
+function getFrenchPublicHolidays(year: number): { date: string; name: string }[] {
+  const formatDate = (date: Date): string => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const holidays = [
+    { date: `${year}-01-01`, name: "Jour de l'An" },
+    { date: `${year}-05-01`, name: "Fête du Travail" },
+    { date: `${year}-05-08`, name: "Victoire 1945" },
+    { date: `${year}-07-14`, name: "Fête Nationale" },
+    { date: `${year}-08-15`, name: "Assomption" },
+    { date: `${year}-11-01`, name: "Toussaint" },
+    { date: `${year}-11-11`, name: "Armistice 1918" },
+    { date: `${year}-12-25`, name: "Noël" },
+  ];
+
+  // Calculate Easter-based holidays
+  const easter = calculateEasterDate(year);
+  
+  // Lundi de Pâques (Easter Monday)
+  const easterMonday = new Date(easter);
+  easterMonday.setDate(easter.getDate() + 1);
+  holidays.push({ date: formatDate(easterMonday), name: "Lundi de Pâques" });
+
+  // Ascension (39 days after Easter)
+  const ascension = new Date(easter);
+  ascension.setDate(easter.getDate() + 39);
+  holidays.push({ date: formatDate(ascension), name: "Ascension" });
+
+  // Lundi de Pentecôte (50 days after Easter)
+  const pentecost = new Date(easter);
+  pentecost.setDate(easter.getDate() + 50);
+  holidays.push({ date: formatDate(pentecost), name: "Lundi de Pentecôte" });
+
+  return holidays.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Fetch contextual events (school holidays + football matches + public holidays)
 async function fetchContextualEvents(
   supabaseUrl: string, 
   postalCode: string | null
-): Promise<{ holidays: any[]; matches: any[]; zone: string | null }> {
+): Promise<{ holidays: any[]; matches: any[]; publicHolidays: any[]; zone: string | null }> {
   const zone = getSchoolZoneFromPostalCode(postalCode);
   const now = new Date();
   const in14Days = new Date(now);
@@ -77,6 +137,14 @@ async function fetchContextualEvents(
 
   let holidays: any[] = [];
   let matches: any[] = [];
+  let publicHolidays: any[] = [];
+
+  // Calculate French public holidays for current year
+  const currentYear = now.getFullYear();
+  publicHolidays = getFrenchPublicHolidays(currentYear).filter((h: any) => {
+    const holidayDate = new Date(h.date);
+    return holidayDate >= now && holidayDate <= in14Days;
+  });
 
   try {
     // Fetch school holidays
@@ -127,7 +195,7 @@ async function fetchContextualEvents(
     console.error('Error fetching football matches:', e);
   }
 
-  return { holidays, matches, zone };
+  return { holidays, matches, publicHolidays, zone };
 }
 
 // Fetch restaurant performance data - ENRICHED with all available data
@@ -441,15 +509,25 @@ function buildManagerPrompt(restaurant: any, data: any): string {
     ? data.downtime.reasons.join(', ')
     : 'Aucune';
 
-  // Format contextual events (school holidays + football matches)
+  // Format contextual events (school holidays + football matches + public holidays)
   const events = data.contextualEvents;
   let eventsSection = '';
   
   if (events) {
+    const publicHolidayLines: string[] = [];
     const holidayLines: string[] = [];
     const matchLines: string[] = [];
     
-    // Format holidays
+    // Format public holidays
+    if (events.publicHolidays && events.publicHolidays.length > 0) {
+      events.publicHolidays.forEach((h: any) => {
+        const holidayDate = new Date(h.date);
+        const dateStr = holidayDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+        publicHolidayLines.push(`- 🇫🇷 ${h.name} (${dateStr})`);
+      });
+    }
+    
+    // Format school holidays
     if (events.holidays && events.holidays.length > 0) {
       events.holidays.forEach((h: any) => {
         const startDate = new Date(h.start_date);
@@ -471,14 +549,16 @@ function buildManagerPrompt(restaurant: any, data: any): string {
       });
     }
 
-    if (holidayLines.length > 0 || matchLines.length > 0) {
+    if (publicHolidayLines.length > 0 || holidayLines.length > 0 || matchLines.length > 0) {
       eventsSection = `
 📅 ÉVÉNEMENTS À VENIR (prochains 14 jours):
 ${events.zone ? `Zone scolaire: ${events.zone}` : ''}
+${publicHolidayLines.length > 0 ? '🎉 Jours fériés:\n' + publicHolidayLines.join('\n') : ''}
 ${holidayLines.length > 0 ? '🏫 Vacances scolaires:\n' + holidayLines.join('\n') : ''}
 ${matchLines.length > 0 ? '⚽ Matchs Champions League:\n' + matchLines.join('\n') : ''}
 
 📊 TENDANCES HISTORIQUES (jours de rush typiques):
+- Jours fériés: +30-50% commandes (surtout en soirée)
 - Vendredi soir: +35% commandes
 - Samedi midi et soir: +45% commandes
 - Dimanche soir: +20% commandes

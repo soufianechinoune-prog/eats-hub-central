@@ -22,6 +22,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useSchoolHolidays, type ContextualEvent } from "@/hooks/useSchoolHolidays";
 import { useFootballMatches } from "@/hooks/useFootballMatches";
+import { useFrenchHolidays } from "@/hooks/useFrenchHolidays";
 
 type ViewMode = "month" | "week" | "day";
 
@@ -91,6 +92,7 @@ export function ActionsCalendar({
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [showSchoolHolidays, setShowSchoolHolidays] = useState(false);
   const [showFootballMatches, setShowFootballMatches] = useState(false);
+  const [showPublicHolidays, setShowPublicHolidays] = useState(false);
 
   // Fetch school holidays
   const { contextualEvents: schoolHolidays, loading: holidaysLoading, relevantZones } = useSchoolHolidays(
@@ -106,9 +108,19 @@ export function ActionsCalendar({
     showFootballMatches
   );
 
+  // Fetch public holidays
+  const { contextualEvents: publicHolidays } = useFrenchHolidays(
+    currentDate.getFullYear(),
+    showPublicHolidays
+  );
+
   // Combine contextual events
   const contextualEvents: ContextualEvent[] = useMemo(() => {
     const events: ContextualEvent[] = [];
+    
+    if (showPublicHolidays) {
+      events.push(...publicHolidays);
+    }
     
     if (showSchoolHolidays) {
       events.push(...schoolHolidays);
@@ -138,7 +150,7 @@ export function ActionsCalendar({
     }
     
     return events;
-  }, [showSchoolHolidays, showFootballMatches, schoolHolidays, footballEvents]);
+  }, [showPublicHolidays, showSchoolHolidays, showFootballMatches, publicHolidays, schoolHolidays, footballEvents]);
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return actions.map((action) => {
@@ -220,6 +232,8 @@ export function ActionsCalendar({
           onToggleSchoolHolidays={setShowSchoolHolidays}
           showFootballMatches={showFootballMatches}
           onToggleFootballMatches={setShowFootballMatches}
+          showPublicHolidays={showPublicHolidays}
+          onTogglePublicHolidays={setShowPublicHolidays}
           loading={holidaysLoading}
           footballLoading={footballLoading}
           relevantZones={relevantZones}
@@ -342,6 +356,12 @@ export function ActionsCalendar({
                 <span className="text-xs text-muted-foreground">{label}</span>
               </div>
             ))}
+            {showPublicHolidays && (
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded-sm bg-red-500/20 border border-dashed border-red-500" />
+                <span className="text-xs text-muted-foreground">Jours fériés</span>
+              </div>
+            )}
             {showSchoolHolidays && (
               <div className="flex items-center gap-1.5">
                 <div className="h-3 w-3 rounded-sm bg-orange-500/20 border border-dashed border-orange-500" />

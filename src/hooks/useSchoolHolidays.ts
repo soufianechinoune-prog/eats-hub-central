@@ -50,7 +50,7 @@ export interface ContextualEvent {
   description: string;
   start_date: string;
   end_date: string;
-  type: "school_holiday" | "football_match";
+  type: "school_holiday" | "football_match" | "public_holiday";
   zones: string[];
   color: { bg: string; text: string; border: string };
   icon: string;
