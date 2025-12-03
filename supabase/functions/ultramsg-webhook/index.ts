@@ -26,14 +26,14 @@ const isQueryMessage = (message: string): boolean => {
   if (simpleResponses.test(message.trim())) return false;
   if (message.length < 4) return false;
   
-  // Keywords that indicate a query
-  const queryKeywords = /\b(quel|combien|comment|pourquoi|quand|où|ca|chiffre|commande|panier|conversion|rapport|hier|aujourd|semaine|mois|performance|vente|revenue|stat)/i;
+  // Keywords that indicate a query - enriched with new data types
+  const queryKeywords = /\b(quel|combien|comment|pourquoi|quand|où|ca|chiffre|commande|panier|conversion|rapport|hier|aujourd|semaine|mois|performance|vente|revenue|stat|note|avis|client|plat|produit|erreur|temps|prépa|préparation|livraison|retard|fermeture|downtime|top|flop|meilleur|pire|améliorer)/i;
   const questionMark = message.includes('?');
   
   return queryKeywords.test(message) || questionMark || message.length > 10;
 };
 
-// Fetch restaurant performance data
+// Fetch restaurant performance data - ENRICHED with all available data
 async function fetchRestaurantData(supabase: any, restaurantId: string) {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -41,6 +41,7 @@ async function fetchRestaurantData(supabase: any, restaurantId: string) {
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const monthStart = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
 
   // Fetch monthly revenue for current month
   const { data: currentMonthRevenue } = await supabase
@@ -96,6 +97,162 @@ async function fetchRestaurantData(supabase: any, restaurantId: string) {
     .order('start_date', { ascending: false })
     .limit(5);
 
+  // ========== NEW DATA: Customer Reviews ==========
+  const { data: customerReviews } = await supabase
+    .from('customer_reviews')
+    .select('overall_rating, food_rating, delivery_rating, review_date, customer_comment, tags')
+    .eq('restaurant_id', restaurantId)
+    .order('review_date', { ascending: false })
+    .limit(20);
+
+  // Calculate review stats
+  let reviewStats = {
+    count: 0,
+    avgOverall: 0,
+    avgFood: 0,
+    avgDelivery: 0,
+    recentTags: [] as string[],
+  };
+  if (customerReviews && customerReviews.length > 0) {
+    const validOverall = customerReviews.filter((r: any) => r.overall_rating != null);
+    const validFood = customerReviews.filter((r: any) => r.food_rating != null);
+    const validDelivery = customerReviews.filter((r: any) => r.delivery_rating != null);
+    
+    reviewStats.count = customerReviews.length;
+    reviewStats.avgOverall = validOverall.length > 0 
+      ? validOverall.reduce((sum: number, r: any) => sum + r.overall_rating, 0) / validOverall.length 
+      : 0;
+    reviewStats.avgFood = validFood.length > 0 
+      ? validFood.reduce((sum: number, r: any) => sum + r.food_rating, 0) / validFood.length 
+      : 0;
+    reviewStats.avgDelivery = validDelivery.length > 0 
+      ? validDelivery.reduce((sum: number, r: any) => sum + r.delivery_rating, 0) / validDelivery.length 
+      : 0;
+    
+    // Collect tags
+    const allTags = customerReviews.flatMap((r: any) => r.tags || []);
+    const tagCounts = allTags.reduce((acc: any, tag: string) => {
+      acc[tag] = (acc[tag] || 0) + 1;
+      return acc;
+    }, {});
+    reviewStats.recentTags = Object.entries(tagCounts)
+      .sort((a: any, b: any) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([tag]) => tag);
+  }
+
+  // ========== NEW DATA: Menu Item Reviews ==========
+  const { data: menuItemReviews } = await supabase
+    .from('menu_item_reviews')
+    .select('item_title, rating, thumb_up, thumb_down, tags')
+    .eq('restaurant_id', restaurantId);
+
+  // Calculate top/flop dishes
+  let topDishes: { title: string; rating: number; thumbUp: number }[] = [];
+  let flopDishes: { title: string; rating: number; thumbDown: number }[] = [];
+  if (menuItemReviews && menuItemReviews.length > 0) {
+    // Group by item
+    const itemStats = menuItemReviews.reduce((acc: any, r: any) => {
+      if (!acc[r.item_title]) {
+        acc[r.item_title] = { ratings: [], thumbUp: 0, thumbDown: 0 };
+      }
+      if (r.rating) acc[r.item_title].ratings.push(r.rating);
+      acc[r.item_title].thumbUp += r.thumb_up || 0;
+      acc[r.item_title].thumbDown += r.thumb_down || 0;
+      return acc;
+    }, {});
+
+    const itemArray = Object.entries(itemStats).map(([title, stats]: [string, any]) => ({
+      title,
+      avgRating: stats.ratings.length > 0 ? stats.ratings.reduce((a: number, b: number) => a + b, 0) / stats.ratings.length : 0,
+      thumbUp: stats.thumbUp,
+      thumbDown: stats.thumbDown,
+    }));
+
+    topDishes = itemArray
+      .filter(i => i.avgRating > 0)
+      .sort((a, b) => b.avgRating - a.avgRating || b.thumbUp - a.thumbUp)
+      .slice(0, 3)
+      .map(i => ({ title: i.title, rating: i.avgRating, thumbUp: i.thumbUp }));
+
+    flopDishes = itemArray
+      .filter(i => i.thumbDown > 0 || i.avgRating < 4)
+      .sort((a, b) => b.thumbDown - a.thumbDown || a.avgRating - b.avgRating)
+      .slice(0, 3)
+      .map(i => ({ title: i.title, rating: i.avgRating, thumbDown: i.thumbDown }));
+  }
+
+  // ========== NEW DATA: Order Errors ==========
+  const { data: orderErrors } = await supabase
+    .from('order_errors')
+    .select('error_type, error_category, financial_impact, item_title')
+    .eq('restaurant_id', restaurantId)
+    .gte('error_date', monthStart);
+
+  let errorStats = {
+    count: 0,
+    totalImpact: 0,
+    byType: {} as Record<string, number>,
+  };
+  if (orderErrors && orderErrors.length > 0) {
+    errorStats.count = orderErrors.length;
+    errorStats.totalImpact = orderErrors.reduce((sum: number, e: any) => sum + (e.financial_impact || 0), 0);
+    errorStats.byType = orderErrors.reduce((acc: any, e: any) => {
+      const type = e.error_type || 'Autre';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+  }
+
+  // ========== NEW DATA: Delivery Stats ==========
+  const { data: deliveryStats } = await supabase
+    .from('delivery_stats')
+    .select('preparation_time_minutes, delivery_time_minutes, delay_minutes')
+    .eq('restaurant_id', restaurantId)
+    .order('delivery_date', { ascending: false })
+    .limit(50);
+
+  let deliveryMetrics = {
+    avgPrepTime: 0,
+    avgDeliveryTime: 0,
+    avgDelay: 0,
+    sampleSize: 0,
+  };
+  if (deliveryStats && deliveryStats.length > 0) {
+    const validPrep = deliveryStats.filter((d: any) => d.preparation_time_minutes != null);
+    const validDelivery = deliveryStats.filter((d: any) => d.delivery_time_minutes != null);
+    const validDelay = deliveryStats.filter((d: any) => d.delay_minutes != null);
+
+    deliveryMetrics.sampleSize = deliveryStats.length;
+    deliveryMetrics.avgPrepTime = validPrep.length > 0 
+      ? validPrep.reduce((sum: number, d: any) => sum + d.preparation_time_minutes, 0) / validPrep.length 
+      : 0;
+    deliveryMetrics.avgDeliveryTime = validDelivery.length > 0 
+      ? validDelivery.reduce((sum: number, d: any) => sum + d.delivery_time_minutes, 0) / validDelivery.length 
+      : 0;
+    deliveryMetrics.avgDelay = validDelay.length > 0 
+      ? validDelay.reduce((sum: number, d: any) => sum + d.delay_minutes, 0) / validDelay.length 
+      : 0;
+  }
+
+  // ========== NEW DATA: Downtime Logs ==========
+  const { data: downtimeLogs } = await supabase
+    .from('downtime_logs')
+    .select('duration_minutes, reason, downtime_type')
+    .eq('restaurant_id', restaurantId)
+    .gte('downtime_start', monthStart);
+
+  let downtimeStats = {
+    totalMinutes: 0,
+    count: 0,
+    reasons: [] as string[],
+  };
+  if (downtimeLogs && downtimeLogs.length > 0) {
+    downtimeStats.count = downtimeLogs.length;
+    downtimeStats.totalMinutes = downtimeLogs.reduce((sum: number, d: any) => sum + (d.duration_minutes || 0), 0);
+    downtimeStats.reasons = [...new Set(downtimeLogs.map((d: any) => d.reason as string).filter(Boolean))].slice(0, 3) as string[];
+  }
+
   return {
     currentMonthData: {
       revenue: currentMonthRevenue?.revenue_ttc || 0,
@@ -127,12 +284,19 @@ async function fetchRestaurantData(supabase: any, restaurantId: string) {
       netPayout: currentFees?.net_payout || 0,
     },
     recentActions: recentActions || [],
+    // NEW enriched data
+    reviews: reviewStats,
+    topDishes,
+    flopDishes,
+    errors: errorStats,
+    delivery: deliveryMetrics,
+    downtime: downtimeStats,
     currentYear,
     currentMonth,
   };
 }
 
-// Build the system prompt for the AI
+// Build the system prompt for the AI - ENRICHED with all data
 function buildManagerPrompt(restaurant: any, data: any): string {
   const monthNames = ['', 'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 
                       'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
@@ -146,6 +310,31 @@ function buildManagerPrompt(restaurant: any, data: any): string {
   const actionsText = data.recentActions.length > 0
     ? data.recentActions.map((a: any) => `- ${a.title} (${a.category})`).join('\n')
     : 'Aucune action récente';
+
+  // Format top dishes
+  const topDishesText = data.topDishes.length > 0
+    ? data.topDishes.map((d: any, i: number) => `${i + 1}. ${d.title} (${d.rating.toFixed(1)}/5)`).join('\n')
+    : 'Pas encore de données';
+
+  // Format flop dishes
+  const flopDishesText = data.flopDishes.length > 0
+    ? data.flopDishes.map((d: any) => `- ${d.title}: ${d.rating.toFixed(1)}/5 (${d.thumbDown} 👎)`).join('\n')
+    : 'Aucun plat signalé';
+
+  // Format error types
+  const errorTypesText = Object.entries(data.errors.byType).length > 0
+    ? Object.entries(data.errors.byType).map(([type, count]) => `${type}: ${count}`).join(', ')
+    : 'Aucune';
+
+  // Format downtime
+  const downtimeHours = Math.floor(data.downtime.totalMinutes / 60);
+  const downtimeMinutes = data.downtime.totalMinutes % 60;
+  const downtimeText = data.downtime.totalMinutes > 0
+    ? `${downtimeHours}h${downtimeMinutes > 0 ? downtimeMinutes : ''}`
+    : '0';
+  const downtimeReasons = data.downtime.reasons.length > 0
+    ? data.downtime.reasons.join(', ')
+    : 'Aucune';
 
   return `Tu es l'assistant WhatsApp intelligent du restaurant "${restaurant.name}" de la chaîne Chicken Street.
 
@@ -180,35 +369,59 @@ DONNÉES DE PERFORMANCE - ${currentMonthName} ${data.currentYear}:
 - Publicité: ${data.fees.adsCost.toLocaleString('fr-FR')}€
 - Versement net: ${data.fees.netPayout.toLocaleString('fr-FR')}€
 
+⭐ AVIS CLIENTS:
+- Note moyenne: ${data.reviews.avgOverall > 0 ? data.reviews.avgOverall.toFixed(1) + '/5' : 'Pas de données'}
+- Note nourriture: ${data.reviews.avgFood > 0 ? data.reviews.avgFood.toFixed(1) + '/5' : 'N/A'}
+- Note livraison: ${data.reviews.avgDelivery > 0 ? data.reviews.avgDelivery.toFixed(1) + '/5' : 'N/A'}
+- Nombre d'avis récents: ${data.reviews.count}
+- Tags fréquents: ${data.reviews.recentTags.length > 0 ? data.reviews.recentTags.join(', ') : 'Aucun'}
+
+🍗 TOP PLATS (meilleurs avis):
+${topDishesText}
+
+⚠️ PLATS À AMÉLIORER:
+${flopDishesText}
+
+❌ ERREURS DE COMMANDE (ce mois):
+- Total: ${data.errors.count} erreurs
+- Impact financier: -${data.errors.totalImpact.toLocaleString('fr-FR')}€
+- Types: ${errorTypesText}
+
+⏱️ TEMPS DE PRÉPARATION (50 dernières commandes):
+- Temps moyen prépa: ${data.delivery.avgPrepTime > 0 ? Math.round(data.delivery.avgPrepTime) + ' min' : 'N/A'}
+- Temps moyen livraison: ${data.delivery.avgDeliveryTime > 0 ? Math.round(data.delivery.avgDeliveryTime) + ' min' : 'N/A'}
+- Retard moyen: ${data.delivery.avgDelay > 0 ? '+' + Math.round(data.delivery.avgDelay) + ' min' : '0 min'}
+
+🔴 TEMPS D'ARRÊT (ce mois):
+- Total: ${downtimeText}
+- Nombre de fermetures: ${data.downtime.count}
+- Raisons: ${downtimeReasons}
+
 📋 ACTIONS RÉCENTES:
 ${actionsText}
 
 CAPACITÉS:
 1. Répondre aux questions sur les performances (CA, commandes, conversion, frais)
-2. Donner des comparaisons et tendances
-3. Fournir des conseils d'amélioration basés sur les données
-4. CRÉER DES ACTIONS/RAPPELS - Si le manager demande de créer une action, rappel ou promo, ajoute ce tag dans ta réponse:
-   [ACTION:Titre de l'action|YYYY-MM-DD|categorie]
-   Catégories disponibles: marketing, menu, promotion, operation, other
-   Exemple: "Je te crée ça ! [ACTION:Push notification match PSG|2024-12-15|marketing]"
-5. ENVOYER UN RAPPORT - Si le manager demande un rapport, ajoute ce tag:
-   [RAPPORT:type]
-   Types disponibles: semaine (7 derniers jours), mois (mois en cours)
-   Exemple: "Je t'envoie ça ! [RAPPORT:semaine]"
+2. Informer sur les avis clients et la note du restaurant
+3. Donner les meilleurs/pires plats selon les avis
+4. Informer sur les erreurs de commande et leur impact
+5. Donner les temps de préparation et retards
+6. Informer sur les temps d'arrêt et fermetures
+7. Fournir des conseils d'amélioration basés sur toutes ces données
+8. CRÉER DES ACTIONS - Ajoute ce tag: [ACTION:Titre|YYYY-MM-DD|categorie]
+   Catégories: marketing, menu, promotion, operation, other
+9. ENVOYER UN RAPPORT - Ajoute ce tag: [RAPPORT:type] (types: semaine, mois)
 
-RÈGLES IMPORTANTES:
-- Réponds de manière CONCISE et DIRECTE (c'est WhatsApp, pas un email)
-- Maximum 4-5 lignes par réponse
-- Utilise des émojis pour rendre les réponses plus lisibles
-- Tutoie le manager (ton familier et sympathique)
-- Si les données sont à 0, dis que les données ne sont pas encore disponibles
-- Ne réponds QUE sur les sujets liés au restaurant et ses performances
-- Si la question n'est pas liée au restaurant, dis poliment que tu ne peux pas aider
-- Pour les demandes d'action, UTILISE TOUJOURS le format [ACTION:...] pour que je puisse créer l'action automatiquement
-- Pour les demandes de rapport, UTILISE TOUJOURS le format [RAPPORT:...] pour déclencher l'envoi`;
+RÈGLES:
+- CONCIS et DIRECT (c'est WhatsApp)
+- Max 4-5 lignes
+- Émojis pour lisibilité
+- Tutoie le manager
+- Si données à 0, dis "pas encore disponible"
+- Sujets restaurant uniquement`;
 }
 
-// Detect intent from query
+// Detect intent from query - ENRICHED with new data types
 function detectIntent(query: string): { intent: string; entities: Record<string, any> } {
   const lowerQuery = query.toLowerCase();
   const entities: Record<string, any> = {};
@@ -219,10 +432,10 @@ function detectIntent(query: string): { intent: string; entities: Record<string,
   else if (lowerQuery.includes('semaine')) entities.period = 'week';
   else if (lowerQuery.includes('mois')) entities.period = 'month';
   
-  // Detect metric
+  // Detect metric - ENRICHED
   if (lowerQuery.includes('ca') || lowerQuery.includes('chiffre') || lowerQuery.includes('revenu') || lowerQuery.includes('vente')) {
     entities.metric = 'revenue';
-  } else if (lowerQuery.includes('commande')) {
+  } else if (lowerQuery.includes('commande') && !lowerQuery.includes('erreur')) {
     entities.metric = 'orders';
   } else if (lowerQuery.includes('panier')) {
     entities.metric = 'basket';
@@ -230,6 +443,16 @@ function detectIntent(query: string): { intent: string; entities: Record<string,
     entities.metric = 'conversion';
   } else if (lowerQuery.includes('frais') || lowerQuery.includes('commission')) {
     entities.metric = 'fees';
+  } else if (lowerQuery.includes('note') || lowerQuery.includes('avis') || lowerQuery.includes('étoile') || lowerQuery.includes('rating')) {
+    entities.metric = 'reviews';
+  } else if (lowerQuery.includes('plat') || lowerQuery.includes('produit') || lowerQuery.includes('meilleur') || lowerQuery.includes('top') || lowerQuery.includes('flop') || lowerQuery.includes('pire')) {
+    entities.metric = 'dishes';
+  } else if (lowerQuery.includes('erreur') || lowerQuery.includes('problème') || lowerQuery.includes('remboursement')) {
+    entities.metric = 'errors';
+  } else if (lowerQuery.includes('prépa') || lowerQuery.includes('livraison') || lowerQuery.includes('retard') || lowerQuery.includes('temps')) {
+    entities.metric = 'delivery';
+  } else if (lowerQuery.includes('fermeture') || lowerQuery.includes('arrêt') || lowerQuery.includes('downtime') || lowerQuery.includes('fermé')) {
+    entities.metric = 'downtime';
   }
   
   // Detect intent
