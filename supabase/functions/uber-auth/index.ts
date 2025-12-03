@@ -10,10 +10,11 @@ Deno.serve((req) => {
 
   console.log("Uber Auth - clientId exists:", !!clientId, "redirectUri:", redirectUri);
 
-  // Required minimal scopes for activation + store access
+  // Standard scopes for store access, orders and reports
   const scopes = [
-    "eats.pos_provisioning",
     "eats.store",
+    "eats.store.orders.read",
+    "eats.report",
   ].join(" ");
 
   if (!clientId || !redirectUri) {
