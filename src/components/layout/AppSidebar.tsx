@@ -22,6 +22,7 @@ import {
   Trophy,
   Home,
   Star,
+  FileUp,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -78,6 +79,11 @@ const dataItems = [
     title: "Saisie de données",
     url: "/data-entry",
     icon: PenLine,
+  },
+  {
+    title: "Import Rapports",
+    url: "/report-import",
+    icon: FileUp,
   },
   {
     title: "Catalogue Produits",

@@ -34,6 +34,7 @@ import MenuHistory from "./pages/MenuHistory";
 import Messaging from "./pages/Messaging";
 import Operations from "./pages/Operations";
 import Cartography from "./pages/Cartography";
+import ReportImport from "./pages/ReportImport";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 
 const queryClient = new QueryClient();
@@ -282,6 +283,16 @@ const App = () => {
                 <ProtectedRoute session={session}>
                   <AppLayout>
                     <Operations />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/report-import"
+              element={
+                <ProtectedRoute session={session}>
+                  <AppLayout>
+                    <ReportImport />
                   </AppLayout>
                 </ProtectedRoute>
               }
