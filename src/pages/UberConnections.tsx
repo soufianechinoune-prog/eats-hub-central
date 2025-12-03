@@ -35,7 +35,7 @@ const UberConnections = () => {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>("");
-  const redirectUri = (import.meta.env.VITE_UBER_REDIRECT_URI as string) || `${window.location.origin}/auth/uber/callback`;
+  const redirectUri = `${window.location.origin}/uber-callback`;
 
   const { data: connections, refetch } = useQuery({
     queryKey: ["uber-connections"],
