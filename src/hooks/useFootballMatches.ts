@@ -33,6 +33,11 @@ export interface FootballEvent {
   time: string;
   color: { bg: string; text: string; border: string };
   icon: string;
+  home_team: string;
+  away_team: string;
+  home_team_logo: string;
+  away_team_logo: string;
+  venue: string;
 }
 
 // French teams in Champions League 2024-25
@@ -96,6 +101,11 @@ export function useFootballMatches(
         border: "border-blue-600",
       },
       icon: "⚽",
+      home_team: match.home_team,
+      away_team: match.away_team,
+      home_team_logo: match.home_team_logo,
+      away_team_logo: match.away_team_logo,
+      venue: match.venue,
     }));
   }, [matches, enabled]);
 

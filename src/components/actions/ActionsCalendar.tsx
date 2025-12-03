@@ -123,10 +123,16 @@ export function ActionsCalendar({
           description: match.description,
           start_date: match.start_date,
           end_date: match.end_date,
-          type: "school_holiday", // Using existing type for compatibility
+          type: "football_match",
           zones: match.teams,
           color: match.color,
           icon: match.icon,
+          home_team: match.home_team,
+          away_team: match.away_team,
+          home_team_logo: match.home_team_logo,
+          away_team_logo: match.away_team_logo,
+          time: match.time,
+          venue: match.venue,
         });
       });
     }
