@@ -21,6 +21,7 @@ import { ContextualEventsToggle } from "./ContextualEventsToggle";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useSchoolHolidays, type ContextualEvent } from "@/hooks/useSchoolHolidays";
+import { useFootballMatches } from "@/hooks/useFootballMatches";
 
 type ViewMode = "month" | "week" | "day";
 
@@ -89,13 +90,49 @@ export function ActionsCalendar({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [showSchoolHolidays, setShowSchoolHolidays] = useState(false);
+  const [showFootballMatches, setShowFootballMatches] = useState(false);
 
   // Fetch school holidays
-  const { contextualEvents, loading: holidaysLoading, relevantZones } = useSchoolHolidays(
+  const { contextualEvents: schoolHolidays, loading: holidaysLoading, relevantZones } = useSchoolHolidays(
     currentDate.getFullYear(),
     restaurants,
     showSchoolHolidays
   );
+
+  // Fetch football matches
+  const { footballEvents, loading: footballLoading, relevantTeams } = useFootballMatches(
+    currentDate.getFullYear(),
+    restaurants,
+    showFootballMatches
+  );
+
+  // Combine contextual events
+  const contextualEvents: ContextualEvent[] = useMemo(() => {
+    const events: ContextualEvent[] = [];
+    
+    if (showSchoolHolidays) {
+      events.push(...schoolHolidays);
+    }
+    
+    if (showFootballMatches) {
+      // Convert football events to ContextualEvent format
+      footballEvents.forEach(match => {
+        events.push({
+          id: match.id,
+          title: match.title,
+          description: match.description,
+          start_date: match.start_date,
+          end_date: match.end_date,
+          type: "school_holiday", // Using existing type for compatibility
+          zones: match.teams,
+          color: match.color,
+          icon: match.icon,
+        });
+      });
+    }
+    
+    return events;
+  }, [showSchoolHolidays, showFootballMatches, schoolHolidays, footballEvents]);
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return actions.map((action) => {
@@ -175,8 +212,12 @@ export function ActionsCalendar({
         <ContextualEventsToggle
           showSchoolHolidays={showSchoolHolidays}
           onToggleSchoolHolidays={setShowSchoolHolidays}
+          showFootballMatches={showFootballMatches}
+          onToggleFootballMatches={setShowFootballMatches}
           loading={holidaysLoading}
+          footballLoading={footballLoading}
           relevantZones={relevantZones}
+          relevantTeams={relevantTeams}
         />
 
         <div className="flex gap-4">
@@ -191,7 +232,7 @@ export function ActionsCalendar({
                 }
               }}
               events={calendarEvents}
-              contextualEvents={showSchoolHolidays ? contextualEvents : []}
+              contextualEvents={contextualEvents}
             />
           </div>
 
@@ -252,7 +293,7 @@ export function ActionsCalendar({
             <CalendarMonthView
               currentDate={currentDate}
               events={calendarEvents}
-              contextualEvents={showSchoolHolidays ? contextualEvents : []}
+              contextualEvents={contextualEvents}
               onActionClick={onActionClick}
               onActionDelete={onActionDelete}
               onDateClick={onDateClick}
@@ -264,7 +305,7 @@ export function ActionsCalendar({
             <CalendarWeekView
               currentDate={currentDate}
               events={calendarEvents}
-              contextualEvents={showSchoolHolidays ? contextualEvents : []}
+              contextualEvents={contextualEvents}
               onActionClick={onActionClick}
               onDateClick={onDateClick}
               onActionDrop={onActionDrop}
@@ -274,7 +315,7 @@ export function ActionsCalendar({
             <CalendarDayView
               currentDate={currentDate}
               events={calendarEvents}
-              contextualEvents={showSchoolHolidays ? contextualEvents : []}
+              contextualEvents={contextualEvents}
               onActionClick={onActionClick}
               onDateClick={onDateClick}
               onActionDrop={onActionDrop}
@@ -300,6 +341,18 @@ export function ActionsCalendar({
                 <div className="h-3 w-3 rounded-sm bg-orange-500/20 border border-dashed border-orange-500" />
                 <span className="text-xs text-muted-foreground">Vacances scolaires</span>
               </div>
+            )}
+            {showFootballMatches && (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-3 rounded-sm bg-green-600/20 border border-dashed border-green-600" />
+                  <span className="text-xs text-muted-foreground">Ligue 1</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-3 rounded-sm bg-blue-600/20 border border-dashed border-blue-600" />
+                  <span className="text-xs text-muted-foreground">Champions League</span>
+                </div>
+              </>
             )}
           </div>
         </div>
