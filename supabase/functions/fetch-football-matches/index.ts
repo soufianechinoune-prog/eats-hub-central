@@ -5,14 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// French teams in Champions League 2024-25 season
-const CHAMPIONS_LEAGUE_TEAMS = [
-  { id: 85, name: "Paris Saint-Germain" },
-  { id: 79, name: "LOSC Lille" },
-  { id: 91, name: "AS Monaco" },
-  { id: 106, name: "Stade Brestois" },
-];
-
 interface Match {
   id: string;
   home_team: string;
@@ -27,83 +19,167 @@ interface Match {
   status: string;
 }
 
+// Static Champions League 2024-25 data for French teams
+// This is a temporary solution while waiting for RapidAPI approval
+const STATIC_MATCHES: Match[] = [
+  // Journée 6 - 10-11 décembre 2024
+  {
+    id: "ucl-2024-j6-psg",
+    home_team: "Red Bull Salzburg",
+    away_team: "Paris Saint-Germain",
+    home_team_logo: "https://media.api-sports.io/football/teams/571.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/85.png",
+    date: "2024-12-10",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "Red Bull Arena",
+    status: "NS",
+  },
+  {
+    id: "ucl-2024-j6-lille",
+    home_team: "LOSC Lille",
+    away_team: "Sturm Graz",
+    home_team_logo: "https://media.api-sports.io/football/teams/79.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/2381.png",
+    date: "2024-12-10",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "Stade Pierre-Mauroy",
+    status: "NS",
+  },
+  {
+    id: "ucl-2024-j6-monaco",
+    home_team: "AS Monaco",
+    away_team: "Benfica",
+    home_team_logo: "https://media.api-sports.io/football/teams/91.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/211.png",
+    date: "2024-12-10",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "Stade Louis II",
+    status: "NS",
+  },
+  {
+    id: "ucl-2024-j6-brest",
+    home_team: "Stade Brestois",
+    away_team: "PSV Eindhoven",
+    home_team_logo: "https://media.api-sports.io/football/teams/106.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/197.png",
+    date: "2024-12-11",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "Stade Francis-Le Blé",
+    status: "NS",
+  },
+  // Journée 7 - 21-22 janvier 2025
+  {
+    id: "ucl-2025-j7-psg",
+    home_team: "Paris Saint-Germain",
+    away_team: "Manchester City",
+    home_team_logo: "https://media.api-sports.io/football/teams/85.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/50.png",
+    date: "2025-01-22",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "Parc des Princes",
+    status: "NS",
+  },
+  {
+    id: "ucl-2025-j7-lille",
+    home_team: "Liverpool",
+    away_team: "LOSC Lille",
+    home_team_logo: "https://media.api-sports.io/football/teams/40.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/79.png",
+    date: "2025-01-21",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "Anfield",
+    status: "NS",
+  },
+  {
+    id: "ucl-2025-j7-monaco",
+    home_team: "Aston Villa",
+    away_team: "AS Monaco",
+    home_team_logo: "https://media.api-sports.io/football/teams/66.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/91.png",
+    date: "2025-01-21",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "Villa Park",
+    status: "NS",
+  },
+  {
+    id: "ucl-2025-j7-brest",
+    home_team: "Real Madrid",
+    away_team: "Stade Brestois",
+    home_team_logo: "https://media.api-sports.io/football/teams/541.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/106.png",
+    date: "2025-01-29",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "Santiago Bernabéu",
+    status: "NS",
+  },
+  // Journée 8 - 29 janvier 2025
+  {
+    id: "ucl-2025-j8-psg",
+    home_team: "VfB Stuttgart",
+    away_team: "Paris Saint-Germain",
+    home_team_logo: "https://media.api-sports.io/football/teams/172.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/85.png",
+    date: "2025-01-29",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "MHPArena",
+    status: "NS",
+  },
+  {
+    id: "ucl-2025-j8-lille",
+    home_team: "LOSC Lille",
+    away_team: "Feyenoord",
+    home_team_logo: "https://media.api-sports.io/football/teams/79.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/215.png",
+    date: "2025-01-29",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "Stade Pierre-Mauroy",
+    status: "NS",
+  },
+  {
+    id: "ucl-2025-j8-monaco",
+    home_team: "AS Monaco",
+    away_team: "Inter Milan",
+    home_team_logo: "https://media.api-sports.io/football/teams/91.png",
+    away_team_logo: "https://media.api-sports.io/football/teams/505.png",
+    date: "2025-01-29",
+    time: "21:00",
+    competition: "Champions League",
+    competition_logo: "https://media.api-sports.io/football/leagues/2.png",
+    venue: "Stade Louis II",
+    status: "NS",
+  },
+];
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const RAPIDAPI_KEY = Deno.env.get('RAPIDAPI_KEY');
-    
-    if (!RAPIDAPI_KEY) {
-      throw new Error('RAPIDAPI_KEY is not configured');
-    }
+    console.log('Returning static Champions League 2024-25 matches for French teams');
+    console.log(`Total matches: ${STATIC_MATCHES.length}`);
 
-    console.log('Fetching Champions League matches');
-
-    const allMatches: Match[] = [];
-    // Use 2024 season (2024-25 season runs Aug 2024 - May 2025)
-    const season = 2024;
-
-    // Fetch Champions League matches for French teams only
-    for (const team of CHAMPIONS_LEAGUE_TEAMS) {
-      try {
-        const url = `https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${team.id}&season=${season}&league=2`;
-        console.log(`Fetching Champions League for ${team.name}:`, url);
-        
-        const response = await fetch(url, {
-          headers: {
-            'X-RapidAPI-Key': RAPIDAPI_KEY,
-            'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com',
-          },
-        });
-
-        if (!response.ok) {
-          console.error(`API error for ${team.name}: ${response.status}`);
-          // If rate limited, wait longer and continue
-          if (response.status === 429) {
-            console.log('Rate limited, waiting 2 seconds...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-          continue;
-        }
-
-        const data = await response.json();
-        console.log(`Got ${data.response?.length || 0} matches for ${team.name}`);
-        
-        if (data.response && Array.isArray(data.response)) {
-          for (const fixture of data.response) {
-            allMatches.push({
-              id: `ucl-${fixture.fixture.id}`,
-              home_team: fixture.teams.home.name,
-              away_team: fixture.teams.away.name,
-              home_team_logo: fixture.teams.home.logo,
-              away_team_logo: fixture.teams.away.logo,
-              date: fixture.fixture.date.split('T')[0],
-              time: fixture.fixture.date.split('T')[1]?.substring(0, 5) || '21:00',
-              competition: 'Champions League',
-              competition_logo: fixture.league.logo,
-              venue: fixture.fixture.venue?.name || '',
-              status: fixture.fixture.status.short,
-            });
-          }
-        }
-
-        // Longer delay between requests to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (err) {
-        console.error(`Error fetching CL for ${team.name}:`, err);
-      }
-    }
-
-    // Deduplicate matches (same match can appear for both teams)
-    const uniqueMatches = Array.from(
-      new Map(allMatches.map(m => [m.id, m])).values()
-    );
-
-    console.log(`Returning ${uniqueMatches.length} unique Champions League matches`);
-
-    return new Response(JSON.stringify({ matches: uniqueMatches }), {
+    return new Response(JSON.stringify({ matches: STATIC_MATCHES }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error: unknown) {
