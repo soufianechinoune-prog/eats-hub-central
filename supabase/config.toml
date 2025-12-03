@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.fetch-school-holidays]
 verify_jwt = false
+
+[functions.fetch-football-matches]
+verify_jwt = false
