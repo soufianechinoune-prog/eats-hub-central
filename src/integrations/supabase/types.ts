@@ -1324,6 +1324,179 @@ export type Database = {
           },
         ]
       }
+      payouts: {
+        Row: {
+          bag_fee: number | null
+          created_at: string
+          currency: string | null
+          delivery_cost_excl_vat: number | null
+          delivery_cost_incl_vat: number | null
+          delivery_fee_gain: number | null
+          delivery_promo_excl_vat: number | null
+          delivery_promo_incl_vat: number | null
+          id: string
+          item_promo_excl_vat: number | null
+          item_promo_incl_vat: number | null
+          marketing_fee_adjustment: number | null
+          meal_voucher_amount: number | null
+          merchant_delivery_fee_excl_vat: number | null
+          merchant_delivery_fee_incl_vat: number | null
+          net_payout: number | null
+          order_count: number | null
+          order_total_incl_vat: number | null
+          other_payments_count: number | null
+          other_payments_incl_vat: number | null
+          packaging_fee: number | null
+          payout_date: string
+          payout_reference_id: string
+          price_adjustment_excl_vat: number | null
+          price_adjustment_incl_vat: number | null
+          refund_excl_vat: number | null
+          refund_incl_vat: number | null
+          restaurant_id: string
+          sales_excl_vat: number | null
+          sales_incl_vat: number | null
+          tips: number | null
+          uber_fee_after_promo_excl_vat: number | null
+          uber_fee_after_promo_incl_vat: number | null
+          uber_fee_before_promo_excl_vat: number | null
+          uber_fee_promo_excl_vat: number | null
+          uber_store_id: string | null
+          vat_1_item_promo: number | null
+          vat_1_merchant_delivery: number | null
+          vat_1_sales: number | null
+          vat_2_item_promo: number | null
+          vat_2_merchant_delivery: number | null
+          vat_2_sales: number | null
+          vat_3_item_promo: number | null
+          vat_3_merchant_delivery: number | null
+          vat_3_sales: number | null
+          vat_adjustment: number | null
+          vat_delivery_cost: number | null
+          vat_delivery_promo: number | null
+          vat_packaging_fee: number | null
+          vat_price_adjustment: number | null
+          vat_refund: number | null
+          vat_uber_fee: number | null
+        }
+        Insert: {
+          bag_fee?: number | null
+          created_at?: string
+          currency?: string | null
+          delivery_cost_excl_vat?: number | null
+          delivery_cost_incl_vat?: number | null
+          delivery_fee_gain?: number | null
+          delivery_promo_excl_vat?: number | null
+          delivery_promo_incl_vat?: number | null
+          id?: string
+          item_promo_excl_vat?: number | null
+          item_promo_incl_vat?: number | null
+          marketing_fee_adjustment?: number | null
+          meal_voucher_amount?: number | null
+          merchant_delivery_fee_excl_vat?: number | null
+          merchant_delivery_fee_incl_vat?: number | null
+          net_payout?: number | null
+          order_count?: number | null
+          order_total_incl_vat?: number | null
+          other_payments_count?: number | null
+          other_payments_incl_vat?: number | null
+          packaging_fee?: number | null
+          payout_date: string
+          payout_reference_id: string
+          price_adjustment_excl_vat?: number | null
+          price_adjustment_incl_vat?: number | null
+          refund_excl_vat?: number | null
+          refund_incl_vat?: number | null
+          restaurant_id: string
+          sales_excl_vat?: number | null
+          sales_incl_vat?: number | null
+          tips?: number | null
+          uber_fee_after_promo_excl_vat?: number | null
+          uber_fee_after_promo_incl_vat?: number | null
+          uber_fee_before_promo_excl_vat?: number | null
+          uber_fee_promo_excl_vat?: number | null
+          uber_store_id?: string | null
+          vat_1_item_promo?: number | null
+          vat_1_merchant_delivery?: number | null
+          vat_1_sales?: number | null
+          vat_2_item_promo?: number | null
+          vat_2_merchant_delivery?: number | null
+          vat_2_sales?: number | null
+          vat_3_item_promo?: number | null
+          vat_3_merchant_delivery?: number | null
+          vat_3_sales?: number | null
+          vat_adjustment?: number | null
+          vat_delivery_cost?: number | null
+          vat_delivery_promo?: number | null
+          vat_packaging_fee?: number | null
+          vat_price_adjustment?: number | null
+          vat_refund?: number | null
+          vat_uber_fee?: number | null
+        }
+        Update: {
+          bag_fee?: number | null
+          created_at?: string
+          currency?: string | null
+          delivery_cost_excl_vat?: number | null
+          delivery_cost_incl_vat?: number | null
+          delivery_fee_gain?: number | null
+          delivery_promo_excl_vat?: number | null
+          delivery_promo_incl_vat?: number | null
+          id?: string
+          item_promo_excl_vat?: number | null
+          item_promo_incl_vat?: number | null
+          marketing_fee_adjustment?: number | null
+          meal_voucher_amount?: number | null
+          merchant_delivery_fee_excl_vat?: number | null
+          merchant_delivery_fee_incl_vat?: number | null
+          net_payout?: number | null
+          order_count?: number | null
+          order_total_incl_vat?: number | null
+          other_payments_count?: number | null
+          other_payments_incl_vat?: number | null
+          packaging_fee?: number | null
+          payout_date?: string
+          payout_reference_id?: string
+          price_adjustment_excl_vat?: number | null
+          price_adjustment_incl_vat?: number | null
+          refund_excl_vat?: number | null
+          refund_incl_vat?: number | null
+          restaurant_id?: string
+          sales_excl_vat?: number | null
+          sales_incl_vat?: number | null
+          tips?: number | null
+          uber_fee_after_promo_excl_vat?: number | null
+          uber_fee_after_promo_incl_vat?: number | null
+          uber_fee_before_promo_excl_vat?: number | null
+          uber_fee_promo_excl_vat?: number | null
+          uber_store_id?: string | null
+          vat_1_item_promo?: number | null
+          vat_1_merchant_delivery?: number | null
+          vat_1_sales?: number | null
+          vat_2_item_promo?: number | null
+          vat_2_merchant_delivery?: number | null
+          vat_2_sales?: number | null
+          vat_3_item_promo?: number | null
+          vat_3_merchant_delivery?: number | null
+          vat_3_sales?: number | null
+          vat_adjustment?: number | null
+          vat_delivery_cost?: number | null
+          vat_delivery_promo?: number | null
+          vat_packaging_fee?: number | null
+          vat_price_adjustment?: number | null
+          vat_refund?: number | null
+          vat_uber_fee?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payouts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       price_history: {
         Row: {
           changed_at: string

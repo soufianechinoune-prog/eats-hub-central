@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 const REPORT_TYPES = [
   { value: "payment_order_level", label: "Informations de paiement (niveau commande)", description: "Détail financier par commande" },
   { value: "payment_item_level", label: "Informations de paiement (niveau articles)", description: "Détail par article commandé" },
-  { value: "payout_summary", label: "Récapitulatif des versements", description: "Résumé des versements Uber", disabled: true },
+  { value: "payout_summary", label: "Récapitulatif des versements", description: "Résumé agrégé par versement" },
 ];
 
 interface ParsedRow {
@@ -168,7 +168,11 @@ export default function ReportImport() {
 
     try {
       // Choose the appropriate edge function based on report type
-      const functionName = reportType === "payment_item_level" ? "parse-item-report" : "parse-payment-report";
+      const functionName = reportType === "payment_item_level" 
+        ? "parse-item-report" 
+        : reportType === "payout_summary"
+          ? "parse-payout-summary"
+          : "parse-payment-report";
       
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
@@ -185,7 +189,9 @@ export default function ReportImport() {
       if (data.success) {
         const statsMessage = reportType === "payment_item_level"
           ? `${data.stats?.inserted || 0} articles insérés, ${data.stats?.updated || 0} mis à jour, ${data.stats?.orphaned || 0} orphelins`
-          : `${data.stats?.inserted || 0} commandes insérées, ${data.stats?.updated || 0} mises à jour`;
+          : reportType === "payout_summary"
+            ? `${data.results?.inserted || 0} versements importés`
+            : `${data.stats?.inserted || 0} commandes insérées, ${data.stats?.updated || 0} mises à jour`;
         toast({
           title: "Import réussi",
           description: statsMessage,

@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.parse-item-report]
 verify_jwt = false
+
+[functions.parse-payout-summary]
+verify_jwt = false
