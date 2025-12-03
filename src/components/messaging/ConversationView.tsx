@@ -67,6 +67,7 @@ import {
 import { useVoiceRecorder, formatRecordingTime } from "@/hooks/useVoiceRecorder";
 import { AudioPlayer } from "@/components/messaging/AudioPlayer";
 import { useMessageNotifications } from "@/hooks/useMessageNotifications";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface Message {
   id: string;
@@ -1370,13 +1371,42 @@ export default function ConversationView() {
                               </motion.div>
                             )}
                           </AnimatePresence>
+                          {/* Sender label for first message in group */}
+                          {(() => {
+                            const sortedMessages = selectedConversation?.messages || [];
+                            const msgIndex = sortedMessages.findIndex(m => m.id === msg.id);
+                            const prevMsg = msgIndex > 0 ? sortedMessages[msgIndex - 1] : null;
+                            const isFirstInGroup = !prevMsg || prevMsg.direction !== msg.direction;
+                            const managerName = selectedConversation?.restaurantName?.split(' ')[0] || 'Manager';
+                            
+                            return isFirstInGroup && (
+                              <div className={cn(
+                                "flex items-center gap-2 mb-1 text-xs font-medium",
+                                isOutbound ? "justify-end pr-12" : "justify-start pl-12"
+                              )}>
+                                <span className={isOutbound ? "text-whatsapp" : "text-muted-foreground"}>
+                                  {isOutbound ? "CS Advisor" : managerName}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                          
                           <motion.div 
-                            className={cn("flex group", isOutbound ? "justify-end" : "justify-start")}
+                            className={cn("flex group items-end gap-2", isOutbound ? "justify-end" : "justify-start")}
                             variants={messageVariants}
                             initial="hidden"
                             animate="visible"
                             layout
                           >
+                            {/* Avatar for inbound messages (left side) */}
+                            {!isOutbound && (
+                              <Avatar className="h-8 w-8 flex-shrink-0 border-2 border-secondary">
+                                <AvatarFallback className="bg-secondary text-secondary-foreground text-xs font-semibold">
+                                  {selectedConversation?.restaurantName?.charAt(0) || 'M'}
+                                </AvatarFallback>
+                              </Avatar>
+                            )}
+                            
                             <div className={cn(
                               "flex items-center gap-1",
                               isOutbound ? "flex-row" : "flex-row-reverse"
@@ -1405,10 +1435,10 @@ export default function ConversationView() {
 
                               <motion.div
                                 className={cn(
-                                  "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm relative",
+                                  "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-md relative",
                                   isOutbound
-                                    ? "bg-whatsapp-bubble-out text-foreground rounded-br-md"
-                                    : "bg-card text-foreground rounded-bl-md"
+                                    ? "bg-whatsapp text-white rounded-br-md"
+                                    : "bg-secondary/90 text-foreground rounded-bl-md border border-border/30"
                                 )}
                                 whileHover={{ scale: 1.01 }}
                                 transition={{ duration: 0.1 }}
@@ -1419,7 +1449,7 @@ export default function ConversationView() {
                                 <div
                                   className={cn(
                                     "flex items-center gap-1 mt-1 text-[11px]",
-                                    isOutbound ? "justify-end text-muted-foreground/70" : "text-muted-foreground/60"
+                                    isOutbound ? "justify-end text-white/70" : "text-muted-foreground"
                                   )}
                                 >
                                   <span>{format(new Date(msg.created_at), "HH:mm")}</span>
@@ -1427,6 +1457,15 @@ export default function ConversationView() {
                                 </div>
                               </motion.div>
                             </div>
+                            
+                            {/* Avatar for outbound messages (right side) */}
+                            {isOutbound && (
+                              <Avatar className="h-8 w-8 flex-shrink-0 border-2 border-whatsapp/30">
+                                <AvatarFallback className="bg-whatsapp text-white text-xs font-semibold">
+                                  CS
+                                </AvatarFallback>
+                              </Avatar>
+                            )}
                           </motion.div>
                         </div>
                       );
