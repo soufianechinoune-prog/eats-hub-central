@@ -74,7 +74,7 @@ export function ContextualEventsToggle({
       {/* Football Matches Toggle */}
       {onToggleFootballMatches && (
         <div className="flex items-center gap-3 pl-3 border-l border-muted">
-          <Trophy className="h-4 w-4 text-green-600" />
+          <Trophy className="h-4 w-4 text-blue-600" />
           <div className="flex items-center gap-2">
             <Switch
               id="football-matches"
@@ -87,28 +87,6 @@ export function ContextualEventsToggle({
             </Label>
             {footballLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
-          
-          {showFootballMatches && relevantTeams.length > 0 && (
-            <div className="flex items-center gap-1 flex-wrap">
-              {relevantTeams.slice(0, 3).map((team) => (
-                <Badge 
-                  key={team} 
-                  variant="outline" 
-                  className="text-xs bg-green-500/10 text-green-600 border-green-500/30"
-                >
-                  {team}
-                </Badge>
-              ))}
-              {relevantTeams.length > 3 && (
-                <Badge 
-                  variant="outline" 
-                  className="text-xs bg-green-500/10 text-green-600 border-green-500/30"
-                >
-                  +{relevantTeams.length - 3}
-                </Badge>
-              )}
-            </div>
-          )}
         </div>
       )}
     </motion.div>
