@@ -35,60 +35,17 @@ export interface FootballEvent {
   icon: string;
 }
 
-// Mapping cities to team names for filtering
-const CITY_TO_TEAM_NAME: Record<string, string[]> = {
-  "paris": ["Paris Saint-Germain", "PSG"],
-  "marseille": ["Olympique de Marseille", "Marseille"],
-  "lyon": ["Olympique Lyonnais", "Lyon"],
-  "monaco": ["AS Monaco", "Monaco"],
-  "lille": ["LOSC Lille", "Lille"],
-  "nice": ["OGC Nice", "Nice"],
-  "rennes": ["Stade Rennais", "Rennes"],
-  "lens": ["RC Lens", "Lens"],
-  "strasbourg": ["RC Strasbourg", "Strasbourg"],
-  "nantes": ["FC Nantes", "Nantes"],
-  "toulouse": ["Toulouse FC", "Toulouse"],
-  "montpellier": ["Montpellier HSC", "Montpellier"],
-  "reims": ["Stade de Reims", "Reims"],
-  "brest": ["Stade Brestois", "Brest"],
-  "le havre": ["Le Havre AC", "Le Havre"],
-  "auxerre": ["AJ Auxerre", "Auxerre"],
-  "saint-etienne": ["AS Saint-Étienne", "Saint-Étienne"],
-  "saint-étienne": ["AS Saint-Étienne", "Saint-Étienne"],
-  "angers": ["Angers SCO", "Angers"],
-};
+// French teams in Champions League 2024-25
+const CHAMPIONS_LEAGUE_TEAMS = ["Paris Saint-Germain", "PSG", "LOSC Lille", "Lille", "AS Monaco", "Monaco", "Stade Brestois", "Brest"];
 
 export function useFootballMatches(
   year: number,
-  restaurants: Restaurant[],
+  _restaurants: Restaurant[],
   enabled: boolean = true
 ) {
   const [matches, setMatches] = useState<FootballMatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Get cities from restaurants
-  const cities = useMemo(() => {
-    const citySet = new Set<string>();
-    restaurants.forEach(r => {
-      if (r.city) {
-        citySet.add(r.city.toLowerCase().trim());
-      }
-    });
-    return Array.from(citySet);
-  }, [restaurants]);
-
-  // Get team names relevant to restaurants
-  const relevantTeams = useMemo(() => {
-    const teams = new Set<string>();
-    cities.forEach(city => {
-      const teamNames = CITY_TO_TEAM_NAME[city];
-      if (teamNames) {
-        teamNames.forEach(t => teams.add(t));
-      }
-    });
-    return Array.from(teams);
-  }, [cities]);
 
   useEffect(() => {
     if (!enabled) {
@@ -102,7 +59,7 @@ export function useFootballMatches(
 
       try {
         const { data, error: fnError } = await supabase.functions.invoke('fetch-football-matches', {
-          body: { year, cities }
+          body: {}
         });
 
         if (fnError) throw fnError;
@@ -117,48 +74,45 @@ export function useFootballMatches(
     };
 
     fetchMatches();
-  }, [year, enabled, JSON.stringify(cities)]);
+  }, [year, enabled]);
 
-  // Filter and format matches as FootballEvents
+  // Format matches as FootballEvents - show all Champions League matches
   const footballEvents: FootballEvent[] = useMemo(() => {
     if (!enabled || matches.length === 0) return [];
 
-    return matches
-      .filter(match => {
-        // If no specific restaurants/cities, show all matches
-        if (relevantTeams.length === 0) return true;
-        // Show match if it involves a relevant team
-        return relevantTeams.some(team => 
-          match.home_team.includes(team) || match.away_team.includes(team)
-        );
-      })
-      .map(match => {
-        const isChampionsLeague = match.competition === 'Champions League';
-        return {
-          id: match.id,
-          title: `${match.home_team} vs ${match.away_team}`,
-          description: `${match.competition} • ${match.time} • ${match.venue}`,
-          start_date: match.date,
-          end_date: match.date, // Single day event
-          type: "football_match" as const,
-          teams: [match.home_team, match.away_team],
-          competition: match.competition,
-          time: match.time,
-          color: isChampionsLeague 
-            ? {
-                bg: "bg-blue-600/20",
-                text: "text-blue-700 dark:text-blue-300",
-                border: "border-blue-600",
-              }
-            : {
-                bg: "bg-green-600/20",
-                text: "text-green-700 dark:text-green-300",
-                border: "border-green-600",
-              },
-          icon: "⚽",
-        };
-      });
-  }, [matches, relevantTeams, enabled]);
+    return matches.map(match => ({
+      id: match.id,
+      title: `⚽ ${match.home_team} vs ${match.away_team}`,
+      description: `${match.competition} • ${match.time} • ${match.venue}`,
+      start_date: match.date,
+      end_date: match.date,
+      type: "football_match" as const,
+      teams: [match.home_team, match.away_team],
+      competition: match.competition,
+      time: match.time,
+      color: {
+        bg: "bg-blue-600/20",
+        text: "text-blue-700 dark:text-blue-300",
+        border: "border-blue-600",
+      },
+      icon: "⚽",
+    }));
+  }, [matches, enabled]);
+
+  // Return relevant teams for display
+  const relevantTeams = useMemo(() => {
+    if (!enabled || matches.length === 0) return [];
+    const teams = new Set<string>();
+    matches.forEach(m => {
+      if (CHAMPIONS_LEAGUE_TEAMS.some(t => m.home_team.includes(t))) {
+        teams.add(m.home_team);
+      }
+      if (CHAMPIONS_LEAGUE_TEAMS.some(t => m.away_team.includes(t))) {
+        teams.add(m.away_team);
+      }
+    });
+    return Array.from(teams).slice(0, 4); // Max 4 teams
+  }, [matches, enabled]);
 
   return {
     footballEvents,

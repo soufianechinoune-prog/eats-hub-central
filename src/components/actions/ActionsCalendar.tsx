@@ -343,16 +343,10 @@ export function ActionsCalendar({
               </div>
             )}
             {showFootballMatches && (
-              <>
-                <div className="flex items-center gap-1.5">
-                  <div className="h-3 w-3 rounded-sm bg-green-600/20 border border-dashed border-green-600" />
-                  <span className="text-xs text-muted-foreground">Ligue 1</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="h-3 w-3 rounded-sm bg-blue-600/20 border border-dashed border-blue-600" />
-                  <span className="text-xs text-muted-foreground">Champions League</span>
-                </div>
-              </>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded-sm bg-blue-600/20 border border-dashed border-blue-600" />
+                <span className="text-xs text-muted-foreground">Champions League</span>
+              </div>
             )}
           </div>
         </div>
