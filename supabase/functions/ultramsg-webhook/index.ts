@@ -577,7 +577,7 @@ CAPACITÉS:
 7. Fournir des conseils d'amélioration basés sur toutes ces données
 8. PRÉDIRE LES JOURS DE RUSH basés sur les événements et tendances historiques
 9. CRÉER DES ACTIONS - Ajoute ce tag: [ACTION:Titre|YYYY-MM-DD|categorie]
-   Catégories: marketing, menu, promotion, operation, other
+   Catégories disponibles: marketing, menu, promotions, operational, pricing, visuals
 10. ENVOYER UN RAPPORT - Ajoute ce tag: [RAPPORT:type] (types: semaine, mois)
 
 RÈGLES:
@@ -757,10 +757,20 @@ async function parseAndCreateAction(
   for (const match of matches) {
     const [fullMatch, title, date, category] = match;
     
-    // Validate category
-    const validCategories = ['marketing', 'menu', 'promotion', 'operation', 'other'];
+    // Validate and map category to valid database values
+    const validCategories = ['marketing', 'menu', 'promotions', 'operational', 'pricing', 'visuals'];
+    const categoryMapping: Record<string, string> = {
+      'operation': 'operational',
+      'promotion': 'promotions',
+      'promo': 'promotions',
+      'tarif': 'pricing',
+      'prix': 'pricing',
+      'visual': 'visuals',
+      'other': 'operational',
+    };
     const normalizedCategory = category.toLowerCase().trim();
-    const finalCategory = validCategories.includes(normalizedCategory) ? normalizedCategory : 'other';
+    const mappedCategory = categoryMapping[normalizedCategory] || normalizedCategory;
+    const finalCategory = validCategories.includes(mappedCategory) ? mappedCategory : 'operational';
     
     try {
       // Create the action in database
