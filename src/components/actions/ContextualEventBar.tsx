@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { ContextualEvent } from "@/hooks/useSchoolHolidays";
 
@@ -14,6 +14,18 @@ interface ContextualEventBarProps {
 export function ContextualEventBar({ event, compact = false }: ContextualEventBarProps) {
   const startDate = parseISO(event.start_date);
   const endDate = parseISO(event.end_date);
+  const isSingleDay = isSameDay(startDate, endDate);
+  
+  // Get zone badge color based on event type
+  const getZoneBadgeClass = () => {
+    if (event.type === "public_holiday") {
+      return "bg-red-500/10 text-red-600 border-red-500/30";
+    }
+    if (event.type === "football_match") {
+      return "bg-blue-500/10 text-blue-600 border-blue-500/30";
+    }
+    return "bg-orange-500/10 text-orange-600 border-orange-500/30";
+  };
   
   return (
     <Tooltip>
@@ -43,15 +55,26 @@ export function ContextualEventBar({ event, compact = false }: ContextualEventBa
             <span className="font-semibold">{event.title}</span>
           </div>
           <div className="text-xs text-muted-foreground">
-            Du {format(startDate, "d MMMM", { locale: fr })} au {format(endDate, "d MMMM yyyy", { locale: fr })}
+            {isSingleDay 
+              ? format(startDate, "EEEE d MMMM yyyy", { locale: fr })
+              : `Du ${format(startDate, "d MMMM", { locale: fr })} au ${format(endDate, "d MMMM yyyy", { locale: fr })}`
+            }
           </div>
+          {event.type === "public_holiday" && (
+            <Badge 
+              variant="outline" 
+              className="text-xs bg-red-500/10 text-red-600 border-red-500/30"
+            >
+              Jour férié
+            </Badge>
+          )}
           {event.zones.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {event.zones.map((zone) => (
                 <Badge 
                   key={zone} 
                   variant="outline" 
-                  className="text-xs bg-orange-500/10 text-orange-600 border-orange-500/30"
+                  className={cn("text-xs", getZoneBadgeClass())}
                 >
                   {zone}
                 </Badge>

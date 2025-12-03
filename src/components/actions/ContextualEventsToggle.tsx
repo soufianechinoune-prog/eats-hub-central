@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, GraduationCap, Trophy } from "lucide-react";
+import { Loader2, GraduationCap, Trophy, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ContextualEventsToggleProps {
@@ -10,6 +10,8 @@ interface ContextualEventsToggleProps {
   onToggleSchoolHolidays: (value: boolean) => void;
   showFootballMatches?: boolean;
   onToggleFootballMatches?: (value: boolean) => void;
+  showPublicHolidays?: boolean;
+  onTogglePublicHolidays?: (value: boolean) => void;
   loading?: boolean;
   footballLoading?: boolean;
   relevantZones?: string[];
@@ -21,6 +23,8 @@ export function ContextualEventsToggle({
   onToggleSchoolHolidays,
   showFootballMatches = false,
   onToggleFootballMatches,
+  showPublicHolidays = false,
+  onTogglePublicHolidays,
   loading = false,
   footballLoading = false,
   relevantZones = [],
@@ -32,13 +36,30 @@ export function ContextualEventsToggle({
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         "flex flex-wrap items-center gap-4 px-4 py-3 rounded-lg border",
-        "bg-gradient-to-r from-orange-500/5 via-green-500/5 to-amber-500/5",
+        "bg-gradient-to-r from-orange-500/5 via-red-500/5 to-blue-500/5",
         "border-muted"
       )}
     >
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">Événements contextuels</span>
       </div>
+      
+      {/* Public Holidays Toggle */}
+      {onTogglePublicHolidays && (
+        <div className="flex items-center gap-3 pl-3 border-l border-muted">
+          <Flag className="h-4 w-4 text-red-500" />
+          <div className="flex items-center gap-2">
+            <Switch
+              id="public-holidays"
+              checked={showPublicHolidays}
+              onCheckedChange={onTogglePublicHolidays}
+            />
+            <Label htmlFor="public-holidays" className="text-sm cursor-pointer">
+              Jours fériés
+            </Label>
+          </div>
+        </div>
+      )}
       
       {/* School Holidays Toggle */}
       <div className="flex items-center gap-3 pl-3 border-l border-muted">
