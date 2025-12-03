@@ -20,21 +20,118 @@ const formatPhoneForUltramsg = (phone: string): string => {
   return formatted;
 };
 
+// Mapping des départements vers les zones scolaires
+const DEPARTMENT_TO_ZONE: Record<string, string> = {
+  // Zone A
+  "01": "A", "03": "A", "07": "A", "15": "A", "26": "A", "38": "A", "42": "A",
+  "43": "A", "63": "A", "69": "A", "73": "A", "74": "A",
+  "21": "A", "25": "A", "39": "A", "58": "A", "70": "A", "71": "A", "89": "A", "90": "A",
+  "24": "A", "33": "A", "40": "A", "47": "A", "64": "A",
+  "19": "A", "23": "A", "87": "A",
+  "16": "A", "17": "A", "79": "A", "86": "A",
+  // Zone B
+  "14": "B", "27": "B", "50": "B", "61": "B", "76": "B",
+  "02": "B", "59": "B", "60": "B", "62": "B", "80": "B",
+  "08": "B", "10": "B", "51": "B", "52": "B", "54": "B", "55": "B", "57": "B",
+  "67": "B", "68": "B", "88": "B",
+  "18": "B", "28": "B", "36": "B", "37": "B", "41": "B", "45": "B",
+  "22": "B", "29": "B", "35": "B", "56": "B",
+  "44": "B", "49": "B", "53": "B", "72": "B", "85": "B",
+  // Zone C
+  "75": "C", "77": "C", "78": "C", "91": "C", "92": "C", "93": "C", "94": "C", "95": "C",
+  "09": "C", "11": "C", "12": "C", "30": "C", "31": "C", "32": "C", "34": "C",
+  "46": "C", "48": "C", "65": "C", "66": "C", "81": "C", "82": "C",
+  "04": "C", "05": "C", "06": "C", "13": "C", "83": "C", "84": "C",
+  "2A": "C", "2B": "C",
+};
+
+// Get school zone from postal code
+const getSchoolZoneFromPostalCode = (postalCode: string | null): string | null => {
+  if (!postalCode || postalCode.length < 2) return null;
+  const dept = postalCode.substring(0, 2);
+  return DEPARTMENT_TO_ZONE[dept] || null;
+};
+
 // Check if the message looks like a query (not just a simple response)
 const isQueryMessage = (message: string): boolean => {
   const simpleResponses = /^(ok|oui|non|👍|✅|❌|merci|super|parfait|cool|d'accord|top|nice|bien)$/i;
   if (simpleResponses.test(message.trim())) return false;
   if (message.length < 4) return false;
   
-  // Keywords that indicate a query - enriched with new data types
-  const queryKeywords = /\b(quel|combien|comment|pourquoi|quand|où|ca|chiffre|commande|panier|conversion|rapport|hier|aujourd|semaine|mois|performance|vente|revenue|stat|note|avis|client|plat|produit|erreur|temps|prépa|préparation|livraison|retard|fermeture|downtime|top|flop|meilleur|pire|améliorer)/i;
+  // Keywords that indicate a query - enriched with new data types AND rush/prediction
+  const queryKeywords = /\b(quel|combien|comment|pourquoi|quand|où|ca|chiffre|commande|panier|conversion|rapport|hier|aujourd|semaine|mois|performance|vente|revenue|stat|note|avis|client|plat|produit|erreur|temps|prépa|préparation|livraison|retard|fermeture|downtime|top|flop|meilleur|pire|améliorer|rush|chargé|achalandage|prévision|anticiper|événement|match|foot|vacances|fête|férié)/i;
   const questionMark = message.includes('?');
   
   return queryKeywords.test(message) || questionMark || message.length > 10;
 };
 
+// Fetch contextual events (school holidays + football matches)
+async function fetchContextualEvents(
+  supabaseUrl: string, 
+  postalCode: string | null
+): Promise<{ holidays: any[]; matches: any[]; zone: string | null }> {
+  const zone = getSchoolZoneFromPostalCode(postalCode);
+  const now = new Date();
+  const in14Days = new Date(now);
+  in14Days.setDate(in14Days.getDate() + 14);
+
+  let holidays: any[] = [];
+  let matches: any[] = [];
+
+  try {
+    // Fetch school holidays
+    const holidaysResponse = await fetch(
+      `${supabaseUrl}/functions/v1/fetch-school-holidays`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: now.getFullYear() })
+      }
+    );
+    
+    if (holidaysResponse.ok) {
+      const holidaysData = await holidaysResponse.json();
+      if (holidaysData.holidays) {
+        holidays = holidaysData.holidays.filter((h: any) => {
+          const startDate = new Date(h.start_date);
+          const endDate = new Date(h.end_date);
+          // Event is upcoming or ongoing
+          const isRelevant = endDate >= now && startDate <= in14Days;
+          // Event concerns this zone (or all zones if not specified)
+          const concernsZone = !zone || h.zones?.length === 0 || h.zones?.includes(`Zone ${zone}`);
+          return isRelevant && concernsZone;
+        }).slice(0, 3); // Limit to 3 events
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching school holidays:', e);
+  }
+
+  try {
+    // Fetch football matches
+    const matchesResponse = await fetch(
+      `${supabaseUrl}/functions/v1/fetch-football-matches`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+    );
+    
+    if (matchesResponse.ok) {
+      const matchesData = await matchesResponse.json();
+      if (matchesData.matches) {
+        matches = matchesData.matches.filter((m: any) => {
+          const matchDate = new Date(m.date);
+          return matchDate >= now && matchDate <= in14Days;
+        }).slice(0, 3); // Limit to 3 matches
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching football matches:', e);
+  }
+
+  return { holidays, matches, zone };
+}
+
 // Fetch restaurant performance data - ENRICHED with all available data
-async function fetchRestaurantData(supabase: any, restaurantId: string) {
+async function fetchRestaurantData(supabase: any, restaurantId: string, supabaseUrl: string, postalCode: string | null) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
@@ -42,6 +139,9 @@ async function fetchRestaurantData(supabase: any, restaurantId: string) {
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split('T')[0];
   const monthStart = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+
+  // Fetch contextual events in parallel with other queries
+  const contextualEventsPromise = fetchContextualEvents(supabaseUrl, postalCode);
 
   // Fetch monthly revenue for current month
   const { data: currentMonthRevenue } = await supabase
@@ -253,6 +353,9 @@ async function fetchRestaurantData(supabase: any, restaurantId: string) {
     downtimeStats.reasons = [...new Set(downtimeLogs.map((d: any) => d.reason as string).filter(Boolean))].slice(0, 3) as string[];
   }
 
+  // Await contextual events
+  const contextualEvents = await contextualEventsPromise;
+
   return {
     currentMonthData: {
       revenue: currentMonthRevenue?.revenue_ttc || 0,
@@ -291,6 +394,8 @@ async function fetchRestaurantData(supabase: any, restaurantId: string) {
     errors: errorStats,
     delivery: deliveryMetrics,
     downtime: downtimeStats,
+    // Contextual events for rush prediction
+    contextualEvents,
     currentYear,
     currentMonth,
   };
@@ -335,6 +440,68 @@ function buildManagerPrompt(restaurant: any, data: any): string {
   const downtimeReasons = data.downtime.reasons.length > 0
     ? data.downtime.reasons.join(', ')
     : 'Aucune';
+
+  // Format contextual events (school holidays + football matches)
+  const events = data.contextualEvents;
+  let eventsSection = '';
+  
+  if (events) {
+    const holidayLines: string[] = [];
+    const matchLines: string[] = [];
+    
+    // Format holidays
+    if (events.holidays && events.holidays.length > 0) {
+      events.holidays.forEach((h: any) => {
+        const startDate = new Date(h.start_date);
+        const endDate = new Date(h.end_date);
+        const now = new Date();
+        const isOngoing = startDate <= now && endDate >= now;
+        const status = isOngoing ? '🟢 EN COURS' : `📅 ${startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
+        holidayLines.push(`- ${h.description} (${status})`);
+      });
+    }
+    
+    // Format matches
+    if (events.matches && events.matches.length > 0) {
+      events.matches.forEach((m: any) => {
+        const matchDate = new Date(m.date);
+        const dateStr = matchDate.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+        const timeStr = matchDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        matchLines.push(`- ${m.homeTeam} vs ${m.awayTeam} (${dateStr} ${timeStr})`);
+      });
+    }
+
+    if (holidayLines.length > 0 || matchLines.length > 0) {
+      eventsSection = `
+📅 ÉVÉNEMENTS À VENIR (prochains 14 jours):
+${events.zone ? `Zone scolaire: ${events.zone}` : ''}
+${holidayLines.length > 0 ? '🏫 Vacances scolaires:\n' + holidayLines.join('\n') : ''}
+${matchLines.length > 0 ? '⚽ Matchs Champions League:\n' + matchLines.join('\n') : ''}
+
+📊 TENDANCES HISTORIQUES (jours de rush typiques):
+- Vendredi soir: +35% commandes
+- Samedi midi et soir: +45% commandes
+- Dimanche soir: +20% commandes
+- Heures de pointe: 12h-14h, 19h-21h
+
+`;
+    }
+  }
+
+  // If no events, still add rush trends
+  if (!eventsSection) {
+    eventsSection = `
+📅 ÉVÉNEMENTS À VENIR:
+Pas d'événement majeur détecté dans les 14 prochains jours.
+
+📊 TENDANCES HISTORIQUES (jours de rush typiques):
+- Vendredi soir: +35% commandes
+- Samedi midi et soir: +45% commandes
+- Dimanche soir: +20% commandes
+- Heures de pointe: 12h-14h, 19h-21h
+
+`;
+  }
 
   return `Tu es l'assistant WhatsApp intelligent du restaurant "${restaurant.name}" de la chaîne Chicken Street.
 
@@ -399,7 +566,7 @@ ${flopDishesText}
 
 📋 ACTIONS RÉCENTES:
 ${actionsText}
-
+${eventsSection}
 CAPACITÉS:
 1. Répondre aux questions sur les performances (CA, commandes, conversion, frais)
 2. Informer sur les avis clients et la note du restaurant
@@ -408,9 +575,10 @@ CAPACITÉS:
 5. Donner les temps de préparation et retards
 6. Informer sur les temps d'arrêt et fermetures
 7. Fournir des conseils d'amélioration basés sur toutes ces données
-8. CRÉER DES ACTIONS - Ajoute ce tag: [ACTION:Titre|YYYY-MM-DD|categorie]
+8. PRÉDIRE LES JOURS DE RUSH basés sur les événements et tendances historiques
+9. CRÉER DES ACTIONS - Ajoute ce tag: [ACTION:Titre|YYYY-MM-DD|categorie]
    Catégories: marketing, menu, promotion, operation, other
-9. ENVOYER UN RAPPORT - Ajoute ce tag: [RAPPORT:type] (types: semaine, mois)
+10. ENVOYER UN RAPPORT - Ajoute ce tag: [RAPPORT:type] (types: semaine, mois)
 
 RÈGLES:
 - CONCIS et DIRECT (c'est WhatsApp)
@@ -453,6 +621,8 @@ function detectIntent(query: string): { intent: string; entities: Record<string,
     entities.metric = 'delivery';
   } else if (lowerQuery.includes('fermeture') || lowerQuery.includes('arrêt') || lowerQuery.includes('downtime') || lowerQuery.includes('fermé')) {
     entities.metric = 'downtime';
+  } else if (lowerQuery.includes('rush') || lowerQuery.includes('chargé') || lowerQuery.includes('achalandage') || lowerQuery.includes('prévision') || lowerQuery.includes('anticiper') || lowerQuery.includes('événement') || lowerQuery.includes('match') || lowerQuery.includes('foot') || lowerQuery.includes('vacances') || lowerQuery.includes('fête') || lowerQuery.includes('férié')) {
+    entities.metric = 'rush_prediction';
   }
   
   // Detect intent
@@ -466,6 +636,8 @@ function detectIntent(query: string): { intent: string; entities: Record<string,
     entities.comparison = true;
   } else if (lowerQuery.includes('bonjour') || lowerQuery.includes('salut') || lowerQuery.includes('hello') || lowerQuery.includes('coucou')) {
     intent = 'greeting';
+  } else if (entities.metric === 'rush_prediction') {
+    intent = 'rush_prediction';
   } else if (entities.metric || entities.period) {
     intent = 'analytics';
   }
@@ -809,8 +981,9 @@ async function handleManagerQuery(
   console.log(`Detected intent: ${intent}`, entities);
 
   // Fetch restaurant performance data
-  const restaurantData = await fetchRestaurantData(supabase, restaurant.id);
-  console.log('Fetched restaurant data');
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+  const restaurantData = await fetchRestaurantData(supabase, restaurant.id, supabaseUrl, restaurant.postal_code);
+  console.log('Fetched restaurant data with contextual events');
 
   // Build AI prompt
   const systemPrompt = buildManagerPrompt(restaurant, restaurantData);
