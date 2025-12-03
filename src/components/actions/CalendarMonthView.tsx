@@ -22,6 +22,11 @@ import { ContextualEventBar } from "./ContextualEventBar";
 import { DragPreview } from "./DragPreview";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { ContextualEvent } from "@/hooks/useSchoolHolidays";
 
 interface CalendarMonthViewProps {
@@ -362,6 +367,12 @@ export function CalendarMonthView({
                   }
                 };
 
+                // Get football matches for this day
+                const dayStr = format(day, "yyyy-MM-dd");
+                const footballMatchesForDay = contextualEvents.filter(
+                  event => event.icon === "⚽" && event.start_date === dayStr
+                );
+
                 return (
                   <div
                     key={day.toISOString()}
@@ -412,6 +423,40 @@ export function CalendarMonthView({
                         {format(day, "d")}
                       </span>
                     </div>
+                    
+                    {/* Football Match Indicators */}
+                    {footballMatchesForDay.length > 0 && (
+                      <div className="absolute bottom-1 left-1 right-1 flex flex-wrap gap-0.5 z-20">
+                        {footballMatchesForDay.map((match) => (
+                          <Tooltip key={match.id}>
+                            <TooltipTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <div className="h-5 w-5 flex items-center justify-center bg-blue-600/20 rounded-full cursor-pointer hover:bg-blue-600/40 hover:scale-110 transition-all border border-blue-500/30">
+                                <span className="text-xs">⚽</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent 
+                              side="top" 
+                              className="max-w-xs bg-card border shadow-lg p-3"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="space-y-1.5">
+                                <div className="font-semibold text-sm text-blue-600 dark:text-blue-400">
+                                  {match.title.replace("⚽ ", "")}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {match.description}
+                                </div>
+                                <div className="flex items-center gap-1.5 text-xs">
+                                  <span className="px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-700 dark:text-blue-300 font-medium">
+                                    Champions League
+                                  </span>
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        ))}
+                      </div>
+                    )}
                     
                     {/* Drop zone label */}
                     {isDragOver && (
