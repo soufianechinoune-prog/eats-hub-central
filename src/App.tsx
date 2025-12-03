@@ -199,6 +199,10 @@ const App = () => {
               element={<UberCallback />}
             />
             <Route
+              path="/uber-callback"
+              element={<UberCallback />}
+            />
+            <Route
               path="/data-entry"
               element={
                 <ProtectedRoute session={session}>
