@@ -450,7 +450,7 @@ Deno.serve(async (req) => {
         const { error: upsertError, count } = await supabase
           .from('orders')
           .upsert(batch, { 
-            onConflict: 'uber_order_id,uber_flow_id',
+            onConflict: 'uber_order_id',
             ignoreDuplicates: false 
           });
 
