@@ -1777,17 +1777,17 @@ export function AnalyticsCharts({
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: number, name: string) => {
-                    const item = averageBasketData.find(d => d.monthNum === (averageBasketData.indexOf(d as any) + 1));
+                  formatter={(value: number, name: string, props: any) => {
+                    const item = props.payload;
                     if (name.includes(String(selectedYear))) {
                       return [
                         `${value.toFixed(2)} €`,
-                        `${name} (${item?.orders || 0} commandes)`
+                        `Panier moyen ${selectedYear} (${item?.orders?.toLocaleString('fr-FR') || 0} commandes)`
                       ];
                     }
                     return [
                       `${value.toFixed(2)} €`,
-                      `${name} (${item?.prevOrders || 0} commandes)`
+                      `Panier moyen ${prevYear} (${item?.prevOrders?.toLocaleString('fr-FR') || 0} commandes)`
                     ];
                   }}
                   labelFormatter={(label) => label}
