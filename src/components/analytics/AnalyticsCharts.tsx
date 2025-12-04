@@ -1481,7 +1481,49 @@ export function AnalyticsCharts({
               </>
             )}
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            {/* Inline KPIs in drill-down mode */}
+            {drillDownMonth && drillDownMonthTotals && (
+              <motion.div 
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex items-center gap-3 px-3 py-1.5 bg-muted/30 rounded-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <Euro className="h-4 w-4 text-primary" />
+                  <div className="text-right">
+                    <p className="text-[10px] text-muted-foreground leading-tight">{selectedYear}</p>
+                    <p className="text-sm font-bold leading-tight">{drillDownMonthTotals.revenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                  </div>
+                </div>
+                {hasPrevData && (
+                  <>
+                    <div className="h-8 w-px bg-border" />
+                    <div className="text-right">
+                      <p className="text-[10px] text-muted-foreground leading-tight">{prevYear}</p>
+                      <p className="text-xs text-muted-foreground leading-tight">{drillDownMonthTotals.prevRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                    </div>
+                    <div className="h-8 w-px bg-border" />
+                    <div className={cn(
+                      "flex items-center gap-0.5 font-medium text-sm",
+                      drillDownMonthTotals.variation > 0 && "text-emerald-500",
+                      drillDownMonthTotals.variation < 0 && "text-red-500",
+                      drillDownMonthTotals.variation === 0 && "text-muted-foreground"
+                    )}>
+                      {drillDownMonthTotals.variation > 0 ? (
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      ) : drillDownMonthTotals.variation < 0 ? (
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <Minus className="h-3.5 w-3.5" />
+                      )}
+                      <span>{drillDownMonthTotals.variation > 0 ? "+" : ""}{drillDownMonthTotals.variation.toFixed(1)}%</span>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
+            
             {/* Chart Type Toggle */}
             <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
               <Button 
@@ -1510,52 +1552,6 @@ export function AnalyticsCharts({
           </div>
         </CardHeader>
         <CardContent>
-          {/* Month KPI in drill-down mode */}
-          {drillDownMonth && drillDownMonthTotals && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-6 mb-4 p-3 bg-muted/30 rounded-lg"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Euro className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">CA {MONTHS[drillDownMonth - 1]} {selectedYear}</p>
-                  <p className="text-lg font-bold">{drillDownMonthTotals.revenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
-                </div>
-              </div>
-              {hasPrevData && (
-                <>
-                  <div className="h-10 w-px bg-border" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">CA {MONTHS[drillDownMonth - 1]} {prevYear}</p>
-                    <p className="text-sm text-muted-foreground">{drillDownMonthTotals.prevRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
-                  </div>
-                  <div className="h-10 w-px bg-border" />
-                  <div className="flex items-center gap-1">
-                    {drillDownMonthTotals.variation > 0 ? (
-                      <ArrowUp className="h-4 w-4 text-emerald-500" />
-                    ) : drillDownMonthTotals.variation < 0 ? (
-                      <ArrowDown className="h-4 w-4 text-red-500" />
-                    ) : (
-                      <Minus className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <span className={cn(
-                      "text-sm font-medium",
-                      drillDownMonthTotals.variation > 0 && "text-emerald-500",
-                      drillDownMonthTotals.variation < 0 && "text-red-500",
-                      drillDownMonthTotals.variation === 0 && "text-muted-foreground"
-                    )}>
-                      {drillDownMonthTotals.variation > 0 ? "+" : ""}{drillDownMonthTotals.variation.toFixed(1)}%
-                    </span>
-                  </div>
-                </>
-              )}
-            </motion.div>
-          )}
-          
           {/* Interactive Legend */}
           <InteractiveLegend
             items={[
