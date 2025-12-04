@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +22,32 @@ interface ParsedRow {
   [key: string]: string;
 }
 
+interface SkipInfo {
+  rowIndex: number;
+  reason: string;
+  details: string;
+}
+
+interface RestaurantStats {
+  id: string;
+  name: string;
+  orderCount: number;
+}
+
+interface ValidationData {
+  dateRange: {
+    start: string | null;
+    end: string | null;
+  };
+  restaurants: RestaurantStats[];
+  unknownStoreIds: string[];
+  skippedDetails: SkipInfo[];
+}
+
 interface ImportResult {
   success: boolean;
   reportType: string;
+  dryRun?: boolean;
   stats: {
     totalRows: number;
     inserted: number;
@@ -32,6 +55,7 @@ interface ImportResult {
     skipped: number;
     errors: number;
   };
+  validation?: ValidationData;
   errorDetails: string[];
 }
 
@@ -45,7 +69,8 @@ export default function ReportImport() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const [step, setStep] = useState<"upload" | "preview" | "importing" | "complete">("upload");
+  const [validationResult, setValidationResult] = useState<ImportResult | null>(null);
+  const [step, setStep] = useState<"upload" | "preview" | "validation" | "importing" | "complete">("upload");
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -62,8 +87,8 @@ export default function ReportImport() {
 
     setFile(selectedFile);
     setImportResult(null);
+    setValidationResult(null);
 
-    // Read file content
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
@@ -84,7 +109,6 @@ export default function ReportImport() {
       return;
     }
 
-    // Find header row (contains "Id. de la commande" or similar)
     let headerRowIndex = -1;
     for (let i = 0; i < Math.min(10, lines.length); i++) {
       if (
@@ -106,12 +130,10 @@ export default function ReportImport() {
       return;
     }
 
-    // Parse headers
     const headerLine = lines[headerRowIndex];
     const parsedHeaders = parseCSVLine(headerLine);
-    setHeaders(parsedHeaders.slice(0, 15)); // Limit for preview
+    setHeaders(parsedHeaders.slice(0, 15));
 
-    // Parse data rows (first 50 for preview)
     const dataLines = lines.slice(headerRowIndex + 1, headerRowIndex + 51);
     const rows: ParsedRow[] = [];
 
@@ -155,6 +177,54 @@ export default function ReportImport() {
     return result;
   };
 
+  const handleValidate = async () => {
+    if (!csvContent) {
+      toast({
+        title: "Erreur",
+        description: "Aucun fichier à valider",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const functionName = reportType === "payment_item_level" 
+        ? "parse-item-report" 
+        : reportType === "payout_summary"
+          ? "parse-payout-summary"
+          : "parse-payment-report";
+      
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: {
+          csvContent,
+          reportType,
+          dryRun: true,
+        },
+      });
+
+      if (error) throw error;
+
+      setValidationResult(data as ImportResult);
+      setStep("validation");
+
+      toast({
+        title: "Analyse terminée",
+        description: "Vérifiez les données avant de confirmer l'import",
+      });
+    } catch (error: any) {
+      console.error("Validation error:", error);
+      toast({
+        title: "Erreur d'analyse",
+        description: error.message || "Une erreur est survenue",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const uploadFileToStorage = async (): Promise<string | null> => {
     if (!file) return null;
 
@@ -194,6 +264,10 @@ export default function ReportImport() {
         error_count: result.stats.errors,
         file_url: fileUrl,
         status: result.success ? (result.stats.errors > 0 ? "partial" : "completed") : "failed",
+        date_range_start: result.validation?.dateRange?.start || null,
+        date_range_end: result.validation?.dateRange?.end || null,
+        restaurants_count: result.validation?.restaurants?.length || 0,
+        restaurant_ids: result.validation?.restaurants?.map(r => r.id) || [],
       });
 
       if (error) {
@@ -218,10 +292,8 @@ export default function ReportImport() {
     setIsLoading(true);
 
     try {
-      // Upload file to storage first
       const fileUrl = await uploadFileToStorage();
 
-      // Choose the appropriate edge function based on report type
       const functionName = reportType === "payment_item_level" 
         ? "parse-item-report" 
         : reportType === "payout_summary"
@@ -232,6 +304,7 @@ export default function ReportImport() {
         body: {
           csvContent,
           reportType,
+          dryRun: false,
         },
       });
 
@@ -241,7 +314,6 @@ export default function ReportImport() {
       setImportResult(importData);
       setStep("complete");
 
-      // Save import record to history
       await saveImportRecord(fileUrl, importData);
 
       if (importData.success) {
@@ -264,7 +336,6 @@ export default function ReportImport() {
     } catch (error: any) {
       console.error("Import error:", error);
       
-      // Save failed import record
       if (file) {
         await saveImportRecord(null, {
           success: false,
@@ -279,7 +350,7 @@ export default function ReportImport() {
         description: error.message || "Une erreur est survenue",
         variant: "destructive",
       });
-      setStep("preview");
+      setStep("validation");
     } finally {
       setIsLoading(false);
     }
@@ -291,7 +362,41 @@ export default function ReportImport() {
     setPreviewData([]);
     setHeaders([]);
     setImportResult(null);
+    setValidationResult(null);
     setStep("upload");
+  };
+
+  const downloadSkippedRows = () => {
+    if (!validationResult?.validation?.skippedDetails) return;
+    
+    const csvContent = [
+      "Ligne,Raison,Détails",
+      ...validationResult.validation.skippedDetails.map(s => 
+        `${s.rowIndex},"${s.reason}","${s.details.replace(/"/g, '""')}"`
+      )
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `lignes_ignorees_${file?.name || "import"}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "-";
+    return new Date(dateStr).toLocaleDateString("fr-FR");
+  };
+
+  const getSkipReasonLabel = (reason: string) => {
+    const labels: Record<string, string> = {
+      "restaurant_not_found": "Restaurant non trouvé",
+      "no_order_id": "Sans ID commande",
+      "context_missing": "Contexte parent manquant",
+    };
+    return labels[reason] || reason;
   };
 
   return (
@@ -339,12 +444,19 @@ export default function ReportImport() {
               <div className={`h-8 w-8 rounded-full flex items-center justify-center ${step === "preview" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                 2
               </div>
-              <span className="font-medium">Prévisualisation</span>
+              <span className="font-medium">Aperçu</span>
+            </div>
+            <div className="h-px w-8 bg-border" />
+            <div className={`flex items-center gap-2 ${step === "validation" ? "text-primary" : "text-muted-foreground"}`}>
+              <div className={`h-8 w-8 rounded-full flex items-center justify-center ${step === "validation" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                3
+              </div>
+              <span className="font-medium">Validation</span>
             </div>
             <div className="h-px w-8 bg-border" />
             <div className={`flex items-center gap-2 ${step === "importing" || step === "complete" ? "text-primary" : "text-muted-foreground"}`}>
               <div className={`h-8 w-8 rounded-full flex items-center justify-center ${step === "importing" || step === "complete" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                3
+                4
               </div>
               <span className="font-medium">Import</span>
             </div>
@@ -438,7 +550,7 @@ export default function ReportImport() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Eye className="h-5 w-5" />
-                  Prévisualisation des données
+                  Aperçu des données
                 </CardTitle>
                 <CardDescription>
                   {previewData.length} lignes détectées (affichage des 50 premières)
@@ -485,13 +597,175 @@ export default function ReportImport() {
                   <Button variant="outline" onClick={resetImport}>
                     Annuler
                   </Button>
-                  <Button onClick={handleImport} disabled={isLoading}>
-                    <Send className="h-4 w-4 mr-2" />
-                    Lancer l'import
+                  <Button onClick={handleValidate} disabled={isLoading}>
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="h-4 w-4 mr-2" />
+                    )}
+                    Analyser avant import
                   </Button>
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {step === "validation" && validationResult && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5" />
+                    Validation de l'import
+                  </CardTitle>
+                  <CardDescription>
+                    Vérifiez les informations avant de confirmer l'import définitif
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Stats preview */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 bg-muted rounded-lg text-center">
+                      <p className="text-2xl font-bold">{validationResult.stats.totalRows}</p>
+                      <p className="text-sm text-muted-foreground">Lignes totales</p>
+                    </div>
+                    <div className="p-4 bg-green-500/10 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-green-600">{validationResult.stats.inserted}</p>
+                      <p className="text-sm text-muted-foreground">À insérer</p>
+                    </div>
+                    <div className="p-4 bg-blue-500/10 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-blue-600">{validationResult.stats.updated}</p>
+                      <p className="text-sm text-muted-foreground">À mettre à jour</p>
+                    </div>
+                    <div className="p-4 bg-amber-500/10 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-amber-600">{validationResult.stats.skipped}</p>
+                      <p className="text-sm text-muted-foreground">À ignorer</p>
+                    </div>
+                  </div>
+
+                  {/* Date range */}
+                  {validationResult.validation?.dateRange && (
+                    <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
+                      <Calendar className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Période des données</p>
+                        <p className="text-sm text-muted-foreground">
+                          Du {formatDate(validationResult.validation.dateRange.start)} au {formatDate(validationResult.validation.dateRange.end)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Restaurants */}
+                  {validationResult.validation?.restaurants && validationResult.validation.restaurants.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-5 w-5 text-muted-foreground" />
+                        <p className="font-medium">{validationResult.validation.restaurants.length} restaurant(s) concerné(s)</p>
+                      </div>
+                      <div className="border rounded-lg overflow-auto max-h-[200px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Restaurant</TableHead>
+                              <TableHead className="text-right">Commandes</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {validationResult.validation.restaurants.map((r) => (
+                              <TableRow key={r.id}>
+                                <TableCell className="font-medium">{r.name}</TableCell>
+                                <TableCell className="text-right">{r.orderCount}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Unknown store IDs warning */}
+                  {validationResult.validation?.unknownStoreIds && validationResult.validation.unknownStoreIds.length > 0 && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Restaurants non configurés</AlertTitle>
+                      <AlertDescription>
+                        <p className="mb-2">
+                          {validationResult.validation.unknownStoreIds.length} uber_store_id(s) non trouvé(s) dans la base :
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {validationResult.validation.unknownStoreIds.slice(0, 10).map((id) => (
+                            <Badge key={id} variant="outline" className="font-mono text-xs">
+                              {id}
+                            </Badge>
+                          ))}
+                          {validationResult.validation.unknownStoreIds.length > 10 && (
+                            <Badge variant="outline">+{validationResult.validation.unknownStoreIds.length - 10} autres</Badge>
+                          )}
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Skipped details */}
+                  {validationResult.validation?.skippedDetails && validationResult.validation.skippedDetails.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-amber-600">
+                          {validationResult.stats.skipped} ligne(s) ignorée(s)
+                        </p>
+                        <Button variant="outline" size="sm" onClick={downloadSkippedRows}>
+                          <Download className="h-4 w-4 mr-2" />
+                          Télécharger
+                        </Button>
+                      </div>
+                      <div className="border rounded-lg overflow-auto max-h-[200px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[80px]">Ligne</TableHead>
+                              <TableHead>Raison</TableHead>
+                              <TableHead>Détails</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {validationResult.validation.skippedDetails.slice(0, 20).map((s, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell className="font-mono text-xs">{s.rowIndex}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-xs">
+                                    {getSkipReasonLabel(s.reason)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{s.details}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      {validationResult.validation.skippedDetails.length > 20 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          Et {validationResult.validation.skippedDetails.length - 20} autres lignes ignorées...
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-3 pt-4 border-t">
+                    <Button variant="outline" onClick={resetImport}>
+                      Annuler
+                    </Button>
+                    <Button variant="outline" onClick={() => setStep("preview")}>
+                      Retour à l'aperçu
+                    </Button>
+                    <Button onClick={handleImport} disabled={isLoading}>
+                      <Send className="h-4 w-4 mr-2" />
+                      Confirmer l'import
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {step === "importing" && (

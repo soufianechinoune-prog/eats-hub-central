@@ -143,6 +143,33 @@ function cleanUrl(url: string): string | null {
   return url.replace(/\\\\/g, '');
 }
 
+// Map French status to standardized status
+function mapStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    'Terminée': 'completed',
+    'Annulée': 'cancelled',
+    'Remboursée': 'refunded',
+    'Remboursement': 'refunded',
+    'Échec': 'failed',
+    'En cours': 'in_progress',
+  };
+  return statusMap[status] || status || 'unknown';
+}
+
+// Skip reason types
+interface SkipInfo {
+  rowIndex: number;
+  reason: string;
+  details: string;
+}
+
+// Restaurant stats
+interface RestaurantStats {
+  id: string;
+  name: string;
+  orderCount: number;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -153,13 +180,13 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { csvContent, reportType = 'payment_order_level' } = await req.json();
+    const { csvContent, reportType = 'payment_order_level', dryRun = false } = await req.json();
 
     if (!csvContent) {
       throw new Error('Missing csvContent in request body');
     }
 
-    console.log('Parsing payment report, type:', reportType);
+    console.log('Parsing payment report, type:', reportType, 'dryRun:', dryRun);
     console.log('CSV content length:', csvContent.length);
 
     // Parse CSV
@@ -169,9 +196,7 @@ Deno.serve(async (req) => {
       throw new Error('CSV has insufficient rows (needs header descriptions + headers + data)');
     }
 
-    // The first row is descriptions, second is headers, data starts from third row
-    // But in the actual file, it seems to be: row 0 = descriptions, row 1 = separator, row 2 = headers
-    // Let's find the header row by looking for "Id. de la commande"
+    // Find the header row by looking for "Id. de la commande"
     let headerRowIndex = -1;
     for (let i = 0; i < Math.min(10, rows.length); i++) {
       if (rows[i].some(cell => cell.includes('Id. de la commande') || cell.includes('Id. du flux'))) {
@@ -226,18 +251,22 @@ Deno.serve(async (req) => {
     let skippedCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
+    const skippedDetails: SkipInfo[] = [];
+    const restaurantStats = new Map<string, RestaurantStats>();
+    const unknownStoreIds = new Set<string>();
+    let minDate: string | null = null;
+    let maxDate: string | null = null;
 
-    // Context map to propagate uber_order_id and restaurant from parent rows to child rows
-    // In Uber CSVs, multi-line orders have the order_id and store_id only on the first line
-    // Subsequent lines with the same flow_id are child rows that belong to the same order
+    // Context map for multi-line orders
     const flowContext = new Map<string, { 
       uberOrderId: string; 
       uberStoreId: string;
       restaurantId: string;
     }>();
 
-    for (const row of dataRows) {
-      if (row.length < 5) continue; // Skip empty or malformed rows
+    for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+      const row = dataRows[rowIndex];
+      if (row.length < 5) continue;
 
       try {
         const getValue = (field: string): string => {
@@ -251,35 +280,44 @@ Deno.serve(async (req) => {
         let restaurant: { id: string; name: string } | undefined;
         
         // Check if this is a child row (has flow_id but no order_id)
-        // If so, try to get context from the parent row
         if (uberFlowId && (!uberOrderId || uberOrderId === '')) {
           const context = flowContext.get(uberFlowId);
           if (context) {
             uberOrderId = context.uberOrderId;
             uberStoreId = context.uberStoreId;
             restaurant = { id: context.restaurantId, name: '' };
-            console.log(`Propagated context for flow ${uberFlowId}: order=${uberOrderId}`);
           } else {
-            // No context found for this flow_id, skip the row
-            console.warn(`No context found for flow_id ${uberFlowId}, skipping child row`);
             skippedCount++;
+            skippedDetails.push({
+              rowIndex: rowIndex + headerRowIndex + 2,
+              reason: 'context_missing',
+              details: `Ligne enfant sans contexte parent (flow_id: ${uberFlowId})`
+            });
             continue;
           }
         } else {
-          // This is a parent row with order_id, look up the restaurant
           if (!uberOrderId || uberOrderId === '') {
             skippedCount++;
+            skippedDetails.push({
+              rowIndex: rowIndex + headerRowIndex + 2,
+              reason: 'no_order_id',
+              details: 'Ligne sans identifiant de commande'
+            });
             continue;
           }
           
           restaurant = restaurantMap.get(uberStoreId);
           if (!restaurant) {
-            console.warn('Restaurant not found for uber_store_id:', uberStoreId);
             skippedCount++;
+            unknownStoreIds.add(uberStoreId);
+            skippedDetails.push({
+              rowIndex: rowIndex + headerRowIndex + 2,
+              reason: 'restaurant_not_found',
+              details: `Restaurant non trouvé (uber_store_id: ${uberStoreId})`
+            });
             continue;
           }
           
-          // Save context for potential child rows with the same flow_id
           if (uberFlowId) {
             flowContext.set(uberFlowId, {
               uberOrderId,
@@ -289,7 +327,28 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Track date range
         const orderDate = getValue('order_date');
+        const parsedDate = parseDate(orderDate);
+        if (parsedDate) {
+          if (!minDate || parsedDate < minDate) minDate = parsedDate;
+          if (!maxDate || parsedDate > maxDate) maxDate = parsedDate;
+        }
+
+        // Track restaurant stats
+        if (restaurant) {
+          const existing = restaurantStats.get(restaurant.id);
+          if (existing) {
+            existing.orderCount++;
+          } else {
+            restaurantStats.set(restaurant.id, {
+              id: restaurant.id,
+              name: restaurant.name,
+              orderCount: 1
+            });
+          }
+        }
+
         const orderTime = getValue('order_datetime');
 
         const orderData = {
@@ -308,7 +367,7 @@ Deno.serve(async (req) => {
           vat_2_sales: parseNumber(getValue('vat_2_sales')),
           vat_3_sales: parseNumber(getValue('vat_3_sales')),
           sales_incl_vat: parseNumber(getValue('sales_incl_vat')),
-          gross_amount: parseNumber(getValue('sales_incl_vat')), // Map to existing field
+          gross_amount: parseNumber(getValue('sales_incl_vat')),
           
           // Refunds
           refund_excl_vat: parseNumber(getValue('refund_excl_vat')),
@@ -323,7 +382,7 @@ Deno.serve(async (req) => {
           vat_2_item_promo: parseNumber(getValue('vat_2_item_promo')),
           vat_3_item_promo: parseNumber(getValue('vat_3_item_promo')),
           item_promo_incl_vat: parseNumber(getValue('item_promo_incl_vat')),
-          promotion_discount: Math.abs(parseNumber(getValue('item_promo_incl_vat'))), // Map to existing
+          promotion_discount: Math.abs(parseNumber(getValue('item_promo_incl_vat'))),
           
           // Marketing
           marketing_fee_adjustment: parseNumber(getValue('marketing_fee_adjustment')),
@@ -360,7 +419,7 @@ Deno.serve(async (req) => {
           delivery_cost_excl_vat: parseNumber(getValue('delivery_cost_excl_vat')),
           vat_delivery_cost: parseNumber(getValue('vat_delivery_cost')),
           delivery_cost_incl_vat: parseNumber(getValue('delivery_cost_incl_vat')),
-          delivery_fee: parseNumber(getValue('delivery_cost_incl_vat')), // Map to existing
+          delivery_fee: parseNumber(getValue('delivery_cost_incl_vat')),
           courier_invoice_url: cleanUrl(getValue('courier_invoice_url')),
           
           // Uber fees
@@ -369,7 +428,7 @@ Deno.serve(async (req) => {
           uber_fee_after_promo_excl_vat: parseNumber(getValue('uber_fee_after_promo_excl_vat')),
           vat_uber_fee: parseNumber(getValue('vat_uber_fee')),
           uber_fee_after_promo_incl_vat: parseNumber(getValue('uber_fee_after_promo_incl_vat')),
-          service_fee: Math.abs(parseNumber(getValue('uber_fee_after_promo_incl_vat'))), // Map to existing
+          service_fee: Math.abs(parseNumber(getValue('uber_fee_after_promo_incl_vat'))),
           uber_invoice_url: cleanUrl(getValue('uber_invoice_url')),
           
           // Other
@@ -381,7 +440,7 @@ Deno.serve(async (req) => {
           
           // Payout
           net_payout: parseNumber(getValue('net_payout')),
-          net_amount: parseNumber(getValue('net_payout')), // Map to existing
+          net_amount: parseNumber(getValue('net_payout')),
           payout_date: parseDate(getValue('payout_date')),
           payout_reference_id: getValue('payout_reference_id') || null,
           loyalty_id: getValue('loyalty_id') || null,
@@ -389,7 +448,7 @@ Deno.serve(async (req) => {
           // Status mapping
           status: mapStatus(getValue('status')),
           
-          // Calculate tax_amount (sum of all VAT)
+          // Calculate tax_amount
           tax_amount: parseNumber(getValue('vat_1_sales')) + 
                       parseNumber(getValue('vat_2_sales')) + 
                       parseNumber(getValue('vat_3_sales')),
@@ -400,73 +459,89 @@ Deno.serve(async (req) => {
           currency: 'EUR',
         };
 
-        // Upsert order by uber_order_id + uber_flow_id (to handle refunds separately)
-        // Build query with proper NULL handling for uber_flow_id
-        let query = supabase
-          .from('orders')
-          .select('id')
-          .eq('uber_order_id', uberOrderId);
-        
-        // Handle NULL flow_id properly - use .is() for null, .eq() for values
-        if (orderData.uber_flow_id) {
-          query = query.eq('uber_flow_id', orderData.uber_flow_id);
-        } else {
-          query = query.is('uber_flow_id', null);
-        }
-        
-        const { data: existingOrder, error: checkError } = await query.maybeSingle();
-
-        if (checkError) {
-          console.error('Error checking existing order:', checkError);
-          errorCount++;
-          errors.push(`Order ${uberOrderId}: ${checkError.message}`);
-          continue;
-        }
-
-        if (existingOrder) {
-          // Update existing
-          const { error: updateError } = await supabase
+        // In dry run mode, just check if order exists
+        if (dryRun) {
+          let query = supabase
             .from('orders')
-            .update(orderData)
-            .eq('id', existingOrder.id);
+            .select('id')
+            .eq('uber_order_id', uberOrderId);
           
-          if (updateError) {
-            console.error('Error updating order:', updateError);
-            errorCount++;
-            errors.push(`Order ${uberOrderId}: ${updateError.message}`);
+          if (orderData.uber_flow_id) {
+            query = query.eq('uber_flow_id', orderData.uber_flow_id);
           } else {
-            updatedCount++;
+            query = query.is('uber_flow_id', null);
           }
-        } else {
-          // Insert new
-          const { error: insertError } = await supabase
-            .from('orders')
-            .insert(orderData);
           
-          if (insertError) {
-            // Handle duplicate key error gracefully - treat as update needed
-            if (insertError.code === '23505') {
-              console.log(`Duplicate found for ${uberOrderId}, attempting update`);
-              // Try to update by uber_order_id only
-              const { error: fallbackUpdateError } = await supabase
-                .from('orders')
-                .update(orderData)
-                .eq('uber_order_id', uberOrderId);
-              
-              if (fallbackUpdateError) {
-                console.error('Error in fallback update:', fallbackUpdateError);
-                errorCount++;
-                errors.push(`Order ${uberOrderId}: ${fallbackUpdateError.message}`);
-              } else {
-                updatedCount++;
-              }
-            } else {
-              console.error('Error inserting order:', insertError);
-              errorCount++;
-              errors.push(`Order ${uberOrderId}: ${insertError.message}`);
-            }
+          const { data: existingOrder } = await query.maybeSingle();
+          
+          if (existingOrder) {
+            updatedCount++;
           } else {
             insertedCount++;
+          }
+        } else {
+          // Actual import - upsert order
+          let query = supabase
+            .from('orders')
+            .select('id')
+            .eq('uber_order_id', uberOrderId);
+          
+          if (orderData.uber_flow_id) {
+            query = query.eq('uber_flow_id', orderData.uber_flow_id);
+          } else {
+            query = query.is('uber_flow_id', null);
+          }
+          
+          const { data: existingOrder, error: checkError } = await query.maybeSingle();
+
+          if (checkError) {
+            console.error('Error checking existing order:', checkError);
+            errorCount++;
+            errors.push(`Order ${uberOrderId}: ${checkError.message}`);
+            continue;
+          }
+
+          if (existingOrder) {
+            const { error: updateError } = await supabase
+              .from('orders')
+              .update(orderData)
+              .eq('id', existingOrder.id);
+            
+            if (updateError) {
+              console.error('Error updating order:', updateError);
+              errorCount++;
+              errors.push(`Order ${uberOrderId}: ${updateError.message}`);
+            } else {
+              updatedCount++;
+            }
+          } else {
+            const { error: insertError } = await supabase
+              .from('orders')
+              .insert(orderData);
+            
+            if (insertError) {
+              if (insertError.code === '23505') {
+                console.log(`Duplicate found for ${uberOrderId}, attempting update`);
+                const { error: fallbackUpdateError } = await supabase
+                  .from('orders')
+                  .update(orderData)
+                  .eq('uber_order_id', uberOrderId);
+                
+                if (fallbackUpdateError) {
+                  console.error('Error in fallback update:', fallbackUpdateError);
+                  errorCount++;
+                  errors.push(`Order ${uberOrderId}: ${fallbackUpdateError.message}`);
+                } else {
+                  updatedCount++;
+                }
+              } else {
+                console.error('Error inserting order:', insertError);
+                errorCount++;
+                errors.push(`Order ${uberOrderId}: ${insertError.message}`);
+              }
+            } else {
+              insertedCount++;
+            }
           }
         }
       } catch (rowError: any) {
@@ -479,6 +554,7 @@ Deno.serve(async (req) => {
     const result = {
       success: true,
       reportType,
+      dryRun,
       stats: {
         totalRows: dataRows.length,
         inserted: insertedCount,
@@ -486,10 +562,19 @@ Deno.serve(async (req) => {
         skipped: skippedCount,
         errors: errorCount,
       },
-      errorDetails: errors.slice(0, 10), // Return first 10 errors
+      validation: {
+        dateRange: {
+          start: minDate,
+          end: maxDate,
+        },
+        restaurants: Array.from(restaurantStats.values()),
+        unknownStoreIds: Array.from(unknownStoreIds),
+        skippedDetails: skippedDetails.slice(0, 50), // First 50 skipped rows
+      },
+      errorDetails: errors.slice(0, 10),
     };
 
-    console.log('Import completed:', result);
+    console.log('Processing completed:', result.stats);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -509,16 +594,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-// Map French status to standardized status
-function mapStatus(status: string): string {
-  const statusMap: Record<string, string> = {
-    'Terminée': 'completed',
-    'Annulée': 'cancelled',
-    'Remboursée': 'refunded',
-    'Remboursement': 'refunded',
-    'Échec': 'failed',
-    'En cours': 'in_progress',
-  };
-  return statusMap[status] || status || 'unknown';
-}
