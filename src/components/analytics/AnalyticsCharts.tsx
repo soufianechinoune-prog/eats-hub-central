@@ -1335,7 +1335,6 @@ export function AnalyticsCharts({
             items={[
               { key: 'revenue', label: `CA ${selectedYear}`, color: 'hsl(var(--primary))' },
               ...(hasPrevData ? [{ key: 'prevRevenue', label: `CA ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
-              { key: 'orders', label: 'Commandes', color: 'hsl(var(--chart-2))' },
             ]}
             hiddenKeys={hiddenRevenueBars}
             onToggle={toggleRevenueBar}
@@ -1346,18 +1345,14 @@ export function AnalyticsCharts({
               <ComposedChart data={aggregatedRevenueData} barGap={-34}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
-                <YAxis yAxisId="left" className="text-xs" />
-                <YAxis yAxisId="right" orientation="right" className="text-xs" />
+                <YAxis className="text-xs" />
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--background))',
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: number, name: string) => {
-                    if (name.includes('€')) return [value.toLocaleString('fr-FR') + ' €', name];
-                    return [value.toLocaleString('fr-FR'), name];
-                  }}
+                  formatter={(value: number) => [value.toLocaleString('fr-FR') + ' €', '']}
                 />
                 {/* Action markers */}
                 {shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
@@ -1369,7 +1364,6 @@ export function AnalyticsCharts({
                     <ReferenceLine
                       key={`action-${monthNum}`}
                       x={MONTHS[monthNum - 1]}
-                      yAxisId="left"
                       stroke={color}
                       strokeWidth={2}
                       strokeDasharray="5 5"
@@ -1379,11 +1373,81 @@ export function AnalyticsCharts({
                 })}
                 {/* Barre N-1 en arrière-plan (plus large, semi-transparente) */}
                 {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
-                  <Bar yAxisId="left" dataKey="prevRevenue" name={`CA ${prevYear} (€)`} fill="hsl(var(--muted-foreground))" radius={0} opacity={0.35} barSize={40} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                  <Bar dataKey="prevRevenue" name={`CA ${prevYear}`} fill="hsl(var(--muted-foreground))" radius={0} opacity={0.35} barSize={40} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
                 )}
                 {/* Barre N au premier plan (plus étroite, solide) */}
-                {!hiddenRevenueBars.has('revenue') && <Bar yAxisId="left" dataKey="revenue" name={`CA ${selectedYear} (€)`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={28} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
-                {!hiddenRevenueBars.has('orders') && <Line yAxisId="right" type="monotone" dataKey="orders" name="Commandes" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-2))' }} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+                {!hiddenRevenueBars.has('revenue') && <Bar dataKey="revenue" name={`CA ${selectedYear}`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={28} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+      )}
+
+      {/* Orders Evolution Chart */}
+      {showRevenue && (
+      <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Évolution des Commandes
+            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
+          </CardTitle>
+          <ChartActionToggle
+            chartKey="revenue"
+            config={config}
+            onChange={handleChartToggle}
+            hasActions={!!hasActions}
+          />
+        </CardHeader>
+        <CardContent>
+          {/* Interactive Legend */}
+          <InteractiveLegend
+            items={[
+              { key: 'orders', label: `Commandes ${selectedYear}`, color: 'hsl(var(--chart-2))' },
+              ...(hasPrevData ? [{ key: 'prevOrders', label: `Commandes ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
+            ]}
+            hiddenKeys={hiddenRevenueBars}
+            onToggle={toggleRevenueBar}
+            onReset={() => setHiddenRevenueBars(new Set())}
+          />
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={aggregatedRevenueData} barGap={-34}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis dataKey="month" className="text-xs" />
+                <YAxis className="text-xs" />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--background))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number) => [value.toLocaleString('fr-FR'), 'Commandes']}
+                />
+                {/* Action markers */}
+                {shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
+                  const monthActions = actionsByMonth[monthNum] || [];
+                  const primaryAction = monthActions[0];
+                  if (!primaryAction) return null;
+                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                  return (
+                    <ReferenceLine
+                      key={`action-orders-${monthNum}`}
+                      x={MONTHS[monthNum - 1]}
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                    />
+                  );
+                })}
+                {/* Barre N-1 en arrière-plan (plus large, semi-transparente) */}
+                {hasPrevData && !hiddenRevenueBars.has('prevOrders') && (
+                  <Bar dataKey="prevOrders" name={`Commandes ${prevYear}`} fill="hsl(var(--muted-foreground))" radius={0} opacity={0.35} barSize={40} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                )}
+                {/* Barre N au premier plan (plus étroite, solide) */}
+                {!hiddenRevenueBars.has('orders') && <Bar dataKey="orders" name={`Commandes ${selectedYear}`} fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} barSize={28} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
