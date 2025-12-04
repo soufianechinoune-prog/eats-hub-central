@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, FileDown, Zap } from "lucide-react";
@@ -63,6 +63,9 @@ export default function Analytics() {
     return DEFAULT_CHART_ACTIONS_CONFIG;
   });
   const [selectedCategories, setSelectedCategories] = useState<ActionCategoryFilter>(new Set());
+  
+  // Drill-down state for revenue chart
+  const [drillDownMonth, setDrillDownMonth] = useState<number | null>(null);
 
   const chartsRef = useRef<HTMLDivElement>(null);
   const { exportToPdf, isExporting } = useAnalyticsPdfExport();
@@ -602,6 +605,59 @@ export default function Analytics() {
     },
   });
 
+  // ========== DRILL-DOWN DATA (Daily for specific month) ==========
+  const { data: drillDownRevenueData, isLoading: loadingDrillDown } = useQuery({
+    queryKey: ["drill_down_revenue", restaurantFilter, selectedYear, drillDownMonth, selectedPlatform],
+    enabled: drillDownMonth !== null,
+    queryFn: async () => {
+      if (!drillDownMonth) return null;
+      
+      // Get date range for the selected month
+      const monthStart = startOfMonth(new Date(selectedYear, drillDownMonth - 1));
+      const monthEnd = endOfMonth(monthStart);
+      
+      const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
+        p_start_date: format(monthStart, "yyyy-MM-dd"),
+        p_end_date: format(monthEnd, "yyyy-MM-dd"),
+        p_restaurant_ids: restaurantFilter || null,
+      });
+      
+      if (error) throw error;
+      
+      return (data || []).map((item: any) => ({
+        ...item,
+        month: new Date(item.date).getMonth() + 1,
+        year: new Date(item.date).getFullYear(),
+      }));
+    },
+  });
+
+  // Previous year drill-down data
+  const { data: drillDownPrevRevenueData } = useQuery({
+    queryKey: ["drill_down_prev_revenue", restaurantFilter, prevYear, drillDownMonth, selectedPlatform],
+    enabled: drillDownMonth !== null,
+    queryFn: async () => {
+      if (!drillDownMonth) return null;
+      
+      const monthStart = startOfMonth(new Date(prevYear, drillDownMonth - 1));
+      const monthEnd = endOfMonth(monthStart);
+      
+      const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
+        p_start_date: format(monthStart, "yyyy-MM-dd"),
+        p_end_date: format(monthEnd, "yyyy-MM-dd"),
+        p_restaurant_ids: restaurantFilter || null,
+      });
+      
+      if (error) throw error;
+      
+      return (data || []).map((item: any) => ({
+        ...item,
+        month: new Date(item.date).getMonth() + 1,
+        year: new Date(item.date).getFullYear(),
+      }));
+    },
+  });
+
   // ========== GLOBAL DATA (Combined) ==========
   const globalRevenueData = useMemo(() => {
     return [...(uberRevenueData || []), ...(deliverooRevenueData || [])];
@@ -629,6 +685,7 @@ export default function Analytics() {
 
   const isLoading = loadingUberRevenue || loadingUberConversion || loadingUberFees ||
                     loadingDeliverooRevenue || loadingDeliverooConversion || loadingDeliverooFees;
+
 
   // Get period display string for PDF export
   const getPeriodDisplay = () => {
@@ -839,6 +896,11 @@ export default function Analytics() {
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
                   granularity={granularity}
+                  drillDownMonth={drillDownMonth}
+                  onDrillDownChange={setDrillDownMonth}
+                  drillDownRevenueData={drillDownRevenueData}
+                  drillDownPrevRevenueData={drillDownPrevRevenueData}
+                  isLoadingDrillDown={loadingDrillDown}
                 />
               );
             }
