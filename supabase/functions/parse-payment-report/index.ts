@@ -227,6 +227,15 @@ Deno.serve(async (req) => {
     let errorCount = 0;
     const errors: string[] = [];
 
+    // Context map to propagate uber_order_id and restaurant from parent rows to child rows
+    // In Uber CSVs, multi-line orders have the order_id and store_id only on the first line
+    // Subsequent lines with the same flow_id are child rows that belong to the same order
+    const flowContext = new Map<string, { 
+      uberOrderId: string; 
+      uberStoreId: string;
+      restaurantId: string;
+    }>();
+
     for (const row of dataRows) {
       if (row.length < 5) continue; // Skip empty or malformed rows
 
@@ -236,20 +245,48 @@ Deno.serve(async (req) => {
           return idx !== undefined ? row[idx] || '' : '';
         };
 
-        const uberOrderId = getValue('uber_order_id');
-        const uberStoreId = getValue('uber_store_id');
+        const uberFlowId = getValue('uber_flow_id');
+        let uberOrderId = getValue('uber_order_id');
+        let uberStoreId = getValue('uber_store_id');
+        let restaurant: { id: string; name: string } | undefined;
         
-        if (!uberOrderId || uberOrderId === '') {
-          skippedCount++;
-          continue;
-        }
-
-        // Find restaurant
-        const restaurant = restaurantMap.get(uberStoreId);
-        if (!restaurant) {
-          console.warn('Restaurant not found for uber_store_id:', uberStoreId);
-          skippedCount++;
-          continue;
+        // Check if this is a child row (has flow_id but no order_id)
+        // If so, try to get context from the parent row
+        if (uberFlowId && (!uberOrderId || uberOrderId === '')) {
+          const context = flowContext.get(uberFlowId);
+          if (context) {
+            uberOrderId = context.uberOrderId;
+            uberStoreId = context.uberStoreId;
+            restaurant = { id: context.restaurantId, name: '' };
+            console.log(`Propagated context for flow ${uberFlowId}: order=${uberOrderId}`);
+          } else {
+            // No context found for this flow_id, skip the row
+            console.warn(`No context found for flow_id ${uberFlowId}, skipping child row`);
+            skippedCount++;
+            continue;
+          }
+        } else {
+          // This is a parent row with order_id, look up the restaurant
+          if (!uberOrderId || uberOrderId === '') {
+            skippedCount++;
+            continue;
+          }
+          
+          restaurant = restaurantMap.get(uberStoreId);
+          if (!restaurant) {
+            console.warn('Restaurant not found for uber_store_id:', uberStoreId);
+            skippedCount++;
+            continue;
+          }
+          
+          // Save context for potential child rows with the same flow_id
+          if (uberFlowId) {
+            flowContext.set(uberFlowId, {
+              uberOrderId,
+              uberStoreId,
+              restaurantId: restaurant.id,
+            });
+          }
         }
 
         const orderDate = getValue('order_date');
