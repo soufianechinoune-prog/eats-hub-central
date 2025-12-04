@@ -2003,7 +2003,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_daily_revenue_from_orders: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          average_basket: number
+          date: string
+          order_count: number
+          platform: string
+          restaurant_id: string
+          revenue_ttc: number
+        }[]
+      }
+      get_monthly_revenue_from_orders: {
+        Args: { p_restaurant_ids?: string[]; p_year: number }
+        Returns: {
+          average_basket: number
+          month: number
+          order_count: number
+          platform: string
+          restaurant_id: string
+          revenue_ttc: number
+          year: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
