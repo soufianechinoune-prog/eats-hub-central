@@ -59,3 +59,6 @@ verify_jwt = false
 
 [functions.parse-payout-summary]
 verify_jwt = false
+
+[functions.parse-sales-over-time]
+verify_jwt = false

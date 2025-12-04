@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import ImportHistory from "@/components/reports/ImportHistory";
+import { useQuery } from "@tanstack/react-query";
 
 const REPORT_TYPES = [
+  { value: "sales_over_time", label: "Sales Over Time (KPIs officiels)", description: "CA, Commandes, Panier moyen - Source de vérité", icon: TrendingUp },
   { value: "payment_order_level", label: "Informations de paiement (niveau commande)", description: "Détail financier par commande" },
   { value: "payment_item_level", label: "Informations de paiement (niveau articles)", description: "Détail par article commandé" },
   { value: "payout_summary", label: "Récapitulatif des versements", description: "Résumé agrégé par versement" },
@@ -64,13 +66,28 @@ export default function ReportImport() {
   const [activeTab, setActiveTab] = useState("import");
   const [file, setFile] = useState<File | null>(null);
   const [csvContent, setCsvContent] = useState<string>("");
-  const [reportType, setReportType] = useState<string>("payment_order_level");
+  const [reportType, setReportType] = useState<string>("sales_over_time");
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState<string>("");
   const [previewData, setPreviewData] = useState<ParsedRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [validationResult, setValidationResult] = useState<ImportResult | null>(null);
   const [step, setStep] = useState<"upload" | "preview" | "validation" | "importing" | "complete">("upload");
+
+  // Fetch restaurants for selector
+  const { data: restaurants = [] } = useQuery({
+    queryKey: ["restaurants-for-import"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name, city")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -111,6 +128,12 @@ export default function ReportImport() {
 
     let headerRowIndex = -1;
     for (let i = 0; i < Math.min(10, lines.length); i++) {
+      // Check for Sales Over Time headers
+      if (lines[i].includes("Période") && lines[i].includes("Ventes")) {
+        headerRowIndex = i;
+        break;
+      }
+      // Check for payment report headers
       if (
         lines[i].includes("Id. de la commande") ||
         lines[i].includes("Id. du flux") ||
@@ -187,22 +210,39 @@ export default function ReportImport() {
       return;
     }
 
+    // For sales_over_time, restaurant selection is required
+    if (reportType === "sales_over_time" && !selectedRestaurantId) {
+      toast({
+        title: "Restaurant requis",
+        description: "Veuillez sélectionner un restaurant pour ce type de rapport",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const functionName = reportType === "payment_item_level" 
-        ? "parse-item-report" 
-        : reportType === "payout_summary"
-          ? "parse-payout-summary"
-          : "parse-payment-report";
+      const functionName = reportType === "sales_over_time"
+        ? "parse-sales-over-time"
+        : reportType === "payment_item_level" 
+          ? "parse-item-report" 
+          : reportType === "payout_summary"
+            ? "parse-payout-summary"
+            : "parse-payment-report";
       
-      const { data, error } = await supabase.functions.invoke(functionName, {
-        body: {
-          csvContent,
-          reportType,
-          dryRun: true,
-        },
-      });
+      const body: Record<string, any> = {
+        csvContent,
+        reportType,
+        dryRun: true,
+      };
+
+      // Add restaurantId for sales_over_time
+      if (reportType === "sales_over_time") {
+        body.restaurantId = selectedRestaurantId;
+      }
+
+      const { data, error } = await supabase.functions.invoke(functionName, { body });
 
       if (error) throw error;
 
@@ -294,19 +334,26 @@ export default function ReportImport() {
     try {
       const fileUrl = await uploadFileToStorage();
 
-      const functionName = reportType === "payment_item_level" 
-        ? "parse-item-report" 
-        : reportType === "payout_summary"
-          ? "parse-payout-summary"
-          : "parse-payment-report";
+      const functionName = reportType === "sales_over_time"
+        ? "parse-sales-over-time"
+        : reportType === "payment_item_level" 
+          ? "parse-item-report" 
+          : reportType === "payout_summary"
+            ? "parse-payout-summary"
+            : "parse-payment-report";
       
-      const { data, error } = await supabase.functions.invoke(functionName, {
-        body: {
-          csvContent,
-          reportType,
-          dryRun: false,
-        },
-      });
+      const body: Record<string, any> = {
+        csvContent,
+        reportType,
+        dryRun: false,
+      };
+
+      // Add restaurantId for sales_over_time
+      if (reportType === "sales_over_time") {
+        body.restaurantId = selectedRestaurantId;
+      }
+
+      const { data, error } = await supabase.functions.invoke(functionName, { body });
 
       if (error) throw error;
 
@@ -317,11 +364,13 @@ export default function ReportImport() {
       await saveImportRecord(fileUrl, importData);
 
       if (importData.success) {
-        const statsMessage = reportType === "payment_item_level"
-          ? `${importData.stats?.inserted || 0} articles insérés, ${importData.stats?.updated || 0} mis à jour`
-          : reportType === "payout_summary"
-            ? `${importData.stats?.inserted || 0} versements importés`
-            : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
+        const statsMessage = reportType === "sales_over_time"
+          ? `${importData.stats?.inserted || 0} jours de données importés`
+          : reportType === "payment_item_level"
+            ? `${importData.stats?.inserted || 0} articles insérés, ${importData.stats?.updated || 0} mis à jour`
+            : reportType === "payout_summary"
+              ? `${importData.stats?.inserted || 0} versements importés`
+              : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
         toast({
           title: "Import réussi",
           description: statsMessage,
@@ -363,6 +412,7 @@ export default function ReportImport() {
     setHeaders([]);
     setImportResult(null);
     setValidationResult(null);
+    setSelectedRestaurantId("");
     setStep("upload");
   };
 
@@ -472,8 +522,11 @@ export default function ReportImport() {
                   </CardTitle>
                   <CardDescription>Sélectionnez le type de rapport que vous importez</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <Select value={reportType} onValueChange={setReportType}>
+                <CardContent className="space-y-4">
+                  <Select value={reportType} onValueChange={(value) => {
+                    setReportType(value);
+                    setSelectedRestaurantId("");
+                  }}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -481,7 +534,10 @@ export default function ReportImport() {
                       {REPORT_TYPES.map((type) => (
                         <SelectItem key={type.value} value={type.value}>
                           <div className="flex flex-col">
-                            <span>{type.label}</span>
+                            <span className="flex items-center gap-2">
+                              {type.icon && <type.icon className="h-4 w-4 text-primary" />}
+                              {type.label}
+                            </span>
                             <span className="text-xs text-muted-foreground">{type.description}</span>
                           </div>
                         </SelectItem>
@@ -489,14 +545,48 @@ export default function ReportImport() {
                     </SelectContent>
                   </Select>
 
-                  <Alert className="mt-4">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Types supportés</AlertTitle>
-                    <AlertDescription>
-                      Les rapports "niveau commande" et "niveau articles" sont supportés.
-                      Importez d'abord les commandes avant les articles pour permettre la liaison.
-                    </AlertDescription>
-                  </Alert>
+                  {/* Restaurant selector for Sales Over Time */}
+                  {reportType === "sales_over_time" && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Restaurant concerné *</label>
+                      <Select value={selectedRestaurantId} onValueChange={setSelectedRestaurantId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sélectionner un restaurant" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {restaurants.map((r) => (
+                            <SelectItem key={r.id} value={r.id}>
+                              <span>{r.name}</span>
+                              {r.city && <span className="text-muted-foreground ml-1">({r.city})</span>}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Ce rapport ne contient pas d'identifiant restaurant, sélectionnez celui concerné.
+                      </p>
+                    </div>
+                  )}
+
+                  {reportType === "sales_over_time" ? (
+                    <Alert className="bg-primary/5 border-primary/20">
+                      <TrendingUp className="h-4 w-4 text-primary" />
+                      <AlertTitle className="text-primary">Source de vérité KPIs</AlertTitle>
+                      <AlertDescription>
+                        Ce rapport contient les données officielles Uber Eats : CA, Commandes et Panier moyen.
+                        Il sert de référence pour tous les KPIs agrégés.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <Alert className="mt-4">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Types supportés</AlertTitle>
+                      <AlertDescription>
+                        Les rapports "niveau commande" et "niveau articles" sont supportés.
+                        Importez d'abord les commandes avant les articles pour permettre la liaison.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </CardContent>
               </Card>
 
