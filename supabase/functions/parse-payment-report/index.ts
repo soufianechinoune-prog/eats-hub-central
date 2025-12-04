@@ -341,7 +341,7 @@ Deno.serve(async (req) => {
 
       ordersToUpsert.push({
         uber_order_id: uberOrderId,
-        uber_flow_id: getValue('uber_flow_id') || null,
+        uber_flow_id: getValue('uber_flow_id') || '',
         restaurant_id: restaurant.id,
         order_datetime: parseDateTime(orderDate, orderTime),
         fulfillment_type: getValue('fulfillment_type') || null,
@@ -450,7 +450,7 @@ Deno.serve(async (req) => {
         const { error: upsertError, count } = await supabase
           .from('orders')
           .upsert(batch, { 
-            onConflict: 'uber_order_id',
+            onConflict: 'uber_order_id,uber_flow_id',
             ignoreDuplicates: false 
           });
 

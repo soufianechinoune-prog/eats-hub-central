@@ -1194,7 +1194,7 @@ export type Database = {
           uber_fee_after_promo_incl_vat: number | null
           uber_fee_before_promo_excl_vat: number | null
           uber_fee_promo_excl_vat: number | null
-          uber_flow_id: string | null
+          uber_flow_id: string
           uber_invoice_url: string | null
           uber_one_status: string | null
           uber_order_id: string
@@ -1271,7 +1271,7 @@ export type Database = {
           uber_fee_after_promo_incl_vat?: number | null
           uber_fee_before_promo_excl_vat?: number | null
           uber_fee_promo_excl_vat?: number | null
-          uber_flow_id?: string | null
+          uber_flow_id?: string
           uber_invoice_url?: string | null
           uber_one_status?: string | null
           uber_order_id: string
@@ -1348,7 +1348,7 @@ export type Database = {
           uber_fee_after_promo_incl_vat?: number | null
           uber_fee_before_promo_excl_vat?: number | null
           uber_fee_promo_excl_vat?: number | null
-          uber_flow_id?: string | null
+          uber_flow_id?: string
           uber_invoice_url?: string | null
           uber_one_status?: string | null
           uber_order_id?: string
