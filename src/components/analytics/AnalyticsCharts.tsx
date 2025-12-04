@@ -27,6 +27,8 @@ import {
   UtensilsCrossed,
   Settings,
   Zap,
+  ArrowLeft,
+  BarChart3,
 } from "lucide-react";
 import { ConversionFunnelChart } from "./ConversionFunnelChart";
 import {
@@ -193,6 +195,12 @@ interface AnalyticsChartsProps {
   restaurants?: { id: string; name: string; city?: string }[];
   selectedRestaurants?: string[];
   granularity?: "daily" | "weekly" | "monthly";
+  // Drill-down props
+  drillDownMonth?: number | null;
+  onDrillDownChange?: (month: number | null) => void;
+  drillDownRevenueData?: any[] | null;
+  drillDownPrevRevenueData?: any[] | null;
+  isLoadingDrillDown?: boolean;
 }
 
 // Action category colors
@@ -451,8 +459,16 @@ export function AnalyticsCharts({
   restaurants = [],
   selectedRestaurants = [],
   granularity = "monthly",
+  drillDownMonth,
+  onDrillDownChange,
+  drillDownRevenueData,
+  drillDownPrevRevenueData,
+  isLoadingDrillDown,
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
+  
+  // Chart type toggle state (bar or line)
+  const [revenueChartType, setRevenueChartType] = useState<'bar' | 'line'>('bar');
   
   // Objectif de conversion configurable (persisté dans localStorage)
   const [conversionTarget, setConversionTarget] = useState<number>(() => {
@@ -678,7 +694,68 @@ export function AnalyticsCharts({
     }
   }, [revenueData, prevRevenueData, startMonth, endMonth, granularity]);
 
-  // Aggregate conversion data
+  // Drill-down data for specific month (daily view)
+  const drillDownChartData = useMemo(() => {
+    if (!drillDownMonth || !drillDownRevenueData) return [];
+    
+    const dailyMap: { [key: string]: { revenue: number; orders: number; date: string } } = {};
+    const prevDailyMap: { [key: string]: { revenue: number; orders: number; date: string } } = {};
+    
+    drillDownRevenueData.forEach((item: any) => {
+      const dateKey = item.date;
+      if (!dailyMap[dateKey]) {
+        dailyMap[dateKey] = { revenue: 0, orders: 0, date: dateKey };
+      }
+      dailyMap[dateKey].revenue += Number(item.revenue_ttc) || 0;
+      dailyMap[dateKey].orders += item.order_count || 0;
+    });
+    
+    drillDownPrevRevenueData?.forEach((item: any) => {
+      const dateKey = item.date;
+      if (!prevDailyMap[dateKey]) {
+        prevDailyMap[dateKey] = { revenue: 0, orders: 0, date: dateKey };
+      }
+      prevDailyMap[dateKey].revenue += Number(item.revenue_ttc) || 0;
+      prevDailyMap[dateKey].orders += item.order_count || 0;
+    });
+    
+    // Sort by date and format labels (day number)
+    return Object.keys(dailyMap)
+      .sort()
+      .map(dateStr => {
+        const date = new Date(dateStr);
+        const dayNum = date.getDate();
+        // For N-1 comparison, find same day number in prev year
+        const prevDateStr = Object.keys(prevDailyMap).find(d => new Date(d).getDate() === dayNum);
+        
+        return {
+          month: String(dayNum), // Just the day number
+          monthNum: dayNum,
+          fullDate: dateStr,
+          revenue: dailyMap[dateStr].revenue,
+          orders: dailyMap[dateStr].orders,
+          avgBasket: dailyMap[dateStr].orders > 0 
+            ? dailyMap[dateStr].revenue / dailyMap[dateStr].orders 
+            : 0,
+          prevRevenue: prevDateStr ? prevDailyMap[prevDateStr]?.revenue || 0 : 0,
+          prevOrders: prevDateStr ? prevDailyMap[prevDateStr]?.orders || 0 : 0,
+        };
+      });
+  }, [drillDownMonth, drillDownRevenueData, drillDownPrevRevenueData]);
+
+  // Handle bar click for drill-down
+  const handleRevenueBarClick = (data: any) => {
+    if (drillDownMonth) return; // Already in drill-down
+    if (data && data.monthNum && onDrillDownChange) {
+      onDrillDownChange(data.monthNum);
+    }
+  };
+
+  // Handle back from drill-down
+  const handleBackFromDrillDown = () => {
+    onDrillDownChange?.(null);
+  };
+
   const aggregatedConversionData = useMemo(() => {
     if (!conversionData) return [];
     
@@ -1315,19 +1392,65 @@ export function AnalyticsCharts({
 
       {/* Revenue Chart with N-1 comparison */}
       {showRevenue && (
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Évolution du Chiffre d'Affaires
-            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
+            {drillDownMonth ? (
+              <motion.button
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                onClick={handleBackFromDrillDown}
+                className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </motion.button>
+            ) : (
+              <TrendingUp className="h-5 w-5" />
+            )}
+            <span>
+              {drillDownMonth 
+                ? `CA ${MONTHS[drillDownMonth - 1]} ${selectedYear}` 
+                : "Évolution du Chiffre d'Affaires"
+              }
+            </span>
+            {hasPrevData && !drillDownMonth && (
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                ({selectedYear} vs {prevYear})
+              </span>
+            )}
+            {drillDownMonth && hasPrevData && (
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                (vs {MONTHS[drillDownMonth - 1]} {prevYear})
+              </span>
+            )}
           </CardTitle>
-          <ChartActionToggle
-            chartKey="revenue"
-            config={config}
-            onChange={handleChartToggle}
-            hasActions={!!hasActions}
-          />
+          <div className="flex items-center gap-2">
+            {/* Chart Type Toggle */}
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+              <Button 
+                variant={revenueChartType === 'bar' ? 'secondary' : 'ghost'} 
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setRevenueChartType('bar')}
+              >
+                <BarChart3 className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant={revenueChartType === 'line' ? 'secondary' : 'ghost'} 
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setRevenueChartType('line')}
+              >
+                <TrendingUp className="h-4 w-4" />
+              </Button>
+            </div>
+            <ChartActionToggle
+              chartKey="revenue"
+              config={config}
+              onChange={handleChartToggle}
+              hasActions={!!hasActions}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {/* Interactive Legend */}
@@ -1340,69 +1463,192 @@ export function AnalyticsCharts({
             onToggle={toggleRevenueBar}
             onReset={() => setHiddenRevenueBars(new Set())}
           />
+          
+          {/* Drill-down hint */}
+          {!drillDownMonth && granularity === "monthly" && (
+            <p className="text-xs text-muted-foreground mb-2">
+              💡 Cliquez sur un mois pour voir le détail journalier
+            </p>
+          )}
+          
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={aggregatedRevenueData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="month" className="text-xs" />
-                <YAxis className="text-xs" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--background))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px'
-                  }}
-                  formatter={(value: number, name: string, props: any) => {
-                    const item = props.payload;
-                    if (name === 'baseValue' || name === 'currentExtra' || name === 'prevExtra') return null;
-                    return [value.toLocaleString('fr-FR') + ' €', ''];
-                  }}
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload || payload.length === 0) return null;
-                    const data = payload[0]?.payload;
-                    if (!data) return null;
-                    return (
-                      <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
-                        <p className="font-medium mb-2">{label}</p>
-                        <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
-                          CA {selectedYear}: {(data.revenue || 0).toLocaleString('fr-FR')} €
-                        </p>
-                        {hasPrevData && (
-                          <p className="text-sm text-muted-foreground">
-                            CA {prevYear}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
-                          </p>
+            <AnimatePresence mode="wait">
+              {isLoadingDrillDown ? (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="h-full flex items-center justify-center"
+                >
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key={drillDownMonth ? `drill-${drillDownMonth}` : 'year'}
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="h-full"
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    {revenueChartType === 'bar' ? (
+                      <BarChart data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="month" className="text-xs" />
+                        <YAxis className="text-xs" />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--background))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px'
+                          }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload || payload.length === 0) return null;
+                            const data = payload[0]?.payload;
+                            if (!data) return null;
+                            return (
+                              <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                                <p className="font-medium mb-2">
+                                  {drillDownMonth ? `${label} ${MONTHS[drillDownMonth - 1]}` : label}
+                                </p>
+                                <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
+                                  CA {selectedYear}: {(data.revenue || 0).toLocaleString('fr-FR')} €
+                                </p>
+                                {hasPrevData && (
+                                  <p className="text-sm text-muted-foreground">
+                                    CA {prevYear}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          }}
+                        />
+                        {/* Action markers (only in year view) */}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
+                          const monthActions = actionsByMonth[monthNum] || [];
+                          const primaryAction = monthActions[0];
+                          if (!primaryAction) return null;
+                          const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                          return (
+                            <ReferenceLine
+                              key={`action-${monthNum}`}
+                              x={MONTHS[monthNum - 1]}
+                              stroke={color}
+                              strokeWidth={2}
+                              strokeDasharray="5 5"
+                              label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                            />
+                          );
+                        })}
+                        {/* Barre N-1 (gris) */}
+                        {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
+                          <Bar 
+                            dataKey="prevRevenue" 
+                            fill="hsl(var(--muted-foreground))" 
+                            opacity={0.5} 
+                            radius={[4, 4, 0, 0]} 
+                            animationDuration={CHART_ANIMATION_DURATION} 
+                            animationEasing={CHART_ANIMATION_EASING}
+                            cursor={!drillDownMonth ? "pointer" : undefined}
+                            onClick={!drillDownMonth ? handleRevenueBarClick : undefined}
+                          />
                         )}
-                      </div>
-                    );
-                  }}
-                />
-                {/* Action markers */}
-                {shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
-                  const monthActions = actionsByMonth[monthNum] || [];
-                  const primaryAction = monthActions[0];
-                  if (!primaryAction) return null;
-                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
-                  return (
-                    <ReferenceLine
-                      key={`action-${monthNum}`}
-                      x={MONTHS[monthNum - 1]}
-                      stroke={color}
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
-                    />
-                  );
-                })}
-                {/* Barre 2024 (gris) - côte à côte */}
-                {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
-                  <Bar dataKey="prevRevenue" fill="hsl(var(--muted-foreground))" opacity={0.5} radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
-                )}
-                {/* Barre 2025 (bleu) - côte à côte */}
-                {!hiddenRevenueBars.has('revenue') && (
-                  <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
-                )}
-              </BarChart>
-            </ResponsiveContainer>
+                        {/* Barre N (bleu) */}
+                        {!hiddenRevenueBars.has('revenue') && (
+                          <Bar 
+                            dataKey="revenue" 
+                            fill="hsl(var(--primary))" 
+                            radius={[4, 4, 0, 0]} 
+                            animationDuration={CHART_ANIMATION_DURATION} 
+                            animationEasing={CHART_ANIMATION_EASING}
+                            cursor={!drillDownMonth ? "pointer" : undefined}
+                            onClick={!drillDownMonth ? handleRevenueBarClick : undefined}
+                          />
+                        )}
+                      </BarChart>
+                    ) : (
+                      <LineChart data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="month" className="text-xs" />
+                        <YAxis className="text-xs" />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--background))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px'
+                          }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload || payload.length === 0) return null;
+                            const data = payload[0]?.payload;
+                            if (!data) return null;
+                            return (
+                              <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                                <p className="font-medium mb-2">
+                                  {drillDownMonth ? `${label} ${MONTHS[drillDownMonth - 1]}` : label}
+                                </p>
+                                <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
+                                  CA {selectedYear}: {(data.revenue || 0).toLocaleString('fr-FR')} €
+                                </p>
+                                {hasPrevData && (
+                                  <p className="text-sm text-muted-foreground">
+                                    CA {prevYear}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          }}
+                        />
+                        {/* Action markers (only in year view) */}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
+                          const monthActions = actionsByMonth[monthNum] || [];
+                          const primaryAction = monthActions[0];
+                          if (!primaryAction) return null;
+                          const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                          return (
+                            <ReferenceLine
+                              key={`action-${monthNum}`}
+                              x={MONTHS[monthNum - 1]}
+                              stroke={color}
+                              strokeWidth={2}
+                              strokeDasharray="5 5"
+                              label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                            />
+                          );
+                        })}
+                        {/* Line N-1 (gris) */}
+                        {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
+                          <Line 
+                            type="monotone"
+                            dataKey="prevRevenue" 
+                            stroke="hsl(var(--muted-foreground))" 
+                            strokeWidth={2}
+                            dot={{ fill: 'hsl(var(--muted-foreground))', strokeWidth: 0, r: 3 }}
+                            activeDot={{ r: 5 }}
+                            animationDuration={CHART_ANIMATION_DURATION} 
+                            animationEasing={CHART_ANIMATION_EASING}
+                          />
+                        )}
+                        {/* Line N (bleu) */}
+                        {!hiddenRevenueBars.has('revenue') && (
+                          <Line 
+                            type="monotone"
+                            dataKey="revenue" 
+                            stroke="hsl(var(--primary))" 
+                            strokeWidth={2}
+                            dot={{ fill: 'hsl(var(--primary))', strokeWidth: 0, r: 3 }}
+                            activeDot={{ r: 5 }}
+                            animationDuration={CHART_ANIMATION_DURATION} 
+                            animationEasing={CHART_ANIMATION_EASING}
+                          />
+                        )}
+                      </LineChart>
+                    )}
+                  </ResponsiveContainer>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </CardContent>
       </Card>
