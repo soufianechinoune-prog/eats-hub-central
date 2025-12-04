@@ -88,34 +88,28 @@ const Overview = () => {
         console.error("Error fetching revenue:", revenueError);
       }
 
-      // Calculate restaurant performance metrics
+      // Calculate restaurant performance metrics using ONLY real data
       const restaurantMetrics = restaurants?.map(resto => {
-        // Calculate profitability and revenue from fees and revenue
+        // Calculate profitability and revenue from real fees and revenue data
         const restoFees = feesData?.filter(f => f.restaurant_id === resto.id) || [];
         const restoRevenue = revenueData?.filter(r => r.restaurant_id === resto.id) || [];
         
         const totalPayout = restoFees.reduce((sum, f) => sum + (Number(f.net_payout) || 0), 0);
         const totalRevenue = restoRevenue.reduce((sum, r) => sum + (Number(r.revenue_ttc) || 0), 0);
         
-        // Use real profitability if available, otherwise generate mock data around 45-47%
-        const profitability = totalRevenue > 0 ? (totalPayout / totalRevenue) * 100 : 45 + Math.random() * 2;
+        // Real profitability calculation - 0 if no data
+        const profitability = totalRevenue > 0 ? (totalPayout / totalRevenue) * 100 : 0;
 
-        // Mock data for metrics not yet available in DB
-        const rating = 3.5 + Math.random() * 1.3; // Random between 3.5 and 4.8
-        const prepTime = 15 + Math.random() * 10; // Random between 15 and 25 minutes
-        const errorRate = 1 + Math.random() * 3; // Random between 1% and 4%
-        // Use real revenue if available, otherwise generate mock data
-        const revenue = totalRevenue > 0 ? totalRevenue : 50000 + Math.random() * 150000;
-        
+        // Only use real data - no mocks
         return {
           id: resto.id,
           name: resto.name,
           city: resto.city,
-          rating: parseFloat(rating.toFixed(1)),
-          prepTime: parseFloat(prepTime.toFixed(0)),
-          errorRate: parseFloat(errorRate.toFixed(1)),
+          rating: 0, // Will come from customer_reviews when available
+          prepTime: 0, // Will come from delivery_stats when available
+          errorRate: 0, // Will come from order_errors when available
           profitability: parseFloat(profitability.toFixed(1)),
-          revenue: parseFloat(revenue.toFixed(0)),
+          revenue: totalRevenue,
         };
       }) || [];
 
@@ -150,32 +144,32 @@ const Overview = () => {
       const deliverooTotalRevenue = deliverooRevenue.reduce((sum, r) => sum + (Number(r.revenue_ttc) || 0), 0);
       const deliverooProfitability = deliverooTotalRevenue > 0 ? (deliverooTotalPayout / deliverooTotalRevenue) * 100 : 0;
 
-      // Return combined real + mock data
+      // Return ONLY real data - no mock values
       const result = {
         global: {
-          rating: parseFloat(avgRating.toFixed(1)),
-          prepTime: 18, // Mock - will come from delivery_stats
-          errorRate: 2.3, // Mock - will come from order_errors
-          incorrectOrderRate: 1.8, // Mock - will come from order_errors
+          rating: 0, // Will come from customer_reviews
+          prepTime: 0, // Will come from delivery_stats
+          errorRate: 0, // Will come from order_errors
+          incorrectOrderRate: 0, // Will come from order_errors
           profitability: parseFloat(avgProfitability.toFixed(1)),
-          downtime: 45, // Mock - will come from downtime_logs
-          productRating: 4.5, // Mock - will come from menu_item_reviews
+          downtime: 0, // Will come from downtime_logs
+          productRating: 0, // Will come from menu_item_reviews
         },
         uber: {
-          rating: parseFloat((avgRating + 0.1).toFixed(1)), // Mock adjustment
-          prepTime: 17, // Mock
-          errorRate: 2.1, // Mock
-          incorrectOrderRate: 1.6, // Mock
+          rating: 0, // Will come from customer_reviews
+          prepTime: 0, // Will come from delivery_stats
+          errorRate: 0, // Will come from order_errors
+          incorrectOrderRate: 0, // Will come from order_errors
           profitability: parseFloat(uberProfitability.toFixed(1)),
-          downtime: 38, // Mock
+          downtime: 0, // Will come from downtime_logs
         },
         deliveroo: {
-          rating: parseFloat((avgRating - 0.1).toFixed(1)), // Mock adjustment
-          prepTime: 19, // Mock
-          errorRate: 2.5, // Mock
-          incorrectOrderRate: 2.0, // Mock
+          rating: 0, // Will come from customer_reviews
+          prepTime: 0, // Will come from delivery_stats
+          errorRate: 0, // Will come from order_errors
+          incorrectOrderRate: 0, // Will come from order_errors
           profitability: parseFloat(deliverooProfitability.toFixed(1)),
-          downtime: 52, // Mock
+          downtime: 0, // Will come from downtime_logs
         },
         topByRating,
         flopByRating,
@@ -183,17 +177,10 @@ const Overview = () => {
         flopByRevenue,
         topByProfitability,
         flopByProfitability,
-        topProducts: [
-          { name: "Menu Burger", rating: 4.9, reviews: 156 },
-          { name: "Pizza Margherita", rating: 4.8, reviews: 203 },
-          { name: "Salade César", rating: 4.7, reviews: 98 },
-        ],
-        improvementProducts: [
-          { name: "Menu Végétarien", rating: 3.2, reviews: 45 },
-          { name: "Dessert Tiramisu", rating: 3.4, reviews: 67 },
-          { name: "Wrap Poulet", rating: 3.5, reviews: 89 },
-        ],
+        topProducts: [], // Will come from menu_item_reviews
+        improvementProducts: [], // Will come from menu_item_reviews
         totalRestaurants: restaurants?.length || 0,
+        hasData: (revenueData?.length || 0) > 0 || (feesData?.length || 0) > 0,
       };
 
       console.log("Returning data:", result);
@@ -712,29 +699,35 @@ const Overview = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Produit</TableHead>
-                      <TableHead className="text-right">Note</TableHead>
-                      <TableHead className="text-right">Avis</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {networkData?.topProducts.map((product, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell className="text-right">
-                          <span className="flex items-center justify-end gap-1 text-warning font-semibold">
-                            <Star className="h-3 w-3 fill-warning" />
-                            {product.rating}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">{product.reviews}</TableCell>
+                {networkData?.topProducts && networkData.topProducts.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produit</TableHead>
+                        <TableHead className="text-right">Note</TableHead>
+                        <TableHead className="text-right">Avis</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {networkData.topProducts.map((product, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="font-medium">{product.name}</TableCell>
+                          <TableCell className="text-right">
+                            <span className="flex items-center justify-end gap-1 text-warning font-semibold">
+                              <Star className="h-3 w-3 fill-warning" />
+                              {product.rating}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">{product.reviews}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Aucune donnée disponible
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -747,29 +740,35 @@ const Overview = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Produit</TableHead>
-                      <TableHead className="text-right">Note</TableHead>
-                      <TableHead className="text-right">Avis</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {networkData?.improvementProducts.map((product, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell className="text-right">
-                          <span className="flex items-center justify-end gap-1 text-warning/70 font-semibold">
-                            <Star className="h-3 w-3 fill-warning/70" />
-                            {product.rating}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">{product.reviews}</TableCell>
+                {networkData?.improvementProducts && networkData.improvementProducts.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produit</TableHead>
+                        <TableHead className="text-right">Note</TableHead>
+                        <TableHead className="text-right">Avis</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {networkData.improvementProducts.map((product, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="font-medium">{product.name}</TableCell>
+                          <TableCell className="text-right">
+                            <span className="flex items-center justify-end gap-1 text-warning/70 font-semibold">
+                              <Star className="h-3 w-3 fill-warning/70" />
+                              {product.rating}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">{product.reviews}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Aucune donnée disponible
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -791,16 +790,24 @@ const MetricRow = ({
   value: any; 
   unit: string; 
   color: string;
-}) => (
-  <div className="flex items-center justify-between text-sm">
-    <span className="flex items-center gap-2 text-muted-foreground">
-      <Icon className="h-4 w-4" />
-      {label}
-    </span>
-    <span className={cn("font-semibold", color)}>
-      {value}{unit}
-    </span>
-  </div>
-);
+}) => {
+  // Display "--" for 0 or null/undefined values
+  const displayValue = value === 0 || value === null || value === undefined || value === "0" || value === "0.0" 
+    ? "--" 
+    : value;
+  const showUnit = displayValue !== "--";
+  
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span className="flex items-center gap-2 text-muted-foreground">
+        <Icon className="h-4 w-4" />
+        {label}
+      </span>
+      <span className={cn("font-semibold", displayValue === "--" ? "text-muted-foreground" : color)}>
+        {displayValue}{showUnit ? unit : ""}
+      </span>
+    </div>
+  );
+};
 
 export default Overview;
