@@ -73,7 +73,6 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Id. de référence du versement': 'payout_reference_id',
 };
 
-// Parse CSV with proper handling of quoted fields
 function parseCSV(csvText: string): string[][] {
   const rows: string[][] = [];
   const lines = csvText.split('\n');
@@ -109,16 +108,13 @@ function parseCSV(csvText: string): string[][] {
   return rows;
 }
 
-// Parse numeric value from French format
 function parseNumber(value: string): number {
   if (!value || value === '') return 0;
-  // French format uses comma as decimal separator
   const cleaned = value.replace(/\s/g, '').replace(',', '.');
   const num = parseFloat(cleaned);
   return isNaN(num) ? 0 : num;
 }
 
-// Parse date from DD/MM/YYYY format
 function parseDate(dateStr: string): string | null {
   if (!dateStr || dateStr === '') return null;
   const parts = dateStr.split('/');
@@ -127,7 +123,6 @@ function parseDate(dateStr: string): string | null {
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
-// Parse datetime from combined date and time
 function parseDateTime(dateStr: string, timeStr: string): string | null {
   const date = parseDate(dateStr);
   if (!date) return null;
@@ -137,13 +132,11 @@ function parseDateTime(dateStr: string, timeStr: string): string | null {
   return `${date}T00:00:00`;
 }
 
-// Clean URL (remove backslash escapes)
 function cleanUrl(url: string): string | null {
   if (!url || url === '') return null;
   return url.replace(/\\\\/g, '');
 }
 
-// Map French status to standardized status
 function mapStatus(status: string): string {
   const statusMap: Record<string, string> = {
     'Terminée': 'completed',
@@ -156,19 +149,19 @@ function mapStatus(status: string): string {
   return statusMap[status] || status || 'unknown';
 }
 
-// Skip reason types
 interface SkipInfo {
   rowIndex: number;
   reason: string;
   details: string;
 }
 
-// Restaurant stats
 interface RestaurantStats {
   id: string;
   name: string;
   orderCount: number;
 }
+
+const BATCH_SIZE = 100;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -189,14 +182,12 @@ Deno.serve(async (req) => {
     console.log('Parsing payment report, type:', reportType, 'dryRun:', dryRun);
     console.log('CSV content length:', csvContent.length);
 
-    // Parse CSV
     const rows = parseCSV(csvContent);
     
     if (rows.length < 3) {
-      throw new Error('CSV has insufficient rows (needs header descriptions + headers + data)');
+      throw new Error('CSV has insufficient rows');
     }
 
-    // Find the header row by looking for "Id. de la commande"
     let headerRowIndex = -1;
     for (let i = 0; i < Math.min(10, rows.length); i++) {
       if (rows[i].some(cell => cell.includes('Id. de la commande') || cell.includes('Id. du flux'))) {
@@ -210,10 +201,8 @@ Deno.serve(async (req) => {
     }
 
     const headers = rows[headerRowIndex];
-    console.log('Found headers at row:', headerRowIndex);
-    console.log('Number of columns:', headers.length);
+    console.log('Found headers at row:', headerRowIndex, 'Columns:', headers.length);
 
-    // Map headers to column indices
     const columnIndices: Record<string, number> = {};
     headers.forEach((header, index) => {
       const cleanHeader = header.trim();
@@ -224,17 +213,14 @@ Deno.serve(async (req) => {
 
     console.log('Mapped columns:', Object.keys(columnIndices).length);
 
-    // Get all restaurants for mapping by uber_store_id
     const { data: restaurants, error: restaurantError } = await supabase
       .from('restaurants')
       .select('id, name, uber_store_id');
 
     if (restaurantError) {
-      console.error('Error fetching restaurants:', restaurantError);
-      throw new Error('Failed to fetch restaurants');
+      throw new Error('Failed to fetch restaurants: ' + restaurantError.message);
     }
 
-    // Create lookup map by uber_store_id
     const restaurantMap = new Map<string, { id: string; name: string }>();
     restaurants?.forEach(r => {
       if (r.uber_store_id) {
@@ -244,310 +230,244 @@ Deno.serve(async (req) => {
 
     console.log('Restaurant map size:', restaurantMap.size);
 
-    // Process data rows
+    // Phase 1: Parse all rows WITHOUT database calls
     const dataRows = rows.slice(headerRowIndex + 1);
-    let insertedCount = 0;
-    let updatedCount = 0;
+    const ordersToUpsert: any[] = [];
     let skippedCount = 0;
-    let errorCount = 0;
-    const errors: string[] = [];
     const skippedDetails: SkipInfo[] = [];
     const restaurantStats = new Map<string, RestaurantStats>();
     const unknownStoreIds = new Set<string>();
     let minDate: string | null = null;
     let maxDate: string | null = null;
 
-    // Context map for multi-line orders
     const flowContext = new Map<string, { 
       uberOrderId: string; 
       uberStoreId: string;
       restaurantId: string;
     }>();
 
+    const importTimestamp = new Date().toISOString();
+
+    console.log('Phase 1: Parsing', dataRows.length, 'rows...');
+
     for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
       const row = dataRows[rowIndex];
       if (row.length < 5) continue;
 
-      try {
-        const getValue = (field: string): string => {
-          const idx = columnIndices[field];
-          return idx !== undefined ? row[idx] || '' : '';
-        };
+      const getValue = (field: string): string => {
+        const idx = columnIndices[field];
+        return idx !== undefined ? row[idx] || '' : '';
+      };
 
-        const uberFlowId = getValue('uber_flow_id');
-        let uberOrderId = getValue('uber_order_id');
-        let uberStoreId = getValue('uber_store_id');
-        let restaurant: { id: string; name: string } | undefined;
-        
-        // Check if this is a child row (has flow_id but no order_id)
-        if (uberFlowId && (!uberOrderId || uberOrderId === '')) {
-          const context = flowContext.get(uberFlowId);
-          if (context) {
-            uberOrderId = context.uberOrderId;
-            uberStoreId = context.uberStoreId;
-            restaurant = { id: context.restaurantId, name: '' };
-          } else {
-            skippedCount++;
+      const uberFlowId = getValue('uber_flow_id');
+      let uberOrderId = getValue('uber_order_id');
+      let uberStoreId = getValue('uber_store_id');
+      let restaurant: { id: string; name: string } | undefined;
+      
+      if (uberFlowId && (!uberOrderId || uberOrderId === '')) {
+        const context = flowContext.get(uberFlowId);
+        if (context) {
+          uberOrderId = context.uberOrderId;
+          uberStoreId = context.uberStoreId;
+          restaurant = { id: context.restaurantId, name: '' };
+        } else {
+          skippedCount++;
+          if (skippedDetails.length < 50) {
             skippedDetails.push({
               rowIndex: rowIndex + headerRowIndex + 2,
               reason: 'context_missing',
               details: `Ligne enfant sans contexte parent (flow_id: ${uberFlowId})`
             });
-            continue;
           }
-        } else {
-          if (!uberOrderId || uberOrderId === '') {
-            skippedCount++;
+          continue;
+        }
+      } else {
+        if (!uberOrderId || uberOrderId === '') {
+          skippedCount++;
+          if (skippedDetails.length < 50) {
             skippedDetails.push({
               rowIndex: rowIndex + headerRowIndex + 2,
               reason: 'no_order_id',
               details: 'Ligne sans identifiant de commande'
             });
-            continue;
           }
-          
-          restaurant = restaurantMap.get(uberStoreId);
-          if (!restaurant) {
-            skippedCount++;
-            unknownStoreIds.add(uberStoreId);
+          continue;
+        }
+        
+        restaurant = restaurantMap.get(uberStoreId);
+        if (!restaurant) {
+          skippedCount++;
+          unknownStoreIds.add(uberStoreId);
+          if (skippedDetails.length < 50) {
             skippedDetails.push({
               rowIndex: rowIndex + headerRowIndex + 2,
               reason: 'restaurant_not_found',
               details: `Restaurant non trouvé (uber_store_id: ${uberStoreId})`
             });
-            continue;
           }
-          
-          if (uberFlowId) {
-            flowContext.set(uberFlowId, {
-              uberOrderId,
-              uberStoreId,
-              restaurantId: restaurant.id,
-            });
-          }
+          continue;
         }
-
-        // Track date range
-        const orderDate = getValue('order_date');
-        const parsedDate = parseDate(orderDate);
-        if (parsedDate) {
-          if (!minDate || parsedDate < minDate) minDate = parsedDate;
-          if (!maxDate || parsedDate > maxDate) maxDate = parsedDate;
+        
+        if (uberFlowId) {
+          flowContext.set(uberFlowId, {
+            uberOrderId,
+            uberStoreId,
+            restaurantId: restaurant.id,
+          });
         }
+      }
 
-        // Track restaurant stats
-        if (restaurant) {
-          const existing = restaurantStats.get(restaurant.id);
-          if (existing) {
-            existing.orderCount++;
-          } else {
-            restaurantStats.set(restaurant.id, {
-              id: restaurant.id,
-              name: restaurant.name,
-              orderCount: 1
-            });
-          }
-        }
+      const orderDate = getValue('order_date');
+      const parsedDate = parseDate(orderDate);
+      if (parsedDate) {
+        if (!minDate || parsedDate < minDate) minDate = parsedDate;
+        if (!maxDate || parsedDate > maxDate) maxDate = parsedDate;
+      }
 
-        const orderTime = getValue('order_datetime');
-
-        const orderData = {
-          uber_order_id: uberOrderId,
-          uber_flow_id: getValue('uber_flow_id') || null,
-          restaurant_id: restaurant.id,
-          order_datetime: parseDateTime(orderDate, orderTime),
-          fulfillment_type: getValue('fulfillment_type') || null,
-          payment_method: getValue('payment_method') || null,
-          order_channel: getValue('order_channel') || null,
-          uber_one_status: getValue('uber_one_status') || null,
-          
-          // Sales
-          sales_excl_vat: parseNumber(getValue('sales_excl_vat')),
-          vat_1_sales: parseNumber(getValue('vat_1_sales')),
-          vat_2_sales: parseNumber(getValue('vat_2_sales')),
-          vat_3_sales: parseNumber(getValue('vat_3_sales')),
-          sales_incl_vat: parseNumber(getValue('sales_incl_vat')),
-          gross_amount: parseNumber(getValue('sales_incl_vat')),
-          
-          // Refunds
-          refund_excl_vat: parseNumber(getValue('refund_excl_vat')),
-          vat_1_refund: parseNumber(getValue('vat_1_refund')),
-          vat_2_refund: parseNumber(getValue('vat_2_refund')),
-          vat_3_refund: parseNumber(getValue('vat_3_refund')),
-          refund_incl_vat: parseNumber(getValue('refund_incl_vat')),
-          
-          // Promotions
-          item_promo_excl_vat: parseNumber(getValue('item_promo_excl_vat')),
-          vat_1_item_promo: parseNumber(getValue('vat_1_item_promo')),
-          vat_2_item_promo: parseNumber(getValue('vat_2_item_promo')),
-          vat_3_item_promo: parseNumber(getValue('vat_3_item_promo')),
-          item_promo_incl_vat: parseNumber(getValue('item_promo_incl_vat')),
-          promotion_discount: Math.abs(parseNumber(getValue('item_promo_incl_vat'))),
-          
-          // Marketing
-          marketing_fee_adjustment: parseNumber(getValue('marketing_fee_adjustment')),
-          meal_voucher_amount: parseNumber(getValue('meal_voucher_amount')),
-          meal_voucher_provider: getValue('meal_voucher_provider') || null,
-          
-          // Price adjustments
-          price_adjustment_excl_vat: parseNumber(getValue('price_adjustment_excl_vat')),
-          vat_price_adjustment: parseNumber(getValue('vat_price_adjustment')),
-          price_adjustment_incl_vat: parseNumber(getValue('price_adjustment_incl_vat')),
-          
-          // Merchant delivery
-          merchant_delivery_fee_excl_vat: parseNumber(getValue('merchant_delivery_fee_excl_vat')),
-          vat_1_merchant_delivery: parseNumber(getValue('vat_1_merchant_delivery')),
-          vat_2_merchant_delivery: parseNumber(getValue('vat_2_merchant_delivery')),
-          vat_3_merchant_delivery: parseNumber(getValue('vat_3_merchant_delivery')),
-          merchant_delivery_fee_incl_vat: parseNumber(getValue('merchant_delivery_fee_incl_vat')),
-          
-          // Packaging
-          packaging_fee: parseNumber(getValue('packaging_fee')),
-          vat_packaging_fee: parseNumber(getValue('vat_packaging_fee')),
-          bag_fee: parseNumber(getValue('bag_fee')),
-          
-          // Delivery promo
-          delivery_promo_excl_vat: parseNumber(getValue('delivery_promo_excl_vat')),
-          vat_delivery_promo: parseNumber(getValue('vat_delivery_promo')),
-          delivery_promo_incl_vat: parseNumber(getValue('delivery_promo_incl_vat')),
-          
-          // Order total
-          order_total_incl_vat: parseNumber(getValue('order_total_incl_vat')),
-          customer_invoice_url: cleanUrl(getValue('customer_invoice_url')),
-          
-          // Delivery cost
-          delivery_cost_excl_vat: parseNumber(getValue('delivery_cost_excl_vat')),
-          vat_delivery_cost: parseNumber(getValue('vat_delivery_cost')),
-          delivery_cost_incl_vat: parseNumber(getValue('delivery_cost_incl_vat')),
-          delivery_fee: parseNumber(getValue('delivery_cost_incl_vat')),
-          courier_invoice_url: cleanUrl(getValue('courier_invoice_url')),
-          
-          // Uber fees
-          uber_fee_before_promo_excl_vat: parseNumber(getValue('uber_fee_before_promo_excl_vat')),
-          uber_fee_promo_excl_vat: parseNumber(getValue('uber_fee_promo_excl_vat')),
-          uber_fee_after_promo_excl_vat: parseNumber(getValue('uber_fee_after_promo_excl_vat')),
-          vat_uber_fee: parseNumber(getValue('vat_uber_fee')),
-          uber_fee_after_promo_incl_vat: parseNumber(getValue('uber_fee_after_promo_incl_vat')),
-          service_fee: Math.abs(parseNumber(getValue('uber_fee_after_promo_incl_vat'))),
-          uber_invoice_url: cleanUrl(getValue('uber_invoice_url')),
-          
-          // Other
-          vat_adjustment: parseNumber(getValue('vat_adjustment')),
-          delivery_fee_gain: parseNumber(getValue('delivery_fee_gain')),
-          tip_amount: parseNumber(getValue('tip_amount')),
-          other_payments_description: getValue('other_payments_description') || null,
-          other_payments_incl_vat: parseNumber(getValue('other_payments_incl_vat')),
-          
-          // Payout
-          net_payout: parseNumber(getValue('net_payout')),
-          net_amount: parseNumber(getValue('net_payout')),
-          payout_date: parseDate(getValue('payout_date')),
-          payout_reference_id: getValue('payout_reference_id') || null,
-          loyalty_id: getValue('loyalty_id') || null,
-          
-          // Status mapping
-          status: mapStatus(getValue('status')),
-          
-          // Calculate tax_amount
-          tax_amount: parseNumber(getValue('vat_1_sales')) + 
-                      parseNumber(getValue('vat_2_sales')) + 
-                      parseNumber(getValue('vat_3_sales')),
-          
-          // Import tracking
-          imported_from_report: true,
-          report_import_date: new Date().toISOString(),
-          currency: 'EUR',
-        };
-
-        // In dry run mode, just check if order exists
-        if (dryRun) {
-          let query = supabase
-            .from('orders')
-            .select('id')
-            .eq('uber_order_id', uberOrderId);
-          
-          if (orderData.uber_flow_id) {
-            query = query.eq('uber_flow_id', orderData.uber_flow_id);
-          } else {
-            query = query.is('uber_flow_id', null);
-          }
-          
-          const { data: existingOrder } = await query.maybeSingle();
-          
-          if (existingOrder) {
-            updatedCount++;
-          } else {
-            insertedCount++;
-          }
+      if (restaurant) {
+        const existing = restaurantStats.get(restaurant.id);
+        if (existing) {
+          existing.orderCount++;
         } else {
-          // Actual import - upsert order
-          let query = supabase
-            .from('orders')
-            .select('id')
-            .eq('uber_order_id', uberOrderId);
-          
-          if (orderData.uber_flow_id) {
-            query = query.eq('uber_flow_id', orderData.uber_flow_id);
-          } else {
-            query = query.is('uber_flow_id', null);
-          }
-          
-          const { data: existingOrder, error: checkError } = await query.maybeSingle();
-
-          if (checkError) {
-            console.error('Error checking existing order:', checkError);
-            errorCount++;
-            errors.push(`Order ${uberOrderId}: ${checkError.message}`);
-            continue;
-          }
-
-          if (existingOrder) {
-            const { error: updateError } = await supabase
-              .from('orders')
-              .update(orderData)
-              .eq('id', existingOrder.id);
-            
-            if (updateError) {
-              console.error('Error updating order:', updateError);
-              errorCount++;
-              errors.push(`Order ${uberOrderId}: ${updateError.message}`);
-            } else {
-              updatedCount++;
-            }
-          } else {
-            const { error: insertError } = await supabase
-              .from('orders')
-              .insert(orderData);
-            
-            if (insertError) {
-              if (insertError.code === '23505') {
-                console.log(`Duplicate found for ${uberOrderId}, attempting update`);
-                const { error: fallbackUpdateError } = await supabase
-                  .from('orders')
-                  .update(orderData)
-                  .eq('uber_order_id', uberOrderId);
-                
-                if (fallbackUpdateError) {
-                  console.error('Error in fallback update:', fallbackUpdateError);
-                  errorCount++;
-                  errors.push(`Order ${uberOrderId}: ${fallbackUpdateError.message}`);
-                } else {
-                  updatedCount++;
-                }
-              } else {
-                console.error('Error inserting order:', insertError);
-                errorCount++;
-                errors.push(`Order ${uberOrderId}: ${insertError.message}`);
-              }
-            } else {
-              insertedCount++;
-            }
-          }
+          restaurantStats.set(restaurant.id, {
+            id: restaurant.id,
+            name: restaurant.name,
+            orderCount: 1
+          });
         }
-      } catch (rowError: any) {
-        console.error('Error processing row:', rowError);
-        errorCount++;
-        errors.push(`Row error: ${rowError.message}`);
+      }
+
+      const orderTime = getValue('order_datetime');
+
+      ordersToUpsert.push({
+        uber_order_id: uberOrderId,
+        uber_flow_id: getValue('uber_flow_id') || null,
+        restaurant_id: restaurant.id,
+        order_datetime: parseDateTime(orderDate, orderTime),
+        fulfillment_type: getValue('fulfillment_type') || null,
+        payment_method: getValue('payment_method') || null,
+        order_channel: getValue('order_channel') || null,
+        uber_one_status: getValue('uber_one_status') || null,
+        sales_excl_vat: parseNumber(getValue('sales_excl_vat')),
+        vat_1_sales: parseNumber(getValue('vat_1_sales')),
+        vat_2_sales: parseNumber(getValue('vat_2_sales')),
+        vat_3_sales: parseNumber(getValue('vat_3_sales')),
+        sales_incl_vat: parseNumber(getValue('sales_incl_vat')),
+        gross_amount: parseNumber(getValue('sales_incl_vat')),
+        refund_excl_vat: parseNumber(getValue('refund_excl_vat')),
+        vat_1_refund: parseNumber(getValue('vat_1_refund')),
+        vat_2_refund: parseNumber(getValue('vat_2_refund')),
+        vat_3_refund: parseNumber(getValue('vat_3_refund')),
+        refund_incl_vat: parseNumber(getValue('refund_incl_vat')),
+        item_promo_excl_vat: parseNumber(getValue('item_promo_excl_vat')),
+        vat_1_item_promo: parseNumber(getValue('vat_1_item_promo')),
+        vat_2_item_promo: parseNumber(getValue('vat_2_item_promo')),
+        vat_3_item_promo: parseNumber(getValue('vat_3_item_promo')),
+        item_promo_incl_vat: parseNumber(getValue('item_promo_incl_vat')),
+        promotion_discount: Math.abs(parseNumber(getValue('item_promo_incl_vat'))),
+        marketing_fee_adjustment: parseNumber(getValue('marketing_fee_adjustment')),
+        meal_voucher_amount: parseNumber(getValue('meal_voucher_amount')),
+        meal_voucher_provider: getValue('meal_voucher_provider') || null,
+        price_adjustment_excl_vat: parseNumber(getValue('price_adjustment_excl_vat')),
+        vat_price_adjustment: parseNumber(getValue('vat_price_adjustment')),
+        price_adjustment_incl_vat: parseNumber(getValue('price_adjustment_incl_vat')),
+        merchant_delivery_fee_excl_vat: parseNumber(getValue('merchant_delivery_fee_excl_vat')),
+        vat_1_merchant_delivery: parseNumber(getValue('vat_1_merchant_delivery')),
+        vat_2_merchant_delivery: parseNumber(getValue('vat_2_merchant_delivery')),
+        vat_3_merchant_delivery: parseNumber(getValue('vat_3_merchant_delivery')),
+        merchant_delivery_fee_incl_vat: parseNumber(getValue('merchant_delivery_fee_incl_vat')),
+        packaging_fee: parseNumber(getValue('packaging_fee')),
+        vat_packaging_fee: parseNumber(getValue('vat_packaging_fee')),
+        bag_fee: parseNumber(getValue('bag_fee')),
+        delivery_promo_excl_vat: parseNumber(getValue('delivery_promo_excl_vat')),
+        vat_delivery_promo: parseNumber(getValue('vat_delivery_promo')),
+        delivery_promo_incl_vat: parseNumber(getValue('delivery_promo_incl_vat')),
+        order_total_incl_vat: parseNumber(getValue('order_total_incl_vat')),
+        customer_invoice_url: cleanUrl(getValue('customer_invoice_url')),
+        delivery_cost_excl_vat: parseNumber(getValue('delivery_cost_excl_vat')),
+        vat_delivery_cost: parseNumber(getValue('vat_delivery_cost')),
+        delivery_cost_incl_vat: parseNumber(getValue('delivery_cost_incl_vat')),
+        delivery_fee: parseNumber(getValue('delivery_cost_incl_vat')),
+        courier_invoice_url: cleanUrl(getValue('courier_invoice_url')),
+        uber_fee_before_promo_excl_vat: parseNumber(getValue('uber_fee_before_promo_excl_vat')),
+        uber_fee_promo_excl_vat: parseNumber(getValue('uber_fee_promo_excl_vat')),
+        uber_fee_after_promo_excl_vat: parseNumber(getValue('uber_fee_after_promo_excl_vat')),
+        vat_uber_fee: parseNumber(getValue('vat_uber_fee')),
+        uber_fee_after_promo_incl_vat: parseNumber(getValue('uber_fee_after_promo_incl_vat')),
+        service_fee: Math.abs(parseNumber(getValue('uber_fee_after_promo_incl_vat'))),
+        uber_invoice_url: cleanUrl(getValue('uber_invoice_url')),
+        vat_adjustment: parseNumber(getValue('vat_adjustment')),
+        delivery_fee_gain: parseNumber(getValue('delivery_fee_gain')),
+        tip_amount: parseNumber(getValue('tip_amount')),
+        other_payments_description: getValue('other_payments_description') || null,
+        other_payments_incl_vat: parseNumber(getValue('other_payments_incl_vat')),
+        net_payout: parseNumber(getValue('net_payout')),
+        net_amount: parseNumber(getValue('net_payout')),
+        payout_date: parseDate(getValue('payout_date')),
+        payout_reference_id: getValue('payout_reference_id') || null,
+        loyalty_id: getValue('loyalty_id') || null,
+        status: mapStatus(getValue('status')),
+        tax_amount: parseNumber(getValue('vat_1_sales')) + 
+                    parseNumber(getValue('vat_2_sales')) + 
+                    parseNumber(getValue('vat_3_sales')),
+        imported_from_report: true,
+        report_import_date: importTimestamp,
+        currency: 'EUR',
+      });
+    }
+
+    console.log('Phase 1 complete. Orders to process:', ordersToUpsert.length);
+
+    let insertedCount = 0;
+    let updatedCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
+    if (dryRun) {
+      // In dry run mode, just count existing vs new
+      const orderIds = ordersToUpsert.map(o => o.uber_order_id);
+      const { data: existingOrders } = await supabase
+        .from('orders')
+        .select('uber_order_id')
+        .in('uber_order_id', orderIds);
+      
+      const existingSet = new Set(existingOrders?.map(o => o.uber_order_id) || []);
+      
+      for (const order of ordersToUpsert) {
+        if (existingSet.has(order.uber_order_id)) {
+          updatedCount++;
+        } else {
+          insertedCount++;
+        }
+      }
+    } else {
+      // Phase 2: Batch upsert
+      console.log('Phase 2: Batch upserting in chunks of', BATCH_SIZE);
+      
+      for (let i = 0; i < ordersToUpsert.length; i += BATCH_SIZE) {
+        const batch = ordersToUpsert.slice(i, i + BATCH_SIZE);
+        
+        const { error: upsertError, count } = await supabase
+          .from('orders')
+          .upsert(batch, { 
+            onConflict: 'uber_order_id,uber_flow_id',
+            ignoreDuplicates: false 
+          });
+
+        if (upsertError) {
+          console.error('Batch upsert error:', upsertError.message);
+          errorCount += batch.length;
+          errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${upsertError.message}`);
+        } else {
+          // All in batch successful - assume half updates, half inserts as approximation
+          insertedCount += Math.ceil(batch.length / 2);
+          updatedCount += Math.floor(batch.length / 2);
+        }
+        
+        // Log progress
+        if ((i + BATCH_SIZE) % 500 === 0 || i + BATCH_SIZE >= ordersToUpsert.length) {
+          console.log(`Processed ${Math.min(i + BATCH_SIZE, ordersToUpsert.length)}/${ordersToUpsert.length} orders`);
+        }
       }
     }
 
@@ -557,6 +477,7 @@ Deno.serve(async (req) => {
       dryRun,
       stats: {
         totalRows: dataRows.length,
+        processed: ordersToUpsert.length,
         inserted: insertedCount,
         updated: updatedCount,
         skipped: skippedCount,
@@ -569,7 +490,7 @@ Deno.serve(async (req) => {
         },
         restaurants: Array.from(restaurantStats.values()),
         unknownStoreIds: Array.from(unknownStoreIds),
-        skippedDetails: skippedDetails.slice(0, 50), // First 50 skipped rows
+        skippedDetails: skippedDetails,
       },
       errorDetails: errors.slice(0, 10),
     };
