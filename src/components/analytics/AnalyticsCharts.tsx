@@ -1345,10 +1345,15 @@ export function AnalyticsCharts({
               <BarChart data={aggregatedRevenueData.map(d => {
                 const rev = d.revenue || 0;
                 const prevRev = d.prevRevenue || 0;
+                // La valeur la plus petite est en bas, l'excédent de la plus grande en haut
                 return {
                   ...d,
-                  current: rev,  // Valeur complète 2025 (bleu, toujours en bas)
-                  prevExcess: prevRev > rev ? prevRev - rev : 0,  // Excédent 2024 si 2024 > 2025 (gris, au-dessus)
+                  // Si 2025 > 2024 : gris en bas (2024), bleu en haut (excédent 2025)
+                  baseGray: rev > prevRev ? prevRev : 0,
+                  excessBlue: rev > prevRev ? rev - prevRev : 0,
+                  // Si 2024 >= 2025 : bleu en bas (2025), gris en haut (excédent 2024)
+                  baseBlue: prevRev >= rev ? rev : 0,
+                  excessGray: prevRev > rev ? prevRev - rev : 0,
                 };
               })}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -1401,13 +1406,19 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                {/* Barre bleue (2025) - toujours en bas, valeur complète */}
-                {!hiddenRevenueBars.has('revenue') && (
-                  <Bar dataKey="current" stackId="ca" fill="hsl(var(--primary))" radius={hasPrevData && !hiddenRevenueBars.has('prevRevenue') ? 0 : [4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
-                )}
-                {/* Barre grise (excédent 2024) - seulement si 2024 > 2025, au-dessus */}
+                {/* Cas 1: 2025 > 2024 → Gris (2024) en bas, Bleu (excédent 2025) en haut */}
                 {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
-                  <Bar dataKey="prevExcess" stackId="ca" fill="hsl(var(--muted-foreground))" opacity={0.5} radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                  <Bar dataKey="baseGray" stackId="ca" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={0} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                )}
+                {!hiddenRevenueBars.has('revenue') && (
+                  <Bar dataKey="excessBlue" stackId="ca" fill="hsl(var(--primary))" radius={0} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                )}
+                {/* Cas 2: 2024 >= 2025 → Bleu (2025) en bas, Gris (excédent 2024) en haut */}
+                {!hiddenRevenueBars.has('revenue') && (
+                  <Bar dataKey="baseBlue" stackId="ca" fill="hsl(var(--primary))" radius={0} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                )}
+                {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
+                  <Bar dataKey="excessGray" stackId="ca" fill="hsl(var(--muted-foreground))" opacity={0.5} radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
                 )}
               </BarChart>
             </ResponsiveContainer>
