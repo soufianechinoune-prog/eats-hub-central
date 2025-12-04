@@ -1342,7 +1342,17 @@ export function AnalyticsCharts({
           />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={aggregatedRevenueData} barGap={-34}>
+              <BarChart data={aggregatedRevenueData.map(d => {
+                const rev = d.revenue || 0;
+                const prevRev = d.prevRevenue || 0;
+                const baseValue = Math.min(rev, prevRev);
+                return {
+                  ...d,
+                  baseValue,
+                  currentExtra: rev > prevRev ? rev - prevRev : 0,
+                  prevExtra: prevRev > rev ? prevRev - rev : 0,
+                };
+              })}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis className="text-xs" />
@@ -1352,7 +1362,29 @@ export function AnalyticsCharts({
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: number) => [value.toLocaleString('fr-FR') + ' €', '']}
+                  formatter={(value: number, name: string, props: any) => {
+                    const item = props.payload;
+                    if (name === 'baseValue' || name === 'currentExtra' || name === 'prevExtra') return null;
+                    return [value.toLocaleString('fr-FR') + ' €', ''];
+                  }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || payload.length === 0) return null;
+                    const data = payload[0]?.payload;
+                    if (!data) return null;
+                    return (
+                      <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                        <p className="font-medium mb-2">{label}</p>
+                        <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
+                          CA {selectedYear}: {(data.revenue || 0).toLocaleString('fr-FR')} €
+                        </p>
+                        {hasPrevData && (
+                          <p className="text-sm text-muted-foreground">
+                            CA {prevYear}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }}
                 />
                 {/* Action markers */}
                 {shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
@@ -1371,13 +1403,19 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                {/* Barre N-1 en arrière-plan (plus large, semi-transparente) */}
-                {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
-                  <Bar dataKey="prevRevenue" name={`CA ${prevYear}`} fill="hsl(var(--muted-foreground))" radius={0} opacity={0.35} barSize={40} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                {/* Barre de base (partie commune) - gris clair */}
+                {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && !hiddenRevenueBars.has('revenue') && (
+                  <Bar dataKey="baseValue" stackId="ca" fill="hsl(var(--muted-foreground))" opacity={0.35} radius={0} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
                 )}
-                {/* Barre N au premier plan (plus étroite, solide) */}
-                {!hiddenRevenueBars.has('revenue') && <Bar dataKey="revenue" name={`CA ${selectedYear}`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={28} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
-              </ComposedChart>
+                {/* Surplus N (2025) si 2025 > 2024 - bleu */}
+                {!hiddenRevenueBars.has('revenue') && (
+                  <Bar dataKey="currentExtra" stackId="ca" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                )}
+                {/* Surplus N-1 (2024) si 2024 > 2025 - gris foncé */}
+                {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
+                  <Bar dataKey="prevExtra" stackId="ca" fill="hsl(var(--muted-foreground))" opacity={0.6} radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                )}
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
