@@ -1253,107 +1253,6 @@ export function AnalyticsCharts({
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
-      {showKPIs && !drillDownMonth && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {showRevenueKPIs && (
-        <>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Euro className="h-4 w-4 text-primary" />
-                <span className="text-sm text-muted-foreground">CA Total</span>
-              </div>
-              {hasPrevData && <VariationIndicator current={kpis.totalRevenue} previous={kpis.prevTotalRevenue} />}
-            </div>
-            <p className="text-2xl font-bold mt-2">
-              {kpis.totalRevenue.toLocaleString("fr-FR")} €
-            </p>
-            {hasPrevData && (
-              <p className="text-xs text-muted-foreground">
-                {prevYear}: {kpis.prevTotalRevenue.toLocaleString("fr-FR")} €
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        </>
-        )}
-        
-        {showConversionKPIs && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-primary" />
-                <span className="text-sm text-muted-foreground">Commandes</span>
-              </div>
-              {hasPrevData && <VariationIndicator current={kpis.totalOrders} previous={kpis.prevTotalOrders} />}
-            </div>
-            <p className="text-2xl font-bold mt-2">
-              {kpis.totalOrders.toLocaleString("fr-FR")}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Panier moy. {kpis.avgBasket.toFixed(2)} €
-            </p>
-          </CardContent>
-        </Card>
-        )}
-        
-        {showFinanceKPIs && (
-        <>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Percent className="h-4 w-4 text-primary" />
-              <span className="text-sm text-muted-foreground">Taux Conv.</span>
-            </div>
-            <p className="text-2xl font-bold mt-2">
-              {kpis.conversionRate.toFixed(1)}%
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-destructive" />
-                <span className="text-sm text-muted-foreground">Frais Totaux</span>
-              </div>
-              {hasPrevData && <VariationIndicator current={kpis.totalFees} previous={kpis.prevTotalFees} inverse />}
-            </div>
-            <p className="text-2xl font-bold mt-2">
-              {kpis.totalFees.toLocaleString("fr-FR")} €
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {kpis.feePercentage.toFixed(1)}% du CA
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={kpis.profitability > 60 ? "border-green-500/50" : kpis.profitability > 40 ? "border-amber-500/50" : "border-destructive/50"}>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TrendingUp className={`h-4 w-4 ${kpis.profitability > 60 ? "text-green-500" : kpis.profitability > 40 ? "text-amber-500" : "text-destructive"}`} />
-                <span className="text-sm text-muted-foreground">% Rentabilité</span>
-              </div>
-              {hasPrevData && <VariationIndicator current={kpis.profitability} previous={kpis.prevProfitability} />}
-            </div>
-            <p className={`text-2xl font-bold mt-2 ${kpis.profitability > 60 ? "text-green-500" : kpis.profitability > 40 ? "text-amber-500" : "text-destructive"}`}>
-              {kpis.profitability.toFixed(1)}%
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Versement / CA
-            </p>
-          </CardContent>
-        </Card>
-        </>
-        )}
-        </div>
-      )}
-
       {/* Actions Legend */}
       {config.global && actions && actions.length > 0 && (
         <Card className="bg-muted/30">
@@ -1480,47 +1379,59 @@ export function AnalyticsCharts({
             )}
           </CardTitle>
           <div className="flex items-center gap-4">
-            {/* Inline KPIs in drill-down mode */}
-            {drillDownMonth && drillDownMonthTotals && (
-              <motion.div 
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex items-center gap-4 px-4 py-2.5 bg-muted/30 rounded-xl mt-1"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Euro className="h-5 w-5 text-primary" />
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground leading-tight">{selectedYear}</p>
-                    <p className="text-base font-bold leading-tight">{drillDownMonthTotals.revenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
-                  </div>
-                </div>
-                {hasPrevData && (
-                  <>
-                    <div className="h-10 w-px bg-border" />
+            {/* Inline KPIs - always visible */}
+            {(() => {
+              const displayRevenue = drillDownMonth && drillDownMonthTotals 
+                ? drillDownMonthTotals.revenue 
+                : kpis.totalRevenue;
+              const displayPrevRevenue = drillDownMonth && drillDownMonthTotals 
+                ? drillDownMonthTotals.prevRevenue 
+                : kpis.prevTotalRevenue;
+              const variation = drillDownMonth && drillDownMonthTotals
+                ? drillDownMonthTotals.variation
+                : calcVariation(kpis.totalRevenue, kpis.prevTotalRevenue);
+              
+              return (
+                <motion.div 
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-center gap-4 px-4 py-2.5 bg-muted/30 rounded-xl mt-1"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Euro className="h-5 w-5 text-primary" />
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground leading-tight">{prevYear}</p>
-                      <p className="text-sm text-muted-foreground leading-tight">{drillDownMonthTotals.prevRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                      <p className="text-xs text-muted-foreground leading-tight">{selectedYear}</p>
+                      <p className="text-base font-bold leading-tight">{displayRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
                     </div>
-                    <div className="h-10 w-px bg-border" />
-                    <div className={cn(
-                      "flex items-center gap-1 font-semibold text-base",
-                      drillDownMonthTotals.variation > 0 && "text-emerald-500",
-                      drillDownMonthTotals.variation < 0 && "text-red-500",
-                      drillDownMonthTotals.variation === 0 && "text-muted-foreground"
-                    )}>
-                      {drillDownMonthTotals.variation > 0 ? (
-                        <ArrowUp className="h-4 w-4" />
-                      ) : drillDownMonthTotals.variation < 0 ? (
-                        <ArrowDown className="h-4 w-4" />
-                      ) : (
-                        <Minus className="h-4 w-4" />
-                      )}
-                      <span>{drillDownMonthTotals.variation > 0 ? "+" : ""}{drillDownMonthTotals.variation.toFixed(1)}%</span>
-                    </div>
-                  </>
-                )}
-              </motion.div>
-            )}
+                  </div>
+                  {hasPrevData && (
+                    <>
+                      <div className="h-10 w-px bg-border" />
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground leading-tight">{prevYear}</p>
+                        <p className="text-sm text-muted-foreground leading-tight">{displayPrevRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                      </div>
+                      <div className="h-10 w-px bg-border" />
+                      <div className={cn(
+                        "flex items-center gap-1 font-semibold text-base",
+                        variation > 0 && "text-emerald-500",
+                        variation < 0 && "text-red-500",
+                        variation === 0 && "text-muted-foreground"
+                      )}>
+                        {variation > 0 ? (
+                          <ArrowUp className="h-4 w-4" />
+                        ) : variation < 0 ? (
+                          <ArrowDown className="h-4 w-4" />
+                        ) : (
+                          <Minus className="h-4 w-4" />
+                        )}
+                        <span>{variation > 0 ? "+" : ""}{variation.toFixed(1)}%</span>
+                      </div>
+                    </>
+                  )}
+                </motion.div>
+              );
+            })()}
             
             {/* Chart Type Toggle */}
             <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
