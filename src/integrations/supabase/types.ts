@@ -168,6 +168,63 @@ export type Database = {
           },
         ]
       }
+      csv_imports: {
+        Row: {
+          date_range_end: string | null
+          date_range_start: string | null
+          error_count: number | null
+          file_name: string
+          file_size: number | null
+          file_url: string | null
+          id: string
+          imported_at: string | null
+          inserted_count: number | null
+          report_type: string
+          restaurant_ids: string[] | null
+          restaurants_count: number | null
+          skipped_count: number | null
+          status: string | null
+          total_rows: number | null
+          updated_count: number | null
+        }
+        Insert: {
+          date_range_end?: string | null
+          date_range_start?: string | null
+          error_count?: number | null
+          file_name: string
+          file_size?: number | null
+          file_url?: string | null
+          id?: string
+          imported_at?: string | null
+          inserted_count?: number | null
+          report_type: string
+          restaurant_ids?: string[] | null
+          restaurants_count?: number | null
+          skipped_count?: number | null
+          status?: string | null
+          total_rows?: number | null
+          updated_count?: number | null
+        }
+        Update: {
+          date_range_end?: string | null
+          date_range_start?: string | null
+          error_count?: number | null
+          file_name?: string
+          file_size?: number | null
+          file_url?: string | null
+          id?: string
+          imported_at?: string | null
+          inserted_count?: number | null
+          report_type?: string
+          restaurant_ids?: string[] | null
+          restaurants_count?: number | null
+          skipped_count?: number | null
+          status?: string | null
+          total_rows?: number | null
+          updated_count?: number | null
+        }
+        Relationships: []
+      }
       customer_reviews: {
         Row: {
           created_at: string
