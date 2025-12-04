@@ -1377,10 +1377,12 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                {!hiddenRevenueBars.has('revenue') && <Bar yAxisId="left" dataKey="revenue" name={`CA ${selectedYear} (€)`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+                {/* Barre N-1 en arrière-plan (plus large, semi-transparente) */}
                 {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
-                  <Bar yAxisId="left" dataKey="prevRevenue" name={`CA ${prevYear} (€)`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                  <Bar yAxisId="left" dataKey="prevRevenue" name={`CA ${prevYear} (€)`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.35} barSize={40} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
                 )}
+                {/* Barre N au premier plan (plus étroite, solide) */}
+                {!hiddenRevenueBars.has('revenue') && <Bar yAxisId="left" dataKey="revenue" name={`CA ${selectedYear} (€)`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={28} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
                 {!hiddenRevenueBars.has('orders') && <Line yAxisId="right" type="monotone" dataKey="orders" name="Commandes" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-2))' }} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
               </ComposedChart>
             </ResponsiveContainer>
