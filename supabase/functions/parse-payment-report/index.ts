@@ -401,12 +401,20 @@ Deno.serve(async (req) => {
         };
 
         // Upsert order by uber_order_id + uber_flow_id (to handle refunds separately)
-        const { data: existingOrder, error: checkError } = await supabase
+        // Build query with proper NULL handling for uber_flow_id
+        let query = supabase
           .from('orders')
           .select('id')
-          .eq('uber_order_id', uberOrderId)
-          .eq('uber_flow_id', orderData.uber_flow_id || '')
-          .maybeSingle();
+          .eq('uber_order_id', uberOrderId);
+        
+        // Handle NULL flow_id properly - use .is() for null, .eq() for values
+        if (orderData.uber_flow_id) {
+          query = query.eq('uber_flow_id', orderData.uber_flow_id);
+        } else {
+          query = query.is('uber_flow_id', null);
+        }
+        
+        const { data: existingOrder, error: checkError } = await query.maybeSingle();
 
         if (checkError) {
           console.error('Error checking existing order:', checkError);
@@ -436,9 +444,27 @@ Deno.serve(async (req) => {
             .insert(orderData);
           
           if (insertError) {
-            console.error('Error inserting order:', insertError);
-            errorCount++;
-            errors.push(`Order ${uberOrderId}: ${insertError.message}`);
+            // Handle duplicate key error gracefully - treat as update needed
+            if (insertError.code === '23505') {
+              console.log(`Duplicate found for ${uberOrderId}, attempting update`);
+              // Try to update by uber_order_id only
+              const { error: fallbackUpdateError } = await supabase
+                .from('orders')
+                .update(orderData)
+                .eq('uber_order_id', uberOrderId);
+              
+              if (fallbackUpdateError) {
+                console.error('Error in fallback update:', fallbackUpdateError);
+                errorCount++;
+                errors.push(`Order ${uberOrderId}: ${fallbackUpdateError.message}`);
+              } else {
+                updatedCount++;
+              }
+            } else {
+              console.error('Error inserting order:', insertError);
+              errorCount++;
+              errors.push(`Order ${uberOrderId}: ${insertError.message}`);
+            }
           } else {
             insertedCount++;
           }
