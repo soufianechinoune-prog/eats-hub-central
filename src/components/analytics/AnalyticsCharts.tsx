@@ -1659,12 +1659,61 @@ export function AnalyticsCharts({
             Évolution des Commandes
             {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
-          <ChartActionToggle
-            chartKey="revenue"
-            config={config}
-            onChange={handleChartToggle}
-            hasActions={!!hasActions}
-          />
+          <div className="flex items-center gap-4">
+            {/* Inline KPIs */}
+            {(() => {
+              const totalOrders = aggregatedRevenueData.reduce((sum, d) => sum + (d.orders || 0), 0);
+              const totalPrevOrders = aggregatedRevenueData.reduce((sum, d) => sum + (d.prevOrders || 0), 0);
+              const ordersVariation = calcVariation(totalOrders, totalPrevOrders);
+              
+              return (
+                <motion.div 
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-center gap-4 px-4 py-2.5 bg-muted/30 rounded-xl mt-1"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ShoppingCart className="h-5 w-5 text-chart-2" />
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground leading-tight">{selectedYear}</p>
+                      <p className="text-base font-bold leading-tight">{totalOrders.toLocaleString('fr-FR')}</p>
+                    </div>
+                  </div>
+                  {hasPrevData && (
+                    <>
+                      <div className="h-10 w-px bg-border" />
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground leading-tight">{prevYear}</p>
+                        <p className="text-sm text-muted-foreground leading-tight">{totalPrevOrders.toLocaleString('fr-FR')}</p>
+                      </div>
+                      <div className="h-10 w-px bg-border" />
+                      <div className={cn(
+                        "flex items-center gap-1 font-semibold text-base",
+                        ordersVariation > 0 && "text-emerald-500",
+                        ordersVariation < 0 && "text-red-500",
+                        ordersVariation === 0 && "text-muted-foreground"
+                      )}>
+                        {ordersVariation > 0 ? (
+                          <ArrowUp className="h-4 w-4" />
+                        ) : ordersVariation < 0 ? (
+                          <ArrowDown className="h-4 w-4" />
+                        ) : (
+                          <Minus className="h-4 w-4" />
+                        )}
+                        <span>{ordersVariation > 0 ? "+" : ""}{ordersVariation.toFixed(1)}%</span>
+                      </div>
+                    </>
+                  )}
+                </motion.div>
+              );
+            })()}
+            <ChartActionToggle
+              chartKey="revenue"
+              config={config}
+              onChange={handleChartToggle}
+              hasActions={!!hasActions}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {/* Interactive Legend */}
@@ -1752,12 +1801,67 @@ export function AnalyticsCharts({
             Évolution du Panier Moyen
             {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
           </CardTitle>
-          <ChartActionToggle
-            chartKey="avgBasket"
-            config={config}
-            onChange={handleChartToggle}
-            hasActions={!!hasActions}
-          />
+          <div className="flex items-center gap-4">
+            {/* Inline KPIs */}
+            {(() => {
+              const validBaskets = chartAvgBasketData.filter(d => d.avgBasket > 0);
+              const validPrevBaskets = chartAvgBasketData.filter(d => d.avgBasketN1 && d.avgBasketN1 > 0);
+              const avgBasket = validBaskets.length > 0 
+                ? validBaskets.reduce((sum, d) => sum + d.avgBasket, 0) / validBaskets.length 
+                : 0;
+              const avgPrevBasket = validPrevBaskets.length > 0 
+                ? validPrevBaskets.reduce((sum, d) => sum + (d.avgBasketN1 || 0), 0) / validPrevBaskets.length 
+                : 0;
+              const basketVariation = calcVariation(avgBasket, avgPrevBasket);
+              
+              return (
+                <motion.div 
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-center gap-4 px-4 py-2.5 bg-muted/30 rounded-xl mt-1"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Euro className="h-5 w-5 text-chart-1" />
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground leading-tight">{selectedYear}</p>
+                      <p className="text-base font-bold leading-tight">{avgBasket.toFixed(2)} €</p>
+                    </div>
+                  </div>
+                  {hasPrevData && avgPrevBasket > 0 && (
+                    <>
+                      <div className="h-10 w-px bg-border" />
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground leading-tight">{prevYear}</p>
+                        <p className="text-sm text-muted-foreground leading-tight">{avgPrevBasket.toFixed(2)} €</p>
+                      </div>
+                      <div className="h-10 w-px bg-border" />
+                      <div className={cn(
+                        "flex items-center gap-1 font-semibold text-base",
+                        basketVariation > 0 && "text-emerald-500",
+                        basketVariation < 0 && "text-red-500",
+                        basketVariation === 0 && "text-muted-foreground"
+                      )}>
+                        {basketVariation > 0 ? (
+                          <ArrowUp className="h-4 w-4" />
+                        ) : basketVariation < 0 ? (
+                          <ArrowDown className="h-4 w-4" />
+                        ) : (
+                          <Minus className="h-4 w-4" />
+                        )}
+                        <span>{basketVariation > 0 ? "+" : ""}{basketVariation.toFixed(1)}%</span>
+                      </div>
+                    </>
+                  )}
+                </motion.div>
+              );
+            })()}
+            <ChartActionToggle
+              chartKey="avgBasket"
+              config={config}
+              onChange={handleChartToggle}
+              hasActions={!!hasActions}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
