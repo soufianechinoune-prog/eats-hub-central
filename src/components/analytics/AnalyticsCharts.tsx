@@ -29,6 +29,8 @@ import {
   Zap,
   ArrowLeft,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { ConversionFunnelChart } from "./ConversionFunnelChart";
 import {
@@ -743,6 +745,23 @@ export function AnalyticsCharts({
       });
   }, [drillDownMonth, drillDownRevenueData, drillDownPrevRevenueData]);
 
+  // Calculate drill-down month totals
+  const drillDownMonthTotals = useMemo(() => {
+    if (!drillDownChartData || drillDownChartData.length === 0) return null;
+    
+    const totalRevenue = drillDownChartData.reduce((sum, d) => sum + (d.revenue || 0), 0);
+    const totalPrevRevenue = drillDownChartData.reduce((sum, d) => sum + (d.prevRevenue || 0), 0);
+    const variation = totalPrevRevenue > 0 
+      ? ((totalRevenue - totalPrevRevenue) / totalPrevRevenue) * 100 
+      : totalRevenue > 0 ? 100 : 0;
+    
+    return {
+      revenue: totalRevenue,
+      prevRevenue: totalPrevRevenue,
+      variation,
+    };
+  }, [drillDownChartData]);
+
   // Handle bar click for drill-down
   const handleRevenueBarClick = (data: any) => {
     if (drillDownMonth) return; // Already in drill-down
@@ -754,6 +773,19 @@ export function AnalyticsCharts({
   // Handle back from drill-down
   const handleBackFromDrillDown = () => {
     onDrillDownChange?.(null);
+  };
+
+  // Navigate to previous/next month in drill-down
+  const handlePrevMonth = () => {
+    if (drillDownMonth && drillDownMonth > 1) {
+      onDrillDownChange?.(drillDownMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (drillDownMonth && drillDownMonth < 12) {
+      onDrillDownChange?.(drillDownMonth + 1);
+    }
   };
 
   const aggregatedConversionData = useMemo(() => {
@@ -1407,21 +1439,46 @@ export function AnalyticsCharts({
             ) : (
               <TrendingUp className="h-5 w-5" />
             )}
-            <span>
-              {drillDownMonth 
-                ? `CA ${MONTHS[drillDownMonth - 1]} ${selectedYear}` 
-                : "Évolution du Chiffre d'Affaires"
-              }
-            </span>
-            {hasPrevData && !drillDownMonth && (
-              <span className="text-sm font-normal text-muted-foreground ml-2">
-                ({selectedYear} vs {prevYear})
-              </span>
-            )}
-            {drillDownMonth && hasPrevData && (
-              <span className="text-sm font-normal text-muted-foreground ml-2">
-                (vs {MONTHS[drillDownMonth - 1]} {prevYear})
-              </span>
+            
+            {drillDownMonth ? (
+              <div className="flex items-center gap-2">
+                {/* Month Navigation */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={handlePrevMonth}
+                  disabled={drillDownMonth <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="min-w-[100px] text-center">
+                  CA {MONTHS[drillDownMonth - 1]} {selectedYear}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={handleNextMonth}
+                  disabled={drillDownMonth >= 12}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                {hasPrevData && (
+                  <span className="text-sm font-normal text-muted-foreground">
+                    (vs {MONTHS[drillDownMonth - 1]} {prevYear})
+                  </span>
+                )}
+              </div>
+            ) : (
+              <>
+                <span>Évolution du Chiffre d'Affaires</span>
+                {hasPrevData && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    ({selectedYear} vs {prevYear})
+                  </span>
+                )}
+              </>
             )}
           </CardTitle>
           <div className="flex items-center gap-2">
@@ -1453,6 +1510,52 @@ export function AnalyticsCharts({
           </div>
         </CardHeader>
         <CardContent>
+          {/* Month KPI in drill-down mode */}
+          {drillDownMonth && drillDownMonthTotals && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-6 mb-4 p-3 bg-muted/30 rounded-lg"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Euro className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">CA {MONTHS[drillDownMonth - 1]} {selectedYear}</p>
+                  <p className="text-lg font-bold">{drillDownMonthTotals.revenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                </div>
+              </div>
+              {hasPrevData && (
+                <>
+                  <div className="h-10 w-px bg-border" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">CA {MONTHS[drillDownMonth - 1]} {prevYear}</p>
+                    <p className="text-sm text-muted-foreground">{drillDownMonthTotals.prevRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                  </div>
+                  <div className="h-10 w-px bg-border" />
+                  <div className="flex items-center gap-1">
+                    {drillDownMonthTotals.variation > 0 ? (
+                      <ArrowUp className="h-4 w-4 text-emerald-500" />
+                    ) : drillDownMonthTotals.variation < 0 ? (
+                      <ArrowDown className="h-4 w-4 text-red-500" />
+                    ) : (
+                      <Minus className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className={cn(
+                      "text-sm font-medium",
+                      drillDownMonthTotals.variation > 0 && "text-emerald-500",
+                      drillDownMonthTotals.variation < 0 && "text-red-500",
+                      drillDownMonthTotals.variation === 0 && "text-muted-foreground"
+                    )}>
+                      {drillDownMonthTotals.variation > 0 ? "+" : ""}{drillDownMonthTotals.variation.toFixed(1)}%
+                    </span>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+          
           {/* Interactive Legend */}
           <InteractiveLegend
             items={[
