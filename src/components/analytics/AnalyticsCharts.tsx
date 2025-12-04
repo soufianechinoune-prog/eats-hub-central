@@ -1343,7 +1343,7 @@ export function AnalyticsCharts({
           />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={aggregatedRevenueData}>
+              <ComposedChart data={aggregatedRevenueData} barGap={-28}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis yAxisId="left" className="text-xs" />
