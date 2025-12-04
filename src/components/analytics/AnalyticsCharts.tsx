@@ -1254,7 +1254,7 @@ export function AnalyticsCharts({
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      {showKPIs && (
+      {showKPIs && !drillDownMonth && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {showRevenueKPIs && (
         <>
