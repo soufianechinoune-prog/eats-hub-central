@@ -1413,7 +1413,7 @@ export function AnalyticsCharts({
           />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={aggregatedRevenueData} barGap={-34}>
+              <LineChart data={aggregatedRevenueData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis className="text-xs" />
@@ -1442,13 +1442,35 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                {/* Barre N-1 en arrière-plan (plus large, semi-transparente) */}
+                {/* Ligne N-1 pointillée */}
                 {hasPrevData && !hiddenRevenueBars.has('prevOrders') && (
-                  <Bar dataKey="prevOrders" name={`Commandes ${prevYear}`} fill="hsl(var(--muted-foreground))" radius={0} opacity={0.35} barSize={40} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="prevOrders" 
+                    name={`Commandes ${prevYear}`} 
+                    stroke="hsl(var(--muted-foreground))" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={{ fill: 'hsl(var(--muted-foreground))', r: 3 }} 
+                    opacity={0.6}
+                    animationDuration={CHART_ANIMATION_DURATION} 
+                    animationEasing={CHART_ANIMATION_EASING}
+                  />
                 )}
-                {/* Barre N au premier plan (plus étroite, solide) */}
-                {!hiddenRevenueBars.has('orders') && <Bar dataKey="orders" name={`Commandes ${selectedYear}`} fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} barSize={28} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
-              </ComposedChart>
+                {/* Ligne N solide */}
+                {!hiddenRevenueBars.has('orders') && (
+                  <Line 
+                    type="monotone" 
+                    dataKey="orders" 
+                    name={`Commandes ${selectedYear}`} 
+                    stroke="hsl(var(--chart-2))" 
+                    strokeWidth={3}
+                    dot={{ fill: 'hsl(var(--chart-2))', r: 4 }} 
+                    animationDuration={CHART_ANIMATION_DURATION} 
+                    animationEasing={CHART_ANIMATION_EASING}
+                  />
+                )}
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
