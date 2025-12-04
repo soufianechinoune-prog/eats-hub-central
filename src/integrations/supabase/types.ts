@@ -396,6 +396,53 @@ export type Database = {
           },
         ]
       }
+      daily_sales_uber: {
+        Row: {
+          average_basket: number
+          created_at: string | null
+          currency: string | null
+          date: string
+          id: string
+          order_count: number
+          period_type: string
+          platform: string
+          restaurant_id: string
+          revenue_ttc: number
+        }
+        Insert: {
+          average_basket?: number
+          created_at?: string | null
+          currency?: string | null
+          date: string
+          id?: string
+          order_count?: number
+          period_type?: string
+          platform?: string
+          restaurant_id: string
+          revenue_ttc?: number
+        }
+        Update: {
+          average_basket?: number
+          created_at?: string | null
+          currency?: string | null
+          date?: string
+          id?: string
+          order_count?: number
+          period_type?: string
+          platform?: string
+          restaurant_id?: string
+          revenue_ttc?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_sales_uber_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_stats: {
         Row: {
           courier_id: string | null
@@ -2018,8 +2065,40 @@ export type Database = {
           revenue_ttc: number
         }[]
       }
+      get_daily_sales_uber: {
+        Args: {
+          p_end_date: string
+          p_period_type?: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          average_basket: number
+          date: string
+          order_count: number
+          platform: string
+          restaurant_id: string
+          revenue_ttc: number
+        }[]
+      }
       get_monthly_revenue_from_orders: {
         Args: { p_restaurant_ids?: string[]; p_year: number }
+        Returns: {
+          average_basket: number
+          month: number
+          order_count: number
+          platform: string
+          restaurant_id: string
+          revenue_ttc: number
+          year: number
+        }[]
+      }
+      get_monthly_sales_from_daily: {
+        Args: {
+          p_period_type?: string
+          p_restaurant_ids?: string[]
+          p_year: number
+        }
         Returns: {
           average_basket: number
           month: number
