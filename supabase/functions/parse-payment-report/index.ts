@@ -416,7 +416,87 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log('Phase 1 complete. Orders to process:', ordersToUpsert.length);
+    console.log('Phase 1 parsing complete. Raw orders:', ordersToUpsert.length);
+
+    // Phase 1.5: Deduplicate orders by (uber_order_id, uber_flow_id)
+    // Multiple CSV lines can have the same key - merge them by summing financial fields
+    const ordersMap = new Map<string, any>();
+
+    for (const order of ordersToUpsert) {
+      const key = `${order.uber_order_id}_${order.uber_flow_id}`;
+      const existing = ordersMap.get(key);
+      
+      if (existing) {
+        // Merge: sum numeric financial fields
+        existing.sales_excl_vat = (existing.sales_excl_vat || 0) + (order.sales_excl_vat || 0);
+        existing.vat_1_sales = (existing.vat_1_sales || 0) + (order.vat_1_sales || 0);
+        existing.vat_2_sales = (existing.vat_2_sales || 0) + (order.vat_2_sales || 0);
+        existing.vat_3_sales = (existing.vat_3_sales || 0) + (order.vat_3_sales || 0);
+        existing.sales_incl_vat = (existing.sales_incl_vat || 0) + (order.sales_incl_vat || 0);
+        existing.gross_amount = (existing.gross_amount || 0) + (order.gross_amount || 0);
+        existing.refund_excl_vat = (existing.refund_excl_vat || 0) + (order.refund_excl_vat || 0);
+        existing.vat_1_refund = (existing.vat_1_refund || 0) + (order.vat_1_refund || 0);
+        existing.vat_2_refund = (existing.vat_2_refund || 0) + (order.vat_2_refund || 0);
+        existing.vat_3_refund = (existing.vat_3_refund || 0) + (order.vat_3_refund || 0);
+        existing.refund_incl_vat = (existing.refund_incl_vat || 0) + (order.refund_incl_vat || 0);
+        existing.item_promo_excl_vat = (existing.item_promo_excl_vat || 0) + (order.item_promo_excl_vat || 0);
+        existing.vat_1_item_promo = (existing.vat_1_item_promo || 0) + (order.vat_1_item_promo || 0);
+        existing.vat_2_item_promo = (existing.vat_2_item_promo || 0) + (order.vat_2_item_promo || 0);
+        existing.vat_3_item_promo = (existing.vat_3_item_promo || 0) + (order.vat_3_item_promo || 0);
+        existing.item_promo_incl_vat = (existing.item_promo_incl_vat || 0) + (order.item_promo_incl_vat || 0);
+        existing.promotion_discount = (existing.promotion_discount || 0) + (order.promotion_discount || 0);
+        existing.marketing_fee_adjustment = (existing.marketing_fee_adjustment || 0) + (order.marketing_fee_adjustment || 0);
+        existing.meal_voucher_amount = (existing.meal_voucher_amount || 0) + (order.meal_voucher_amount || 0);
+        existing.price_adjustment_excl_vat = (existing.price_adjustment_excl_vat || 0) + (order.price_adjustment_excl_vat || 0);
+        existing.vat_price_adjustment = (existing.vat_price_adjustment || 0) + (order.vat_price_adjustment || 0);
+        existing.price_adjustment_incl_vat = (existing.price_adjustment_incl_vat || 0) + (order.price_adjustment_incl_vat || 0);
+        existing.merchant_delivery_fee_excl_vat = (existing.merchant_delivery_fee_excl_vat || 0) + (order.merchant_delivery_fee_excl_vat || 0);
+        existing.vat_1_merchant_delivery = (existing.vat_1_merchant_delivery || 0) + (order.vat_1_merchant_delivery || 0);
+        existing.vat_2_merchant_delivery = (existing.vat_2_merchant_delivery || 0) + (order.vat_2_merchant_delivery || 0);
+        existing.vat_3_merchant_delivery = (existing.vat_3_merchant_delivery || 0) + (order.vat_3_merchant_delivery || 0);
+        existing.merchant_delivery_fee_incl_vat = (existing.merchant_delivery_fee_incl_vat || 0) + (order.merchant_delivery_fee_incl_vat || 0);
+        existing.packaging_fee = (existing.packaging_fee || 0) + (order.packaging_fee || 0);
+        existing.vat_packaging_fee = (existing.vat_packaging_fee || 0) + (order.vat_packaging_fee || 0);
+        existing.bag_fee = (existing.bag_fee || 0) + (order.bag_fee || 0);
+        existing.delivery_promo_excl_vat = (existing.delivery_promo_excl_vat || 0) + (order.delivery_promo_excl_vat || 0);
+        existing.vat_delivery_promo = (existing.vat_delivery_promo || 0) + (order.vat_delivery_promo || 0);
+        existing.delivery_promo_incl_vat = (existing.delivery_promo_incl_vat || 0) + (order.delivery_promo_incl_vat || 0);
+        existing.order_total_incl_vat = (existing.order_total_incl_vat || 0) + (order.order_total_incl_vat || 0);
+        existing.delivery_cost_excl_vat = (existing.delivery_cost_excl_vat || 0) + (order.delivery_cost_excl_vat || 0);
+        existing.vat_delivery_cost = (existing.vat_delivery_cost || 0) + (order.vat_delivery_cost || 0);
+        existing.delivery_cost_incl_vat = (existing.delivery_cost_incl_vat || 0) + (order.delivery_cost_incl_vat || 0);
+        existing.delivery_fee = (existing.delivery_fee || 0) + (order.delivery_fee || 0);
+        existing.uber_fee_before_promo_excl_vat = (existing.uber_fee_before_promo_excl_vat || 0) + (order.uber_fee_before_promo_excl_vat || 0);
+        existing.uber_fee_promo_excl_vat = (existing.uber_fee_promo_excl_vat || 0) + (order.uber_fee_promo_excl_vat || 0);
+        existing.uber_fee_after_promo_excl_vat = (existing.uber_fee_after_promo_excl_vat || 0) + (order.uber_fee_after_promo_excl_vat || 0);
+        existing.vat_uber_fee = (existing.vat_uber_fee || 0) + (order.vat_uber_fee || 0);
+        existing.uber_fee_after_promo_incl_vat = (existing.uber_fee_after_promo_incl_vat || 0) + (order.uber_fee_after_promo_incl_vat || 0);
+        existing.service_fee = (existing.service_fee || 0) + (order.service_fee || 0);
+        existing.vat_adjustment = (existing.vat_adjustment || 0) + (order.vat_adjustment || 0);
+        existing.delivery_fee_gain = (existing.delivery_fee_gain || 0) + (order.delivery_fee_gain || 0);
+        existing.tip_amount = (existing.tip_amount || 0) + (order.tip_amount || 0);
+        existing.other_payments_incl_vat = (existing.other_payments_incl_vat || 0) + (order.other_payments_incl_vat || 0);
+        existing.net_payout = (existing.net_payout || 0) + (order.net_payout || 0);
+        existing.net_amount = (existing.net_amount || 0) + (order.net_amount || 0);
+        existing.tax_amount = (existing.tax_amount || 0) + (order.tax_amount || 0);
+        
+        // Keep non-null text values from latest entry
+        if (order.meal_voucher_provider) existing.meal_voucher_provider = order.meal_voucher_provider;
+        if (order.other_payments_description) existing.other_payments_description = order.other_payments_description;
+        if (order.customer_invoice_url) existing.customer_invoice_url = order.customer_invoice_url;
+        if (order.courier_invoice_url) existing.courier_invoice_url = order.courier_invoice_url;
+        if (order.uber_invoice_url) existing.uber_invoice_url = order.uber_invoice_url;
+        if (order.payout_date) existing.payout_date = order.payout_date;
+        if (order.payout_reference_id) existing.payout_reference_id = order.payout_reference_id;
+        if (order.loyalty_id) existing.loyalty_id = order.loyalty_id;
+        if (order.status && order.status !== 'unknown') existing.status = order.status;
+      } else {
+        ordersMap.set(key, { ...order });
+      }
+    }
+
+    const deduplicatedOrders = Array.from(ordersMap.values());
+    console.log('Phase 1.5 deduplication complete. Unique orders:', deduplicatedOrders.length, '(merged', ordersToUpsert.length - deduplicatedOrders.length, 'duplicates)');
 
     let insertedCount = 0;
     let updatedCount = 0;
@@ -425,7 +505,7 @@ Deno.serve(async (req) => {
 
     if (dryRun) {
       // In dry run mode, just count existing vs new
-      const orderIds = ordersToUpsert.map(o => o.uber_order_id);
+      const orderIds = deduplicatedOrders.map(o => o.uber_order_id);
       const { data: existingOrders } = await supabase
         .from('orders')
         .select('uber_order_id')
@@ -433,7 +513,7 @@ Deno.serve(async (req) => {
       
       const existingSet = new Set(existingOrders?.map(o => o.uber_order_id) || []);
       
-      for (const order of ordersToUpsert) {
+      for (const order of deduplicatedOrders) {
         if (existingSet.has(order.uber_order_id)) {
           updatedCount++;
         } else {
@@ -441,11 +521,11 @@ Deno.serve(async (req) => {
         }
       }
     } else {
-      // Phase 2: Batch upsert
-      console.log('Phase 2: Batch upserting in chunks of', BATCH_SIZE);
+      // Phase 2: Batch upsert with deduplicated orders
+      console.log('Phase 2: Batch upserting', deduplicatedOrders.length, 'unique orders in chunks of', BATCH_SIZE);
       
-      for (let i = 0; i < ordersToUpsert.length; i += BATCH_SIZE) {
-        const batch = ordersToUpsert.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < deduplicatedOrders.length; i += BATCH_SIZE) {
+        const batch = deduplicatedOrders.slice(i, i + BATCH_SIZE);
         
         const { error: upsertError, count } = await supabase
           .from('orders')
@@ -465,8 +545,8 @@ Deno.serve(async (req) => {
         }
         
         // Log progress
-        if ((i + BATCH_SIZE) % 500 === 0 || i + BATCH_SIZE >= ordersToUpsert.length) {
-          console.log(`Processed ${Math.min(i + BATCH_SIZE, ordersToUpsert.length)}/${ordersToUpsert.length} orders`);
+        if ((i + BATCH_SIZE) % 500 === 0 || i + BATCH_SIZE >= deduplicatedOrders.length) {
+          console.log(`Processed ${Math.min(i + BATCH_SIZE, deduplicatedOrders.length)}/${deduplicatedOrders.length} orders`);
         }
       }
     }
@@ -477,7 +557,9 @@ Deno.serve(async (req) => {
       dryRun,
       stats: {
         totalRows: dataRows.length,
-        processed: ordersToUpsert.length,
+        processed: deduplicatedOrders.length,
+        rawParsed: ordersToUpsert.length,
+        merged: ordersToUpsert.length - deduplicatedOrders.length,
         inserted: insertedCount,
         updated: updatedCount,
         skipped: skippedCount,
