@@ -1487,35 +1487,35 @@ export function AnalyticsCharts({
               <motion.div 
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="flex items-center gap-3 px-3 py-1.5 bg-muted/30 rounded-lg"
+                className="flex items-center gap-4 px-4 py-2.5 bg-muted/30 rounded-xl mt-1"
               >
-                <div className="flex items-center gap-2">
-                  <Euro className="h-4 w-4 text-primary" />
+                <div className="flex items-center gap-2.5">
+                  <Euro className="h-5 w-5 text-primary" />
                   <div className="text-right">
-                    <p className="text-[10px] text-muted-foreground leading-tight">{selectedYear}</p>
-                    <p className="text-sm font-bold leading-tight">{drillDownMonthTotals.revenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                    <p className="text-xs text-muted-foreground leading-tight">{selectedYear}</p>
+                    <p className="text-base font-bold leading-tight">{drillDownMonthTotals.revenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
                   </div>
                 </div>
                 {hasPrevData && (
                   <>
-                    <div className="h-8 w-px bg-border" />
+                    <div className="h-10 w-px bg-border" />
                     <div className="text-right">
-                      <p className="text-[10px] text-muted-foreground leading-tight">{prevYear}</p>
-                      <p className="text-xs text-muted-foreground leading-tight">{drillDownMonthTotals.prevRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                      <p className="text-xs text-muted-foreground leading-tight">{prevYear}</p>
+                      <p className="text-sm text-muted-foreground leading-tight">{drillDownMonthTotals.prevRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
                     </div>
-                    <div className="h-8 w-px bg-border" />
+                    <div className="h-10 w-px bg-border" />
                     <div className={cn(
-                      "flex items-center gap-0.5 font-medium text-sm",
+                      "flex items-center gap-1 font-semibold text-base",
                       drillDownMonthTotals.variation > 0 && "text-emerald-500",
                       drillDownMonthTotals.variation < 0 && "text-red-500",
                       drillDownMonthTotals.variation === 0 && "text-muted-foreground"
                     )}>
                       {drillDownMonthTotals.variation > 0 ? (
-                        <ArrowUp className="h-3.5 w-3.5" />
+                        <ArrowUp className="h-4 w-4" />
                       ) : drillDownMonthTotals.variation < 0 ? (
-                        <ArrowDown className="h-3.5 w-3.5" />
+                        <ArrowDown className="h-4 w-4" />
                       ) : (
-                        <Minus className="h-3.5 w-3.5" />
+                        <Minus className="h-4 w-4" />
                       )}
                       <span>{drillDownMonthTotals.variation > 0 ? "+" : ""}{drillDownMonthTotals.variation.toFixed(1)}%</span>
                     </div>
