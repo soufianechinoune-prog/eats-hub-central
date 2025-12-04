@@ -49,6 +49,8 @@ export default function Analytics() {
     selectedMonth,
     periodMode,
     dateRange,
+    setPeriodMode,
+    setSelectedMonth,
   } = useAnalyticsContext();
 
   const [chartActionsConfig, setChartActionsConfig] = useState<ChartActionsConfig>(() => {
@@ -63,9 +65,21 @@ export default function Analytics() {
     return DEFAULT_CHART_ACTIONS_CONFIG;
   });
   const [selectedCategories, setSelectedCategories] = useState<ActionCategoryFilter>(new Set());
-  
-  // Drill-down state for revenue chart
-  const [drillDownMonth, setDrillDownMonth] = useState<number | null>(null);
+
+  // Handler for synchronized drill-down (changes global context)
+  const handleMonthDrillDown = (month: number | null) => {
+    if (month === null) {
+      // Return to year view
+      setPeriodMode("year");
+    } else {
+      // Switch to month mode
+      setPeriodMode("month");
+      setSelectedMonth(month);
+    }
+  };
+
+  // Derive drillDownMonth from context
+  const drillDownMonth = periodMode === "month" ? selectedMonth : null;
 
   const chartsRef = useRef<HTMLDivElement>(null);
   const { exportToPdf, isExporting } = useAnalyticsPdfExport();
@@ -605,59 +619,6 @@ export default function Analytics() {
     },
   });
 
-  // ========== DRILL-DOWN DATA (Daily for specific month) ==========
-  const { data: drillDownRevenueData, isLoading: loadingDrillDown } = useQuery({
-    queryKey: ["drill_down_revenue", restaurantFilter, selectedYear, drillDownMonth, selectedPlatform],
-    enabled: drillDownMonth !== null,
-    queryFn: async () => {
-      if (!drillDownMonth) return null;
-      
-      // Get date range for the selected month
-      const monthStart = startOfMonth(new Date(selectedYear, drillDownMonth - 1));
-      const monthEnd = endOfMonth(monthStart);
-      
-      const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
-        p_start_date: format(monthStart, "yyyy-MM-dd"),
-        p_end_date: format(monthEnd, "yyyy-MM-dd"),
-        p_restaurant_ids: restaurantFilter || null,
-      });
-      
-      if (error) throw error;
-      
-      return (data || []).map((item: any) => ({
-        ...item,
-        month: new Date(item.date).getMonth() + 1,
-        year: new Date(item.date).getFullYear(),
-      }));
-    },
-  });
-
-  // Previous year drill-down data
-  const { data: drillDownPrevRevenueData } = useQuery({
-    queryKey: ["drill_down_prev_revenue", restaurantFilter, prevYear, drillDownMonth, selectedPlatform],
-    enabled: drillDownMonth !== null,
-    queryFn: async () => {
-      if (!drillDownMonth) return null;
-      
-      const monthStart = startOfMonth(new Date(prevYear, drillDownMonth - 1));
-      const monthEnd = endOfMonth(monthStart);
-      
-      const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
-        p_start_date: format(monthStart, "yyyy-MM-dd"),
-        p_end_date: format(monthEnd, "yyyy-MM-dd"),
-        p_restaurant_ids: restaurantFilter || null,
-      });
-      
-      if (error) throw error;
-      
-      return (data || []).map((item: any) => ({
-        ...item,
-        month: new Date(item.date).getMonth() + 1,
-        year: new Date(item.date).getFullYear(),
-      }));
-    },
-  });
-
   // ========== GLOBAL DATA (Combined) ==========
   const globalRevenueData = useMemo(() => {
     return [...(uberRevenueData || []), ...(deliverooRevenueData || [])];
@@ -897,10 +858,7 @@ export default function Analytics() {
                   selectedRestaurants={selectedRestaurants}
                   granularity={granularity}
                   drillDownMonth={drillDownMonth}
-                  onDrillDownChange={setDrillDownMonth}
-                  drillDownRevenueData={drillDownRevenueData}
-                  drillDownPrevRevenueData={drillDownPrevRevenueData}
-                  isLoadingDrillDown={loadingDrillDown}
+                  onDrillDownChange={handleMonthDrillDown}
                 />
               );
             }

@@ -197,12 +197,9 @@ interface AnalyticsChartsProps {
   restaurants?: { id: string; name: string; city?: string }[];
   selectedRestaurants?: string[];
   granularity?: "daily" | "weekly" | "monthly";
-  // Drill-down props
+  // Drill-down props (synchronized with global context)
   drillDownMonth?: number | null;
   onDrillDownChange?: (month: number | null) => void;
-  drillDownRevenueData?: any[] | null;
-  drillDownPrevRevenueData?: any[] | null;
-  isLoadingDrillDown?: boolean;
 }
 
 // Action category colors
@@ -463,9 +460,6 @@ export function AnalyticsCharts({
   granularity = "monthly",
   drillDownMonth,
   onDrillDownChange,
-  drillDownRevenueData,
-  drillDownPrevRevenueData,
-  isLoadingDrillDown,
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
   
@@ -697,14 +691,17 @@ export function AnalyticsCharts({
   }, [revenueData, prevRevenueData, startMonth, endMonth, granularity]);
 
   // Drill-down data for specific month (daily view)
+  // Drill-down chart data - uses revenueData directly when in month mode (granularity is daily)
   const drillDownChartData = useMemo(() => {
-    if (!drillDownMonth || !drillDownRevenueData) return [];
+    if (!drillDownMonth || granularity !== "daily" || !revenueData) return [];
     
     const dailyMap: { [key: string]: { revenue: number; orders: number; date: string } } = {};
     const prevDailyMap: { [key: string]: { revenue: number; orders: number; date: string } } = {};
     
-    drillDownRevenueData.forEach((item: any) => {
+    // revenueData already contains daily data when periodMode is "month"
+    revenueData.forEach((item: any) => {
       const dateKey = item.date;
+      if (!dateKey) return;
       if (!dailyMap[dateKey]) {
         dailyMap[dateKey] = { revenue: 0, orders: 0, date: dateKey };
       }
@@ -712,8 +709,9 @@ export function AnalyticsCharts({
       dailyMap[dateKey].orders += item.order_count || 0;
     });
     
-    drillDownPrevRevenueData?.forEach((item: any) => {
+    prevRevenueData?.forEach((item: any) => {
       const dateKey = item.date;
+      if (!dateKey) return;
       if (!prevDailyMap[dateKey]) {
         prevDailyMap[dateKey] = { revenue: 0, orders: 0, date: dateKey };
       }
@@ -743,7 +741,7 @@ export function AnalyticsCharts({
           prevOrders: prevDateStr ? prevDailyMap[prevDateStr]?.orders || 0 : 0,
         };
       });
-  }, [drillDownMonth, drillDownRevenueData, drillDownPrevRevenueData]);
+  }, [drillDownMonth, granularity, revenueData, prevRevenueData]);
 
   // Calculate drill-down month totals
   const drillDownMonthTotals = useMemo(() => {
@@ -1572,28 +1570,17 @@ export function AnalyticsCharts({
           
           <div className="h-[300px]">
             <AnimatePresence mode="wait">
-              {isLoadingDrillDown ? (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="h-full flex items-center justify-center"
-                >
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key={drillDownMonth ? `drill-${drillDownMonth}` : 'year'}
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="h-full"
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    {revenueChartType === 'bar' ? (
-                      <BarChart data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}>
+              <motion.div
+                key={drillDownMonth ? `drill-${drillDownMonth}` : 'year'}
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="h-full"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  {revenueChartType === 'bar' ? (
+                    <BarChart data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis dataKey="month" className="text-xs" />
                         <YAxis className="text-xs" />
@@ -1744,9 +1731,8 @@ export function AnalyticsCharts({
                         )}
                       </LineChart>
                     )}
-                  </ResponsiveContainer>
-                </motion.div>
-              )}
+                </ResponsiveContainer>
+              </motion.div>
             </AnimatePresence>
           </div>
         </CardContent>
