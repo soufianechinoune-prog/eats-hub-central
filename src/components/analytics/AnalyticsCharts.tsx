@@ -1343,7 +1343,7 @@ export function AnalyticsCharts({
           />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={aggregatedRevenueData} barGap={-28}>
+              <ComposedChart data={aggregatedRevenueData} barGap={-34}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis yAxisId="left" className="text-xs" />
@@ -1379,7 +1379,7 @@ export function AnalyticsCharts({
                 })}
                 {/* Barre N-1 en arrière-plan (plus large, semi-transparente) */}
                 {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
-                  <Bar yAxisId="left" dataKey="prevRevenue" name={`CA ${prevYear} (€)`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.35} barSize={40} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
+                  <Bar yAxisId="left" dataKey="prevRevenue" name={`CA ${prevYear} (€)`} fill="hsl(var(--muted-foreground))" radius={0} opacity={0.35} barSize={40} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
                 )}
                 {/* Barre N au premier plan (plus étroite, solide) */}
                 {!hiddenRevenueBars.has('revenue') && <Bar yAxisId="left" dataKey="revenue" name={`CA ${selectedYear} (€)`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={28} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
