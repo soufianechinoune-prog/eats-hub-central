@@ -30,20 +30,18 @@ const STORAGE_KEY = "analytics-context";
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 
-// Helper to safely parse localStorage once
-function getStoredState() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
+// Get stored state ONCE at module load time (outside component)
+let cachedStoredState: any = null;
+try {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  cachedStoredState = stored ? JSON.parse(stored) : null;
+} catch {
+  cachedStoredState = null;
 }
 
 export function AnalyticsProvider({ children }: { children: ReactNode }) {
-  // Get stored state once during initialization (using useRef to avoid re-reading)
-  const storedStateRef = useRef(getStoredState());
-  const storedState = storedStateRef.current;
+  // Use cached stored state from module load (avoids re-reading localStorage)
+  const storedState = cachedStoredState;
 
   // Initialize state from stored values
   const [selectedRestaurants, setSelectedRestaurants] = useState<string[]>(

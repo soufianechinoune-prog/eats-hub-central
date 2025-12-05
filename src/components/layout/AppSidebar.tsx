@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   LayoutDashboard,
   Store,
@@ -219,54 +219,32 @@ export function AppSidebar() {
                   </CollapsibleTrigger>
                   {!collapsed && (
                     <CollapsibleContent className="overflow-hidden">
-                      <AnimatePresence>
-                        {(analyticsOpen || isAnalyticsActive()) && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.3, ease: "easeInOut" }}
-                          >
-                            <SidebarMenuSub>
-                            {analyticsSubItems.map((subItem, index) => {
-                                const isSubActive = getActiveAnalyticsSubItem(subItem.url);
-                                
-                                return (
-                                  <motion.div
-                                    key={subItem.title}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ 
-                                      duration: 0.2, 
-                                      delay: index * 0.05,
-                                      ease: "easeOut"
-                                    }}
-                                  >
-                                    <SidebarMenuSubItem>
-                                      <SidebarMenuSubButton
-                                        asChild
-                                        className={
-                                          isSubActive
-                                            ? "bg-sidebar-accent/50 text-sidebar-accent-foreground font-medium"
-                                            : ""
-                                        }
-                                      >
-                                        <NavLink 
-                                          to={subItem.url}
-                                          end={subItem.url === "/"}
-                                        >
-                                          <subItem.icon className="h-4 w-4" />
-                                          <span>{subItem.title}</span>
-                                        </NavLink>
-                                      </SidebarMenuSubButton>
-                                    </SidebarMenuSubItem>
-                                  </motion.div>
-                                );
-                              })}
-                            </SidebarMenuSub>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                      <SidebarMenuSub>
+                        {analyticsSubItems.map((subItem) => {
+                          const isSubActive = getActiveAnalyticsSubItem(subItem.url);
+                          
+                          return (
+                            <SidebarMenuSubItem key={subItem.title}>
+                              <SidebarMenuSubButton
+                                asChild
+                                className={
+                                  isSubActive
+                                    ? "bg-sidebar-accent/50 text-sidebar-accent-foreground font-medium"
+                                    : ""
+                                }
+                              >
+                                <NavLink 
+                                  to={subItem.url}
+                                  end={subItem.url === "/"}
+                                >
+                                  <subItem.icon className="h-4 w-4" />
+                                  <span>{subItem.title}</span>
+                                </NavLink>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          );
+                        })}
+                      </SidebarMenuSub>
                     </CollapsibleContent>
                   )}
                 </SidebarMenuItem>
