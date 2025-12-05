@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ const REPORT_TYPES = [
   { value: "payment_order_level", label: "Informations de paiement (niveau commande)", description: "Détail financier par commande" },
   { value: "payment_item_level", label: "Informations de paiement (niveau articles)", description: "Détail par article commandé" },
   { value: "payout_summary", label: "Récapitulatif des versements", description: "Résumé agrégé par versement" },
+  { value: "marketing_campaigns", label: "Campagnes Marketing", description: "Offres promotionnelles et annonces publicitaires", icon: Megaphone },
 ];
 
 interface ParsedRow {
@@ -144,6 +145,16 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
+      // Check for marketing campaign headers (offers)
+      if (lines[i].includes("Type d'offre") && lines[i].includes("Audience")) {
+        headerRowIndex = i;
+        break;
+      }
+      // Check for marketing campaign headers (ads)
+      if (lines[i].includes("Nom de la campagne") && lines[i].includes("Impressions")) {
+        headerRowIndex = i;
+        break;
+      }
     }
 
     if (headerRowIndex === -1) {
@@ -212,8 +223,8 @@ export default function ReportImport() {
       return;
     }
 
-    // For sales_over_time, restaurant selection is required
-    if (reportType === "sales_over_time" && !selectedRestaurantId) {
+    // For sales_over_time and marketing_campaigns, restaurant selection is required
+    if ((reportType === "sales_over_time" || reportType === "marketing_campaigns") && !selectedRestaurantId) {
       toast({
         title: "Restaurant requis",
         description: "Veuillez sélectionner un restaurant pour ce type de rapport",
@@ -231,7 +242,9 @@ export default function ReportImport() {
           ? "parse-item-report" 
           : reportType === "payout_summary"
             ? "parse-payout-summary"
-            : "parse-payment-report";
+            : reportType === "marketing_campaigns"
+              ? "parse-marketing-campaigns"
+              : "parse-payment-report";
       
       const body: Record<string, any> = {
         csvContent,
@@ -239,8 +252,8 @@ export default function ReportImport() {
         dryRun: true,
       };
 
-      // Add restaurantId for sales_over_time
-      if (reportType === "sales_over_time") {
+      // Add restaurantId for sales_over_time and marketing_campaigns
+      if (reportType === "sales_over_time" || reportType === "marketing_campaigns") {
         body.restaurantId = selectedRestaurantId;
       }
 
@@ -342,7 +355,9 @@ export default function ReportImport() {
           ? "parse-item-report" 
           : reportType === "payout_summary"
             ? "parse-payout-summary"
-            : "parse-payment-report";
+            : reportType === "marketing_campaigns"
+              ? "parse-marketing-campaigns"
+              : "parse-payment-report";
       
       const body: Record<string, any> = {
         csvContent,
@@ -350,8 +365,8 @@ export default function ReportImport() {
         dryRun: false,
       };
 
-      // Add restaurantId for sales_over_time
-      if (reportType === "sales_over_time") {
+      // Add restaurantId for sales_over_time and marketing_campaigns
+      if (reportType === "sales_over_time" || reportType === "marketing_campaigns") {
         body.restaurantId = selectedRestaurantId;
       }
 
@@ -372,7 +387,9 @@ export default function ReportImport() {
             ? `${importData.stats?.inserted || 0} articles insérés, ${importData.stats?.updated || 0} mis à jour`
             : reportType === "payout_summary"
               ? `${importData.stats?.inserted || 0} versements importés`
-              : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
+              : reportType === "marketing_campaigns"
+                ? `${importData.stats?.inserted || 0} campagnes importées dans les actions`
+                : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
         toast({
           title: "Import réussi",
           description: statsMessage,
@@ -555,8 +572,8 @@ export default function ReportImport() {
                     </SelectContent>
                   </Select>
 
-                  {/* Restaurant selector for Sales Over Time */}
-                  {reportType === "sales_over_time" && (
+                  {/* Restaurant selector for Sales Over Time and Marketing Campaigns */}
+                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns") && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Restaurant concerné *</label>
                       <Select value={selectedRestaurantId} onValueChange={setSelectedRestaurantId}>
@@ -573,7 +590,9 @@ export default function ReportImport() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Ce rapport ne contient pas d'identifiant restaurant, sélectionnez celui concerné.
+                        {reportType === "marketing_campaigns" 
+                          ? "Les fichiers d'offres ne contiennent pas d'identifiant restaurant. Pour les annonces, le restaurant sera auto-détecté si possible."
+                          : "Ce rapport ne contient pas d'identifiant restaurant, sélectionnez celui concerné."}
                       </p>
                     </div>
                   )}
@@ -585,6 +604,15 @@ export default function ReportImport() {
                       <AlertDescription>
                         Ce rapport contient les données officielles Uber Eats : CA, Commandes et Panier moyen.
                         Il sert de référence pour tous les KPIs agrégés.
+                      </AlertDescription>
+                    </Alert>
+                  ) : reportType === "marketing_campaigns" ? (
+                    <Alert className="bg-primary/5 border-primary/20">
+                      <Megaphone className="h-4 w-4 text-primary" />
+                      <AlertTitle className="text-primary">Campagnes Marketing</AlertTitle>
+                      <AlertDescription>
+                        Importez vos offres promotionnelles ou annonces publicitaires depuis Uber Manager &gt; Marketing &gt; Historique des campagnes.
+                        Les campagnes seront ajoutées aux actions et visibles sur les graphiques Analytics.
                       </AlertDescription>
                     </Alert>
                   ) : (
