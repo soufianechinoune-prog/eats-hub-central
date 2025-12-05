@@ -333,12 +333,18 @@ export default function Analytics() {
     queryFn: async () => {
       // Rolling Period mode: use period_type='previous' from daily_sales_uber (2025+ only)
       if (comparisonMode === "rollingPeriod" && selectedYear >= SALES_OVER_TIME_START_YEAR) {
+        // Calculer les dates 28 jours avant (4 semaines) pour comparer les mêmes jours de semaine
+        const prevStartDate = new Date(startDate);
+        prevStartDate.setDate(prevStartDate.getDate() - 28);
+        const prevEndDate = new Date(endDate);
+        prevEndDate.setDate(prevEndDate.getDate() - 28);
+        
         if (granularity === "daily") {
           const { data, error } = await supabase.rpc('get_daily_sales_uber', {
-            p_start_date: format(startDate, "yyyy-MM-dd"),
-            p_end_date: format(endDate, "yyyy-MM-dd"),
+            p_start_date: format(prevStartDate, "yyyy-MM-dd"),
+            p_end_date: format(prevEndDate, "yyyy-MM-dd"),
             p_restaurant_ids: restaurantFilter || null,
-            p_period_type: 'previous',
+            p_period_type: 'current',
           });
           if (error) throw error;
           return (data || []).map((item: any) => ({
@@ -347,10 +353,11 @@ export default function Analytics() {
             year: new Date(item.date).getFullYear(),
           }));
         } else {
+          // Pour la vue mensuelle, récupérer les données du mois précédent
           const { data, error } = await supabase.rpc('get_monthly_sales_from_daily', {
-            p_year: selectedYear,
+            p_year: prevStartDate.getFullYear(),
             p_restaurant_ids: restaurantFilter || null,
-            p_period_type: 'previous',
+            p_period_type: 'current',
           });
           if (error) throw error;
           return data || [];
