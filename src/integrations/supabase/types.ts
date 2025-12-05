@@ -535,6 +535,30 @@ export type Database = {
         }
         Relationships: []
       }
+      import_guide_screenshots: {
+        Row: {
+          guide_section_id: string
+          id: string
+          notes: string | null
+          screenshot_url: string
+          uploaded_at: string | null
+        }
+        Insert: {
+          guide_section_id: string
+          id?: string
+          notes?: string | null
+          screenshot_url: string
+          uploaded_at?: string | null
+        }
+        Update: {
+          guide_section_id?: string
+          id?: string
+          notes?: string | null
+          screenshot_url?: string
+          uploaded_at?: string | null
+        }
+        Relationships: []
+      }
       menu_item_changes: {
         Row: {
           change_type: string
