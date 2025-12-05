@@ -117,7 +117,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { csvContent, restaurantId } = await req.json();
+    const { csvContent, restaurantId, dryRun = false } = await req.json();
 
     if (!csvContent) {
       throw new Error("CSV content required");
@@ -146,9 +146,20 @@ serve(async (req) => {
     });
 
     const actions: any[] = [];
-    let inserted = 0;
     let skipped = 0;
     const errors: string[] = [];
+    const skippedDetails: { rowIndex: number; reason: string; details: string }[] = [];
+
+    // Get selected restaurant name for validation display
+    let selectedRestaurantName = "";
+    if (restaurantId) {
+      const { data: restaurant } = await supabase
+        .from("restaurants")
+        .select("name")
+        .eq("id", restaurantId)
+        .single();
+      selectedRestaurantName = restaurant?.name || "";
+    }
 
     // Normalize name for matching: lowercase, remove dashes, multiple spaces
     const normalizeName = (name: string) => 
@@ -168,6 +179,10 @@ serve(async (req) => {
       }
     }
 
+    // Track date range
+    let minDate: string | null = null;
+    let maxDate: string | null = null;
+
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       
@@ -181,8 +196,18 @@ serve(async (req) => {
           
           if (!startDate) {
             skipped++;
+            skippedDetails.push({
+              rowIndex: i + 1,
+              reason: "no_date",
+              details: "Date de début manquante ou invalide"
+            });
             continue;
           }
+
+          // Track date range
+          if (!minDate || startDate < minDate) minDate = startDate;
+          if (endDate && (!maxDate || endDate > maxDate)) maxDate = endDate;
+          if (!maxDate || startDate > maxDate) maxDate = startDate;
 
           const action = {
             category: "promotions",
@@ -219,14 +244,29 @@ serve(async (req) => {
           
           if (!startDate) {
             skipped++;
+            skippedDetails.push({
+              rowIndex: i + 1,
+              reason: "no_date",
+              details: "Date de début manquante ou invalide"
+            });
             continue;
           }
+
+          // Track date range
+          if (!minDate || startDate < minDate) minDate = startDate;
+          if (endDate && (!maxDate || endDate > maxDate)) maxDate = endDate;
+          if (!maxDate || startDate > maxDate) maxDate = startDate;
 
           // Find restaurant by name (use fallback restaurantId if provided)
           const foundRestaurantId = restaurantLookup[normalizeName(restaurantName)] || restaurantId;
           if (!foundRestaurantId) {
             errors.push(`Restaurant not found: ${restaurantName}`);
             skipped++;
+            skippedDetails.push({
+              rowIndex: i + 1,
+              reason: "restaurant_not_found",
+              details: `Restaurant non trouvé: ${restaurantName}`
+            });
             continue;
           }
 
@@ -268,11 +308,18 @@ serve(async (req) => {
         const message = err instanceof Error ? err.message : String(err);
         errors.push(`Row ${i}: ${message}`);
         skipped++;
+        skippedDetails.push({
+          rowIndex: i + 1,
+          reason: "parse_error",
+          details: message
+        });
       }
     }
 
-    // Insert actions
-    if (actions.length > 0) {
+    let inserted = 0;
+
+    // Only insert if not dryRun
+    if (!dryRun && actions.length > 0) {
       const { error: insertError } = await supabase
         .from("restaurant_actions")
         .insert(actions);
@@ -283,15 +330,38 @@ serve(async (req) => {
       inserted = actions.length;
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        csvType,
-        inserted,
+    // Build response in ImportResult format
+    const response = {
+      success: true,
+      reportType: `marketing_campaigns_${csvType}`,
+      dryRun,
+      stats: {
+        totalRows: rows.length - 1,
+        inserted: dryRun ? actions.length : inserted,
+        updated: 0,
         skipped,
-        errors: errors.slice(0, 10),
-        totalRows: rows.length - 1
-      }),
+        errors: errors.length
+      },
+      validation: {
+        dateRange: {
+          start: minDate,
+          end: maxDate
+        },
+        restaurants: restaurantId ? [{
+          id: restaurantId,
+          name: selectedRestaurantName,
+          orderCount: actions.length
+        }] : [],
+        unknownStoreIds: [],
+        skippedDetails
+      },
+      errorDetails: errors.slice(0, 10)
+    };
+
+    console.log(`[parse-marketing-campaigns] ${csvType} - ${dryRun ? "DRY RUN" : "IMPORT"}: ${actions.length} actions, ${skipped} skipped`);
+
+    return new Response(
+      JSON.stringify(response),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
@@ -299,7 +369,12 @@ serve(async (req) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Error:", message);
     return new Response(
-      JSON.stringify({ success: false, error: message }),
+      JSON.stringify({ 
+        success: false, 
+        error: message,
+        stats: { totalRows: 0, inserted: 0, updated: 0, skipped: 0, errors: 1 },
+        errorDetails: [message]
+      }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
