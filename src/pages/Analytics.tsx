@@ -52,6 +52,7 @@ export default function Analytics() {
     setPeriodMode,
     setSelectedMonth,
     comparisonMode,
+    setComparisonMode,
   } = useAnalyticsContext();
 
   const [chartActionsConfig, setChartActionsConfig] = useState<ChartActionsConfig>(() => {
@@ -940,6 +941,7 @@ export default function Analytics() {
                   selectedRestaurants={selectedRestaurants}
                   granularity={granularity}
                   comparisonMode={comparisonMode}
+                  onComparisonModeChange={setComparisonMode}
                   drillDownMonth={drillDownMonth}
                   onDrillDownChange={handleMonthDrillDown}
                 />
