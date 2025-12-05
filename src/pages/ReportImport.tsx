@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +64,7 @@ interface ImportResult {
 
 export default function ReportImport() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("import");
   const [file, setFile] = useState<File | null>(null);
   const [csvContent, setCsvContent] = useState<string>("");
@@ -458,6 +460,14 @@ export default function ReportImport() {
             Importez vos rapports CSV pour alimenter automatiquement la base de données
           </p>
         </div>
+        <Button 
+          variant="outline" 
+          onClick={() => navigate("/import-guide")}
+          className="gap-2"
+        >
+          <BookOpen className="h-4 w-4" />
+          Guide d'import
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

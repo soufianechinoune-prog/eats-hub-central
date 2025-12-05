@@ -28,6 +28,7 @@ import Messaging from "./pages/Messaging";
 import Operations from "./pages/Operations";
 import Cartography from "./pages/Cartography";
 import ReportImport from "./pages/ReportImport";
+import ImportGuide from "./pages/ImportGuide";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 
 const queryClient = new QueryClient({
@@ -207,6 +208,14 @@ const App = () => {
                 }
               />
               <Route path="/cartography" element={<Cartography />} />
+              <Route
+                path="/import-guide"
+                element={
+                  <AppLayout>
+                    <ImportGuide />
+                  </AppLayout>
+                }
+              />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
