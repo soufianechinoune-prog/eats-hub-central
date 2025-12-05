@@ -472,6 +472,34 @@ export function AnalyticsCharts({
     ? "(vs 4 sem. avant)" 
     : `(${selectedYear} vs ${prevYear})`;
   
+  // Compute actual date ranges for rolling period labels (will be populated from data)
+  const rollingPeriodDateRanges = useMemo(() => {
+    if (comparisonMode !== "rollingPeriod" || !revenueData || revenueData.length === 0) {
+      return { currentRange: '', prevRange: '' };
+    }
+    
+    const isDailyData = 'date' in revenueData[0];
+    if (!isDailyData) return { currentRange: '', prevRange: '' };
+    
+    // Get current period dates
+    const currentDates = revenueData.map((d: any) => d.date).filter(Boolean).sort();
+    const prevDates = prevRevenueData?.map((d: any) => d.date).filter(Boolean).sort() || [];
+    
+    if (currentDates.length === 0) return { currentRange: '', prevRange: '' };
+    
+    const formatRange = (dates: string[]) => {
+      if (dates.length === 0) return '';
+      const first = new Date(dates[0]);
+      const last = new Date(dates[dates.length - 1]);
+      return `${format(first, 'd MMM', { locale: fr })} - ${format(last, 'd MMM', { locale: fr })}`;
+    };
+    
+    return {
+      currentRange: formatRange(currentDates),
+      prevRange: formatRange(prevDates),
+    };
+  }, [comparisonMode, revenueData, prevRevenueData]);
+  
   // Chart type toggle state (bar or line)
   const [revenueChartType, setRevenueChartType] = useState<'bar' | 'line'>('bar');
   
@@ -571,6 +599,61 @@ export function AnalyticsCharts({
     
     // Detect if we have daily data (presence of 'date' field)
     const isDailyData = revenueData.length > 0 && 'date' in revenueData[0];
+    
+    // ROLLING PERIOD MODE: Align by day index (not calendar date)
+    if (isDailyData && comparisonMode === "rollingPeriod") {
+      // Group current data by date
+      const currentDailyMap: { [key: string]: { revenue: number; orders: number; date: string } } = {};
+      revenueData.forEach((item: any) => {
+        if (!currentDailyMap[item.date]) {
+          currentDailyMap[item.date] = { revenue: 0, orders: 0, date: item.date };
+        }
+        currentDailyMap[item.date].revenue += Number(item.revenue_ttc) || 0;
+        currentDailyMap[item.date].orders += item.order_count || 0;
+      });
+      
+      // Group previous data by date
+      const prevDailyMap: { [key: string]: { revenue: number; orders: number; date: string } } = {};
+      prevRevenueData?.forEach((item: any) => {
+        if (!prevDailyMap[item.date]) {
+          prevDailyMap[item.date] = { revenue: 0, orders: 0, date: item.date };
+        }
+        prevDailyMap[item.date].revenue += Number(item.revenue_ttc) || 0;
+        prevDailyMap[item.date].orders += item.order_count || 0;
+      });
+      
+      // Sort current dates and previous dates
+      const currentDates = Object.keys(currentDailyMap).sort();
+      const prevDates = Object.keys(prevDailyMap).sort();
+      
+      // Merge by index (day 1 current → day 1 previous, etc.)
+      return currentDates.map((dateStr, index) => {
+        const date = new Date(dateStr);
+        const currentData = currentDailyMap[dateStr];
+        const prevDateStr = prevDates[index];
+        const prevData = prevDateStr ? prevDailyMap[prevDateStr] : null;
+        const prevDate = prevDateStr ? new Date(prevDateStr) : null;
+        
+        return {
+          month: format(date, 'dd/MM', { locale: fr }),
+          monthNum: date.getDate(),
+          dayIndex: index + 1,
+          fullDate: dateStr,
+          currentDate: dateStr,
+          prevDate: prevDateStr || null,
+          // Day of week for tooltip (e.g., "lun.", "mar.")
+          dayOfWeek: format(date, 'EEE', { locale: fr }),
+          prevDayOfWeek: prevDate ? format(prevDate, 'EEE', { locale: fr }) : null,
+          revenue: currentData.revenue,
+          orders: currentData.orders,
+          avgBasket: currentData.orders > 0 
+            ? currentData.revenue / currentData.orders 
+            : 0,
+          prevRevenue: prevData?.revenue || 0,
+          prevOrders: prevData?.orders || 0,
+        };
+      });
+    }
     
     if (isDailyData && granularity === "weekly") {
       // Weekly granularity: group by week
@@ -697,7 +780,7 @@ export function AnalyticsCharts({
         prevOrders: prevMonthlyData[i + 1]?.orders || 0,
       })).filter(d => filterByRange(d.monthNum));
     }
-  }, [revenueData, prevRevenueData, startMonth, endMonth, granularity]);
+  }, [revenueData, prevRevenueData, startMonth, endMonth, granularity, comparisonMode]);
 
   // Drill-down data for specific month (daily view)
   // Drill-down chart data - uses revenueData directly when in month mode (granularity is daily)
@@ -1381,7 +1464,10 @@ export function AnalyticsCharts({
                 <span>Évolution du Chiffre d'Affaires</span>
                 {hasPrevData && (
                   <span className="text-sm font-normal text-muted-foreground ml-2">
-                    {comparisonSuffix}
+                    {comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.currentRange
+                      ? `(${rollingPeriodDateRanges.currentRange} vs ${rollingPeriodDateRanges.prevRange})`
+                      : comparisonSuffix
+                    }
                   </span>
                 )}
               </>
@@ -1409,7 +1495,11 @@ export function AnalyticsCharts({
                   <div className="flex items-center gap-2.5">
                     <Euro className="h-5 w-5 text-primary" />
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground leading-tight">{currentLabel}</p>
+                      <p className="text-xs text-muted-foreground leading-tight">
+                        {comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.currentRange 
+                          ? rollingPeriodDateRanges.currentRange 
+                          : currentLabel}
+                      </p>
                       <p className="text-base font-bold leading-tight">{displayRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
                     </div>
                   </div>
@@ -1417,7 +1507,11 @@ export function AnalyticsCharts({
                     <>
                       <div className="h-10 w-px bg-border" />
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground leading-tight">{prevLabel}</p>
+                        <p className="text-xs text-muted-foreground leading-tight">
+                          {comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.prevRange 
+                            ? rollingPeriodDateRanges.prevRange 
+                            : prevLabel}
+                        </p>
                         <p className="text-sm text-muted-foreground leading-tight">{displayPrevRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
                       </div>
                       <div className="h-10 w-px bg-border" />
@@ -1514,6 +1608,48 @@ export function AnalyticsCharts({
                             if (!active || !payload || payload.length === 0) return null;
                             const data = payload[0]?.payload;
                             if (!data) return null;
+                            
+                            // Calculate variation
+                            const variation = data.prevRevenue > 0 
+                              ? ((data.revenue - data.prevRevenue) / data.prevRevenue) * 100 
+                              : data.revenue > 0 ? 100 : 0;
+                            const variationColor = variation > 0 ? 'text-green-600' : variation < 0 ? 'text-red-600' : 'text-muted-foreground';
+                            
+                            // Rolling period mode: show aligned dates
+                            if (comparisonMode === "rollingPeriod" && data.currentDate && data.prevDate) {
+                              const currentDate = new Date(data.currentDate);
+                              const prevDate = new Date(data.prevDate);
+                              return (
+                                <div className="bg-background border border-border rounded-lg p-3 shadow-lg min-w-[220px]">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className={`text-sm font-semibold ${variationColor}`}>
+                                      {variation > 0 ? '+' : ''}{variation.toFixed(1)}%
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-0.5 bg-primary rounded" />
+                                      <span className="text-xs text-muted-foreground">
+                                        {format(currentDate, 'EEE d MMM', { locale: fr })}
+                                      </span>
+                                      <span className="font-semibold ml-auto" style={{ color: 'hsl(var(--primary))' }}>
+                                        {data.revenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-0.5 bg-muted-foreground rounded opacity-50" style={{ borderStyle: 'dashed' }} />
+                                      <span className="text-xs text-muted-foreground">
+                                        {format(prevDate, 'EEE d MMM', { locale: fr })}
+                                      </span>
+                                      <span className="text-sm text-muted-foreground ml-auto">
+                                        {(data.prevRevenue || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            
                             return (
                               <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
                                 <p className="font-medium mb-2">
@@ -1523,9 +1659,14 @@ export function AnalyticsCharts({
                                   CA {currentLabel}: {(data.revenue || 0).toLocaleString('fr-FR')} €
                                 </p>
                                 {hasPrevData && (
-                                  <p className="text-sm text-muted-foreground">
-                                    CA {prevLabel}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
-                                  </p>
+                                  <>
+                                    <p className="text-sm text-muted-foreground">
+                                      CA {prevLabel}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
+                                    </p>
+                                    <p className={`text-sm font-medium mt-1 ${variationColor}`}>
+                                      {variation > 0 ? '+' : ''}{variation.toFixed(1)}%
+                                    </p>
+                                  </>
                                 )}
                               </div>
                             );
@@ -1589,18 +1730,61 @@ export function AnalyticsCharts({
                             if (!active || !payload || payload.length === 0) return null;
                             const data = payload[0]?.payload;
                             if (!data) return null;
+                            
+                            const variation = data.prevRevenue > 0 
+                              ? ((data.revenue - data.prevRevenue) / data.prevRevenue) * 100 
+                              : data.revenue > 0 ? 100 : 0;
+                            const variationColor = variation > 0 ? 'text-green-600' : variation < 0 ? 'text-red-600' : 'text-muted-foreground';
+                            
+                            if (comparisonMode === "rollingPeriod" && data.currentDate && data.prevDate) {
+                              const currentDate = new Date(data.currentDate);
+                              const prevDate = new Date(data.prevDate);
+                              return (
+                                <div className="bg-background border border-border rounded-lg p-3 shadow-lg min-w-[220px]">
+                                  <div className={`text-sm font-semibold mb-2 ${variationColor}`}>
+                                    {variation > 0 ? '+' : ''}{variation.toFixed(1)}%
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-0.5 bg-primary rounded" />
+                                      <span className="text-xs text-muted-foreground">
+                                        {format(currentDate, 'EEE d MMM', { locale: fr })}
+                                      </span>
+                                      <span className="font-semibold ml-auto" style={{ color: 'hsl(var(--primary))' }}>
+                                        {data.revenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-0.5 bg-muted-foreground rounded opacity-50" />
+                                      <span className="text-xs text-muted-foreground">
+                                        {format(prevDate, 'EEE d MMM', { locale: fr })}
+                                      </span>
+                                      <span className="text-sm text-muted-foreground ml-auto">
+                                        {(data.prevRevenue || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            
                             return (
                               <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
                                 <p className="font-medium mb-2">
                                   {drillDownMonth ? `${label} ${MONTHS[drillDownMonth - 1]}` : label}
                                 </p>
                                 <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
-                                  CA {selectedYear}: {(data.revenue || 0).toLocaleString('fr-FR')} €
+                                  CA {currentLabel}: {(data.revenue || 0).toLocaleString('fr-FR')} €
                                 </p>
                                 {hasPrevData && (
-                                  <p className="text-sm text-muted-foreground">
-                                    CA {prevYear}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
-                                  </p>
+                                  <>
+                                    <p className="text-sm text-muted-foreground">
+                                      CA {prevLabel}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
+                                    </p>
+                                    <p className={`text-sm font-medium mt-1 ${variationColor}`}>
+                                      {variation > 0 ? '+' : ''}{variation.toFixed(1)}%
+                                    </p>
+                                  </>
                                 )}
                               </div>
                             );
@@ -1623,13 +1807,14 @@ export function AnalyticsCharts({
                             />
                           );
                         })}
-                        {/* Line N-1 (gris) */}
+                        {/* Line N-1 (gris, dashed for rolling period) */}
                         {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
                           <Line 
                             type="monotone"
                             dataKey="prevRevenue" 
                             stroke="hsl(var(--muted-foreground))" 
                             strokeWidth={2}
+                            strokeDasharray={comparisonMode === "rollingPeriod" ? "5 5" : undefined}
                             dot={{ fill: 'hsl(var(--muted-foreground))', strokeWidth: 0, r: 3 }}
                             activeDot={{ r: 5 }}
                             animationDuration={CHART_ANIMATION_DURATION} 
@@ -1666,7 +1851,14 @@ export function AnalyticsCharts({
           <CardTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
             Évolution des Commandes
-            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">{comparisonSuffix}</span>}
+            {hasPrevData && (
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                {comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.currentRange
+                  ? `(${rollingPeriodDateRanges.currentRange} vs ${rollingPeriodDateRanges.prevRange})`
+                  : comparisonSuffix
+                }
+              </span>
+            )}
           </CardTitle>
           <div className="flex items-center gap-4">
             {/* Inline KPIs */}
@@ -1684,7 +1876,11 @@ export function AnalyticsCharts({
                   <div className="flex items-center gap-2.5">
                     <ShoppingCart className="h-5 w-5 text-chart-2" />
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground leading-tight">{currentLabel}</p>
+                      <p className="text-xs text-muted-foreground leading-tight">
+                        {comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.currentRange 
+                          ? rollingPeriodDateRanges.currentRange 
+                          : currentLabel}
+                      </p>
                       <p className="text-base font-bold leading-tight">{totalOrders.toLocaleString('fr-FR')}</p>
                     </div>
                   </div>
@@ -1692,7 +1888,11 @@ export function AnalyticsCharts({
                     <>
                       <div className="h-10 w-px bg-border" />
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground leading-tight">{prevLabel}</p>
+                        <p className="text-xs text-muted-foreground leading-tight">
+                          {comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.prevRange 
+                            ? rollingPeriodDateRanges.prevRange 
+                            : prevLabel}
+                        </p>
                         <p className="text-sm text-muted-foreground leading-tight">{totalPrevOrders.toLocaleString('fr-FR')}</p>
                       </div>
                       <div className="h-10 w-px bg-border" />
