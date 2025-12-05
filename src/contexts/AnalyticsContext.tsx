@@ -20,6 +20,7 @@ interface AnalyticsContextType {
   setDateRange: (range: DateRange | undefined) => void;
   comparisonMode: ComparisonMode;
   setComparisonMode: (mode: ComparisonMode) => void;
+  isInitialized: boolean;
 }
 
 const AnalyticsContext = createContext<AnalyticsContextType | undefined>(undefined);
@@ -29,100 +30,72 @@ const STORAGE_KEY = "analytics-context";
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 
+// Helper to safely parse localStorage once
+function getStoredState() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function AnalyticsProvider({ children }: { children: ReactNode }) {
-  // Initialize state from localStorage or defaults
-  const [selectedRestaurants, setSelectedRestaurants] = useState<string[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored).selectedRestaurants || [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  // Track initialization to prevent flicker
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Get stored state once during initialization
+  const [storedState] = useState(() => getStoredState());
 
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored).selectedPlatform || "uber_eats";
-      } catch {
-        return "uber_eats";
-      }
-    }
-    return "uber_eats";
-  });
+  // Initialize state from stored values
+  const [selectedRestaurants, setSelectedRestaurants] = useState<string[]>(
+    () => storedState?.selectedRestaurants || []
+  );
 
-  const [selectedYear, setSelectedYear] = useState<number>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored).selectedYear || currentYear;
-      } catch {
-        return currentYear;
-      }
-    }
-    return currentYear;
-  });
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform>(
+    () => storedState?.selectedPlatform || "uber_eats"
+  );
 
-  const [selectedMonth, setSelectedMonth] = useState<number>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored).selectedMonth || currentMonth;
-      } catch {
-        return currentMonth;
-      }
-    }
-    return currentMonth;
-  });
+  const [selectedYear, setSelectedYear] = useState<number>(
+    () => storedState?.selectedYear || currentYear
+  );
 
-  const [periodMode, setPeriodMode] = useState<PeriodMode>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored).periodMode || "year";
-      } catch {
-        return "year";
-      }
-    }
-    return "year";
-  });
+  const [selectedMonth, setSelectedMonth] = useState<number>(
+    () => storedState?.selectedMonth || currentMonth
+  );
+
+  const [periodMode, setPeriodMode] = useState<PeriodMode>(
+    () => storedState?.periodMode || "year"
+  );
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const range = JSON.parse(stored).dateRange;
-        if (range && range.from && range.to) {
-          return {
-            from: new Date(range.from),
-            to: new Date(range.to),
-          };
-        }
-      } catch {
-        return undefined;
-      }
+    const range = storedState?.dateRange;
+    if (range?.from && range?.to) {
+      return {
+        from: new Date(range.from),
+        to: new Date(range.to),
+      };
     }
     return undefined;
   });
 
-  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored).comparisonMode || "yearOverYear";
-      } catch {
-        return "yearOverYear";
-      }
-    }
-    return "yearOverYear";
-  });
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>(
+    () => storedState?.comparisonMode || "yearOverYear"
+  );
 
-  // Persist to localStorage whenever state changes
+  // Mark as initialized after first render
   useEffect(() => {
+    // Small delay to ensure state is stable before rendering children
+    const timer = setTimeout(() => {
+      setIsInitialized(true);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Persist to localStorage whenever state changes (but not on initial load)
+  useEffect(() => {
+    if (!isInitialized) return;
+    
     const state = {
       selectedRestaurants,
       selectedPlatform,
@@ -136,7 +109,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       } : undefined,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [selectedRestaurants, selectedPlatform, selectedYear, selectedMonth, periodMode, dateRange, comparisonMode]);
+  }, [selectedRestaurants, selectedPlatform, selectedYear, selectedMonth, periodMode, dateRange, comparisonMode, isInitialized]);
 
   const value = {
     selectedRestaurants,
@@ -153,6 +126,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setDateRange,
     comparisonMode,
     setComparisonMode,
+    isInitialized,
   };
 
   return (
