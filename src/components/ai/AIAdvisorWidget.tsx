@@ -83,17 +83,16 @@ export const AIAdvisorWidget = () => {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
-        {/* Animated glow ring */}
+        {/* Animated glow ring - hover only to reduce render load */}
         <motion.div
-          className="absolute inset-0 rounded-full bg-gradient-to-br from-ai-gradient-start to-ai-gradient-end opacity-50 blur-xl"
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.5, 0.7, 0.5],
+          className="absolute inset-0 rounded-full bg-gradient-to-br from-ai-gradient-start to-ai-gradient-end opacity-30 blur-xl"
+          whileHover={{
+            scale: 1.2,
+            opacity: 0.6,
           }}
           transition={{
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeInOut"
+            duration: 0.3,
+            ease: "easeOut"
           }}
         />
         

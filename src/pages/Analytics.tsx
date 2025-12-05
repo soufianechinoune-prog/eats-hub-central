@@ -53,6 +53,7 @@ export default function Analytics() {
     setSelectedMonth,
     comparisonMode,
     setComparisonMode,
+    isInitialized,
   } = useAnalyticsContext();
 
   const [chartActionsConfig, setChartActionsConfig] = useState<ChartActionsConfig>(() => {
@@ -259,6 +260,7 @@ export default function Analytics() {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: uberConversionData, isLoading: loadingUberConversion } = useQuery({
@@ -302,6 +304,7 @@ export default function Analytics() {
         return data;
       }
     },
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: uberFeesData, isLoading: loadingUberFees } = useQuery({
@@ -322,6 +325,7 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
+    placeholderData: (previousData) => previousData,
   });
 
   // ========== UBER EATS DATA (Previous Year - N-1 or Rolling Period) ==========
@@ -522,6 +526,7 @@ export default function Analytics() {
         return data;
       }
     },
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: deliverooConversionData, isLoading: loadingDeliverooConversion } = useQuery({
@@ -565,6 +570,7 @@ export default function Analytics() {
         return data;
       }
     },
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: deliverooFeesData, isLoading: loadingDeliverooFees } = useQuery({
@@ -585,6 +591,7 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
+    placeholderData: (previousData) => previousData,
   });
 
   // ========== DELIVEROO DATA (Previous Year - N-1) ==========
@@ -868,7 +875,7 @@ export default function Analytics() {
       </div>
 
       {/* Content based on selected platform from context */}
-      {isLoading ? (
+      {(!isInitialized || isLoading) ? (
         <div className="flex justify-center items-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
