@@ -195,16 +195,17 @@ export default function Analytics() {
   // Build filter for restaurants
   const restaurantFilter = selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
 
-  // ========== UBER EATS DATA (Current Year) - READS FROM orders TABLE ==========
+  // ========== UBER EATS DATA (Current Year) - READS FROM daily_sales_uber TABLE ==========
   const { data: uberRevenueData, isLoading: loadingUberRevenue } = useQuery({
     queryKey: ["analytics_revenue_uber", restaurantFilter, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
       if (granularity === "daily") {
-        // Use RPC function to aggregate from orders table
-        const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
+        // Use RPC function to get daily sales from daily_sales_uber table
+        const { data, error } = await supabase.rpc('get_daily_sales_uber', {
           p_start_date: format(startDate, "yyyy-MM-dd"),
           p_end_date: format(endDate, "yyyy-MM-dd"),
           p_restaurant_ids: restaurantFilter || null,
+          p_period_type: 'current',
         });
         
         if (error) throw error;
@@ -216,10 +217,11 @@ export default function Analytics() {
           year: new Date(item.date).getFullYear(),
         }));
       } else {
-        // Use RPC function for monthly aggregation from orders table
-        const { data, error } = await supabase.rpc('get_monthly_revenue_from_orders', {
+        // Use RPC function for monthly aggregation from daily_sales_uber table
+        const { data, error } = await supabase.rpc('get_monthly_sales_from_daily', {
           p_year: selectedYear,
           p_restaurant_ids: restaurantFilter || null,
+          p_period_type: 'current',
         });
         
         if (error) throw error;
@@ -291,7 +293,7 @@ export default function Analytics() {
     },
   });
 
-  // ========== UBER EATS DATA (Previous Year - N-1) - READS FROM orders TABLE ==========
+  // ========== UBER EATS DATA (Previous Year - N-1) - READS FROM daily_sales_uber TABLE ==========
   const { data: uberPrevRevenueData } = useQuery({
     queryKey: ["analytics_revenue_uber_prev", restaurantFilter, prevYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
@@ -302,10 +304,11 @@ export default function Analytics() {
         const prevEndDate = new Date(endDate);
         prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
         
-        const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
+        const { data, error } = await supabase.rpc('get_daily_sales_uber', {
           p_start_date: format(prevStartDate, "yyyy-MM-dd"),
           p_end_date: format(prevEndDate, "yyyy-MM-dd"),
           p_restaurant_ids: restaurantFilter || null,
+          p_period_type: 'previous',
         });
         
         if (error) throw error;
@@ -316,9 +319,10 @@ export default function Analytics() {
           year: new Date(item.date).getFullYear(),
         }));
       } else {
-        const { data, error } = await supabase.rpc('get_monthly_revenue_from_orders', {
+        const { data, error } = await supabase.rpc('get_monthly_sales_from_daily', {
           p_year: prevYear,
           p_restaurant_ids: restaurantFilter || null,
+          p_period_type: 'previous',
         });
         
         if (error) throw error;
