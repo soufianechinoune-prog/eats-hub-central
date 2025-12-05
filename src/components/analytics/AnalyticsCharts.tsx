@@ -1608,9 +1608,16 @@ export function AnalyticsCharts({
                         "h-8 gap-1.5 transition-all",
                         comparisonMode === 'rollingPeriod' && "bg-amber-600 hover:bg-amber-700 text-white border-0"
                       )}
-                      onClick={() => onComparisonModeChange(
-                        comparisonMode === 'rollingPeriod' ? 'yearOverYear' : 'rollingPeriod'
-                      )}
+                      onClick={() => {
+                        const newMode = comparisonMode === 'rollingPeriod' ? 'yearOverYear' : 'rollingPeriod';
+                        onComparisonModeChange(newMode);
+                        
+                        // Auto drill-down to current month when activating rollingPeriod in year view
+                        if (newMode === 'rollingPeriod' && !drillDownMonth && onDrillDownChange) {
+                          const currentMonth = new Date().getMonth() + 1;
+                          onDrillDownChange(currentMonth);
+                        }
+                      }}
                     >
                       <ArrowLeftRight className="h-3.5 w-3.5" />
                       <span className="text-xs">4 sem.</span>
@@ -1637,7 +1644,7 @@ export function AnalyticsCharts({
           <InteractiveLegend
             items={[
               { key: 'revenue', label: `CA ${currentLabel}`, color: 'hsl(var(--primary))' },
-              ...(hasPrevData ? [{ key: 'prevRevenue', label: `CA ${prevLabel}`, color: 'hsl(var(--muted-foreground))' }] : []),
+              ...((drillDownMonth ? hasDrillDownPrevData : hasPrevData) ? [{ key: 'prevRevenue', label: `CA ${prevLabel}`, color: 'hsl(var(--muted-foreground))' }] : []),
             ]}
             hiddenKeys={hiddenRevenueBars}
             onToggle={toggleRevenueBar}
@@ -1845,7 +1852,7 @@ export function AnalyticsCharts({
                                 <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
                                   CA {currentLabel}: {(data.revenue || 0).toLocaleString('fr-FR')} €
                                 </p>
-                                {hasPrevData && (
+                                {(drillDownMonth ? hasDrillDownPrevData : hasPrevData) && (
                                   <>
                                     <p className="text-sm text-muted-foreground">
                                       CA {prevLabel}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
