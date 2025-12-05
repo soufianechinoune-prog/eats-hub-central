@@ -96,14 +96,7 @@ export default function Analytics() {
     dateRange,
   });
 
-  const handleTabChange = (value: string) => {
-    // Tab changes are now handled by Analytics context platform selector
-    setSearchParams(prev => {
-      const newParams = new URLSearchParams(prev);
-      newParams.set('platform', value);
-      return newParams;
-    });
-  };
+  // Tab changes are now handled by Analytics context platform selector (no URL sync needed)
 
   const handleChartActionsConfigChange = (newConfig: ChartActionsConfig) => {
     setChartActionsConfig(newConfig);
@@ -171,15 +164,7 @@ export default function Analytics() {
 
   const { start: effectiveStartMonth, end: effectiveEndMonth } = getEffectiveMonthRange();
 
-  // Sync selectedTab with context platform
-  useEffect(() => {
-    // Update search params when platform changes from context, preserving other params
-    setSearchParams(prev => {
-      const newParams = new URLSearchParams(prev);
-      newParams.set('platform', selectedPlatform);
-      return newParams;
-    });
-  }, [selectedPlatform, setSearchParams]);
+  // Platform is managed via AnalyticsContext (persisted in localStorage), no URL sync needed
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
@@ -203,9 +188,10 @@ export default function Analytics() {
   const SALES_OVER_TIME_START_YEAR = 2025;
 
   // ========== UBER EATS DATA (Current Year) ==========
-  const { data: uberRevenueData, isLoading: loadingUberRevenue } = useQuery({
+  const { data: uberRevenueData, isLoading: loadingUberRevenue, error: uberRevenueError } = useQuery({
     queryKey: ["analytics_revenue_uber", restaurantFilter, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
+      console.log("[Analytics] Fetching uber revenue data", { selectedYear, granularity, restaurantFilter });
       // Use daily_sales_uber for 2025+, orders table for 2024 and before
       const useNewTable = selectedYear >= SALES_OVER_TIME_START_YEAR;
       
@@ -217,7 +203,11 @@ export default function Analytics() {
             p_restaurant_ids: restaurantFilter || null,
             p_period_type: 'current',
           });
-          if (error) throw error;
+          if (error) {
+            console.error("[Analytics] get_daily_sales_uber error:", error);
+            throw error;
+          }
+          console.log("[Analytics] get_daily_sales_uber result:", data?.length, "rows");
           return (data || []).map((item: any) => ({
             ...item,
             month: new Date(item.date).getMonth() + 1,
@@ -230,7 +220,10 @@ export default function Analytics() {
             p_end_date: format(endDate, "yyyy-MM-dd"),
             p_restaurant_ids: restaurantFilter || null,
           });
-          if (error) throw error;
+          if (error) {
+            console.error("[Analytics] get_daily_revenue_from_orders error:", error);
+            throw error;
+          }
           return (data || []).map((item: any) => ({
             ...item,
             month: new Date(item.date).getMonth() + 1,
@@ -244,7 +237,11 @@ export default function Analytics() {
             p_restaurant_ids: restaurantFilter || null,
             p_period_type: 'current',
           });
-          if (error) throw error;
+          if (error) {
+            console.error("[Analytics] get_monthly_sales_from_daily error:", error);
+            throw error;
+          }
+          console.log("[Analytics] get_monthly_sales_from_daily result:", data?.length, "rows", data);
           return data || [];
         } else {
           // Fallback to orders table for 2024 and before
@@ -252,11 +249,16 @@ export default function Analytics() {
             p_year: selectedYear,
             p_restaurant_ids: restaurantFilter || null,
           });
-          if (error) throw error;
+          if (error) {
+            console.error("[Analytics] get_monthly_revenue_from_orders error:", error);
+            throw error;
+          }
           return data || [];
         }
       }
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
   const { data: uberConversionData, isLoading: loadingUberConversion } = useQuery({
@@ -730,6 +732,21 @@ export default function Analytics() {
   const isLoading = loadingUberRevenue || loadingUberConversion || loadingUberFees ||
                     loadingDeliverooRevenue || loadingDeliverooConversion || loadingDeliverooFees;
 
+  // Debug logging
+  useEffect(() => {
+    console.log("[Analytics] Data state:", {
+      isLoading,
+      uberRevenueData: uberRevenueData?.length,
+      uberRevenueError,
+      selectedPlatform,
+      selectedYear,
+      granularity,
+      restaurantFilter,
+    });
+    if (uberRevenueData && uberRevenueData.length > 0) {
+      console.log("[Analytics] Sample data:", uberRevenueData[0]);
+    }
+  }, [isLoading, uberRevenueData, uberRevenueError, selectedPlatform, selectedYear, granularity, restaurantFilter]);
 
   // Get period display string for PDF export
   const getPeriodDisplay = () => {
