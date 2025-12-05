@@ -1,11 +1,8 @@
-import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Session } from "@supabase/supabase-js";
 import Overview from "./pages/Overview";
 import Dashboard from "./pages/Dashboard";
 import Restaurants from "./pages/Restaurants";
@@ -15,15 +12,11 @@ import UberCallback from "./pages/UberCallback";
 import Exports from "./pages/Exports";
 import Reports from "./pages/Reports";
 import Disputes from "./pages/Disputes";
-import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import { AppLayout } from "./components/layout/AppLayout";
 import UberNaming from "./pages/UberNaming";
 import MenuEditor from "./pages/MenuEditor";
-import DataEntryRevenue from "./pages/DataEntryRevenue";
-import DataEntryConversion from "./pages/DataEntryConversion";
-import DataEntryFees from "./pages/DataEntryFees";
 import DataEntry from "./pages/DataEntry";
 import Analytics from "./pages/Analytics";
 import RankingDetail from "./pages/RankingDetail";
@@ -37,37 +30,17 @@ import Cartography from "./pages/Cartography";
 import ReportImport from "./pages/ReportImport";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 
-const queryClient = new QueryClient();
-
-// TEMPORAIREMENT DÉSACTIVÉ - Authentification bypassée pour le développement
-const ProtectedRoute = ({ children, session }: { children: React.ReactNode; session: Session | null }) => {
-  // Bypass auth temporairement
-  return <>{children}</>;
-};
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 30000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (loading) {
-    return <div className="flex min-h-screen items-center justify-center">Chargement...</div>;
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -76,138 +49,93 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <Routes>
-              {/* Auth temporairement désactivé */}
               <Route path="/auth" element={<Navigate to="/" replace />} />
               <Route
                 path="/"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <Overview />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <Overview />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/classements"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <Dashboard />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <Dashboard />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/restaurants"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <Restaurants />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <Restaurants />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/messaging"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <Messaging />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <Messaging />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/restaurants/:id"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <RestaurantDetail />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <RestaurantDetail />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/restaurants/:restaurantId/menu"
-                element={
-                  <ProtectedRoute session={session}>
-                    <RestaurantMenu />
-                  </ProtectedRoute>
-                }
+                element={<RestaurantMenu />}
               />
               <Route
                 path="/uber-connections"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <UberConnections />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <UberConnections />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/uber-naming"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <UberNaming />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <UberNaming />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/exports"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <Exports />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <Exports />
+                  </AppLayout>
                 }
               />
-              <Route
-                path="/reports"
-                element={
-                  <ProtectedRoute session={session}>
-                    <Reports />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/menu-editor"
-                element={
-                  <ProtectedRoute session={session}>
-                    <MenuEditor />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/menu-editor" element={<MenuEditor />} />
               <Route
                 path="/disputes"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <Disputes />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <Disputes />
+                  </AppLayout>
                 }
               />
-              <Route
-                path="/auth/uber/callback"
-                element={<UberCallback />}
-              />
-              <Route
-                path="/uber-callback"
-                element={<UberCallback />}
-              />
+              <Route path="/auth/uber/callback" element={<UberCallback />} />
+              <Route path="/uber-callback" element={<UberCallback />} />
               <Route
                 path="/data-entry"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <DataEntry />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <DataEntry />
+                  </AppLayout>
                 }
               />
               <Route
@@ -225,79 +153,56 @@ const App = () => {
               <Route
                 path="/analytics"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <Analytics />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <Analytics />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/analytics/ranking/:metric"
-                element={
-                  <ProtectedRoute session={session}>
-                    <RankingDetail />
-                  </ProtectedRoute>
-                }
+                element={<RankingDetail />}
               />
               <Route
                 path="/menu-items"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <MenuItems />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <MenuItems />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/actions"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <RestaurantActions />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <RestaurantActions />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/menu-history"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <MenuHistory />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <MenuHistory />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/operations"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <Operations />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <Operations />
+                  </AppLayout>
                 }
               />
               <Route
                 path="/report-import"
                 element={
-                  <ProtectedRoute session={session}>
-                    <AppLayout>
-                      <ReportImport />
-                    </AppLayout>
-                  </ProtectedRoute>
+                  <AppLayout>
+                    <ReportImport />
+                  </AppLayout>
                 }
               />
-              <Route
-                path="/cartography"
-                element={
-                  <ProtectedRoute session={session}>
-                    <Cartography />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="/cartography" element={<Cartography />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
