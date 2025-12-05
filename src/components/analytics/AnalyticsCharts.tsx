@@ -197,6 +197,7 @@ interface AnalyticsChartsProps {
   restaurants?: { id: string; name: string; city?: string }[];
   selectedRestaurants?: string[];
   granularity?: "daily" | "weekly" | "monthly";
+  comparisonMode?: "yearOverYear" | "rollingPeriod";
   // Drill-down props (synchronized with global context)
   drillDownMonth?: number | null;
   onDrillDownChange?: (month: number | null) => void;
@@ -458,10 +459,18 @@ export function AnalyticsCharts({
   restaurants = [],
   selectedRestaurants = [],
   granularity = "monthly",
+  comparisonMode = "yearOverYear",
   drillDownMonth,
   onDrillDownChange,
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
+  
+  // Dynamic labels based on comparison mode
+  const currentLabel = comparisonMode === "rollingPeriod" ? "Cette période" : String(selectedYear);
+  const prevLabel = comparisonMode === "rollingPeriod" ? "Période précédente" : String(prevYear);
+  const comparisonSuffix = comparisonMode === "rollingPeriod" 
+    ? "(vs 4 sem. avant)" 
+    : `(${selectedYear} vs ${prevYear})`;
   
   // Chart type toggle state (bar or line)
   const [revenueChartType, setRevenueChartType] = useState<'bar' | 'line'>('bar');
@@ -1363,7 +1372,7 @@ export function AnalyticsCharts({
                 </Button>
                 {hasPrevData && (
                   <span className="text-sm font-normal text-muted-foreground">
-                    (vs {MONTHS[drillDownMonth - 1]} {prevYear})
+                    (vs {MONTHS[drillDownMonth - 1]} {prevLabel})
                   </span>
                 )}
               </div>
@@ -1372,7 +1381,7 @@ export function AnalyticsCharts({
                 <span>Évolution du Chiffre d'Affaires</span>
                 {hasPrevData && (
                   <span className="text-sm font-normal text-muted-foreground ml-2">
-                    ({selectedYear} vs {prevYear})
+                    {comparisonSuffix}
                   </span>
                 )}
               </>
@@ -1400,7 +1409,7 @@ export function AnalyticsCharts({
                   <div className="flex items-center gap-2.5">
                     <Euro className="h-5 w-5 text-primary" />
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground leading-tight">{selectedYear}</p>
+                      <p className="text-xs text-muted-foreground leading-tight">{currentLabel}</p>
                       <p className="text-base font-bold leading-tight">{displayRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
                     </div>
                   </div>
@@ -1408,7 +1417,7 @@ export function AnalyticsCharts({
                     <>
                       <div className="h-10 w-px bg-border" />
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground leading-tight">{prevYear}</p>
+                        <p className="text-xs text-muted-foreground leading-tight">{prevLabel}</p>
                         <p className="text-sm text-muted-foreground leading-tight">{displayPrevRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
                       </div>
                       <div className="h-10 w-px bg-border" />
@@ -1464,8 +1473,8 @@ export function AnalyticsCharts({
           {/* Interactive Legend */}
           <InteractiveLegend
             items={[
-              { key: 'revenue', label: `CA ${selectedYear}`, color: 'hsl(var(--primary))' },
-              ...(hasPrevData ? [{ key: 'prevRevenue', label: `CA ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
+              { key: 'revenue', label: `CA ${currentLabel}`, color: 'hsl(var(--primary))' },
+              ...(hasPrevData ? [{ key: 'prevRevenue', label: `CA ${prevLabel}`, color: 'hsl(var(--muted-foreground))' }] : []),
             ]}
             hiddenKeys={hiddenRevenueBars}
             onToggle={toggleRevenueBar}
@@ -1511,11 +1520,11 @@ export function AnalyticsCharts({
                                   {drillDownMonth ? `${label} ${MONTHS[drillDownMonth - 1]}` : label}
                                 </p>
                                 <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
-                                  CA {selectedYear}: {(data.revenue || 0).toLocaleString('fr-FR')} €
+                                  CA {currentLabel}: {(data.revenue || 0).toLocaleString('fr-FR')} €
                                 </p>
                                 {hasPrevData && (
                                   <p className="text-sm text-muted-foreground">
-                                    CA {prevYear}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
+                                    CA {prevLabel}: {(data.prevRevenue || 0).toLocaleString('fr-FR')} €
                                   </p>
                                 )}
                               </div>
@@ -1657,7 +1666,7 @@ export function AnalyticsCharts({
           <CardTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
             Évolution des Commandes
-            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
+            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">{comparisonSuffix}</span>}
           </CardTitle>
           <div className="flex items-center gap-4">
             {/* Inline KPIs */}
@@ -1675,7 +1684,7 @@ export function AnalyticsCharts({
                   <div className="flex items-center gap-2.5">
                     <ShoppingCart className="h-5 w-5 text-chart-2" />
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground leading-tight">{selectedYear}</p>
+                      <p className="text-xs text-muted-foreground leading-tight">{currentLabel}</p>
                       <p className="text-base font-bold leading-tight">{totalOrders.toLocaleString('fr-FR')}</p>
                     </div>
                   </div>
@@ -1683,7 +1692,7 @@ export function AnalyticsCharts({
                     <>
                       <div className="h-10 w-px bg-border" />
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground leading-tight">{prevYear}</p>
+                        <p className="text-xs text-muted-foreground leading-tight">{prevLabel}</p>
                         <p className="text-sm text-muted-foreground leading-tight">{totalPrevOrders.toLocaleString('fr-FR')}</p>
                       </div>
                       <div className="h-10 w-px bg-border" />
@@ -1719,8 +1728,8 @@ export function AnalyticsCharts({
           {/* Interactive Legend */}
           <InteractiveLegend
             items={[
-              { key: 'orders', label: `Commandes ${selectedYear}`, color: 'hsl(var(--chart-2))' },
-              ...(hasPrevData ? [{ key: 'prevOrders', label: `Commandes ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
+              { key: 'orders', label: `Commandes ${currentLabel}`, color: 'hsl(var(--chart-2))' },
+              ...(hasPrevData ? [{ key: 'prevOrders', label: `Commandes ${prevLabel}`, color: 'hsl(var(--muted-foreground))' }] : []),
             ]}
             hiddenKeys={hiddenRevenueBars}
             onToggle={toggleRevenueBar}
@@ -1762,13 +1771,13 @@ export function AnalyticsCharts({
                   <Line 
                     type="monotone" 
                     dataKey="prevOrders" 
-                    name={`Commandes ${prevYear}`} 
+                    name={`Commandes ${prevLabel}`} 
                     stroke="hsl(var(--muted-foreground))" 
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     dot={{ fill: 'hsl(var(--muted-foreground))', r: 3 }} 
                     opacity={0.6}
-                    animationDuration={CHART_ANIMATION_DURATION} 
+                    animationDuration={CHART_ANIMATION_DURATION}
                     animationEasing={CHART_ANIMATION_EASING}
                   />
                 )}

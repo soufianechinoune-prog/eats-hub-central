@@ -51,6 +51,7 @@ export default function Analytics() {
     dateRange,
     setPeriodMode,
     setSelectedMonth,
+    comparisonMode,
   } = useAnalyticsContext();
 
   const [chartActionsConfig, setChartActionsConfig] = useState<ChartActionsConfig>(() => {
@@ -320,11 +321,37 @@ export default function Analytics() {
     },
   });
 
-  // ========== UBER EATS DATA (Previous Year - N-1) ==========
+  // ========== UBER EATS DATA (Previous Year - N-1 or Rolling Period) ==========
   const { data: uberPrevRevenueData } = useQuery({
-    queryKey: ["analytics_revenue_uber_prev", restaurantFilter, prevYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
+    queryKey: ["analytics_revenue_uber_prev", restaurantFilter, prevYear, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"), comparisonMode],
     queryFn: async () => {
-      // Use daily_sales_uber for 2025+, orders table for 2024 and before
+      // Rolling Period mode: use period_type='previous' from daily_sales_uber (2025+ only)
+      if (comparisonMode === "rollingPeriod" && selectedYear >= SALES_OVER_TIME_START_YEAR) {
+        if (granularity === "daily") {
+          const { data, error } = await supabase.rpc('get_daily_sales_uber', {
+            p_start_date: format(startDate, "yyyy-MM-dd"),
+            p_end_date: format(endDate, "yyyy-MM-dd"),
+            p_restaurant_ids: restaurantFilter || null,
+            p_period_type: 'previous',
+          });
+          if (error) throw error;
+          return (data || []).map((item: any) => ({
+            ...item,
+            month: new Date(item.date).getMonth() + 1,
+            year: new Date(item.date).getFullYear(),
+          }));
+        } else {
+          const { data, error } = await supabase.rpc('get_monthly_sales_from_daily', {
+            p_year: selectedYear,
+            p_restaurant_ids: restaurantFilter || null,
+            p_period_type: 'previous',
+          });
+          if (error) throw error;
+          return data || [];
+        }
+      }
+      
+      // Year over Year mode: fetch from previous year
       const useNewTable = prevYear >= SALES_OVER_TIME_START_YEAR;
       
       if (granularity === "daily") {
@@ -912,6 +939,7 @@ export default function Analytics() {
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
                   granularity={granularity}
+                  comparisonMode={comparisonMode}
                   drillDownMonth={drillDownMonth}
                   onDrillDownChange={handleMonthDrillDown}
                 />
