@@ -152,6 +152,10 @@ const App = () => {
               />
               <Route
                 path="/analytics"
+                element={<Navigate to="/analytics/overview" replace />}
+              />
+              <Route
+                path="/analytics/:viewMode"
                 element={
                   <AppLayout>
                     <Analytics />
