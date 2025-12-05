@@ -7,43 +7,84 @@ const corsHeaders = {
 };
 
 // Column mapping from French CSV headers to database fields
+// Supports both old format and new Europe/Middle East/Africa format
 const COLUMN_MAPPING: Record<string, string> = {
-  // Order identifiers
+  // Order identifiers - Old format
   "ID de commande Uber Eats": "uber_order_id",
   "ID du flux de travail": "uber_flow_id",
   
-  // Item details
-  "Nom du plat/de l'article": "item_title",
-  "ID des données externes": "external_data",
-  "Vendu par": "sold_by_unit",
-  "Poids estimé (g)": "estimated_weight",
-  "Poids demandé (g)": "requested_weight",
-  "Poids final (g)": "final_weight",
-  "Nb demandé": "requested_count",
-  "Nb final": "final_count",
-  "Qté demandée": "requested_quantity",
-  "Qté finale": "final_quantity",
+  // Order identifiers - Europe/Middle East/Africa format
+  "Id. de la commande": "uber_order_id",
+  "Id. du flux": "uber_flow_id",
+  "Id. du restaurant": "restaurant_id_uber",
+  "Nom du restaurant": "restaurant_name",
+  "Date de la commande": "order_date",
   
-  // Item sales
+  // Item details - Both formats
+  "Nom du plat/de l'article": "item_title",
+  "Id. externe": "item_id",
+  "ID des données externes": "external_data",
+  "Données externes": "external_data",
+  "Vendu par": "sold_by_unit",
+  "Unité vendue par": "sold_by_unit",
+  "Poids estimé (g)": "estimated_weight",
+  "Poids moyen estimé": "estimated_weight",
+  "Poids demandé (g)": "requested_weight",
+  "Poids demandé": "requested_weight",
+  "Poids final (g)": "final_weight",
+  "Poids final": "final_weight",
+  "Nb demandé": "requested_count",
+  "Nombre demandé": "requested_count",
+  "Nb final": "final_count",
+  "Décompte final": "final_count",
+  "Qté demandée": "requested_quantity",
+  "Quantité demandée": "requested_quantity",
+  "Qté finale": "final_quantity",
+  "Quantité finale": "final_quantity",
+  "prix à l'unité": "unit_price_raw",
+  "Prix de l'article :": "item_price",
+  
+  // Item sales - Old format
   "Ventes HT (articles)": "sales_excl_vat",
   "TVA n° 1 (ventes d'articles)": "vat_1_sales",
   "TVA n° 2 (ventes d'articles)": "vat_2_sales",
   "TVA n° 3 (ventes d'articles)": "vat_3_sales",
   "Ventes TTC (articles)": "sales_incl_vat",
   
-  // Item refunds
+  // Item sales - Europe/Middle East/Africa format
+  "Ventes (hors TVA)": "sales_excl_vat",
+  "TVA 1 sur les ventes": "vat_1_sales",
+  "TVA 2 sur les ventes": "vat_2_sales",
+  "TVA 3 sur les ventes": "vat_3_sales",
+  "Ventes (TVA incluses)": "sales_incl_vat",
+  
+  // Item refunds - Old format
   "Remb. HT (articles)": "refund_excl_vat",
   "TVA n° 1 (remb. d'articles)": "vat_1_refund",
   "TVA n° 2 (remb. d'articles)": "vat_2_refund",
   "TVA n° 3 (remb. d'articles)": "vat_3_refund",
   "Remb. TTC (articles)": "refund_incl_vat",
   
-  // Item promotions
+  // Item refunds - Europe/Middle East/Africa format
+  "Remboursements (hors TVA)": "refund_excl_vat",
+  "TVA 1 sur les ajustements liés à des erreurs de commande": "vat_1_refund",
+  "TVA 2 sur les ajustements liés à des erreurs de commande": "vat_2_refund",
+  "TVA 3 sur les ajustements liés à des erreurs de commande": "vat_3_refund",
+  "Remboursements (TVA incluse)": "refund_incl_vat",
+  
+  // Item promotions - Old format
   "Promo. articles HT": "item_promo_excl_vat",
   "TVA n° 1 (promo. sur les articles)": "vat_1_item_promo",
   "TVA n° 2 (promo. sur les articles)": "vat_2_item_promo",
   "TVA n° 3 (promo. sur les articles)": "vat_3_item_promo",
   "Promo. articles TTC": "item_promo_incl_vat",
+  
+  // Item promotions - Europe/Middle East/Africa format
+  "Promotion sur les plats/articles (hors TVA)": "item_promo_excl_vat",
+  "TVA 1 sur les offres sur les articles": "vat_1_item_promo",
+  "TVA 2 sur les offres sur les articles": "vat_2_item_promo",
+  "TVA 3 sur les offres sur les articles": "vat_3_item_promo",
+  "Promotion sur les plats/articles (TVA incluse)": "item_promo_incl_vat",
 };
 
 function parseCSV(csvText: string): string[][] {
@@ -134,17 +175,17 @@ serve(async (req) => {
       throw new Error('CSV file is empty or has no data rows');
     }
 
-    // Find header row (contains "ID de commande Uber Eats")
+    // Find header row (contains order ID column - supports both formats)
     let headerRowIndex = -1;
     for (let i = 0; i < Math.min(rows.length, 10); i++) {
-      if (rows[i].some(cell => cell.includes('ID de commande Uber Eats'))) {
+      if (rows[i].some(cell => cell.includes('Id. de la commande') || cell.includes('ID de commande Uber Eats'))) {
         headerRowIndex = i;
         break;
       }
     }
 
     if (headerRowIndex === -1) {
-      throw new Error('Could not find header row with "ID de commande Uber Eats"');
+      throw new Error('Could not find header row with order ID column ("Id. de la commande" or "ID de commande Uber Eats")');
     }
 
     const headers = rows[headerRowIndex];
@@ -194,13 +235,18 @@ serve(async (req) => {
       }
 
       // This is an item row, extract all data
+      // For item_id: prefer 'item_id' (Id. externe) column, fallback to 'external_data'
+      const extractedItemId = columnIndices['item_id'] !== undefined 
+        ? row[columnIndices['item_id']]?.trim()
+        : (columnIndices['external_data'] !== undefined 
+          ? row[columnIndices['external_data']]?.trim() 
+          : null);
+          
       const itemData: any = {
         uber_order_id: currentUberOrderId,
         uber_flow_id: currentUberFlowId,
         item_title: itemTitle,
-        item_id: columnIndices['external_data'] !== undefined 
-          ? row[columnIndices['external_data']]?.trim() || `item_${i}` 
-          : `item_${i}`,
+        item_id: extractedItemId || `item_${i}`,
         external_data: columnIndices['external_data'] !== undefined 
           ? row[columnIndices['external_data']]?.trim() 
           : null,
