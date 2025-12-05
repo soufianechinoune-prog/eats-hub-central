@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 import type { DateRange } from "react-day-picker";
 
 export type PeriodMode = "year" | "month" | "range";
@@ -41,11 +41,9 @@ function getStoredState() {
 }
 
 export function AnalyticsProvider({ children }: { children: ReactNode }) {
-  // Track initialization to prevent flicker
-  const [isInitialized, setIsInitialized] = useState(false);
-  
-  // Get stored state once during initialization
-  const [storedState] = useState(() => getStoredState());
+  // Get stored state once during initialization (using useRef to avoid re-reading)
+  const storedStateRef = useRef(getStoredState());
+  const storedState = storedStateRef.current;
 
   // Initialize state from stored values
   const [selectedRestaurants, setSelectedRestaurants] = useState<string[]>(
@@ -83,18 +81,15 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     () => storedState?.comparisonMode || "yearOverYear"
   );
 
-  // Mark as initialized after first render
-  useEffect(() => {
-    // Small delay to ensure state is stable before rendering children
-    const timer = setTimeout(() => {
-      setIsInitialized(true);
-    }, 50);
-    return () => clearTimeout(timer);
-  }, []);
+  // Track if initial mount is complete to prevent saving during hydration
+  const hasMounted = useRef(false);
 
-  // Persist to localStorage whenever state changes (but not on initial load)
+  // Persist to localStorage whenever state changes (but not on initial mount)
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
     
     const state = {
       selectedRestaurants,
@@ -109,7 +104,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       } : undefined,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [selectedRestaurants, selectedPlatform, selectedYear, selectedMonth, periodMode, dateRange, comparisonMode, isInitialized]);
+  }, [selectedRestaurants, selectedPlatform, selectedYear, selectedMonth, periodMode, dateRange, comparisonMode]);
 
   const value = {
     selectedRestaurants,
@@ -126,7 +121,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setDateRange,
     comparisonMode,
     setComparisonMode,
-    isInitialized,
+    isInitialized: true, // Always true now since provider is stable
   };
 
   return (
