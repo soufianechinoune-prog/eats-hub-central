@@ -51,12 +51,12 @@ import csLogo from "@/assets/cs-logo.jpeg";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Revenus & Ventes", url: "/analytics?view=revenue", icon: Euro },
-  { title: "Conversion", url: "/analytics?view=conversion", icon: TrendingUp },
-  { title: "Finances & Frais", url: "/analytics?view=finances", icon: Wallet },
-  { title: "Vue d'ensemble", url: "/analytics?view=overview", icon: Trophy },
-  { title: "Analytics", url: "/analytics?view=reviews", icon: Star },
+  { title: "Dashboard", pathname: "/", search: "", icon: LayoutDashboard },
+  { title: "Revenus & Ventes", pathname: "/analytics", search: "?view=revenue", icon: Euro },
+  { title: "Conversion", pathname: "/analytics", search: "?view=conversion", icon: TrendingUp },
+  { title: "Finances & Frais", pathname: "/analytics", search: "?view=finances", icon: Wallet },
+  { title: "Vue d'ensemble", pathname: "/analytics", search: "?view=overview", icon: Trophy },
+  { title: "Analytics", pathname: "/analytics", search: "?view=reviews", icon: Star },
 ];
 
 // Navigation principale (after Analytics)
@@ -148,19 +148,19 @@ export function AppSidebar() {
            location.pathname === "/classements";
   };
   
-  const getActiveAnalyticsSubItem = (url: string) => {
-    if (url === "/") {
+  const getActiveAnalyticsSubItem = (pathname: string, search: string) => {
+    if (pathname === "/") {
       return location.pathname === "/";
     }
-    if (url === "/classements") {
+    if (pathname === "/classements") {
       return location.pathname === "/classements";
     }
-    if (url.startsWith("/analytics?view=")) {
+    if (pathname === "/analytics" && search) {
       const params = new URLSearchParams(location.search);
       const view = params.get("view");
-      return location.pathname === "/analytics" && url.includes(`view=${view}`);
+      return location.pathname === "/analytics" && search.includes(`view=${view}`);
     }
-    if (url.startsWith("/analytics/ranking")) {
+    if (pathname.startsWith("/analytics/ranking")) {
       return location.pathname.startsWith("/analytics/ranking");
     }
     return false;
@@ -227,7 +227,7 @@ export function AppSidebar() {
                           >
                             <SidebarMenuSub>
                               {analyticsSubItems.map((subItem, index) => {
-                                const isSubActive = getActiveAnalyticsSubItem(subItem.url);
+                                const isSubActive = getActiveAnalyticsSubItem(subItem.pathname, subItem.search);
                                 
                                 return (
                                   <motion.div
@@ -249,7 +249,10 @@ export function AppSidebar() {
                                             : ""
                                         }
                                       >
-                                        <NavLink to={subItem.url} end={subItem.url === "/"}>
+                                        <NavLink 
+                                          to={{ pathname: subItem.pathname, search: subItem.search }} 
+                                          end={subItem.pathname === "/"}
+                                        >
                                           <subItem.icon className="h-4 w-4" />
                                           <span>{subItem.title}</span>
                                         </NavLink>
