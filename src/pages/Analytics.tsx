@@ -53,7 +53,6 @@ export default function Analytics() {
     setSelectedMonth,
     comparisonMode,
     setComparisonMode,
-    isInitialized,
   } = useAnalyticsContext();
 
   const [chartActionsConfig, setChartActionsConfig] = useState<ChartActionsConfig>(() => {
@@ -875,7 +874,7 @@ export default function Analytics() {
       </div>
 
       {/* Content based on selected platform from context */}
-      {(!isInitialized || isLoading) ? (
+      {isLoading ? (
         <div className="flex justify-center items-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
