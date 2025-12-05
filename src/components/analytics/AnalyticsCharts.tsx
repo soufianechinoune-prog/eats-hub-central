@@ -815,29 +815,62 @@ export function AnalyticsCharts({
       prevDailyMap[dateKey].orders += item.order_count || 0;
     });
     
-    // Sort by date and format labels (day number)
-    return Object.keys(dailyMap)
-      .sort()
-      .map(dateStr => {
+    const currentDates = Object.keys(dailyMap).sort();
+    const prevDates = Object.keys(prevDailyMap).sort();
+    
+    // Rolling period mode: align by index (day 1 vs day 1, etc.)
+    if (comparisonMode === "rollingPeriod") {
+      return currentDates.map((dateStr, index) => {
         const date = new Date(dateStr);
         const dayNum = date.getDate();
-        // For N-1 comparison, find same day number in prev year
-        const prevDateStr = Object.keys(prevDailyMap).find(d => new Date(d).getDate() === dayNum);
+        const prevDateStr = prevDates[index] || null;
+        const prevDate = prevDateStr ? new Date(prevDateStr) : null;
         
         return {
-          month: String(dayNum), // Just the day number
+          month: String(dayNum),
           monthNum: dayNum,
+          dayIndex: index + 1,
           fullDate: dateStr,
+          currentDate: dateStr,
+          prevDate: prevDateStr,
+          dayOfWeek: format(date, 'EEE', { locale: fr }),
+          prevDayOfWeek: prevDate ? format(prevDate, 'EEE', { locale: fr }) : null,
           revenue: dailyMap[dateStr].revenue,
           orders: dailyMap[dateStr].orders,
           avgBasket: dailyMap[dateStr].orders > 0 
             ? dailyMap[dateStr].revenue / dailyMap[dateStr].orders 
             : 0,
-          prevRevenue: prevDateStr ? prevDailyMap[prevDateStr]?.revenue || 0 : 0,
-          prevOrders: prevDateStr ? prevDailyMap[prevDateStr]?.orders || 0 : 0,
+          prevRevenue: prevDateStr && prevDailyMap[prevDateStr] ? prevDailyMap[prevDateStr].revenue : 0,
+          prevOrders: prevDateStr && prevDailyMap[prevDateStr] ? prevDailyMap[prevDateStr].orders : 0,
         };
       });
-  }, [drillDownMonth, granularity, revenueData, prevRevenueData]);
+    }
+    
+    // Year-over-year mode: align by day number
+    return currentDates.map(dateStr => {
+      const date = new Date(dateStr);
+      const dayNum = date.getDate();
+      const prevDateStr = prevDates.find(d => new Date(d).getDate() === dayNum) || null;
+      const prevDate = prevDateStr ? new Date(prevDateStr) : null;
+      
+      return {
+        month: String(dayNum),
+        monthNum: dayNum,
+        fullDate: dateStr,
+        currentDate: dateStr,
+        prevDate: prevDateStr,
+        dayOfWeek: format(date, 'EEE', { locale: fr }),
+        prevDayOfWeek: prevDate ? format(prevDate, 'EEE', { locale: fr }) : null,
+        revenue: dailyMap[dateStr].revenue,
+        orders: dailyMap[dateStr].orders,
+        avgBasket: dailyMap[dateStr].orders > 0 
+          ? dailyMap[dateStr].revenue / dailyMap[dateStr].orders 
+          : 0,
+        prevRevenue: prevDateStr && prevDailyMap[prevDateStr] ? prevDailyMap[prevDateStr].revenue : 0,
+        prevOrders: prevDateStr && prevDailyMap[prevDateStr] ? prevDailyMap[prevDateStr].orders : 0,
+      };
+    });
+  }, [drillDownMonth, granularity, revenueData, prevRevenueData, comparisonMode]);
 
   // Calculate drill-down month totals
   const drillDownMonthTotals = useMemo(() => {
