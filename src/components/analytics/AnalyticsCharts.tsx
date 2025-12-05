@@ -1817,26 +1817,27 @@ export function AnalyticsCharts({
                               const prevDate = new Date(data.prevDate);
                               return (
                                 <div className="bg-background border border-border rounded-lg p-3 shadow-lg min-w-[220px]">
-                                  <div className={`text-sm font-semibold mb-2 ${variationColor}`}>
-                                    {variation > 0 ? '+' : ''}{variation.toFixed(1)}%
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-3 h-0.5 bg-primary rounded" />
-                                      <span className="text-xs text-muted-foreground">
-                                        {format(currentDate, 'EEE d MMM', { locale: fr })}
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-2 h-2 rounded-full bg-primary" />
+                                      <span className="text-xs text-muted-foreground min-w-[80px]">
+                                        {format(currentDate, 'EEE d MMM.', { locale: fr })}
+                                      </span>
+                                      <span className={`text-xs font-medium ${variationColor}`}>
+                                        {variation > 0 ? '↑' : variation < 0 ? '↓' : ''}{Math.abs(variation).toFixed(0)}%
                                       </span>
                                       <span className="font-semibold ml-auto" style={{ color: 'hsl(var(--primary))' }}>
-                                        {data.revenue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                                        {data.revenue.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-3 h-0.5 bg-muted-foreground rounded opacity-50" />
-                                      <span className="text-xs text-muted-foreground">
-                                        {format(prevDate, 'EEE d MMM', { locale: fr })}
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+                                      <span className="text-xs text-muted-foreground min-w-[80px]">
+                                        {format(prevDate, 'EEE d MMM.', { locale: fr })}
                                       </span>
+                                      <span className="text-xs invisible">↑00%</span>
                                       <span className="text-sm text-muted-foreground ml-auto">
-                                        {(data.prevRevenue || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                                        {(data.prevRevenue || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                                       </span>
                                     </div>
                                   </div>
