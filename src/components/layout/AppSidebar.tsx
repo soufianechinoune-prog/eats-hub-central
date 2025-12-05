@@ -51,12 +51,12 @@ import csLogo from "@/assets/cs-logo.jpeg";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
-  { title: "Dashboard", pathname: "/", search: "", icon: LayoutDashboard },
-  { title: "Revenus & Ventes", pathname: "/analytics", search: "?view=revenue", icon: Euro },
-  { title: "Conversion", pathname: "/analytics", search: "?view=conversion", icon: TrendingUp },
-  { title: "Finances & Frais", pathname: "/analytics", search: "?view=finances", icon: Wallet },
-  { title: "Vue d'ensemble", pathname: "/analytics", search: "?view=overview", icon: Trophy },
-  { title: "Analytics", pathname: "/analytics", search: "?view=reviews", icon: Star },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Revenus & Ventes", url: "/analytics?view=revenue", icon: Euro },
+  { title: "Conversion", url: "/analytics?view=conversion", icon: TrendingUp },
+  { title: "Finances & Frais", url: "/analytics?view=finances", icon: Wallet },
+  { title: "Vue d'ensemble", url: "/analytics?view=overview", icon: Trophy },
+  { title: "Analytics", url: "/analytics?view=reviews", icon: Star },
 ];
 
 // Navigation principale (after Analytics)
@@ -148,19 +148,21 @@ export function AppSidebar() {
            location.pathname === "/classements";
   };
   
-  const getActiveAnalyticsSubItem = (pathname: string, search: string) => {
-    if (pathname === "/") {
+  const getActiveAnalyticsSubItem = (url: string) => {
+    if (url === "/") {
       return location.pathname === "/";
     }
-    if (pathname === "/classements") {
+    if (url === "/classements") {
       return location.pathname === "/classements";
     }
-    if (pathname === "/analytics" && search) {
-      const params = new URLSearchParams(location.search);
-      const view = params.get("view");
-      return location.pathname === "/analytics" && search.includes(`view=${view}`);
+    if (url.startsWith("/analytics?")) {
+      const urlParams = new URLSearchParams(url.split("?")[1]);
+      const urlView = urlParams.get("view");
+      const currentParams = new URLSearchParams(location.search);
+      const currentView = currentParams.get("view");
+      return location.pathname === "/analytics" && urlView === currentView;
     }
-    if (pathname.startsWith("/analytics/ranking")) {
+    if (url.startsWith("/analytics/ranking")) {
       return location.pathname.startsWith("/analytics/ranking");
     }
     return false;
@@ -226,8 +228,8 @@ export function AppSidebar() {
                             transition={{ duration: 0.3, ease: "easeInOut" }}
                           >
                             <SidebarMenuSub>
-                              {analyticsSubItems.map((subItem, index) => {
-                                const isSubActive = getActiveAnalyticsSubItem(subItem.pathname, subItem.search);
+                            {analyticsSubItems.map((subItem, index) => {
+                                const isSubActive = getActiveAnalyticsSubItem(subItem.url);
                                 
                                 return (
                                   <motion.div
@@ -250,8 +252,8 @@ export function AppSidebar() {
                                         }
                                       >
                                         <NavLink 
-                                          to={{ pathname: subItem.pathname, search: subItem.search }} 
-                                          end={subItem.pathname === "/"}
+                                          to={subItem.url}
+                                          end={subItem.url === "/"}
                                         >
                                           <subItem.icon className="h-4 w-4" />
                                           <span>{subItem.title}</span>
