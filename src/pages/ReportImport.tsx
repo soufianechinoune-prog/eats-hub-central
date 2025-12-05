@@ -676,13 +676,36 @@ export default function ReportImport() {
           {step === "preview" && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5" />
-                  Aperçu des données
-                </CardTitle>
-                <CardDescription>
-                  {previewData.length} lignes détectées (affichage des 50 premières)
-                </CardDescription>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Eye className="h-5 w-5" />
+                      Aperçu des données
+                    </CardTitle>
+                    <CardDescription>
+                      {previewData.length} lignes détectées (affichage des 50 premières)
+                    </CardDescription>
+                  </div>
+                  
+                  {/* Sélecteur de restaurant pour les types qui le nécessitent */}
+                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns") && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-muted-foreground">Restaurant :</span>
+                      <Select value={selectedRestaurantId} onValueChange={setSelectedRestaurantId}>
+                        <SelectTrigger className={`w-[280px] ${!selectedRestaurantId ? 'border-destructive ring-1 ring-destructive' : ''}`}>
+                          <SelectValue placeholder="Sélectionner un restaurant *" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {restaurants?.map((r) => (
+                            <SelectItem key={r.id} value={r.id}>
+                              {r.name} {r.city && `(${r.city})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-4">
