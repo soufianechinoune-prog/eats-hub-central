@@ -96,14 +96,7 @@ export default function Analytics() {
     dateRange,
   });
 
-  const handleTabChange = (value: string) => {
-    // Tab changes are now handled by Analytics context platform selector
-    setSearchParams(prev => {
-      const newParams = new URLSearchParams(prev);
-      newParams.set('platform', value);
-      return newParams;
-    });
-  };
+  // Tab changes are now handled by Analytics context platform selector (no URL sync needed)
 
   const handleChartActionsConfigChange = (newConfig: ChartActionsConfig) => {
     setChartActionsConfig(newConfig);
@@ -171,15 +164,7 @@ export default function Analytics() {
 
   const { start: effectiveStartMonth, end: effectiveEndMonth } = getEffectiveMonthRange();
 
-  // Sync selectedTab with context platform
-  useEffect(() => {
-    // Update search params when platform changes from context, preserving other params
-    setSearchParams(prev => {
-      const newParams = new URLSearchParams(prev);
-      newParams.set('platform', selectedPlatform);
-      return newParams;
-    });
-  }, [selectedPlatform, setSearchParams]);
+  // Platform is managed via AnalyticsContext (persisted in localStorage), no URL sync needed
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
