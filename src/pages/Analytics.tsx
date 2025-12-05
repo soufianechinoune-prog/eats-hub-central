@@ -195,37 +195,64 @@ export default function Analytics() {
   // Build filter for restaurants
   const restaurantFilter = selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
 
-  // ========== UBER EATS DATA (Current Year) - READS FROM daily_sales_uber TABLE ==========
+  // ========== HYBRID DATA SOURCE LOGIC ==========
+  // 2025+ → daily_sales_uber table (official Uber "Sales Over Time" exports)
+  // 2024 and before → orders table (parsed from detailed reports)
+  const SALES_OVER_TIME_START_YEAR = 2025;
+
+  // ========== UBER EATS DATA (Current Year) ==========
   const { data: uberRevenueData, isLoading: loadingUberRevenue } = useQuery({
     queryKey: ["analytics_revenue_uber", restaurantFilter, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
+      // Use daily_sales_uber for 2025+, orders table for 2024 and before
+      const useNewTable = selectedYear >= SALES_OVER_TIME_START_YEAR;
+      
       if (granularity === "daily") {
-        // Use RPC function to get daily sales from daily_sales_uber table
-        const { data, error } = await supabase.rpc('get_daily_sales_uber', {
-          p_start_date: format(startDate, "yyyy-MM-dd"),
-          p_end_date: format(endDate, "yyyy-MM-dd"),
-          p_restaurant_ids: restaurantFilter || null,
-          p_period_type: 'current',
-        });
-        
-        if (error) throw error;
-        
-        // Transform to include month info for compatibility
-        return (data || []).map((item: any) => ({
-          ...item,
-          month: new Date(item.date).getMonth() + 1,
-          year: new Date(item.date).getFullYear(),
-        }));
+        if (useNewTable) {
+          const { data, error } = await supabase.rpc('get_daily_sales_uber', {
+            p_start_date: format(startDate, "yyyy-MM-dd"),
+            p_end_date: format(endDate, "yyyy-MM-dd"),
+            p_restaurant_ids: restaurantFilter || null,
+            p_period_type: 'current',
+          });
+          if (error) throw error;
+          return (data || []).map((item: any) => ({
+            ...item,
+            month: new Date(item.date).getMonth() + 1,
+            year: new Date(item.date).getFullYear(),
+          }));
+        } else {
+          // Fallback to orders table for 2024 and before
+          const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
+            p_start_date: format(startDate, "yyyy-MM-dd"),
+            p_end_date: format(endDate, "yyyy-MM-dd"),
+            p_restaurant_ids: restaurantFilter || null,
+          });
+          if (error) throw error;
+          return (data || []).map((item: any) => ({
+            ...item,
+            month: new Date(item.date).getMonth() + 1,
+            year: new Date(item.date).getFullYear(),
+          }));
+        }
       } else {
-        // Use RPC function for monthly aggregation from daily_sales_uber table
-        const { data, error } = await supabase.rpc('get_monthly_sales_from_daily', {
-          p_year: selectedYear,
-          p_restaurant_ids: restaurantFilter || null,
-          p_period_type: 'current',
-        });
-        
-        if (error) throw error;
-        return data || [];
+        if (useNewTable) {
+          const { data, error } = await supabase.rpc('get_monthly_sales_from_daily', {
+            p_year: selectedYear,
+            p_restaurant_ids: restaurantFilter || null,
+            p_period_type: 'current',
+          });
+          if (error) throw error;
+          return data || [];
+        } else {
+          // Fallback to orders table for 2024 and before
+          const { data, error } = await supabase.rpc('get_monthly_revenue_from_orders', {
+            p_year: selectedYear,
+            p_restaurant_ids: restaurantFilter || null,
+          });
+          if (error) throw error;
+          return data || [];
+        }
       }
     },
   });
@@ -293,40 +320,64 @@ export default function Analytics() {
     },
   });
 
-  // ========== UBER EATS DATA (Previous Year - N-1) - READS FROM daily_sales_uber TABLE ==========
+  // ========== UBER EATS DATA (Previous Year - N-1) ==========
   const { data: uberPrevRevenueData } = useQuery({
     queryKey: ["analytics_revenue_uber_prev", restaurantFilter, prevYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
+      // Use daily_sales_uber for 2025+, orders table for 2024 and before
+      const useNewTable = prevYear >= SALES_OVER_TIME_START_YEAR;
+      
       if (granularity === "daily") {
-        // For daily prev year, offset by 1 year
         const prevStartDate = new Date(startDate);
         prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
         const prevEndDate = new Date(endDate);
         prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
         
-        const { data, error } = await supabase.rpc('get_daily_sales_uber', {
-          p_start_date: format(prevStartDate, "yyyy-MM-dd"),
-          p_end_date: format(prevEndDate, "yyyy-MM-dd"),
-          p_restaurant_ids: restaurantFilter || null,
-          p_period_type: 'previous',
-        });
-        
-        if (error) throw error;
-        
-        return (data || []).map((item: any) => ({
-          ...item,
-          month: new Date(item.date).getMonth() + 1,
-          year: new Date(item.date).getFullYear(),
-        }));
+        if (useNewTable) {
+          const { data, error } = await supabase.rpc('get_daily_sales_uber', {
+            p_start_date: format(prevStartDate, "yyyy-MM-dd"),
+            p_end_date: format(prevEndDate, "yyyy-MM-dd"),
+            p_restaurant_ids: restaurantFilter || null,
+            p_period_type: 'current',
+          });
+          if (error) throw error;
+          return (data || []).map((item: any) => ({
+            ...item,
+            month: new Date(item.date).getMonth() + 1,
+            year: new Date(item.date).getFullYear(),
+          }));
+        } else {
+          // Fallback to orders table for 2024 and before
+          const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
+            p_start_date: format(prevStartDate, "yyyy-MM-dd"),
+            p_end_date: format(prevEndDate, "yyyy-MM-dd"),
+            p_restaurant_ids: restaurantFilter || null,
+          });
+          if (error) throw error;
+          return (data || []).map((item: any) => ({
+            ...item,
+            month: new Date(item.date).getMonth() + 1,
+            year: new Date(item.date).getFullYear(),
+          }));
+        }
       } else {
-        const { data, error } = await supabase.rpc('get_monthly_sales_from_daily', {
-          p_year: prevYear,
-          p_restaurant_ids: restaurantFilter || null,
-          p_period_type: 'previous',
-        });
-        
-        if (error) throw error;
-        return data || [];
+        if (useNewTable) {
+          const { data, error } = await supabase.rpc('get_monthly_sales_from_daily', {
+            p_year: prevYear,
+            p_restaurant_ids: restaurantFilter || null,
+            p_period_type: 'current',
+          });
+          if (error) throw error;
+          return data || [];
+        } else {
+          // Fallback to orders table for 2024 and before
+          const { data, error } = await supabase.rpc('get_monthly_revenue_from_orders', {
+            p_year: prevYear,
+            p_restaurant_ids: restaurantFilter || null,
+          });
+          if (error) throw error;
+          return data || [];
+        }
       }
     },
   });
