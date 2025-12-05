@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,8 +39,8 @@ const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 
 export default function Analytics() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const viewMode = (searchParams.get("view") || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews";
+  const { viewMode: viewModeParam } = useParams<{ viewMode: string }>();
+  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews";
   
   const {
     selectedRestaurants,

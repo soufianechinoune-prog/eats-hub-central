@@ -52,11 +52,11 @@ import csLogo from "@/assets/cs-logo.jpeg";
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Revenus & Ventes", url: "/analytics?view=revenue", icon: Euro },
-  { title: "Conversion", url: "/analytics?view=conversion", icon: TrendingUp },
-  { title: "Finances & Frais", url: "/analytics?view=finances", icon: Wallet },
-  { title: "Vue d'ensemble", url: "/analytics?view=overview", icon: Trophy },
-  { title: "Analytics", url: "/analytics?view=reviews", icon: Star },
+  { title: "Revenus & Ventes", url: "/analytics/revenue", icon: Euro },
+  { title: "Conversion", url: "/analytics/conversion", icon: TrendingUp },
+  { title: "Finances & Frais", url: "/analytics/finances", icon: Wallet },
+  { title: "Vue d'ensemble", url: "/analytics/overview", icon: Trophy },
+  { title: "Avis", url: "/analytics/reviews", icon: Star },
 ];
 
 // Navigation principale (after Analytics)
@@ -155,12 +155,9 @@ export function AppSidebar() {
     if (url === "/classements") {
       return location.pathname === "/classements";
     }
-    if (url.startsWith("/analytics?")) {
-      const urlParams = new URLSearchParams(url.split("?")[1]);
-      const urlView = urlParams.get("view");
-      const currentParams = new URLSearchParams(location.search);
-      const currentView = currentParams.get("view");
-      return location.pathname === "/analytics" && urlView === currentView;
+    // Path-based analytics routes (e.g., /analytics/revenue)
+    if (url.startsWith("/analytics/") && !url.startsWith("/analytics/ranking")) {
+      return location.pathname === url;
     }
     if (url.startsWith("/analytics/ranking")) {
       return location.pathname.startsWith("/analytics/ranking");
