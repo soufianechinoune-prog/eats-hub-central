@@ -306,15 +306,34 @@ serve(async (req) => {
     const uniqueFlowIds = [...new Set(itemsToUpsert.map(item => item.uber_flow_id).filter(Boolean))];
     console.log(`Looking up ${uniqueFlowIds.length} unique flow IDs...`);
 
-    // Fetch existing orders to get order_id mapping
-    const { data: existingOrders, error: orderError } = await supabase
-      .from('orders')
-      .select('id, uber_flow_id, uber_order_id')
-      .in('uber_flow_id', uniqueFlowIds);
-
-    if (orderError) {
-      console.error('Error fetching orders:', orderError);
+    // Chunk the flow IDs to avoid Supabase .in() limit (max ~1000 items)
+    const CHUNK_SIZE = 500;
+    const flowIdChunks: string[][] = [];
+    for (let j = 0; j < uniqueFlowIds.length; j += CHUNK_SIZE) {
+      flowIdChunks.push(uniqueFlowIds.slice(j, j + CHUNK_SIZE));
     }
+
+    console.log(`Fetching orders in ${flowIdChunks.length} chunks of max ${CHUNK_SIZE}...`);
+
+    let allExistingOrders: { id: string; uber_flow_id: string; uber_order_id: string }[] = [];
+    for (const chunk of flowIdChunks) {
+      const { data: chunkOrders, error: chunkError } = await supabase
+        .from('orders')
+        .select('id, uber_flow_id, uber_order_id')
+        .in('uber_flow_id', chunk);
+      
+      if (chunkError) {
+        console.error('Error fetching orders chunk:', chunkError);
+        continue;
+      }
+      
+      if (chunkOrders) {
+        allExistingOrders = allExistingOrders.concat(chunkOrders);
+      }
+    }
+
+    console.log(`Found ${allExistingOrders.length} matching orders from chunks`);
+    const existingOrders = allExistingOrders;
 
     // Create mapping from uber_flow_id to order_id
     const flowIdToOrderId: Record<string, string> = {};
