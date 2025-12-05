@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronsUpDown, Store, Calendar, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronsUpDown, Store, Calendar, X, ChevronLeft, ChevronRight, CalendarDays, ArrowLeftRight } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
@@ -22,6 +22,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
@@ -54,6 +59,8 @@ export function AnalyticsHeader() {
     setPeriodMode,
     dateRange,
     setDateRange,
+    comparisonMode,
+    setComparisonMode,
   } = useAnalyticsContext();
 
   const [restaurantOpen, setRestaurantOpen] = useState(false);
@@ -244,6 +251,50 @@ export function AnalyticsHeader() {
           >
             Global
           </Button>
+        </div>
+
+        {/* Comparison Mode Toggle */}
+        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={comparisonMode === "yearOverYear" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setComparisonMode("yearOverYear")}
+                className={cn(
+                  "h-8 gap-1.5 transition-all",
+                  comparisonMode === "yearOverYear" && "bg-primary text-primary-foreground shadow-sm"
+                )}
+              >
+                <CalendarDays className="h-4 w-4" />
+                <span className="hidden sm:inline">N vs N-1</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Comparaison année sur année (2025 vs 2024)</p>
+            </TooltipContent>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={comparisonMode === "rollingPeriod" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setComparisonMode("rollingPeriod")}
+                className={cn(
+                  "h-8 gap-1.5 transition-all",
+                  comparisonMode === "rollingPeriod" && "bg-amber-600 text-white shadow-sm hover:bg-amber-700"
+                )}
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                <span className="hidden sm:inline">Période glissante</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Comparaison avec 4 semaines avant (même jour)</p>
+              <p className="text-xs text-muted-foreground">Disponible pour 2025+</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Period Selector */}

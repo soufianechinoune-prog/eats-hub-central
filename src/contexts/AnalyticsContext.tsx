@@ -3,6 +3,7 @@ import type { DateRange } from "react-day-picker";
 
 export type PeriodMode = "year" | "month" | "range";
 export type Platform = "uber_eats" | "deliveroo" | "global";
+export type ComparisonMode = "yearOverYear" | "rollingPeriod";
 
 interface AnalyticsContextType {
   selectedRestaurants: string[];
@@ -17,6 +18,8 @@ interface AnalyticsContextType {
   setPeriodMode: (mode: PeriodMode) => void;
   dateRange: DateRange | undefined;
   setDateRange: (range: DateRange | undefined) => void;
+  comparisonMode: ComparisonMode;
+  setComparisonMode: (mode: ComparisonMode) => void;
 }
 
 const AnalyticsContext = createContext<AnalyticsContextType | undefined>(undefined);
@@ -106,6 +109,18 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     return undefined;
   });
 
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        return JSON.parse(stored).comparisonMode || "yearOverYear";
+      } catch {
+        return "yearOverYear";
+      }
+    }
+    return "yearOverYear";
+  });
+
   // Persist to localStorage whenever state changes
   useEffect(() => {
     const state = {
@@ -114,13 +129,14 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       selectedYear,
       selectedMonth,
       periodMode,
+      comparisonMode,
       dateRange: dateRange ? {
         from: dateRange.from?.toISOString(),
         to: dateRange.to?.toISOString(),
       } : undefined,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [selectedRestaurants, selectedPlatform, selectedYear, selectedMonth, periodMode, dateRange]);
+  }, [selectedRestaurants, selectedPlatform, selectedYear, selectedMonth, periodMode, dateRange, comparisonMode]);
 
   const value = {
     selectedRestaurants,
@@ -135,6 +151,8 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setPeriodMode,
     dateRange,
     setDateRange,
+    comparisonMode,
+    setComparisonMode,
   };
 
   return (
