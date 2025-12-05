@@ -1354,6 +1354,9 @@ export function AnalyticsCharts({
     aggregatedFeesData.some(d => d.prevTotalFees > 0)
   );
 
+  // Check if drill-down data has comparison data (for rolling period mode)
+  const hasDrillDownPrevData = showComparison && drillDownChartData.some(d => d.prevRevenue > 0);
+
   if (!hasData) {
     return (
       <Card>
@@ -1874,7 +1877,7 @@ export function AnalyticsCharts({
                           );
                         })}
                         {/* Line N-1 (gris, dashed for rolling period) */}
-                        {hasPrevData && !hiddenRevenueBars.has('prevRevenue') && (
+                        {(drillDownMonth ? hasDrillDownPrevData : hasPrevData) && !hiddenRevenueBars.has('prevRevenue') && (
                           <Line 
                             type="monotone"
                             dataKey="prevRevenue" 
