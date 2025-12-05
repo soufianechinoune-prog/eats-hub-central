@@ -31,6 +31,8 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  ArrowLeftRight,
+  CalendarDays,
 } from "lucide-react";
 import { ConversionFunnelChart } from "./ConversionFunnelChart";
 import {
@@ -198,6 +200,7 @@ interface AnalyticsChartsProps {
   selectedRestaurants?: string[];
   granularity?: "daily" | "weekly" | "monthly";
   comparisonMode?: "yearOverYear" | "rollingPeriod";
+  onComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
   // Drill-down props (synchronized with global context)
   drillDownMonth?: number | null;
   onDrillDownChange?: (month: number | null) => void;
@@ -460,6 +463,7 @@ export function AnalyticsCharts({
   selectedRestaurants = [],
   granularity = "monthly",
   comparisonMode = "yearOverYear",
+  onComparisonModeChange,
   drillDownMonth,
   onDrillDownChange,
 }: AnalyticsChartsProps) {
@@ -1555,6 +1559,35 @@ export function AnalyticsCharts({
                 <TrendingUp className="h-4 w-4" />
               </Button>
             </div>
+            
+            {/* Rolling Period Toggle - only for 2025+ with daily data */}
+            {selectedYear >= 2025 && onComparisonModeChange && (
+              <TooltipProvider>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant={comparisonMode === 'rollingPeriod' ? 'default' : 'outline'} 
+                      size="sm"
+                      className={cn(
+                        "h-8 gap-1.5 transition-all",
+                        comparisonMode === 'rollingPeriod' && "bg-amber-600 hover:bg-amber-700 text-white border-0"
+                      )}
+                      onClick={() => onComparisonModeChange(
+                        comparisonMode === 'rollingPeriod' ? 'yearOverYear' : 'rollingPeriod'
+                      )}
+                    >
+                      <ArrowLeftRight className="h-3.5 w-3.5" />
+                      <span className="text-xs">4 sem.</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="font-medium">Période glissante</p>
+                    <p className="text-xs text-muted-foreground">Comparer avec 4 semaines avant (même jour)</p>
+                  </TooltipContent>
+                </UITooltip>
+              </TooltipProvider>
+            )}
+            
             <ChartActionToggle
               chartKey="revenue"
               config={config}
