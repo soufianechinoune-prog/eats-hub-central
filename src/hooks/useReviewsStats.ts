@@ -34,6 +34,8 @@ interface MonthlyRating {
   count: number;
   previousRating?: number;
   previousCount?: number;
+  monthIndex: number;
+  year: number;
 }
 
 interface RatingDistribution {
@@ -76,6 +78,7 @@ const TAG_LABELS: Record<string, string> = {
 };
 
 export function useReviewsStats(reviews: CustomerReview[]) {
+  // Stats now counts ALL reviews passed in (filtered reviews)
   const stats = useMemo((): ReviewStats => {
     if (!reviews.length) {
       return {
@@ -106,10 +109,13 @@ export function useReviewsStats(reviews: CustomerReview[]) {
       return date.getFullYear() === currentYear - 1;
     });
 
-    const totalReviews = currentReviews.length;
-    const averageRating = currentReviews.reduce((sum, r) => sum + (r.overall_rating || 0), 0) / totalReviews || 0;
-    const reviewsWithTags = currentReviews.filter(r => r.tags && r.tags.length > 0).length;
-    const reviewsWithComments = currentReviews.filter(r => r.customer_comment).length;
+    // totalReviews = ALL reviews passed in (not just current year)
+    const totalReviews = reviews.length;
+    const averageRating = currentReviews.length > 0
+      ? currentReviews.reduce((sum, r) => sum + (r.overall_rating || 0), 0) / currentReviews.length
+      : 0;
+    const reviewsWithTags = reviews.filter(r => r.tags && r.tags.length > 0).length;
+    const reviewsWithComments = reviews.filter(r => r.customer_comment).length;
 
     const previousTotalReviews = previousReviews.length;
     const previousAverageRating = previousReviews.length > 0 
@@ -127,14 +133,14 @@ export function useReviewsStats(reviews: CustomerReview[]) {
       previousTotalReviews,
       ratingVariation: hasPreviousPeriodData ? averageRating - previousAverageRating : 0,
       volumeVariation: hasPreviousPeriodData && previousTotalReviews > 0
-        ? ((totalReviews - previousTotalReviews) / previousTotalReviews) * 100 
+        ? ((currentReviews.length - previousTotalReviews) / previousTotalReviews) * 100 
         : 0,
       hasPreviousPeriodData
     };
   }, [reviews]);
 
   const monthlyRatings = useMemo((): MonthlyRating[] => {
-    const monthMap = new Map<string, { total: number; count: number; sortKey: number }>();
+    const monthMap = new Map<string, { total: number; count: number; sortKey: number; monthIndex: number; year: number }>();
     const prevMonthMap = new Map<number, { total: number; count: number }>();
     const now = new Date();
 
@@ -148,11 +154,13 @@ export function useReviewsStats(reviews: CustomerReview[]) {
       if (isCurrentYear) {
         const monthKey = format(date, "MMM yyyy", { locale: fr });
         const sortKey = year * 100 + month; // e.g. 202506 for June 2025
-        const existing = monthMap.get(monthKey) || { total: 0, count: 0, sortKey };
+        const existing = monthMap.get(monthKey) || { total: 0, count: 0, sortKey, monthIndex: month, year };
         monthMap.set(monthKey, {
           total: existing.total + (review.overall_rating || 0),
           count: existing.count + 1,
-          sortKey
+          sortKey,
+          monthIndex: month,
+          year
         });
       }
 
@@ -167,16 +175,16 @@ export function useReviewsStats(reviews: CustomerReview[]) {
 
     return Array.from(monthMap.entries())
       .map(([monthLabel, data]) => {
-        // Extract month index from sortKey (e.g. 202506 % 100 = 6)
-        const monthIndex = data.sortKey % 100;
-        const prevData = prevMonthMap.get(monthIndex);
+        const prevData = prevMonthMap.get(data.monthIndex);
         return {
           month: monthLabel,
           rating: data.count > 0 ? data.total / data.count : 0,
           count: data.count,
           previousRating: prevData ? prevData.total / prevData.count : undefined,
           previousCount: prevData?.count,
-          sortKey: data.sortKey
+          sortKey: data.sortKey,
+          monthIndex: data.monthIndex,
+          year: data.year
         };
       })
       .sort((a, b) => a.sortKey - b.sortKey) // Chronological order: June → November
