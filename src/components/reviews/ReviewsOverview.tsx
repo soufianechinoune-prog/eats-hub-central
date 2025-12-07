@@ -30,17 +30,21 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
     queryFn: async () => {
       if (!selectedRestaurants.length) return [];
       
+      // Fetch all actions and filter client-side for array contains
       const { data, error } = await supabase
         .from('restaurant_actions')
-        .select('id, title, start_date, category')
-        .or(selectedRestaurants.map(id => `restaurant_ids.cs.{${id}}`).join(','))
+        .select('id, title, start_date, category, restaurant_ids')
         .order('start_date', { ascending: true });
       
       if (error) {
         console.error('Error fetching actions:', error);
         return [];
       }
-      return data || [];
+      
+      // Filter actions that contain any of the selected restaurants
+      return (data || []).filter(action => 
+        action.restaurant_ids?.some((id: string) => selectedRestaurants.includes(id))
+      );
     },
     enabled: selectedRestaurants.length > 0
   });
