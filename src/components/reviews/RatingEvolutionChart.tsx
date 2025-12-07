@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, BarChart3, LineChart as LineChartIcon, Zap } from "lucide-react";
+import { TrendingUp, BarChart3, LineChart as LineChartIcon, Zap, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -17,6 +17,8 @@ import {
 } from "recharts";
 import { useState, useMemo } from "react";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
 interface MonthlyRating {
   month: string;
@@ -24,6 +26,8 @@ interface MonthlyRating {
   count: number;
   previousRating?: number;
   previousCount?: number;
+  monthIndex?: number;
+  year?: number;
 }
 
 interface Action {
@@ -38,10 +42,50 @@ interface RatingEvolutionChartProps {
   actions?: Action[];
   showActions?: boolean;
   onToggleActions?: () => void;
+  periodMode?: "year" | "month";
+  selectedMonth?: number;
+  selectedYear?: number;
+  onDrillDown?: (month: number, year: number) => void;
+  onBackToYear?: () => void;
+  onPrevMonth?: () => void;
+  onNextMonth?: () => void;
 }
 
-export function RatingEvolutionChart({ data, actions = [], showActions = true, onToggleActions }: RatingEvolutionChartProps) {
+export function RatingEvolutionChart({ 
+  data, 
+  actions = [], 
+  showActions = true, 
+  onToggleActions,
+  periodMode = "year",
+  selectedMonth,
+  selectedYear,
+  onDrillDown,
+  onBackToYear,
+  onPrevMonth,
+  onNextMonth
+}: RatingEvolutionChartProps) {
   const [chartType, setChartType] = useState<"line" | "bar">("line");
+
+  // Format month title for drill-down header
+  const monthTitle = useMemo(() => {
+    if (periodMode === "month" && selectedMonth && selectedYear) {
+      const date = new Date(selectedYear, selectedMonth - 1, 1);
+      return format(date, "MMMM yyyy", { locale: fr });
+    }
+    return "";
+  }, [periodMode, selectedMonth, selectedYear]);
+
+  // Handle click on chart data point for drill-down
+  const handleChartClick = (chartData: any) => {
+    if (!onDrillDown || periodMode === "month") return;
+    
+    if (chartData && chartData.activePayload && chartData.activePayload[0]) {
+      const payload = chartData.activePayload[0].payload;
+      if (payload.monthIndex !== undefined && payload.year !== undefined) {
+        onDrillDown(payload.monthIndex + 1, payload.year);
+      }
+    }
+  };
 
   // Calculate dynamic Y-axis domain based on data
   const { yMin, yMax, ticks } = useMemo(() => {
@@ -169,10 +213,52 @@ export function RatingEvolutionChart({ data, actions = [], showActions = true, o
   return (
     <Card className="backdrop-blur-xl bg-card/70 border-2 shadow-lg">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-amber-500" />
-          Évolution de la Note Moyenne
-        </CardTitle>
+        <div className="flex items-center gap-2">
+          {periodMode === "month" && onBackToYear && (
+            <>
+              <TooltipProvider>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" onClick={onBackToYear} className="h-8 w-8 p-0">
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Retour vue annuelle</TooltipContent>
+                </UITooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" onClick={onPrevMonth} className="h-8 w-8 p-0">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Mois précédent</TooltipContent>
+                </UITooltip>
+              </TooltipProvider>
+            </>
+          )}
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-amber-500" />
+            {periodMode === "month" ? (
+              <span className="capitalize">{monthTitle}</span>
+            ) : (
+              "Évolution de la Note Moyenne"
+            )}
+          </CardTitle>
+          {periodMode === "month" && onNextMonth && (
+            <TooltipProvider>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" onClick={onNextMonth} className="h-8 w-8 p-0">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Mois suivant</TooltipContent>
+              </UITooltip>
+            </TooltipProvider>
+          )}
+        </div>
         <div className="flex gap-1">
           <TooltipProvider>
             <UITooltip>
@@ -226,7 +312,12 @@ export function RatingEvolutionChart({ data, actions = [], showActions = true, o
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           {chartType === "line" ? (
-            <LineChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+            <LineChart 
+              data={data} 
+              margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+              onClick={handleChartClick}
+              style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
+            >
               {/* Performance zones - adjusted to dynamic scale */}
               {yMin <= 4.5 && <ReferenceArea y1={Math.max(4.5, yMin)} y2={yMax} fill="hsl(var(--chart-2))" fillOpacity={0.1} />}
               {yMin <= 3.5 && <ReferenceArea y1={Math.max(3.5, yMin)} y2={Math.min(4.5, yMax)} fill="hsl(45 93% 47%)" fillOpacity={0.05} />}
@@ -277,7 +368,12 @@ export function RatingEvolutionChart({ data, actions = [], showActions = true, o
               )}
             </LineChart>
           ) : (
-            <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+            <BarChart 
+              data={data} 
+              margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+              onClick={handleChartClick}
+              style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
+            >
               <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
               <XAxis 
                 dataKey="month" 

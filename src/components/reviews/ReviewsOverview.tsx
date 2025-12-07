@@ -7,10 +7,12 @@ import { TagsAnalysisChart } from "./TagsAnalysisChart";
 import { ReviewsHeatmap } from "./ReviewsHeatmap";
 import { RatingDistributionChart } from "./RatingDistributionChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { format, getDaysInMonth } from "date-fns";
+import { fr } from "date-fns/locale";
 
 interface ReviewsOverviewProps {
   reviews: CustomerReview[];
@@ -18,7 +20,7 @@ interface ReviewsOverviewProps {
 
 export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
   const [showActions, setShowActions] = useState(true);
-  const { selectedRestaurants } = useAnalyticsContext();
+  const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear } = useAnalyticsContext();
   const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats } = useReviewsStats(reviews);
 
   // Fetch actions for the selected restaurants
@@ -49,6 +51,77 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
     return acc;
   }, {} as { [key: number]: number });
 
+  // Drill-down handlers
+  const handleDrillDown = (month: number, year: number) => {
+    setSelectedMonth(month);
+    setSelectedYear(year);
+    setPeriodMode("month");
+  };
+
+  const handleBackToYear = () => {
+    setPeriodMode("year");
+    setSelectedMonth(undefined);
+  };
+
+  const handlePrevMonth = () => {
+    if (!selectedMonth || !selectedYear) return;
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (!selectedMonth || !selectedYear) return;
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+      setSelectedYear(selectedYear + 1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
+  // Daily ratings data for drill-down (when periodMode === "month")
+  const dailyRatings = useMemo(() => {
+    if (periodMode !== "month" || !selectedMonth || !selectedYear) return [];
+
+    const daysInMonth = getDaysInMonth(new Date(selectedYear, selectedMonth - 1));
+    const dayMap = new Map<number, { total: number; count: number }>();
+
+    // Initialize all days
+    for (let i = 1; i <= daysInMonth; i++) {
+      dayMap.set(i, { total: 0, count: 0 });
+    }
+
+    // Aggregate reviews by day
+    reviews.forEach(review => {
+      const date = new Date(review.review_date);
+      if (date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear) {
+        const day = date.getDate();
+        const existing = dayMap.get(day) || { total: 0, count: 0 };
+        dayMap.set(day, {
+          total: existing.total + (review.overall_rating || 0),
+          count: existing.count + 1
+        });
+      }
+    });
+
+    return Array.from(dayMap.entries())
+      .map(([day, data]) => ({
+        month: `${day}`,
+        rating: data.count > 0 ? data.total / data.count : 0,
+        count: data.count,
+        monthIndex: selectedMonth - 1,
+        year: selectedYear
+      }))
+      .sort((a, b) => parseInt(a.month) - parseInt(b.month));
+  }, [reviews, periodMode, selectedMonth, selectedYear]);
+
+  // Chart data based on period mode
+  const chartData = periodMode === "month" ? dailyRatings : monthlyRatings;
+
   return (
     <div className="space-y-6">
       {/* KPI Cards Premium */}
@@ -64,10 +137,17 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
 
       {/* Évolution de la Note */}
       <RatingEvolutionChart 
-        data={monthlyRatings} 
+        data={chartData} 
         actions={actions}
         showActions={showActions}
         onToggleActions={() => setShowActions(!showActions)}
+        periodMode={periodMode as "year" | "month"}
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
+        onDrillDown={handleDrillDown}
+        onBackToYear={handleBackToYear}
+        onPrevMonth={handlePrevMonth}
+        onNextMonth={handleNextMonth}
       />
 
       {/* Volume et Distribution */}
