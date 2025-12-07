@@ -28,9 +28,7 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
   const { data: actions = [] } = useQuery({
     queryKey: ['restaurant-actions-reviews', selectedRestaurants],
     queryFn: async () => {
-      if (!selectedRestaurants.length) return [];
-      
-      // Fetch all actions and filter client-side for array contains
+      // Fetch all actions
       const { data, error } = await supabase
         .from('restaurant_actions')
         .select('id, title, start_date, category, restaurant_ids')
@@ -41,12 +39,16 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
         return [];
       }
       
-      // Filter actions that contain any of the selected restaurants
-      return (data || []).filter(action => 
-        action.restaurant_ids?.some((id: string) => selectedRestaurants.includes(id))
-      );
+      // If restaurants are selected, filter to only those actions
+      if (selectedRestaurants.length > 0) {
+        return (data || []).filter(action => 
+          action.restaurant_ids?.some((id: string) => selectedRestaurants.includes(id))
+        );
+      }
+      
+      // If no restaurants selected, return all actions
+      return data || [];
     },
-    enabled: selectedRestaurants.length > 0
   });
 
   // Distribution for legacy chart
