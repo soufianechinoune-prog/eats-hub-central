@@ -5,18 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ReviewRow {
-  order_id: string;
-  order_uuid: string;
-  store_id: string;
-  store_name: string;
-  workflow_uuid: string;
-  rating: number | null;
-  tags: string[];
-  eater_uuid: string;
-  order_date: string;
-}
-
 // Parse date from format "24 nov. 2025" or "Nov 24, 2025"
 function parseDate(dateStr: string): string | null {
   if (!dateStr || dateStr.trim() === '') return null;
@@ -89,6 +77,16 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
+// Normalize restaurant name for matching
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[''`]/g, "'")
+    .replace(/[-–—]/g, '-');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -116,29 +114,74 @@ Deno.serve(async (req) => {
     const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
     console.log('Headers detected:', headers);
 
-    // Map column indices
+    // Map column indices - support multiple header variations
     const colMap = {
-      orderId: headers.findIndex(h => h.includes('id. de la commande') || h.includes('order id')),
-      orderUuid: headers.findIndex(h => h.includes('uuid de la commande') || h.includes('order uuid')),
-      storeId: headers.findIndex(h => h.includes('uuid de l\'établissement') || h.includes('store uuid')),
-      storeName: headers.findIndex(h => h.includes('nom de l\'établissement') || h.includes('store name')),
-      workflowUuid: headers.findIndex(h => h.includes('uuid du flux') || h.includes('workflow uuid')),
-      rating: headers.findIndex(h => h.includes('note du restaurant') || h.includes('restaurant rating')),
-      tags: headers.findIndex(h => h.includes('balises') || h.includes('tags')),
-      eaterUuid: headers.findIndex(h => h.includes('uuid du client') || h.includes('eater uuid')),
-      orderDate: headers.findIndex(h => h.includes('date de la commande') || h.includes('order date')),
+      orderId: headers.findIndex(h => 
+        h.includes('id. de la commande') || h.includes('order id')
+      ),
+      orderUuid: headers.findIndex(h => 
+        h.includes('uuid de la commande') || h.includes('order uuid')
+      ),
+      storeId: headers.findIndex(h => 
+        h.includes('id. externe du restaurant') || 
+        h.includes('uuid de l\'établissement') || 
+        h.includes('external restaurant id') ||
+        h.includes('store uuid')
+      ),
+      storeName: headers.findIndex(h => 
+        h === 'restaurant' || 
+        h.includes('nom de l\'établissement') || 
+        h.includes('store name')
+      ),
+      workflowUuid: headers.findIndex(h => 
+        h.includes('uuid du flux') || h.includes('workflow uuid')
+      ),
+      rating: headers.findIndex(h => 
+        h.includes('valeur de la note') || 
+        h.includes('note du restaurant') || 
+        h.includes('restaurant rating') || 
+        h.includes('rating value')
+      ),
+      tags: headers.findIndex(h => 
+        h.includes('tags de notation') || 
+        h.includes('balises') || 
+        h.includes('rating tags') ||
+        h.includes('tags')
+      ),
+      comment: headers.findIndex(h => 
+        h.includes('commentaire') || h.includes('comment')
+      ),
+      eaterUuid: headers.findIndex(h => 
+        h.includes('uuid du client') || h.includes('eater uuid')
+      ),
+      orderDate: headers.findIndex(h => 
+        h.includes('date de la commande') || h.includes('order date')
+      ),
+      ratingDate: headers.findIndex(h => 
+        h.includes('date de la note') || h.includes('rating date')
+      ),
     };
 
     console.log('Column mapping:', colMap);
 
-    // Fetch all restaurants with uber_store_id
+    // Fetch all restaurants
     const { data: restaurants } = await supabase
       .from('restaurants')
-      .select('id, name, uber_store_id')
-      .not('uber_store_id', 'is', null);
+      .select('id, name, uber_store_id');
 
+    // Map by uber_store_id
     const storeIdToRestaurant = new Map(
-      (restaurants || []).map(r => [r.uber_store_id, { id: r.id, name: r.name }])
+      (restaurants || [])
+        .filter(r => r.uber_store_id)
+        .map(r => [r.uber_store_id, { id: r.id, name: r.name }])
+    );
+
+    // Map by normalized name for fallback matching
+    const storeNameToRestaurant = new Map(
+      (restaurants || []).map(r => [
+        normalizeName(r.name), 
+        { id: r.id, name: r.name }
+      ])
     );
 
     const stats = {
@@ -163,23 +206,46 @@ Deno.serve(async (req) => {
       
       stats.totalRows++;
 
-      const storeId = colMap.storeId >= 0 ? values[colMap.storeId] : '';
-      const orderUuid = colMap.orderUuid >= 0 ? values[colMap.orderUuid] : '';
-      const orderId = colMap.orderId >= 0 ? values[colMap.orderId] : '';
-      const ratingStr = colMap.rating >= 0 ? values[colMap.rating] : '';
-      const tagsStr = colMap.tags >= 0 ? values[colMap.tags] : '';
-      const orderDateStr = colMap.orderDate >= 0 ? values[colMap.orderDate] : '';
-      const eaterUuid = colMap.eaterUuid >= 0 ? values[colMap.eaterUuid] : '';
+      const storeId = colMap.storeId >= 0 ? values[colMap.storeId]?.trim() : '';
+      const storeName = colMap.storeName >= 0 ? values[colMap.storeName]?.trim() : '';
+      const orderUuid = colMap.orderUuid >= 0 ? values[colMap.orderUuid]?.trim() : '';
+      const orderId = colMap.orderId >= 0 ? values[colMap.orderId]?.trim() : '';
+      const ratingStr = colMap.rating >= 0 ? values[colMap.rating]?.trim() : '';
+      const tagsStr = colMap.tags >= 0 ? values[colMap.tags]?.trim() : '';
+      const commentStr = colMap.comment >= 0 ? values[colMap.comment]?.trim() : '';
+      const orderDateStr = colMap.orderDate >= 0 ? values[colMap.orderDate]?.trim() : '';
+      const ratingDateStr = colMap.ratingDate >= 0 ? values[colMap.ratingDate]?.trim() : '';
+      const eaterUuid = colMap.eaterUuid >= 0 ? values[colMap.eaterUuid]?.trim() : '';
 
-      // Find restaurant
-      const restaurant = storeIdToRestaurant.get(storeId);
+      // Find restaurant - first by store_id, then by name
+      let restaurant = storeId ? storeIdToRestaurant.get(storeId) : null;
+
+      // Fallback: search by name
+      if (!restaurant && storeName) {
+        const normalizedStoreName = normalizeName(storeName);
+        
+        // Exact match
+        restaurant = storeNameToRestaurant.get(normalizedStoreName);
+        
+        // Partial match if exact fails
+        if (!restaurant) {
+          for (const [name, r] of storeNameToRestaurant.entries()) {
+            if (normalizedStoreName.includes(name) || name.includes(normalizedStoreName)) {
+              restaurant = r;
+              break;
+            }
+          }
+        }
+      }
+
       if (!restaurant) {
-        unknownStoreIds.add(storeId);
+        const identifier = storeName || storeId || 'unknown';
+        unknownStoreIds.add(identifier);
         stats.skipped++;
         skippedDetails.push({
           rowIndex: i + 1,
           reason: 'unknown_store',
-          details: `Store ID: ${storeId}`
+          details: `Restaurant: ${identifier}`
         });
         continue;
       }
@@ -190,11 +256,12 @@ Deno.serve(async (req) => {
       }
       restaurantStats.get(restaurant.id)!.count++;
 
-      // Parse date
-      const orderDate = parseDate(orderDateStr);
-      if (orderDate) {
-        if (!dateStart || orderDate < dateStart) dateStart = orderDate;
-        if (!dateEnd || orderDate > dateEnd) dateEnd = orderDate;
+      // Parse date - prefer rating date, fallback to order date
+      const dateStr = ratingDateStr || orderDateStr;
+      const reviewDate = parseDate(dateStr);
+      if (reviewDate) {
+        if (!dateStart || reviewDate < dateStart) dateStart = reviewDate;
+        if (!dateEnd || reviewDate > dateEnd) dateEnd = reviewDate;
       }
 
       // Parse rating (1-5 scale)
@@ -207,8 +274,9 @@ Deno.serve(async (req) => {
         restaurant_id: restaurant.id,
         uber_order_id: orderUuid || orderId,
         overall_rating: rating,
-        review_date: orderDate,
+        review_date: reviewDate,
         tags: tags,
+        customer_comment: commentStr || null,
         customer_name: eaterUuid ? `Client ${eaterUuid.substring(0, 8)}` : null,
         platform: 'uber_eats',
       });
