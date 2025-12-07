@@ -2,7 +2,7 @@ import { CustomerReview } from "@/hooks/useReviews";
 import { useReviewsStats } from "@/hooks/useReviewsStats";
 import { ReviewsKPICards } from "./ReviewsKPICards";
 import { RatingEvolutionChart } from "./RatingEvolutionChart";
-import { ReviewVolumeChart } from "./ReviewVolumeChart";
+
 import { TagsAnalysisChart } from "./TagsAnalysisChart";
 import { ReviewsHeatmap } from "./ReviewsHeatmap";
 import { RatingDistributionChart } from "./RatingDistributionChart";
@@ -55,12 +55,13 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
     },
   });
 
-  // Distribution for legacy chart
-  const distribution = reviews.reduce((acc, review) => {
-    const rating = Math.round(review.overall_rating);
-    acc[rating] = (acc[rating] || 0) + 1;
-    return acc;
-  }, {} as { [key: number]: number });
+  // Distribution filtrée par période
+  const distribution = useMemo(() => {
+    return ratingDistribution.reduce((acc, item) => {
+      acc[item.rating] = item.count;
+      return acc;
+    }, {} as { [key: number]: number });
+  }, [ratingDistribution]);
 
   // Drill-down handlers
   const handleDrillDown = (month: number, year: number) => {
@@ -164,22 +165,18 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
         onChartTypeChange={setChartType}
       />
 
-      {/* Volume et Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ReviewVolumeChart data={ratingDistribution} />
-        
-        <Card className="backdrop-blur-xl bg-card/70 border-2 shadow-lg">
-          <CardHeader>
-            <CardTitle>Distribution des Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RatingDistributionChart
-              distribution={distribution}
-              totalReviews={stats.totalReviews}
-            />
-          </CardContent>
-        </Card>
-      </div>
+      {/* Distribution des Notes */}
+      <Card className="backdrop-blur-xl bg-card/70 border-2 shadow-lg">
+        <CardHeader>
+          <CardTitle>Distribution des Notes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RatingDistributionChart
+            distribution={distribution}
+            totalReviews={stats.totalReviews}
+          />
+        </CardContent>
+      </Card>
 
       {/* Heatmap et Tags */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
