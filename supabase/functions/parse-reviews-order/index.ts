@@ -77,14 +77,15 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
-// Normalize restaurant name for matching
+// Normalize restaurant name for matching - remove all punctuation and extra spaces
 function normalizeName(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, ' ')
-    .replace(/[''`]/g, "'")
-    .replace(/[-–—]/g, '-');
+    .replace(/[-–—]/g, ' ')  // Replace dashes with spaces
+    .replace(/[''`.,;:!?()[\]{}]/g, '')  // Remove punctuation
+    .replace(/\s+/g, ' ')  // Normalize spaces
+    .trim();
 }
 
 Deno.serve(async (req) => {
