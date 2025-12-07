@@ -4,7 +4,6 @@ import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
 import { ReviewsMenuItems } from "@/components/reviews/ReviewsMenuItems";
 import { useCustomerReviews, useMenuItemReviews } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { Eye, Users, ChefHat } from "lucide-react";
 
 export default function Reviews() {
@@ -12,17 +11,11 @@ export default function Reviews() {
     selectedRestaurants,
     selectedPlatform,
     selectedYear,
-    selectedMonth,
-    periodMode,
-    dateRange,
   } = useAnalyticsContext();
 
-  const { startDate, endDate } = useDataGranularity({
-    periodMode,
-    selectedYear,
-    selectedMonth,
-    dateRange,
-  });
+  // Always fetch full year data for reviews - drill-down is handled in UI
+  const yearStartDate = new Date(selectedYear, 0, 1);
+  const yearEndDate = new Date(selectedYear, 11, 31);
 
   const restaurantIds =
     selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
@@ -30,12 +23,12 @@ export default function Reviews() {
   const {
     data: customerReviews,
     isLoading: isLoadingCustomer,
-  } = useCustomerReviews(restaurantIds, selectedPlatform, startDate, endDate);
+  } = useCustomerReviews(restaurantIds, selectedPlatform, yearStartDate, yearEndDate);
 
   const {
     data: menuItemReviews,
     isLoading: isLoadingMenuItems,
-  } = useMenuItemReviews(restaurantIds, selectedPlatform, startDate, endDate);
+  } = useMenuItemReviews(restaurantIds, selectedPlatform, yearStartDate, yearEndDate);
 
   const isLoading = isLoadingCustomer || isLoadingMenuItems;
 
