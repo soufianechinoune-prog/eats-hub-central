@@ -300,7 +300,7 @@ export function RatingEvolutionChart({
               <TooltipContent>Graphique barres</TooltipContent>
             </UITooltip>
           </TooltipProvider>
-          {onToggleActions && actions.length > 0 && (
+          {onToggleActions && (
             <TooltipProvider>
               <UITooltip>
                 <TooltipTrigger asChild>
