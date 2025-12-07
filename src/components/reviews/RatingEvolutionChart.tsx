@@ -22,9 +22,9 @@ import { fr } from "date-fns/locale";
 
 interface MonthlyRating {
   month: string;
-  rating: number;
+  rating: number | null;
   count: number;
-  previousRating?: number;
+  previousRating?: number | null;
   previousCount?: number;
   monthIndex?: number;
   year?: number;
@@ -140,27 +140,34 @@ export function RatingEvolutionChart({
       const current = payload.find((p: any) => p.dataKey === "rating");
       const previous = payload.find((p: any) => p.dataKey === "previousRating");
       const monthActions = actionsByMonth.get(label) || [];
+      const reviewCount = payload[0]?.payload?.count || 0;
 
       return (
         <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
           <p className="font-medium text-sm mb-2">{label}</p>
-          {current && (
-            <div className="flex items-center gap-2 text-sm">
-              <div className="w-3 h-3 rounded-full bg-amber-500" />
-              <span>Note actuelle: <strong>{current.value?.toFixed(2)}</strong></span>
-              <span className="text-muted-foreground">({payload[0]?.payload?.count} avis)</span>
-            </div>
-          )}
-          {previous?.value && (
-            <div className="flex items-center gap-2 text-sm mt-1">
-              <div className="w-3 h-3 rounded-full bg-muted-foreground/50" />
-              <span>N-1: <strong>{previous.value?.toFixed(2)}</strong></span>
-              {current?.value && (
-                <span className={current.value > previous.value ? "text-emerald-500" : "text-red-500"}>
-                  ({current.value > previous.value ? "+" : ""}{(current.value - previous.value).toFixed(2)} pts)
-                </span>
+          {reviewCount === 0 ? (
+            <p className="text-muted-foreground text-sm">Aucun avis ce jour</p>
+          ) : (
+            <>
+              {current && current.value !== null && (
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="w-3 h-3 rounded-full bg-amber-500" />
+                  <span>Note actuelle: <strong>{current.value?.toFixed(2)}</strong></span>
+                  <span className="text-muted-foreground">({reviewCount} avis)</span>
+                </div>
               )}
-            </div>
+              {previous?.value && previous.value !== null && (
+                <div className="flex items-center gap-2 text-sm mt-1">
+                  <div className="w-3 h-3 rounded-full bg-muted-foreground/50" />
+                  <span>N-1: <strong>{previous.value?.toFixed(2)}</strong></span>
+                  {current?.value !== null && (
+                    <span className={current.value > previous.value ? "text-emerald-500" : "text-red-500"}>
+                      ({current.value > previous.value ? "+" : ""}{(current.value - previous.value).toFixed(2)} pts)
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
           )}
           {showActions && monthActions.length > 0 && (
             <div className="mt-2 pt-2 border-t border-border">
@@ -357,6 +364,7 @@ export function RatingEvolutionChart({
                 strokeWidth={3}
                 dot={<CustomDot />}
                 activeDot={{ r: 7, strokeWidth: 0 }}
+                connectNulls={false}
               />
 
               {/* Reference lines - only show if in visible range */}
