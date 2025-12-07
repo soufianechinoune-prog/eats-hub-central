@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,13 +14,40 @@ import { useToast } from "@/hooks/use-toast";
 import ImportHistory from "@/components/reports/ImportHistory";
 import { useQuery } from "@tanstack/react-query";
 
-const REPORT_TYPES = [
-  { value: "sales_over_time", label: "Sales Over Time (KPIs officiels)", description: "CA, Commandes, Panier moyen - Source de vérité", icon: TrendingUp },
-  { value: "payment_order_level", label: "Informations de paiement (niveau commande)", description: "Détail financier par commande" },
-  { value: "payment_item_level", label: "Informations de paiement (niveau articles)", description: "Détail par article commandé" },
-  { value: "payout_summary", label: "Récapitulatif des versements", description: "Résumé agrégé par versement" },
-  { value: "marketing_campaigns", label: "Campagnes Marketing", description: "Offres promotionnelles et annonces publicitaires", icon: Megaphone },
+// Report types organized by theme
+const REPORT_THEMES = [
+  {
+    id: "sales",
+    label: "Ventes & Finances",
+    icon: TrendingUp,
+    types: [
+      { value: "sales_over_time", label: "Sales Over Time (KPIs officiels)", description: "CA, Commandes, Panier moyen - Source de vérité", icon: TrendingUp },
+      { value: "payment_order_level", label: "Informations de paiement (niveau commande)", description: "Détail financier par commande" },
+      { value: "payment_item_level", label: "Informations de paiement (niveau articles)", description: "Détail par article commandé" },
+      { value: "payout_summary", label: "Récapitulatif des versements", description: "Résumé agrégé par versement" },
+    ]
+  },
+  {
+    id: "marketing",
+    label: "Marketing",
+    icon: Megaphone,
+    types: [
+      { value: "marketing_campaigns", label: "Campagnes Marketing", description: "Offres promotionnelles et annonces publicitaires", icon: Megaphone },
+    ]
+  },
+  {
+    id: "reviews",
+    label: "Avis Clients",
+    icon: Star,
+    types: [
+      { value: "reviews_order", label: "Avis par commande", description: "Notes globales et tags par commande (restaurant_rating_local)", icon: Star },
+      { value: "reviews_item", label: "Avis par produit", description: "Notes et tags par article (restaurant_rating_sku_local)", icon: MessageSquare },
+    ]
+  }
 ];
+
+// Flat list for backward compatibility
+const REPORT_TYPES = REPORT_THEMES.flatMap(theme => theme.types);
 
 interface ParsedRow {
   [key: string]: string;
@@ -155,6 +182,18 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
+      // Check for reviews order-level headers
+      if ((lines[i].includes("Note du restaurant") || lines[i].includes("restaurant rating")) && 
+          (lines[i].includes("UUID de la commande") || lines[i].includes("Order UUID"))) {
+        headerRowIndex = i;
+        break;
+      }
+      // Check for reviews item-level headers
+      if ((lines[i].includes("Note de l'article") || lines[i].includes("Item rating")) && 
+          (lines[i].includes("Titre de l'article") || lines[i].includes("Item title"))) {
+        headerRowIndex = i;
+        break;
+      }
     }
 
     if (headerRowIndex === -1) {
@@ -244,7 +283,11 @@ export default function ReportImport() {
             ? "parse-payout-summary"
             : reportType === "marketing_campaigns"
               ? "parse-marketing-campaigns"
-              : "parse-payment-report";
+              : reportType === "reviews_order"
+                ? "parse-reviews-order"
+                : reportType === "reviews_item"
+                  ? "parse-reviews-item"
+                  : "parse-payment-report";
       
       const body: Record<string, any> = {
         csvContent,
@@ -357,7 +400,11 @@ export default function ReportImport() {
             ? "parse-payout-summary"
             : reportType === "marketing_campaigns"
               ? "parse-marketing-campaigns"
-              : "parse-payment-report";
+              : reportType === "reviews_order"
+                ? "parse-reviews-order"
+                : reportType === "reviews_item"
+                  ? "parse-reviews-item"
+                  : "parse-payment-report";
       
       const body: Record<string, any> = {
         csvContent,
@@ -558,16 +605,24 @@ export default function ReportImport() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {REPORT_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          <div className="flex flex-col">
-                            <span className="flex items-center gap-2">
-                              {type.icon && <type.icon className="h-4 w-4 text-primary" />}
-                              {type.label}
-                            </span>
-                            <span className="text-xs text-muted-foreground">{type.description}</span>
+                      {REPORT_THEMES.map((theme) => (
+                        <div key={theme.id}>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 flex items-center gap-2">
+                            <theme.icon className="h-3.5 w-3.5" />
+                            {theme.label}
                           </div>
-                        </SelectItem>
+                          {theme.types.map((type) => (
+                            <SelectItem key={type.value} value={type.value} className="pl-6">
+                              <div className="flex flex-col">
+                                <span className="flex items-center gap-2">
+                                  {type.icon && <type.icon className="h-4 w-4 text-primary" />}
+                                  {type.label}
+                                </span>
+                                <span className="text-xs text-muted-foreground">{type.description}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </div>
                       ))}
                     </SelectContent>
                   </Select>
@@ -613,6 +668,16 @@ export default function ReportImport() {
                       <AlertDescription>
                         Importez vos offres promotionnelles ou annonces publicitaires depuis Uber Manager &gt; Marketing &gt; Historique des campagnes.
                         Les campagnes seront ajoutées aux actions et visibles sur les graphiques Analytics.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (reportType === "reviews_order" || reportType === "reviews_item") ? (
+                    <Alert className="bg-amber-500/10 border-amber-500/20">
+                      <Star className="h-4 w-4 text-amber-500" />
+                      <AlertTitle className="text-amber-600">Avis Clients</AlertTitle>
+                      <AlertDescription>
+                        {reportType === "reviews_order" 
+                          ? "Fichier restaurant_rating_local.csv - Contient les notes globales (1-5 étoiles) et tags par commande."
+                          : "Fichier restaurant_rating_sku_local.csv - Contient les notes par article (pouce haut/bas) et tags produits."}
                       </AlertDescription>
                     </Alert>
                   ) : (

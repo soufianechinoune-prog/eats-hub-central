@@ -62,3 +62,12 @@ verify_jwt = false
 
 [functions.parse-sales-over-time]
 verify_jwt = false
+
+[functions.parse-marketing-campaigns]
+verify_jwt = false
+
+[functions.parse-reviews-order]
+verify_jwt = false
+
+[functions.parse-reviews-item]
+verify_jwt = false
