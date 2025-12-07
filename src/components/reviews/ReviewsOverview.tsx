@@ -111,7 +111,7 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
     return Array.from(dayMap.entries())
       .map(([day, data]) => ({
         month: `${day}`,
-        rating: data.count > 0 ? data.total / data.count : 0,
+        rating: data.count > 0 ? data.total / data.count : null,
         count: data.count,
         monthIndex: selectedMonth - 1,
         year: selectedYear
