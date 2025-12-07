@@ -143,7 +143,7 @@ export function AnalyticsHeader() {
   const showResetButton = periodMode === "month" || (periodMode === "range" && dateRange?.from);
 
   return (
-    <div className="backdrop-blur-xl bg-background/70 border-2 border-border/40 rounded-2xl p-6 shadow-lg space-y-4">
+    <div className="sticky top-0 z-40 backdrop-blur-xl bg-background/95 border-2 border-border/40 rounded-2xl p-6 shadow-lg space-y-4">
       <div className="flex flex-wrap gap-3 items-start">
         {/* Restaurant Multi-Select */}
         <div className="flex-1 min-w-[250px]">
