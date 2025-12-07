@@ -102,22 +102,29 @@ Deno.serve(async (req) => {
     }
 
     const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
-    console.log('Headers detected:', headers);
+    console.log('Headers detected:', JSON.stringify(headers));
 
-    // Map column indices
+    // Map column indices - support multiple naming conventions
     const colMap = {
-      orderId: headers.findIndex(h => h.includes('id. de la commande') || h.includes('order id')),
-      orderUuid: headers.findIndex(h => h.includes('uuid de la commande') || h.includes('order uuid')),
-      storeId: headers.findIndex(h => h.includes('uuid de l\'établissement') || h.includes('store uuid')),
-      storeName: headers.findIndex(h => h.includes('nom de l\'établissement') || h.includes('store name')),
-      itemUuid: headers.findIndex(h => h.includes('uuid de l\'article') || h.includes('item uuid')),
-      itemTitle: headers.findIndex(h => h.includes('titre de l\'article') || h.includes('item title')),
-      rating: headers.findIndex(h => h.includes('note de l\'article') || h.includes('item rating')),
-      tags: headers.findIndex(h => h.includes('balises') || h.includes('tags')),
-      orderDate: headers.findIndex(h => h.includes('date de la commande') || h.includes('order date')),
+      orderId: headers.findIndex(h => h.includes('id. de la commande') || h.includes('order id') || h.includes('id de la commande')),
+      orderUuid: headers.findIndex(h => h.includes('uuid de la commande') || h.includes('order uuid') || h.includes('uuid_de_la_commande')),
+      storeId: headers.findIndex(h => h.includes('uuid de l\'établissement') || h.includes('store uuid') || h.includes('uuid_de_l\'etablissement') || h.includes('uuid de l\'etablissement')),
+      storeName: headers.findIndex(h => h.includes('nom de l\'établissement') || h.includes('store name') || h.includes('nom_de_l\'etablissement') || h.includes('nom de l\'etablissement')),
+      itemUuid: headers.findIndex(h => h.includes('uuid de l\'article') || h.includes('item uuid') || h.includes('uuid_de_l\'article') || h.includes('uuid de l\'article')),
+      itemTitle: headers.findIndex(h => h.includes('titre de l\'article') || h.includes('item title') || h.includes('titre_de_l\'article') || h.includes('titre de l\'article') || h.includes('nom de l\'article') || h.includes('item name') || h.includes('article')),
+      rating: headers.findIndex(h => h.includes('note de l\'article') || h.includes('item rating') || h.includes('note_de_l\'article') || h.includes('note') || h.includes('rating')),
+      tags: headers.findIndex(h => h.includes('balises') || h.includes('tags') || h.includes('tag')),
+      orderDate: headers.findIndex(h => h.includes('date de la commande') || h.includes('order date') || h.includes('date_de_la_commande')),
     };
 
-    console.log('Column mapping:', colMap);
+    console.log('Column mapping:', JSON.stringify(colMap));
+    
+    // Log first data row to debug
+    if (lines.length > 1) {
+      const firstDataRow = parseCSVLine(lines[1]);
+      console.log('First data row sample:', JSON.stringify(firstDataRow));
+      console.log('itemTitle column index:', colMap.itemTitle, 'value:', firstDataRow[colMap.itemTitle]);
+    }
 
     // Fetch all restaurants with uber_store_id
     const { data: restaurants } = await supabase
