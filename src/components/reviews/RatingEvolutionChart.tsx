@@ -15,7 +15,7 @@ import {
   ReferenceArea,
   Cell
 } from "recharts";
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -49,6 +49,8 @@ interface RatingEvolutionChartProps {
   onBackToYear?: () => void;
   onPrevMonth?: () => void;
   onNextMonth?: () => void;
+  chartType?: "line" | "bar";
+  onChartTypeChange?: (type: "line" | "bar") => void;
 }
 
 export function RatingEvolutionChart({ 
@@ -62,9 +64,10 @@ export function RatingEvolutionChart({
   onDrillDown,
   onBackToYear,
   onPrevMonth,
-  onNextMonth
+  onNextMonth,
+  chartType = "line",
+  onChartTypeChange
 }: RatingEvolutionChartProps) {
-  const [chartType, setChartType] = useState<"line" | "bar">("line");
 
   // Format month title for drill-down header
   const monthTitle = useMemo(() => {
@@ -273,7 +276,7 @@ export function RatingEvolutionChart({
                 <Button
                   variant={chartType === "line" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setChartType("line")}
+                  onClick={() => onChartTypeChange?.("line")}
                   className="h-8 w-8 p-0"
                 >
                   <LineChartIcon className="h-4 w-4" />
@@ -288,7 +291,7 @@ export function RatingEvolutionChart({
                 <Button
                   variant={chartType === "bar" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setChartType("bar")}
+                  onClick={() => onChartTypeChange?.("bar")}
                   className="h-8 w-8 p-0"
                 >
                   <BarChart3 className="h-4 w-4" />

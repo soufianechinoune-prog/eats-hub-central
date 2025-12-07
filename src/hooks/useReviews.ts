@@ -83,7 +83,8 @@ export function useMenuItemReviews(
       let query = supabase
         .from("menu_item_reviews")
         .select("*")
-        .order("review_date", { ascending: false });
+        .order("review_date", { ascending: false })
+        .range(0, 9999);
 
       if (restaurantIds && restaurantIds.length > 0) {
         query = query.in("restaurant_id", restaurantIds);
