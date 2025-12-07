@@ -1,6 +1,7 @@
-import { Star, FileText, Tag, MessageSquare, TrendingUp, TrendingDown } from "lucide-react";
+import { Star, FileText, Tag, MessageSquare, TrendingUp, TrendingDown, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ReviewsKPICardsProps {
   averageRating: number;
@@ -9,6 +10,7 @@ interface ReviewsKPICardsProps {
   commentRate: number;
   ratingVariation: number;
   volumeVariation: number;
+  hasPreviousPeriodData: boolean;
 }
 
 export function ReviewsKPICards({
@@ -17,7 +19,8 @@ export function ReviewsKPICards({
   tagRate,
   commentRate,
   ratingVariation,
-  volumeVariation
+  volumeVariation,
+  hasPreviousPeriodData
 }: ReviewsKPICardsProps) {
   const getRatingColor = (rating: number) => {
     if (rating >= 4.5) return "text-emerald-500";
@@ -31,10 +34,14 @@ export function ReviewsKPICards({
     return null;
   };
 
-  const formatVariation = (variation: number, isPercent = false) => {
+  const formatRatingVariation = (variation: number) => {
     const sign = variation > 0 ? "+" : "";
-    const value = isPercent ? `${sign}${variation.toFixed(0)}%` : `${sign}${variation.toFixed(2)}`;
-    return value;
+    return `${sign}${variation.toFixed(2)} pts`;
+  };
+
+  const formatPercentVariation = (variation: number) => {
+    const sign = variation > 0 ? "+" : "";
+    return `${sign}${variation.toFixed(0)}%`;
   };
 
   return (
@@ -52,7 +59,7 @@ export function ReviewsKPICards({
         <CardContent>
           <div className="flex items-baseline gap-2">
             <span className={cn("text-4xl font-bold", getRatingColor(averageRating))}>
-              {averageRating.toFixed(1)}
+              {averageRating.toFixed(2)}
             </span>
             <span className="text-muted-foreground">/5</span>
           </div>
@@ -69,15 +76,29 @@ export function ReviewsKPICards({
               />
             ))}
           </div>
-          {ratingVariation !== 0 && (
+          {hasPreviousPeriodData && ratingVariation !== 0 ? (
             <div className="flex items-center gap-1 mt-2 text-sm">
               {getVariationIcon(ratingVariation)}
               <span className={cn(
                 ratingVariation > 0 ? "text-emerald-500" : "text-red-500"
               )}>
-                {formatVariation(ratingVariation)} vs période précédente
+                {formatRatingVariation(ratingVariation)} vs N-1
               </span>
             </div>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground cursor-help">
+                    <Info className="h-3 w-3" />
+                    <span>Pas de comparaison</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Données disponibles depuis juin 2025</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </CardContent>
       </Card>
@@ -95,15 +116,29 @@ export function ReviewsKPICards({
         <CardContent>
           <div className="text-4xl font-bold">{totalReviews.toLocaleString()}</div>
           <p className="text-sm text-muted-foreground mt-1">avis collectés</p>
-          {volumeVariation !== 0 && (
+          {hasPreviousPeriodData && volumeVariation !== 0 ? (
             <div className="flex items-center gap-1 mt-2 text-sm">
               {getVariationIcon(volumeVariation)}
               <span className={cn(
                 volumeVariation > 0 ? "text-emerald-500" : "text-red-500"
               )}>
-                {formatVariation(volumeVariation, true)} vs période précédente
+                {formatPercentVariation(volumeVariation)} vs N-1
               </span>
             </div>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground cursor-help">
+                    <Info className="h-3 w-3" />
+                    <span>Pas de comparaison</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Données disponibles depuis juin 2025</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </CardContent>
       </Card>
