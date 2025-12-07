@@ -45,36 +45,44 @@ interface RatingDistribution {
 }
 
 const POSITIVE_TAGS = [
-  "food_quality_positive",
-  "order_accuracy",
-  "fast_delivery",
-  "good_packaging",
-  "great_value",
-  "friendly_service"
+  "restaurant_delicious_options",
+  "restaurant_sustainable_packaging",
+  "restaurant_nicely_presented",
+  "restaurant_high-quality_ingredients",
+  "restaurant_perfectly_cooked",
+  "restaurant_fast_casual",
+  "restaurant_fresh_ingredients",
+  "restaurant_locally_owned",
+  "restaurant_authentic_dishes",
+  "restaurant_unique_flavors"
 ];
 
 const NEGATIVE_TAGS = [
-  "food_quality_negative",
-  "missing_items",
-  "late_delivery",
-  "poor_packaging",
-  "wrong_order",
-  "cold_food"
+  "restaurant_not_tasty",
+  "restaurant_too_slow",
+  "restaurant_poor_packaging",
+  "restaurant_unsustainable_packaging",
+  "restaurant_missed_request"
 ];
 
 const TAG_LABELS: Record<string, string> = {
-  food_quality_positive: "Qualité excellente",
-  order_accuracy: "Commande correcte",
-  fast_delivery: "Livraison rapide",
-  good_packaging: "Bon emballage",
-  great_value: "Bon rapport qualité/prix",
-  friendly_service: "Service agréable",
-  food_quality_negative: "Qualité insuffisante",
-  missing_items: "Articles manquants",
-  late_delivery: "Livraison en retard",
-  poor_packaging: "Mauvais emballage",
-  wrong_order: "Commande incorrecte",
-  cold_food: "Nourriture froide"
+  // Positive tags
+  "restaurant_delicious_options": "Options délicieuses",
+  "restaurant_sustainable_packaging": "Emballage durable",
+  "restaurant_nicely_presented": "Bien présenté",
+  "restaurant_high-quality_ingredients": "Ingrédients de qualité",
+  "restaurant_perfectly_cooked": "Parfaitement cuisiné",
+  "restaurant_fast_casual": "Rapide et pratique",
+  "restaurant_fresh_ingredients": "Ingrédients frais",
+  "restaurant_locally_owned": "Restaurant local",
+  "restaurant_authentic_dishes": "Plats authentiques",
+  "restaurant_unique_flavors": "Saveurs uniques",
+  // Negative tags
+  "restaurant_not_tasty": "Pas savoureux",
+  "restaurant_too_slow": "Trop lent",
+  "restaurant_poor_packaging": "Mauvais emballage",
+  "restaurant_unsustainable_packaging": "Emballage non écologique",
+  "restaurant_missed_request": "Demande non respectée"
 };
 
 interface UseReviewsStatsOptions {
