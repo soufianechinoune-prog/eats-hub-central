@@ -77,10 +77,39 @@ const TAG_LABELS: Record<string, string> = {
   cold_food: "Nourriture froide"
 };
 
-export function useReviewsStats(reviews: CustomerReview[]) {
-  // Stats now counts ALL reviews passed in (filtered reviews)
+interface UseReviewsStatsOptions {
+  periodMode?: "year" | "month" | "range";
+  selectedMonth?: number;
+  selectedYear?: number;
+}
+
+export function useReviewsStats(reviews: CustomerReview[], options?: UseReviewsStatsOptions) {
+  const { periodMode = "year", selectedMonth, selectedYear } = options || {};
+
+  // Filter reviews based on selected period
+  const filteredReviews = useMemo(() => {
+    if (!reviews.length) return [];
+    
+    if (periodMode === "month" && selectedMonth && selectedYear) {
+      return reviews.filter(r => {
+        const date = new Date(r.review_date);
+        return date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear;
+      });
+    }
+    
+    if (periodMode === "year" && selectedYear) {
+      return reviews.filter(r => {
+        const date = new Date(r.review_date);
+        return date.getFullYear() === selectedYear;
+      });
+    }
+    
+    return reviews;
+  }, [reviews, periodMode, selectedMonth, selectedYear]);
+
+  // Stats now counts filtered reviews
   const stats = useMemo((): ReviewStats => {
-    if (!reviews.length) {
+    if (!filteredReviews.length) {
       return {
         averageRating: 0,
         totalReviews: 0,
@@ -94,28 +123,27 @@ export function useReviewsStats(reviews: CustomerReview[]) {
       };
     }
 
-    const now = new Date();
-    const currentYear = now.getFullYear();
+    // Calculate average rating from filtered reviews
+    const totalReviews = filteredReviews.length;
+    const averageRating = filteredReviews.reduce((sum, r) => sum + (r.overall_rating || 0), 0) / totalReviews;
+    const reviewsWithTags = filteredReviews.filter(r => r.tags && r.tags.length > 0).length;
+    const reviewsWithComments = filteredReviews.filter(r => r.customer_comment).length;
 
-    // Current year reviews
-    const currentReviews = reviews.filter(r => {
-      const date = new Date(r.review_date);
-      return date.getFullYear() === currentYear;
-    });
-
-    // Previous year reviews (N-1)
-    const previousReviews = reviews.filter(r => {
-      const date = new Date(r.review_date);
-      return date.getFullYear() === currentYear - 1;
-    });
-
-    // totalReviews = ALL reviews passed in (not just current year)
-    const totalReviews = reviews.length;
-    const averageRating = currentReviews.length > 0
-      ? currentReviews.reduce((sum, r) => sum + (r.overall_rating || 0), 0) / currentReviews.length
-      : 0;
-    const reviewsWithTags = reviews.filter(r => r.tags && r.tags.length > 0).length;
-    const reviewsWithComments = reviews.filter(r => r.customer_comment).length;
+    // Previous period reviews for comparison
+    let previousReviews: CustomerReview[] = [];
+    if (periodMode === "month" && selectedMonth && selectedYear) {
+      // Compare with same month last year
+      previousReviews = reviews.filter(r => {
+        const date = new Date(r.review_date);
+        return date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear - 1;
+      });
+    } else if (periodMode === "year" && selectedYear) {
+      // Compare with previous year
+      previousReviews = reviews.filter(r => {
+        const date = new Date(r.review_date);
+        return date.getFullYear() === selectedYear - 1;
+      });
+    }
 
     const previousTotalReviews = previousReviews.length;
     const previousAverageRating = previousReviews.length > 0 
@@ -133,27 +161,27 @@ export function useReviewsStats(reviews: CustomerReview[]) {
       previousTotalReviews,
       ratingVariation: hasPreviousPeriodData ? averageRating - previousAverageRating : 0,
       volumeVariation: hasPreviousPeriodData && previousTotalReviews > 0
-        ? ((currentReviews.length - previousTotalReviews) / previousTotalReviews) * 100 
+        ? ((totalReviews - previousTotalReviews) / previousTotalReviews) * 100 
         : 0,
       hasPreviousPeriodData
     };
-  }, [reviews]);
+  }, [filteredReviews, reviews, periodMode, selectedMonth, selectedYear]);
 
   const monthlyRatings = useMemo((): MonthlyRating[] => {
     const monthMap = new Map<string, { total: number; count: number; sortKey: number; monthIndex: number; year: number }>();
     const prevMonthMap = new Map<number, { total: number; count: number }>();
-    const now = new Date();
+    const targetYear = selectedYear || new Date().getFullYear();
 
     reviews.forEach(review => {
       const date = new Date(review.review_date);
       const year = date.getFullYear();
       const month = date.getMonth();
-      const isCurrentYear = year === now.getFullYear();
-      const isPrevYear = year === now.getFullYear() - 1;
+      const isCurrentYear = year === targetYear;
+      const isPrevYear = year === targetYear - 1;
 
       if (isCurrentYear) {
         const monthKey = format(date, "MMM yyyy", { locale: fr });
-        const sortKey = year * 100 + month; // e.g. 202506 for June 2025
+        const sortKey = year * 100 + month;
         const existing = monthMap.get(monthKey) || { total: 0, count: 0, sortKey, monthIndex: month, year };
         monthMap.set(monthKey, {
           total: existing.total + (review.overall_rating || 0),
@@ -187,12 +215,12 @@ export function useReviewsStats(reviews: CustomerReview[]) {
           year: data.year
         };
       })
-      .sort((a, b) => a.sortKey - b.sortKey) // Chronological order: June → November
-      .map(({ sortKey, ...rest }) => rest); // Remove sortKey from final output
-  }, [reviews]);
+      .sort((a, b) => a.sortKey - b.sortKey)
+      .map(({ sortKey, ...rest }) => rest);
+  }, [reviews, selectedYear]);
 
   const ratingDistribution = useMemo((): RatingDistribution[] => {
-    const now = new Date();
+    const targetYear = selectedYear || new Date().getFullYear();
     const distribution: Record<number, { current: number; previous: number }> = {
       5: { current: 0, previous: 0 },
       4: { current: 0, previous: 0 },
@@ -201,30 +229,49 @@ export function useReviewsStats(reviews: CustomerReview[]) {
       1: { current: 0, previous: 0 }
     };
 
-    reviews.forEach(review => {
+    // Use filteredReviews for current, all reviews for previous year comparison
+    filteredReviews.forEach(review => {
       const rating = Math.round(review.overall_rating || 0);
       if (rating >= 1 && rating <= 5) {
-        const date = new Date(review.review_date);
-        if (date.getFullYear() === now.getFullYear()) {
-          distribution[rating].current++;
-        } else if (date.getFullYear() === now.getFullYear() - 1) {
-          distribution[rating].previous++;
-        }
+        distribution[rating].current++;
       }
     });
+
+    // Previous period for comparison
+    if (periodMode === "month" && selectedMonth && selectedYear) {
+      reviews.filter(r => {
+        const date = new Date(r.review_date);
+        return date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear - 1;
+      }).forEach(review => {
+        const rating = Math.round(review.overall_rating || 0);
+        if (rating >= 1 && rating <= 5) {
+          distribution[rating].previous++;
+        }
+      });
+    } else {
+      reviews.filter(r => {
+        const date = new Date(r.review_date);
+        return date.getFullYear() === targetYear - 1;
+      }).forEach(review => {
+        const rating = Math.round(review.overall_rating || 0);
+        if (rating >= 1 && rating <= 5) {
+          distribution[rating].previous++;
+        }
+      });
+    }
 
     return [5, 4, 3, 2, 1].map(rating => ({
       rating,
       count: distribution[rating].current,
       previousCount: distribution[rating].previous
     }));
-  }, [reviews]);
+  }, [filteredReviews, reviews, periodMode, selectedMonth, selectedYear]);
 
   const dayStats = useMemo((): DayStats[] => {
     const dayMap = new Map<number, { total: number; count: number }>();
     const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
-    reviews.forEach(review => {
+    filteredReviews.forEach(review => {
       const date = new Date(review.review_date);
       const dayIndex = getDay(date);
       const existing = dayMap.get(dayIndex) || { total: 0, count: 0 };
@@ -245,12 +292,12 @@ export function useReviewsStats(reviews: CustomerReview[]) {
         count: data.count
       };
     });
-  }, [reviews]);
+  }, [filteredReviews]);
 
   const tagStats = useMemo((): { positive: TagStats[]; negative: TagStats[] } => {
     const tagCount = new Map<string, number>();
 
-    reviews.forEach(review => {
+    filteredReviews.forEach(review => {
       if (review.tags) {
         review.tags.forEach(tag => {
           tagCount.set(tag, (tagCount.get(tag) || 0) + 1);
@@ -277,7 +324,7 @@ export function useReviewsStats(reviews: CustomerReview[]) {
       .sort((a, b) => b.count - a.count);
 
     return { positive, negative };
-  }, [reviews]);
+  }, [filteredReviews]);
 
   return {
     stats,

@@ -22,7 +22,11 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
   const [showActions, setShowActions] = useState(true);
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear } = useAnalyticsContext();
-  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats } = useReviewsStats(reviews);
+  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats } = useReviewsStats(reviews, {
+    periodMode: periodMode as "year" | "month",
+    selectedMonth,
+    selectedYear
+  });
 
   // Fetch actions for the selected restaurants
   const { data: actions = [] } = useQuery({
