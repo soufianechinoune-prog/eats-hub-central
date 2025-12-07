@@ -37,9 +37,10 @@ interface RatingEvolutionChartProps {
   data: MonthlyRating[];
   actions?: Action[];
   showActions?: boolean;
+  onToggleActions?: () => void;
 }
 
-export function RatingEvolutionChart({ data, actions = [], showActions = true }: RatingEvolutionChartProps) {
+export function RatingEvolutionChart({ data, actions = [], showActions = true, onToggleActions }: RatingEvolutionChartProps) {
   const [chartType, setChartType] = useState<"line" | "bar">("line");
 
   // Calculate dynamic Y-axis domain based on data
@@ -203,6 +204,23 @@ export function RatingEvolutionChart({ data, actions = [], showActions = true }:
               <TooltipContent>Graphique barres</TooltipContent>
             </UITooltip>
           </TooltipProvider>
+          {onToggleActions && actions.length > 0 && (
+            <TooltipProvider>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={showActions ? "default" : "outline"}
+                    size="sm"
+                    onClick={onToggleActions}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Zap className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Afficher les actions</TooltipContent>
+              </UITooltip>
+            </TooltipProvider>
+          )}
         </div>
       </CardHeader>
       <CardContent>
