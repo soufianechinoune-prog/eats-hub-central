@@ -43,8 +43,9 @@ export function useCustomerReviews(
     queryFn: async () => {
       let query = supabase
         .from("customer_reviews")
-        .select("*")
-        .order("review_date", { ascending: false });
+        .select("*", { count: "exact" })
+        .order("review_date", { ascending: false })
+        .limit(10000); // Override default 1000 limit
 
       if (restaurantIds && restaurantIds.length > 0) {
         query = query.in("restaurant_id", restaurantIds);

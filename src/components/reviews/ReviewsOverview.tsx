@@ -7,8 +7,6 @@ import { TagsAnalysisChart } from "./TagsAnalysisChart";
 import { ReviewsHeatmap } from "./ReviewsHeatmap";
 import { RatingDistributionChart } from "./RatingDistributionChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -64,23 +62,12 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
         hasPreviousPeriodData={stats.hasPreviousPeriodData}
       />
 
-      {/* Toggle Actions */}
-      <div className="flex items-center justify-end gap-2">
-        <Switch
-          id="show-actions"
-          checked={showActions}
-          onCheckedChange={setShowActions}
-        />
-        <Label htmlFor="show-actions" className="text-sm text-muted-foreground cursor-pointer">
-          Afficher les actions
-        </Label>
-      </div>
-
       {/* Évolution de la Note */}
       <RatingEvolutionChart 
         data={monthlyRatings} 
         actions={actions}
         showActions={showActions}
+        onToggleActions={() => setShowActions(!showActions)}
       />
 
       {/* Volume et Distribution */}

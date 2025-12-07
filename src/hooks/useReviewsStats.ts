@@ -134,28 +134,31 @@ export function useReviewsStats(reviews: CustomerReview[]) {
   }, [reviews]);
 
   const monthlyRatings = useMemo((): MonthlyRating[] => {
-    const monthMap = new Map<string, { total: number; count: number }>();
-    const prevMonthMap = new Map<string, { total: number; count: number }>();
+    const monthMap = new Map<string, { total: number; count: number; sortKey: number }>();
+    const prevMonthMap = new Map<number, { total: number; count: number }>();
     const now = new Date();
 
     reviews.forEach(review => {
       const date = new Date(review.review_date);
-      const monthKey = format(date, "MMM yyyy", { locale: fr });
-      const isCurrentYear = date.getFullYear() === now.getFullYear();
-      const isPrevYear = date.getFullYear() === now.getFullYear() - 1;
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const isCurrentYear = year === now.getFullYear();
+      const isPrevYear = year === now.getFullYear() - 1;
 
       if (isCurrentYear) {
-        const existing = monthMap.get(monthKey) || { total: 0, count: 0 };
+        const monthKey = format(date, "MMM yyyy", { locale: fr });
+        const sortKey = year * 100 + month; // e.g. 202506 for June 2025
+        const existing = monthMap.get(monthKey) || { total: 0, count: 0, sortKey };
         monthMap.set(monthKey, {
           total: existing.total + (review.overall_rating || 0),
-          count: existing.count + 1
+          count: existing.count + 1,
+          sortKey
         });
       }
 
       if (isPrevYear) {
-        const prevMonthKey = format(date, "MMM", { locale: fr });
-        const existing = prevMonthMap.get(prevMonthKey) || { total: 0, count: 0 };
-        prevMonthMap.set(prevMonthKey, {
+        const existing = prevMonthMap.get(month) || { total: 0, count: 0 };
+        prevMonthMap.set(month, {
           total: existing.total + (review.overall_rating || 0),
           count: existing.count + 1
         });
@@ -163,22 +166,21 @@ export function useReviewsStats(reviews: CustomerReview[]) {
     });
 
     return Array.from(monthMap.entries())
-      .map(([month, data]) => {
-        const prevKey = month.split(" ")[0];
-        const prevData = prevMonthMap.get(prevKey);
+      .map(([monthLabel, data]) => {
+        // Extract month index from sortKey (e.g. 202506 % 100 = 6)
+        const monthIndex = data.sortKey % 100;
+        const prevData = prevMonthMap.get(monthIndex);
         return {
-          month,
+          month: monthLabel,
           rating: data.count > 0 ? data.total / data.count : 0,
           count: data.count,
           previousRating: prevData ? prevData.total / prevData.count : undefined,
-          previousCount: prevData?.count
+          previousCount: prevData?.count,
+          sortKey: data.sortKey
         };
       })
-      .sort((a, b) => {
-        const dateA = new Date(a.month);
-        const dateB = new Date(b.month);
-        return dateA.getTime() - dateB.getTime();
-      });
+      .sort((a, b) => a.sortKey - b.sortKey) // Chronological order: June → November
+      .map(({ sortKey, ...rest }) => rest); // Remove sortKey from final output
   }, [reviews]);
 
   const ratingDistribution = useMemo((): RatingDistribution[] => {
