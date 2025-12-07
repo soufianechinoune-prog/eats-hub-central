@@ -162,12 +162,10 @@ Deno.serve(async (req) => {
         h.includes('article')
       ),
       rating: headers.findIndex(h => 
-        h.includes('valeur de la note') ||
-        h.includes('note de l\'article') || 
-        h.includes('item rating') || 
-        h.includes('note_de_l\'article') || 
-        h.includes('note') || 
-        h.includes('rating')
+        h === 'valeur de la note' ||
+        h === 'item rating' ||
+        h === 'note de l\'article' ||
+        h === 'note_de_l\'article'
       ),
       tags: headers.findIndex(h => 
         h.includes('tags de notation') ||
