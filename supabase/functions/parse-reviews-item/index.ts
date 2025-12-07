@@ -87,9 +87,9 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { csvContent, dryRun = false } = await req.json();
+    const { csvContent, dryRun = false, restaurantId } = await req.json();
     
-    console.log('Parsing item-level reviews, dryRun:', dryRun);
+    console.log('Parsing item-level reviews, dryRun:', dryRun, 'restaurantId override:', restaurantId);
 
     const lines = csvContent.split('\n').filter((line: string) => line.trim());
     if (lines.length < 2) {
@@ -159,8 +159,20 @@ Deno.serve(async (req) => {
       const tagsStr = colMap.tags >= 0 ? values[colMap.tags] : '';
       const orderDateStr = colMap.orderDate >= 0 ? values[colMap.orderDate] : '';
 
-      // Find restaurant
-      const restaurant = storeIdToRestaurant.get(storeId);
+      // Find restaurant - priority to restaurantId override
+      let restaurant = null;
+      
+      if (restaurantId) {
+        // Use the manually selected restaurant for ALL rows
+        const override = (restaurants || []).find(r => r.id === restaurantId);
+        if (override) {
+          restaurant = { id: override.id, name: override.name };
+        }
+      } else {
+        // Fallback to storeId matching
+        restaurant = storeIdToRestaurant.get(storeId) ?? null;
+      }
+      
       if (!restaurant) {
         unknownStoreIds.add(storeId);
         stats.skipped++;
