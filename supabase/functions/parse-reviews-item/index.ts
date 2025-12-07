@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Parse date from format "24 nov. 2025" or "Nov 24, 2025"
+// Parse date from format "24 nov. 2025" or "Nov 24, 2025" or "2025-11-24"
 function parseDate(dateStr: string): string | null {
   if (!dateStr || dateStr.trim() === '') return null;
   
@@ -77,6 +77,16 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
+// Normalize restaurant name for matching
+function normalizeRestaurantName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove accents
+    .replace(/[^a-z0-9]/g, '') // Keep only alphanumeric
+    .trim();
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -106,15 +116,70 @@ Deno.serve(async (req) => {
 
     // Map column indices - support multiple naming conventions
     const colMap = {
-      orderId: headers.findIndex(h => h.includes('id. de la commande') || h.includes('order id') || h.includes('id de la commande')),
-      orderUuid: headers.findIndex(h => h.includes('uuid de la commande') || h.includes('order uuid') || h.includes('uuid_de_la_commande')),
-      storeId: headers.findIndex(h => h.includes('uuid de l\'établissement') || h.includes('store uuid') || h.includes('uuid_de_l\'etablissement') || h.includes('uuid de l\'etablissement')),
-      storeName: headers.findIndex(h => h.includes('nom de l\'établissement') || h.includes('store name') || h.includes('nom_de_l\'etablissement') || h.includes('nom de l\'etablissement')),
-      itemUuid: headers.findIndex(h => h.includes('uuid de l\'article') || h.includes('item uuid') || h.includes('uuid_de_l\'article') || h.includes('uuid de l\'article')),
-      itemTitle: headers.findIndex(h => h.includes('titre de l\'article') || h.includes('item title') || h.includes('titre_de_l\'article') || h.includes('titre de l\'article') || h.includes('nom de l\'article') || h.includes('item name') || h.includes('article')),
-      rating: headers.findIndex(h => h.includes('note de l\'article') || h.includes('item rating') || h.includes('note_de_l\'article') || h.includes('note') || h.includes('rating')),
-      tags: headers.findIndex(h => h.includes('balises') || h.includes('tags') || h.includes('tag')),
-      orderDate: headers.findIndex(h => h.includes('date de la commande') || h.includes('order date') || h.includes('date_de_la_commande')),
+      orderId: headers.findIndex(h => 
+        h.includes('id. de la commande') || 
+        h.includes('order id') || 
+        h.includes('id de la commande')
+      ),
+      orderUuid: headers.findIndex(h => 
+        h.includes('uuid de la commande') || 
+        h.includes('order uuid') || 
+        h.includes('uuid_de_la_commande')
+      ),
+      storeId: headers.findIndex(h => 
+        h.includes('id. externe du restaurant') ||
+        h.includes('uuid de l\'établissement') || 
+        h.includes('store uuid') || 
+        h.includes('uuid_de_l\'etablissement') || 
+        h.includes('uuid de l\'etablissement')
+      ),
+      storeName: headers.findIndex(h => 
+        h === 'restaurant' ||
+        h.includes('nom de l\'établissement') || 
+        h.includes('store name') || 
+        h.includes('nom_de_l\'etablissement') || 
+        h.includes('nom de l\'etablissement')
+      ),
+      itemExternalId: headers.findIndex(h =>
+        h.includes('id. externe de l\'article') ||
+        h.includes('external item id') ||
+        h.includes('id externe de l\'article')
+      ),
+      itemUuid: headers.findIndex(h => 
+        h.includes('uuid de l\'article') || 
+        h.includes('item uuid') || 
+        h.includes('uuid_de_l\'article') || 
+        h.includes('uuid de l\'article')
+      ),
+      itemTitle: headers.findIndex(h => 
+        h.includes('nom du plat') ||
+        h.includes('titre de l\'article') || 
+        h.includes('item title') || 
+        h.includes('titre_de_l\'article') || 
+        h.includes('titre de l\'article') || 
+        h.includes('nom de l\'article') || 
+        h.includes('item name') || 
+        h.includes('article')
+      ),
+      rating: headers.findIndex(h => 
+        h.includes('valeur de la note') ||
+        h.includes('note de l\'article') || 
+        h.includes('item rating') || 
+        h.includes('note_de_l\'article') || 
+        h.includes('note') || 
+        h.includes('rating')
+      ),
+      tags: headers.findIndex(h => 
+        h.includes('tags de notation') ||
+        h.includes('balises') || 
+        h.includes('tags') || 
+        h.includes('tag')
+      ),
+      orderDate: headers.findIndex(h => 
+        h.includes('date de la commande') || 
+        h.includes('order date') || 
+        h.includes('date_de_la_commande')
+      ),
     };
 
     console.log('Column mapping:', JSON.stringify(colMap));
@@ -122,18 +187,31 @@ Deno.serve(async (req) => {
     // Log first data row to debug
     if (lines.length > 1) {
       const firstDataRow = parseCSVLine(lines[1]);
-      console.log('First data row sample:', JSON.stringify(firstDataRow));
+      console.log('First data row sample:', JSON.stringify(firstDataRow.slice(0, 10)));
       console.log('itemTitle column index:', colMap.itemTitle, 'value:', firstDataRow[colMap.itemTitle]);
+      console.log('rating column index:', colMap.rating, 'value:', firstDataRow[colMap.rating]);
+      console.log('tags column index:', colMap.tags, 'value:', firstDataRow[colMap.tags]);
+      console.log('storeName column index:', colMap.storeName, 'value:', firstDataRow[colMap.storeName]);
     }
 
-    // Fetch all restaurants with uber_store_id
+    // Fetch all restaurants
     const { data: restaurants } = await supabase
       .from('restaurants')
-      .select('id, name, uber_store_id')
-      .not('uber_store_id', 'is', null);
+      .select('id, name, uber_store_id');
 
+    // Create lookup maps
     const storeIdToRestaurant = new Map(
-      (restaurants || []).map(r => [r.uber_store_id, { id: r.id, name: r.name }])
+      (restaurants || [])
+        .filter(r => r.uber_store_id)
+        .map(r => [r.uber_store_id, { id: r.id, name: r.name }])
+    );
+    
+    // Create normalized name lookup for fallback matching
+    const normalizedNameToRestaurant = new Map(
+      (restaurants || []).map(r => [
+        normalizeRestaurantName(r.name), 
+        { id: r.id, name: r.name }
+      ])
     );
 
     const stats = {
@@ -158,15 +236,20 @@ Deno.serve(async (req) => {
       
       stats.totalRows++;
 
-      const storeId = colMap.storeId >= 0 ? values[colMap.storeId] : '';
-      const orderUuid = colMap.orderUuid >= 0 ? values[colMap.orderUuid] : '';
-      const itemUuid = colMap.itemUuid >= 0 ? values[colMap.itemUuid] : '';
-      const itemTitle = colMap.itemTitle >= 0 ? values[colMap.itemTitle] : 'Article inconnu';
-      const ratingStr = colMap.rating >= 0 ? values[colMap.rating] : '';
-      const tagsStr = colMap.tags >= 0 ? values[colMap.tags] : '';
-      const orderDateStr = colMap.orderDate >= 0 ? values[colMap.orderDate] : '';
+      const storeId = colMap.storeId >= 0 ? values[colMap.storeId]?.trim() : '';
+      const storeName = colMap.storeName >= 0 ? values[colMap.storeName]?.trim() : '';
+      const orderUuid = colMap.orderUuid >= 0 ? values[colMap.orderUuid]?.trim() : '';
+      const itemExternalId = colMap.itemExternalId >= 0 ? values[colMap.itemExternalId]?.trim() : '';
+      const itemUuid = colMap.itemUuid >= 0 ? values[colMap.itemUuid]?.trim() : '';
+      const itemTitle = colMap.itemTitle >= 0 ? values[colMap.itemTitle]?.trim() : '';
+      const ratingStr = colMap.rating >= 0 ? values[colMap.rating]?.trim() : '';
+      const tagsStr = colMap.tags >= 0 ? values[colMap.tags]?.trim() : '';
+      const orderDateStr = colMap.orderDate >= 0 ? values[colMap.orderDate]?.trim() : '';
 
-      // Find restaurant - priority to restaurantId override
+      // Find restaurant - priority order:
+      // 1. restaurantId override (manual selection)
+      // 2. storeId matching (uber_store_id)
+      // 3. storeName normalized matching
       let restaurant = null;
       
       if (restaurantId) {
@@ -175,24 +258,44 @@ Deno.serve(async (req) => {
         if (override) {
           restaurant = { id: override.id, name: override.name };
         }
-      } else {
-        // Fallback to storeId matching
+      } 
+      
+      if (!restaurant && storeId) {
+        // Try storeId matching
         restaurant = storeIdToRestaurant.get(storeId) ?? null;
       }
       
+      if (!restaurant && storeName) {
+        // Fallback to normalized name matching
+        const normalizedCsvName = normalizeRestaurantName(storeName);
+        
+        // Try exact normalized match first
+        restaurant = normalizedNameToRestaurant.get(normalizedCsvName) ?? null;
+        
+        // If no exact match, try partial matching
+        if (!restaurant) {
+          for (const [normalizedDbName, r] of normalizedNameToRestaurant.entries()) {
+            if (normalizedDbName.includes(normalizedCsvName) || normalizedCsvName.includes(normalizedDbName)) {
+              restaurant = r;
+              break;
+            }
+          }
+        }
+      }
+      
       if (!restaurant) {
-        unknownStoreIds.add(storeId);
+        unknownStoreIds.add(storeId || storeName || 'unknown');
         stats.skipped++;
         skippedDetails.push({
           rowIndex: i + 1,
           reason: 'unknown_store',
-          details: `Store ID: ${storeId}`
+          details: `Store: ${storeName || storeId || 'N/A'}`
         });
         continue;
       }
 
       // Skip if no item info
-      if (!itemUuid && !itemTitle) {
+      if (!itemTitle && !itemUuid && !itemExternalId) {
         stats.skipped++;
         skippedDetails.push({
           rowIndex: i + 1,
@@ -215,7 +318,7 @@ Deno.serve(async (req) => {
         if (!dateEnd || orderDate > dateEnd) dateEnd = orderDate;
       }
 
-      // Parse rating (0 or 1 for item-level, convert to percentage or keep as is)
+      // Parse rating (0 or 1 for item-level)
       const rating = ratingStr !== '' ? parseInt(ratingStr, 10) : 0;
       
       // Parse tags
@@ -225,10 +328,13 @@ Deno.serve(async (req) => {
       const thumbUp = rating === 1 ? 1 : 0;
       const thumbDown = rating === 0 ? 1 : 0;
 
+      // Use external ID, then UUID, then row index as fallback for item_id
+      const itemId = itemExternalId || itemUuid || `row_${i}`;
+
       reviewsToInsert.push({
         restaurant_id: restaurant.id,
-        item_id: itemUuid || `unknown_${i}`,
-        item_title: itemTitle,
+        item_id: itemId,
+        item_title: itemTitle || 'Article inconnu',
         rating: rating,
         thumb_up: thumbUp,
         thumb_down: thumbDown,
