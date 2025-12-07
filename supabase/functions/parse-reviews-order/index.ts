@@ -98,9 +98,9 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { csvContent, dryRun = false } = await req.json();
+    const { csvContent, dryRun = false, restaurantId } = await req.json();
     
-    console.log('Parsing order-level reviews, dryRun:', dryRun);
+    console.log('Parsing order-level reviews, dryRun:', dryRun, 'restaurantId override:', restaurantId);
 
     const lines = csvContent.split('\n').filter((line: string) => line.trim());
     if (lines.length < 2) {
@@ -218,22 +218,33 @@ Deno.serve(async (req) => {
       const ratingDateStr = colMap.ratingDate >= 0 ? values[colMap.ratingDate]?.trim() : '';
       const eaterUuid = colMap.eaterUuid >= 0 ? values[colMap.eaterUuid]?.trim() : '';
 
-      // Find restaurant - first by store_id, then by name
-      let restaurant = storeId ? storeIdToRestaurant.get(storeId) : null;
+      // Use restaurantId override if provided, otherwise find by store_id/name
+      let restaurant: { id: string; name: string } | null = null;
+      
+      if (restaurantId) {
+        // Use the manually selected restaurant for ALL rows
+        const selectedRestaurant = (restaurants || []).find(r => r.id === restaurantId);
+        if (selectedRestaurant) {
+          restaurant = { id: selectedRestaurant.id, name: selectedRestaurant.name };
+        }
+      } else {
+        // Original logic: find by store_id, then by name
+        restaurant = storeId ? storeIdToRestaurant.get(storeId) ?? null : null;
 
-      // Fallback: search by name
-      if (!restaurant && storeName) {
-        const normalizedStoreName = normalizeName(storeName);
-        
-        // Exact match
-        restaurant = storeNameToRestaurant.get(normalizedStoreName);
-        
-        // Partial match if exact fails
-        if (!restaurant) {
-          for (const [name, r] of storeNameToRestaurant.entries()) {
-            if (normalizedStoreName.includes(name) || name.includes(normalizedStoreName)) {
-              restaurant = r;
-              break;
+        // Fallback: search by name
+        if (!restaurant && storeName) {
+          const normalizedStoreName = normalizeName(storeName);
+          
+          // Exact match
+          restaurant = storeNameToRestaurant.get(normalizedStoreName) ?? null;
+          
+          // Partial match if exact fails
+          if (!restaurant) {
+            for (const [name, r] of storeNameToRestaurant.entries()) {
+              if (normalizedStoreName.includes(name) || name.includes(normalizedStoreName)) {
+                restaurant = r;
+                break;
+              }
             }
           }
         }
