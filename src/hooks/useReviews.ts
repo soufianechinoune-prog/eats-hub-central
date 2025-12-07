@@ -45,7 +45,7 @@ export function useCustomerReviews(
         .from("customer_reviews")
         .select("*", { count: "exact" })
         .order("review_date", { ascending: false })
-        .limit(10000); // Override default 1000 limit
+        .range(0, 9999); // Use range to bypass PostgREST 1000 row limit
 
       if (restaurantIds && restaurantIds.length > 0) {
         query = query.in("restaurant_id", restaurantIds);
