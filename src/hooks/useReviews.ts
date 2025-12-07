@@ -32,6 +32,115 @@ export interface MenuItemReview {
   platform: string;
 }
 
+const PAGE_SIZE = 1000;
+
+// Helper to fetch all pages of customer reviews
+async function fetchAllCustomerReviews(
+  restaurantIds?: string[],
+  platform?: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<CustomerReview[]> {
+  const allData: CustomerReview[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("customer_reviews")
+      .select("*")
+      .order("review_date", { ascending: false })
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+    if (restaurantIds && restaurantIds.length > 0) {
+      query = query.in("restaurant_id", restaurantIds);
+    }
+
+    if (platform && platform !== "global") {
+      query = query.eq("platform", platform);
+    }
+
+    if (startDate) {
+      query = query.gte("review_date", startDate.toISOString().split("T")[0]);
+    }
+
+    if (endDate) {
+      query = query.lte("review_date", endDate.toISOString().split("T")[0]);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData.push(...(data as CustomerReview[]));
+      // If we got less than PAGE_SIZE, we've reached the end
+      if (data.length < PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
+// Helper to fetch all pages of menu item reviews
+async function fetchAllMenuItemReviews(
+  restaurantIds?: string[],
+  platform?: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<MenuItemReview[]> {
+  const allData: MenuItemReview[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("menu_item_reviews")
+      .select("*")
+      .order("review_date", { ascending: false })
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+    if (restaurantIds && restaurantIds.length > 0) {
+      query = query.in("restaurant_id", restaurantIds);
+    }
+
+    if (platform && platform !== "global") {
+      query = query.eq("platform", platform);
+    }
+
+    if (startDate) {
+      query = query.gte("review_date", startDate.toISOString().split("T")[0]);
+    }
+
+    if (endDate) {
+      query = query.lte("review_date", endDate.toISOString().split("T")[0]);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData.push(...(data as MenuItemReview[]));
+      if (data.length < PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 export function useCustomerReviews(
   restaurantIds?: string[],
   platform?: string,
@@ -40,34 +149,7 @@ export function useCustomerReviews(
 ) {
   return useQuery({
     queryKey: ["customer_reviews", restaurantIds, platform, startDate, endDate],
-    queryFn: async () => {
-      let query = supabase
-        .from("customer_reviews")
-        .select("*", { count: "exact" })
-        .order("review_date", { ascending: false })
-        .limit(50000);
-
-      if (restaurantIds && restaurantIds.length > 0) {
-        query = query.in("restaurant_id", restaurantIds);
-      }
-
-      if (platform && platform !== "global") {
-        query = query.eq("platform", platform);
-      }
-
-      if (startDate) {
-        query = query.gte("review_date", startDate.toISOString().split("T")[0]);
-      }
-
-      if (endDate) {
-        query = query.lte("review_date", endDate.toISOString().split("T")[0]);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as CustomerReview[];
-    },
+    queryFn: () => fetchAllCustomerReviews(restaurantIds, platform, startDate, endDate),
   });
 }
 
@@ -79,33 +161,6 @@ export function useMenuItemReviews(
 ) {
   return useQuery({
     queryKey: ["menu_item_reviews", restaurantIds, platform, startDate, endDate],
-    queryFn: async () => {
-      let query = supabase
-        .from("menu_item_reviews")
-        .select("*")
-        .order("review_date", { ascending: false })
-        .limit(50000);
-
-      if (restaurantIds && restaurantIds.length > 0) {
-        query = query.in("restaurant_id", restaurantIds);
-      }
-
-      if (platform && platform !== "global") {
-        query = query.eq("platform", platform);
-      }
-
-      if (startDate) {
-        query = query.gte("review_date", startDate.toISOString().split("T")[0]);
-      }
-
-      if (endDate) {
-        query = query.lte("review_date", endDate.toISOString().split("T")[0]);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as MenuItemReview[];
-    },
+    queryFn: () => fetchAllMenuItemReviews(restaurantIds, platform, startDate, endDate),
   });
 }
