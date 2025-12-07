@@ -262,8 +262,8 @@ export default function ReportImport() {
       return;
     }
 
-    // For sales_over_time and marketing_campaigns, restaurant selection is required
-    if ((reportType === "sales_over_time" || reportType === "marketing_campaigns") && !selectedRestaurantId) {
+    // For sales_over_time, marketing_campaigns, and reviews, restaurant selection is required
+    if ((reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item") && !selectedRestaurantId) {
       toast({
         title: "Restaurant requis",
         description: "Veuillez sélectionner un restaurant pour ce type de rapport",
@@ -295,8 +295,8 @@ export default function ReportImport() {
         dryRun: true,
       };
 
-      // Add restaurantId for sales_over_time and marketing_campaigns
-      if (reportType === "sales_over_time" || reportType === "marketing_campaigns") {
+      // Add restaurantId for sales_over_time, marketing_campaigns, and reviews
+      if (reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item") {
         body.restaurantId = selectedRestaurantId;
       }
 
@@ -412,8 +412,8 @@ export default function ReportImport() {
         dryRun: false,
       };
 
-      // Add restaurantId for sales_over_time and marketing_campaigns
-      if (reportType === "sales_over_time" || reportType === "marketing_campaigns") {
+      // Add restaurantId for sales_over_time, marketing_campaigns, and reviews
+      if (reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item") {
         body.restaurantId = selectedRestaurantId;
       }
 
@@ -753,7 +753,7 @@ export default function ReportImport() {
                   </div>
                   
                   {/* Sélecteur de restaurant pour les types qui le nécessitent */}
-                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns") && (
+                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item") && (
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium text-muted-foreground">Restaurant :</span>
                       <Select value={selectedRestaurantId} onValueChange={setSelectedRestaurantId}>
