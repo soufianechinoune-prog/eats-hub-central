@@ -364,7 +364,7 @@ export function RatingEvolutionChart({
                 strokeWidth={3}
                 dot={<CustomDot />}
                 activeDot={{ r: 7, strokeWidth: 0 }}
-                connectNulls={false}
+                connectNulls={true}
               />
 
               {/* Reference lines - only show if in visible range */}

@@ -116,6 +116,7 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
         monthIndex: selectedMonth - 1,
         year: selectedYear
       }))
+      .filter(d => d.count > 0)
       .sort((a, b) => parseInt(a.month) - parseInt(b.month));
   }, [reviews, periodMode, selectedMonth, selectedYear]);
 
