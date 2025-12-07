@@ -20,6 +20,7 @@ interface ReviewsOverviewProps {
 
 export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
   const [showActions, setShowActions] = useState(true);
+  const [chartType, setChartType] = useState<"line" | "bar">("line");
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear } = useAnalyticsContext();
   const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats } = useReviewsStats(reviews);
 
@@ -149,6 +150,8 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
         onBackToYear={handleBackToYear}
         onPrevMonth={handlePrevMonth}
         onNextMonth={handleNextMonth}
+        chartType={chartType}
+        onChartTypeChange={setChartType}
       />
 
       {/* Volume et Distribution */}
