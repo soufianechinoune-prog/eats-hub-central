@@ -57,14 +57,21 @@ function parseNumeric(value: string): number | null {
   return isNaN(num) ? null : num;
 }
 
-// Parse datetime from CSV format
+// Parse datetime from CSV format - supports both ISO and FR formats
 function parseDateTime(dateStr: string): string | null {
   if (!dateStr || dateStr.trim() === '') return null;
   
-  // Format: "01/11/2024 10:48:16" or "01/11/2024 10:48"
-  const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
-  if (match) {
-    const [_, day, month, year, hours, minutes, seconds = '00'] = match;
+  // Format ISO: "2025-11-01 00:02:54.000" or "2025-11-01T00:02:54.000"
+  const isoMatch = dateStr.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2}):(\d{2})/);
+  if (isoMatch) {
+    const [_, year, month, day, hours, minutes, seconds] = isoMatch;
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+00:00`;
+  }
+  
+  // Format FR: "01/11/2024 10:48:16" or "01/11/2024 10:48"
+  const frMatch = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (frMatch) {
+    const [_, day, month, year, hours, minutes, seconds = '00'] = frMatch;
     return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+00:00`;
   }
   return null;
@@ -242,9 +249,9 @@ serve(async (req) => {
         courier_departure_time: parseDateTime(getCol(row, 'heure de départ du coursier')),
         delivery_time: parseDateTime(getCol(row, 'heure de livraison')),
         total_delivery_time_minutes: parseNumeric(getCol(row, 'délai de livraison total')),
-        courier_wait_time_minutes: parseNumeric(getCol(row, 'temps d\'attente du coursier (restaurant)')),
-        avoidable_wait_time_minutes: parseNumeric(getCol(row, 'temps d\'attente du coursier pouvant être évité')),
-        customer_wait_time_minutes: parseNumeric(getCol(row, 'temps d\'attente du coursier (utilisateur d\'uber eats)')),
+        courier_wait_time_minutes: parseNumeric(getCol(row, 'temps d\'attente du coursier (restaurant)', 'temps d\'attente du coursier')),
+        avoidable_wait_time_minutes: parseNumeric(getCol(row, 'temps d\'attente du coursier pouvant être évité (restaurant)', 'temps d\'attente du coursier pouvant être évité')),
+        customer_wait_time_minutes: parseNumeric(getCol(row, 'temps d\'attente du coursier (utilisateur d\'uber eats)', 'temps d\'attente du coursier (client)')),
         total_prep_delivery_time_minutes: parseNumeric(getCol(row, 'temps total de préparation et de livraison')),
         total_order_duration_minutes: parseNumeric(getCol(row, 'durée de la commande')),
         multi_order_type: getCol(row, 'type de multi-commande') || null,
