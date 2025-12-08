@@ -128,10 +128,21 @@ export function OperationsAnalytics() {
     };
   }, [availabilityData]);
 
-  // Monthly evolution (for year view)
+  // Monthly evolution (for year view) - always show all 12 months
   const monthlyEvolution = useMemo(() => {
-    if (!availabilityData || availabilityData.length === 0) return [];
+    // Create all 12 months for the selected year
+    const allMonths = Array.from({ length: 12 }, (_, i) => ({
+      monthKey: `${selectedYear}-${String(i + 1).padStart(2, '0')}`,
+      displayDate: format(new Date(selectedYear, i, 1), "MMM", { locale: fr }),
+      availability: null as number | null,
+      offlineHours: null as number | null,
+      monthIndex: i + 1,
+      year: selectedYear,
+    }));
 
+    if (!availabilityData || availabilityData.length === 0) return allMonths;
+
+    // Aggregate real data by month
     const monthlyMap = new Map<string, { online: number; offline: number }>();
 
     availabilityData.forEach((d) => {
@@ -143,21 +154,20 @@ export function OperationsAnalytics() {
       });
     });
 
-    return Array.from(monthlyMap.entries())
-      .map(([monthKey, values]) => {
-        const total = values.online + values.offline;
-        const [year, month] = monthKey.split("-").map(Number);
+    // Merge real data into all months structure
+    return allMonths.map((month) => {
+      const data = monthlyMap.get(month.monthKey);
+      if (data) {
+        const total = data.online + data.offline;
         return {
-          monthKey,
-          displayDate: format(new Date(year, month - 1, 1), "MMM", { locale: fr }),
-          availability: total > 0 ? (values.online / total) * 100 : 100,
-          offlineHours: values.offline / 60,
-          monthIndex: month,
-          year,
+          ...month,
+          availability: total > 0 ? (data.online / total) * 100 : 100,
+          offlineHours: data.offline / 60,
         };
-      })
-      .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
-  }, [availabilityData]);
+      }
+      return month; // availability stays null
+    });
+  }, [availabilityData, selectedYear]);
 
   // Daily evolution (for month view / drill-down)
   const dailyEvolution = useMemo(() => {
@@ -222,10 +232,11 @@ export function OperationsAnalytics() {
     setPeriodMode("year");
   };
 
-  // Get dynamic Y-axis domain
+  // Get dynamic Y-axis domain (filter out null values)
   const getYAxisDomain = (): [number, number] => {
-    if (chartData.length === 0) return [90, 100];
-    const minValue = Math.min(...chartData.map(d => d.availability));
+    const validData = chartData.filter(d => d.availability !== null);
+    if (validData.length === 0) return [90, 100];
+    const minValue = Math.min(...validData.map(d => d.availability as number));
     const lowerBound = Math.max(0, Math.floor(minValue / 5) * 5 - 5);
     return [lowerBound, 100];
   };
@@ -482,12 +493,16 @@ export function OperationsAnalytics() {
                   <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
                   <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="displayDate" className="text-xs" />
+                  <XAxis dataKey="displayDate" className="text-xs" padding={{ left: 20, right: 20 }} />
                   <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        formatter={(value) => [`${Number(value).toFixed(1)}%`, "Disponibilité"]}
+                        formatter={(value) => 
+                          value !== null 
+                            ? [`${Number(value).toFixed(1)}%`, "Disponibilité"]
+                            : ["Pas de données", ""]
+                        }
                       />
                     }
                   />
@@ -498,6 +513,7 @@ export function OperationsAnalytics() {
                     strokeWidth={2}
                     dot={{ r: 4, fill: "hsl(var(--chart-2))", cursor: periodMode === "year" ? "pointer" : "default" }}
                     activeDot={{ r: 6, cursor: periodMode === "year" ? "pointer" : "default" }}
+                    connectNulls={true}
                   />
                 </LineChart>
               ) : (
@@ -506,18 +522,25 @@ export function OperationsAnalytics() {
                   <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
                   <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="displayDate" className="text-xs" />
+                  <XAxis dataKey="displayDate" className="text-xs" padding={{ left: 20, right: 20 }} />
                   <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        formatter={(value) => [`${Number(value).toFixed(1)}%`, "Disponibilité"]}
+                        formatter={(value) => 
+                          value !== null 
+                            ? [`${Number(value).toFixed(1)}%`, "Disponibilité"]
+                            : ["Pas de données", ""]
+                        }
                       />
                     }
                   />
                   <Bar dataKey="availability" radius={[4, 4, 0, 0]} cursor={periodMode === "year" ? "pointer" : "default"}>
                     {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={getBarColor(entry.availability)} />
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.availability !== null ? getBarColor(entry.availability) : "transparent"} 
+                      />
                     ))}
                   </Bar>
                 </BarChart>
