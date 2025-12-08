@@ -202,6 +202,13 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
+      // Check for downtime report headers
+      if (lines[i].includes("Ouverture du restaurant à") && 
+          lines[i].includes("Disponibilité du menu") &&
+          lines[i].includes("Restaurant en ligne")) {
+        headerRowIndex = i;
+        break;
+      }
     }
 
     if (headerRowIndex === -1) {
