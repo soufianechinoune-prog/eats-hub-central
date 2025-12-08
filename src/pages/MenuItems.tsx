@@ -77,6 +77,7 @@ import { MenuItemChangeConfirmDialog } from "@/components/menu/MenuItemChangeCon
 import { CatalogComparison } from "@/components/menu/CatalogComparison";
 import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
 import { ProductMatcher } from "@/components/menu/ProductMatcher";
+import { FoodCostManager } from "@/components/menu/FoodCostManager";
 import {
   DndContext,
   DragEndEvent,
@@ -434,7 +435,7 @@ export default function MenuItems() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "matcher">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "matcher" | "foodcost">("catalog");
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
   
@@ -919,7 +920,7 @@ export default function MenuItems() {
       </motion.div>
 
       {/* Tabs for Catalog / Comparison */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "matcher")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "matcher" | "foodcost")}>
         <TabsList>
           <TabsTrigger value="catalog" className="gap-2">
             <Package className="h-4 w-4" />
@@ -933,6 +934,10 @@ export default function MenuItems() {
             <Link2 className="h-4 w-4" />
             Matcher
           </TabsTrigger>
+          <TabsTrigger value="foodcost" className="gap-2">
+            <Calculator className="h-4 w-4" />
+            Food Cost
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="comparison" className="mt-6">
@@ -941,6 +946,10 @@ export default function MenuItems() {
 
         <TabsContent value="matcher" className="mt-6">
           <ProductMatcher menuItems={menuItems} onRefresh={fetchMenuItems} />
+        </TabsContent>
+
+        <TabsContent value="foodcost" className="mt-6">
+          <FoodCostManager menuItems={menuItems} onRefresh={fetchMenuItems} />
         </TabsContent>
 
         <TabsContent value="catalog" className="mt-6 space-y-6">
