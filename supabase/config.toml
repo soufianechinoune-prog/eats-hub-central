@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.parse-reviews-item]
 verify_jwt = false
+
+[functions.parse-downtime-report]
+verify_jwt = false
