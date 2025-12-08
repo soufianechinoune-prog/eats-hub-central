@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Clock, AlertTriangle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight, Timer, Ban } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Loader2, Clock, AlertTriangle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight, Timer, Ban, Target, CheckCircle2 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, addDays, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -18,6 +19,7 @@ import {
   Bar,
   Cell,
   ReferenceArea,
+  ReferenceLine,
   LabelList,
 } from "recharts";
 import {
@@ -49,6 +51,7 @@ export function WaitTimeAnalytics() {
 
   const [chartType, setChartType] = useState<"line" | "bar">("bar");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [targetMinutes, setTargetMinutes] = useState<number>(5);
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
@@ -133,6 +136,8 @@ export function WaitTimeAnalytics() {
         avgTotalWait: 0,
         nonDeliveredOrders: 0,
         totalOrders: 0,
+        ordersUnderTarget: 0,
+        percentUnderTarget: 0,
       };
     }
 
@@ -156,6 +161,11 @@ export function WaitTimeAnalytics() {
       (o) => o.order_status && o.order_status.toLowerCase() !== "completed" && o.order_status.toLowerCase() !== "terminée"
     );
 
+    // Orders under target (including those with 0 or null avoidable time)
+    const ordersUnderTarget = orderHistoryData.filter(
+      (o) => o.avoidable_wait_time_minutes === null || o.avoidable_wait_time_minutes <= targetMinutes
+    );
+
     return {
       avgAvoidableWait: avgAvoidable,
       ordersWithAvoidableWait: ordersWithAvoidable.length,
@@ -165,8 +175,12 @@ export function WaitTimeAnalytics() {
       avgTotalWait,
       nonDeliveredOrders: nonDelivered.length,
       totalOrders: orderHistoryData.length,
+      ordersUnderTarget: ordersUnderTarget.length,
+      percentUnderTarget: orderHistoryData.length > 0
+        ? (ordersUnderTarget.length / orderHistoryData.length) * 100
+        : 0,
     };
-  }, [orderHistoryData]);
+  }, [orderHistoryData, targetMinutes]);
 
   // Monthly evolution for year view
   const monthlyEvolution = useMemo(() => {
@@ -402,10 +416,10 @@ export function WaitTimeAnalytics() {
     return "hsl(var(--destructive))";
   };
 
-  const getBarColor = (value: number) => {
-    if (value <= 1) return "hsl(142, 76%, 30%)";
-    if (value <= 3) return "hsl(38, 92%, 50%)";
-    return "hsl(0, 84%, 50%)";
+  const getBarColor = (value: number | null) => {
+    if (value === null || value === 0) return "hsl(142, 76%, 36%)"; // Green for no wait
+    if (value <= targetMinutes) return "hsl(142, 76%, 36%)"; // Green - under target
+    return "hsl(0, 84%, 50%)"; // Red - over target
   };
 
   const getHeatmapColor = (waitMins: number) => {
@@ -441,7 +455,7 @@ export function WaitTimeAnalytics() {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -489,6 +503,24 @@ export function WaitTimeAnalytics() {
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Temps coursier total
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Objective KPI */}
+        <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl border-primary/30">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Objectif atteint (≤ {targetMinutes} min)
+            </CardTitle>
+            <CheckCircle2 className="h-5 w-5 text-chart-2" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-chart-2">
+              {kpis.percentUnderTarget.toFixed(1)}%
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {kpis.ordersUnderTarget.toLocaleString()} / {kpis.totalOrders.toLocaleString()} commandes
             </p>
           </CardContent>
         </Card>
@@ -549,23 +581,41 @@ export function WaitTimeAnalytics() {
               </div>
             ) : null}
           </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant={chartType === "line" ? "default" : "outline"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setChartType("line")}
-            >
-              <LineChartIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={chartType === "bar" ? "default" : "outline"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setChartType("bar")}
-            >
-              <BarChart3 className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-4">
+            {/* Objective Slider */}
+            <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-1.5">
+              <Target className="h-4 w-4 text-primary" />
+              <span className="text-sm text-muted-foreground whitespace-nowrap">Objectif:</span>
+              <Slider
+                value={[targetMinutes]}
+                onValueChange={([val]) => setTargetMinutes(val)}
+                min={0}
+                max={10}
+                step={0.5}
+                className="w-28"
+              />
+              <span className="text-sm font-semibold text-primary min-w-[3rem]">{targetMinutes} min</span>
+            </div>
+
+            {/* Chart type toggle */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant={chartType === "line" ? "default" : "outline"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setChartType("line")}
+              >
+                <LineChartIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={chartType === "bar" ? "default" : "outline"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setChartType("bar")}
+              >
+                <BarChart3 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="w-full">
@@ -583,18 +633,32 @@ export function WaitTimeAnalytics() {
                   style={{ cursor: isChartClickable() ? "pointer" : "default" }}
                   margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
                 >
-                  <ReferenceArea y1={0} y2={1} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
-                  <ReferenceArea y1={1} y2={3} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
-                  <ReferenceArea y1={3} y2={10} fill="hsl(var(--destructive))" fillOpacity={0.05} />
+                  <ReferenceArea y1={0} y2={targetMinutes} fill="hsl(142, 76%, 36%)" fillOpacity={0.1} />
+                  <ReferenceArea y1={targetMinutes} y2={15} fill="hsl(0, 84%, 50%)" fillOpacity={0.05} />
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey={getXAxisDataKey()} className="text-xs" tick={{ fontSize: 11 }} interval={selectedDay ? 1 : 0} />
-                  <YAxis className="text-xs" tickFormatter={(v) => `${v}min`} width={50} />
+                  <YAxis className="text-xs" tickFormatter={(v) => `${v}min`} width={50} domain={[0, 'auto']} />
+                  <ReferenceLine
+                    y={targetMinutes}
+                    stroke="hsl(var(--primary))"
+                    strokeDasharray="6 4"
+                    strokeWidth={2}
+                    label={{
+                      value: `Objectif: ${targetMinutes} min`,
+                      position: "insideTopRight",
+                      fill: "hsl(var(--primary))",
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}
+                  />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
                         formatter={(value, name, props) => {
                           if (value === null) return ["Pas de données", ""];
-                          return [`${Number(value).toFixed(1)} min`, "Temps évitable"];
+                          const numValue = Number(value);
+                          const status = numValue <= targetMinutes ? "✓ Objectif atteint" : "✗ Au-dessus objectif";
+                          return [`${numValue.toFixed(1)} min - ${status}`, "Temps évitable"];
                         }}
                       />
                     }
@@ -616,17 +680,34 @@ export function WaitTimeAnalytics() {
                   style={{ cursor: isChartClickable() ? "pointer" : "default" }}
                   margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
                 >
+                  <ReferenceArea y1={0} y2={targetMinutes} fill="hsl(142, 76%, 36%)" fillOpacity={0.08} />
+                  <ReferenceArea y1={targetMinutes} y2={15} fill="hsl(0, 84%, 50%)" fillOpacity={0.03} />
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey={getXAxisDataKey()} className="text-xs" tick={{ fontSize: 11 }} interval={selectedDay ? 1 : 0} />
-                  <YAxis className="text-xs" tickFormatter={(v) => `${v}min`} width={50} />
+                  <YAxis className="text-xs" tickFormatter={(v) => `${v}min`} width={50} domain={[0, 'auto']} />
+                  <ReferenceLine
+                    y={targetMinutes}
+                    stroke="hsl(var(--primary))"
+                    strokeDasharray="6 4"
+                    strokeWidth={2}
+                    label={{
+                      value: `Objectif: ${targetMinutes} min`,
+                      position: "insideTopRight",
+                      fill: "hsl(var(--primary))",
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}
+                  />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
                         formatter={(value, name, props) => {
                           if (value === null) return ["Pas de données", ""];
                           const entry = props.payload;
+                          const numValue = Number(value);
+                          const status = numValue <= targetMinutes ? "✓" : "✗";
                           return [
-                            `${Number(value).toFixed(1)} min${entry?.ordersWithAvoidable ? ` (${entry.ordersWithAvoidable} cmd)` : ''}`,
+                            `${numValue.toFixed(1)} min ${status}${entry?.ordersWithAvoidable ? ` (${entry.ordersWithAvoidable} cmd)` : ''}`,
                             "Temps évitable"
                           ];
                         }}
@@ -637,7 +718,7 @@ export function WaitTimeAnalytics() {
                     {chartData.map((entry: any, index: number) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={entry.avgAvoidableWait !== null ? getBarColor(entry.avgAvoidableWait) : "transparent"}
+                        fill={getBarColor(entry.avgAvoidableWait)}
                       />
                     ))}
                     <LabelList
