@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Clock, AlertTriangle, CheckCircle, TrendingDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Clock, AlertTriangle, CheckCircle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -12,12 +13,10 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
   BarChart,
   Bar,
   Cell,
-  Legend,
   ReferenceArea,
 } from "recharts";
 import {
@@ -43,7 +42,11 @@ export function OperationsAnalytics() {
     selectedYear,
     selectedMonth,
     periodMode,
+    setPeriodMode,
+    setSelectedMonth,
   } = useAnalyticsContext();
+
+  const [chartType, setChartType] = useState<"line" | "bar">("line");
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
@@ -125,7 +128,38 @@ export function OperationsAnalytics() {
     };
   }, [availabilityData]);
 
-  // Daily availability evolution
+  // Monthly evolution (for year view)
+  const monthlyEvolution = useMemo(() => {
+    if (!availabilityData || availabilityData.length === 0) return [];
+
+    const monthlyMap = new Map<string, { online: number; offline: number }>();
+
+    availabilityData.forEach((d) => {
+      const monthKey = format(parseISO(d.hour_start), "yyyy-MM");
+      const existing = monthlyMap.get(monthKey) || { online: 0, offline: 0 };
+      monthlyMap.set(monthKey, {
+        online: existing.online + d.online_minutes,
+        offline: existing.offline + d.offline_minutes,
+      });
+    });
+
+    return Array.from(monthlyMap.entries())
+      .map(([monthKey, values]) => {
+        const total = values.online + values.offline;
+        const [year, month] = monthKey.split("-").map(Number);
+        return {
+          monthKey,
+          displayDate: format(new Date(year, month - 1, 1), "MMM", { locale: fr }),
+          availability: total > 0 ? (values.online / total) * 100 : 100,
+          offlineHours: values.offline / 60,
+          monthIndex: month,
+          year,
+        };
+      })
+      .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+  }, [availabilityData]);
+
+  // Daily evolution (for month view / drill-down)
   const dailyEvolution = useMemo(() => {
     if (!availabilityData || availabilityData.length === 0) return [];
 
@@ -145,13 +179,62 @@ export function OperationsAnalytics() {
         const total = values.online + values.offline;
         return {
           date,
-          displayDate: format(parseISO(date), periodMode === "month" ? "d MMM" : "MMM", { locale: fr }),
+          displayDate: format(parseISO(date), "d", { locale: fr }),
           availability: total > 0 ? (values.online / total) * 100 : 100,
           offlineHours: values.offline / 60,
         };
       })
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, [availabilityData, periodMode]);
+  }, [availabilityData]);
+
+  // Select data based on period mode
+  const chartData = periodMode === "month" ? dailyEvolution : monthlyEvolution;
+
+  // Handle click on chart point for drill-down
+  const handleChartClick = (data: any) => {
+    if (periodMode === "year" && data?.activePayload?.[0]?.payload) {
+      const payload = data.activePayload[0].payload;
+      if (payload.monthIndex) {
+        setPeriodMode("month");
+        setSelectedMonth(payload.monthIndex);
+      }
+    }
+  };
+
+  // Navigation handlers
+  const handlePrevMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
+  const handleBackToYear = () => {
+    setPeriodMode("year");
+  };
+
+  // Get dynamic Y-axis domain
+  const getYAxisDomain = (): [number, number] => {
+    if (chartData.length === 0) return [90, 100];
+    const minValue = Math.min(...chartData.map(d => d.availability));
+    const lowerBound = Math.max(0, Math.floor(minValue / 5) * 5 - 5);
+    return [lowerBound, 100];
+  };
+
+  const getBarColor = (value: number) => {
+    if (value >= 98) return "hsl(var(--chart-2))";
+    if (value >= 95) return "hsl(var(--chart-4))";
+    return "hsl(var(--destructive))";
+  };
 
   // Hourly heatmap data (hour of day x day of week)
   const hourlyHeatmap = useMemo(() => {
@@ -337,8 +420,53 @@ export function OperationsAnalytics() {
 
       {/* Availability Evolution Chart */}
       <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
-        <CardHeader>
-          <CardTitle>Évolution du taux de disponibilité</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <div className="flex items-center gap-3">
+            {periodMode === "month" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBackToYear}
+                className="h-8 px-2"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Retour
+              </Button>
+            )}
+            <CardTitle>
+              {periodMode === "month"
+                ? format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM yyyy", { locale: fr })
+                : "Évolution du taux de disponibilité"}
+            </CardTitle>
+            {periodMode === "month" && (
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevMonth}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextMonth}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant={chartType === "line" ? "default" : "outline"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setChartType("line")}
+            >
+              <LineChartIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={chartType === "bar" ? "default" : "outline"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setChartType("bar")}
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <ChartContainer
@@ -348,31 +476,59 @@ export function OperationsAnalytics() {
             className="h-[300px]"
           >
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={dailyEvolution}>
-                <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
-                <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
-                <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="displayDate" className="text-xs" />
-                <YAxis domain={[90, 100]} className="text-xs" tickFormatter={(v) => `${v}%`} />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      formatter={(value) => [`${Number(value).toFixed(1)}%`, "Disponibilité"]}
-                    />
-                  }
-                />
-                <Line
-                  type="monotone"
-                  dataKey="availability"
-                  stroke="hsl(var(--chart-2))"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
+              {chartType === "line" ? (
+                <LineChart data={chartData} onClick={handleChartClick} style={{ cursor: periodMode === "year" ? "pointer" : "default" }}>
+                  <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
+                  <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
+                  <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="displayDate" className="text-xs" />
+                  <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) => [`${Number(value).toFixed(1)}%`, "Disponibilité"]}
+                      />
+                    }
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="availability"
+                    stroke="hsl(var(--chart-2))"
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: "hsl(var(--chart-2))", cursor: periodMode === "year" ? "pointer" : "default" }}
+                    activeDot={{ r: 6, cursor: periodMode === "year" ? "pointer" : "default" }}
+                  />
+                </LineChart>
+              ) : (
+                <BarChart data={chartData} onClick={handleChartClick} style={{ cursor: periodMode === "year" ? "pointer" : "default" }}>
+                  <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
+                  <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
+                  <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="displayDate" className="text-xs" />
+                  <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) => [`${Number(value).toFixed(1)}%`, "Disponibilité"]}
+                      />
+                    }
+                  />
+                  <Bar dataKey="availability" radius={[4, 4, 0, 0]} cursor={periodMode === "year" ? "pointer" : "default"}>
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={getBarColor(entry.availability)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              )}
             </ResponsiveContainer>
           </ChartContainer>
+          {periodMode === "year" && (
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              Cliquez sur un mois pour voir le détail jour par jour
+            </p>
+          )}
         </CardContent>
       </Card>
 
