@@ -1,7 +1,8 @@
+import { useState, useMemo } from "react";
 import { MenuItemReview } from "@/hooks/useReviews";
 import { useMenuItemReviewsStats, ITEM_TAG_LABELS } from "@/hooks/useMenuItemReviewsStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Star, ThumbsUp, Package } from "lucide-react";
+import { Star, ThumbsUp, Package, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -20,7 +21,13 @@ interface ReviewsMenuItemsProps {
   reviews: MenuItemReview[];
 }
 
+type SortField = "rank" | "name" | "rate" | "count" | "up" | "down";
+type SortDirection = "asc" | "desc";
+
 export function ReviewsMenuItems({ reviews }: ReviewsMenuItemsProps) {
+  const [sortField, setSortField] = useState<SortField>("rank");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
   const {
     monthlyApprovalRates,
     tagStats,
@@ -30,6 +37,56 @@ export function ReviewsMenuItems({ reviews }: ReviewsMenuItemsProps) {
     topProducts,
     flopProducts
   } = useMenuItemReviewsStats(reviews);
+
+  // Sorted product stats
+  const sortedProductStats = useMemo(() => {
+    return [...productStats].sort((a, b) => {
+      let comparison = 0;
+      const aIndex = productStats.indexOf(a);
+      const bIndex = productStats.indexOf(b);
+      
+      switch (sortField) {
+        case "rank":
+          comparison = aIndex - bIndex;
+          break;
+        case "name":
+          comparison = a.itemTitle.localeCompare(b.itemTitle);
+          break;
+        case "rate":
+          comparison = a.approvalRate - b.approvalRate;
+          break;
+        case "count":
+          comparison = a.count - b.count;
+          break;
+        case "up":
+          comparison = a.thumbsUp - b.thumbsUp;
+          break;
+        case "down":
+          comparison = a.thumbsDown - b.thumbsDown;
+          break;
+      }
+      
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [productStats, sortField, sortDirection]);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection(field === "rank" || field === "name" ? "asc" : "desc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />;
+    }
+    return sortDirection === "asc" 
+      ? <ArrowUp className="h-3.5 w-3.5 text-primary" />
+      : <ArrowDown className="h-3.5 w-3.5 text-primary" />;
+  };
 
   // Préparer les tags pour TagsAnalysisChart avec les bons labels
   const positiveTagsForChart = tagStats.positive.map(t => ({
@@ -129,43 +186,88 @@ export function ReviewsMenuItems({ reviews }: ReviewsMenuItemsProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Rang</TableHead>
-                  <TableHead>Plat</TableHead>
-                  <TableHead className="text-center">Taux</TableHead>
-                  <TableHead className="text-center">Nb. Avis</TableHead>
-                  <TableHead className="text-center">👍</TableHead>
-                  <TableHead className="text-center">👎</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 transition-colors select-none"
+                    onClick={() => handleSort("rank")}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      Rang <SortIcon field="rank" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 transition-colors select-none"
+                    onClick={() => handleSort("name")}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      Plat <SortIcon field="name" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-center cursor-pointer hover:bg-muted/50 transition-colors select-none"
+                    onClick={() => handleSort("rate")}
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      Taux <SortIcon field="rate" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-center cursor-pointer hover:bg-muted/50 transition-colors select-none"
+                    onClick={() => handleSort("count")}
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      Nb. Avis <SortIcon field="count" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-center cursor-pointer hover:bg-muted/50 transition-colors select-none"
+                    onClick={() => handleSort("up")}
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      👍 <SortIcon field="up" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-center cursor-pointer hover:bg-muted/50 transition-colors select-none"
+                    onClick={() => handleSort("down")}
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      👎 <SortIcon field="down" />
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {productStats.map((item, index) => (
-                  <TableRow key={item.itemId || item.itemTitle}>
-                    <TableCell className="font-medium">
-                      {index === 0 && "🥇"}
-                      {index === 1 && "🥈"}
-                      {index === 2 && "🥉"}
-                      {index > 2 && index + 1}
-                    </TableCell>
-                    <TableCell className="font-medium max-w-[200px] truncate">
-                      {item.itemTitle}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className={`font-semibold ${
-                        item.approvalRate >= 80 ? "text-emerald-600" :
-                        item.approvalRate >= 60 ? "text-amber-600" : "text-red-600"
-                      }`}>
-                        {item.approvalRate.toFixed(0)}%
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center">{item.count}</TableCell>
-                    <TableCell className="text-center text-emerald-600 font-medium">
-                      {item.thumbsUp}
-                    </TableCell>
-                    <TableCell className="text-center text-red-600 font-medium">
-                      {item.thumbsDown}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {sortedProductStats.map((item) => {
+                  const originalIndex = productStats.indexOf(item);
+                  return (
+                    <TableRow key={item.itemId || item.itemTitle}>
+                      <TableCell className="font-medium">
+                        {originalIndex === 0 && "🥇"}
+                        {originalIndex === 1 && "🥈"}
+                        {originalIndex === 2 && "🥉"}
+                        {originalIndex > 2 && originalIndex + 1}
+                      </TableCell>
+                      <TableCell className="font-medium max-w-[200px] truncate">
+                        {item.itemTitle}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className={`font-semibold ${
+                          item.approvalRate >= 80 ? "text-emerald-600" :
+                          item.approvalRate >= 60 ? "text-amber-600" : "text-red-600"
+                        }`}>
+                          {item.approvalRate.toFixed(0)}%
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">{item.count}</TableCell>
+                      <TableCell className="text-center text-emerald-600 font-medium">
+                        {item.thumbsUp}
+                      </TableCell>
+                      <TableCell className="text-center text-red-600 font-medium">
+                        {item.thumbsDown}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           ) : (
