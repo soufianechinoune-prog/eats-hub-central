@@ -152,8 +152,8 @@ serve(async (req) => {
     // Find column indices
     const colIndices: Record<string, number> = {};
     const columnMappings: Record<string, string[]> = {
-      restaurantName: ['Nom du restaurant', 'Restaurant Name'],
-      storeId: ['ID du magasin', 'Store ID'],
+      restaurantName: ['Restaurant', 'Nom du restaurant', 'Restaurant Name'],
+      storeId: ['Id. externe du restaurant', 'ID du magasin', 'Store ID', 'External Store ID'],
       hourStart: ['Ouverture du restaurant à', 'Restaurant Open At'],
       menuAvailability: ['Disponibilité du menu', 'Menu Availability'],
       online: ['Restaurant en ligne', 'Restaurant Online'],
