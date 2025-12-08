@@ -535,6 +535,47 @@ export type Database = {
         }
         Relationships: []
       }
+      hourly_availability: {
+        Row: {
+          created_at: string | null
+          hour_start: string
+          id: string
+          menu_availability_minutes: number
+          offline_minutes: number
+          online_minutes: number
+          platform: string
+          restaurant_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          hour_start: string
+          id?: string
+          menu_availability_minutes?: number
+          offline_minutes?: number
+          online_minutes?: number
+          platform?: string
+          restaurant_id: string
+        }
+        Update: {
+          created_at?: string | null
+          hour_start?: string
+          id?: string
+          menu_availability_minutes?: number
+          offline_minutes?: number
+          online_minutes?: number
+          platform?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hourly_availability_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_guide_screenshots: {
         Row: {
           guide_section_id: string

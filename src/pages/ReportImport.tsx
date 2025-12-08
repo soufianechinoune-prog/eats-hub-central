@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,14 @@ const REPORT_THEMES = [
     types: [
       { value: "reviews_order", label: "Avis par commande", description: "Notes globales et tags par commande (restaurant_rating_local)", icon: Star },
       { value: "reviews_item", label: "Avis par produit", description: "Notes et tags par article (restaurant_rating_sku_local)", icon: MessageSquare },
+    ]
+  },
+  {
+    id: "operations",
+    label: "Opérations",
+    icon: Clock,
+    types: [
+      { value: "downtime_report", label: "Temps d'inactivité", description: "Disponibilité horaire des restaurants (menu_downtime_local)", icon: Clock },
     ]
   }
 ];
@@ -287,7 +295,9 @@ export default function ReportImport() {
                 ? "parse-reviews-order"
                 : reportType === "reviews_item"
                   ? "parse-reviews-item"
-                  : "parse-payment-report";
+                  : reportType === "downtime_report"
+                    ? "parse-downtime-report"
+                    : "parse-payment-report";
       
       const body: Record<string, any> = {
         csvContent,
@@ -295,8 +305,8 @@ export default function ReportImport() {
         dryRun: true,
       };
 
-      // Add restaurantId for sales_over_time, marketing_campaigns, and reviews
-      if (reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item") {
+      // Add restaurantId for sales_over_time, marketing_campaigns, reviews, and downtime
+      if (reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item" || reportType === "downtime_report") {
         body.restaurantId = selectedRestaurantId;
       }
 
@@ -404,7 +414,9 @@ export default function ReportImport() {
                 ? "parse-reviews-order"
                 : reportType === "reviews_item"
                   ? "parse-reviews-item"
-                  : "parse-payment-report";
+                  : reportType === "downtime_report"
+                    ? "parse-downtime-report"
+                    : "parse-payment-report";
       
       const body: Record<string, any> = {
         csvContent,
@@ -412,8 +424,8 @@ export default function ReportImport() {
         dryRun: false,
       };
 
-      // Add restaurantId for sales_over_time, marketing_campaigns, and reviews
-      if (reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item") {
+      // Add restaurantId for sales_over_time, marketing_campaigns, reviews, and downtime
+      if (reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item" || reportType === "downtime_report") {
         body.restaurantId = selectedRestaurantId;
       }
 
@@ -436,7 +448,9 @@ export default function ReportImport() {
               ? `${importData.stats?.inserted || 0} versements importés`
               : reportType === "marketing_campaigns"
                 ? `${importData.stats?.inserted || 0} campagnes importées dans les actions`
-                : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
+                : reportType === "downtime_report"
+                  ? `${importData.stats?.inserted || 0} créneaux horaires importés`
+                  : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
         toast({
           title: "Import réussi",
           description: statsMessage,
