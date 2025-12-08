@@ -479,22 +479,32 @@ export function OperationsAnalytics() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="w-full">
           <ChartContainer
             config={{
               availability: { label: "Disponibilité", color: "hsl(var(--chart-2))" },
             }}
-            className="h-[300px]"
+            className="h-[300px] w-full"
           >
             <ResponsiveContainer width="100%" height="100%">
               {chartType === "line" ? (
-                <LineChart data={chartData} onClick={handleChartClick} style={{ cursor: periodMode === "year" ? "pointer" : "default" }}>
+                <LineChart 
+                  data={chartData} 
+                  onClick={handleChartClick} 
+                  style={{ cursor: periodMode === "year" ? "pointer" : "default" }}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                >
                   <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
                   <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
                   <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="displayDate" className="text-xs" padding={{ left: 20, right: 20 }} />
-                  <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} />
+                  <XAxis 
+                    dataKey="displayDate" 
+                    className="text-xs" 
+                    tick={{ fontSize: 11 }}
+                    interval={0}
+                  />
+                  <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} width={45} />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
@@ -517,13 +527,23 @@ export function OperationsAnalytics() {
                   />
                 </LineChart>
               ) : (
-                <BarChart data={chartData} onClick={handleChartClick} style={{ cursor: periodMode === "year" ? "pointer" : "default" }}>
+                <BarChart 
+                  data={chartData} 
+                  onClick={handleChartClick} 
+                  style={{ cursor: periodMode === "year" ? "pointer" : "default" }}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                >
                   <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
                   <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
                   <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="displayDate" className="text-xs" padding={{ left: 20, right: 20 }} />
-                  <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} />
+                  <XAxis 
+                    dataKey="displayDate" 
+                    className="text-xs" 
+                    tick={{ fontSize: 11 }}
+                    interval={0}
+                  />
+                  <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} width={45} />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
