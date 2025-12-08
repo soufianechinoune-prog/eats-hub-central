@@ -65,7 +65,13 @@ function parseCSVLine(line: string): string[] {
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
     if (char === '"') {
-      inQuotes = !inQuotes;
+      // Handle escaped double quotes ("" -> single ")
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++; // Skip the second quote
+      } else {
+        inQuotes = !inQuotes;
+      }
     } else if (char === ',' && !inQuotes) {
       result.push(current.trim());
       current = '';
@@ -152,20 +158,16 @@ Deno.serve(async (req) => {
         h.includes('uuid de l\'article')
       ),
       itemTitle: headers.findIndex(h => 
-        h.includes('nom du plat') ||
-        h.includes('titre de l\'article') || 
-        h.includes('item title') || 
-        h.includes('titre_de_l\'article') || 
-        h.includes('titre de l\'article') || 
-        h.includes('nom de l\'article') || 
-        h.includes('item name') || 
-        h.includes('article')
+        h === 'nom du plat' ||
+        h === 'titre de l\'article' || 
+        h === 'item title' || 
+        h === 'nom de l\'article' || 
+        h === 'item name'
       ),
       rating: headers.findIndex(h => 
         h === 'valeur de la note' ||
         h === 'item rating' ||
-        h === 'note de l\'article' ||
-        h === 'note_de_l\'article'
+        h === 'note de l\'article'
       ),
       tags: headers.findIndex(h => 
         h.includes('tags de notation') ||
@@ -182,15 +184,18 @@ Deno.serve(async (req) => {
 
     console.log('Column mapping:', JSON.stringify(colMap));
     
-    // Log first data row to debug
-    if (lines.length > 1) {
-      const firstDataRow = parseCSVLine(lines[1]);
-      console.log('First data row sample:', JSON.stringify(firstDataRow.slice(0, 10)));
-      console.log('itemTitle column index:', colMap.itemTitle, 'value:', firstDataRow[colMap.itemTitle]);
-      console.log('rating column index:', colMap.rating, 'value:', firstDataRow[colMap.rating]);
-      console.log('tags column index:', colMap.tags, 'value:', firstDataRow[colMap.tags]);
-      console.log('storeName column index:', colMap.storeName, 'value:', firstDataRow[colMap.storeName]);
+    // Log first 5 data rows to debug parsing
+    console.log('=== DETAILED PARSING DEBUG ===');
+    for (let debugIdx = 1; debugIdx <= Math.min(5, lines.length - 1); debugIdx++) {
+      const debugRow = parseCSVLine(lines[debugIdx]);
+      console.log(`Row ${debugIdx}: ${debugRow.length} columns`);
+      console.log(`  storeName[${colMap.storeName}]: "${debugRow[colMap.storeName]}"`);
+      console.log(`  itemTitle[${colMap.itemTitle}]: "${debugRow[colMap.itemTitle]}"`);
+      console.log(`  itemExternalId[${colMap.itemExternalId}]: "${debugRow[colMap.itemExternalId]}"`);
+      console.log(`  rating[${colMap.rating}]: "${debugRow[colMap.rating]}"`);
+      console.log(`  tags[${colMap.tags}]: "${debugRow[colMap.tags]}"`);
     }
+    console.log('=== END DEBUG ===')
 
     // Fetch all restaurants
     const { data: restaurants } = await supabase
