@@ -49,6 +49,11 @@ export function AnalyticsHeader() {
   const {
     selectedRestaurants,
     setSelectedRestaurants,
+    visibleRestaurants,
+    setVisibleRestaurants,
+    toggleRestaurantSelection,
+    addVisibleRestaurant,
+    removeVisibleRestaurant,
     selectedPlatform,
     setSelectedPlatform,
     selectedYear,
@@ -84,21 +89,21 @@ export function AnalyticsHeader() {
   const toggleRestaurant = (id: string) => {
     if (id === "all") {
       setSelectedRestaurants([]);
+      setVisibleRestaurants([]);
       return;
     }
-    const newSelection = selectedRestaurants.includes(id)
-      ? selectedRestaurants.filter((r) => r !== id)
-      : [...selectedRestaurants, id];
-    setSelectedRestaurants(newSelection);
+    // Add to visible and select
+    addVisibleRestaurant(id);
   };
 
-  const removeRestaurant = (id: string) => {
-    setSelectedRestaurants(selectedRestaurants.filter((r) => r !== id));
+  const handleClearAll = () => {
+    setSelectedRestaurants([]);
+    setVisibleRestaurants([]);
   };
 
-  const selectedRestaurantNames = restaurants
-    ?.filter((r) => selectedRestaurants.includes(r.id))
-    .map((r) => r.name) || [];
+  // Get names for visible restaurants
+  const visibleRestaurantData = restaurants
+    ?.filter((r) => visibleRestaurants.includes(r.id)) || [];
 
   const handleMonthSelect = (monthIndex: number) => {
     setPeriodMode("month");
@@ -157,11 +162,11 @@ export function AnalyticsHeader() {
               >
                 <div className="flex items-center gap-2">
                   <Store className="h-4 w-4 text-muted-foreground shrink-0" />
-                  {selectedRestaurants.length === 0 ? (
+                  {visibleRestaurants.length === 0 ? (
                     <span>Tous les restaurants</span>
                   ) : (
                     <span className="text-primary font-medium">
-                      {selectedRestaurants.length} restaurant{selectedRestaurants.length > 1 ? "s" : ""} sélectionné{selectedRestaurants.length > 1 ? "s" : ""}
+                      {visibleRestaurants.length} restaurant{visibleRestaurants.length > 1 ? "s" : ""} affiché{visibleRestaurants.length > 1 ? "s" : ""}
                     </span>
                   )}
                 </div>
@@ -181,7 +186,7 @@ export function AnalyticsHeader() {
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          selectedRestaurants.length === 0 ? "opacity-100" : "opacity-0"
+                          visibleRestaurants.length === 0 ? "opacity-100" : "opacity-0"
                         )}
                       />
                       <span className="font-medium">Tous les restaurants</span>
@@ -195,7 +200,7 @@ export function AnalyticsHeader() {
                         <Check
                           className={cn(
                             "mr-2 h-4 w-4",
-                            selectedRestaurants.includes(restaurant.id)
+                            visibleRestaurants.includes(restaurant.id)
                               ? "opacity-100"
                               : "opacity-0"
                           )}
@@ -440,36 +445,30 @@ export function AnalyticsHeader() {
         </div>
       </div>
 
-      {/* Selected Restaurants Display */}
-      {selectedRestaurants.length > 0 && (
+      {/* Visible Restaurants Display */}
+      {visibleRestaurants.length > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-sm text-muted-foreground">Restaurants sélectionnés:</span>
-          {selectedRestaurantNames.map((name, index) => {
-            const restaurantId = selectedRestaurants[index];
-            const isActive = selectedRestaurants.length === 1;
+          <span className="text-sm text-muted-foreground">Restaurants:</span>
+          {visibleRestaurantData.map((restaurant) => {
+            const isSelected = selectedRestaurants.includes(restaurant.id);
             
             return (
-              <Tooltip key={restaurantId}>
+              <Tooltip key={restaurant.id}>
                 <TooltipTrigger asChild>
                   <Badge 
                     variant="secondary" 
                     className={`gap-1 py-1 px-3 cursor-pointer transition-all duration-200 ${
-                      isActive 
+                      isSelected 
                         ? "bg-primary text-primary-foreground ring-2 ring-primary/30" 
-                        : "hover:bg-primary/20 hover:ring-1 hover:ring-primary/50"
+                        : "bg-muted text-muted-foreground opacity-60 hover:opacity-80"
                     }`}
-                    onClick={() => {
-                      // Ne pas désélectionner si c'est le seul restaurant
-                      if (selectedRestaurants.length > 1) {
-                        removeRestaurant(restaurantId);
-                      }
-                    }}
+                    onClick={() => toggleRestaurantSelection(restaurant.id)}
                   >
-                    <span className="font-medium">{name}</span>
+                    <span className="font-medium">{restaurant.name}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeRestaurant(restaurantId);
+                        removeVisibleRestaurant(restaurant.id);
                       }}
                       className="ml-1 hover:text-destructive transition-colors"
                     >
@@ -478,18 +477,18 @@ export function AnalyticsHeader() {
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">
-                  {selectedRestaurants.length > 1 
-                    ? "Cliquer pour voir uniquement ce restaurant" 
-                    : "Restaurant actuellement sélectionné"}
+                  {isSelected 
+                    ? "Cliquer pour désélectionner (données exclues)" 
+                    : "Cliquer pour re-sélectionner (données incluses)"}
                 </TooltipContent>
               </Tooltip>
             );
           })}
-          {selectedRestaurants.length > 1 && (
+          {visibleRestaurants.length > 1 && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSelectedRestaurants([])}
+              onClick={handleClearAll}
               className="text-xs h-6 text-muted-foreground hover:text-foreground"
             >
               Effacer tout
