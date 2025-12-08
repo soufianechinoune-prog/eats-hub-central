@@ -299,12 +299,26 @@ serve(async (req) => {
       recordsToUpsert.push(record);
     }
 
+    // Deduplicate records by composite key (restaurant_id + uber_order_id)
+    // This prevents "ON CONFLICT DO UPDATE command cannot affect row a second time" errors
+    const uniqueRecords = new Map<string, typeof recordsToUpsert[0]>();
+    for (const record of recordsToUpsert) {
+      const key = `${record.restaurant_id}|${record.uber_order_id}`;
+      // Keep last occurrence (override previous)
+      uniqueRecords.set(key, record);
+    }
+    const deduplicatedRecords = Array.from(uniqueRecords.values());
+    const duplicatesRemoved = recordsToUpsert.length - deduplicatedRecords.length;
+    if (duplicatesRemoved > 0) {
+      console.log(`Deduplicated: ${recordsToUpsert.length} -> ${deduplicatedRecords.length} records (${duplicatesRemoved} duplicates removed)`);
+    }
+
     // Upsert records if not dry run
-    if (!dryRun && recordsToUpsert.length > 0) {
+    if (!dryRun && deduplicatedRecords.length > 0) {
       // Process in batches of 500
       const batchSize = 500;
-      for (let i = 0; i < recordsToUpsert.length; i += batchSize) {
-        const batch = recordsToUpsert.slice(i, i + batchSize);
+      for (let i = 0; i < deduplicatedRecords.length; i += batchSize) {
+        const batch = deduplicatedRecords.slice(i, i + batchSize);
         
         const { error: upsertError, count } = await supabase
           .from('order_history')
@@ -322,7 +336,7 @@ serve(async (req) => {
         }
       }
     } else if (dryRun) {
-      result.stats.inserted = recordsToUpsert.length;
+      result.stats.inserted = deduplicatedRecords.length;
     }
 
     // Set date range
