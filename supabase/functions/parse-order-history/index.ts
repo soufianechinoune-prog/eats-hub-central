@@ -11,10 +11,10 @@ interface ParseResult {
   reportType: string;
   stats: {
     totalRows: number;
-    insertedCount: number;
-    updatedCount: number;
-    skippedCount: number;
-    errorCount: number;
+    inserted: number;
+    updated: number;
+    skipped: number;
+    errors: number;
   };
   dateRange?: {
     start: string;
@@ -149,10 +149,10 @@ serve(async (req) => {
       reportType: 'order-history',
       stats: {
         totalRows: 0,
-        insertedCount: 0,
-        updatedCount: 0,
-        skippedCount: 0,
-        errorCount: 0,
+        inserted: 0,
+        updated: 0,
+        skipped: 0,
+        errors: 0,
       },
       restaurants: [],
       errors: [],
@@ -172,7 +172,7 @@ serve(async (req) => {
 
       const uberOrderId = getCol(row, 'id. de la commande', 'id de la commande');
       if (!uberOrderId) {
-        result.stats.skippedCount++;
+        result.stats.skipped++;
         continue;
       }
 
@@ -203,7 +203,7 @@ serve(async (req) => {
       }
 
       if (!matchedRestaurant) {
-        result.stats.skippedCount++;
+        result.stats.skipped++;
         result.errors?.push(`Row ${i + 1}: Restaurant not found`);
         continue;
       }
@@ -275,13 +275,13 @@ serve(async (req) => {
         if (upsertError) {
           console.error('Upsert error:', upsertError);
           result.errors?.push(`Batch ${Math.floor(i / batchSize) + 1}: ${upsertError.message}`);
-          result.stats.errorCount += batch.length;
+          result.stats.errors += batch.length;
         } else {
-          result.stats.insertedCount += batch.length;
+          result.stats.inserted += batch.length;
         }
       }
     } else if (dryRun) {
-      result.stats.insertedCount = recordsToUpsert.length;
+      result.stats.inserted = recordsToUpsert.length;
     }
 
     // Set date range
@@ -309,7 +309,7 @@ serve(async (req) => {
         success: false, 
         error: errorMessage,
         reportType: 'order-history',
-        stats: { totalRows: 0, insertedCount: 0, updatedCount: 0, skippedCount: 0, errorCount: 0 },
+        stats: { totalRows: 0, inserted: 0, updated: 0, skipped: 0, errors: 0 },
         restaurants: [],
       }),
       { 
