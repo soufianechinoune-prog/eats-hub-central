@@ -66,9 +66,18 @@ export function WaitTimeAnalytics() {
   }, [selectedYear, selectedMonth, periodMode]);
 
   // Fetch order history data with pagination
+  // Use JSON.stringify for selectedRestaurants to ensure React Query cache invalidation
+  const selectedRestaurantsKey = JSON.stringify(selectedRestaurants.slice().sort());
+  
   const { data: orderHistoryData, isLoading } = useQuery({
-    queryKey: ["order_history_wait_times", selectedRestaurants, selectedPlatform, dateRange.start, dateRange.end],
+    queryKey: ["order_history_wait_times", selectedRestaurantsKey, selectedPlatform, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
     queryFn: async () => {
+      console.log("[WaitTime] ===== FETCHING DATA =====");
+      console.log("[WaitTime] Selected restaurants:", selectedRestaurants);
+      console.log("[WaitTime] Selected restaurants count:", selectedRestaurants.length);
+      console.log("[WaitTime] Date range:", format(dateRange.start, "yyyy-MM-dd"), "to", format(dateRange.end, "yyyy-MM-dd"));
+      console.log("[WaitTime] Platform:", selectedPlatform);
+      
       const PAGE_SIZE = 1000;
       let allData: OrderHistoryData[] = [];
       let page = 0;
@@ -104,6 +113,11 @@ export function WaitTimeAnalytics() {
       }
 
       console.log("[WaitTime] Total fetched:", allData.length);
+      
+      // Log unique restaurant IDs in the data
+      const uniqueRestaurantIds = [...new Set(allData.map(d => d.restaurant_id))];
+      console.log("[WaitTime] Unique restaurant IDs in data:", uniqueRestaurantIds);
+      
       return allData as OrderHistoryData[];
     },
   });
@@ -193,7 +207,10 @@ export function WaitTimeAnalytics() {
       year: selectedYear,
     }));
 
-    if (!orderHistoryData || orderHistoryData.length === 0) return allMonths;
+    if (!orderHistoryData || orderHistoryData.length === 0) {
+      console.log("[WaitTime] monthlyEvolution: No data, returning empty months");
+      return allMonths;
+    }
 
     const monthlyMap = new Map<string, { total: number; withAvoidable: number; sumAvoidable: number }>();
 
@@ -209,7 +226,9 @@ export function WaitTimeAnalytics() {
       monthlyMap.set(monthKey, existing);
     });
 
-    return allMonths.map((month) => {
+    console.log("[WaitTime] Monthly data distribution:", Object.fromEntries(monthlyMap));
+
+    const result = allMonths.map((month) => {
       const data = monthlyMap.get(month.monthKey);
       if (data && data.total > 0) {
         return {
@@ -220,6 +239,10 @@ export function WaitTimeAnalytics() {
       }
       return month;
     });
+    
+    console.log("[WaitTime] monthlyEvolution result:", result.map(m => ({ month: m.displayDate, avg: m.avgAvoidableWait })));
+    
+    return result;
   }, [orderHistoryData, selectedYear]);
 
   // Daily evolution for month view
@@ -718,7 +741,8 @@ export function WaitTimeAnalytics() {
                     {chartData.map((entry: any, index: number) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={getBarColor(entry.avgAvoidableWait)}
+                        fill={entry.avgAvoidableWait === null ? "transparent" : getBarColor(entry.avgAvoidableWait)}
+                        stroke={entry.avgAvoidableWait === null ? "transparent" : "#fff"}
                       />
                     ))}
                     <LabelList
