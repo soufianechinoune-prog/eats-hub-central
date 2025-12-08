@@ -241,11 +241,15 @@ export function OperationsAnalytics() {
     return [lowerBound, 100];
   };
 
+  // Use darker, more contrasting colors for bars
   const getBarColor = (value: number) => {
-    if (value >= 98) return "hsl(var(--chart-2))";
-    if (value >= 95) return "hsl(var(--chart-4))";
-    return "hsl(var(--destructive))";
+    if (value >= 98) return "hsl(142, 76%, 30%)"; // Vert foncé contrasté
+    if (value >= 95) return "hsl(38, 92%, 50%)";  // Orange/ambre
+    return "hsl(0, 84%, 50%)";                     // Rouge
   };
+
+  // Debug log pour vérifier les données agrégées
+  console.log("[Operations] monthlyEvolution:", monthlyEvolution);
 
   // Hourly heatmap data (hour of day x day of week)
   const hourlyHeatmap = useMemo(() => {
@@ -533,9 +537,9 @@ export function OperationsAnalytics() {
                   style={{ cursor: periodMode === "year" ? "pointer" : "default" }}
                   margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 >
-                  <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
-                  <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
-                  <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
+                  <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.03} />
+                  <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.03} />
+                  <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.02} />
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis 
                     dataKey="displayDate" 
@@ -555,7 +559,13 @@ export function OperationsAnalytics() {
                       />
                     }
                   />
-                  <Bar dataKey="availability" radius={[4, 4, 0, 0]} cursor={periodMode === "year" ? "pointer" : "default"}>
+                  <Bar 
+                    dataKey="availability" 
+                    radius={[4, 4, 0, 0]} 
+                    cursor={periodMode === "year" ? "pointer" : "default"}
+                    stroke="#fff"
+                    strokeWidth={1}
+                  >
                     {chartData.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
