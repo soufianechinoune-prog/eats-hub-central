@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Clock, AlertTriangle, CheckCircle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Clock, AlertTriangle, CheckCircle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight, Timer, Store } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, addDays, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -25,6 +26,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { WaitTimeAnalytics } from "./WaitTimeAnalytics";
 
 interface AvailabilityData {
   id: string;
@@ -47,6 +49,7 @@ export function OperationsAnalytics() {
     setSelectedMonth,
   } = useAnalyticsContext();
 
+  const [activeTab, setActiveTab] = useState<"availability" | "waitTime">("availability");
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [selectedDay, setSelectedDay] = useState<string | null>(null); // format "yyyy-MM-dd"
 
@@ -497,7 +500,24 @@ export function OperationsAnalytics() {
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
+      {/* Sub-tabs for Operations */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "availability" | "waitTime")} className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="availability" className="flex items-center gap-2">
+            <Store className="h-4 w-4" />
+            Disponibilité
+          </TabsTrigger>
+          <TabsTrigger value="waitTime" className="flex items-center gap-2">
+            <Timer className="h-4 w-4" />
+            Temps d'attente
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="waitTime" className="mt-6">
+          <WaitTimeAnalytics />
+        </TabsContent>
+
+        <TabsContent value="availability" className="mt-6 space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -906,6 +926,8 @@ export function OperationsAnalytics() {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
