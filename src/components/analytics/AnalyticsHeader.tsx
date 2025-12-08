@@ -444,17 +444,42 @@ export function AnalyticsHeader() {
       {selectedRestaurants.length > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-sm text-muted-foreground">Restaurants sélectionnés:</span>
-          {selectedRestaurantNames.map((name, index) => (
-            <Badge key={selectedRestaurants[index]} variant="secondary" className="gap-1 py-1 px-2">
-              {name}
-              <button
-                onClick={() => removeRestaurant(selectedRestaurants[index])}
-                className="ml-1 hover:text-destructive transition-colors"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
+          {selectedRestaurantNames.map((name, index) => {
+            const restaurantId = selectedRestaurants[index];
+            const isActive = selectedRestaurants.length === 1;
+            
+            return (
+              <Tooltip key={restaurantId}>
+                <TooltipTrigger asChild>
+                  <Badge 
+                    variant="secondary" 
+                    className={`gap-1 py-1 px-3 cursor-pointer transition-all duration-200 ${
+                      isActive 
+                        ? "bg-primary text-primary-foreground ring-2 ring-primary/30" 
+                        : "hover:bg-primary/20 hover:ring-1 hover:ring-primary/50"
+                    }`}
+                    onClick={() => setSelectedRestaurants([restaurantId])}
+                  >
+                    <span className="font-medium">{name}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeRestaurant(restaurantId);
+                      }}
+                      className="ml-1 hover:text-destructive transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {selectedRestaurants.length > 1 
+                    ? "Cliquer pour voir uniquement ce restaurant" 
+                    : "Restaurant actuellement sélectionné"}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
           {selectedRestaurants.length > 1 && (
             <Button
               variant="ghost"
