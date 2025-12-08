@@ -65,23 +65,32 @@ export function OperationsAnalytics() {
   const { data: availabilityData, isLoading } = useQuery({
     queryKey: ["hourly_availability", selectedRestaurants, selectedPlatform, dateRange.start, dateRange.end],
     queryFn: async () => {
+      console.log("[Operations] Query params:", {
+        selectedRestaurants,
+        selectedPlatform,
+        dateStart: format(dateRange.start, "yyyy-MM-dd"),
+        dateEnd: format(dateRange.end, "yyyy-MM-dd'T'23:59:59"),
+      });
+
       let query = supabase
         .from("hourly_availability")
         .select("*")
         .gte("hour_start", format(dateRange.start, "yyyy-MM-dd"))
         .lte("hour_start", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"));
 
+      // Only filter by restaurant if specific restaurants are selected
       if (selectedRestaurants.length > 0) {
         query = query.in("restaurant_id", selectedRestaurants);
       }
 
-      if (selectedPlatform && selectedPlatform !== "uber_eats" && selectedPlatform !== "deliveroo") {
-        // Filter by specific platform if needed (currently hourly_availability has platform field)
-      } else if (selectedPlatform) {
+      // Filter by platform - only uber_eats and deliveroo are valid platform values
+      if (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") {
         query = query.eq("platform", selectedPlatform);
       }
+      // If "Global" or other, don't filter by platform (show all)
 
       const { data, error } = await query;
+      console.log("[Operations] Query result:", { count: data?.length, error });
       if (error) throw error;
       return (data || []) as AvailabilityData[];
     },
