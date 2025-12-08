@@ -78,6 +78,7 @@ import { CatalogComparison } from "@/components/menu/CatalogComparison";
 import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
 import { ProductMatcher } from "@/components/menu/ProductMatcher";
 import { FoodCostManager } from "@/components/menu/FoodCostManager";
+import { OfferSimulator } from "@/components/menu/OfferSimulator";
 import {
   DndContext,
   DragEndEvent,
@@ -435,7 +436,7 @@ export default function MenuItems() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "matcher" | "foodcost">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "matcher" | "foodcost" | "simulator">("catalog");
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
   
@@ -920,7 +921,7 @@ export default function MenuItems() {
       </motion.div>
 
       {/* Tabs for Catalog / Comparison */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "matcher" | "foodcost")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "matcher" | "foodcost" | "simulator")}>
         <TabsList>
           <TabsTrigger value="catalog" className="gap-2">
             <Package className="h-4 w-4" />
@@ -938,6 +939,10 @@ export default function MenuItems() {
             <Calculator className="h-4 w-4" />
             Food Cost
           </TabsTrigger>
+          <TabsTrigger value="simulator" className="gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Simulateur
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="comparison" className="mt-6">
@@ -950,6 +955,10 @@ export default function MenuItems() {
 
         <TabsContent value="foodcost" className="mt-6">
           <FoodCostManager menuItems={menuItems} onRefresh={fetchMenuItems} />
+        </TabsContent>
+
+        <TabsContent value="simulator" className="mt-6">
+          <OfferSimulator menuItems={menuItems} />
         </TabsContent>
 
         <TabsContent value="catalog" className="mt-6 space-y-6">

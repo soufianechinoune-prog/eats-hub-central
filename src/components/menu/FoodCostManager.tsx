@@ -417,15 +417,15 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                     <TableHead className="font-semibold">Produit</TableHead>
                     <TableHead className="font-semibold">Catégorie</TableHead>
                     <TableHead className="font-semibold text-center">
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center justify-center gap-1.5">
                         <UberEatsIcon className="h-4 w-4" />
-                        Prix
+                        <span className="text-orange-600">Prix Uber</span>
                       </div>
                     </TableHead>
                     <TableHead className="font-semibold text-center">
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center justify-center gap-1.5">
                         <DeliverooIcon className="h-4 w-4" />
-                        Prix
+                        <span className="text-teal-600">Prix Deliveroo</span>
                       </div>
                     </TableHead>
                     <TableHead className="font-semibold text-center">
