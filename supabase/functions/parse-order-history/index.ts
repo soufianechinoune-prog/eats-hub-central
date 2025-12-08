@@ -87,6 +87,35 @@ function normalizeRestaurantName(name: string): string {
     .trim();
 }
 
+// Find restaurant by partial name matching (extract city/suffix)
+function findRestaurantByPartialName(
+  csvName: string,
+  restaurantByName: Map<string, { id: string; name: string }>
+): { id: string; name: string } | null {
+  // Extract city/suffix after "Chicken Street - " or similar patterns
+  const cityMatch = csvName.match(/Chicken\s*Street\s*[-–—]\s*(.+)/i);
+  if (!cityMatch) return null;
+
+  const cityPart = normalizeRestaurantName(cityMatch[1]);
+  if (!cityPart || cityPart.length < 3) return null;
+
+  // Find all restaurants containing this city part
+  const matches: { id: string; name: string }[] = [];
+  for (const [normalizedName, restaurant] of restaurantByName.entries()) {
+    if (normalizedName.includes(cityPart)) {
+      matches.push(restaurant);
+    }
+  }
+
+  // Return only if exactly one match found (avoid ambiguity)
+  if (matches.length === 1) {
+    console.log(`Partial match: "${csvName}" -> "${matches[0].name}" (via city: ${cityPart})`);
+    return matches[0];
+  }
+
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -205,6 +234,11 @@ serve(async (req) => {
           if (restaurantName) {
             const normalizedName = normalizeRestaurantName(restaurantName);
             matchedRestaurant = restaurantByName.get(normalizedName);
+
+            // Try partial matching by city if exact match failed
+            if (!matchedRestaurant) {
+              matchedRestaurant = findRestaurantByPartialName(restaurantName, restaurantByName) || undefined;
+            }
           }
         }
       }
