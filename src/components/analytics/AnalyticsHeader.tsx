@@ -458,7 +458,12 @@ export function AnalyticsHeader() {
                         ? "bg-primary text-primary-foreground ring-2 ring-primary/30" 
                         : "hover:bg-primary/20 hover:ring-1 hover:ring-primary/50"
                     }`}
-                    onClick={() => setSelectedRestaurants([restaurantId])}
+                    onClick={() => {
+                      // Ne pas désélectionner si c'est le seul restaurant
+                      if (selectedRestaurants.length > 1) {
+                        removeRestaurant(restaurantId);
+                      }
+                    }}
                   >
                     <span className="font-medium">{name}</span>
                     <button
