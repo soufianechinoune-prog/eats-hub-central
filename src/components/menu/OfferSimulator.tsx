@@ -31,6 +31,13 @@ import {
   Info,
   Target,
   Zap,
+  ArrowRight,
+  ArrowDown,
+  Minus,
+  Equal,
+  Divide,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { UberEatsIcon } from "@/components/icons/PlatformIcons";
 
@@ -54,6 +61,7 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
   const [uberCommission, setUberCommission] = useState<number>(30);
   const [offerFee, setOfferFee] = useState<number>(0.89);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("");
+  const [showCalculationDetails, setShowCalculationDetails] = useState<boolean>(true);
 
   // Get products with food cost and uber price
   const eligibleProducts = useMemo(() => {
@@ -550,31 +558,218 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
             >
-              <Card className="border-0 bg-muted/30 backdrop-blur-xl">
-                <div className="absolute inset-0 border border-white/20 rounded-lg pointer-events-none" />
+              <Card className="border-0 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 backdrop-blur-xl overflow-hidden">
+                <div className="absolute inset-0 border border-indigo-500/20 rounded-lg pointer-events-none" />
                 <CardHeader className="relative pb-2">
-                  <CardTitle className="text-sm text-muted-foreground">Détail du calcul</CardTitle>
-                </CardHeader>
-                <CardContent className="relative text-xs space-y-2 font-mono">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                    <span className="text-muted-foreground">Prix de vente:</span>
-                    <span>{simulation.price.toFixed(2)}€</span>
-                    
-                    <span className="text-muted-foreground">Commission ({uberCommission}%):</span>
-                    <span>-{(simulation.price * uberCommission / 100).toFixed(2)}€</span>
-                    
-                    <span className="text-muted-foreground">Food Cost (×2 pour BOGO):</span>
-                    <span>-{(simulation.foodCost * 2).toFixed(2)}€</span>
-                    
-                    <span className="text-muted-foreground">Frais d'offre:</span>
-                    <span>-{offerFee.toFixed(2)}€</span>
-                    
-                    <span className="text-muted-foreground font-semibold pt-2 border-t">Marge nette BOGO:</span>
-                    <span className={`font-semibold pt-2 border-t ${simulation.isLoss ? "text-red-500" : "text-emerald-600"}`}>
-                      {simulation.netMarginBogo.toFixed(2)}€
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Calculator className="h-4 w-4 text-indigo-500" />
+                      Comprendre le calcul du seuil
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowCalculationDetails(!showCalculationDetails)}
+                      className="h-8 px-2"
+                    >
+                      {showCalculationDetails ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
-                </CardContent>
+                </CardHeader>
+                
+                {showCalculationDetails && (
+                  <CardContent className="relative space-y-6">
+                    {/* Step 1: Normal Sale */}
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="space-y-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-emerald-500 text-white">Étape 1</Badge>
+                        <span className="font-semibold text-sm">Marge sans offre (1 vente = 1 produit)</span>
+                      </div>
+                      <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-white/40">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                          <div className="flex flex-col items-center p-3 bg-emerald-500/10 rounded-lg min-w-[80px]">
+                            <span className="text-xs text-muted-foreground">Prix</span>
+                            <span className="font-bold text-emerald-600">{simulation.price.toFixed(2)}€</span>
+                          </div>
+                          <Minus className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex flex-col items-center p-3 bg-orange-500/10 rounded-lg min-w-[80px]">
+                            <span className="text-xs text-muted-foreground">Commission</span>
+                            <span className="font-bold text-orange-600">{(simulation.price * uberCommission / 100).toFixed(2)}€</span>
+                          </div>
+                          <Minus className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex flex-col items-center p-3 bg-red-500/10 rounded-lg min-w-[80px]">
+                            <span className="text-xs text-muted-foreground">Food Cost</span>
+                            <span className="font-bold text-red-600">{simulation.foodCost.toFixed(2)}€</span>
+                          </div>
+                          <Equal className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex flex-col items-center p-3 bg-primary/15 rounded-lg min-w-[80px] border-2 border-primary/30">
+                            <span className="text-xs text-muted-foreground">Marge</span>
+                            <span className="font-bold text-primary">{simulation.netMarginPerUnit.toFixed(2)}€</span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    <ArrowDown className="h-5 w-5 mx-auto text-muted-foreground/50" />
+
+                    {/* Step 2: BOGO Sale */}
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 }}
+                      className="space-y-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-amber-500 text-white">Étape 2</Badge>
+                        <span className="font-semibold text-sm">Marge avec BOGO (1 vente = 2 produits)</span>
+                      </div>
+                      <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-white/40">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                          <div className="flex flex-col items-center p-3 bg-emerald-500/10 rounded-lg min-w-[80px]">
+                            <span className="text-xs text-muted-foreground">Prix</span>
+                            <span className="font-bold text-emerald-600">{simulation.price.toFixed(2)}€</span>
+                          </div>
+                          <Minus className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex flex-col items-center p-3 bg-orange-500/10 rounded-lg min-w-[80px]">
+                            <span className="text-xs text-muted-foreground">Commission</span>
+                            <span className="font-bold text-orange-600">{(simulation.price * uberCommission / 100).toFixed(2)}€</span>
+                          </div>
+                          <Minus className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex flex-col items-center p-3 bg-red-500/10 rounded-lg min-w-[80px]">
+                            <span className="text-xs text-muted-foreground">Food Cost ×2</span>
+                            <span className="font-bold text-red-600">{(simulation.foodCost * 2).toFixed(2)}€</span>
+                          </div>
+                          <Minus className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex flex-col items-center p-3 bg-purple-500/10 rounded-lg min-w-[80px]">
+                            <span className="text-xs text-muted-foreground">Frais offre</span>
+                            <span className="font-bold text-purple-600">{offerFee.toFixed(2)}€</span>
+                          </div>
+                          <Equal className="h-5 w-5 text-muted-foreground" />
+                          <div className={`flex flex-col items-center p-3 rounded-lg min-w-[80px] border-2 ${simulation.isLoss ? "bg-red-500/15 border-red-500/30" : "bg-primary/15 border-primary/30"}`}>
+                            <span className="text-xs text-muted-foreground">Marge</span>
+                            <span className={`font-bold ${simulation.isLoss ? "text-red-500" : "text-primary"}`}>{simulation.netMarginBogo.toFixed(2)}€</span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    <ArrowDown className="h-5 w-5 mx-auto text-muted-foreground/50" />
+
+                    {/* Step 3: Breakeven Calculation */}
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="space-y-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-blue-500 text-white">Étape 3</Badge>
+                        <span className="font-semibold text-sm">Calcul du seuil de rentabilité</span>
+                      </div>
+                      <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-white/40">
+                        <div className="text-center space-y-4">
+                          <p className="text-sm text-muted-foreground">
+                            Pour gagner autant qu'avant, combien de ventes BOGO faut-il faire pour 1 vente normale ?
+                          </p>
+                          <div className="flex items-center justify-center gap-3 flex-wrap">
+                            <div className="flex flex-col items-center p-3 bg-primary/10 rounded-lg">
+                              <span className="text-xs text-muted-foreground">Marge normale</span>
+                              <span className="font-bold">{simulation.netMarginPerUnit.toFixed(2)}€</span>
+                            </div>
+                            <Divide className="h-5 w-5 text-muted-foreground" />
+                            <div className="flex flex-col items-center p-3 bg-primary/10 rounded-lg">
+                              <span className="text-xs text-muted-foreground">Marge BOGO</span>
+                              <span className="font-bold">{simulation.netMarginBogo.toFixed(2)}€</span>
+                            </div>
+                            <Equal className="h-5 w-5 text-muted-foreground" />
+                            <div className="flex flex-col items-center p-4 bg-blue-500/15 rounded-xl border-2 border-blue-500/30">
+                              <span className="text-xs text-muted-foreground">Multiplicateur</span>
+                              <span className="font-bold text-xl text-blue-600">
+                                {simulation.breakevenMultiplier?.toFixed(2) ?? "N/A"}×
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {simulation.breakevenIncreasePercent !== null && !simulation.isLoss && (
+                            <motion.div 
+                              className="mt-4 p-4 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-xl border border-blue-500/20"
+                              initial={{ scale: 0.9 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: "spring", stiffness: 200 }}
+                            >
+                              <p className="text-sm text-muted-foreground mb-2">
+                                Il faut <strong>{simulation.breakevenMultiplier?.toFixed(2)}×</strong> plus de ventes, soit une augmentation de :
+                              </p>
+                              <div className="flex items-center justify-center gap-2">
+                                <Target className="h-6 w-6 text-blue-500" />
+                                <span className="text-3xl font-bold text-blue-600">
+                                  +{simulation.breakevenIncreasePercent.toFixed(0)}%
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                ({simulation.breakevenMultiplier?.toFixed(2)} - 1) × 100 = {simulation.breakevenIncreasePercent.toFixed(0)}%
+                              </p>
+                            </motion.div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    {/* Comparison with Uber estimate */}
+                    {simulation.uberEstimate !== null && simulation.breakevenIncreasePercent !== null && !simulation.isLoss && (
+                      <>
+                        <ArrowDown className="h-5 w-5 mx-auto text-muted-foreground/50" />
+                        
+                        <motion.div
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.3 }}
+                          className="space-y-3"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Badge className={simulation.isProfitable ? "bg-emerald-500" : "bg-red-500"}>Verdict</Badge>
+                            <span className="font-semibold text-sm">Comparaison avec l'estimation Uber</span>
+                          </div>
+                          <div className={`rounded-xl p-4 border-2 ${simulation.isProfitable ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+                            <div className="flex items-center justify-center gap-6 flex-wrap">
+                              <div className="text-center">
+                                <p className="text-xs text-muted-foreground mb-1">Estimation Uber</p>
+                                <div className="flex items-center gap-1">
+                                  <UberEatsIcon className="h-5 w-5" />
+                                  <span className="text-2xl font-bold text-orange-600">+{simulation.uberEstimate}%</span>
+                                </div>
+                              </div>
+                              <div className={`text-2xl font-bold ${simulation.isProfitable ? "text-emerald-500" : "text-red-500"}`}>
+                                {simulation.isProfitable ? ">" : "<"}
+                              </div>
+                              <div className="text-center">
+                                <p className="text-xs text-muted-foreground mb-1">Seuil requis</p>
+                                <div className="flex items-center gap-1">
+                                  <Target className="h-5 w-5 text-blue-500" />
+                                  <span className="text-2xl font-bold text-blue-600">+{simulation.breakevenIncreasePercent.toFixed(0)}%</span>
+                                </div>
+                              </div>
+                            </div>
+                            <p className={`text-center mt-3 text-sm font-medium ${simulation.isProfitable ? "text-emerald-600" : "text-red-600"}`}>
+                              {simulation.isProfitable 
+                                ? "✓ L'offre devrait être rentable selon l'estimation Uber"
+                                : "✗ L'offre risque de diluer votre marge"
+                              }
+                            </p>
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </CardContent>
+                )}
               </Card>
             </motion.div>
           )}
