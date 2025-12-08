@@ -237,15 +237,13 @@ export function ReviewsMenuItems({ reviews }: ReviewsMenuItemsProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedProductStats.map((item) => {
-                  const originalIndex = productStats.indexOf(item);
-                  return (
+                {sortedProductStats.map((item, index) => (
                     <TableRow key={item.itemId || item.itemTitle}>
                       <TableCell className="font-medium">
-                        {originalIndex === 0 && "🥇"}
-                        {originalIndex === 1 && "🥈"}
-                        {originalIndex === 2 && "🥉"}
-                        {originalIndex > 2 && originalIndex + 1}
+                        {index === 0 && "🥇"}
+                        {index === 1 && "🥈"}
+                        {index === 2 && "🥉"}
+                        {index > 2 && index + 1}
                       </TableCell>
                       <TableCell className="font-medium max-w-[200px] truncate">
                         {item.itemTitle}
@@ -266,8 +264,7 @@ export function ReviewsMenuItems({ reviews }: ReviewsMenuItemsProps) {
                         {item.thumbsDown}
                       </TableCell>
                     </TableRow>
-                  );
-                })}
+                ))}
               </TableBody>
             </Table>
           ) : (
