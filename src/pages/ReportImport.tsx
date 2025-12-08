@@ -50,6 +50,7 @@ const REPORT_THEMES = [
     icon: Clock,
     types: [
       { value: "downtime_report", label: "Temps d'inactivité", description: "Disponibilité horaire des restaurants (menu_downtime_local)", icon: Clock },
+      { value: "order_history", label: "Historique des commandes", description: "Temps d'attente coursier, préparation, livraison (order_history_local)", icon: Clock },
     ]
   }
 ];
@@ -209,6 +210,12 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
+      // Check for order history headers
+      if ((lines[i].includes("Id. de la commande") || lines[i].includes("Id de la commande")) && 
+          (lines[i].includes("Temps d'attente du coursier") || lines[i].includes("Heure de la commande"))) {
+        headerRowIndex = i;
+        break;
+      }
     }
 
     if (headerRowIndex === -1) {
@@ -277,8 +284,9 @@ export default function ReportImport() {
       return;
     }
 
-    // For sales_over_time, marketing_campaigns, and reviews, restaurant selection is required
-    if ((reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item") && !selectedRestaurantId) {
+    // For sales_over_time, marketing_campaigns, reviews, and order_history, restaurant selection is optional but recommended
+    const requiresRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item"].includes(reportType);
+    if (requiresRestaurant && !selectedRestaurantId) {
       toast({
         title: "Restaurant requis",
         description: "Veuillez sélectionner un restaurant pour ce type de rapport",
@@ -290,21 +298,17 @@ export default function ReportImport() {
     setIsLoading(true);
 
     try {
-      const functionName = reportType === "sales_over_time"
-        ? "parse-sales-over-time"
-        : reportType === "payment_item_level" 
-          ? "parse-item-report" 
-          : reportType === "payout_summary"
-            ? "parse-payout-summary"
-            : reportType === "marketing_campaigns"
-              ? "parse-marketing-campaigns"
-              : reportType === "reviews_order"
-                ? "parse-reviews-order"
-                : reportType === "reviews_item"
-                  ? "parse-reviews-item"
-                  : reportType === "downtime_report"
-                    ? "parse-downtime-report"
-                    : "parse-payment-report";
+      const functionMap: Record<string, string> = {
+        sales_over_time: "parse-sales-over-time",
+        payment_item_level: "parse-item-report",
+        payout_summary: "parse-payout-summary",
+        marketing_campaigns: "parse-marketing-campaigns",
+        reviews_order: "parse-reviews-order",
+        reviews_item: "parse-reviews-item",
+        downtime_report: "parse-downtime-report",
+        order_history: "parse-order-history",
+      };
+      const functionName = functionMap[reportType] || "parse-payment-report";
       
       const body: Record<string, any> = {
         csvContent,
@@ -312,8 +316,9 @@ export default function ReportImport() {
         dryRun: true,
       };
 
-      // Add restaurantId for sales_over_time, marketing_campaigns, reviews, and downtime
-      if (reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item" || reportType === "downtime_report") {
+      // Add restaurantId for specific report types
+      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history"];
+      if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
         body.restaurantId = selectedRestaurantId;
       }
 
@@ -409,21 +414,17 @@ export default function ReportImport() {
     try {
       const fileUrl = await uploadFileToStorage();
 
-      const functionName = reportType === "sales_over_time"
-        ? "parse-sales-over-time"
-        : reportType === "payment_item_level" 
-          ? "parse-item-report" 
-          : reportType === "payout_summary"
-            ? "parse-payout-summary"
-            : reportType === "marketing_campaigns"
-              ? "parse-marketing-campaigns"
-              : reportType === "reviews_order"
-                ? "parse-reviews-order"
-                : reportType === "reviews_item"
-                  ? "parse-reviews-item"
-                  : reportType === "downtime_report"
-                    ? "parse-downtime-report"
-                    : "parse-payment-report";
+      const functionMap: Record<string, string> = {
+        sales_over_time: "parse-sales-over-time",
+        payment_item_level: "parse-item-report",
+        payout_summary: "parse-payout-summary",
+        marketing_campaigns: "parse-marketing-campaigns",
+        reviews_order: "parse-reviews-order",
+        reviews_item: "parse-reviews-item",
+        downtime_report: "parse-downtime-report",
+        order_history: "parse-order-history",
+      };
+      const functionName = functionMap[reportType] || "parse-payment-report";
       
       const body: Record<string, any> = {
         csvContent,
@@ -431,8 +432,9 @@ export default function ReportImport() {
         dryRun: false,
       };
 
-      // Add restaurantId for sales_over_time, marketing_campaigns, reviews, and downtime
-      if (reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item" || reportType === "downtime_report") {
+      // Add restaurantId for specific report types
+      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history"];
+      if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
         body.restaurantId = selectedRestaurantId;
       }
 

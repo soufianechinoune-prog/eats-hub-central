@@ -1114,6 +1114,116 @@ export type Database = {
         }
         Relationships: []
       }
+      order_history: {
+        Row: {
+          accept_delay_minutes: number | null
+          avoidable_wait_time_minutes: number | null
+          brand: string | null
+          cancelled_by: string | null
+          courier_arrival_time: string | null
+          courier_departure_time: string | null
+          courier_wait_time_minutes: number | null
+          created_at: string | null
+          customer_wait_time_minutes: number | null
+          delivery_status: string | null
+          delivery_time: string | null
+          extended_prep: boolean | null
+          extended_prep_time_minutes: number | null
+          fulfillment_type: string | null
+          id: string
+          initial_prep_time_minutes: number | null
+          item_count: number | null
+          merchant_accept_time: string | null
+          multi_order_type: string | null
+          order_amount: number | null
+          order_channel: string | null
+          order_datetime: string | null
+          order_status: string | null
+          platform: string | null
+          restaurant_id: string
+          total_delivery_time_minutes: number | null
+          total_order_duration_minutes: number | null
+          total_prep_delivery_time_minutes: number | null
+          uber_flow_id: string | null
+          uber_one: boolean | null
+          uber_order_id: string
+        }
+        Insert: {
+          accept_delay_minutes?: number | null
+          avoidable_wait_time_minutes?: number | null
+          brand?: string | null
+          cancelled_by?: string | null
+          courier_arrival_time?: string | null
+          courier_departure_time?: string | null
+          courier_wait_time_minutes?: number | null
+          created_at?: string | null
+          customer_wait_time_minutes?: number | null
+          delivery_status?: string | null
+          delivery_time?: string | null
+          extended_prep?: boolean | null
+          extended_prep_time_minutes?: number | null
+          fulfillment_type?: string | null
+          id?: string
+          initial_prep_time_minutes?: number | null
+          item_count?: number | null
+          merchant_accept_time?: string | null
+          multi_order_type?: string | null
+          order_amount?: number | null
+          order_channel?: string | null
+          order_datetime?: string | null
+          order_status?: string | null
+          platform?: string | null
+          restaurant_id: string
+          total_delivery_time_minutes?: number | null
+          total_order_duration_minutes?: number | null
+          total_prep_delivery_time_minutes?: number | null
+          uber_flow_id?: string | null
+          uber_one?: boolean | null
+          uber_order_id: string
+        }
+        Update: {
+          accept_delay_minutes?: number | null
+          avoidable_wait_time_minutes?: number | null
+          brand?: string | null
+          cancelled_by?: string | null
+          courier_arrival_time?: string | null
+          courier_departure_time?: string | null
+          courier_wait_time_minutes?: number | null
+          created_at?: string | null
+          customer_wait_time_minutes?: number | null
+          delivery_status?: string | null
+          delivery_time?: string | null
+          extended_prep?: boolean | null
+          extended_prep_time_minutes?: number | null
+          fulfillment_type?: string | null
+          id?: string
+          initial_prep_time_minutes?: number | null
+          item_count?: number | null
+          merchant_accept_time?: string | null
+          multi_order_type?: string | null
+          order_amount?: number | null
+          order_channel?: string | null
+          order_datetime?: string | null
+          order_status?: string | null
+          platform?: string | null
+          restaurant_id?: string
+          total_delivery_time_minutes?: number | null
+          total_order_duration_minutes?: number | null
+          total_prep_delivery_time_minutes?: number | null
+          uber_flow_id?: string | null
+          uber_one?: boolean | null
+          uber_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           category: string | null
