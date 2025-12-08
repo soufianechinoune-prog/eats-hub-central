@@ -5,7 +5,7 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Clock, AlertTriangle, CheckCircle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight } from "lucide-react";
-import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, addDays, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   LineChart,
@@ -18,6 +18,7 @@ import {
   Bar,
   Cell,
   ReferenceArea,
+  LabelList,
 } from "recharts";
 import {
   ChartContainer,
@@ -47,6 +48,7 @@ export function OperationsAnalytics() {
   } = useAnalyticsContext();
 
   const [chartType, setChartType] = useState<"line" | "bar">("line");
+  const [selectedDay, setSelectedDay] = useState<string | null>(null); // format "yyyy-MM-dd"
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
@@ -216,16 +218,84 @@ export function OperationsAnalytics() {
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [availabilityData]);
 
-  // Select data based on period mode
-  const chartData = periodMode === "month" ? dailyEvolution : monthlyEvolution;
+  // Hourly evolution for a specific day (for day drill-down)
+  const hourlyEvolution = useMemo(() => {
+    if (!selectedDay || !availabilityData) return [];
+
+    const dayData = availabilityData.filter((d) =>
+      d.hour_start.startsWith(selectedDay)
+    );
+
+    // Create all 24 hours
+    return Array.from({ length: 24 }, (_, hour) => {
+      const hourStr = String(hour).padStart(2, "0");
+      const hourData = dayData.filter((d) => {
+        const hourPart = d.hour_start.substring(11, 13);
+        return hourPart === hourStr;
+      });
+
+      if (hourData.length === 0) {
+        return {
+          hour: `${hour}h`,
+          hourIndex: hour,
+          availability: null,
+          offlineMinutes: 0,
+          onlineMinutes: 0,
+        };
+      }
+
+      const online = hourData.reduce((sum, d) => sum + d.online_minutes, 0);
+      const offline = hourData.reduce((sum, d) => sum + d.offline_minutes, 0);
+      const total = online + offline;
+
+      return {
+        hour: `${hour}h`,
+        hourIndex: hour,
+        availability: total > 0 ? (online / total) * 100 : 100,
+        offlineMinutes: offline,
+        onlineMinutes: online,
+      };
+    });
+  }, [availabilityData, selectedDay]);
+
+  // KPIs for selected day
+  const dayKpis = useMemo(() => {
+    if (!selectedDay || !hourlyEvolution || hourlyEvolution.length === 0) {
+      return null;
+    }
+
+    const totalOnline = hourlyEvolution.reduce((sum, d) => sum + d.onlineMinutes, 0);
+    const totalOffline = hourlyEvolution.reduce((sum, d) => sum + d.offlineMinutes, 0);
+    const totalMinutes = totalOnline + totalOffline;
+
+    return {
+      avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 0,
+      totalOfflineMinutes: totalOffline,
+      totalOnlineMinutes: totalOnline,
+      incidentCount: hourlyEvolution.filter((d) => d.offlineMinutes > 15).length,
+    };
+  }, [hourlyEvolution, selectedDay]);
+
+  // Select data based on period mode and selectedDay
+  const chartData = selectedDay 
+    ? hourlyEvolution 
+    : periodMode === "month" 
+      ? dailyEvolution 
+      : monthlyEvolution;
 
   // Handle click on chart point for drill-down
   const handleChartClick = (data: any) => {
-    if (periodMode === "year" && data?.activePayload?.[0]?.payload) {
+    if (data?.activePayload?.[0]?.payload) {
       const payload = data.activePayload[0].payload;
-      if (payload.monthIndex) {
+      
+      if (periodMode === "year" && payload.monthIndex) {
+        // Click on month -> drill down to days
         setPeriodMode("month");
         setSelectedMonth(payload.monthIndex);
+        setSelectedDay(null);
+      } else if (periodMode === "month" && payload.date && !selectedDay) {
+        // Click on day -> drill down to hours
+        setSelectedDay(payload.date);
       }
     }
   };
@@ -249,16 +319,62 @@ export function OperationsAnalytics() {
 
   const handleBackToYear = () => {
     setPeriodMode("year");
+    setSelectedDay(null);
+  };
+
+  const handleBackToMonth = () => {
+    setSelectedDay(null);
+  };
+
+  const handlePrevDay = () => {
+    if (selectedDay) {
+      const newDay = subDays(parseISO(selectedDay), 1);
+      setSelectedDay(format(newDay, "yyyy-MM-dd"));
+    }
+  };
+
+  const handleNextDay = () => {
+    if (selectedDay) {
+      const newDay = addDays(parseISO(selectedDay), 1);
+      setSelectedDay(format(newDay, "yyyy-MM-dd"));
+    }
   };
 
   // Get dynamic Y-axis domain (filter out null values)
   const getYAxisDomain = (): [number, number] => {
-    const validData = chartData.filter(d => d.availability !== null);
+    const validData = chartData.filter((d: any) => d.availability !== null);
     if (validData.length === 0) return [90, 100];
-    const minValue = Math.min(...validData.map(d => d.availability as number));
+    const minValue = Math.min(...validData.map((d: any) => d.availability as number));
     const lowerBound = Math.max(0, Math.floor(minValue / 5) * 5 - 5);
     return [lowerBound, 100];
   };
+
+  // Get XAxis dataKey based on current view
+  const getXAxisDataKey = () => {
+    if (selectedDay) return "hour";
+    return "displayDate";
+  };
+
+  // Check if clicking on chart should enable cursor pointer
+  const isChartClickable = () => {
+    if (selectedDay) return false; // In day view, no further drill-down
+    if (periodMode === "month") return true; // In month view, can drill down to day
+    return true; // In year view, can drill down to month
+  };
+
+  // Get chart title based on current view
+  const getChartTitle = () => {
+    if (selectedDay) {
+      return format(parseISO(selectedDay), "EEEE d MMMM yyyy", { locale: fr });
+    }
+    if (periodMode === "month") {
+      return format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM yyyy", { locale: fr });
+    }
+    return "Évolution du taux de disponibilité";
+  };
+
+  // Get current KPIs based on view
+  const displayKpis = selectedDay && dayKpis ? dayKpis : kpis;
 
   // Use darker, more contrasting colors for bars
   const getBarColor = (value: number) => {
@@ -391,11 +507,11 @@ export function OperationsAnalytics() {
             <CheckCircle className="h-5 w-5 text-chart-2" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold" style={{ color: getAvailabilityColor(kpis.avgAvailability) }}>
-              {kpis.avgAvailability.toFixed(1)}%
+            <div className="text-3xl font-bold" style={{ color: getAvailabilityColor(displayKpis.avgAvailability) }}>
+              {displayKpis.avgAvailability.toFixed(1)}%
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Moyenne sur la période
+              {selectedDay ? "Ce jour" : "Moyenne sur la période"}
             </p>
           </CardContent>
         </Card>
@@ -403,13 +519,15 @@ export function OperationsAnalytics() {
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Heures en ligne
+              {selectedDay ? "Minutes en ligne" : "Heures en ligne"}
             </CardTitle>
             <Clock className="h-5 w-5 text-chart-1" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-foreground">
-              {kpis.totalOnlineHours.toFixed(0)}h
+              {selectedDay && dayKpis
+                ? `${dayKpis.totalOnlineMinutes}min`
+                : `${kpis.totalOnlineHours.toFixed(0)}h`}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Temps de fonctionnement
@@ -420,13 +538,15 @@ export function OperationsAnalytics() {
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Heures hors ligne
+              {selectedDay ? "Minutes hors ligne" : "Heures hors ligne"}
             </CardTitle>
             <TrendingDown className="h-5 w-5 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-destructive">
-              {kpis.totalOfflineHours.toFixed(1)}h
+              {selectedDay && dayKpis
+                ? `${dayKpis.totalOfflineMinutes}min`
+                : `${kpis.totalOfflineHours.toFixed(1)}h`}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Temps d'indisponibilité
@@ -443,10 +563,10 @@ export function OperationsAnalytics() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-chart-4">
-              {kpis.incidentCount}
+              {displayKpis.incidentCount}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Périodes hors ligne significatives
+              {selectedDay ? "Heures problématiques" : "Périodes hors ligne significatives"}
             </p>
           </CardContent>
         </Card>
@@ -456,7 +576,18 @@ export function OperationsAnalytics() {
       <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div className="flex items-center gap-3">
-            {periodMode === "month" && (
+            {/* Back button */}
+            {selectedDay ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBackToMonth}
+                className="h-8 px-2"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Retour au mois
+              </Button>
+            ) : periodMode === "month" ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -466,13 +597,23 @@ export function OperationsAnalytics() {
                 <ChevronLeft className="h-4 w-4 mr-1" />
                 Retour
               </Button>
-            )}
-            <CardTitle>
-              {periodMode === "month"
-                ? format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM yyyy", { locale: fr })
-                : "Évolution du taux de disponibilité"}
+            ) : null}
+
+            <CardTitle className="capitalize">
+              {getChartTitle()}
             </CardTitle>
-            {periodMode === "month" && (
+
+            {/* Navigation arrows */}
+            {selectedDay ? (
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevDay}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextDay}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : periodMode === "month" ? (
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevMonth}>
                   <ChevronLeft className="h-4 w-4" />
@@ -481,7 +622,7 @@ export function OperationsAnalytics() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-            )}
+            ) : null}
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -514,28 +655,34 @@ export function OperationsAnalytics() {
                 <LineChart 
                   data={chartData} 
                   onClick={handleChartClick} 
-                  style={{ cursor: periodMode === "year" ? "pointer" : "default" }}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  style={{ cursor: isChartClickable() ? "pointer" : "default" }}
+                  margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
                 >
                   <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
                   <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
                   <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis 
-                    dataKey="displayDate" 
+                    dataKey={getXAxisDataKey()} 
                     className="text-xs" 
                     tick={{ fontSize: 11 }}
-                    interval={0}
+                    interval={selectedDay ? 1 : 0}
                   />
                   <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} width={45} />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        formatter={(value) => 
-                          value !== null 
-                            ? [`${Number(value).toFixed(1)}%`, "Disponibilité"]
-                            : ["Pas de données", ""]
-                        }
+                        formatter={(value, name, props) => {
+                          if (value === null) return ["Pas de données", ""];
+                          const entry = props.payload;
+                          if (selectedDay && entry?.offlineMinutes !== undefined) {
+                            return [
+                              `${Number(value).toFixed(1)}% (${entry.offlineMinutes}min offline)`,
+                              "Disponibilité"
+                            ];
+                          }
+                          return [`${Number(value).toFixed(1)}%`, "Disponibilité"];
+                        }}
                       />
                     }
                   />
@@ -544,8 +691,8 @@ export function OperationsAnalytics() {
                     dataKey="availability"
                     stroke="hsl(var(--chart-2))"
                     strokeWidth={2}
-                    dot={{ r: 4, fill: "hsl(var(--chart-2))", cursor: periodMode === "year" ? "pointer" : "default" }}
-                    activeDot={{ r: 6, cursor: periodMode === "year" ? "pointer" : "default" }}
+                    dot={{ r: 4, fill: "hsl(var(--chart-2))", cursor: isChartClickable() ? "pointer" : "default" }}
+                    activeDot={{ r: 6, cursor: isChartClickable() ? "pointer" : "default" }}
                     connectNulls={true}
                   />
                 </LineChart>
@@ -553,52 +700,76 @@ export function OperationsAnalytics() {
                 <BarChart 
                   data={chartData} 
                   onClick={handleChartClick} 
-                  style={{ cursor: periodMode === "year" ? "pointer" : "default" }}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  style={{ cursor: isChartClickable() ? "pointer" : "default" }}
+                  margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
                 >
                   <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.03} />
                   <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.03} />
                   <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.02} />
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis 
-                    dataKey="displayDate" 
+                    dataKey={getXAxisDataKey()} 
                     className="text-xs" 
                     tick={{ fontSize: 11 }}
-                    interval={0}
+                    interval={selectedDay ? 1 : 0}
                   />
                   <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} width={45} />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        formatter={(value) => 
-                          value !== null 
-                            ? [`${Number(value).toFixed(1)}%`, "Disponibilité"]
-                            : ["Pas de données", ""]
-                        }
+                        formatter={(value, name, props) => {
+                          if (value === null) return ["Pas de données", ""];
+                          const entry = props.payload;
+                          if (selectedDay && entry?.offlineMinutes !== undefined) {
+                            return [
+                              `${Number(value).toFixed(1)}% (${entry.offlineMinutes}min offline)`,
+                              "Disponibilité"
+                            ];
+                          }
+                          return [`${Number(value).toFixed(1)}%`, "Disponibilité"];
+                        }}
                       />
                     }
                   />
                   <Bar 
                     dataKey="availability" 
                     radius={[4, 4, 0, 0]} 
-                    cursor={periodMode === "year" ? "pointer" : "default"}
+                    cursor={isChartClickable() ? "pointer" : "default"}
                     stroke="#fff"
                     strokeWidth={1}
                   >
-                    {chartData.map((entry, index) => (
+                    {chartData.map((entry: any, index: number) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={entry.availability !== null ? getBarColor(entry.availability) : "transparent"} 
                       />
                     ))}
+                    <LabelList
+                      dataKey="availability"
+                      position="top"
+                      formatter={(value: number | null) => 
+                        value !== null ? `${value.toFixed(1)}%` : ""
+                      }
+                      style={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                    />
                   </Bar>
                 </BarChart>
               )}
             </ResponsiveContainer>
           </ChartContainer>
-          {periodMode === "year" && (
+          {!selectedDay && periodMode === "year" && (
             <p className="text-xs text-muted-foreground text-center mt-2">
               Cliquez sur un mois pour voir le détail jour par jour
+            </p>
+          )}
+          {!selectedDay && periodMode === "month" && (
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              Cliquez sur un jour pour voir le détail heure par heure
+            </p>
+          )}
+          {selectedDay && (
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              Détail heure par heure
             </p>
           )}
         </CardContent>
