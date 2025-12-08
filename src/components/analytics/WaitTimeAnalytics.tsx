@@ -216,7 +216,9 @@ export function WaitTimeAnalytics() {
 
     orderHistoryData.forEach((o) => {
       if (!o.order_datetime) return;
-      const monthKey = format(parseISO(o.order_datetime), "yyyy-MM");
+      // Use UTC date to avoid timezone shift issues (e.g., Nov 30 23:53 UTC becoming Dec 1 in local time)
+      const dateStr = o.order_datetime.split('T')[0] || o.order_datetime.substring(0, 10);
+      const monthKey = dateStr.substring(0, 7); // "yyyy-MM"
       const existing = monthlyMap.get(monthKey) || { total: 0, withAvoidable: 0, sumAvoidable: 0 };
       existing.total++;
       if (o.avoidable_wait_time_minutes !== null && o.avoidable_wait_time_minutes > 0) {
