@@ -1,0 +1,512 @@
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, Clock, AlertTriangle, CheckCircle, TrendingDown } from "lucide-react";
+import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { fr } from "date-fns/locale";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+  Legend,
+  ReferenceArea,
+} from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+
+interface AvailabilityData {
+  id: string;
+  restaurant_id: string;
+  hour_start: string;
+  menu_availability_minutes: number;
+  online_minutes: number;
+  offline_minutes: number;
+  platform: string;
+}
+
+export function OperationsAnalytics() {
+  const {
+    selectedRestaurants,
+    selectedPlatform,
+    selectedYear,
+    selectedMonth,
+    periodMode,
+  } = useAnalyticsContext();
+
+  // Calculate date range based on period mode
+  const dateRange = useMemo(() => {
+    if (periodMode === "month") {
+      const start = startOfMonth(new Date(selectedYear, selectedMonth - 1));
+      const end = endOfMonth(new Date(selectedYear, selectedMonth - 1));
+      return { start, end };
+    }
+    // Year view
+    const start = new Date(selectedYear, 0, 1);
+    const end = new Date(selectedYear, 11, 31);
+    return { start, end };
+  }, [selectedYear, selectedMonth, periodMode]);
+
+  // Fetch availability data
+  const { data: availabilityData, isLoading } = useQuery({
+    queryKey: ["hourly_availability", selectedRestaurants, selectedPlatform, dateRange.start, dateRange.end],
+    queryFn: async () => {
+      let query = supabase
+        .from("hourly_availability")
+        .select("*")
+        .gte("hour_start", format(dateRange.start, "yyyy-MM-dd"))
+        .lte("hour_start", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"));
+
+      if (selectedRestaurants.length > 0) {
+        query = query.in("restaurant_id", selectedRestaurants);
+      }
+
+      if (selectedPlatform && selectedPlatform !== "uber_eats" && selectedPlatform !== "deliveroo") {
+        // Filter by specific platform if needed (currently hourly_availability has platform field)
+      } else if (selectedPlatform) {
+        query = query.eq("platform", selectedPlatform);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []) as AvailabilityData[];
+    },
+  });
+
+  // Fetch restaurants for names
+  const { data: restaurants } = useQuery({
+    queryKey: ["restaurants_for_ops"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const restaurantMap = useMemo(() => {
+    const map = new Map<string, string>();
+    restaurants?.forEach((r) => map.set(r.id, r.name));
+    return map;
+  }, [restaurants]);
+
+  // Calculate KPIs
+  const kpis = useMemo(() => {
+    if (!availabilityData || availabilityData.length === 0) {
+      return {
+        avgAvailability: 0,
+        totalOfflineHours: 0,
+        totalOnlineHours: 0,
+        incidentCount: 0,
+      };
+    }
+
+    const totalOnline = availabilityData.reduce((sum, d) => sum + d.online_minutes, 0);
+    const totalOffline = availabilityData.reduce((sum, d) => sum + d.offline_minutes, 0);
+    const totalMinutes = totalOnline + totalOffline;
+
+    return {
+      avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 0,
+      totalOfflineHours: totalOffline / 60,
+      totalOnlineHours: totalOnline / 60,
+      incidentCount: availabilityData.filter((d) => d.offline_minutes > 15).length,
+    };
+  }, [availabilityData]);
+
+  // Daily availability evolution
+  const dailyEvolution = useMemo(() => {
+    if (!availabilityData || availabilityData.length === 0) return [];
+
+    const dailyMap = new Map<string, { online: number; offline: number }>();
+
+    availabilityData.forEach((d) => {
+      const date = format(parseISO(d.hour_start), "yyyy-MM-dd");
+      const existing = dailyMap.get(date) || { online: 0, offline: 0 };
+      dailyMap.set(date, {
+        online: existing.online + d.online_minutes,
+        offline: existing.offline + d.offline_minutes,
+      });
+    });
+
+    return Array.from(dailyMap.entries())
+      .map(([date, values]) => {
+        const total = values.online + values.offline;
+        return {
+          date,
+          displayDate: format(parseISO(date), periodMode === "month" ? "d MMM" : "MMM", { locale: fr }),
+          availability: total > 0 ? (values.online / total) * 100 : 100,
+          offlineHours: values.offline / 60,
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [availabilityData, periodMode]);
+
+  // Hourly heatmap data (hour of day x day of week)
+  const hourlyHeatmap = useMemo(() => {
+    if (!availabilityData || availabilityData.length === 0) return [];
+
+    const heatmap: Record<string, { offline: number; count: number }> = {};
+
+    availabilityData.forEach((d) => {
+      const dateObj = parseISO(d.hour_start);
+      const hour = dateObj.getHours();
+      const dayOfWeek = dateObj.getDay();
+      const key = `${dayOfWeek}-${hour}`;
+      
+      if (!heatmap[key]) {
+        heatmap[key] = { offline: 0, count: 0 };
+      }
+      heatmap[key].offline += d.offline_minutes;
+      heatmap[key].count += 1;
+    });
+
+    const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+    const result: { day: string; hour: number; avgOffline: number; dayIndex: number }[] = [];
+
+    for (let day = 0; day < 7; day++) {
+      for (let hour = 0; hour < 24; hour++) {
+        const key = `${day}-${hour}`;
+        const data = heatmap[key];
+        result.push({
+          day: days[day],
+          hour,
+          avgOffline: data ? data.offline / data.count : 0,
+          dayIndex: day,
+        });
+      }
+    }
+
+    return result;
+  }, [availabilityData]);
+
+  // Restaurant ranking by availability
+  const restaurantRanking = useMemo(() => {
+    if (!availabilityData || availabilityData.length === 0) return [];
+
+    const restaurantStats = new Map<string, { online: number; offline: number }>();
+
+    availabilityData.forEach((d) => {
+      const existing = restaurantStats.get(d.restaurant_id) || { online: 0, offline: 0 };
+      restaurantStats.set(d.restaurant_id, {
+        online: existing.online + d.online_minutes,
+        offline: existing.offline + d.offline_minutes,
+      });
+    });
+
+    return Array.from(restaurantStats.entries())
+      .map(([id, stats]) => {
+        const total = stats.online + stats.offline;
+        return {
+          id,
+          name: restaurantMap.get(id) || id.slice(0, 8),
+          availability: total > 0 ? (stats.online / total) * 100 : 100,
+          offlineHours: stats.offline / 60,
+        };
+      })
+      .sort((a, b) => a.availability - b.availability);
+  }, [availabilityData, restaurantMap]);
+
+  const topFlop = useMemo(() => {
+    const sorted = [...restaurantRanking].sort((a, b) => b.availability - a.availability);
+    return {
+      top5: sorted.slice(0, 5),
+      flop5: sorted.slice(-5).reverse(),
+    };
+  }, [restaurantRanking]);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!availabilityData || availabilityData.length === 0) {
+    return (
+      <div className="text-center py-20 space-y-4">
+        <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto" />
+        <p className="text-lg text-muted-foreground">
+          Aucune donnée de disponibilité pour cette période.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Importez un fichier "Temps d'inactivité" depuis la page Import Rapports.
+        </p>
+      </div>
+    );
+  }
+
+  const getAvailabilityColor = (value: number) => {
+    if (value >= 98) return "hsl(var(--chart-2))"; // Green
+    if (value >= 95) return "hsl(var(--chart-4))"; // Amber
+    return "hsl(var(--destructive))"; // Red
+  };
+
+  const getHeatmapColor = (offlineMinutes: number) => {
+    if (offlineMinutes === 0) return "hsl(var(--chart-2) / 0.3)";
+    if (offlineMinutes < 5) return "hsl(var(--chart-4) / 0.5)";
+    if (offlineMinutes < 15) return "hsl(var(--chart-4))";
+    if (offlineMinutes < 30) return "hsl(var(--destructive) / 0.7)";
+    return "hsl(var(--destructive))";
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Taux de disponibilité
+            </CardTitle>
+            <CheckCircle className="h-5 w-5 text-chart-2" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold" style={{ color: getAvailabilityColor(kpis.avgAvailability) }}>
+              {kpis.avgAvailability.toFixed(1)}%
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Moyenne sur la période
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Heures en ligne
+            </CardTitle>
+            <Clock className="h-5 w-5 text-chart-1" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-foreground">
+              {kpis.totalOnlineHours.toFixed(0)}h
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Temps de fonctionnement
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Heures hors ligne
+            </CardTitle>
+            <TrendingDown className="h-5 w-5 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-destructive">
+              {kpis.totalOfflineHours.toFixed(1)}h
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Temps d'indisponibilité
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Incidents (&gt;15min)
+            </CardTitle>
+            <AlertTriangle className="h-5 w-5 text-chart-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-chart-4">
+              {kpis.incidentCount}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Périodes hors ligne significatives
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Availability Evolution Chart */}
+      <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
+        <CardHeader>
+          <CardTitle>Évolution du taux de disponibilité</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer
+            config={{
+              availability: { label: "Disponibilité", color: "hsl(var(--chart-2))" },
+            }}
+            className="h-[300px]"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={dailyEvolution}>
+                <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
+                <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
+                <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="displayDate" className="text-xs" />
+                <YAxis domain={[90, 100]} className="text-xs" tickFormatter={(v) => `${v}%`} />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value) => [`${Number(value).toFixed(1)}%`, "Disponibilité"]}
+                    />
+                  }
+                />
+                <Line
+                  type="monotone"
+                  dataKey="availability"
+                  stroke="hsl(var(--chart-2))"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Hourly Heatmap */}
+        <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
+          <CardHeader>
+            <CardTitle>Heatmap horaire (minutes hors ligne moyennes)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              <div className="flex gap-1 text-xs text-muted-foreground mb-2">
+                <div className="w-10" />
+                {Array.from({ length: 24 }, (_, i) => (
+                  <div key={i} className="flex-1 text-center">
+                    {i % 4 === 0 ? `${i}h` : ""}
+                  </div>
+                ))}
+              </div>
+              {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((day, dayIdx) => {
+                const adjustedDayIdx = dayIdx === 6 ? 0 : dayIdx + 1; // Convert to JS day format
+                return (
+                  <div key={day} className="flex gap-1 items-center">
+                    <div className="w-10 text-xs text-muted-foreground">{day}</div>
+                    {Array.from({ length: 24 }, (_, hour) => {
+                      const data = hourlyHeatmap.find(
+                        (h) => h.dayIndex === adjustedDayIdx && h.hour === hour
+                      );
+                      return (
+                        <div
+                          key={hour}
+                          className="flex-1 h-6 rounded-sm transition-colors"
+                          style={{ backgroundColor: getHeatmapColor(data?.avgOffline || 0) }}
+                          title={`${day} ${hour}h: ${(data?.avgOffline || 0).toFixed(1)} min hors ligne`}
+                        />
+                      );
+                    })}
+                  </div>
+                );
+              })}
+              <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: getHeatmapColor(0) }} />
+                  0 min
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: getHeatmapColor(10) }} />
+                  5-15 min
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: getHeatmapColor(30) }} />
+                  &gt;30 min
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Restaurant Ranking */}
+        <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
+          <CardHeader>
+            <CardTitle>Classement par disponibilité</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {topFlop.flop5.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-destructive mb-2 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    À surveiller (moins disponibles)
+                  </h4>
+                  <div className="space-y-2">
+                    {topFlop.flop5.map((r, idx) => (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between p-2 rounded-lg bg-destructive/10 border border-destructive/20"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-5">{idx + 1}.</span>
+                          <span className="text-sm font-medium truncate max-w-[150px]">{r.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground">
+                            {r.offlineHours.toFixed(1)}h offline
+                          </span>
+                          <span
+                            className="text-sm font-bold"
+                            style={{ color: getAvailabilityColor(r.availability) }}
+                          >
+                            {r.availability.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {topFlop.top5.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-chart-2 mb-2 flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    Meilleures performances
+                  </h4>
+                  <div className="space-y-2">
+                    {topFlop.top5.map((r, idx) => (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between p-2 rounded-lg bg-chart-2/10 border border-chart-2/20"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-5">{idx + 1}.</span>
+                          <span className="text-sm font-medium truncate max-w-[150px]">{r.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground">
+                            {r.offlineHours.toFixed(1)}h offline
+                          </span>
+                          <span
+                            className="text-sm font-bold"
+                            style={{ color: getAvailabilityColor(r.availability) }}
+                          >
+                            {r.availability.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

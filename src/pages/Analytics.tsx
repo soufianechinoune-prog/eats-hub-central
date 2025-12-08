@@ -18,6 +18,7 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import Reviews from "@/pages/Reviews";
+import { OperationsAnalytics } from "@/components/analytics/OperationsAnalytics";
 
 const DEFAULT_CHART_ACTIONS_CONFIG: ChartActionsConfig = {
   global: true,
@@ -40,7 +41,7 @@ const currentMonth = new Date().getMonth() + 1;
 
 export default function Analytics() {
   const { viewMode: viewModeParam } = useParams<{ viewMode: string }>();
-  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews";
+  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews" | "operations";
   
   const {
     selectedRestaurants,
@@ -934,6 +935,8 @@ export default function Analytics() {
             // Render appropriate view
             if (viewMode === "reviews") {
               return <Reviews />;
+            } else if (viewMode === "operations") {
+              return <OperationsAnalytics />;
             } else if (viewMode === "overview") {
               return (
                 <RestaurantRanking
