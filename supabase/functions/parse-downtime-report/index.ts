@@ -8,16 +8,26 @@ const corsHeaders = {
 
 interface ParseResult {
   success: boolean;
-  totalRows: number;
-  insertedCount: number;
-  updatedCount: number;
-  skippedCount: number;
-  errorCount: number;
-  dateRangeStart: string | null;
-  dateRangeEnd: string | null;
-  restaurantsCount: number;
-  restaurantIds: string[];
-  errors: string[];
+  reportType: string;
+  stats: {
+    totalRows: number;
+    inserted: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+  };
+  dateRange: {
+    start: string | null;
+    end: string | null;
+  };
+  restaurants: {
+    count: number;
+    ids: string[];
+    names: string[];
+  };
+  unknownRestaurantIds: string[];
+  skippedRows: Array<{ row: number; reason: string; data: Record<string, string> }>;
+  errorMessages: string[];
   restaurantStats: Record<string, { inserted: number; updated: number; skipped: number }>;
 }
 
@@ -172,16 +182,26 @@ serve(async (req) => {
 
     const result: ParseResult = {
       success: true,
-      totalRows: lines.length - 1,
-      insertedCount: 0,
-      updatedCount: 0,
-      skippedCount: 0,
-      errorCount: 0,
-      dateRangeStart: null,
-      dateRangeEnd: null,
-      restaurantsCount: 0,
-      restaurantIds: [],
-      errors: [],
+      reportType: 'downtime_report',
+      stats: {
+        totalRows: lines.length - 1,
+        inserted: 0,
+        updated: 0,
+        skipped: 0,
+        errors: 0,
+      },
+      dateRange: {
+        start: null,
+        end: null,
+      },
+      restaurants: {
+        count: 0,
+        ids: [],
+        names: [],
+      },
+      unknownRestaurantIds: [],
+      skippedRows: [],
+      errorMessages: [],
       restaurantStats: {},
     };
 
@@ -234,10 +254,10 @@ serve(async (req) => {
       }
 
       if (!matchedRestaurant) {
-        result.skippedCount++;
-        if (result.errors.length < 10) {
+        result.stats.skipped++;
+        if (result.errorMessages.length < 10) {
           const restaurantName = colIndices.restaurantName !== undefined ? values[colIndices.restaurantName] : 'unknown';
-          result.errors.push(`Row ${i + 1}: Restaurant not found - ${restaurantName}`);
+          result.errorMessages.push(`Row ${i + 1}: Restaurant not found - ${restaurantName}`);
         }
         continue;
       }
@@ -247,9 +267,9 @@ serve(async (req) => {
       const hourStart = parseDateTime(hourStartStr);
       
       if (!hourStart) {
-        result.skippedCount++;
-        if (result.errors.length < 10) {
-          result.errors.push(`Row ${i + 1}: Invalid date format - ${hourStartStr}`);
+        result.stats.skipped++;
+        if (result.errorMessages.length < 10) {
+          result.errorMessages.push(`Row ${i + 1}: Invalid date format - ${hourStartStr}`);
         }
         continue;
       }
@@ -288,15 +308,15 @@ serve(async (req) => {
       });
     }
 
-    result.restaurantIds = Array.from(restaurantIdsSet);
-    result.restaurantsCount = restaurantIdsSet.size;
-    result.dateRangeStart = minDate?.toISOString().split('T')[0] || null;
-    result.dateRangeEnd = maxDate?.toISOString().split('T')[0] || null;
+    result.restaurants.ids = Array.from(restaurantIdsSet);
+    result.restaurants.count = restaurantIdsSet.size;
+    result.dateRange.start = minDate?.toISOString().split('T')[0] || null;
+    result.dateRange.end = maxDate?.toISOString().split('T')[0] || null;
 
-    console.log(`Parsed ${rowsToInsert.length} rows for ${result.restaurantsCount} restaurants`);
+    console.log(`Parsed ${rowsToInsert.length} rows for ${result.restaurants.count} restaurants`);
 
     if (dryRun) {
-      result.insertedCount = rowsToInsert.length;
+      result.stats.inserted = rowsToInsert.length;
       return new Response(
         JSON.stringify(result),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -317,10 +337,10 @@ serve(async (req) => {
 
       if (insertError) {
         console.error('Insert error:', insertError);
-        result.errorCount += batch.length;
-        result.errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${insertError.message}`);
+        result.stats.errors += batch.length;
+        result.errorMessages.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${insertError.message}`);
       } else {
-        result.insertedCount += batch.length;
+        result.stats.inserted += batch.length;
       }
     }
 
