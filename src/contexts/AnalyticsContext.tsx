@@ -8,6 +8,11 @@ export type ComparisonMode = "yearOverYear" | "rollingPeriod";
 interface AnalyticsContextType {
   selectedRestaurants: string[];
   setSelectedRestaurants: (ids: string[]) => void;
+  visibleRestaurants: string[];
+  setVisibleRestaurants: (ids: string[]) => void;
+  toggleRestaurantSelection: (id: string) => void;
+  addVisibleRestaurant: (id: string) => void;
+  removeVisibleRestaurant: (id: string) => void;
   selectedPlatform: Platform;
   setSelectedPlatform: (platform: Platform) => void;
   selectedYear: number;
@@ -48,6 +53,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     () => storedState?.selectedRestaurants || []
   );
 
+  const [visibleRestaurants, setVisibleRestaurants] = useState<string[]>(
+    () => storedState?.visibleRestaurants || storedState?.selectedRestaurants || []
+  );
+
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>(
     () => storedState?.selectedPlatform || "uber_eats"
   );
@@ -82,6 +91,33 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   // Track if initial mount is complete to prevent saving during hydration
   const hasMounted = useRef(false);
 
+  // Toggle restaurant selection state (visible but selected/deselected)
+  const toggleRestaurantSelection = (id: string) => {
+    if (selectedRestaurants.includes(id)) {
+      // Désélectionner (mais garder visible)
+      setSelectedRestaurants(selectedRestaurants.filter(r => r !== id));
+    } else {
+      // Re-sélectionner
+      setSelectedRestaurants([...selectedRestaurants, id]);
+    }
+  };
+
+  // Add a restaurant to visible list (and select it)
+  const addVisibleRestaurant = (id: string) => {
+    if (!visibleRestaurants.includes(id)) {
+      setVisibleRestaurants([...visibleRestaurants, id]);
+    }
+    if (!selectedRestaurants.includes(id)) {
+      setSelectedRestaurants([...selectedRestaurants, id]);
+    }
+  };
+
+  // Remove a restaurant from visible list (and deselect it)
+  const removeVisibleRestaurant = (id: string) => {
+    setVisibleRestaurants(visibleRestaurants.filter(r => r !== id));
+    setSelectedRestaurants(selectedRestaurants.filter(r => r !== id));
+  };
+
   // Persist to localStorage whenever state changes (but not on initial mount)
   useEffect(() => {
     if (!hasMounted.current) {
@@ -91,6 +127,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     
     const state = {
       selectedRestaurants,
+      visibleRestaurants,
       selectedPlatform,
       selectedYear,
       selectedMonth,
@@ -102,11 +139,16 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       } : undefined,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [selectedRestaurants, selectedPlatform, selectedYear, selectedMonth, periodMode, dateRange, comparisonMode]);
+  }, [selectedRestaurants, visibleRestaurants, selectedPlatform, selectedYear, selectedMonth, periodMode, dateRange, comparisonMode]);
 
   const value = {
     selectedRestaurants,
     setSelectedRestaurants,
+    visibleRestaurants,
+    setVisibleRestaurants,
+    toggleRestaurantSelection,
+    addVisibleRestaurant,
+    removeVisibleRestaurant,
     selectedPlatform,
     setSelectedPlatform,
     selectedYear,
