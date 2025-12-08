@@ -851,7 +851,7 @@ export function OperationsAnalytics() {
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground w-5">{idx + 1}.</span>
-                          <span className="text-sm font-medium truncate max-w-[150px]">{r.name}</span>
+                          <span className="text-sm font-medium truncate max-w-[250px]">{r.name}</span>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-muted-foreground">
@@ -884,7 +884,7 @@ export function OperationsAnalytics() {
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground w-5">{idx + 1}.</span>
-                          <span className="text-sm font-medium truncate max-w-[150px]">{r.name}</span>
+                          <span className="text-sm font-medium truncate max-w-[250px]">{r.name}</span>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-muted-foreground">
