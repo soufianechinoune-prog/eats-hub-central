@@ -25,8 +25,8 @@ type SortField = "rank" | "name" | "rate" | "count" | "up" | "down";
 type SortDirection = "asc" | "desc";
 
 export function ReviewsMenuItems({ reviews }: ReviewsMenuItemsProps) {
-  const [sortField, setSortField] = useState<SortField>("rank");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [sortField, setSortField] = useState<SortField>("count");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const {
     monthlyApprovalRates,
