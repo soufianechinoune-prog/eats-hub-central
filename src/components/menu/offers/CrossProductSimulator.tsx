@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
+import { subDays, startOfYear } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,6 +89,14 @@ const PLATFORM_CONFIG = {
 };
 
 type SortCriteria = "score" | "margin_percent" | "margin_euro" | "sales";
+type SalesPeriod = "30days" | "90days" | "year" | "all";
+
+const SALES_PERIOD_LABELS: Record<SalesPeriod, string> = {
+  "30days": "30 derniers jours",
+  "90days": "90 derniers jours",
+  "year": "Cette année",
+  "all": "Tout l'historique",
+};
 
 export function CrossProductSimulator({ menuItems, onBack, platform, commission, onCommissionChange }: CrossProductSimulatorProps) {
   const config = PLATFORM_CONFIG[platform];
@@ -109,17 +118,54 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
   const [filterMaxPrice, setFilterMaxPrice] = useState(false);
   const [maxPriceValue, setMaxPriceValue] = useState(20);
   const [minMarginPercent, setMinMarginPercent] = useState(0);
+  const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("30days");
 
-  // Fetch sales data from order_items
+  // Get start date based on period selection
+  const getStartDate = (period: SalesPeriod): string | null => {
+    const now = new Date();
+    switch (period) {
+      case "30days": return subDays(now, 30).toISOString();
+      case "90days": return subDays(now, 90).toISOString();
+      case "year": return startOfYear(now).toISOString();
+      default: return null;
+    }
+  };
+
+  // Fetch sales data from order_items via orders join
   useEffect(() => {
     const fetchSalesData = async () => {
       setIsLoadingSales(true);
       try {
-        const { data, error } = await supabase
-          .from("order_items")
-          .select("item_title, quantity");
+        const startDate = getStartDate(salesPeriod);
         
-        if (error) throw error;
+        let allItems: Array<{ item_title: string; quantity: number }> = [];
+        
+        if (startDate) {
+          // Fetch via orders join to filter by date
+          const { data, error } = await supabase
+            .from("orders")
+            .select(`
+              order_datetime,
+              order_items (
+                item_title,
+                quantity
+              )
+            `)
+            .gte("order_datetime", startDate);
+          
+          if (error) throw error;
+          
+          // Flatten results
+          allItems = data?.flatMap(order => order.order_items || []) || [];
+        } else {
+          // Fetch all order_items without date filter
+          const { data, error } = await supabase
+            .from("order_items")
+            .select("item_title, quantity");
+          
+          if (error) throw error;
+          allItems = data || [];
+        }
         
         // Aggregate sales by normalized item name
         const salesMap: Record<string, number> = {};
@@ -132,7 +178,7 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
         });
         
         // Count sales
-        data?.forEach(row => {
+        allItems.forEach(row => {
           const normalizedTitle = normalizeName(row.item_title);
           
           // Try exact match first
@@ -160,6 +206,7 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
           }
         });
         
+        console.log(`[CrossProduct] Période: ${salesPeriod}, Items: ${allItems.length}, Produits matchés: ${Object.keys(salesMap).length}`);
         setSalesData(salesMap);
       } catch (error) {
         console.error("Error fetching sales data:", error);
@@ -169,7 +216,7 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
     };
     
     fetchSalesData();
-  }, [menuItems]);
+  }, [menuItems, salesPeriod]);
 
   const eligibleProducts = useMemo(() => {
     return menuItems.filter(
@@ -810,6 +857,33 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
                 <span className="text-sm font-medium">Filtres:</span>
               </div>
               
+              {/* Sales Period Selector */}
+              <div className="flex items-center gap-2">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p>Période utilisée pour calculer la popularité des produits (données de ventes réseau)</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Select value={salesPeriod} onValueChange={(v) => setSalesPeriod(v as SalesPeriod)}>
+                  <SelectTrigger className="w-[160px] h-8 text-sm bg-white/60 dark:bg-white/5 border-violet-500/30">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30days">30 derniers jours</SelectItem>
+                    <SelectItem value="90days">90 derniers jours</SelectItem>
+                    <SelectItem value="year">Cette année</SelectItem>
+                    <SelectItem value="all">Tout l'historique</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="h-6 w-px bg-border/50" />
+              
               <div className="flex items-center gap-2">
                 <Switch
                   id="filter-top-sellers-cross"
@@ -927,7 +1001,7 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
                           <span className="font-medium text-sm">Popularité du produit acheté (40%)</span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Plus le produit acheté est populaire, plus l'offre sera utilisée par les clients.
+                          Volume de ventes sur la période sélectionnée (par défaut : <strong>30 derniers jours</strong>). Données de l'ensemble du réseau. Plus le produit acheté est populaire, plus l'offre sera utilisée par les clients.
                         </p>
                       </div>
                       <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
@@ -1010,7 +1084,24 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableHead className="w-12 text-center">#</TableHead>
                     <TableHead>Produit acheté</TableHead>
-                    <TableHead className="text-center">Popularité</TableHead>
+                    <TableHead className="text-center">
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex items-center justify-center gap-1 cursor-help">
+                              <Flame className="h-3.5 w-3.5 text-orange-500" />
+                              Popularité
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-orange-500/10 text-orange-600 border-orange-500/30">
+                                {salesPeriod === "30days" ? "30j" : salesPeriod === "90days" ? "90j" : salesPeriod === "year" ? "Année" : "Total"}
+                              </Badge>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>Nombre de ventes sur <strong>{SALES_PERIOD_LABELS[salesPeriod]}</strong> (données réseau, tous restaurants)</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableHead>
                     <TableHead>Produit offert</TableHead>
                     <TableHead className="text-right">Marge avec offre</TableHead>
                     <TableHead className="text-center">Score</TableHead>

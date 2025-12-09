@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
+import { subDays, startOfYear } from "date-fns";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -91,6 +92,14 @@ interface BogoSimulatorProps {
 }
 
 type SortCriteria = "score" | "margin_percent" | "sales" | "margin_euro";
+type SalesPeriod = "30days" | "90days" | "year" | "all";
+
+const SALES_PERIOD_LABELS: Record<SalesPeriod, string> = {
+  "30days": "30 derniers jours",
+  "90days": "90 derniers jours",
+  "year": "Cette année",
+  "all": "Tout l'historique",
+};
 
 // Platform-specific defaults
 const PLATFORM_CONFIG = {
@@ -115,19 +124,56 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
   const [sortBy, setSortBy] = useState<SortCriteria>("score");
   const [filterTopSellers, setFilterTopSellers] = useState(false);
   const [filterMaxPrice, setFilterMaxPrice] = useState(false);
+  const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("30days");
   const [maxPriceValue, setMaxPriceValue] = useState(20);
   const [minMarginPercent, setMinMarginPercent] = useState(0);
 
-  // Fetch sales data from order_items
+  // Get start date based on period selection
+  const getStartDate = (period: SalesPeriod): string | null => {
+    const now = new Date();
+    switch (period) {
+      case "30days": return subDays(now, 30).toISOString();
+      case "90days": return subDays(now, 90).toISOString();
+      case "year": return startOfYear(now).toISOString();
+      default: return null;
+    }
+  };
+
+  // Fetch sales data from order_items via orders join
   useEffect(() => {
     const fetchSalesData = async () => {
       setIsLoadingSales(true);
       try {
-        const { data, error } = await supabase
-          .from("order_items")
-          .select("item_title, quantity");
+        const startDate = getStartDate(salesPeriod);
         
-        if (error) throw error;
+        let allItems: Array<{ item_title: string; quantity: number }> = [];
+        
+        if (startDate) {
+          // Fetch via orders join to filter by date
+          const { data, error } = await supabase
+            .from("orders")
+            .select(`
+              order_datetime,
+              order_items (
+                item_title,
+                quantity
+              )
+            `)
+            .gte("order_datetime", startDate);
+          
+          if (error) throw error;
+          
+          // Flatten results
+          allItems = data?.flatMap(order => order.order_items || []) || [];
+        } else {
+          // Fetch all order_items without date filter
+          const { data, error } = await supabase
+            .from("order_items")
+            .select("item_title, quantity");
+          
+          if (error) throw error;
+          allItems = data || [];
+        }
         
         // Aggregate sales by normalized item name
         const salesMap: Record<string, number> = {};
@@ -140,7 +186,7 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
         });
         
         // Count sales
-        data?.forEach(row => {
+        allItems.forEach(row => {
           const normalizedTitle = normalizeName(row.item_title);
           
           // Try exact match first
@@ -153,7 +199,6 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
             let bestScore = 0;
             
             for (const [normalized, id] of Object.entries(normalizedToOriginal)) {
-              // Check if one contains the other or significant overlap
               if (normalizedTitle.includes(normalized) || normalized.includes(normalizedTitle)) {
                 const score = Math.min(normalizedTitle.length, normalized.length) / Math.max(normalizedTitle.length, normalized.length);
                 if (score > bestScore && score > 0.5) {
@@ -169,6 +214,7 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
           }
         });
         
+        console.log(`[BOGO] Période: ${salesPeriod}, Items: ${allItems.length}, Produits matchés: ${Object.keys(salesMap).length}`);
         setSalesData(salesMap);
       } catch (error) {
         console.error("Error fetching sales data:", error);
@@ -178,7 +224,7 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
     };
     
     fetchSalesData();
-  }, [menuItems]);
+  }, [menuItems, salesPeriod]);
 
   // Use platform-specific price field
   const priceField = isUber ? 'price_uber' : 'price_deliveroo';
@@ -1083,6 +1129,33 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
                   <span className="text-sm font-medium text-muted-foreground">Filtres:</span>
                 </div>
                 
+                {/* Sales Period Selector */}
+                <div className="flex items-center gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Période utilisée pour calculer la popularité des produits (données de ventes réseau)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <Select value={salesPeriod} onValueChange={(v) => setSalesPeriod(v as SalesPeriod)}>
+                    <SelectTrigger className="w-[160px] h-8 text-sm bg-white/60 dark:bg-white/5 border-orange-500/30">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30days">30 derniers jours</SelectItem>
+                      <SelectItem value="90days">90 derniers jours</SelectItem>
+                      <SelectItem value="year">Cette année</SelectItem>
+                      <SelectItem value="all">Tout l'historique</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="h-6 w-px bg-border/50" />
+                
                 <div className="flex items-center gap-2">
                   <Switch
                     id="filter-top-sellers"
@@ -1270,7 +1343,7 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
                             <span className="font-medium text-sm">Popularité (40%)</span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Volume de ventes historiques. Un produit populaire génère plus de volume avec le BOGO.
+                            Volume de ventes sur la période sélectionnée (par défaut : <strong>30 derniers jours</strong>). Données de l'ensemble du réseau. Un produit populaire génère plus de volume avec le BOGO.
                           </p>
                         </div>
                         <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
@@ -1354,7 +1427,24 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableHead className="w-12 text-center">#</TableHead>
                     <TableHead>Produit</TableHead>
-                    <TableHead className="text-center">Ventes</TableHead>
+                    <TableHead className="text-center">
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex items-center justify-center gap-1 cursor-help">
+                              <Flame className="h-3.5 w-3.5 text-orange-500" />
+                              Ventes
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-orange-500/10 text-orange-600 border-orange-500/30">
+                                {salesPeriod === "30days" ? "30j" : salesPeriod === "90days" ? "90j" : salesPeriod === "year" ? "Année" : "Total"}
+                              </Badge>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>Nombre de ventes sur <strong>{SALES_PERIOD_LABELS[salesPeriod]}</strong> (données réseau, tous restaurants)</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableHead>
                     <TableHead className="text-right">Prix</TableHead>
                     <TableHead className="text-right">Marge actuelle</TableHead>
                     <TableHead className="text-right">Marge BOGO</TableHead>
