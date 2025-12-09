@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -49,8 +50,15 @@ import {
   ThumbsUp,
   ThumbsDown,
   Minus as MinusIcon,
+  Flame,
+  TrendingUp,
+  Filter,
+  ArrowUpDown,
+  Sparkles,
 } from "lucide-react";
 import { UberEatsIcon } from "@/components/icons/PlatformIcons";
+import { supabase } from "@/integrations/supabase/client";
+import { normalizeName } from "@/lib/fuzzyMatch";
 
 interface MenuItem {
   id: string;
@@ -67,12 +75,87 @@ interface BogoSimulatorProps {
   onBack: () => void;
 }
 
+type SortCriteria = "score" | "margin_percent" | "sales" | "margin_euro";
+
 export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [uberCommission, setUberCommission] = useState<number>(30);
   const [offerFee, setOfferFee] = useState<number>(0.89);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("");
   const [showCalculationDetails, setShowCalculationDetails] = useState<boolean>(false);
+  
+  // Sales data from order_items
+  const [salesData, setSalesData] = useState<Record<string, number>>({});
+  const [isLoadingSales, setIsLoadingSales] = useState(true);
+  
+  // Filters & Sorting
+  const [sortBy, setSortBy] = useState<SortCriteria>("score");
+  const [filterTopSellers, setFilterTopSellers] = useState(false);
+  const [filterMaxPrice, setFilterMaxPrice] = useState(false);
+  const [maxPriceValue, setMaxPriceValue] = useState(20);
+  const [minMarginPercent, setMinMarginPercent] = useState(0);
+
+  // Fetch sales data from order_items
+  useEffect(() => {
+    const fetchSalesData = async () => {
+      setIsLoadingSales(true);
+      try {
+        const { data, error } = await supabase
+          .from("order_items")
+          .select("item_title, quantity");
+        
+        if (error) throw error;
+        
+        // Aggregate sales by normalized item name
+        const salesMap: Record<string, number> = {};
+        const normalizedToOriginal: Record<string, string> = {};
+        
+        // Create normalized name map for menu items
+        menuItems.forEach(item => {
+          const normalized = normalizeName(item.name);
+          normalizedToOriginal[normalized] = item.id;
+        });
+        
+        // Count sales
+        data?.forEach(row => {
+          const normalizedTitle = normalizeName(row.item_title);
+          
+          // Try exact match first
+          if (normalizedToOriginal[normalizedTitle]) {
+            const menuItemId = normalizedToOriginal[normalizedTitle];
+            salesMap[menuItemId] = (salesMap[menuItemId] || 0) + (row.quantity || 1);
+          } else {
+            // Fuzzy match: find best matching menu item
+            let bestMatch: string | null = null;
+            let bestScore = 0;
+            
+            for (const [normalized, id] of Object.entries(normalizedToOriginal)) {
+              // Check if one contains the other or significant overlap
+              if (normalizedTitle.includes(normalized) || normalized.includes(normalizedTitle)) {
+                const score = Math.min(normalizedTitle.length, normalized.length) / Math.max(normalizedTitle.length, normalized.length);
+                if (score > bestScore && score > 0.5) {
+                  bestScore = score;
+                  bestMatch = id;
+                }
+              }
+            }
+            
+            if (bestMatch) {
+              salesMap[bestMatch] = (salesMap[bestMatch] || 0) + (row.quantity || 1);
+            }
+          }
+        });
+        
+        setSalesData(salesMap);
+      } catch (error) {
+        console.error("Error fetching sales data:", error);
+      } finally {
+        setIsLoadingSales(false);
+      }
+    };
+    
+    fetchSalesData();
+  }, [menuItems]);
 
   const eligibleProducts = useMemo(() => {
     return menuItems.filter(
@@ -125,16 +208,34 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
   const allProductsAnalysis = useMemo(() => {
     const commission = uberCommission / 100;
     
-    return eligibleProducts.map(product => {
+    // Calculate max values for normalization
+    const maxSales = Math.max(...eligibleProducts.map(p => salesData[p.id] || 0), 1);
+    const maxPrice = Math.max(...eligibleProducts.map(p => p.price_uber || 0), 1);
+    
+    const products = eligibleProducts.map(product => {
       const price = product.price_uber!;
       const foodCost = product.food_cost!;
+      const sales = salesData[product.id] || 0;
       
       const netMarginPerUnit = price - (price * commission) - foodCost;
       const netMarginBogo = price - (price * commission) - offerFee - (foodCost * 2);
       const breakevenMultiplier = netMarginBogo > 0 ? netMarginPerUnit / netMarginBogo : null;
       const breakevenIncreasePercent = breakevenMultiplier ? (breakevenMultiplier - 1) * 100 : null;
+      
+      // Margin percentages
       const marginPercent = (netMarginPerUnit / price) * 100;
+      const marginBogoPercent = (netMarginBogo / price) * 100;
       const foodCostPercent = (foodCost / price) * 100;
+      
+      // Calculate BOGO Score (composite intelligent score)
+      // 40% marge BOGO %, 40% popularité, 20% attractivité prix
+      const normalizedMargin = marginBogoPercent > 0 ? Math.min(marginBogoPercent / 40, 1) : 0; // Normalize to ~40% max
+      const normalizedSales = maxSales > 0 ? Math.log(sales + 1) / Math.log(maxSales + 1) : 0;
+      const normalizedPriceAttractivity = (maxPrice - price) / maxPrice;
+      
+      const bogoScore = netMarginBogo > 0 
+        ? (normalizedMargin * 40) + (normalizedSales * 40) + (normalizedPriceAttractivity * 20)
+        : 0;
       
       let recommendation: "recommended" | "moderate" | "not_recommended";
       if (netMarginBogo <= 0) {
@@ -157,19 +258,45 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
         netMarginPerUnit,
         netMarginBogo,
         marginPercent,
+        marginBogoPercent,
         breakevenIncreasePercent,
         recommendation,
+        sales,
+        bogoScore,
       };
-    }).sort((a, b) => {
-      const order = { recommended: 0, moderate: 1, not_recommended: 2 };
-      if (order[a.recommendation] !== order[b.recommendation]) {
-        return order[a.recommendation] - order[b.recommendation];
-      }
-      const aBreakeven = a.breakevenIncreasePercent ?? Infinity;
-      const bBreakeven = b.breakevenIncreasePercent ?? Infinity;
-      return aBreakeven - bBreakeven;
     });
-  }, [eligibleProducts, uberCommission, offerFee]);
+    
+    // Apply filters
+    let filtered = products;
+    
+    if (filterTopSellers) {
+      filtered = filtered.filter(p => p.sales >= 10);
+    }
+    
+    if (filterMaxPrice) {
+      filtered = filtered.filter(p => p.price <= maxPriceValue);
+    }
+    
+    if (minMarginPercent > 0) {
+      filtered = filtered.filter(p => p.marginBogoPercent >= minMarginPercent);
+    }
+    
+    // Sort based on criteria
+    return filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "score":
+          return b.bogoScore - a.bogoScore;
+        case "margin_percent":
+          return b.marginBogoPercent - a.marginBogoPercent;
+        case "sales":
+          return b.sales - a.sales;
+        case "margin_euro":
+          return b.netMarginBogo - a.netMarginBogo;
+        default:
+          return b.bogoScore - a.bogoScore;
+      }
+    });
+  }, [eligibleProducts, uberCommission, offerFee, salesData, sortBy, filterTopSellers, filterMaxPrice, maxPriceValue, minMarginPercent]);
 
   const recommendation = useMemo(() => {
     if (!simulation) return null;
@@ -232,6 +359,22 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
       borderColor: "border-red-500/30",
     };
   }, [simulation]);
+
+  // Get sales badge info
+  const getSalesBadge = (sales: number) => {
+    if (sales >= 50) return { icon: Flame, color: "text-orange-500", bg: "bg-orange-500/15", label: "Top" };
+    if (sales >= 20) return { icon: Flame, color: "text-amber-500", bg: "bg-amber-500/15", label: "Populaire" };
+    if (sales >= 10) return { icon: Zap, color: "text-blue-500", bg: "bg-blue-500/15", label: "Bon" };
+    return { icon: null, color: "text-muted-foreground", bg: "", label: "" };
+  };
+
+  // Get margin color based on percentage
+  const getMarginColor = (percent: number, isBogoMargin: boolean = false) => {
+    const threshold = isBogoMargin ? { high: 15, medium: 5 } : { high: 30, medium: 15 };
+    if (percent >= threshold.high) return "text-emerald-600";
+    if (percent >= threshold.medium) return "text-amber-600";
+    return "text-red-600";
+  };
 
   return (
     <div className="space-y-6">
@@ -340,6 +483,23 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                     <span className="font-mono font-semibold">
                       {selectedProduct.food_cost?.toFixed(2)}€
                     </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Ventes</span>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const sales = salesData[selectedProduct.id] || 0;
+                        const badge = getSalesBadge(sales);
+                        return (
+                          <>
+                            <span className="font-mono font-semibold">{sales}</span>
+                            {badge.icon && (
+                              <badge.icon className={`h-4 w-4 ${badge.color}`} />
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                   {selectedProduct.category && (
                     <div className="flex items-center justify-between">
@@ -718,34 +878,142 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
         <Card className="border-0 bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]">
           <div className="absolute inset-0 border border-white/30 rounded-lg pointer-events-none" />
           <CardHeader className="relative">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <motion.div 
-                  className="p-2.5 bg-gradient-to-br from-orange-500/20 to-amber-500/20 backdrop-blur-sm rounded-xl"
-                  whileHover={{ scale: 1.1 }}
-                >
-                  <ListOrdered className="h-5 w-5 text-orange-600" />
-                </motion.div>
-                <div>
-                  <CardTitle className="text-lg">Classement des produits pour BOGO</CardTitle>
-                  <CardDescription>
-                    {allProductsAnalysis.length} produits analysés, classés par potentiel de rentabilité
-                  </CardDescription>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <motion.div 
+                    className="p-2.5 bg-gradient-to-br from-orange-500/20 to-amber-500/20 backdrop-blur-sm rounded-xl"
+                    whileHover={{ scale: 1.1 }}
+                  >
+                    <Sparkles className="h-5 w-5 text-orange-600" />
+                  </motion.div>
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      Classement intelligent BOGO
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="font-semibold mb-1">Score BOGO = </p>
+                            <p className="text-xs">40% Marge BOGO % + 40% Popularité + 20% Attractivité prix</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </CardTitle>
+                    <CardDescription>
+                      {allProductsAnalysis.length} produits analysés • Tri par score intelligent
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30">
+                    <ThumbsUp className="h-3 w-3 mr-1" />
+                    {allProductsAnalysis.filter(p => p.recommendation === "recommended").length} Recommandés
+                  </Badge>
+                  <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30">
+                    <MinusIcon className="h-3 w-3 mr-1" />
+                    {allProductsAnalysis.filter(p => p.recommendation === "moderate").length} Modérés
+                  </Badge>
+                  <Badge className="bg-red-500/15 text-red-600 border-red-500/30">
+                    <ThumbsDown className="h-3 w-3 mr-1" />
+                    {allProductsAnalysis.filter(p => p.recommendation === "not_recommended").length} Déconseillés
+                  </Badge>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-xs">
-                <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30">
-                  <ThumbsUp className="h-3 w-3 mr-1" />
-                  {allProductsAnalysis.filter(p => p.recommendation === "recommended").length} Recommandés
-                </Badge>
-                <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30">
-                  <MinusIcon className="h-3 w-3 mr-1" />
-                  {allProductsAnalysis.filter(p => p.recommendation === "moderate").length} Modérés
-                </Badge>
-                <Badge className="bg-red-500/15 text-red-600 border-red-500/30">
-                  <ThumbsDown className="h-3 w-3 mr-1" />
-                  {allProductsAnalysis.filter(p => p.recommendation === "not_recommended").length} Déconseillés
-                </Badge>
+              
+              {/* Filters & Sorting */}
+              <div className="flex flex-wrap items-center gap-4 p-3 rounded-lg bg-muted/20 border border-border/30">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Filtres:</span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="filter-top-sellers"
+                    checked={filterTopSellers}
+                    onCheckedChange={setFilterTopSellers}
+                  />
+                  <Label htmlFor="filter-top-sellers" className="text-sm flex items-center gap-1 cursor-pointer">
+                    <Flame className="h-3.5 w-3.5 text-orange-500" />
+                    Top Sellers (≥10 ventes)
+                  </Label>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="filter-max-price"
+                    checked={filterMaxPrice}
+                    onCheckedChange={setFilterMaxPrice}
+                  />
+                  <Label htmlFor="filter-max-price" className="text-sm cursor-pointer">
+                    Prix max {maxPriceValue}€
+                  </Label>
+                  {filterMaxPrice && (
+                    <Slider
+                      value={[maxPriceValue]}
+                      onValueChange={([v]) => setMaxPriceValue(v)}
+                      min={10}
+                      max={50}
+                      step={5}
+                      className="w-20"
+                    />
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm text-muted-foreground">Marge % min:</Label>
+                  <Slider
+                    value={[minMarginPercent]}
+                    onValueChange={([v]) => setMinMarginPercent(v)}
+                    min={0}
+                    max={30}
+                    step={5}
+                    className="w-24"
+                  />
+                  <Badge variant="outline" className="font-mono text-xs">{minMarginPercent}%</Badge>
+                </div>
+                
+                <div className="h-6 w-px bg-border/50 mx-2" />
+                
+                <div className="flex items-center gap-2">
+                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Trier par:</span>
+                </div>
+                
+                <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortCriteria)}>
+                  <SelectTrigger className="w-[160px] h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="score">
+                      <span className="flex items-center gap-2">
+                        <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                        Score BOGO
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="margin_percent">
+                      <span className="flex items-center gap-2">
+                        <Percent className="h-3.5 w-3.5 text-emerald-500" />
+                        Marge BOGO %
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="sales">
+                      <span className="flex items-center gap-2">
+                        <Flame className="h-3.5 w-3.5 text-orange-500" />
+                        Ventes
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="margin_euro">
+                      <span className="flex items-center gap-2">
+                        <Euro className="h-3.5 w-3.5 text-blue-500" />
+                        Marge BOGO €
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </CardHeader>
@@ -756,129 +1024,171 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableHead className="w-12 text-center">#</TableHead>
                     <TableHead>Produit</TableHead>
-                    <TableHead className="text-right">Prix Uber</TableHead>
-                    <TableHead className="text-right">Food Cost</TableHead>
+                    <TableHead className="text-center">Ventes</TableHead>
+                    <TableHead className="text-right">Prix</TableHead>
                     <TableHead className="text-right">Marge actuelle</TableHead>
                     <TableHead className="text-right">Marge BOGO</TableHead>
+                    <TableHead className="text-center">
+                      <span className="flex items-center justify-center gap-1">
+                        <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                        Score
+                      </span>
+                    </TableHead>
                     <TableHead className="text-center">Verdict</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allProductsAnalysis.slice(0, 15).map((product, index) => (
-                    <TableRow 
-                      key={product.id}
-                      className={`transition-colors cursor-pointer hover:bg-muted/20 ${
-                        selectedProductId === product.id ? "bg-primary/5 ring-1 ring-inset ring-primary/20" : ""
-                      }`}
-                      onClick={() => setSelectedProductId(product.id)}
-                    >
-                      <TableCell className="text-center font-medium text-muted-foreground">
-                        {index + 1}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium truncate max-w-[200px]">{product.name}</span>
-                          {product.category && (
-                            <span className="text-xs text-muted-foreground">{product.category}</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {product.price.toFixed(2)}€
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex flex-col items-end">
-                          <span className="font-mono">{product.foodCost.toFixed(2)}€</span>
-                          <span className={`text-xs ${product.foodCostPercent > 40 ? "text-red-500" : product.foodCostPercent > 30 ? "text-amber-500" : "text-emerald-500"}`}>
-                            ({product.foodCostPercent.toFixed(0)}%)
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex flex-col items-end">
-                          <span className="font-mono font-semibold text-emerald-600">{product.netMarginPerUnit.toFixed(2)}€</span>
-                          <span className="text-xs text-muted-foreground">({product.marginPercent.toFixed(0)}%)</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md font-mono font-semibold ${
-                          product.netMarginBogo < 0 
-                            ? "bg-red-500/10 text-red-600" 
-                            : product.netMarginBogo < 1 
-                              ? "bg-amber-500/10 text-amber-600"
-                              : "bg-emerald-500/10 text-emerald-600"
-                        }`}>
-                          {product.netMarginBogo.toFixed(2)}€
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full cursor-help transition-all hover:scale-105 ${
-                                product.recommendation === "recommended"
-                                  ? "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30"
-                                  : product.recommendation === "moderate"
-                                    ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
-                                    : "bg-red-500/15 text-red-600 border border-red-500/30"
-                              }`}>
-                                {product.recommendation === "recommended" ? (
-                                  <ThumbsUp className="h-3.5 w-3.5" />
-                                ) : product.recommendation === "moderate" ? (
-                                  <MinusIcon className="h-3.5 w-3.5" />
-                                ) : (
-                                  <ThumbsDown className="h-3.5 w-3.5" />
-                                )}
-                                <span className="text-xs font-medium">
-                                  {product.recommendation === "recommended" ? "Go" : product.recommendation === "moderate" ? "Risqué" : "Stop"}
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="left" className="max-w-xs">
-                              <div className="space-y-1.5">
-                                <p className="font-semibold">
-                                  {product.recommendation === "recommended" 
-                                    ? "✅ BOGO recommandé" 
-                                    : product.recommendation === "moderate"
-                                      ? "⚠️ Risque modéré"
-                                      : "❌ BOGO déconseillé"}
-                                </p>
-                                <div className="text-xs space-y-0.5">
-                                  <p>
-                                    <span className="text-muted-foreground">Marge par vente BOGO:</span>{" "}
-                                    <span className={product.netMarginBogo < 0 ? "text-red-400" : "text-emerald-400"}>
-                                      {product.netMarginBogo.toFixed(2)}€
-                                    </span>
-                                  </p>
-                                  {product.breakevenIncreasePercent !== null && (
-                                    <p>
-                                      <span className="text-muted-foreground">Seuil de rentabilité:</span>{" "}
-                                      <span className="font-mono">+{product.breakevenIncreasePercent.toFixed(0)}%</span> de ventes
-                                    </p>
-                                  )}
-                                  <p className="pt-1 text-muted-foreground italic">
-                                    {product.recommendation === "recommended" 
-                                      ? "Seuil facilement atteignable (<80%)" 
-                                      : product.recommendation === "moderate"
-                                        ? "Seuil élevé (80-150%), vérifiez l'estimation Uber"
-                                        : product.netMarginBogo < 0 
-                                          ? "Marge négative, perte à chaque vente"
-                                          : "Seuil trop élevé (>150%), difficilement rentable"}
-                                  </p>
-                                </div>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                  {isLoadingSales ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        Chargement des données de ventes...
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : allProductsAnalysis.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        Aucun produit ne correspond aux filtres sélectionnés
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    allProductsAnalysis.slice(0, 20).map((product, index) => {
+                      const salesBadge = getSalesBadge(product.sales);
+                      return (
+                        <TableRow 
+                          key={product.id}
+                          className={`transition-colors cursor-pointer hover:bg-muted/20 ${
+                            selectedProductId === product.id ? "bg-primary/5 ring-1 ring-inset ring-primary/20" : ""
+                          }`}
+                          onClick={() => setSelectedProductId(product.id)}
+                        >
+                          <TableCell className="text-center font-medium text-muted-foreground">
+                            {index + 1}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium truncate max-w-[200px]">{product.name}</span>
+                              {product.category && (
+                                <span className="text-xs text-muted-foreground">{product.category}</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md ${salesBadge.bg}`}>
+                              {salesBadge.icon && <salesBadge.icon className={`h-3.5 w-3.5 ${salesBadge.color}`} />}
+                              <span className={`font-mono font-semibold ${salesBadge.color}`}>
+                                {product.sales}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            {product.price.toFixed(2)}€
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex flex-col items-end">
+                              <span className="font-mono font-semibold text-emerald-600">{product.netMarginPerUnit.toFixed(2)}€</span>
+                              <span className={`text-xs font-semibold ${getMarginColor(product.marginPercent)}`}>
+                                ({product.marginPercent.toFixed(0)}%)
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex flex-col items-end">
+                              <span className={`font-mono font-semibold ${
+                                product.netMarginBogo < 0 
+                                  ? "text-red-600" 
+                                  : product.netMarginBogo < 1 
+                                    ? "text-amber-600"
+                                    : "text-emerald-600"
+                              }`}>
+                                {product.netMarginBogo.toFixed(2)}€
+                              </span>
+                              <span className={`text-xs font-semibold ${getMarginColor(product.marginBogoPercent, true)}`}>
+                                ({product.marginBogoPercent.toFixed(0)}%)
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className={`inline-flex items-center justify-center w-12 h-8 rounded-md font-bold text-sm ${
+                              product.bogoScore >= 60 
+                                ? "bg-purple-500/15 text-purple-600 border border-purple-500/30"
+                                : product.bogoScore >= 40
+                                  ? "bg-blue-500/15 text-blue-600 border border-blue-500/30"
+                                  : product.bogoScore >= 20
+                                    ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
+                                    : "bg-muted/30 text-muted-foreground"
+                            }`}>
+                              {product.bogoScore.toFixed(0)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full cursor-help transition-all hover:scale-105 ${
+                                    product.recommendation === "recommended"
+                                      ? "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30"
+                                      : product.recommendation === "moderate"
+                                        ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
+                                        : "bg-red-500/15 text-red-600 border border-red-500/30"
+                                  }`}>
+                                    {product.recommendation === "recommended" ? (
+                                      <ThumbsUp className="h-3.5 w-3.5" />
+                                    ) : product.recommendation === "moderate" ? (
+                                      <MinusIcon className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <ThumbsDown className="h-3.5 w-3.5" />
+                                    )}
+                                    <span className="text-xs font-medium">
+                                      {product.recommendation === "recommended" ? "Go" : product.recommendation === "moderate" ? "Risqué" : "Stop"}
+                                    </span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="max-w-xs">
+                                  <div className="space-y-1.5">
+                                    <p className="font-semibold">
+                                      {product.recommendation === "recommended" 
+                                        ? "✅ BOGO recommandé" 
+                                        : product.recommendation === "moderate"
+                                          ? "⚠️ Risque modéré"
+                                          : "❌ BOGO déconseillé"}
+                                    </p>
+                                    <div className="text-xs space-y-0.5">
+                                      <p>
+                                        <span className="text-muted-foreground">Marge BOGO:</span>{" "}
+                                        <span className={product.netMarginBogo < 0 ? "text-red-400" : "text-emerald-400"}>
+                                          {product.netMarginBogo.toFixed(2)}€ ({product.marginBogoPercent.toFixed(0)}%)
+                                        </span>
+                                      </p>
+                                      <p>
+                                        <span className="text-muted-foreground">Ventes:</span>{" "}
+                                        <span>{product.sales} unités</span>
+                                      </p>
+                                      <p>
+                                        <span className="text-muted-foreground">Score BOGO:</span>{" "}
+                                        <span className="font-mono">{product.bogoScore.toFixed(0)}/100</span>
+                                      </p>
+                                      {product.breakevenIncreasePercent !== null && (
+                                        <p>
+                                          <span className="text-muted-foreground">Seuil:</span>{" "}
+                                          <span className="font-mono">+{product.breakevenIncreasePercent.toFixed(0)}%</span> ventes
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             </div>
-            {allProductsAnalysis.length > 15 && (
+            {allProductsAnalysis.length > 20 && (
               <p className="text-center text-sm text-muted-foreground mt-3">
-                Affichage des 15 premiers produits sur {allProductsAnalysis.length}
+                Affichage des 20 premiers produits sur {allProductsAnalysis.length}
               </p>
             )}
           </CardContent>
