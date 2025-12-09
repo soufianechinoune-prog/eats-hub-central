@@ -47,7 +47,9 @@ import {
   ShoppingCart,
   Gift,
 } from "lucide-react";
-import { UberEatsIcon } from "@/components/icons/PlatformIcons";
+import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
+
+export type Platform = "uber" | "deliveroo";
 
 interface MenuItem {
   id: string;
@@ -62,20 +64,31 @@ interface MenuItem {
 interface CrossProductSimulatorProps {
   menuItems: MenuItem[];
   onBack: () => void;
+  platform: Platform;
 }
 
-export function CrossProductSimulator({ menuItems, onBack }: CrossProductSimulatorProps) {
+// Platform-specific defaults
+const PLATFORM_CONFIG = {
+  uber: { defaultCommission: 30, defaultOfferFee: 0.89, color: "violet", name: "Uber Eats" },
+  deliveroo: { defaultCommission: 25, defaultOfferFee: 0, color: "violet", name: "Deliveroo" },
+};
+
+export function CrossProductSimulator({ menuItems, onBack, platform }: CrossProductSimulatorProps) {
+  const config = PLATFORM_CONFIG[platform];
+  const isUber = platform === "uber";
+  const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
+  
   const [paidProductId, setPaidProductId] = useState<string>("");
   const [freeProductId, setFreeProductId] = useState<string>("");
-  const [uberCommission, setUberCommission] = useState<number>(30);
-  const [offerFee, setOfferFee] = useState<number>(0.89);
+  const [commission, setCommission] = useState<number>(config.defaultCommission);
+  const [offerFee, setOfferFee] = useState<number>(config.defaultOfferFee);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("");
 
   const eligibleProducts = useMemo(() => {
     return menuItems.filter(
-      item => item.price_uber && item.food_cost && item.food_cost > 0 && item.is_active
+      item => (isUber ? item.price_uber : item.price_deliveroo) && item.food_cost && item.food_cost > 0 && item.is_active
     );
-  }, [menuItems]);
+  }, [menuItems, isUber]);
 
   const paidProduct = useMemo(() => {
     return eligibleProducts.find(p => p.id === paidProductId);
@@ -86,17 +99,17 @@ export function CrossProductSimulator({ menuItems, onBack }: CrossProductSimulat
   }, [eligibleProducts, freeProductId]);
 
   const simulation = useMemo(() => {
-    if (!paidProduct || !freeProduct || !paidProduct.price_uber || !paidProduct.food_cost || !freeProduct.food_cost) {
+    const paidPrice = isUber ? paidProduct?.price_uber : paidProduct?.price_deliveroo;
+    if (!paidProduct || !freeProduct || !paidPrice || !paidProduct.food_cost || !freeProduct.food_cost) {
       return null;
     }
 
-    const paidPrice = paidProduct.price_uber;
     const paidFoodCost = paidProduct.food_cost;
     const freeFoodCost = freeProduct.food_cost;
-    const commission = uberCommission / 100;
+    const commissionRate = commission / 100;
 
     // Without offer: selling paid product alone
-    const netMarginWithoutOffer = paidPrice - (paidPrice * commission) - paidFoodCost;
+    const netMarginWithoutOffer = paidPrice - (paidPrice * commissionRate) - paidFoodCost;
     const marginPercentWithoutOffer = (netMarginWithoutOffer / paidPrice) * 100;
 
     // With cross-product offer: customer pays for A, gets B free
@@ -104,7 +117,7 @@ export function CrossProductSimulator({ menuItems, onBack }: CrossProductSimulat
     // Commission: paidPrice * commission
     // Food cost: paidFoodCost + freeFoodCost (both products)
     // Offer fee: offerFee
-    const netMarginWithOffer = paidPrice - (paidPrice * commission) - paidFoodCost - freeFoodCost - offerFee;
+    const netMarginWithOffer = paidPrice - (paidPrice * commissionRate) - paidFoodCost - freeFoodCost - offerFee;
     const marginPercentWithOffer = (netMarginWithOffer / paidPrice) * 100;
 
     // Breakeven calculation
@@ -130,11 +143,11 @@ export function CrossProductSimulator({ menuItems, onBack }: CrossProductSimulat
       isBreakeven,
       isLoss: netMarginWithOffer < 0,
     };
-  }, [paidProduct, freeProduct, uberCommission, offerFee, uberEstimatedIncrease]);
+  }, [paidProduct, freeProduct, commission, offerFee, uberEstimatedIncrease, isUber]);
 
   // Calculate best combinations
   const bestCombinations = useMemo(() => {
-    const commission = uberCommission / 100;
+    const commissionRate = commission / 100;
     const combinations: Array<{
       paidProduct: MenuItem;
       freeProduct: MenuItem;
@@ -147,12 +160,12 @@ export function CrossProductSimulator({ menuItems, onBack }: CrossProductSimulat
       for (const free of eligibleProducts) {
         if (paid.id === free.id) continue;
         
-        const paidPrice = paid.price_uber!;
+        const paidPrice = (isUber ? paid.price_uber : paid.price_deliveroo)!;
         const paidFC = paid.food_cost!;
         const freeFC = free.food_cost!;
         
-        const marginWithoutOffer = paidPrice - (paidPrice * commission) - paidFC;
-        const marginWithOffer = paidPrice - (paidPrice * commission) - paidFC - freeFC - offerFee;
+        const marginWithoutOffer = paidPrice - (paidPrice * commissionRate) - paidFC;
+        const marginWithOffer = paidPrice - (paidPrice * commissionRate) - paidFC - freeFC - offerFee;
         const breakevenMult = marginWithOffer > 0 ? marginWithoutOffer / marginWithOffer : null;
         const breakevenPercent = breakevenMult ? (breakevenMult - 1) * 100 : null;
 
@@ -186,7 +199,7 @@ export function CrossProductSimulator({ menuItems, onBack }: CrossProductSimulat
         return (b.netMarginWithOffer) - (a.netMarginWithOffer);
       })
       .slice(0, 20);
-  }, [eligibleProducts, uberCommission, offerFee]);
+  }, [eligibleProducts, commission, offerFee, isUber]);
 
   const recommendation = useMemo(() => {
     if (!simulation) return null;
@@ -377,28 +390,28 @@ export function CrossProductSimulator({ menuItems, onBack }: CrossProductSimulat
                   <div className="flex items-center justify-center gap-3">
                     <div className="text-center p-3 bg-violet-500/10 rounded-lg">
                       <p className="text-xs text-muted-foreground">Acheté</p>
-                      <p className="font-semibold text-sm truncate max-w-[120px]">{paidProduct.name}</p>
-                      <p className="text-violet-600 font-mono">{paidProduct.price_uber?.toFixed(2)}€</p>
+                        <p className="font-semibold text-sm truncate max-w-[120px]">{paidProduct.name}</p>
+                        <p className="text-violet-600 font-mono">{(isUber ? paidProduct.price_uber : paidProduct.price_deliveroo)?.toFixed(2)}€</p>
+                      </div>
+                      <Plus className="h-5 w-5 text-muted-foreground" />
+                      <div className="text-center p-3 bg-emerald-500/10 rounded-lg">
+                        <p className="text-xs text-muted-foreground">Offert</p>
+                        <p className="font-semibold text-sm truncate max-w-[120px]">{freeProduct.name}</p>
+                        <Badge className="bg-emerald-500 text-white text-xs mt-1">GRATUIT</Badge>
+                      </div>
                     </div>
-                    <Plus className="h-5 w-5 text-muted-foreground" />
-                    <div className="text-center p-3 bg-emerald-500/10 rounded-lg">
-                      <p className="text-xs text-muted-foreground">Offert</p>
-                      <p className="font-semibold text-sm truncate max-w-[120px]">{freeProduct.name}</p>
-                      <Badge className="bg-emerald-500 text-white text-xs mt-1">GRATUIT</Badge>
-                    </div>
-                  </div>
-                </motion.div>
+                  </motion.div>
               )}
 
-              {/* Uber Commission */}
+              {/* Commission */}
               <div className="space-y-3">
                 <Label className="flex items-center justify-between">
-                  <span>Commission Uber</span>
-                  <Badge variant="outline" className="font-mono">{uberCommission}%</Badge>
+                  <span>Commission {config.name}</span>
+                  <Badge variant="outline" className="font-mono">{commission}%</Badge>
                 </Label>
                 <Slider
-                  value={[uberCommission]}
-                  onValueChange={([value]) => setUberCommission(value)}
+                  value={[commission]}
+                  onValueChange={([value]) => setCommission(value)}
                   min={15}
                   max={40}
                   step={1}
@@ -421,11 +434,11 @@ export function CrossProductSimulator({ menuItems, onBack }: CrossProductSimulat
                 </div>
               </div>
 
-              {/* Uber Estimated Increase */}
+              {/* Estimation */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
-                  <UberEatsIcon className="h-4 w-4" />
-                  Estimation Uber (augmentation commandes)
+                  <PlatformIcon className="h-4 w-4" />
+                  Estimation {config.name} (augmentation commandes)
                 </Label>
                 <div className="relative">
                   <Input

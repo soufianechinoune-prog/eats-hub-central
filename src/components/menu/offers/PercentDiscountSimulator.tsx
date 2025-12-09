@@ -43,7 +43,9 @@ import {
   ShoppingBag,
   Sparkles,
 } from "lucide-react";
-import { UberEatsIcon } from "@/components/icons/PlatformIcons";
+import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
+
+export type Platform = "uber" | "deliveroo";
 
 interface MenuItem {
   id: string;
@@ -58,38 +60,50 @@ interface MenuItem {
 interface PercentDiscountSimulatorProps {
   menuItems: MenuItem[];
   onBack: () => void;
+  platform: Platform;
 }
 
 const discountOptions = [10, 15, 20, 25, 30, 40, 50];
 const minSpendOptions = [10, 15, 20, 25, 30, 35, 40];
 
-export function PercentDiscountSimulator({ menuItems, onBack }: PercentDiscountSimulatorProps) {
+// Platform-specific defaults
+const PLATFORM_CONFIG = {
+  uber: { defaultCommission: 30, defaultOfferFee: 0.89, color: "emerald", name: "Uber Eats" },
+  deliveroo: { defaultCommission: 25, defaultOfferFee: 0, color: "emerald", name: "Deliveroo" },
+};
+
+export function PercentDiscountSimulator({ menuItems, onBack, platform }: PercentDiscountSimulatorProps) {
+  const config = PLATFORM_CONFIG[platform];
+  const isUber = platform === "uber";
+  const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
+  
   const [discountPercent, setDiscountPercent] = useState<number>(30);
   const [minSpend, setMinSpend] = useState<number>(15);
   const [maxDiscountValue, setMaxDiscountValue] = useState<string>("");
   const [averageBasket, setAverageBasket] = useState<string>("21");
-  const [uberCommission, setUberCommission] = useState<number>(30);
-  const [offerFee, setOfferFee] = useState<number>(0.89);
+  const [commission, setCommission] = useState<number>(config.defaultCommission);
+  const [offerFee, setOfferFee] = useState<number>(config.defaultOfferFee);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("16");
 
   // Calculate average food cost ratio from menu items
   const avgFoodCostRatio = useMemo(() => {
     const eligibleItems = menuItems.filter(
-      item => item.price_uber && item.food_cost && item.food_cost > 0 && item.is_active
+      item => (isUber ? item.price_uber : item.price_deliveroo) && item.food_cost && item.food_cost > 0 && item.is_active
     );
     if (eligibleItems.length === 0) return 0.30; // Default 30%
     
     const totalRatio = eligibleItems.reduce((sum, item) => {
-      return sum + (item.food_cost! / item.price_uber!);
+      const price = (isUber ? item.price_uber : item.price_deliveroo)!;
+      return sum + (item.food_cost! / price);
     }, 0);
     return totalRatio / eligibleItems.length;
-  }, [menuItems]);
+  }, [menuItems, isUber]);
 
   const simulation = useMemo(() => {
     const basket = parseFloat(averageBasket) || 0;
     if (basket <= 0) return null;
 
-    const commission = uberCommission / 100;
+    const commissionRate = commission / 100;
     const discount = discountPercent / 100;
     
     // Calculate actual discount considering max value cap
@@ -105,14 +119,14 @@ export function PercentDiscountSimulator({ menuItems, onBack }: PercentDiscountS
     
     // Without offer
     const revenueWithoutOffer = basket;
-    const marginWithoutOffer = basket - (basket * commission) - foodCost;
+    const marginWithoutOffer = basket - (basket * commissionRate) - foodCost;
     const marginPercentWithoutOffer = (marginWithoutOffer / basket) * 100;
     
     // With offer: customer pays less, restaurant gets less revenue but food cost unchanged
     // Revenue is what customer pays (after discount)
     // Commission is on what customer pays
     // Food cost remains the same (we still prepare full order)
-    const marginWithOffer = customerPays - (customerPays * commission) - foodCost - offerFee;
+    const marginWithOffer = customerPays - (customerPays * commissionRate) - foodCost - offerFee;
     const marginPercentWithOffer = (marginWithOffer / basket) * 100;
     
     // Breakeven calculation
@@ -138,14 +152,14 @@ export function PercentDiscountSimulator({ menuItems, onBack }: PercentDiscountS
       isBreakeven,
       isLoss: marginWithOffer < 0,
     };
-  }, [averageBasket, discountPercent, maxDiscountValue, uberCommission, offerFee, avgFoodCostRatio, uberEstimatedIncrease]);
+  }, [averageBasket, discountPercent, maxDiscountValue, commission, offerFee, avgFoodCostRatio, uberEstimatedIncrease]);
 
   // Generate scenario comparison table
   const scenarios = useMemo(() => {
     const basket = parseFloat(averageBasket) || 21;
-    const commission = uberCommission / 100;
+    const commissionRate = commission / 100;
     const foodCost = basket * avgFoodCostRatio;
-    const marginWithoutOffer = basket - (basket * commission) - foodCost;
+    const marginWithoutOffer = basket - (basket * commissionRate) - foodCost;
 
     return discountOptions.map(discPct => {
       const discount = discPct / 100;
@@ -154,7 +168,7 @@ export function PercentDiscountSimulator({ menuItems, onBack }: PercentDiscountS
       const actualDiscount = Math.min(rawDiscount, maxDiscount);
       const customerPays = basket - actualDiscount;
       
-      const marginWithOffer = customerPays - (customerPays * commission) - foodCost - offerFee;
+      const marginWithOffer = customerPays - (customerPays * commissionRate) - foodCost - offerFee;
       const breakevenMult = marginWithOffer > 0 ? marginWithoutOffer / marginWithOffer : null;
       const breakevenPercent = breakevenMult ? (breakevenMult - 1) * 100 : null;
 
@@ -183,7 +197,7 @@ export function PercentDiscountSimulator({ menuItems, onBack }: PercentDiscountS
         isProfitable: breakevenPercent !== null && estimatedIncrease > breakevenPercent,
       };
     });
-  }, [averageBasket, uberCommission, offerFee, avgFoodCostRatio, maxDiscountValue]);
+  }, [averageBasket, commission, offerFee, avgFoodCostRatio, maxDiscountValue]);
 
   const recommendation = useMemo(() => {
     if (!simulation) return null;
@@ -402,15 +416,15 @@ export function PercentDiscountSimulator({ menuItems, onBack }: PercentDiscountS
                 </div>
               </div>
 
-              {/* Uber Commission */}
+              {/* Commission */}
               <div className="space-y-3">
                 <Label className="flex items-center justify-between">
-                  <span>Commission Uber</span>
-                  <Badge variant="outline" className="font-mono">{uberCommission}%</Badge>
+                  <span>Commission {config.name}</span>
+                  <Badge variant="outline" className="font-mono">{commission}%</Badge>
                 </Label>
                 <Slider
-                  value={[uberCommission]}
-                  onValueChange={([value]) => setUberCommission(value)}
+                  value={[commission]}
+                  onValueChange={([value]) => setCommission(value)}
                   min={15}
                   max={40}
                   step={1}

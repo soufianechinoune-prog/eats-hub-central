@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Sparkles,
 } from "lucide-react";
+import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 
 export type OfferType = 
   | "bogo" 
@@ -23,6 +24,8 @@ export type OfferType =
   | "free_item" 
   | "free_delivery" 
   | "happy_hour";
+
+export type Platform = "uber" | "deliveroo";
 
 interface OfferTypeConfig {
   id: OfferType;
@@ -131,9 +134,15 @@ const colorClasses: Record<string, { text: string; bg: string; border: string; b
 
 interface OfferTypeSelectorProps {
   onSelectOffer: (type: OfferType) => void;
+  platform: Platform;
 }
 
-export function OfferTypeSelector({ onSelectOffer }: OfferTypeSelectorProps) {
+export function OfferTypeSelector({ onSelectOffer, platform }: OfferTypeSelectorProps) {
+  const isUber = platform === "uber";
+  const platformColor = isUber ? "orange" : "cyan";
+  const platformName = isUber ? "Uber Eats" : "Deliveroo";
+  const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
+  
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -141,17 +150,17 @@ export function OfferTypeSelector({ onSelectOffer }: OfferTypeSelectorProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <Card className="border-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]">
-          <div className="absolute inset-0 border border-white/30 rounded-lg pointer-events-none" />
+        <Card className={`border-0 bg-gradient-to-br ${isUber ? "from-orange-500/10 via-orange-500/5" : "from-cyan-500/10 via-cyan-500/5"} to-transparent backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]`}>
+          <div className={`absolute inset-0 border ${isUber ? "border-orange-500/30" : "border-cyan-500/30"} rounded-lg pointer-events-none`} />
           <CardContent className="relative py-8">
             <div className="text-center space-y-3">
               <motion.div 
-                className="inline-flex p-4 bg-primary/15 backdrop-blur-sm rounded-2xl shadow-lg mx-auto"
+                className={`inline-flex p-4 ${isUber ? "bg-orange-500/15" : "bg-cyan-500/15"} backdrop-blur-sm rounded-2xl shadow-lg mx-auto`}
                 whileHover={{ scale: 1.1, rotate: 5 }}
               >
-                <Sparkles className="h-8 w-8 text-primary" />
+                <PlatformIcon className={`h-8 w-8 ${isUber ? "text-orange-500" : "text-cyan-500"}`} />
               </motion.div>
-              <h1 className="text-2xl font-bold">Simulateur d'Offres Uber Eats</h1>
+              <h1 className="text-2xl font-bold">Simulateur d'Offres {platformName}</h1>
               <p className="text-muted-foreground max-w-lg mx-auto">
                 Analysez la rentabilité de vos promotions avant de les activer. 
                 Sélectionnez un type d'offre pour commencer la simulation.
