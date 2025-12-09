@@ -446,16 +446,17 @@ export function OrderAccuracyDashboard({
             <CardTitle className="text-lg">TOP 10 - Articles problématiques</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <BarChart data={topItems} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis type="number" className="text-xs" />
                 <YAxis
                   type="category"
                   dataKey="title"
-                  width={150}
+                  width={200}
                   className="text-xs"
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => value.length > 30 ? `${value.slice(0, 27)}...` : value}
                 />
                 <Tooltip
                   formatter={(value: number, name: string) => [
