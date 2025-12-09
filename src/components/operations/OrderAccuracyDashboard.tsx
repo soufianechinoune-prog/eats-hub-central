@@ -115,20 +115,20 @@ export function OrderAccuracyDashboard({
     },
   });
 
-  // Fetch monthly revenue data for error rate calculation
-  const { data: monthlyRevenue } = useQuery({
-    queryKey: ["monthly-revenue-for-errors", selectedRestaurant, selectedYear],
+  // Fetch sales data from daily_sales_uber via RPC for error rate calculation
+  const { data: salesData } = useQuery({
+    queryKey: ["sales-for-error-rate", selectedRestaurant, selectedYear, restaurants],
     queryFn: async () => {
-      let query = supabase
-        .from("monthly_revenue")
-        .select("month, order_count, restaurant_id")
-        .eq("year", selectedYear);
-
-      if (selectedRestaurant !== "all") {
-        query = query.eq("restaurant_id", selectedRestaurant);
-      }
-
-      const { data, error } = await query;
+      const restaurantIds = selectedRestaurant === "all" 
+        ? restaurants.map(r => r.id)
+        : [selectedRestaurant];
+      
+      const { data, error } = await supabase.rpc("get_monthly_sales_from_daily", {
+        p_year: selectedYear,
+        p_restaurant_ids: restaurantIds,
+        p_period_type: "current",
+      });
+      
       if (error) return [];
       return data || [];
     },
@@ -136,22 +136,22 @@ export function OrderAccuracyDashboard({
 
   // Calculate order count for current period
   const orderCount = useMemo(() => {
-    if (!monthlyRevenue) return 0;
+    if (!salesData) return 0;
     
     if (drillDownMonth !== null) {
-      return monthlyRevenue
-        .filter(r => r.month === drillDownMonth)
-        .reduce((sum, r) => sum + (r.order_count || 0), 0);
+      return salesData
+        .filter((r: any) => r.month === drillDownMonth)
+        .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
     }
     
     if (selectedMonth !== "all") {
-      return monthlyRevenue
-        .filter(r => r.month === selectedMonth)
-        .reduce((sum, r) => sum + (r.order_count || 0), 0);
+      return salesData
+        .filter((r: any) => r.month === selectedMonth)
+        .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
     }
     
-    return monthlyRevenue.reduce((sum, r) => sum + (r.order_count || 0), 0);
-  }, [monthlyRevenue, selectedMonth, drillDownMonth]);
+    return salesData.reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
+  }, [salesData, selectedMonth, drillDownMonth]);
 
   // Calculate KPIs
   const kpis = useMemo(() => {
@@ -175,7 +175,7 @@ export function OrderAccuracyDashboard({
 
   // Build error rate evolution data
   const errorRateEvolutionData = useMemo(() => {
-    if (!orderErrors || !monthlyRevenue) return [];
+    if (!orderErrors || !salesData) return [];
 
     const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 
@@ -194,9 +194,9 @@ export function OrderAccuracyDashboard({
         dailyErrors[day] = (dailyErrors[day] || 0) + 1;
       });
 
-      const monthOrderCount = monthlyRevenue
-        .filter(r => r.month === drillDownMonth)
-        .reduce((sum, r) => sum + (r.order_count || 0), 0);
+      const monthOrderCount = salesData
+        .filter((r: any) => r.month === drillDownMonth)
+        .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
       const dailyAvgOrders = monthOrderCount / daysInMonth;
 
       return Object.entries(dailyErrors).map(([day, count]) => ({
@@ -220,9 +220,9 @@ export function OrderAccuracyDashboard({
       monthlyErrors[month] = (monthlyErrors[month] || 0) + 1;
     });
 
-    // Group revenue by month
+    // Group sales data by month
     const monthlyOrderCounts: Record<number, number> = {};
-    monthlyRevenue.forEach(r => {
+    salesData.forEach((r: any) => {
       monthlyOrderCounts[r.month] = (monthlyOrderCounts[r.month] || 0) + (r.order_count || 0);
     });
 
@@ -238,7 +238,7 @@ export function OrderAccuracyDashboard({
           orderCount: orders,
         };
       });
-  }, [orderErrors, monthlyRevenue, selectedYear, drillDownMonth]);
+  }, [orderErrors, salesData, selectedYear, drillDownMonth]);
 
   // Top problematic items
   const topItems = useMemo(() => {
