@@ -51,6 +51,7 @@ const REPORT_THEMES = [
     types: [
       { value: "downtime_report", label: "Temps d'inactivité", description: "Disponibilité horaire des restaurants (menu_downtime_local)", icon: Clock },
       { value: "order_history", label: "Historique des commandes", description: "Temps d'attente coursier, préparation, livraison (order_history_local)", icon: Clock },
+      { value: "inaccurate_orders", label: "Commandes incorrectes", description: "Articles manquants, erreurs, problèmes qualité (inaccurate_orders_v3)", icon: AlertTriangle },
     ]
   }
 ];
@@ -216,6 +217,12 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
+      // Check for inaccurate orders headers
+      if ((lines[i].includes("Problème avec la commande") || lines[i].includes("Articles incorrects")) &&
+          lines[i].includes("Client remboursé")) {
+        headerRowIndex = i;
+        break;
+      }
     }
 
     if (headerRowIndex === -1) {
@@ -307,6 +314,7 @@ export default function ReportImport() {
         reviews_item: "parse-reviews-item",
         downtime_report: "parse-downtime-report",
         order_history: "parse-order-history",
+        inaccurate_orders: "parse-inaccurate-orders",
       };
       const functionName = functionMap[reportType] || "parse-payment-report";
       
@@ -423,6 +431,7 @@ export default function ReportImport() {
         reviews_item: "parse-reviews-item",
         downtime_report: "parse-downtime-report",
         order_history: "parse-order-history",
+        inaccurate_orders: "parse-inaccurate-orders",
       };
       const functionName = functionMap[reportType] || "parse-payment-report";
       
@@ -459,7 +468,9 @@ export default function ReportImport() {
                 ? `${importData.stats?.inserted || 0} campagnes importées dans les actions`
                 : reportType === "downtime_report"
                   ? `${importData.stats?.inserted || 0} créneaux horaires importés`
-                  : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
+                  : reportType === "inaccurate_orders"
+                    ? `${importData.stats?.inserted || 0} erreurs de commande importées`
+                    : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
         toast({
           title: "Import réussi",
           description: statsMessage,

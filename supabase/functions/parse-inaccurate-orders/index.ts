@@ -1,0 +1,422 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface ParseResult {
+  success: boolean;
+  reportType: string;
+  dryRun?: boolean;
+  stats: {
+    totalRows: number;
+    inserted: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+  };
+  validation?: {
+    dateRange: {
+      start: string | null;
+      end: string | null;
+    };
+    restaurants: {
+      id: string;
+      name: string;
+      orderCount: number;
+    }[];
+    unknownStoreIds: string[];
+    skippedDetails: {
+      rowIndex: number;
+      reason: string;
+      details: string;
+    }[];
+  };
+  errorDetails: string[];
+}
+
+// Parse CSV line handling quoted fields
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+// Parse numeric value with comma as decimal separator
+function parseNumeric(value: string): number | null {
+  if (!value || value.trim() === '') return null;
+  // Remove currency symbols, spaces, and replace comma with dot
+  const cleaned = value.replace(/[€$\s]/g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
+// Parse datetime from CSV format - supports multiple formats
+function parseDateTime(dateStr: string): string | null {
+  if (!dateStr || dateStr.trim() === '') return null;
+  
+  // Format ISO: "2025-11-01 00:02:54.000" or "2025-11-01T00:02:54.000"
+  const isoMatch = dateStr.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2}):(\d{2})/);
+  if (isoMatch) {
+    const [_, year, month, day, hours, minutes, seconds] = isoMatch;
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+00:00`;
+  }
+  
+  // Format FR: "01/11/2024 10:48:16" or "01/11/2024 10:48"
+  const frMatch = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (frMatch) {
+    const [_, day, month, year, hours, minutes, seconds = '00'] = frMatch;
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+00:00`;
+  }
+  return null;
+}
+
+// Normalize restaurant name for matching
+function normalizeRestaurantName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+// Find restaurant by partial name matching
+function findRestaurantByPartialName(
+  csvName: string,
+  restaurantByName: Map<string, { id: string; name: string }>
+): { id: string; name: string } | null {
+  const cityMatch = csvName.match(/Chicken\s*Street\s*[-–—]\s*(.+)/i);
+  if (!cityMatch) return null;
+
+  const cityPart = normalizeRestaurantName(cityMatch[1]);
+  if (!cityPart || cityPart.length < 3) return null;
+
+  const matches: { id: string; name: string }[] = [];
+  for (const [normalizedName, restaurant] of restaurantByName.entries()) {
+    if (normalizedName.includes(cityPart)) {
+      matches.push(restaurant);
+    }
+  }
+
+  if (matches.length === 1) {
+    console.log(`Partial match: "${csvName}" -> "${matches[0].name}"`);
+    return matches[0];
+  }
+
+  return null;
+}
+
+// Categorize error type based on the info column
+function categorizeError(errorInfo: string): string {
+  if (!errorInfo) return 'Autre';
+  
+  const lower = errorInfo.toLowerCase();
+  
+  if (lower.includes('missing_item') || lower.includes('article manquant')) {
+    return 'Articles manquants';
+  }
+  if (lower.includes('wrong_item') || lower.includes('article incorrect')) {
+    return 'Article incorrect';
+  }
+  if (lower.includes('food_quality') || lower.includes('qualité')) {
+    return 'Problèmes liés à la qualité des aliments';
+  }
+  if (lower.includes('wrong_order') || lower.includes('commande incorrecte')) {
+    return 'Commande incorrecte';
+  }
+  if (lower.includes('cold') || lower.includes('froid')) {
+    return 'Problèmes liés à la qualité des aliments';
+  }
+  if (lower.includes('spoiled') || lower.includes('périmé')) {
+    return 'Problèmes liés à la qualité des aliments';
+  }
+  
+  return 'Autre';
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { csvContent, restaurantId, dryRun = false } = await req.json();
+
+    if (!csvContent) {
+      throw new Error('CSV content is required');
+    }
+
+    console.log(`Parsing inaccurate orders CSV, dryRun: ${dryRun}, restaurantId override: ${restaurantId || 'none'}`);
+
+    // Fetch all restaurants for matching
+    const { data: restaurants, error: restaurantsError } = await supabase
+      .from('restaurants')
+      .select('id, name, uber_store_id');
+
+    if (restaurantsError) {
+      throw new Error(`Failed to fetch restaurants: ${restaurantsError.message}`);
+    }
+
+    // Create lookup maps
+    const restaurantByStoreId = new Map<string, { id: string; name: string }>();
+    const restaurantByName = new Map<string, { id: string; name: string }>();
+
+    for (const r of restaurants || []) {
+      if (r.uber_store_id) {
+        restaurantByStoreId.set(r.uber_store_id, { id: r.id, name: r.name });
+      }
+      restaurantByName.set(normalizeRestaurantName(r.name), { id: r.id, name: r.name });
+    }
+
+    // Parse CSV
+    const lines = csvContent.split('\n').filter((line: string) => line.trim());
+    
+    // Find header row - look for "Problème avec la commande" or similar columns
+    let headerIndex = 0;
+    for (let i = 0; i < Math.min(10, lines.length); i++) {
+      const line = lines[i].toLowerCase();
+      if (line.includes('problème avec la commande') || 
+          line.includes('articles incorrects') ||
+          line.includes('client remboursé')) {
+        headerIndex = i;
+        break;
+      }
+    }
+
+    const headers = parseCSVLine(lines[headerIndex]);
+    const headerMap = new Map<string, number>();
+    headers.forEach((h, i) => {
+      headerMap.set(h.toLowerCase().trim(), i);
+    });
+
+    console.log('Headers found:', headers.slice(0, 15).join(', '));
+
+    // Column getter helper
+    const getCol = (row: string[], ...names: string[]): string => {
+      for (const name of names) {
+        const idx = headerMap.get(name.toLowerCase());
+        if (idx !== undefined && row[idx]) return row[idx].trim();
+      }
+      return '';
+    };
+
+    const result: ParseResult = {
+      success: true,
+      reportType: 'inaccurate_orders',
+      dryRun,
+      stats: {
+        totalRows: 0,
+        inserted: 0,
+        updated: 0,
+        skipped: 0,
+        errors: 0,
+      },
+      validation: {
+        dateRange: { start: null, end: null },
+        restaurants: [],
+        unknownStoreIds: [],
+        skippedDetails: [],
+      },
+      errorDetails: [],
+    };
+
+    const restaurantStats = new Map<string, { id: string; name: string; orderCount: number }>();
+    const recordsToInsert: any[] = [];
+    const seenKeys = new Set<string>();
+    let minDate: string | null = null;
+    let maxDate: string | null = null;
+
+    // Process data rows
+    for (let i = headerIndex + 1; i < lines.length; i++) {
+      const row = parseCSVLine(lines[i]);
+      if (row.length < 5) continue;
+
+      result.stats.totalRows++;
+
+      const uberOrderId = getCol(row, 'id. de la commande', 'id de la commande', 'order id');
+      if (!uberOrderId) {
+        result.stats.skipped++;
+        result.validation?.skippedDetails.push({
+          rowIndex: i + 1,
+          reason: 'missing_order_id',
+          details: 'No order ID found',
+        });
+        continue;
+      }
+
+      // Find restaurant
+      let matchedRestaurant: { id: string; name: string } | undefined;
+
+      if (restaurantId) {
+        // Use override
+        const overrideRestaurant = restaurants?.find(r => r.id === restaurantId);
+        if (overrideRestaurant) {
+          matchedRestaurant = { id: overrideRestaurant.id, name: overrideRestaurant.name };
+        }
+      } else {
+        // Try name matching from Restaurant column
+        const restaurantName = getCol(row, 'restaurant');
+        if (restaurantName) {
+          const normalizedName = normalizeRestaurantName(restaurantName);
+          matchedRestaurant = restaurantByName.get(normalizedName);
+
+          // Try partial matching by city
+          if (!matchedRestaurant) {
+            matchedRestaurant = findRestaurantByPartialName(restaurantName, restaurantByName) || undefined;
+          }
+        }
+      }
+
+      if (!matchedRestaurant) {
+        result.stats.skipped++;
+        const restaurantName = getCol(row, 'restaurant');
+        result.validation?.skippedDetails.push({
+          rowIndex: i + 1,
+          reason: 'restaurant_not_found',
+          details: `Restaurant not found: ${restaurantName}`,
+        });
+        continue;
+      }
+
+      // Track restaurant stats
+      const key = matchedRestaurant.id;
+      if (!restaurantStats.has(key)) {
+        restaurantStats.set(key, { id: key, name: matchedRestaurant.name, orderCount: 0 });
+      }
+      restaurantStats.get(key)!.orderCount++;
+
+      // Parse dates
+      const orderDatetime = parseDateTime(getCol(row, 'heure de la commande', 'order time'));
+      const errorDate = orderDatetime || parseDateTime(getCol(row, 'heure du remboursement', 'refund time'));
+      
+      if (errorDate) {
+        const dateOnly = errorDate.split('T')[0];
+        if (!minDate || dateOnly < minDate) minDate = dateOnly;
+        if (!maxDate || dateOnly > maxDate) maxDate = dateOnly;
+      }
+
+      // Get error details
+      const errorType = getCol(row, 'problème avec la commande', 'issue with order');
+      const errorInfo = getCol(row, "informations concernant le problème lié à l'article", 'item issue info');
+      const incorrectItems = getCol(row, 'articles incorrects', 'incorrect items');
+      const customerComment = getCol(row, 'commentaires du client', 'customer comments');
+      
+      // Parse financial impact
+      const refundTotal = parseNumeric(getCol(row, 'client remboursé', 'customer refunded'));
+      const refundMerchant = parseNumeric(getCol(row, 'remboursement pris en charge par le commerçant', 'merchant refund'));
+      
+      // Split multiple items if present (separated by |)
+      const items = incorrectItems ? incorrectItems.split('|').map(s => s.trim()).filter(Boolean) : [''];
+
+      // Create one error record per item
+      for (const itemTitle of items) {
+        // Deduplication key
+        const dedupeKey = `${matchedRestaurant.id}|${uberOrderId}|${itemTitle || 'no_item'}`;
+        if (seenKeys.has(dedupeKey)) continue;
+        seenKeys.add(dedupeKey);
+
+        const record = {
+          restaurant_id: matchedRestaurant.id,
+          uber_order_id: uberOrderId,
+          error_date: errorDate,
+          error_type: errorType || categorizeError(errorInfo),
+          error_category: categorizeError(errorInfo),
+          item_title: itemTitle || null,
+          error_description: errorInfo || customerComment || null,
+          financial_impact: refundMerchant || refundTotal || null,
+        };
+
+        recordsToInsert.push(record);
+      }
+    }
+
+    console.log(`Parsed ${result.stats.totalRows} rows, prepared ${recordsToInsert.length} records to insert`);
+
+    // Set date range
+    if (minDate && maxDate) {
+      result.validation!.dateRange = { start: minDate, end: maxDate };
+    }
+
+    // Set restaurant stats
+    result.validation!.restaurants = Array.from(restaurantStats.values());
+
+    // Insert records if not dry run
+    if (!dryRun && recordsToInsert.length > 0) {
+      // Process in batches of 500
+      const batchSize = 500;
+      for (let i = 0; i < recordsToInsert.length; i += batchSize) {
+        const batch = recordsToInsert.slice(i, i + batchSize);
+        
+        const { error: insertError } = await supabase
+          .from('order_errors')
+          .insert(batch);
+
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          result.errorDetails.push(`Batch ${Math.floor(i / batchSize) + 1}: ${insertError.message}`);
+          result.stats.errors += batch.length;
+        } else {
+          result.stats.inserted += batch.length;
+        }
+      }
+
+      result.success = result.stats.errors === 0;
+    } else if (dryRun) {
+      result.stats.inserted = recordsToInsert.length;
+    }
+
+    console.log('Parse inaccurate orders result:', JSON.stringify({
+      ...result,
+      stats: result.stats,
+      restaurantCount: result.validation?.restaurants.length,
+    }));
+
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Error parsing inaccurate orders:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage,
+        reportType: 'inaccurate_orders',
+        stats: { totalRows: 0, inserted: 0, updated: 0, skipped: 0, errors: 0 },
+        validation: {
+          dateRange: { start: null, end: null },
+          restaurants: [],
+          unknownStoreIds: [],
+          skippedDetails: [],
+        },
+        errorDetails: [errorMessage],
+      }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+});
