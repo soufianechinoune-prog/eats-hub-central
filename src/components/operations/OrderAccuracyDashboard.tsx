@@ -134,7 +134,19 @@ export function OrderAccuracyDashboard({
     },
   });
 
-  // Calculate order count for current period
+  // Detect which months have error data
+  const monthsWithErrors = useMemo(() => {
+    if (!orderErrors) return new Set<number>();
+    const months = new Set<number>();
+    orderErrors.forEach(error => {
+      const date = new Date(error.error_date || error.created_at);
+      const month = date.getMonth() + 1;
+      months.add(month);
+    });
+    return months;
+  }, [orderErrors]);
+
+  // Calculate order count for current period (only for months with error data)
   const orderCount = useMemo(() => {
     if (!salesData) return 0;
     
@@ -150,8 +162,11 @@ export function OrderAccuracyDashboard({
         .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
     }
     
-    return salesData.reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
-  }, [salesData, selectedMonth, drillDownMonth]);
+    // Only count orders for months that have error data
+    return salesData
+      .filter((r: any) => monthsWithErrors.has(r.month))
+      .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
+  }, [salesData, selectedMonth, drillDownMonth, monthsWithErrors]);
 
   // Calculate KPIs
   const kpis = useMemo(() => {
@@ -226,8 +241,9 @@ export function OrderAccuracyDashboard({
       monthlyOrderCounts[r.month] = (monthlyOrderCounts[r.month] || 0) + (r.order_count || 0);
     });
 
+    // Only show months that have error data (exclude months without imports)
     return Object.entries(monthlyErrors)
-      .filter(([month]) => monthlyErrors[parseInt(month)] > 0 || monthlyOrderCounts[parseInt(month)] > 0)
+      .filter(([month]) => monthsWithErrors.has(parseInt(month)))
       .map(([month, count]) => {
         const orders = monthlyOrderCounts[parseInt(month)] || 0;
         return {
@@ -238,7 +254,7 @@ export function OrderAccuracyDashboard({
           orderCount: orders,
         };
       });
-  }, [orderErrors, salesData, selectedYear, drillDownMonth]);
+  }, [orderErrors, salesData, selectedYear, drillDownMonth, monthsWithErrors]);
 
   // Top problematic items
   const topItems = useMemo(() => {
