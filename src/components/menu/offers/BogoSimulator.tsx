@@ -774,200 +774,198 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                 </CardHeader>
                 
                 {showCalculationDetails && (
-                  <CardContent className="relative pt-0 pb-6">
-                    <div className="flex flex-col lg:flex-row items-stretch gap-4 lg:gap-2">
+                  <CardContent className="relative pt-0 pb-3">
+                    <div className="flex flex-col lg:flex-row items-stretch gap-2 lg:gap-1">
                       {/* Step 1 - Sans offre */}
                       <motion.div 
-                        className="flex-1 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 rounded-xl p-5 border-2 border-emerald-500/30 shadow-lg shadow-emerald-500/10"
-                        whileHover={{ scale: 1.02 }}
+                        className="flex-1 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 rounded-lg p-3 border border-emerald-500/30"
+                        whileHover={{ scale: 1.01 }}
                         transition={{ type: "spring", stiffness: 400 }}
                       >
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm shadow-lg">1</div>
-                            <span className="font-semibold text-emerald-700 dark:text-emerald-400">Sans offre</span>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-[10px]">1</div>
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-xs">Sans offre</span>
                           </div>
-                          <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                            <Check className="h-4 w-4 text-emerald-600" />
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-center gap-2 flex-wrap">
-                          <div className="flex flex-col items-center p-3 bg-white/70 dark:bg-white/10 rounded-lg min-w-[60px] shadow-sm">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Prix</span>
-                            <span className="font-bold text-emerald-600 text-lg">{simulation.price.toFixed(2)}€</span>
-                          </div>
-                          <Minus className="h-4 w-4 text-emerald-600/60" />
-                          <div className="flex flex-col items-center p-3 bg-white/70 dark:bg-white/10 rounded-lg min-w-[60px] shadow-sm">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Comm.</span>
-                            <span className="font-bold text-orange-600 text-lg">{(simulation.price * uberCommission / 100).toFixed(2)}€</span>
-                          </div>
-                          <Minus className="h-4 w-4 text-emerald-600/60" />
-                          <div className="flex flex-col items-center p-3 bg-white/70 dark:bg-white/10 rounded-lg min-w-[60px] shadow-sm">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Food Cost</span>
-                            <span className="font-bold text-red-500 text-lg">{simulation.foodCost.toFixed(2)}€</span>
+                          <div className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                            <Check className="h-2.5 w-2.5 text-emerald-600" />
                           </div>
                         </div>
-                        <div className="mt-4 pt-4 border-t border-emerald-500/20">
-                          <div className="flex items-center justify-center gap-3">
-                            <Equal className="h-4 w-4 text-emerald-600" />
-                            <div className="px-5 py-2.5 bg-emerald-500/20 rounded-xl border-2 border-emerald-500/40">
-                              <span className="text-xs text-emerald-700 dark:text-emerald-400 block text-center mb-0.5">Marge nette</span>
-                              <span className="font-black text-emerald-600 text-2xl block text-center">{simulation.netMarginPerUnit.toFixed(2)}€</span>
-                              <span className="text-xs text-emerald-600/80 block text-center">({((simulation.netMarginPerUnit / simulation.price) * 100).toFixed(0)}%)</span>
+                        <div className="flex items-center justify-center gap-1 flex-wrap">
+                          <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[42px]">
+                            <span className="text-[8px] text-muted-foreground uppercase">Prix</span>
+                            <span className="font-bold text-emerald-600 text-sm">{simulation.price.toFixed(2)}€</span>
+                          </div>
+                          <Minus className="h-2.5 w-2.5 text-emerald-600/60" />
+                          <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[42px]">
+                            <span className="text-[8px] text-muted-foreground uppercase">Comm.</span>
+                            <span className="font-bold text-orange-600 text-sm">{(simulation.price * uberCommission / 100).toFixed(2)}€</span>
+                          </div>
+                          <Minus className="h-2.5 w-2.5 text-emerald-600/60" />
+                          <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[42px]">
+                            <span className="text-[8px] text-muted-foreground uppercase">FC</span>
+                            <span className="font-bold text-red-500 text-sm">{simulation.foodCost.toFixed(2)}€</span>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-emerald-500/20">
+                          <div className="flex items-center justify-center gap-2">
+                            <Equal className="h-3 w-3 text-emerald-600" />
+                            <div className="px-3 py-1.5 bg-emerald-500/20 rounded-lg border border-emerald-500/40">
+                              <span className="text-[9px] text-emerald-700 dark:text-emerald-400 block text-center">Marge</span>
+                              <span className="font-black text-emerald-600 text-base block text-center">{simulation.netMarginPerUnit.toFixed(2)}€</span>
+                              <span className="text-[9px] text-emerald-600/80 block text-center">({((simulation.netMarginPerUnit / simulation.price) * 100).toFixed(0)}%)</span>
                             </div>
                           </div>
                         </div>
                       </motion.div>
 
                       {/* Arrow 1 */}
-                      <div className="hidden lg:flex items-center justify-center">
+                      <div className="hidden lg:flex items-center justify-center px-0.5">
                         <motion.div
-                          animate={{ x: [0, 5, 0] }}
+                          animate={{ x: [0, 3, 0] }}
                           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                          className="flex items-center"
                         >
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-amber-500 flex items-center justify-center shadow-lg">
-                            <ArrowRight className="h-5 w-5 text-white" />
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-r from-emerald-500 to-amber-500 flex items-center justify-center">
+                            <ArrowRight className="h-3 w-3 text-white" />
                           </div>
                         </motion.div>
                       </div>
-                      <div className="flex lg:hidden justify-center">
+                      <div className="flex lg:hidden justify-center py-0.5">
                         <motion.div
-                          animate={{ y: [0, 5, 0] }}
+                          animate={{ y: [0, 3, 0] }}
                           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                          className="w-8 h-8 rounded-full bg-gradient-to-b from-emerald-500 to-amber-500 flex items-center justify-center shadow-lg"
+                          className="w-5 h-5 rounded-full bg-gradient-to-b from-emerald-500 to-amber-500 flex items-center justify-center"
                         >
-                          <ChevronDown className="h-5 w-5 text-white" />
+                          <ChevronDown className="h-3 w-3 text-white" />
                         </motion.div>
                       </div>
 
                       {/* Step 2 - Avec BOGO */}
                       <motion.div 
-                        className={`flex-1 bg-gradient-to-br rounded-xl p-5 border-2 shadow-lg ${
+                        className={`flex-1 bg-gradient-to-br rounded-lg p-3 border ${
                           simulation.isLoss 
-                            ? "from-red-500/10 to-red-600/5 border-red-500/30 shadow-red-500/10" 
-                            : "from-amber-500/10 to-orange-500/5 border-amber-500/30 shadow-amber-500/10"
+                            ? "from-red-500/10 to-red-600/5 border-red-500/30" 
+                            : "from-amber-500/10 to-orange-500/5 border-amber-500/30"
                         }`}
-                        whileHover={{ scale: 1.02 }}
+                        whileHover={{ scale: 1.01 }}
                         transition={{ type: "spring", stiffness: 400 }}
                       >
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg ${simulation.isLoss ? "bg-red-500" : "bg-amber-500"}`}>2</div>
-                            <span className={`font-semibold ${simulation.isLoss ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>Avec BOGO</span>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[10px] ${simulation.isLoss ? "bg-red-500" : "bg-amber-500"}`}>2</div>
+                            <span className={`font-semibold text-xs ${simulation.isLoss ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>Avec BOGO</span>
                           </div>
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${simulation.isLoss ? "bg-red-500/20" : "bg-amber-500/20"}`}>
-                            {simulation.isLoss ? <X className="h-4 w-4 text-red-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                          <div className="flex flex-col items-center p-2.5 bg-white/70 dark:bg-white/10 rounded-lg min-w-[52px] shadow-sm">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Prix</span>
-                            <span className="font-bold text-emerald-600">{simulation.price.toFixed(2)}€</span>
-                          </div>
-                          <Minus className="h-3 w-3 text-muted-foreground/60" />
-                          <div className="flex flex-col items-center p-2.5 bg-white/70 dark:bg-white/10 rounded-lg min-w-[52px] shadow-sm">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Comm.</span>
-                            <span className="font-bold text-orange-600">{(simulation.price * uberCommission / 100).toFixed(2)}€</span>
-                          </div>
-                          <Minus className="h-3 w-3 text-muted-foreground/60" />
-                          <div className="flex flex-col items-center p-2.5 bg-white/70 dark:bg-white/10 rounded-lg min-w-[52px] shadow-sm">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">FC ×2</span>
-                            <span className="font-bold text-red-500">{(simulation.foodCost * 2).toFixed(2)}€</span>
-                          </div>
-                          <Minus className="h-3 w-3 text-muted-foreground/60" />
-                          <div className="flex flex-col items-center p-2.5 bg-white/70 dark:bg-white/10 rounded-lg min-w-[52px] shadow-sm">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Frais</span>
-                            <span className="font-bold text-purple-600">{offerFee.toFixed(2)}€</span>
+                          <div className={`w-4 h-4 rounded-full flex items-center justify-center ${simulation.isLoss ? "bg-red-500/20" : "bg-amber-500/20"}`}>
+                            {simulation.isLoss ? <X className="h-2.5 w-2.5 text-red-600" /> : <AlertTriangle className="h-2.5 w-2.5 text-amber-600" />}
                           </div>
                         </div>
-                        <div className="mt-4 pt-4 border-t border-amber-500/20">
-                          <div className="flex items-center justify-center gap-3">
-                            <Equal className="h-4 w-4 text-amber-600" />
-                            <div className={`px-5 py-2.5 rounded-xl border-2 ${
+                        <div className="flex items-center justify-center gap-1 flex-wrap">
+                          <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[38px]">
+                            <span className="text-[8px] text-muted-foreground uppercase">Prix</span>
+                            <span className="font-bold text-emerald-600 text-xs">{simulation.price.toFixed(2)}€</span>
+                          </div>
+                          <Minus className="h-2 w-2 text-muted-foreground/60" />
+                          <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[38px]">
+                            <span className="text-[8px] text-muted-foreground uppercase">Comm.</span>
+                            <span className="font-bold text-orange-600 text-xs">{(simulation.price * uberCommission / 100).toFixed(2)}€</span>
+                          </div>
+                          <Minus className="h-2 w-2 text-muted-foreground/60" />
+                          <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[38px]">
+                            <span className="text-[8px] text-muted-foreground uppercase">FC×2</span>
+                            <span className="font-bold text-red-500 text-xs">{(simulation.foodCost * 2).toFixed(2)}€</span>
+                          </div>
+                          <Minus className="h-2 w-2 text-muted-foreground/60" />
+                          <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[38px]">
+                            <span className="text-[8px] text-muted-foreground uppercase">Frais</span>
+                            <span className="font-bold text-purple-600 text-xs">{offerFee.toFixed(2)}€</span>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-amber-500/20">
+                          <div className="flex items-center justify-center gap-2">
+                            <Equal className="h-3 w-3 text-amber-600" />
+                            <div className={`px-3 py-1.5 rounded-lg border ${
                               simulation.isLoss 
                                 ? "bg-red-500/20 border-red-500/40" 
                                 : "bg-amber-500/20 border-amber-500/40"
                             }`}>
-                              <span className={`text-xs block text-center mb-0.5 ${simulation.isLoss ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>Marge BOGO</span>
-                              <span className={`font-black text-2xl block text-center ${simulation.isLoss ? "text-red-600" : "text-amber-600"}`}>{simulation.netMarginBogo.toFixed(2)}€</span>
-                              <span className={`text-xs block text-center ${simulation.isLoss ? "text-red-600/80" : "text-amber-600/80"}`}>({((simulation.netMarginBogo / simulation.price) * 100).toFixed(0)}%)</span>
+                              <span className={`text-[9px] block text-center ${simulation.isLoss ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>Marge BOGO</span>
+                              <span className={`font-black text-base block text-center ${simulation.isLoss ? "text-red-600" : "text-amber-600"}`}>{simulation.netMarginBogo.toFixed(2)}€</span>
+                              <span className={`text-[9px] block text-center ${simulation.isLoss ? "text-red-600/80" : "text-amber-600/80"}`}>({((simulation.netMarginBogo / simulation.price) * 100).toFixed(0)}%)</span>
                             </div>
                           </div>
                         </div>
                       </motion.div>
 
                       {/* Arrow 2 */}
-                      <div className="hidden lg:flex items-center justify-center">
+                      <div className="hidden lg:flex items-center justify-center px-0.5">
                         <motion.div
-                          animate={{ x: [0, 5, 0] }}
+                          animate={{ x: [0, 3, 0] }}
                           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-                          className="flex items-center"
                         >
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-amber-500 to-blue-500 flex items-center justify-center shadow-lg">
-                            <ArrowRight className="h-5 w-5 text-white" />
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-r from-amber-500 to-blue-500 flex items-center justify-center">
+                            <ArrowRight className="h-3 w-3 text-white" />
                           </div>
                         </motion.div>
                       </div>
-                      <div className="flex lg:hidden justify-center">
+                      <div className="flex lg:hidden justify-center py-0.5">
                         <motion.div
-                          animate={{ y: [0, 5, 0] }}
+                          animate={{ y: [0, 3, 0] }}
                           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-                          className="w-8 h-8 rounded-full bg-gradient-to-b from-amber-500 to-blue-500 flex items-center justify-center shadow-lg"
+                          className="w-5 h-5 rounded-full bg-gradient-to-b from-amber-500 to-blue-500 flex items-center justify-center"
                         >
-                          <ChevronDown className="h-5 w-5 text-white" />
+                          <ChevronDown className="h-3 w-3 text-white" />
                         </motion.div>
                       </div>
 
                       {/* Step 3 - Seuil rentabilité */}
                       <motion.div 
-                        className={`flex-1 lg:flex-[1.2] rounded-xl p-5 border-2 shadow-xl ${
+                        className={`flex-1 rounded-lg p-3 border ${
                           simulation.breakevenIncreasePercent < 50 
-                            ? "bg-gradient-to-br from-emerald-500/15 to-emerald-600/10 border-emerald-500/40 shadow-emerald-500/20" 
+                            ? "bg-gradient-to-br from-emerald-500/15 to-emerald-600/10 border-emerald-500/40" 
                             : simulation.breakevenIncreasePercent < 100 
-                            ? "bg-gradient-to-br from-amber-500/15 to-orange-500/10 border-amber-500/40 shadow-amber-500/20"
-                            : "bg-gradient-to-br from-red-500/15 to-red-600/10 border-red-500/40 shadow-red-500/20"
+                            ? "bg-gradient-to-br from-amber-500/15 to-orange-500/10 border-amber-500/40"
+                            : "bg-gradient-to-br from-red-500/15 to-red-600/10 border-red-500/40"
                         }`}
-                        whileHover={{ scale: 1.02 }}
+                        whileHover={{ scale: 1.01 }}
                         transition={{ type: "spring", stiffness: 400 }}
                       >
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg ${
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white font-bold text-[10px] ${
                               simulation.breakevenIncreasePercent < 50 ? "bg-emerald-500" :
                               simulation.breakevenIncreasePercent < 100 ? "bg-amber-500" : "bg-red-500"
                             }`}>3</div>
-                            <span className={`font-semibold ${
+                            <span className={`font-semibold text-xs ${
                               simulation.breakevenIncreasePercent < 50 ? "text-emerald-700 dark:text-emerald-400" :
                               simulation.breakevenIncreasePercent < 100 ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"
-                            }`}>Seuil rentabilité</span>
+                            }`}>Seuil</span>
                           </div>
-                          <Badge className={`text-xs font-bold px-3 py-1 ${
+                          <Badge className={`text-[9px] font-bold px-1.5 py-0.5 ${
                             simulation.breakevenIncreasePercent < 50 
                               ? "bg-emerald-500 hover:bg-emerald-600 text-white" 
                               : simulation.breakevenIncreasePercent < 100 
                               ? "bg-amber-500 hover:bg-amber-600 text-white"
                               : "bg-red-500 hover:bg-red-600 text-white"
                           }`}>
-                            {simulation.breakevenIncreasePercent < 50 ? "🚀 GO !" : 
-                             simulation.breakevenIncreasePercent < 100 ? "⚠️ RISQUÉ" : "🛑 STOP"}
+                            {simulation.breakevenIncreasePercent < 50 ? "GO!" : 
+                             simulation.breakevenIncreasePercent < 100 ? "RISQUÉ" : "STOP"}
                           </Badge>
                         </div>
                         
-                        <div className="flex items-center justify-center gap-3 mb-4">
-                          <div className="flex flex-col items-center p-3 bg-white/50 dark:bg-white/10 rounded-lg shadow-sm">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Marge normale</span>
-                            <span className="font-bold text-lg">{simulation.netMarginPerUnit.toFixed(2)}€</span>
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <div className="flex flex-col items-center p-1.5 bg-white/50 dark:bg-white/10 rounded">
+                            <span className="text-[8px] text-muted-foreground uppercase">Normal</span>
+                            <span className="font-bold text-xs">{simulation.netMarginPerUnit.toFixed(2)}€</span>
                           </div>
-                          <Divide className="h-4 w-4 text-muted-foreground" />
-                          <div className="flex flex-col items-center p-3 bg-white/50 dark:bg-white/10 rounded-lg shadow-sm">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Marge BOGO</span>
-                            <span className="font-bold text-lg">{simulation.netMarginBogo.toFixed(2)}€</span>
+                          <Divide className="h-2.5 w-2.5 text-muted-foreground" />
+                          <div className="flex flex-col items-center p-1.5 bg-white/50 dark:bg-white/10 rounded">
+                            <span className="text-[8px] text-muted-foreground uppercase">BOGO</span>
+                            <span className="font-bold text-xs">{simulation.netMarginBogo.toFixed(2)}€</span>
                           </div>
                         </div>
 
                         <motion.div 
-                          className={`mx-auto max-w-[180px] py-4 px-6 rounded-2xl border-2 text-center ${
+                          className={`mx-auto max-w-[120px] py-2 px-3 rounded-lg border text-center ${
                             simulation.breakevenIncreasePercent < 50 
                               ? "bg-emerald-500/25 border-emerald-500/50" 
                               : simulation.breakevenIncreasePercent < 100 
@@ -976,19 +974,18 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                           }`}
                           animate={{ 
                             boxShadow: simulation.breakevenIncreasePercent < 50 
-                              ? ["0 0 20px rgba(16, 185, 129, 0.3)", "0 0 40px rgba(16, 185, 129, 0.5)", "0 0 20px rgba(16, 185, 129, 0.3)"]
+                              ? ["0 0 10px rgba(16, 185, 129, 0.2)", "0 0 20px rgba(16, 185, 129, 0.4)", "0 0 10px rgba(16, 185, 129, 0.2)"]
                               : simulation.breakevenIncreasePercent < 100
-                              ? ["0 0 20px rgba(245, 158, 11, 0.3)", "0 0 40px rgba(245, 158, 11, 0.5)", "0 0 20px rgba(245, 158, 11, 0.3)"]
-                              : ["0 0 20px rgba(239, 68, 68, 0.3)", "0 0 40px rgba(239, 68, 68, 0.5)", "0 0 20px rgba(239, 68, 68, 0.3)"]
+                              ? ["0 0 10px rgba(245, 158, 11, 0.2)", "0 0 20px rgba(245, 158, 11, 0.4)", "0 0 10px rgba(245, 158, 11, 0.2)"]
+                              : ["0 0 10px rgba(239, 68, 68, 0.2)", "0 0 20px rgba(239, 68, 68, 0.4)", "0 0 10px rgba(239, 68, 68, 0.2)"]
                           }}
                           transition={{ duration: 2, repeat: Infinity }}
                         >
-                          <span className="text-xs text-muted-foreground block mb-1">Augmentation requise</span>
-                          <span className={`font-black text-4xl ${
+                          <span className={`font-black text-xl ${
                             simulation.breakevenIncreasePercent < 50 ? "text-emerald-600" :
                             simulation.breakevenIncreasePercent < 100 ? "text-amber-600" : "text-red-600"
                           }`}>+{simulation.breakevenIncreasePercent?.toFixed(0) ?? "?"}%</span>
-                          <span className="text-xs text-muted-foreground block mt-1">des ventes</span>
+                          <span className="text-[9px] text-muted-foreground block">ventes requises</span>
                         </motion.div>
                       </motion.div>
                     </div>
