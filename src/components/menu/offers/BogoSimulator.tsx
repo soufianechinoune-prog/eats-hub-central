@@ -473,7 +473,7 @@ export function BogoSimulator({ menuItems, onBack, platform }: BogoSimulatorProp
                   </TooltipProvider>
                 </Label>
                 <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                  <SelectTrigger className="bg-white/60 dark:bg-white/5 border-white/40">
+                  <SelectTrigger className="bg-white/60 dark:bg-white/5 border-orange-500/30">
                     <SelectValue placeholder="Sélectionner un produit" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
