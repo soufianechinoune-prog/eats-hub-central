@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
@@ -19,10 +18,10 @@ import {
   TrendingDown,
   Euro,
   Package,
-  ExternalLink,
   FileWarning,
   Loader2,
   Target,
+  Info,
 } from "lucide-react";
 import {
   BarChart,
@@ -34,8 +33,6 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { Link } from "react-router-dom";
-import { OrderAccuracyHeatmap } from "./OrderAccuracyHeatmap";
 import { ErrorRateEvolutionChart } from "./ErrorRateEvolutionChart";
 import { FinancialImpactByCategory } from "./FinancialImpactByCategory";
 
@@ -48,20 +45,9 @@ interface OrderAccuracyDashboardProps {
 
 const ERROR_TYPE_COLORS: Record<string, string> = {
   "Articles manquants": "#ef4444",
+  "Personnalisation manquante": "#8b5cf6",
+  "Mauvaise commande": "#3b82f6",
   "Article incorrect": "#f97316",
-  "Problèmes liés à la qualité des aliments": "#eab308",
-  "Commande incorrecte": "#3b82f6",
-  "Personnalisation incorrecte": "#8b5cf6",
-  "Autre": "#6b7280",
-};
-
-const ERROR_TYPE_LABELS: Record<string, string> = {
-  "Articles manquants": "Articles manquants",
-  "Article incorrect": "Article incorrect",
-  "Problèmes liés à la qualité des aliments": "Qualité",
-  "Commande incorrecte": "Commande incorrecte",
-  "Personnalisation incorrecte": "Personnalisation",
-  "Autre": "Autre",
 };
 
 export function OrderAccuracyDashboard({
@@ -70,74 +56,58 @@ export function OrderAccuracyDashboard({
   selectedMonth,
   restaurants,
 }: OrderAccuracyDashboardProps) {
-  // Drill-down state
-  const [drillDownMonth, setDrillDownMonth] = useState<number | null>(null);
-  const [objective, setObjective] = useState(2); // 2% default objective
+  const [objective, setObjective] = useState(2);
   const [chartType, setChartType] = useState<"line" | "bar">("bar");
-  
-  // Determine if we're in drill-down mode
-  const periodMode = drillDownMonth !== null ? "month" : "year";
-  const effectiveMonth = drillDownMonth !== null ? drillDownMonth : (selectedMonth === "all" ? null : selectedMonth);
 
-  // Build date range filter
-  const dateRange = useMemo(() => {
-    if (drillDownMonth !== null) {
-      // Drill-down mode: filter by specific month
-      const startDate = new Date(selectedYear, drillDownMonth - 1, 1);
-      const endDate = new Date(selectedYear, drillDownMonth, 0, 23, 59, 59);
-      return { start: startDate.toISOString(), end: endDate.toISOString() };
-    }
-    
-    const startDate = new Date(selectedYear, selectedMonth === "all" ? 0 : selectedMonth - 1, 1);
-    const endDate = selectedMonth === "all"
-      ? new Date(selectedYear, 11, 31, 23, 59, 59)
-      : new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
-    return { start: startDate.toISOString(), end: endDate.toISOString() };
-  }, [selectedYear, selectedMonth, drillDownMonth]);
-
-  // Fetch order errors - using pagination to get ALL errors (no 1000 limit)
-  const { data: orderErrors, isLoading } = useQuery({
-    queryKey: ["order-accuracy-stats-v3", selectedRestaurant, selectedYear, selectedMonth, drillDownMonth],
+  // Fetch monthly order accuracy from new official Uber data table
+  const { data: monthlyAccuracy, isLoading: isLoadingAccuracy } = useQuery({
+    queryKey: ["monthly-order-accuracy", selectedRestaurant, selectedYear],
     queryFn: async () => {
-      const allErrors: any[] = [];
-      const pageSize = 1000;
-      let offset = 0;
-      let hasMore = true;
+      let query = supabase
+        .from("monthly_order_accuracy")
+        .select("*")
+        .eq("year", selectedYear)
+        .eq("period_type", "current")
+        .order("month", { ascending: true });
 
-      while (hasMore) {
-        let query = supabase
-          .from("order_errors")
-          .select("*")
-          .gte("error_date", dateRange.start)
-          .lte("error_date", dateRange.end)
-          .order("error_date", { ascending: true })
-          .range(offset, offset + pageSize - 1);
-
-        if (selectedRestaurant !== "all") {
-          query = query.eq("restaurant_id", selectedRestaurant);
-        }
-
-        const { data, error } = await query;
-        if (error) {
-          console.error("Error fetching order errors:", error);
-          throw error;
-        }
-
-        if (data && data.length > 0) {
-          allErrors.push(...data);
-          offset += pageSize;
-          hasMore = data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
+      if (selectedRestaurant !== "all") {
+        query = query.eq("restaurant_id", selectedRestaurant);
       }
 
-      console.log(`[Operations] Total fetched: ${allErrors.length}`);
-      return allErrors;
+      const { data, error } = await query;
+      if (error) {
+        console.error("Error fetching monthly accuracy:", error);
+        return [];
+      }
+      return data || [];
     },
   });
 
-  // Fetch sales data from daily_sales_uber via RPC for error rate calculation
+  // Fetch product issues ranking
+  const { data: productIssues, isLoading: isLoadingProducts } = useQuery({
+    queryKey: ["product-issues-ranking", selectedRestaurant, selectedYear],
+    queryFn: async () => {
+      let query = supabase
+        .from("product_issues_ranking")
+        .select("*")
+        .eq("year", selectedYear)
+        .order("volume", { ascending: false })
+        .limit(10);
+
+      if (selectedRestaurant !== "all") {
+        query = query.eq("restaurant_id", selectedRestaurant);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error("Error fetching product issues:", error);
+        return [];
+      }
+      return data || [];
+    },
+  });
+
+  // Fetch sales data for error rate calculation
   const { data: salesData } = useQuery({
     queryKey: ["sales-for-error-rate", selectedRestaurant, selectedYear, restaurants],
     queryFn: async () => {
@@ -156,126 +126,64 @@ export function OrderAccuracyDashboard({
     },
   });
 
-  // Fallback: Fetch order counts from orders table for restaurants missing from daily_sales_uber
-  const { data: ordersFallbackData } = useQuery({
-    queryKey: ["orders-fallback-for-error-rate", selectedRestaurant, selectedYear, restaurants, salesData],
-    queryFn: async () => {
-      const restaurantIds = selectedRestaurant === "all" 
-        ? restaurants.map(r => r.id)
-        : [selectedRestaurant];
-      
-      // Identify restaurants that have sales data already
-      const restaurantsWithSales = new Set(
-        (salesData || []).map((s: any) => s.restaurant_id)
-      );
-      
-      // Find restaurants missing from salesData
-      const missingRestaurantIds = restaurantIds.filter(id => !restaurantsWithSales.has(id));
-      
-      if (missingRestaurantIds.length === 0) return [];
-      
-      // Get order counts grouped by month and restaurant from orders table
-      const startDate = new Date(selectedYear, 0, 1).toISOString();
-      const endDate = new Date(selectedYear, 11, 31, 23, 59, 59).toISOString();
-      
-      const { data, error } = await supabase
-        .from("orders")
-        .select("order_datetime, restaurant_id")
-        .gte("order_datetime", startDate)
-        .lte("order_datetime", endDate)
-        .in("restaurant_id", missingRestaurantIds)
-        .limit(50000); // High limit for fallback
-      
-      if (error) return [];
-      
-      // Group by month and restaurant
-      const monthlyData: Record<string, { month: number; order_count: number; restaurant_id: string }> = {};
-      (data || []).forEach((order: any) => {
-        if (order.order_datetime) {
-          const month = new Date(order.order_datetime).getMonth() + 1;
-          const key = `${order.restaurant_id}-${month}`;
-          if (!monthlyData[key]) {
-            monthlyData[key] = { month, order_count: 0, restaurant_id: order.restaurant_id };
-          }
-          monthlyData[key].order_count += 1;
-        }
-      });
-      
-      return Object.values(monthlyData);
-    },
-    enabled: salesData !== undefined, // Run when salesData is available (even if empty)
-  });
+  // Aggregate monthly data
+  const aggregatedData = useMemo(() => {
+    if (!monthlyAccuracy || monthlyAccuracy.length === 0) return null;
 
-  // Combine sales data sources - merge daily_sales_uber with fallback from orders
-  const effectiveSalesData = useMemo(() => {
-    const combined = [...(salesData || []), ...(ordersFallbackData || [])];
-    return combined;
-  }, [salesData, ordersFallbackData]);
+    const filtered = selectedMonth === "all" 
+      ? monthlyAccuracy 
+      : monthlyAccuracy.filter(m => m.month === selectedMonth);
 
-  // Check which restaurants are missing sales data
-  const restaurantsWithMissingSales = useMemo(() => {
-    if (selectedRestaurant !== "all") {
-      const hasSales = effectiveSalesData.some((s: any) => s.restaurant_id === selectedRestaurant);
-      if (!hasSales && orderErrors && orderErrors.length > 0) {
-        return restaurants.filter(r => r.id === selectedRestaurant);
-      }
-      return [];
-    }
-    
-    // For "all" restaurants, find which ones are missing
-    const restaurantsWithSales = new Set(effectiveSalesData.map((s: any) => s.restaurant_id));
-    const restaurantsWithErrors = new Set(orderErrors?.map((e: any) => e.restaurant_id) || []);
-    
-    return restaurants.filter(r => 
-      restaurantsWithErrors.has(r.id) && !restaurantsWithSales.has(r.id)
-    );
-  }, [effectiveSalesData, orderErrors, restaurants, selectedRestaurant]);
-
-  // Check if we have no sales data at all
-  const hasSalesDataMissing = useMemo(() => {
-    return restaurantsWithMissingSales.length > 0;
-  }, [restaurantsWithMissingSales]);
-
-  // Detect which months have error data
-  const monthsWithErrors = useMemo(() => {
-    if (!orderErrors) return new Set<number>();
-    const months = new Set<number>();
-    orderErrors.forEach(error => {
-      const date = new Date(error.error_date || error.created_at);
-      const month = date.getMonth() + 1;
-      months.add(month);
+    const totals = filtered.reduce((acc, m) => ({
+      incorrect_orders: acc.incorrect_orders + (m.incorrect_orders_count || 0),
+      missing_items: acc.missing_items + (m.missing_items_count || 0),
+      missing_items_refund: acc.missing_items_refund + (m.missing_items_refund || 0),
+      missing_customization: acc.missing_customization + (m.missing_customization_count || 0),
+      missing_customization_refund: acc.missing_customization_refund + (m.missing_customization_refund || 0),
+      wrong_order: acc.wrong_order + (m.wrong_order_count || 0),
+      wrong_order_refund: acc.wrong_order_refund + (m.wrong_order_refund || 0),
+      incorrect_item: acc.incorrect_item + (m.incorrect_item_count || 0),
+      incorrect_item_refund: acc.incorrect_item_refund + (m.incorrect_item_refund || 0),
+      total_refund: acc.total_refund + (m.total_refund || 0),
+    }), {
+      incorrect_orders: 0,
+      missing_items: 0,
+      missing_items_refund: 0,
+      missing_customization: 0,
+      missing_customization_refund: 0,
+      wrong_order: 0,
+      wrong_order_refund: 0,
+      incorrect_item: 0,
+      incorrect_item_refund: 0,
+      total_refund: 0,
     });
-    return months;
-  }, [orderErrors]);
 
-  // Calculate order count for current period (only for months with error data)
+    return totals;
+  }, [monthlyAccuracy, selectedMonth]);
+
+  // Calculate order count from sales data for error rate
   const orderCount = useMemo(() => {
-    if (!effectiveSalesData || effectiveSalesData.length === 0) return 0;
+    if (!salesData || salesData.length === 0) return 0;
     
-    if (drillDownMonth !== null) {
-      return effectiveSalesData
-        .filter((r: any) => r.month === drillDownMonth)
-        .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
-    }
+    const monthsWithData = monthlyAccuracy?.map(m => m.month) || [];
     
     if (selectedMonth !== "all") {
-      return effectiveSalesData
+      return salesData
         .filter((r: any) => r.month === selectedMonth)
         .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
     }
     
-    // Only count orders for months that have error data
-    return effectiveSalesData
-      .filter((r: any) => monthsWithErrors.has(r.month))
+    return salesData
+      .filter((r: any) => monthsWithData.includes(r.month))
       .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
-  }, [effectiveSalesData, selectedMonth, drillDownMonth, monthsWithErrors]);
+  }, [salesData, selectedMonth, monthlyAccuracy]);
 
   // Calculate KPIs
   const kpis = useMemo(() => {
-    if (!orderErrors) return null;
+    if (!aggregatedData) return null;
 
-    const totalErrors = orderErrors.length;
-    const totalImpact = orderErrors.reduce((sum, e) => sum + (e.financial_impact || 0), 0);
+    const totalErrors = aggregatedData.incorrect_orders;
+    const totalImpact = aggregatedData.total_refund;
     const avgImpact = totalErrors > 0 ? totalImpact / totalErrors : 0;
     const errorRate = orderCount && orderCount > 0 ? (totalErrors / orderCount) * 100 : 0;
     const meetsObjective = errorRate <= objective;
@@ -285,105 +193,60 @@ export function OrderAccuracyDashboard({
       totalImpact,
       avgImpact,
       errorRate,
-      orderCount: orderCount || 0,
+      orderCount,
       meetsObjective,
+      hasSalesData: orderCount > 0,
     };
-  }, [orderErrors, orderCount, objective]);
+  }, [aggregatedData, orderCount, objective]);
 
-  // Build error rate evolution data
-  const errorRateEvolutionData = useMemo(() => {
-    if (!orderErrors || !effectiveSalesData) return [];
+  // Build evolution data for chart
+  const errorEvolutionData = useMemo(() => {
+    if (!monthlyAccuracy) return [];
 
     const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 
-    if (drillDownMonth !== null) {
-      // Daily data for the selected month
-      const dailyErrors: Record<number, number> = {};
-      const daysInMonth = new Date(selectedYear, drillDownMonth, 0).getDate();
-      
-      for (let d = 1; d <= daysInMonth; d++) {
-        dailyErrors[d] = 0;
+    // Group by month
+    const monthlyData: Record<number, { errors: number; refund: number }> = {};
+    monthlyAccuracy.forEach(m => {
+      if (!monthlyData[m.month]) {
+        monthlyData[m.month] = { errors: 0, refund: 0 };
       }
-
-      orderErrors.forEach(error => {
-        const date = new Date(error.error_date || error.created_at);
-        const day = date.getDate();
-        dailyErrors[day] = (dailyErrors[day] || 0) + 1;
-      });
-
-      const monthOrderCount = effectiveSalesData
-        .filter((r: any) => r.month === drillDownMonth)
-        .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
-      const dailyAvgOrders = monthOrderCount / daysInMonth;
-
-      return Object.entries(dailyErrors).map(([day, count]) => ({
-        period: `${selectedYear}-${String(drillDownMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
-        label: `${day}`,
-        errorRate: dailyAvgOrders > 0 ? (count / dailyAvgOrders) * 100 : 0,
-        errorCount: count,
-        orderCount: Math.round(dailyAvgOrders),
-      }));
-    }
-
-    // Monthly data
-    const monthlyErrors: Record<number, number> = {};
-    for (let m = 1; m <= 12; m++) {
-      monthlyErrors[m] = 0;
-    }
-
-    orderErrors.forEach(error => {
-      const date = new Date(error.error_date || error.created_at);
-      const month = date.getMonth() + 1;
-      monthlyErrors[month] = (monthlyErrors[month] || 0) + 1;
+      monthlyData[m.month].errors += m.incorrect_orders_count || 0;
+      monthlyData[m.month].refund += m.total_refund || 0;
     });
 
-    // Group sales data by month
-    const monthlyOrderCounts: Record<number, number> = {};
-    effectiveSalesData.forEach((r: any) => {
-      monthlyOrderCounts[r.month] = (monthlyOrderCounts[r.month] || 0) + (r.order_count || 0);
+    // Get order counts by month from sales data
+    const monthlyOrders: Record<number, number> = {};
+    (salesData || []).forEach((r: any) => {
+      monthlyOrders[r.month] = (monthlyOrders[r.month] || 0) + (r.order_count || 0);
     });
 
-    // Check if we have ANY sales data at all
-    const hasSalesData = Object.values(monthlyOrderCounts).some(v => v > 0);
-
-    // Only show months that have error data (exclude months without imports)
-    return Object.entries(monthlyErrors)
-      .filter(([month]) => monthsWithErrors.has(parseInt(month)))
-      .map(([month, count]) => {
-        const orders = monthlyOrderCounts[parseInt(month)] || 0;
+    return Object.entries(monthlyData)
+      .sort(([a], [b]) => parseInt(a) - parseInt(b))
+      .map(([month, data]) => {
+        const orders = monthlyOrders[parseInt(month)] || 0;
         return {
           period: `${selectedYear}-${String(month).padStart(2, "0")}`,
           label: monthNames[parseInt(month) - 1],
-          // If no sales data, use error count directly (will display as count, not rate)
-          errorRate: orders > 0 ? (count / orders) * 100 : null,
-          errorCount: count,
+          errorRate: orders > 0 ? (data.errors / orders) * 100 : null,
+          errorCount: data.errors,
           orderCount: orders,
-          hasSalesData: hasSalesData && orders > 0,
+          hasSalesData: orders > 0,
         };
       });
-  }, [orderErrors, effectiveSalesData, selectedYear, drillDownMonth, monthsWithErrors]);
+  }, [monthlyAccuracy, salesData, selectedYear]);
 
-  // Top problematic items
-  const topItems = useMemo(() => {
-    if (!orderErrors) return [];
+  // Financial impact by category
+  const categoryData = useMemo(() => {
+    if (!aggregatedData) return [];
 
-    const grouped: Record<string, { title: string; count: number; impact: number }> = {};
-
-    orderErrors.forEach((error) => {
-      if (!error.item_title) return;
-      const key = error.item_title;
-      
-      if (!grouped[key]) {
-        grouped[key] = { title: key, count: 0, impact: 0 };
-      }
-      grouped[key].count += 1;
-      grouped[key].impact += error.financial_impact || 0;
-    });
-
-    return Object.values(grouped)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-  }, [orderErrors]);
+    return [
+      { name: "Articles manquants", count: aggregatedData.missing_items, impact: aggregatedData.missing_items_refund },
+      { name: "Personnalisation manquante", count: aggregatedData.missing_customization, impact: aggregatedData.missing_customization_refund },
+      { name: "Mauvaise commande", count: aggregatedData.wrong_order, impact: aggregatedData.wrong_order_refund },
+      { name: "Article incorrect", count: aggregatedData.incorrect_item, impact: aggregatedData.incorrect_item_refund },
+    ].filter(c => c.count > 0);
+  }, [aggregatedData]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("fr-FR", {
@@ -392,25 +255,7 @@ export function OrderAccuracyDashboard({
     }).format(amount);
   };
 
-  const handleDrillDown = (month: number) => {
-    setDrillDownMonth(month);
-  };
-
-  const handleBackToYear = () => {
-    setDrillDownMonth(null);
-  };
-
-  const handlePrevMonth = () => {
-    if (drillDownMonth && drillDownMonth > 1) {
-      setDrillDownMonth(drillDownMonth - 1);
-    }
-  };
-
-  const handleNextMonth = () => {
-    if (drillDownMonth && drillDownMonth < 12) {
-      setDrillDownMonth(drillDownMonth + 1);
-    }
-  };
+  const isLoading = isLoadingAccuracy || isLoadingProducts;
 
   if (isLoading) {
     return (
@@ -420,14 +265,14 @@ export function OrderAccuracyDashboard({
     );
   }
 
-  if (!orderErrors || orderErrors.length === 0) {
+  if (!monthlyAccuracy || monthlyAccuracy.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
           <FileWarning className="h-12 w-12 text-muted-foreground mb-4" />
           <p className="text-lg font-medium mb-2">Aucune donnée disponible</p>
           <p className="text-muted-foreground text-center max-w-md">
-            Importez vos rapports d'erreurs de commandes depuis Uber Eats pour visualiser les statistiques opérationnelles.
+            Importez le fichier "Résumé commandes incorrectes" (order-accuracy-inaccurate-issues-summary) depuis Uber Eats pour visualiser les statistiques.
           </p>
         </CardContent>
       </Card>
@@ -436,19 +281,24 @@ export function OrderAccuracyDashboard({
 
   return (
     <div className="space-y-6">
-      {/* Warning if sales data missing for some restaurants */}
-      {hasSalesDataMissing && (
+      {/* Info about data source */}
+      <Alert className="border-blue-500/50 bg-blue-500/10">
+        <Info className="h-4 w-4 text-blue-500" />
+        <AlertDescription className="text-blue-700 dark:text-blue-400">
+          Données officielles Uber Eats importées depuis le rapport "order-accuracy-inaccurate-issues-summary".
+        </AlertDescription>
+      </Alert>
+
+      {/* Warning if sales data missing */}
+      {kpis && !kpis.hasSalesData && (
         <Alert variant="destructive" className="border-amber-500/50 bg-amber-500/10">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-amber-700 dark:text-amber-400">
-            <strong>Données de ventes manquantes pour {restaurantsWithMissingSales.length} restaurant(s) :</strong>{" "}
-            {restaurantsWithMissingSales.slice(0, 5).map(r => r.name).join(", ")}
-            {restaurantsWithMissingSales.length > 5 && ` et ${restaurantsWithMissingSales.length - 5} autre(s)`}.
-            Le taux d'erreur peut être imprécis. Importez le rapport "Sales Over Time" depuis la page{" "}
-            <a href="/report-import" className="underline font-medium hover:text-amber-600">Imports</a>.
+            Données de ventes manquantes. Le taux d'erreur ne peut pas être calculé. Importez le rapport "Sales Over Time".
           </AlertDescription>
         </Alert>
       )}
+
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
@@ -459,11 +309,11 @@ export function OrderAccuracyDashboard({
             <AlertTriangle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${kpis?.meetsObjective ? "text-primary" : "text-destructive"}`}>
-              {kpis?.errorRate.toFixed(2)}%
+            <div className={`text-2xl font-bold ${kpis?.hasSalesData ? (kpis?.meetsObjective ? "text-primary" : "text-destructive") : "text-muted-foreground"}`}>
+              {kpis?.hasSalesData ? `${kpis?.errorRate.toFixed(2)}%` : "N/A"}
             </div>
             <p className="text-xs text-muted-foreground">
-              {kpis?.totalErrors} erreurs / {kpis?.orderCount} commandes
+              {kpis?.totalErrors} erreurs{kpis?.hasSalesData ? ` / ${kpis?.orderCount} commandes` : ""}
             </p>
           </CardContent>
         </Card>
@@ -476,13 +326,15 @@ export function OrderAccuracyDashboard({
             <Target className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${kpis?.meetsObjective ? "text-primary" : "text-destructive"}`}>
-              {kpis?.meetsObjective ? "✓ Atteint" : "✗ Non atteint"}
+            <div className={`text-2xl font-bold ${kpis?.hasSalesData ? (kpis?.meetsObjective ? "text-primary" : "text-destructive") : "text-muted-foreground"}`}>
+              {kpis?.hasSalesData ? (kpis?.meetsObjective ? "✓ Atteint" : "✗ Non atteint") : "N/A"}
             </div>
             <p className="text-xs text-muted-foreground">
-              {kpis?.meetsObjective 
+              {kpis?.hasSalesData && kpis?.meetsObjective 
                 ? `${(objective - (kpis?.errorRate || 0)).toFixed(2)}% sous l'objectif`
-                : `${((kpis?.errorRate || 0) - objective).toFixed(2)}% au-dessus`
+                : kpis?.hasSalesData 
+                  ? `${((kpis?.errorRate || 0) - objective).toFixed(2)}% au-dessus`
+                  : "Données ventes requises"
               }
             </p>
           </CardContent>
@@ -525,126 +377,151 @@ export function OrderAccuracyDashboard({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Erreurs totales
+              Commandes incorrectes
             </CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{kpis?.totalErrors}</div>
             <p className="text-xs text-muted-foreground">
-              Commandes avec problèmes
+              Total commandes avec problèmes
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Error Rate Evolution with Objective */}
+      {/* Error Rate Evolution */}
       <ErrorRateEvolutionChart
-        data={errorRateEvolutionData}
+        data={errorEvolutionData}
         objective={objective}
         onObjectiveChange={setObjective}
         chartType={chartType}
         onChartTypeChange={setChartType}
-        periodMode={periodMode}
-        selectedMonth={drillDownMonth}
-        onDrillDown={handleDrillDown}
-        onBackToYear={handleBackToYear}
-        onPrevMonth={handlePrevMonth}
-        onNextMonth={handleNextMonth}
+        periodMode="year"
+        selectedMonth={null}
+        onDrillDown={() => {}}
+        onBackToYear={() => {}}
+        onPrevMonth={() => {}}
+        onNextMonth={() => {}}
       />
 
-      {/* Charts Row: Financial Impact + Heatmap */}
+      {/* Financial Impact by Category */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <FinancialImpactByCategory orderErrors={orderErrors} />
-        <OrderAccuracyHeatmap orderErrors={orderErrors} />
-      </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Impact financier par catégorie</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {categoryData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={categoryData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} className="text-xs" />
+                  <YAxis type="category" dataKey="name" width={150} className="text-xs" />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    labelFormatter={(label) => label}
+                  />
+                  <Bar 
+                    dataKey="impact" 
+                    name="Remboursements" 
+                    fill="hsl(var(--destructive))" 
+                    radius={[0, 4, 4, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">Aucune donnée</p>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Top Problematic Items */}
-      {topItems.length > 0 && (
+        {/* Top Problematic Products */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">TOP 10 - Articles problématiques</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={topItems} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis type="number" className="text-xs" />
-                <YAxis
-                  type="category"
-                  dataKey="title"
-                  width={200}
-                  className="text-xs"
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(value) => value.length > 30 ? `${value.slice(0, 27)}...` : value}
-                />
-                <Tooltip
-                  formatter={(value: number, name: string) => [
-                    name === "count" ? value : formatCurrency(value),
-                    name === "count" ? "Occurrences" : "Impact",
-                  ]}
-                />
-                <Legend />
-                <Bar dataKey="count" name="Occurrences" fill="hsl(var(--destructive))" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {productIssues && productIssues.length > 0 ? (
+              <ScrollArea className="h-[300px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Article</TableHead>
+                      <TableHead className="text-right">Volume</TableHead>
+                      <TableHead className="text-right">Score</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {productIssues.map((item: any, index: number) => (
+                      <TableRow key={item.id || index}>
+                        <TableCell className="max-w-[200px] truncate">
+                          {item.item_title}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {item.volume}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={item.score > 50 ? "destructive" : "secondary"}>
+                            {item.score?.toFixed(1) || "N/A"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">
+                Importez le fichier "item-issues-leaderboard" pour voir le classement
+              </p>
+            )}
           </CardContent>
         </Card>
-      )}
+      </div>
 
-      {/* Detailed Errors Table */}
+      {/* Monthly Details Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Détail des erreurs</CardTitle>
-          {/* TODO: Implémenter la contestation via IA ultérieurement */}
+          <CardTitle className="text-lg">Détail mensuel</CardTitle>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[400px]">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Article</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Impact</TableHead>
+                  <TableHead>Mois</TableHead>
+                  <TableHead className="text-right">Incorrectes</TableHead>
+                  <TableHead className="text-right">Articles manquants</TableHead>
+                  <TableHead className="text-right">Perso. manquante</TableHead>
+                  <TableHead className="text-right">Mauvaise commande</TableHead>
+                  <TableHead className="text-right">Article incorrect</TableHead>
+                  <TableHead className="text-right">Remboursé</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(drillDownMonth !== null ? orderErrors : orderErrors.slice(0, 50)).map((error) => (
-                  <TableRow key={error.id}>
-                    <TableCell>
-                      {new Date(error.error_date || error.created_at).toLocaleDateString("fr-FR")}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        style={{
-                          borderColor: ERROR_TYPE_COLORS[error.error_category || "Autre"],
-                          color: ERROR_TYPE_COLORS[error.error_category || "Autre"],
-                        }}
-                      >
-                        {ERROR_TYPE_LABELS[error.error_category || "Autre"] || error.error_type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[150px] truncate">
-                      {error.item_title || "-"}
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                      {error.error_description || "-"}
-                    </TableCell>
-                    <TableCell className="text-right font-medium text-destructive">
-                      {formatCurrency(error.financial_impact || 0)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {monthlyAccuracy
+                  .sort((a, b) => a.month - b.month)
+                  .map((m) => {
+                    const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+                    return (
+                      <TableRow key={m.id}>
+                        <TableCell className="font-medium">
+                          {monthNames[m.month - 1]} {m.year}
+                        </TableCell>
+                        <TableCell className="text-right">{m.incorrect_orders_count}</TableCell>
+                        <TableCell className="text-right">{m.missing_items_count}</TableCell>
+                        <TableCell className="text-right">{m.missing_customization_count}</TableCell>
+                        <TableCell className="text-right">{m.wrong_order_count}</TableCell>
+                        <TableCell className="text-right">{m.incorrect_item_count}</TableCell>
+                        <TableCell className="text-right font-medium text-destructive">
+                          {formatCurrency(m.total_refund || 0)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
               </TableBody>
             </Table>
-            {drillDownMonth === null && orderErrors.length > 50 && (
-              <div className="text-center py-4 text-sm text-muted-foreground">
-                Affichage des 50 premières erreurs sur {orderErrors.length}
-              </div>
-            )}
           </ScrollArea>
         </CardContent>
       </Card>

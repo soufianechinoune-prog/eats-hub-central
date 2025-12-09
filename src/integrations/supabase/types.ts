@@ -1010,6 +1010,71 @@ export type Database = {
           },
         ]
       }
+      monthly_order_accuracy: {
+        Row: {
+          created_at: string
+          id: string
+          incorrect_item_count: number
+          incorrect_item_refund: number
+          incorrect_orders_count: number
+          missing_customization_count: number
+          missing_customization_refund: number
+          missing_items_count: number
+          missing_items_refund: number
+          month: number
+          period_type: string
+          restaurant_id: string
+          total_refund: number
+          wrong_order_count: number
+          wrong_order_refund: number
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          incorrect_item_count?: number
+          incorrect_item_refund?: number
+          incorrect_orders_count?: number
+          missing_customization_count?: number
+          missing_customization_refund?: number
+          missing_items_count?: number
+          missing_items_refund?: number
+          month: number
+          period_type?: string
+          restaurant_id: string
+          total_refund?: number
+          wrong_order_count?: number
+          wrong_order_refund?: number
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          incorrect_item_count?: number
+          incorrect_item_refund?: number
+          incorrect_orders_count?: number
+          missing_customization_count?: number
+          missing_customization_refund?: number
+          missing_items_count?: number
+          missing_items_refund?: number
+          month?: number
+          period_type?: string
+          restaurant_id?: string
+          total_refund?: number
+          wrong_order_count?: number
+          wrong_order_refund?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_order_accuracy_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monthly_revenue: {
         Row: {
           average_basket: number | null
@@ -1820,6 +1885,53 @@ export type Database = {
             columns: ["restaurant_action_id"]
             isOneToOne: false
             referencedRelation: "restaurant_actions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_issues_ranking: {
+        Row: {
+          created_at: string
+          has_missing_customization: boolean | null
+          id: string
+          issues_delta_percent: number | null
+          item_title: string
+          major_issue_type: string | null
+          restaurant_id: string
+          score: number
+          volume: number
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          has_missing_customization?: boolean | null
+          id?: string
+          issues_delta_percent?: number | null
+          item_title: string
+          major_issue_type?: string | null
+          restaurant_id: string
+          score?: number
+          volume?: number
+          year: number
+        }
+        Update: {
+          created_at?: string
+          has_missing_customization?: boolean | null
+          id?: string
+          issues_delta_percent?: number | null
+          item_title?: string
+          major_issue_type?: string | null
+          restaurant_id?: string
+          score?: number
+          volume?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_issues_ranking_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
         ]
