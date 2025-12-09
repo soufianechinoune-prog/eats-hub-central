@@ -97,7 +97,7 @@ export function OrderAccuracyDashboard({
 
   // Fetch order errors - with explicit high limit to avoid default 1000 cap
   const { data: orderErrors, isLoading } = useQuery({
-    queryKey: ["order-accuracy-stats", selectedRestaurant, selectedYear, selectedMonth, drillDownMonth],
+    queryKey: ["order-accuracy-stats-v2", selectedRestaurant, selectedYear, selectedMonth, drillDownMonth],
     queryFn: async () => {
       let query = supabase
         .from("order_errors")
@@ -112,7 +112,11 @@ export function OrderAccuracyDashboard({
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching order errors:", error);
+        throw error;
+      }
+      console.log(`Fetched ${data?.length || 0} order errors`);
       return data || [];
     },
   });
