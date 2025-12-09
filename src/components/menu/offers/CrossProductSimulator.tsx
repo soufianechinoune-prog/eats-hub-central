@@ -65,6 +65,8 @@ interface CrossProductSimulatorProps {
   menuItems: MenuItem[];
   onBack: () => void;
   platform: Platform;
+  commission: number;
+  onCommissionChange: (value: number) => void;
 }
 
 // Platform-specific defaults
@@ -73,14 +75,13 @@ const PLATFORM_CONFIG = {
   deliveroo: { defaultCommission: 25, defaultOfferFee: 0, color: "violet", name: "Deliveroo" },
 };
 
-export function CrossProductSimulator({ menuItems, onBack, platform }: CrossProductSimulatorProps) {
+export function CrossProductSimulator({ menuItems, onBack, platform, commission, onCommissionChange }: CrossProductSimulatorProps) {
   const config = PLATFORM_CONFIG[platform];
   const isUber = platform === "uber";
   const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
   
   const [paidProductId, setPaidProductId] = useState<string>("");
   const [freeProductId, setFreeProductId] = useState<string>("");
-  const [commission, setCommission] = useState<number>(config.defaultCommission);
   const [offerFee, setOfferFee] = useState<number>(config.defaultOfferFee);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("");
 
@@ -411,9 +412,9 @@ export function CrossProductSimulator({ menuItems, onBack, platform }: CrossProd
                 </Label>
                 <Slider
                   value={[commission]}
-                  onValueChange={([value]) => setCommission(value)}
+                  onValueChange={([value]) => onCommissionChange(value)}
                   min={15}
-                  max={40}
+                  max={isUber ? 30 : 35}
                   step={1}
                   className="w-full"
                 />
@@ -428,7 +429,7 @@ export function CrossProductSimulator({ menuItems, onBack, platform }: CrossProd
                     step="0.01"
                     value={offerFee}
                     onChange={(e) => setOfferFee(parseFloat(e.target.value) || 0)}
-                    className="bg-white/60 dark:bg-white/5 border-white/40 pr-8"
+                    className="bg-white/60 dark:bg-white/5 border-primary/30 pr-8"
                   />
                   <Euro className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>
@@ -446,7 +447,7 @@ export function CrossProductSimulator({ menuItems, onBack, platform }: CrossProd
                     placeholder="Ex: 45"
                     value={uberEstimatedIncrease}
                     onChange={(e) => setUberEstimatedIncrease(e.target.value)}
-                    className="bg-white/60 dark:bg-white/5 border-white/40 pr-8"
+                    className="bg-white/60 dark:bg-white/5 border-primary/30 pr-8"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
                 </div>
