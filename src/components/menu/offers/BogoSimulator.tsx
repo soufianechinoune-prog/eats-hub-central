@@ -21,6 +21,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import {
   Table,
   TableBody,
   TableCell,
@@ -1143,63 +1148,62 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                   </SelectContent>
                 </Select>
                 
-                <TooltipProvider delayDuration={100}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button 
-                        type="button"
-                        className="h-7 w-7 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
-                      >
-                        <Info className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent 
-                      side="bottom" 
-                      align="start" 
-                      className="max-w-[320px] p-4 z-[100]"
-                      sideOffset={8}
+                <HoverCard openDelay={100} closeDelay={100}>
+                  <HoverCardTrigger asChild>
+                    <button 
+                      type="button"
+                      className="h-7 w-7 rounded-full flex items-center justify-center hover:bg-muted transition-colors cursor-help"
                     >
-                      <div className="space-y-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="h-3.5 w-3.5 text-purple-500" />
-                            <span className="font-semibold text-sm">Score BOGO</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground pl-5">
-                            Score composite : 40% marge + 40% ventes + 20% prix. Recommandé.
-                          </p>
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </HoverCardTrigger>
+                  <HoverCardContent 
+                    side="bottom" 
+                    align="start" 
+                    className="w-[320px] p-4"
+                    sideOffset={8}
+                  >
+                    <div className="space-y-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Critères de tri disponibles :</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                          <span className="font-semibold text-sm">Score BOGO</span>
                         </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Percent className="h-3.5 w-3.5 text-emerald-500" />
-                            <span className="font-semibold text-sm">Marge BOGO %</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground pl-5">
-                            Marge nette en % du prix. Privilégie la rentabilité pure.
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Flame className="h-3.5 w-3.5 text-orange-500" />
-                            <span className="font-semibold text-sm">Ventes</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground pl-5">
-                            Volume de ventes historiques. Privilégie les best-sellers.
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Euro className="h-3.5 w-3.5 text-blue-500" />
-                            <span className="font-semibold text-sm">Marge BOGO €</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground pl-5">
-                            Gain absolu en euros par vente BOGO.
-                          </p>
-                        </div>
+                        <p className="text-xs text-muted-foreground pl-5">
+                          Score composite : 40% marge + 40% ventes + 20% prix. Recommandé.
+                        </p>
                       </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Percent className="h-3.5 w-3.5 text-emerald-500" />
+                          <span className="font-semibold text-sm">Marge BOGO %</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground pl-5">
+                          Marge nette en % du prix. Privilégie la rentabilité pure.
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Flame className="h-3.5 w-3.5 text-orange-500" />
+                          <span className="font-semibold text-sm">Ventes</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground pl-5">
+                          Volume de ventes historiques. Privilégie les best-sellers.
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Euro className="h-3.5 w-3.5 text-blue-500" />
+                          <span className="font-semibold text-sm">Marge BOGO €</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground pl-5">
+                          Gain absolu en euros par vente BOGO.
+                        </p>
+                      </div>
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
               </div>
             </div>
           </CardHeader>
