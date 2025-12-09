@@ -1136,7 +1136,7 @@ export function BogoSimulator({ menuItems, onBack, platform }: BogoSimulatorProp
                 </div>
                 
                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortCriteria)}>
-                  <SelectTrigger className="w-[160px] h-8 text-sm">
+                  <SelectTrigger className="w-[160px] h-8 text-sm bg-white/60 dark:bg-white/5 border-orange-500/30">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

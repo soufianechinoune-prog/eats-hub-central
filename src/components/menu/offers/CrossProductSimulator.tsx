@@ -325,7 +325,7 @@ export function CrossProductSimulator({ menuItems, onBack, platform }: CrossProd
                   Produit acheté (payé par le client)
                 </Label>
                 <Select value={paidProductId} onValueChange={setPaidProductId}>
-                  <SelectTrigger className="bg-white/60 dark:bg-white/5 border-violet-500/30">
+                  <SelectTrigger className="bg-white/60 dark:bg-white/5 border-primary/30">
                     <SelectValue placeholder="Sélectionner le produit payé" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
@@ -361,7 +361,7 @@ export function CrossProductSimulator({ menuItems, onBack, platform }: CrossProd
                   Produit offert (gratuit pour le client)
                 </Label>
                 <Select value={freeProductId} onValueChange={setFreeProductId}>
-                  <SelectTrigger className="bg-white/60 dark:bg-white/5 border-emerald-500/30">
+                  <SelectTrigger className="bg-white/60 dark:bg-white/5 border-primary/30">
                     <SelectValue placeholder="Sélectionner le produit offert" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
