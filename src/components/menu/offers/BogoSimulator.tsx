@@ -66,9 +66,11 @@ import {
   Check,
   X,
 } from "lucide-react";
-import { UberEatsIcon } from "@/components/icons/PlatformIcons";
+import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeName } from "@/lib/fuzzyMatch";
+
+export type Platform = "uber" | "deliveroo";
 
 interface MenuItem {
   id: string;
@@ -83,14 +85,24 @@ interface MenuItem {
 interface BogoSimulatorProps {
   menuItems: MenuItem[];
   onBack: () => void;
+  platform: Platform;
 }
 
 type SortCriteria = "score" | "margin_percent" | "sales" | "margin_euro";
 
-export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
+// Platform-specific defaults
+const PLATFORM_CONFIG = {
+  uber: { defaultCommission: 30, defaultOfferFee: 0.89, color: "orange", name: "Uber Eats" },
+  deliveroo: { defaultCommission: 25, defaultOfferFee: 0, color: "cyan", name: "Deliveroo" },
+};
+
+export function BogoSimulator({ menuItems, onBack, platform }: BogoSimulatorProps) {
+  const config = PLATFORM_CONFIG[platform];
+  const isUber = platform === "uber";
+  const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
   const [selectedProductId, setSelectedProductId] = useState<string>("");
-  const [uberCommission, setUberCommission] = useState<number>(30);
-  const [offerFee, setOfferFee] = useState<number>(0.89);
+  const [commission, setCommission] = useState<number>(config.defaultCommission);
+  const [offerFee, setOfferFee] = useState<number>(config.defaultOfferFee);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("");
   const [showCalculationDetails, setShowCalculationDetails] = useState<boolean>(false);
   
@@ -167,29 +179,33 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
     fetchSalesData();
   }, [menuItems]);
 
+  // Use platform-specific price field
+  const priceField = isUber ? 'price_uber' : 'price_deliveroo';
+  
   const eligibleProducts = useMemo(() => {
     return menuItems.filter(
-      item => item.price_uber && item.food_cost && item.food_cost > 0 && item.is_active
+      item => (isUber ? item.price_uber : item.price_deliveroo) && item.food_cost && item.food_cost > 0 && item.is_active
     );
-  }, [menuItems]);
+  }, [menuItems, isUber]);
 
   const selectedProduct = useMemo(() => {
     return eligibleProducts.find(p => p.id === selectedProductId);
   }, [eligibleProducts, selectedProductId]);
 
   const simulation = useMemo(() => {
-    if (!selectedProduct || !selectedProduct.price_uber || !selectedProduct.food_cost) {
+    const productPrice = isUber ? selectedProduct?.price_uber : selectedProduct?.price_deliveroo;
+    if (!selectedProduct || !productPrice || !selectedProduct.food_cost) {
       return null;
     }
 
-    const price = selectedProduct.price_uber;
+    const price = productPrice;
     const foodCost = selectedProduct.food_cost;
-    const commission = uberCommission / 100;
+    const commissionRate = commission / 100;
 
-    const netMarginPerUnit = price - (price * commission) - foodCost;
+    const netMarginPerUnit = price - (price * commissionRate) - foodCost;
     const marginPercentWithoutOffer = (netMarginPerUnit / price) * 100;
 
-    const netMarginBogo = price - (price * commission) - offerFee - (foodCost * 2);
+    const netMarginBogo = price - (price * commissionRate) - offerFee - (foodCost * 2);
     const marginPercentWithOffer = (netMarginBogo / price) * 100;
 
     const breakevenMultiplier = netMarginBogo > 0 ? netMarginPerUnit / netMarginBogo : null;
@@ -213,22 +229,22 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
       isBreakeven,
       isLoss: netMarginBogo < 0,
     };
-  }, [selectedProduct, uberCommission, offerFee, uberEstimatedIncrease]);
+  }, [selectedProduct, commission, offerFee, uberEstimatedIncrease, isUber]);
 
   const allProductsAnalysis = useMemo(() => {
-    const commission = uberCommission / 100;
+    const commissionRate = commission / 100;
     
     // Calculate max values for normalization
     const maxSales = Math.max(...eligibleProducts.map(p => salesData[p.id] || 0), 1);
-    const maxPrice = Math.max(...eligibleProducts.map(p => p.price_uber || 0), 1);
+    const maxPrice = Math.max(...eligibleProducts.map(p => (isUber ? p.price_uber : p.price_deliveroo) || 0), 1);
     
     const products = eligibleProducts.map(product => {
-      const price = product.price_uber!;
+      const price = (isUber ? product.price_uber : product.price_deliveroo)!;
       const foodCost = product.food_cost!;
       const sales = salesData[product.id] || 0;
       
-      const netMarginPerUnit = price - (price * commission) - foodCost;
-      const netMarginBogo = price - (price * commission) - offerFee - (foodCost * 2);
+      const netMarginPerUnit = price - (price * commissionRate) - foodCost;
+      const netMarginBogo = price - (price * commissionRate) - offerFee - (foodCost * 2);
       const breakevenMultiplier = netMarginBogo > 0 ? netMarginPerUnit / netMarginBogo : null;
       const breakevenIncreasePercent = breakevenMultiplier ? (breakevenMultiplier - 1) * 100 : null;
       
@@ -306,7 +322,7 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
           return b.bogoScore - a.bogoScore;
       }
     });
-  }, [eligibleProducts, uberCommission, offerFee, salesData, sortBy, filterTopSellers, filterMaxPrice, maxPriceValue, minMarginPercent]);
+  }, [eligibleProducts, commission, offerFee, salesData, sortBy, filterTopSellers, filterMaxPrice, maxPriceValue, minMarginPercent, isUber]);
 
   const recommendation = useMemo(() => {
     if (!simulation) return null;
@@ -520,17 +536,17 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                 </motion.div>
               )}
 
-              {/* Uber Commission */}
+              {/* Commission */}
               <div className="space-y-3">
                 <Label className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
-                    Commission Uber
+                    Commission {config.name}
                   </span>
-                  <Badge variant="outline" className="font-mono">{uberCommission}%</Badge>
+                  <Badge variant="outline" className="font-mono">{commission}%</Badge>
                 </Label>
                 <Slider
-                  value={[uberCommission]}
-                  onValueChange={([value]) => setUberCommission(value)}
+                  value={[commission]}
+                  onValueChange={([value]) => setCommission(value)}
                   min={15}
                   max={40}
                   step={1}
@@ -555,11 +571,11 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                 </div>
               </div>
 
-              {/* Uber Estimated Increase */}
+              {/* Estimation */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
-                  <UberEatsIcon className="h-4 w-4" />
-                  Estimation Uber (augmentation commandes)
+                  <PlatformIcon className="h-4 w-4" />
+                  Estimation {config.name} (augmentation commandes)
                 </Label>
                 <div className="relative">
                   <Input
@@ -807,7 +823,7 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                           <Minus className="h-2.5 w-2.5 text-emerald-600/60" />
                           <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[42px]">
                             <span className="text-[8px] text-muted-foreground uppercase">Comm.</span>
-                            <span className="font-bold text-orange-600 text-sm">{(simulation.price * uberCommission / 100).toFixed(2)}€</span>
+                            <span className="font-bold text-orange-600 text-sm">{(simulation.price * commission / 100).toFixed(2)}€</span>
                           </div>
                           <Minus className="h-2.5 w-2.5 text-emerald-600/60" />
                           <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[42px]">
@@ -875,7 +891,7 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                           <Minus className="h-2 w-2 text-muted-foreground/60" />
                           <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[38px]">
                             <span className="text-[8px] text-muted-foreground uppercase">Comm.</span>
-                            <span className="font-bold text-orange-600 text-xs">{(simulation.price * uberCommission / 100).toFixed(2)}€</span>
+                            <span className="font-bold text-orange-600 text-xs">{(simulation.price * commission / 100).toFixed(2)}€</span>
                           </div>
                           <Minus className="h-2 w-2 text-muted-foreground/60" />
                           <div className="flex flex-col items-center p-1.5 bg-white/70 dark:bg-white/10 rounded min-w-[38px]">
