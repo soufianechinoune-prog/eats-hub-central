@@ -474,14 +474,9 @@ export function OrderAccuracyDashboard({
 
       {/* Detailed Errors Table */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle className="text-lg">Détail des erreurs</CardTitle>
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/disputes">
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Contester via IA
-            </Link>
-          </Button>
+          {/* TODO: Implémenter la contestation via IA ultérieurement */}
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[400px]">
@@ -496,7 +491,7 @@ export function OrderAccuracyDashboard({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orderErrors.slice(0, 50).map((error) => (
+                {(drillDownMonth !== null ? orderErrors : orderErrors.slice(0, 50)).map((error) => (
                   <TableRow key={error.id}>
                     <TableCell>
                       {new Date(error.error_date || error.created_at).toLocaleDateString("fr-FR")}
@@ -525,7 +520,7 @@ export function OrderAccuracyDashboard({
                 ))}
               </TableBody>
             </Table>
-            {orderErrors.length > 50 && (
+            {drillDownMonth === null && orderErrors.length > 50 && (
               <div className="text-center py-4 text-sm text-muted-foreground">
                 Affichage des 50 premières erreurs sur {orderErrors.length}
               </div>
