@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -46,8 +47,14 @@ import {
   Minus as MinusIcon,
   ShoppingCart,
   Gift,
+  Flame,
+  Filter,
+  ArrowUpDown,
+  Sparkles,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
+import { supabase } from "@/integrations/supabase/client";
+import { normalizeName } from "@/lib/fuzzyMatch";
 
 export type Platform = "uber" | "deliveroo";
 
@@ -75,6 +82,8 @@ const PLATFORM_CONFIG = {
   deliveroo: { defaultCommission: 25, defaultOfferFee: 0, color: "violet", name: "Deliveroo" },
 };
 
+type SortCriteria = "score" | "margin_percent" | "margin_euro" | "sales";
+
 export function CrossProductSimulator({ menuItems, onBack, platform, commission, onCommissionChange }: CrossProductSimulatorProps) {
   const config = PLATFORM_CONFIG[platform];
   const isUber = platform === "uber";
@@ -84,6 +93,78 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
   const [freeProductId, setFreeProductId] = useState<string>("");
   const [offerFee, setOfferFee] = useState<number>(config.defaultOfferFee);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("");
+  
+  // Sales data from order_items
+  const [salesData, setSalesData] = useState<Record<string, number>>({});
+  const [isLoadingSales, setIsLoadingSales] = useState(true);
+  
+  // Filters & Sorting
+  const [sortBy, setSortBy] = useState<SortCriteria>("score");
+  const [filterTopSellers, setFilterTopSellers] = useState(false);
+  const [filterMaxPrice, setFilterMaxPrice] = useState(false);
+  const [maxPriceValue, setMaxPriceValue] = useState(20);
+  const [minMarginPercent, setMinMarginPercent] = useState(0);
+
+  // Fetch sales data from order_items
+  useEffect(() => {
+    const fetchSalesData = async () => {
+      setIsLoadingSales(true);
+      try {
+        const { data, error } = await supabase
+          .from("order_items")
+          .select("item_title, quantity");
+        
+        if (error) throw error;
+        
+        // Aggregate sales by normalized item name
+        const salesMap: Record<string, number> = {};
+        const normalizedToOriginal: Record<string, string> = {};
+        
+        // Create normalized name map for menu items
+        menuItems.forEach(item => {
+          const normalized = normalizeName(item.name);
+          normalizedToOriginal[normalized] = item.id;
+        });
+        
+        // Count sales
+        data?.forEach(row => {
+          const normalizedTitle = normalizeName(row.item_title);
+          
+          // Try exact match first
+          if (normalizedToOriginal[normalizedTitle]) {
+            const menuItemId = normalizedToOriginal[normalizedTitle];
+            salesMap[menuItemId] = (salesMap[menuItemId] || 0) + (row.quantity || 1);
+          } else {
+            // Fuzzy match: find best matching menu item
+            let bestMatch: string | null = null;
+            let bestScore = 0;
+            
+            for (const [normalized, id] of Object.entries(normalizedToOriginal)) {
+              if (normalizedTitle.includes(normalized) || normalized.includes(normalizedTitle)) {
+                const score = Math.min(normalizedTitle.length, normalized.length) / Math.max(normalizedTitle.length, normalized.length);
+                if (score > bestScore && score > 0.5) {
+                  bestScore = score;
+                  bestMatch = id;
+                }
+              }
+            }
+            
+            if (bestMatch) {
+              salesMap[bestMatch] = (salesMap[bestMatch] || 0) + (row.quantity || 1);
+            }
+          }
+        });
+        
+        setSalesData(salesMap);
+      } catch (error) {
+        console.error("Error fetching sales data:", error);
+      } finally {
+        setIsLoadingSales(false);
+      }
+    };
+    
+    fetchSalesData();
+  }, [menuItems]);
 
   const eligibleProducts = useMemo(() => {
     return menuItems.filter(
@@ -146,15 +227,28 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
     };
   }, [paidProduct, freeProduct, commission, offerFee, uberEstimatedIncrease, isUber]);
 
-  // Calculate best combinations
+  // Calculate stats for scoring
+  const maxSales = useMemo(() => {
+    const allSales = Object.values(salesData);
+    return allSales.length > 0 ? Math.max(...allSales) : 1;
+  }, [salesData]);
+
+  const maxPrice = useMemo(() => {
+    return Math.max(...eligibleProducts.map(p => (isUber ? p.price_uber : p.price_deliveroo) || 0));
+  }, [eligibleProducts, isUber]);
+
+  // Calculate best combinations with intelligent scoring
   const bestCombinations = useMemo(() => {
     const commissionRate = commission / 100;
     const combinations: Array<{
       paidProduct: MenuItem;
       freeProduct: MenuItem;
       netMarginWithOffer: number;
+      marginPercent: number;
       breakevenPercent: number | null;
       recommendation: "recommended" | "moderate" | "not_recommended";
+      sales: number;
+      score: number;
     }> = [];
 
     for (const paid of eligibleProducts) {
@@ -167,6 +261,7 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
         
         const marginWithoutOffer = paidPrice - (paidPrice * commissionRate) - paidFC;
         const marginWithOffer = paidPrice - (paidPrice * commissionRate) - paidFC - freeFC - offerFee;
+        const marginPercent = (marginWithOffer / paidPrice) * 100;
         const breakevenMult = marginWithOffer > 0 ? marginWithoutOffer / marginWithOffer : null;
         const breakevenPercent = breakevenMult ? (breakevenMult - 1) * 100 : null;
 
@@ -181,26 +276,66 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
           recommendation = "not_recommended";
         }
 
+        // Get sales for the PAID product (the one driving the offer)
+        const sales = salesData[paid.id] || 0;
+        
+        // Calculate intelligent score
+        // Score = (Marge % × 0.40) + (Popularité × 0.40) + (Attractivité prix × 0.20)
+        const marginScore = marginPercent > 0 ? Math.min(marginPercent / 30 * 100, 100) : 0; // Normalized: 30% margin = 100 score
+        const popularityScore = maxSales > 0 ? (sales / maxSales) * 100 : 0;
+        const priceAttractiveness = maxPrice > 0 ? (1 - (paidPrice / maxPrice)) * 100 : 50; // Lower price = higher score
+        
+        const score = (marginScore * 0.40) + (popularityScore * 0.40) + (priceAttractiveness * 0.20);
+
         combinations.push({
           paidProduct: paid,
           freeProduct: free,
           netMarginWithOffer: marginWithOffer,
+          marginPercent,
           breakevenPercent,
           recommendation,
+          sales,
+          score,
         });
       }
     }
 
-    return combinations
+    // Apply filters
+    let filtered = combinations;
+    
+    if (filterTopSellers) {
+      filtered = filtered.filter(c => c.sales >= 10);
+    }
+    
+    if (filterMaxPrice) {
+      filtered = filtered.filter(c => {
+        const price = (isUber ? c.paidProduct.price_uber : c.paidProduct.price_deliveroo) || 0;
+        return price <= maxPriceValue;
+      });
+    }
+    
+    if (minMarginPercent > 0) {
+      filtered = filtered.filter(c => c.marginPercent >= minMarginPercent);
+    }
+
+    // Sort based on selected criteria
+    return filtered
       .sort((a, b) => {
-        const order = { recommended: 0, moderate: 1, not_recommended: 2 };
-        if (order[a.recommendation] !== order[b.recommendation]) {
-          return order[a.recommendation] - order[b.recommendation];
+        switch (sortBy) {
+          case "score":
+            return b.score - a.score;
+          case "margin_percent":
+            return b.marginPercent - a.marginPercent;
+          case "margin_euro":
+            return b.netMarginWithOffer - a.netMarginWithOffer;
+          case "sales":
+            return b.sales - a.sales;
+          default:
+            return b.score - a.score;
         }
-        return (b.netMarginWithOffer) - (a.netMarginWithOffer);
       })
       .slice(0, 20);
-  }, [eligibleProducts, commission, offerFee, isUber]);
+  }, [eligibleProducts, commission, offerFee, isUber, salesData, maxSales, maxPrice, sortBy, filterTopSellers, filterMaxPrice, maxPriceValue, minMarginPercent]);
 
   const recommendation = useMemo(() => {
     if (!simulation) return null;
@@ -625,7 +760,7 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
         <Card className="border-0 bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]">
           <div className="absolute inset-0 border border-white/30 rounded-lg pointer-events-none" />
           <CardHeader className="relative">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-3">
                 <motion.div 
                   className="p-2.5 bg-gradient-to-br from-violet-500/20 to-purple-500/20 backdrop-blur-sm rounded-xl"
@@ -634,9 +769,20 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
                   <ListOrdered className="h-5 w-5 text-violet-600" />
                 </motion.div>
                 <div>
-                  <CardTitle className="text-lg">Meilleures combinaisons</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    Meilleures combinaisons
+                    <Badge variant="outline" className="text-xs font-normal">
+                      <Sparkles className="h-3 w-3 mr-1" />
+                      Score intelligent
+                    </Badge>
+                  </CardTitle>
                   <CardDescription>
-                    Top 20 des combinaisons les plus rentables
+                    {isLoadingSales 
+                      ? "Chargement des données de ventes..."
+                      : Object.keys(salesData).length > 0 
+                        ? "Classement basé sur marge, popularité et prix"
+                        : "Importez vos données de ventes pour un classement optimisé"
+                    }
                   </CardDescription>
                 </div>
               </div>
@@ -651,6 +797,86 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
                 </Badge>
               </div>
             </div>
+            
+            {/* Filters & Sorting */}
+            <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-border/50">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Filtres:</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="filter-top-sellers-cross"
+                  checked={filterTopSellers}
+                  onCheckedChange={setFilterTopSellers}
+                  className="data-[state=checked]:bg-violet-500"
+                />
+                <Label htmlFor="filter-top-sellers-cross" className="text-sm cursor-pointer flex items-center gap-1">
+                  <Flame className="h-3.5 w-3.5 text-orange-500" />
+                  Top Sellers (&ge;10 ventes)
+                </Label>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="filter-max-price-cross"
+                  checked={filterMaxPrice}
+                  onCheckedChange={setFilterMaxPrice}
+                  className="data-[state=checked]:bg-violet-500"
+                />
+                <Label htmlFor="filter-max-price-cross" className="text-sm cursor-pointer">
+                  Prix max {maxPriceValue}€
+                </Label>
+                {filterMaxPrice && (
+                  <Slider
+                    value={[maxPriceValue]}
+                    onValueChange={([v]) => setMaxPriceValue(v)}
+                    min={5}
+                    max={50}
+                    step={5}
+                    className="w-20"
+                  />
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Label className="text-sm">Marge min:</Label>
+                <Select value={String(minMarginPercent)} onValueChange={(v) => setMinMarginPercent(Number(v))}>
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0%</SelectItem>
+                    <SelectItem value="5">5%</SelectItem>
+                    <SelectItem value="10">10%</SelectItem>
+                    <SelectItem value="15">15%</SelectItem>
+                    <SelectItem value="20">20%</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="ml-auto flex items-center gap-2">
+                <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Tri:</span>
+                <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortCriteria)}>
+                  <SelectTrigger className="w-40 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="score">
+                      <span className="flex items-center gap-2">
+                        <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                        Score intelligent
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="margin_percent">Marge %</SelectItem>
+                    <SelectItem value="margin_euro">Marge €</SelectItem>
+                    <SelectItem value="sales">Popularité</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="relative">
             <div className="rounded-lg border border-border/50 overflow-hidden">
@@ -659,107 +885,162 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableHead className="w-12 text-center">#</TableHead>
                     <TableHead>Produit acheté</TableHead>
+                    <TableHead className="text-center">Popularité</TableHead>
                     <TableHead>Produit offert</TableHead>
                     <TableHead className="text-right">Marge avec offre</TableHead>
-                    <TableHead className="text-right">Seuil rentabilité</TableHead>
+                    <TableHead className="text-center">Score</TableHead>
                     <TableHead className="text-center">Verdict</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bestCombinations.map((combo, index) => (
-                    <TableRow 
-                      key={`${combo.paidProduct.id}-${combo.freeProduct.id}`}
-                      className={`transition-colors cursor-pointer hover:bg-muted/20 ${
-                        paidProductId === combo.paidProduct.id && freeProductId === combo.freeProduct.id
-                          ? "bg-violet-500/5 ring-1 ring-inset ring-violet-500/20" 
-                          : ""
-                      }`}
-                      onClick={() => {
-                        setPaidProductId(combo.paidProduct.id);
-                        setFreeProductId(combo.freeProduct.id);
-                      }}
-                    >
-                      <TableCell className="text-center font-medium text-muted-foreground">
-                        {index + 1}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium truncate max-w-[150px]">{combo.paidProduct.name}</span>
-                          <span className="text-xs text-muted-foreground">{combo.paidProduct.price_uber?.toFixed(2)}€</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium truncate max-w-[150px]">{combo.freeProduct.name}</span>
-                          <span className="text-xs text-muted-foreground">FC: {combo.freeProduct.food_cost?.toFixed(2)}€</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md font-mono font-semibold ${
-                          combo.netMarginWithOffer < 0 
-                            ? "bg-red-500/10 text-red-600" 
-                            : combo.netMarginWithOffer < 1 
-                              ? "bg-amber-500/10 text-amber-600"
-                              : "bg-emerald-500/10 text-emerald-600"
-                        }`}>
-                          {combo.netMarginWithOffer.toFixed(2)}€
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {combo.breakevenPercent !== null ? (
-                          <span className={combo.breakevenPercent <= 60 ? "text-emerald-600" : combo.breakevenPercent <= 120 ? "text-amber-600" : "text-red-600"}>
-                            +{combo.breakevenPercent.toFixed(0)}%
-                          </span>
-                        ) : (
-                          <span className="text-red-500">N/A</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full cursor-help transition-all hover:scale-105 ${
-                                combo.recommendation === "recommended"
-                                  ? "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30"
-                                  : combo.recommendation === "moderate"
-                                    ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
-                                    : "bg-red-500/15 text-red-600 border border-red-500/30"
-                              }`}>
-                                {combo.recommendation === "recommended" ? (
-                                  <ThumbsUp className="h-3.5 w-3.5" />
-                                ) : combo.recommendation === "moderate" ? (
-                                  <MinusIcon className="h-3.5 w-3.5" />
-                                ) : (
-                                  <ThumbsDown className="h-3.5 w-3.5" />
-                                )}
-                                <span className="text-xs font-medium">
-                                  {combo.recommendation === "recommended" ? "Go" : combo.recommendation === "moderate" ? "Risqué" : "Stop"}
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="left" className="max-w-xs">
-                              <div className="space-y-1">
-                                <p className="font-semibold">
-                                  {combo.recommendation === "recommended" 
-                                    ? "✅ Combinaison recommandée" 
-                                    : combo.recommendation === "moderate"
-                                      ? "⚠️ Risque modéré"
-                                      : "❌ Combinaison déconseillée"}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {combo.recommendation === "recommended" 
-                                    ? "Seuil facilement atteignable (<60%)" 
-                                    : combo.recommendation === "moderate"
-                                      ? "Seuil élevé (60-120%)"
-                                      : "Seuil trop élevé ou marge négative"}
-                                </p>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                  {bestCombinations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        Aucune combinaison ne correspond aux filtres sélectionnés
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    bestCombinations.map((combo, index) => (
+                      <TableRow 
+                        key={`${combo.paidProduct.id}-${combo.freeProduct.id}`}
+                        className={`transition-colors cursor-pointer hover:bg-muted/20 ${
+                          paidProductId === combo.paidProduct.id && freeProductId === combo.freeProduct.id
+                            ? "bg-violet-500/5 ring-1 ring-inset ring-violet-500/20" 
+                            : ""
+                        }`}
+                        onClick={() => {
+                          setPaidProductId(combo.paidProduct.id);
+                          setFreeProductId(combo.freeProduct.id);
+                        }}
+                      >
+                        <TableCell className="text-center font-medium text-muted-foreground">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium truncate max-w-[150px]">{combo.paidProduct.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {(isUber ? combo.paidProduct.price_uber : combo.paidProduct.price_deliveroo)?.toFixed(2)}€
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${
+                                combo.sales >= 50 
+                                  ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" 
+                                  : combo.sales >= 10 
+                                    ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
+                                    : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              <Flame className={`h-3 w-3 mr-1 ${combo.sales >= 10 ? "text-orange-500" : ""}`} />
+                              {combo.sales}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium truncate max-w-[150px]">{combo.freeProduct.name}</span>
+                            <span className="text-xs text-muted-foreground">FC: {combo.freeProduct.food_cost?.toFixed(2)}€</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`font-mono font-semibold ${
+                              combo.netMarginWithOffer < 0 
+                                ? "text-red-600" 
+                                : combo.netMarginWithOffer < 1 
+                                  ? "text-amber-600"
+                                  : "text-emerald-600"
+                            }`}>
+                              {combo.netMarginWithOffer.toFixed(2)}€
+                            </span>
+                            <Badge 
+                              variant="outline"
+                              className={`text-xs font-mono ${
+                                combo.marginPercent >= 30 
+                                  ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" 
+                                  : combo.marginPercent >= 15 
+                                    ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
+                                    : "bg-red-500/15 text-red-600 border-red-500/30"
+                              }`}
+                            >
+                              {combo.marginPercent.toFixed(1)}%
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-violet-500/10 border border-violet-500/20">
+                                  <Sparkles className="h-3 w-3 text-violet-500" />
+                                  <span className="font-mono font-semibold text-violet-600">
+                                    {combo.score.toFixed(0)}
+                                  </span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="max-w-xs">
+                                <div className="space-y-1 text-xs">
+                                  <p className="font-semibold">Score = Marge×40% + Popularité×40% + Prix×20%</p>
+                                  <p>Marge: {combo.marginPercent.toFixed(1)}%</p>
+                                  <p>Ventes: {combo.sales}</p>
+                                  <p>Seuil: {combo.breakevenPercent !== null ? `+${combo.breakevenPercent.toFixed(0)}%` : "N/A"}</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full cursor-help transition-all hover:scale-105 ${
+                                  combo.recommendation === "recommended"
+                                    ? "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30"
+                                    : combo.recommendation === "moderate"
+                                      ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
+                                      : "bg-red-500/15 text-red-600 border border-red-500/30"
+                                }`}>
+                                  {combo.recommendation === "recommended" ? (
+                                    <ThumbsUp className="h-3.5 w-3.5" />
+                                  ) : combo.recommendation === "moderate" ? (
+                                    <MinusIcon className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <ThumbsDown className="h-3.5 w-3.5" />
+                                  )}
+                                  <span className="text-xs font-medium">
+                                    {combo.recommendation === "recommended" ? "Go" : combo.recommendation === "moderate" ? "Risqué" : "Stop"}
+                                  </span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="max-w-xs">
+                                <div className="space-y-1">
+                                  <p className="font-semibold">
+                                    {combo.recommendation === "recommended" 
+                                      ? "✅ Combinaison recommandée" 
+                                      : combo.recommendation === "moderate"
+                                        ? "⚠️ Risque modéré"
+                                        : "❌ Combinaison déconseillée"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {combo.recommendation === "recommended" 
+                                      ? "Seuil facilement atteignable (<60%)" 
+                                      : combo.recommendation === "moderate"
+                                        ? "Seuil élevé (60-120%)"
+                                        : "Seuil trop élevé ou marge négative"}
+                                  </p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
