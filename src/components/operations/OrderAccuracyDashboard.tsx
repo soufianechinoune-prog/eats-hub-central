@@ -95,29 +95,45 @@ export function OrderAccuracyDashboard({
     return { start: startDate.toISOString(), end: endDate.toISOString() };
   }, [selectedYear, selectedMonth, drillDownMonth]);
 
-  // Fetch order errors - with explicit high limit to avoid default 1000 cap
+  // Fetch order errors - using pagination to get ALL errors (no 1000 limit)
   const { data: orderErrors, isLoading } = useQuery({
-    queryKey: ["order-accuracy-stats-v2", selectedRestaurant, selectedYear, selectedMonth, drillDownMonth],
+    queryKey: ["order-accuracy-stats-v3", selectedRestaurant, selectedYear, selectedMonth, drillDownMonth],
     queryFn: async () => {
-      let query = supabase
-        .from("order_errors")
-        .select("*")
-        .gte("error_date", dateRange.start)
-        .lte("error_date", dateRange.end)
-        .order("error_date", { ascending: true })
-        .limit(10000); // Explicit limit to avoid default 1000 cap
+      const allErrors: any[] = [];
+      const pageSize = 1000;
+      let offset = 0;
+      let hasMore = true;
 
-      if (selectedRestaurant !== "all") {
-        query = query.eq("restaurant_id", selectedRestaurant);
+      while (hasMore) {
+        let query = supabase
+          .from("order_errors")
+          .select("*")
+          .gte("error_date", dateRange.start)
+          .lte("error_date", dateRange.end)
+          .order("error_date", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+
+        if (selectedRestaurant !== "all") {
+          query = query.eq("restaurant_id", selectedRestaurant);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+          console.error("Error fetching order errors:", error);
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          allErrors.push(...data);
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
       }
 
-      const { data, error } = await query;
-      if (error) {
-        console.error("Error fetching order errors:", error);
-        throw error;
-      }
-      console.log(`Fetched ${data?.length || 0} order errors`);
-      return data || [];
+      console.log(`[Operations] Total fetched: ${allErrors.length}`);
+      return allErrors;
     },
   });
 
@@ -327,6 +343,9 @@ export function OrderAccuracyDashboard({
       monthlyOrderCounts[r.month] = (monthlyOrderCounts[r.month] || 0) + (r.order_count || 0);
     });
 
+    // Check if we have ANY sales data at all
+    const hasSalesData = Object.values(monthlyOrderCounts).some(v => v > 0);
+
     // Only show months that have error data (exclude months without imports)
     return Object.entries(monthlyErrors)
       .filter(([month]) => monthsWithErrors.has(parseInt(month)))
@@ -335,9 +354,11 @@ export function OrderAccuracyDashboard({
         return {
           period: `${selectedYear}-${String(month).padStart(2, "0")}`,
           label: monthNames[parseInt(month) - 1],
-          errorRate: orders > 0 ? (count / orders) * 100 : 0,
+          // If no sales data, use error count directly (will display as count, not rate)
+          errorRate: orders > 0 ? (count / orders) * 100 : null,
           errorCount: count,
           orderCount: orders,
+          hasSalesData: hasSalesData && orders > 0,
         };
       });
   }, [orderErrors, effectiveSalesData, selectedYear, drillDownMonth, monthsWithErrors]);

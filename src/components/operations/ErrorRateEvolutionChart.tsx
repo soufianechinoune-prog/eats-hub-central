@@ -21,9 +21,10 @@ import {
 interface ErrorRateData {
   period: string;
   label: string;
-  errorRate: number;
+  errorRate: number | null;
   errorCount: number;
   orderCount: number;
+  hasSalesData?: boolean;
 }
 
 interface ErrorRateEvolutionChartProps {
@@ -53,9 +54,27 @@ export function ErrorRateEvolutionChart({
   onPrevMonth,
   onNextMonth,
 }: ErrorRateEvolutionChartProps) {
+  // Check if we have any sales data
+  const hasAnySalesData = data.some(d => d.hasSalesData);
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.[0]) return null;
     const item = payload[0].payload;
+    
+    // If no sales data, show error count only
+    if (!hasAnySalesData || item.errorRate === null) {
+      return (
+        <div className="bg-popover border border-border rounded-lg shadow-lg p-3">
+          <p className="font-medium">{item.label}</p>
+          <p className="text-destructive font-semibold">
+            {item.errorCount} erreurs
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Données de ventes manquantes
+          </p>
+        </div>
+      );
+    }
     
     return (
       <div className="bg-popover border border-border rounded-lg shadow-lg p-3">
@@ -77,17 +96,32 @@ export function ErrorRateEvolutionChart({
     }
   };
 
-  const maxRate = Math.max(...data.map(d => d.errorRate), objective + 1);
-  const yDomain = [0, Math.ceil(maxRate * 1.2)];
+  // Determine what to display: errorRate (%) or errorCount (nb)
+  const displayKey = hasAnySalesData ? "errorRate" : "errorCount";
+  const yFormatter = hasAnySalesData 
+    ? (v: number) => `${v}%` 
+    : (v: number) => `${v}`;
+  
+  const maxValue = hasAnySalesData
+    ? Math.max(...data.map(d => d.errorRate ?? 0), objective + 1)
+    : Math.max(...data.map(d => d.errorCount), 10);
+  const yDomain: [number, number] = [0, Math.ceil(maxValue * 1.2)];
+
+  const chartTitle = hasAnySalesData 
+    ? "Évolution du taux d'erreur" 
+    : "Évolution du nombre d'erreurs";
+  const chartSubtitle = hasAnySalesData
+    ? `Objectif: < ${objective}% d'erreurs`
+    : "Données de ventes manquantes - affichage du nombre d'erreurs";
 
   return (
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg">Évolution du taux d'erreur</CardTitle>
+            <CardTitle className="text-lg">{chartTitle}</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Objectif: &lt; {objective}% d'erreurs
+              {chartSubtitle}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -121,19 +155,21 @@ export function ErrorRateEvolutionChart({
           </div>
         </div>
 
-        {/* Objective slider */}
-        <div className="flex items-center gap-4 mt-3">
-          <span className="text-sm text-muted-foreground whitespace-nowrap">Objectif:</span>
-          <Slider
-            value={[objective]}
-            onValueChange={(v) => onObjectiveChange(v[0])}
-            min={0.5}
-            max={5}
-            step={0.5}
-            className="flex-1 max-w-[200px]"
-          />
-          <span className="text-sm font-medium">{objective}%</span>
-        </div>
+        {/* Objective slider - only show if we have sales data */}
+        {hasAnySalesData && (
+          <div className="flex items-center gap-4 mt-3">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Objectif:</span>
+            <Slider
+              value={[objective]}
+              onValueChange={(v) => onObjectiveChange(v[0])}
+              min={0.5}
+              max={5}
+              step={0.5}
+              className="flex-1 max-w-[200px]"
+            />
+            <span className="text-sm font-medium">{objective}%</span>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
@@ -141,25 +177,27 @@ export function ErrorRateEvolutionChart({
             <LineChart data={data} onClick={handleClick}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="label" className="text-xs" />
-              <YAxis domain={yDomain} tickFormatter={(v) => `${v}%`} className="text-xs" />
+              <YAxis domain={yDomain} tickFormatter={yFormatter} className="text-xs" />
               <Tooltip content={<CustomTooltip />} />
               
-              {/* Reference zones */}
-              <ReferenceArea y1={0} y2={objective} fill="hsl(var(--primary))" fillOpacity={0.1} />
-              <ReferenceArea y1={objective} y2={yDomain[1]} fill="hsl(var(--destructive))" fillOpacity={0.1} />
-              
-              {/* Objective line */}
-              <ReferenceLine
-                y={objective}
-                stroke="hsl(var(--primary))"
-                strokeDasharray="5 5"
-                strokeWidth={2}
-                label={{ value: `Objectif ${objective}%`, position: "right", fill: "hsl(var(--primary))", fontSize: 11 }}
-              />
+              {/* Reference zones - only if sales data available */}
+              {hasAnySalesData && (
+                <>
+                  <ReferenceArea y1={0} y2={objective} fill="hsl(var(--primary))" fillOpacity={0.1} />
+                  <ReferenceArea y1={objective} y2={yDomain[1]} fill="hsl(var(--destructive))" fillOpacity={0.1} />
+                  <ReferenceLine
+                    y={objective}
+                    stroke="hsl(var(--primary))"
+                    strokeDasharray="5 5"
+                    strokeWidth={2}
+                    label={{ value: `Objectif ${objective}%`, position: "right", fill: "hsl(var(--primary))", fontSize: 11 }}
+                  />
+                </>
+              )}
               
               <Line
                 type="monotone"
-                dataKey="errorRate"
+                dataKey={displayKey}
                 stroke="hsl(var(--destructive))"
                 strokeWidth={2}
                 dot={{ fill: "hsl(var(--destructive))", r: 4 }}
@@ -170,23 +208,27 @@ export function ErrorRateEvolutionChart({
             <BarChart data={data} onClick={handleClick}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="label" className="text-xs" />
-              <YAxis domain={yDomain} tickFormatter={(v) => `${v}%`} className="text-xs" />
+              <YAxis domain={yDomain} tickFormatter={yFormatter} className="text-xs" />
               <Tooltip content={<CustomTooltip />} />
               
-              {/* Objective line */}
-              <ReferenceLine
-                y={objective}
-                stroke="hsl(var(--primary))"
-                strokeDasharray="5 5"
-                strokeWidth={2}
-                label={{ value: `Objectif ${objective}%`, position: "right", fill: "hsl(var(--primary))", fontSize: 11 }}
-              />
+              {/* Objective line - only if sales data available */}
+              {hasAnySalesData && (
+                <ReferenceLine
+                  y={objective}
+                  stroke="hsl(var(--primary))"
+                  strokeDasharray="5 5"
+                  strokeWidth={2}
+                  label={{ value: `Objectif ${objective}%`, position: "right", fill: "hsl(var(--primary))", fontSize: 11 }}
+                />
+              )}
               
-              <Bar dataKey="errorRate" radius={[4, 4, 0, 0]}>
+              <Bar dataKey={displayKey} radius={[4, 4, 0, 0]}>
                 {data.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={entry.errorRate <= objective ? "hsl(var(--primary))" : "hsl(var(--destructive))"}
+                    fill={hasAnySalesData && (entry.errorRate ?? 0) <= objective 
+                      ? "hsl(var(--primary))" 
+                      : "hsl(var(--destructive))"}
                     className={periodMode === "year" ? "cursor-pointer" : ""}
                   />
                 ))}
