@@ -51,7 +51,12 @@ import {
   Filter,
   ArrowUpDown,
   Sparkles,
+  HelpCircle,
+  ChevronDown,
+  BookOpen,
+  Percent,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeName } from "@/lib/fuzzyMatch";
@@ -877,6 +882,126 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
                 </Select>
               </div>
             </div>
+            
+            {/* Collapsible Help Section */}
+            <Collapsible className="mt-4">
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-between px-4 py-3 h-auto bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 rounded-lg hover:from-violet-500/15 hover:to-purple-500/15"
+                >
+                  <div className="flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-violet-500" />
+                    <span className="font-medium">Comprendre les indicateurs</span>
+                    <Badge variant="outline" className="text-xs bg-violet-500/10 text-violet-600 border-violet-500/30">
+                      Guide
+                    </Badge>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3">
+                <div className="p-4 rounded-lg bg-muted/30 border border-border/50 space-y-4">
+                  {/* Score Explanation */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-violet-500" />
+                      <h4 className="font-semibold text-sm">Score Cross-Product Intelligent</h4>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Le score combine 3 facteurs pour identifier les meilleures combinaisons "Produit acheté + Produit offert" :
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Percent className="h-4 w-4 text-emerald-500" />
+                          <span className="font-medium text-sm">Marge nette (40%)</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Le % de profit après avoir payé le food cost du produit offert et les frais d'utilisation.
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Flame className="h-4 w-4 text-orange-500" />
+                          <span className="font-medium text-sm">Popularité du produit acheté (40%)</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Plus le produit acheté est populaire, plus l'offre sera utilisée par les clients.
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Euro className="h-4 w-4 text-blue-500" />
+                          <span className="font-medium text-sm">Attractivité prix (20%)</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Un prix d'entrée accessible maximise les conversions.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Concrete Example */}
+                  <div className="p-4 rounded-lg bg-gradient-to-r from-violet-500/5 to-purple-500/5 border border-violet-500/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <BookOpen className="h-4 w-4 text-violet-500" />
+                      <h4 className="font-semibold text-sm">Exemple concret</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-red-500/15 text-red-600 border-red-500/30">Piège à éviter</Badge>
+                        </div>
+                        <p className="font-medium">Menu Family + Cheese offert</p>
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                          <li>• Marge : 42% <span className="text-emerald-500">✓</span></li>
+                          <li>• Ventes Menu Family : 3/mois <span className="text-red-500">✗</span></li>
+                          <li>• Score final : <strong>38/100</strong></li>
+                        </ul>
+                        <p className="text-xs text-red-500 italic">
+                          → Très bonne marge mais personne n'achète le Menu Family
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30">Bon choix</Badge>
+                        </div>
+                        <p className="font-medium">Menu NAAN + Drink offert</p>
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                          <li>• Marge : 18% <span className="text-orange-500">~</span></li>
+                          <li>• Ventes Menu NAAN : 95/mois <span className="text-emerald-500">✓✓</span></li>
+                          <li>• Score final : <strong>82/100</strong></li>
+                        </ul>
+                        <p className="text-xs text-emerald-500 italic">
+                          → Marge correcte + très populaire = fort volume de conversions
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Indicators Legend */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <ThumbsUp className="h-4 w-4 text-emerald-500" />
+                      <span className="text-muted-foreground">Marge ≥ 20%</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <MinusIcon className="h-4 w-4 text-orange-500" />
+                      <span className="text-muted-foreground">Marge 10-20%</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <ThumbsDown className="h-4 w-4 text-red-500" />
+                      <span className="text-muted-foreground">Marge &lt; 10%</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Flame className="h-4 w-4 text-orange-500" />
+                      <span className="text-muted-foreground">Top Seller ≥ 10 ventes</span>
+                    </div>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </CardHeader>
           <CardContent className="relative">
             <div className="rounded-lg border border-border/50 overflow-hidden">
