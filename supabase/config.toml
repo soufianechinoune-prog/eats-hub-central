@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.parse-order-history]
 verify_jwt = false
+
+[functions.parse-inaccurate-orders]
+verify_jwt = false
