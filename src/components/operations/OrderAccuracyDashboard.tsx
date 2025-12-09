@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
   TableBody,
@@ -134,6 +135,62 @@ export function OrderAccuracyDashboard({
     },
   });
 
+  // Fallback: Fetch order counts from orders table if daily_sales_uber is empty
+  const { data: ordersFallbackData } = useQuery({
+    queryKey: ["orders-fallback-for-error-rate", selectedRestaurant, selectedYear, restaurants],
+    queryFn: async () => {
+      const restaurantIds = selectedRestaurant === "all" 
+        ? restaurants.map(r => r.id)
+        : [selectedRestaurant];
+      
+      // Get order counts grouped by month from orders table
+      const startDate = new Date(selectedYear, 0, 1).toISOString();
+      const endDate = new Date(selectedYear, 11, 31, 23, 59, 59).toISOString();
+      
+      let query = supabase
+        .from("orders")
+        .select("order_datetime, restaurant_id")
+        .gte("order_datetime", startDate)
+        .lte("order_datetime", endDate);
+      
+      if (selectedRestaurant !== "all") {
+        query = query.eq("restaurant_id", selectedRestaurant);
+      } else {
+        query = query.in("restaurant_id", restaurantIds);
+      }
+      
+      const { data, error } = await query;
+      if (error) return [];
+      
+      // Group by month
+      const monthlyData: Record<number, number> = {};
+      (data || []).forEach((order: any) => {
+        if (order.order_datetime) {
+          const month = new Date(order.order_datetime).getMonth() + 1;
+          monthlyData[month] = (monthlyData[month] || 0) + 1;
+        }
+      });
+      
+      return Object.entries(monthlyData).map(([month, count]) => ({
+        month: parseInt(month),
+        order_count: count,
+      }));
+    },
+    enabled: salesData !== undefined && salesData.length === 0, // Only run if salesData is empty
+  });
+
+  // Combine sales data sources - prefer daily_sales_uber, fallback to orders
+  const effectiveSalesData = useMemo(() => {
+    if (salesData && salesData.length > 0) return salesData;
+    if (ordersFallbackData && ordersFallbackData.length > 0) return ordersFallbackData;
+    return [];
+  }, [salesData, ordersFallbackData]);
+
+  // Check if we have no sales data at all
+  const hasSalesDataMissing = useMemo(() => {
+    return effectiveSalesData.length === 0 && orderErrors && orderErrors.length > 0;
+  }, [effectiveSalesData, orderErrors]);
+
   // Detect which months have error data
   const monthsWithErrors = useMemo(() => {
     if (!orderErrors) return new Set<number>();
@@ -148,25 +205,25 @@ export function OrderAccuracyDashboard({
 
   // Calculate order count for current period (only for months with error data)
   const orderCount = useMemo(() => {
-    if (!salesData) return 0;
+    if (!effectiveSalesData || effectiveSalesData.length === 0) return 0;
     
     if (drillDownMonth !== null) {
-      return salesData
+      return effectiveSalesData
         .filter((r: any) => r.month === drillDownMonth)
         .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
     }
     
     if (selectedMonth !== "all") {
-      return salesData
+      return effectiveSalesData
         .filter((r: any) => r.month === selectedMonth)
         .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
     }
     
     // Only count orders for months that have error data
-    return salesData
+    return effectiveSalesData
       .filter((r: any) => monthsWithErrors.has(r.month))
       .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
-  }, [salesData, selectedMonth, drillDownMonth, monthsWithErrors]);
+  }, [effectiveSalesData, selectedMonth, drillDownMonth, monthsWithErrors]);
 
   // Calculate KPIs
   const kpis = useMemo(() => {
@@ -190,7 +247,7 @@ export function OrderAccuracyDashboard({
 
   // Build error rate evolution data
   const errorRateEvolutionData = useMemo(() => {
-    if (!orderErrors || !salesData) return [];
+    if (!orderErrors || !effectiveSalesData) return [];
 
     const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 
@@ -209,7 +266,7 @@ export function OrderAccuracyDashboard({
         dailyErrors[day] = (dailyErrors[day] || 0) + 1;
       });
 
-      const monthOrderCount = salesData
+      const monthOrderCount = effectiveSalesData
         .filter((r: any) => r.month === drillDownMonth)
         .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
       const dailyAvgOrders = monthOrderCount / daysInMonth;
@@ -237,7 +294,7 @@ export function OrderAccuracyDashboard({
 
     // Group sales data by month
     const monthlyOrderCounts: Record<number, number> = {};
-    salesData.forEach((r: any) => {
+    effectiveSalesData.forEach((r: any) => {
       monthlyOrderCounts[r.month] = (monthlyOrderCounts[r.month] || 0) + (r.order_count || 0);
     });
 
@@ -254,7 +311,7 @@ export function OrderAccuracyDashboard({
           orderCount: orders,
         };
       });
-  }, [orderErrors, salesData, selectedYear, drillDownMonth, monthsWithErrors]);
+  }, [orderErrors, effectiveSalesData, selectedYear, drillDownMonth, monthsWithErrors]);
 
   // Top problematic items
   const topItems = useMemo(() => {
@@ -329,6 +386,17 @@ export function OrderAccuracyDashboard({
 
   return (
     <div className="space-y-6">
+      {/* Warning if no sales data */}
+      {hasSalesDataMissing && (
+        <Alert variant="destructive" className="border-amber-500/50 bg-amber-500/10">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-amber-700 dark:text-amber-400">
+            <strong>Données de ventes manquantes pour ce restaurant.</strong> Le taux d'erreur affiché à 0% est incorrect. 
+            Importez le rapport "Sales Over Time" depuis la page{" "}
+            <a href="/report-import" className="underline font-medium hover:text-amber-600">Imports</a> pour calculer le taux d'erreur réel.
+          </AlertDescription>
+        </Alert>
+      )}
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
