@@ -437,6 +437,15 @@ export default function MenuItems() {
   
   // Tab state
   const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "matcher" | "foodcost" | "simulator">("catalog");
+  
+  // Tab configuration with icons and colors
+  const tabConfig = [
+    { value: "catalog", label: "Catalogue", icon: Package, color: "text-emerald-500", bgActive: "bg-emerald-500/15", borderActive: "border-emerald-500/40" },
+    { value: "comparison", label: "Comparaison", icon: ArrowRightLeft, color: "text-blue-500", bgActive: "bg-blue-500/15", borderActive: "border-blue-500/40" },
+    { value: "matcher", label: "Matcher", icon: Link2, color: "text-purple-500", bgActive: "bg-purple-500/15", borderActive: "border-purple-500/40" },
+    { value: "foodcost", label: "Food Cost", icon: Calculator, color: "text-amber-500", bgActive: "bg-amber-500/15", borderActive: "border-amber-500/40" },
+    { value: "simulator", label: "Simulateur", icon: TrendingUp, color: "text-orange-500", bgActive: "bg-orange-500/15", borderActive: "border-orange-500/40" },
+  ] as const;
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
   
@@ -922,27 +931,25 @@ export default function MenuItems() {
 
       {/* Tabs for Catalog / Comparison */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "matcher" | "foodcost" | "simulator")}>
-        <TabsList>
-          <TabsTrigger value="catalog" className="gap-2">
-            <Package className="h-4 w-4" />
-            Catalogue
-          </TabsTrigger>
-          <TabsTrigger value="comparison" className="gap-2">
-            <ArrowRightLeft className="h-4 w-4" />
-            Comparaison
-          </TabsTrigger>
-          <TabsTrigger value="matcher" className="gap-2">
-            <Link2 className="h-4 w-4" />
-            Matcher
-          </TabsTrigger>
-          <TabsTrigger value="foodcost" className="gap-2">
-            <Calculator className="h-4 w-4" />
-            Food Cost
-          </TabsTrigger>
-          <TabsTrigger value="simulator" className="gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Simulateur
-          </TabsTrigger>
+        <TabsList className="h-auto p-1.5 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/40 shadow-lg rounded-xl gap-1">
+          {tabConfig.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.value;
+            return (
+              <TabsTrigger 
+                key={tab.value}
+                value={tab.value} 
+                className={`gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 data-[state=active]:shadow-md ${
+                  isActive 
+                    ? `${tab.bgActive} ${tab.borderActive} border` 
+                    : 'hover:bg-muted/50'
+                }`}
+              >
+                <Icon className={`h-4 w-4 ${isActive ? tab.color : 'text-muted-foreground'}`} />
+                <span className={isActive ? 'font-semibold' : 'text-muted-foreground'}>{tab.label}</span>
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
         <TabsContent value="comparison" className="mt-6">
