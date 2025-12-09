@@ -1117,87 +1117,81 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="score">
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-2">
-                              <Sparkles className="h-3.5 w-3.5 text-purple-500" />
-                              Score BOGO
-                              <Info className="h-3 w-3 text-muted-foreground" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-[260px] p-3">
-                            <div className="space-y-2">
-                              <p className="font-semibold text-sm">Score intelligent composite</p>
-                              <ul className="text-xs space-y-1">
-                                <li>• <strong>40%</strong> Marge BOGO %</li>
-                                <li>• <strong>40%</strong> Popularité (ventes)</li>
-                                <li>• <strong>20%</strong> Attractivité prix</li>
-                              </ul>
-                              <p className="text-xs text-muted-foreground pt-1">
-                                Recommandé pour des suggestions équilibrées
-                              </p>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <span className="flex items-center gap-2">
+                        <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                        Score BOGO
+                      </span>
                     </SelectItem>
                     <SelectItem value="margin_percent">
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-2">
-                              <Percent className="h-3.5 w-3.5 text-emerald-500" />
-                              Marge BOGO %
-                              <Info className="h-3 w-3 text-muted-foreground" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-[220px] p-3">
-                            <p className="text-xs">
-                              Marge nette après BOGO en pourcentage du prix de vente. Privilégie la rentabilité pure.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <span className="flex items-center gap-2">
+                        <Percent className="h-3.5 w-3.5 text-emerald-500" />
+                        Marge BOGO %
+                      </span>
                     </SelectItem>
                     <SelectItem value="sales">
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-2">
-                              <Flame className="h-3.5 w-3.5 text-orange-500" />
-                              Ventes
-                              <Info className="h-3 w-3 text-muted-foreground" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-[220px] p-3">
-                            <p className="text-xs">
-                              Volume de ventes historiques. Privilégie les produits populaires.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <span className="flex items-center gap-2">
+                        <Flame className="h-3.5 w-3.5 text-orange-500" />
+                        Ventes
+                      </span>
                     </SelectItem>
                     <SelectItem value="margin_euro">
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-2">
-                              <Euro className="h-3.5 w-3.5 text-blue-500" />
-                              Marge BOGO €
-                              <Info className="h-3 w-3 text-muted-foreground" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-[220px] p-3">
-                            <p className="text-xs">
-                              Gain absolu en euros par vente BOGO. Utile pour comparer les produits à différents prix.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <span className="flex items-center gap-2">
+                        <Euro className="h-3.5 w-3.5 text-blue-500" />
+                        Marge BOGO €
+                      </span>
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" align="start" className="max-w-[320px] p-4">
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                            <span className="font-semibold text-sm">Score BOGO</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground pl-5">
+                            Score composite : 40% marge + 40% ventes + 20% prix. Recommandé.
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Percent className="h-3.5 w-3.5 text-emerald-500" />
+                            <span className="font-semibold text-sm">Marge BOGO %</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground pl-5">
+                            Marge nette en % du prix. Privilégie la rentabilité pure.
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Flame className="h-3.5 w-3.5 text-orange-500" />
+                            <span className="font-semibold text-sm">Ventes</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground pl-5">
+                            Volume de ventes historiques. Privilégie les best-sellers.
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Euro className="h-3.5 w-3.5 text-blue-500" />
+                            <span className="font-semibold text-sm">Marge BOGO €</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground pl-5">
+                            Gain absolu en euros par vente BOGO.
+                          </p>
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
           </CardHeader>
