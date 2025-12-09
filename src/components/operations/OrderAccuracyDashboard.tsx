@@ -95,7 +95,7 @@ export function OrderAccuracyDashboard({
     return { start: startDate.toISOString(), end: endDate.toISOString() };
   }, [selectedYear, selectedMonth, drillDownMonth]);
 
-  // Fetch order errors
+  // Fetch order errors - with explicit high limit to avoid default 1000 cap
   const { data: orderErrors, isLoading } = useQuery({
     queryKey: ["order-accuracy-stats", selectedRestaurant, selectedYear, selectedMonth, drillDownMonth],
     queryFn: async () => {
@@ -104,7 +104,8 @@ export function OrderAccuracyDashboard({
         .select("*")
         .gte("error_date", dateRange.start)
         .lte("error_date", dateRange.end)
-        .order("error_date", { ascending: true });
+        .order("error_date", { ascending: true })
+        .limit(10000); // Explicit limit to avoid default 1000 cap
 
       if (selectedRestaurant !== "all") {
         query = query.eq("restaurant_id", selectedRestaurant);
@@ -135,61 +136,85 @@ export function OrderAccuracyDashboard({
     },
   });
 
-  // Fallback: Fetch order counts from orders table if daily_sales_uber is empty
+  // Fallback: Fetch order counts from orders table for restaurants missing from daily_sales_uber
   const { data: ordersFallbackData } = useQuery({
-    queryKey: ["orders-fallback-for-error-rate", selectedRestaurant, selectedYear, restaurants],
+    queryKey: ["orders-fallback-for-error-rate", selectedRestaurant, selectedYear, restaurants, salesData],
     queryFn: async () => {
       const restaurantIds = selectedRestaurant === "all" 
         ? restaurants.map(r => r.id)
         : [selectedRestaurant];
       
-      // Get order counts grouped by month from orders table
+      // Identify restaurants that have sales data already
+      const restaurantsWithSales = new Set(
+        (salesData || []).map((s: any) => s.restaurant_id)
+      );
+      
+      // Find restaurants missing from salesData
+      const missingRestaurantIds = restaurantIds.filter(id => !restaurantsWithSales.has(id));
+      
+      if (missingRestaurantIds.length === 0) return [];
+      
+      // Get order counts grouped by month and restaurant from orders table
       const startDate = new Date(selectedYear, 0, 1).toISOString();
       const endDate = new Date(selectedYear, 11, 31, 23, 59, 59).toISOString();
       
-      let query = supabase
+      const { data, error } = await supabase
         .from("orders")
         .select("order_datetime, restaurant_id")
         .gte("order_datetime", startDate)
-        .lte("order_datetime", endDate);
+        .lte("order_datetime", endDate)
+        .in("restaurant_id", missingRestaurantIds)
+        .limit(50000); // High limit for fallback
       
-      if (selectedRestaurant !== "all") {
-        query = query.eq("restaurant_id", selectedRestaurant);
-      } else {
-        query = query.in("restaurant_id", restaurantIds);
-      }
-      
-      const { data, error } = await query;
       if (error) return [];
       
-      // Group by month
-      const monthlyData: Record<number, number> = {};
+      // Group by month and restaurant
+      const monthlyData: Record<string, { month: number; order_count: number; restaurant_id: string }> = {};
       (data || []).forEach((order: any) => {
         if (order.order_datetime) {
           const month = new Date(order.order_datetime).getMonth() + 1;
-          monthlyData[month] = (monthlyData[month] || 0) + 1;
+          const key = `${order.restaurant_id}-${month}`;
+          if (!monthlyData[key]) {
+            monthlyData[key] = { month, order_count: 0, restaurant_id: order.restaurant_id };
+          }
+          monthlyData[key].order_count += 1;
         }
       });
       
-      return Object.entries(monthlyData).map(([month, count]) => ({
-        month: parseInt(month),
-        order_count: count,
-      }));
+      return Object.values(monthlyData);
     },
-    enabled: salesData !== undefined && salesData.length === 0, // Only run if salesData is empty
+    enabled: salesData !== undefined, // Run when salesData is available (even if empty)
   });
 
-  // Combine sales data sources - prefer daily_sales_uber, fallback to orders
+  // Combine sales data sources - merge daily_sales_uber with fallback from orders
   const effectiveSalesData = useMemo(() => {
-    if (salesData && salesData.length > 0) return salesData;
-    if (ordersFallbackData && ordersFallbackData.length > 0) return ordersFallbackData;
-    return [];
+    const combined = [...(salesData || []), ...(ordersFallbackData || [])];
+    return combined;
   }, [salesData, ordersFallbackData]);
+
+  // Check which restaurants are missing sales data
+  const restaurantsWithMissingSales = useMemo(() => {
+    if (selectedRestaurant !== "all") {
+      const hasSales = effectiveSalesData.some((s: any) => s.restaurant_id === selectedRestaurant);
+      if (!hasSales && orderErrors && orderErrors.length > 0) {
+        return restaurants.filter(r => r.id === selectedRestaurant);
+      }
+      return [];
+    }
+    
+    // For "all" restaurants, find which ones are missing
+    const restaurantsWithSales = new Set(effectiveSalesData.map((s: any) => s.restaurant_id));
+    const restaurantsWithErrors = new Set(orderErrors?.map((e: any) => e.restaurant_id) || []);
+    
+    return restaurants.filter(r => 
+      restaurantsWithErrors.has(r.id) && !restaurantsWithSales.has(r.id)
+    );
+  }, [effectiveSalesData, orderErrors, restaurants, selectedRestaurant]);
 
   // Check if we have no sales data at all
   const hasSalesDataMissing = useMemo(() => {
-    return effectiveSalesData.length === 0 && orderErrors && orderErrors.length > 0;
-  }, [effectiveSalesData, orderErrors]);
+    return restaurantsWithMissingSales.length > 0;
+  }, [restaurantsWithMissingSales]);
 
   // Detect which months have error data
   const monthsWithErrors = useMemo(() => {
@@ -386,14 +411,16 @@ export function OrderAccuracyDashboard({
 
   return (
     <div className="space-y-6">
-      {/* Warning if no sales data */}
+      {/* Warning if sales data missing for some restaurants */}
       {hasSalesDataMissing && (
         <Alert variant="destructive" className="border-amber-500/50 bg-amber-500/10">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-amber-700 dark:text-amber-400">
-            <strong>Données de ventes manquantes pour ce restaurant.</strong> Le taux d'erreur affiché à 0% est incorrect. 
-            Importez le rapport "Sales Over Time" depuis la page{" "}
-            <a href="/report-import" className="underline font-medium hover:text-amber-600">Imports</a> pour calculer le taux d'erreur réel.
+            <strong>Données de ventes manquantes pour {restaurantsWithMissingSales.length} restaurant(s) :</strong>{" "}
+            {restaurantsWithMissingSales.slice(0, 5).map(r => r.name).join(", ")}
+            {restaurantsWithMissingSales.length > 5 && ` et ${restaurantsWithMissingSales.length - 5} autre(s)`}.
+            Le taux d'erreur peut être imprécis. Importez le rapport "Sales Over Time" depuis la page{" "}
+            <a href="/report-import" className="underline font-medium hover:text-amber-600">Imports</a>.
           </AlertDescription>
         </Alert>
       )}
