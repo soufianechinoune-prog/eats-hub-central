@@ -27,6 +27,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { WaitTimeAnalytics } from "./WaitTimeAnalytics";
+import { OrderAccuracyDashboard } from "@/components/operations/OrderAccuracyDashboard";
 
 interface AvailabilityData {
   id: string;
@@ -49,7 +50,7 @@ export function OperationsAnalytics() {
     setSelectedMonth,
   } = useAnalyticsContext();
 
-  const [activeTab, setActiveTab] = useState<"availability" | "waitTime">("availability");
+  const [activeTab, setActiveTab] = useState<"availability" | "waitTime" | "orderErrors">("availability");
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [selectedDay, setSelectedDay] = useState<string | null>(null); // format "yyyy-MM-dd"
 
@@ -501,8 +502,8 @@ export function OperationsAnalytics() {
   return (
     <div className="space-y-6">
       {/* Sub-tabs for Operations */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "availability" | "waitTime")} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "availability" | "waitTime" | "orderErrors")} className="w-full">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="availability" className="flex items-center gap-2">
             <Store className="h-4 w-4" />
             Disponibilité
@@ -511,10 +512,23 @@ export function OperationsAnalytics() {
             <Timer className="h-4 w-4" />
             Temps d'attente
           </TabsTrigger>
+          <TabsTrigger value="orderErrors" className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Erreurs commandes
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="waitTime" className="mt-6">
           <WaitTimeAnalytics />
+        </TabsContent>
+
+        <TabsContent value="orderErrors" className="mt-6">
+          <OrderAccuracyDashboard
+            selectedRestaurant={selectedRestaurants[0] || "all"}
+            selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
+            restaurants={restaurants || []}
+          />
         </TabsContent>
 
         <TabsContent value="availability" className="mt-6 space-y-6">
