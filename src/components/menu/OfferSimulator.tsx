@@ -812,7 +812,6 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
                     <TableHead className="text-right">Food Cost</TableHead>
                     <TableHead className="text-right">Marge actuelle</TableHead>
                     <TableHead className="text-right">Marge BOGO</TableHead>
-                    <TableHead className="text-center">Seuil rentabilité</TableHead>
                     <TableHead className="text-center">Verdict</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -854,69 +853,75 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className={`font-mono font-semibold ${product.netMarginBogo < 0 ? "text-red-500" : "text-blue-600"}`}>
+                        <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md font-mono font-semibold ${
+                          product.netMarginBogo < 0 
+                            ? "bg-red-500/10 text-red-600" 
+                            : product.netMarginBogo < 1 
+                              ? "bg-amber-500/10 text-amber-600"
+                              : "bg-emerald-500/10 text-emerald-600"
+                        }`}>
                           {product.netMarginBogo.toFixed(2)}€
-                        </span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        {product.breakevenIncreasePercent !== null ? (
-                          <Badge 
-                            variant="outline" 
-                            className={`font-mono ${
-                              product.breakevenIncreasePercent <= 80 
-                                ? "border-emerald-500/40 text-emerald-600 bg-emerald-500/10" 
-                                : product.breakevenIncreasePercent <= 150 
-                                  ? "border-amber-500/40 text-amber-600 bg-amber-500/10"
-                                  : "border-red-500/40 text-red-600 bg-red-500/10"
-                            }`}
-                          >
-                            +{product.breakevenIncreasePercent.toFixed(0)}%
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive">N/A</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {product.recommendation === "recommended" ? (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <div className="flex items-center justify-center">
-                                  <ThumbsUp className="h-4 w-4 text-emerald-500" />
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full cursor-help transition-all hover:scale-105 ${
+                                product.recommendation === "recommended"
+                                  ? "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30"
+                                  : product.recommendation === "moderate"
+                                    ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
+                                    : "bg-red-500/15 text-red-600 border border-red-500/30"
+                              }`}>
+                                {product.recommendation === "recommended" ? (
+                                  <ThumbsUp className="h-3.5 w-3.5" />
+                                ) : product.recommendation === "moderate" ? (
+                                  <MinusIcon className="h-3.5 w-3.5" />
+                                ) : (
+                                  <ThumbsDown className="h-3.5 w-3.5" />
+                                )}
+                                <span className="text-xs font-medium">
+                                  {product.recommendation === "recommended" ? "Go" : product.recommendation === "moderate" ? "Risqué" : "Stop"}
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="max-w-xs">
+                              <div className="space-y-1.5">
+                                <p className="font-semibold">
+                                  {product.recommendation === "recommended" 
+                                    ? "✅ BOGO recommandé" 
+                                    : product.recommendation === "moderate"
+                                      ? "⚠️ Risque modéré"
+                                      : "❌ BOGO déconseillé"}
+                                </p>
+                                <div className="text-xs space-y-0.5">
+                                  <p>
+                                    <span className="text-muted-foreground">Marge par vente BOGO:</span>{" "}
+                                    <span className={product.netMarginBogo < 0 ? "text-red-400" : "text-emerald-400"}>
+                                      {product.netMarginBogo.toFixed(2)}€
+                                    </span>
+                                  </p>
+                                  {product.breakevenIncreasePercent !== null && (
+                                    <p>
+                                      <span className="text-muted-foreground">Seuil de rentabilité:</span>{" "}
+                                      <span className="font-mono">+{product.breakevenIncreasePercent.toFixed(0)}%</span> de ventes
+                                    </p>
+                                  )}
+                                  <p className="pt-1 text-muted-foreground italic">
+                                    {product.recommendation === "recommended" 
+                                      ? "Seuil facilement atteignable (<80%)" 
+                                      : product.recommendation === "moderate"
+                                        ? "Seuil élevé (80-150%), vérifiez l'estimation Uber"
+                                        : product.netMarginBogo < 0 
+                                          ? "Marge négative, perte à chaque vente"
+                                          : "Seuil trop élevé (>150%), difficilement rentable"}
+                                  </p>
                                 </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Seuil atteignable (&lt;80%), BOGO recommandé</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : product.recommendation === "moderate" ? (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <div className="flex items-center justify-center">
-                                  <MinusIcon className="h-4 w-4 text-amber-500" />
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Seuil modéré (80-150%), risque acceptable</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <div className="flex items-center justify-center">
-                                  <ThumbsDown className="h-4 w-4 text-red-500" />
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Seuil trop élevé (&gt;150%) ou marge négative, déconseillé</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                     </TableRow>
                   ))}
