@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,8 @@ import {
   Divide,
   ChevronDown,
   ChevronUp,
+  HelpCircle,
+  BookOpen,
   ListOrdered,
   ThumbsUp,
   ThumbsDown,
@@ -1205,6 +1208,126 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                   </HoverCardContent>
                 </HoverCard>
               </div>
+              
+              {/* Collapsible Help Section */}
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-between px-4 py-3 h-auto bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg hover:from-purple-500/15 hover:to-blue-500/15"
+                  >
+                    <div className="flex items-center gap-2">
+                      <HelpCircle className="h-4 w-4 text-purple-500" />
+                      <span className="font-medium">Comprendre les indicateurs</span>
+                      <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/30">
+                        Guide
+                      </Badge>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3">
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50 space-y-4">
+                    {/* Score BOGO Explanation */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-purple-500" />
+                        <h4 className="font-semibold text-sm">Score BOGO Intelligent</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Le score combine 3 facteurs pour identifier les produits les plus adaptés au BOGO :
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Percent className="h-4 w-4 text-emerald-500" />
+                            <span className="font-medium text-sm">Marge BOGO (40%)</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Le % de profit net par vente BOGO. Plus c'est élevé, plus le produit reste rentable.
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Flame className="h-4 w-4 text-orange-500" />
+                            <span className="font-medium text-sm">Popularité (40%)</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Volume de ventes historiques. Un produit populaire génère plus de volume avec le BOGO.
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Euro className="h-4 w-4 text-blue-500" />
+                            <span className="font-medium text-sm">Attractivité prix (20%)</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Prix relatif du produit. Les prix moyens sont plus attractifs pour les clients.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Concrete Example */}
+                    <div className="p-4 rounded-lg bg-gradient-to-r from-purple-500/5 to-blue-500/5 border border-purple-500/20">
+                      <div className="flex items-center gap-2 mb-3">
+                        <BookOpen className="h-4 w-4 text-purple-500" />
+                        <h4 className="font-semibold text-sm">Exemple concret</h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-red-500/15 text-red-600 border-red-500/30">Piège à éviter</Badge>
+                          </div>
+                          <p className="font-medium">Burger Premium à 18€</p>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            <li>• Marge BOGO : 35% <span className="text-emerald-500">✓</span></li>
+                            <li>• Ventes : 5/mois <span className="text-red-500">✗</span></li>
+                            <li>• Score final : <strong>45/100</strong></li>
+                          </ul>
+                          <p className="text-xs text-red-500 italic">
+                            → Bonne marge mais trop peu de ventes pour générer du volume
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30">Bon choix</Badge>
+                          </div>
+                          <p className="font-medium">Wrap Classique à 9€</p>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            <li>• Marge BOGO : 22% <span className="text-orange-500">~</span></li>
+                            <li>• Ventes : 85/mois <span className="text-emerald-500">✓✓</span></li>
+                            <li>• Score final : <strong>78/100</strong></li>
+                          </ul>
+                          <p className="text-xs text-emerald-500 italic">
+                            → Marge correcte + fort volume = profit total élevé
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Indicators Legend */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <ThumbsUp className="h-4 w-4 text-emerald-500" />
+                        <span className="text-muted-foreground">Marge ≥ 25%</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <MinusIcon className="h-4 w-4 text-orange-500" />
+                        <span className="text-muted-foreground">Marge 15-25%</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <ThumbsDown className="h-4 w-4 text-red-500" />
+                        <span className="text-muted-foreground">Marge &lt; 15%</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Flame className="h-4 w-4 text-orange-500" />
+                        <span className="text-muted-foreground">Top Seller ≥ 10 ventes</span>
+                      </div>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           </CardHeader>
           <CardContent className="relative">
