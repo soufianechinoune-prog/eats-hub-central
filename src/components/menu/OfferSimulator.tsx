@@ -19,6 +19,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { 
   Calculator, 
   TrendingUp, 
@@ -38,6 +46,10 @@ import {
   Divide,
   ChevronDown,
   ChevronUp,
+  ListOrdered,
+  ThumbsUp,
+  ThumbsDown,
+  Minus as MinusIcon,
 } from "lucide-react";
 import { UberEatsIcon } from "@/components/icons/PlatformIcons";
 
@@ -129,6 +141,60 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
       isLoss: netMarginBogo < 0,
     };
   }, [selectedProduct, uberCommission, offerFee, uberEstimatedIncrease]);
+
+  // Calculate all products analysis for the summary table
+  const allProductsAnalysis = useMemo(() => {
+    const commission = uberCommission / 100;
+    
+    return eligibleProducts.map(product => {
+      const price = product.price_uber!;
+      const foodCost = product.food_cost!;
+      
+      const netMarginPerUnit = price - (price * commission) - foodCost;
+      const netMarginBogo = price - (price * commission) - offerFee - (foodCost * 2);
+      const breakevenMultiplier = netMarginBogo > 0 ? netMarginPerUnit / netMarginBogo : null;
+      const breakevenIncreasePercent = breakevenMultiplier ? (breakevenMultiplier - 1) * 100 : null;
+      const marginPercent = (netMarginPerUnit / price) * 100;
+      const foodCostPercent = (foodCost / price) * 100;
+      
+      // Recommendation based on breakeven threshold
+      let recommendation: "recommended" | "moderate" | "not_recommended";
+      if (netMarginBogo <= 0) {
+        recommendation = "not_recommended";
+      } else if (breakevenIncreasePercent !== null && breakevenIncreasePercent <= 80) {
+        recommendation = "recommended";
+      } else if (breakevenIncreasePercent !== null && breakevenIncreasePercent <= 150) {
+        recommendation = "moderate";
+      } else {
+        recommendation = "not_recommended";
+      }
+      
+      return {
+        id: product.id,
+        name: product.name,
+        category: product.category,
+        price,
+        foodCost,
+        foodCostPercent,
+        netMarginPerUnit,
+        netMarginBogo,
+        marginPercent,
+        breakevenIncreasePercent,
+        recommendation,
+      };
+    }).sort((a, b) => {
+      // Sort by recommendation first (recommended > moderate > not_recommended)
+      // Then by breakeven percent (lower is better)
+      const order = { recommended: 0, moderate: 1, not_recommended: 2 };
+      if (order[a.recommendation] !== order[b.recommendation]) {
+        return order[a.recommendation] - order[b.recommendation];
+      }
+      // Lower breakeven is better
+      const aBreakeven = a.breakevenIncreasePercent ?? Infinity;
+      const bBreakeven = b.breakevenIncreasePercent ?? Infinity;
+      return aBreakeven - bBreakeven;
+    });
+  }, [eligibleProducts, uberCommission, offerFee]);
 
   // Determine recommendation
   const recommendation = useMemo(() => {
@@ -694,6 +760,177 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
           )}
         </motion.div>
       </div>
+
+      {/* Products Summary Table */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <Card className="border-0 bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]">
+          <div className="absolute inset-0 border border-white/30 rounded-lg pointer-events-none" />
+          <CardHeader className="relative">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <motion.div 
+                  className="p-2.5 bg-gradient-to-br from-emerald-500/20 to-blue-500/20 backdrop-blur-sm rounded-xl"
+                  whileHover={{ scale: 1.1 }}
+                >
+                  <ListOrdered className="h-5 w-5 text-emerald-600" />
+                </motion.div>
+                <div>
+                  <CardTitle className="text-lg">Classement des produits pour BOGO</CardTitle>
+                  <CardDescription>
+                    {allProductsAnalysis.length} produits analysés, classés par potentiel de rentabilité
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30">
+                  <ThumbsUp className="h-3 w-3 mr-1" />
+                  {allProductsAnalysis.filter(p => p.recommendation === "recommended").length} Recommandés
+                </Badge>
+                <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30">
+                  <MinusIcon className="h-3 w-3 mr-1" />
+                  {allProductsAnalysis.filter(p => p.recommendation === "moderate").length} Modérés
+                </Badge>
+                <Badge className="bg-red-500/15 text-red-600 border-red-500/30">
+                  <ThumbsDown className="h-3 w-3 mr-1" />
+                  {allProductsAnalysis.filter(p => p.recommendation === "not_recommended").length} Déconseillés
+                </Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="relative">
+            <div className="rounded-lg border border-border/50 overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableHead className="w-12 text-center">#</TableHead>
+                    <TableHead>Produit</TableHead>
+                    <TableHead className="text-right">Prix Uber</TableHead>
+                    <TableHead className="text-right">Food Cost</TableHead>
+                    <TableHead className="text-right">Marge actuelle</TableHead>
+                    <TableHead className="text-right">Marge BOGO</TableHead>
+                    <TableHead className="text-center">Seuil rentabilité</TableHead>
+                    <TableHead className="text-center">Verdict</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allProductsAnalysis.slice(0, 15).map((product, index) => (
+                    <TableRow 
+                      key={product.id}
+                      className={`transition-colors cursor-pointer hover:bg-muted/20 ${
+                        selectedProductId === product.id ? "bg-primary/5 ring-1 ring-inset ring-primary/20" : ""
+                      }`}
+                      onClick={() => setSelectedProductId(product.id)}
+                    >
+                      <TableCell className="text-center font-medium text-muted-foreground">
+                        {index + 1}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium truncate max-w-[200px]">{product.name}</span>
+                          {product.category && (
+                            <span className="text-xs text-muted-foreground">{product.category}</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {product.price.toFixed(2)}€
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex flex-col items-end">
+                          <span className="font-mono">{product.foodCost.toFixed(2)}€</span>
+                          <span className={`text-xs ${product.foodCostPercent > 40 ? "text-red-500" : product.foodCostPercent > 30 ? "text-amber-500" : "text-emerald-500"}`}>
+                            ({product.foodCostPercent.toFixed(0)}%)
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex flex-col items-end">
+                          <span className="font-mono font-semibold text-emerald-600">{product.netMarginPerUnit.toFixed(2)}€</span>
+                          <span className="text-xs text-muted-foreground">({product.marginPercent.toFixed(0)}%)</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className={`font-mono font-semibold ${product.netMarginBogo < 0 ? "text-red-500" : "text-blue-600"}`}>
+                          {product.netMarginBogo.toFixed(2)}€
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {product.breakevenIncreasePercent !== null ? (
+                          <Badge 
+                            variant="outline" 
+                            className={`font-mono ${
+                              product.breakevenIncreasePercent <= 80 
+                                ? "border-emerald-500/40 text-emerald-600 bg-emerald-500/10" 
+                                : product.breakevenIncreasePercent <= 150 
+                                  ? "border-amber-500/40 text-amber-600 bg-amber-500/10"
+                                  : "border-red-500/40 text-red-600 bg-red-500/10"
+                            }`}
+                          >
+                            +{product.breakevenIncreasePercent.toFixed(0)}%
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive">N/A</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {product.recommendation === "recommended" ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <div className="flex items-center justify-center">
+                                  <ThumbsUp className="h-4 w-4 text-emerald-500" />
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Seuil atteignable (&lt;80%), BOGO recommandé</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : product.recommendation === "moderate" ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <div className="flex items-center justify-center">
+                                  <MinusIcon className="h-4 w-4 text-amber-500" />
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Seuil modéré (80-150%), risque acceptable</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <div className="flex items-center justify-center">
+                                  <ThumbsDown className="h-4 w-4 text-red-500" />
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Seuil trop élevé (&gt;150%) ou marge négative, déconseillé</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {allProductsAnalysis.length > 15 && (
+              <p className="text-center text-sm text-muted-foreground mt-3">
+                Affichage des 15 premiers produits sur {allProductsAnalysis.length}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }
