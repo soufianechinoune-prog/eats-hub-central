@@ -61,6 +61,8 @@ interface PercentDiscountSimulatorProps {
   menuItems: MenuItem[];
   onBack: () => void;
   platform: Platform;
+  commission: number;
+  onCommissionChange: (value: number) => void;
 }
 
 const discountOptions = [10, 15, 20, 25, 30, 40, 50];
@@ -72,7 +74,7 @@ const PLATFORM_CONFIG = {
   deliveroo: { defaultCommission: 25, defaultOfferFee: 0, color: "emerald", name: "Deliveroo" },
 };
 
-export function PercentDiscountSimulator({ menuItems, onBack, platform }: PercentDiscountSimulatorProps) {
+export function PercentDiscountSimulator({ menuItems, onBack, platform, commission, onCommissionChange }: PercentDiscountSimulatorProps) {
   const config = PLATFORM_CONFIG[platform];
   const isUber = platform === "uber";
   const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
@@ -81,7 +83,6 @@ export function PercentDiscountSimulator({ menuItems, onBack, platform }: Percen
   const [minSpend, setMinSpend] = useState<number>(15);
   const [maxDiscountValue, setMaxDiscountValue] = useState<string>("");
   const [averageBasket, setAverageBasket] = useState<string>("21");
-  const [commission, setCommission] = useState<number>(config.defaultCommission);
   const [offerFee, setOfferFee] = useState<number>(config.defaultOfferFee);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("16");
 
@@ -394,7 +395,7 @@ export function PercentDiscountSimulator({ menuItems, onBack, platform }: Percen
                     placeholder="Aucun plafond"
                     value={maxDiscountValue}
                     onChange={(e) => setMaxDiscountValue(e.target.value)}
-                    className="bg-white/60 dark:bg-white/5 border-white/40 pr-8"
+                    className="bg-white/60 dark:bg-white/5 border-primary/30 pr-8"
                   />
                   <Euro className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>
@@ -410,7 +411,7 @@ export function PercentDiscountSimulator({ menuItems, onBack, platform }: Percen
                     type="number"
                     value={averageBasket}
                     onChange={(e) => setAverageBasket(e.target.value)}
-                    className="bg-white/60 dark:bg-white/5 border-white/40 pr-8"
+                    className="bg-white/60 dark:bg-white/5 border-primary/30 pr-8"
                   />
                   <Euro className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>
@@ -424,9 +425,9 @@ export function PercentDiscountSimulator({ menuItems, onBack, platform }: Percen
                 </Label>
                 <Slider
                   value={[commission]}
-                  onValueChange={([value]) => setCommission(value)}
+                  onValueChange={([value]) => onCommissionChange(value)}
                   min={15}
-                  max={40}
+                  max={isUber ? 30 : 35}
                   step={1}
                   className="w-full"
                 />
@@ -441,7 +442,7 @@ export function PercentDiscountSimulator({ menuItems, onBack, platform }: Percen
                     step="0.01"
                     value={offerFee}
                     onChange={(e) => setOfferFee(parseFloat(e.target.value) || 0)}
-                    className="bg-white/60 dark:bg-white/5 border-white/40 pr-8"
+                    className="bg-white/60 dark:bg-white/5 border-primary/30 pr-8"
                   />
                   <Euro className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>

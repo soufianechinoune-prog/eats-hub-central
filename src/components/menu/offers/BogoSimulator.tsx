@@ -86,6 +86,8 @@ interface BogoSimulatorProps {
   menuItems: MenuItem[];
   onBack: () => void;
   platform: Platform;
+  commission: number;
+  onCommissionChange: (value: number) => void;
 }
 
 type SortCriteria = "score" | "margin_percent" | "sales" | "margin_euro";
@@ -96,12 +98,11 @@ const PLATFORM_CONFIG = {
   deliveroo: { defaultCommission: 25, defaultOfferFee: 0, color: "cyan", name: "Deliveroo" },
 };
 
-export function BogoSimulator({ menuItems, onBack, platform }: BogoSimulatorProps) {
+export function BogoSimulator({ menuItems, onBack, platform, commission, onCommissionChange }: BogoSimulatorProps) {
   const config = PLATFORM_CONFIG[platform];
   const isUber = platform === "uber";
   const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
   const [selectedProductId, setSelectedProductId] = useState<string>("");
-  const [commission, setCommission] = useState<number>(config.defaultCommission);
   const [offerFee, setOfferFee] = useState<number>(config.defaultOfferFee);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("");
   const [showCalculationDetails, setShowCalculationDetails] = useState<boolean>(false);
@@ -546,9 +547,9 @@ export function BogoSimulator({ menuItems, onBack, platform }: BogoSimulatorProp
                 </Label>
                 <Slider
                   value={[commission]}
-                  onValueChange={([value]) => setCommission(value)}
+                  onValueChange={([value]) => onCommissionChange(value)}
                   min={15}
-                  max={40}
+                  max={isUber ? 30 : 35}
                   step={1}
                   className="w-full"
                 />
@@ -565,7 +566,7 @@ export function BogoSimulator({ menuItems, onBack, platform }: BogoSimulatorProp
                     step="0.01"
                     value={offerFee}
                     onChange={(e) => setOfferFee(parseFloat(e.target.value) || 0)}
-                    className="bg-white/60 dark:bg-white/5 border-white/40 pr-8"
+                    className="bg-white/60 dark:bg-white/5 border-primary/30 pr-8"
                   />
                   <Euro className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>
@@ -583,7 +584,7 @@ export function BogoSimulator({ menuItems, onBack, platform }: BogoSimulatorProp
                     placeholder="Ex: 74"
                     value={uberEstimatedIncrease}
                     onChange={(e) => setUberEstimatedIncrease(e.target.value)}
-                    className="bg-white/60 dark:bg-white/5 border-white/40 pr-8"
+                    className="bg-white/60 dark:bg-white/5 border-primary/30 pr-8"
                   />
                   <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>

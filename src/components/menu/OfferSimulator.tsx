@@ -22,9 +22,28 @@ interface OfferSimulatorProps {
   menuItems: MenuItem[];
 }
 
+// Default commission values per platform
+const DEFAULT_COMMISSIONS = {
+  uber: 30,
+  deliveroo: 25,
+};
+
 export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>("uber");
   const [selectedOfferType, setSelectedOfferType] = useState<OfferType | null>(null);
+  
+  // Persist commission values per platform
+  const [uberCommission, setUberCommission] = useState<number>(DEFAULT_COMMISSIONS.uber);
+  const [deliverooCommission, setDeliverooCommission] = useState<number>(DEFAULT_COMMISSIONS.deliveroo);
+  
+  const currentCommission = selectedPlatform === "uber" ? uberCommission : deliverooCommission;
+  const setCurrentCommission = (value: number) => {
+    if (selectedPlatform === "uber") {
+      setUberCommission(value);
+    } else {
+      setDeliverooCommission(value);
+    }
+  };
 
   const handleBack = () => {
     setSelectedOfferType(null);
@@ -33,15 +52,39 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
   // Render the appropriate simulator based on selection
   const renderSimulator = () => {
     if (selectedOfferType === "bogo") {
-      return <BogoSimulator menuItems={menuItems} onBack={handleBack} platform={selectedPlatform} />;
+      return (
+        <BogoSimulator 
+          menuItems={menuItems} 
+          onBack={handleBack} 
+          platform={selectedPlatform}
+          commission={currentCommission}
+          onCommissionChange={setCurrentCommission}
+        />
+      );
     }
 
     if (selectedOfferType === "cross_product") {
-      return <CrossProductSimulator menuItems={menuItems} onBack={handleBack} platform={selectedPlatform} />;
+      return (
+        <CrossProductSimulator 
+          menuItems={menuItems} 
+          onBack={handleBack} 
+          platform={selectedPlatform}
+          commission={currentCommission}
+          onCommissionChange={setCurrentCommission}
+        />
+      );
     }
 
     if (selectedOfferType === "percent_discount") {
-      return <PercentDiscountSimulator menuItems={menuItems} onBack={handleBack} platform={selectedPlatform} />;
+      return (
+        <PercentDiscountSimulator 
+          menuItems={menuItems} 
+          onBack={handleBack} 
+          platform={selectedPlatform}
+          commission={currentCommission}
+          onCommissionChange={setCurrentCommission}
+        />
+      );
     }
 
     // Default: show the offer type selector
