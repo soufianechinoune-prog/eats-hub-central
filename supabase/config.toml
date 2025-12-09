@@ -80,3 +80,9 @@ verify_jwt = false
 
 [functions.parse-inaccurate-orders]
 verify_jwt = false
+
+[functions.parse-order-accuracy-summary]
+verify_jwt = false
+
+[functions.parse-item-issues-leaderboard]
+verify_jwt = false

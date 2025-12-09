@@ -51,7 +51,8 @@ const REPORT_THEMES = [
     types: [
       { value: "downtime_report", label: "Temps d'inactivité", description: "Disponibilité horaire des restaurants (menu_downtime_local)", icon: Clock },
       { value: "order_history", label: "Historique des commandes", description: "Temps d'attente coursier, préparation, livraison (order_history_local)", icon: Clock },
-      { value: "inaccurate_orders", label: "Commandes incorrectes", description: "Articles manquants, erreurs, problèmes qualité (inaccurate_orders_v3)", icon: AlertTriangle },
+      { value: "order_accuracy_summary", label: "Résumé commandes incorrectes", description: "Données officielles Uber (order-accuracy-inaccurate-issues-summary)", icon: AlertTriangle },
+      { value: "item_issues_leaderboard", label: "Top articles problématiques", description: "Classement des produits avec erreurs (item-issues-leaderboard)", icon: AlertTriangle },
     ]
   }
 ];
@@ -291,8 +292,8 @@ export default function ReportImport() {
       return;
     }
 
-    // For sales_over_time, marketing_campaigns, reviews, and order_history, restaurant selection is optional but recommended
-    const requiresRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item"].includes(reportType);
+    // For sales_over_time, marketing_campaigns, reviews, order_accuracy_summary, and item_issues_leaderboard, restaurant selection is required
+    const requiresRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "order_accuracy_summary", "item_issues_leaderboard"].includes(reportType);
     if (requiresRestaurant && !selectedRestaurantId) {
       toast({
         title: "Restaurant requis",
@@ -314,7 +315,8 @@ export default function ReportImport() {
         reviews_item: "parse-reviews-item",
         downtime_report: "parse-downtime-report",
         order_history: "parse-order-history",
-        inaccurate_orders: "parse-inaccurate-orders",
+        order_accuracy_summary: "parse-order-accuracy-summary",
+        item_issues_leaderboard: "parse-item-issues-leaderboard",
       };
       const functionName = functionMap[reportType] || "parse-payment-report";
       
@@ -325,7 +327,7 @@ export default function ReportImport() {
       };
 
       // Add restaurantId for specific report types
-      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history"];
+      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard"];
       if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
         body.restaurantId = selectedRestaurantId;
       }
