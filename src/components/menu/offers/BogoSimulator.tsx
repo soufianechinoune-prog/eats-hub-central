@@ -1143,14 +1143,22 @@ export function BogoSimulator({ menuItems, onBack }: BogoSimulatorProps) {
                   </SelectContent>
                 </Select>
                 
-                <TooltipProvider delayDuration={200}>
+                <TooltipProvider delayDuration={100}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <button 
+                        type="button"
+                        className="h-7 w-7 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
+                      >
                         <Info className="h-4 w-4 text-muted-foreground" />
-                      </Button>
+                      </button>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom" align="start" className="max-w-[320px] p-4">
+                    <TooltipContent 
+                      side="bottom" 
+                      align="start" 
+                      className="max-w-[320px] p-4 z-[100]"
+                      sideOffset={8}
+                    >
                       <div className="space-y-3">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
