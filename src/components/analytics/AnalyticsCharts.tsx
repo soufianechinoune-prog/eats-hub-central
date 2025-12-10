@@ -1811,7 +1811,7 @@ export function AnalyticsCharts({
                             strokeWidth={2}
                             strokeDasharray="6 3"
                             label={{
-                              value: `🌙 ${event.title}`,
+                              value: `🌙 ${event.title} 🌙`,
                               position: 'insideTop',
                               fill: event.color,
                               fontSize: 11,
@@ -1940,7 +1940,7 @@ export function AnalyticsCharts({
                             strokeWidth={2}
                             strokeDasharray="6 3"
                             label={{
-                              value: `🌙 ${event.title}`,
+                              value: `🌙 ${event.title} 🌙`,
                               position: 'insideTop',
                               fill: event.color,
                               fontSize: 11,
@@ -2119,6 +2119,13 @@ export function AnalyticsCharts({
                     strokeOpacity={0.6}
                     strokeWidth={2}
                     strokeDasharray="6 3"
+                    label={{
+                      value: `🌙 ${event.title} 🌙`,
+                      position: 'insideTop',
+                      fill: event.color,
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}
                   />
                 ))}
                 {/* Action markers */}
@@ -2313,6 +2320,13 @@ export function AnalyticsCharts({
                     strokeOpacity={0.6}
                     strokeWidth={2}
                     strokeDasharray="6 3"
+                    label={{
+                      value: `🌙 ${event.title} 🌙`,
+                      position: 'insideTop',
+                      fill: event.color,
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}
                   />
                 ))}
                 {/* Action markers */}
