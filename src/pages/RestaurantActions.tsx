@@ -77,6 +77,7 @@ import {
   LayoutGrid,
   Globe,
   Layers,
+  Moon,
 } from "lucide-react";
 import { ActionsCalendar } from "@/components/actions/ActionsCalendar";
 import { UberEatsIcon, DeliverooIcon, UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
@@ -129,6 +130,7 @@ const ACTION_TYPES: Record<string, string[]> = {
   marketing: ["Push notification", "Offre nationale", "Sponsoring", "Publicité", "Reportage TV", "Autre"],
   menu: ["Nouveau produit", "Réorganisation menu", "Suppression produit", "Changement catégorie", "Autre"],
   operational: ["Changement horaires", "Fermeture temporaire", "Nouveau livreur", "Formation équipe", "Autre"],
+  events: ["Ramadan", "Aïd el-Fitr", "Aïd el-Adha", "Noël", "Nouvel An", "Autre"],
 };
 
 // Configuration contextuelle pour chaque type d'action
@@ -180,6 +182,13 @@ const ACTION_CONFIG: Record<string, ActionTypeConfig> = {
   "Nouveau livreur": { dateType: "single", hasImpact: false, hasProducts: false },
   "Formation équipe": { dateType: "single", hasImpact: false, hasProducts: false },
   
+  // EVENTS (religious/cultural)
+  "Ramadan": { dateType: "range", hasImpact: false, hasProducts: false },
+  "Aïd el-Fitr": { dateType: "range", hasImpact: false, hasProducts: false },
+  "Aïd el-Adha": { dateType: "range", hasImpact: false, hasProducts: false },
+  "Noël": { dateType: "range", hasImpact: false, hasProducts: false },
+  "Nouvel An": { dateType: "single", hasImpact: false, hasProducts: false },
+  
   // Défaut pour "Autre" et types inconnus - tout affiché
   "Autre": { dateType: "range", hasImpact: true, impactUnits: ["%", "€", "produits", "jours"], hasProducts: true, productsRequired: false },
 };
@@ -196,6 +205,7 @@ const CATEGORY_ICONS: Record<string, any> = {
   marketing: Megaphone,
   menu: UtensilsCrossed,
   operational: Settings,
+  events: Moon,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -205,6 +215,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   marketing: "bg-blue-500/10 text-blue-500",
   menu: "bg-emerald-500/10 text-emerald-500",
   operational: "bg-slate-500/10 text-slate-500",
+  events: "bg-emerald-600/10 text-emerald-600",
 };
 
 export default function RestaurantActions() {
@@ -1809,18 +1820,24 @@ export default function RestaurantActions() {
                         )}
                       >
                         <TableCell>
-                          <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded ${
-                            action.platform === "uber_eats" 
-                              ? "bg-[#06C167]/10" 
-                              : "bg-[#00CCBC]/10"
-                          }`}>
+                          <div className={cn(
+                            "inline-flex items-center gap-1.5 px-2 py-1 rounded",
+                            action.platform === "uber_eats" && "bg-[#06C167]/10",
+                            action.platform === "deliveroo" && "bg-[#00CCBC]/10",
+                            action.platform === "all" && "bg-primary/10"
+                          )}>
                             {action.platform === "uber_eats" ? (
                               <UberEatsIcon className="h-4 w-4" />
-                            ) : (
+                            ) : action.platform === "deliveroo" ? (
                               <DeliverooIcon className="h-4 w-4" />
+                            ) : (
+                              <div className="flex items-center gap-0.5">
+                                <UberEatsIcon className="h-3.5 w-3.5" />
+                                <DeliverooIcon className="h-3.5 w-3.5" />
+                              </div>
                             )}
                             <span className="text-xs font-medium">
-                              {action.platform === "uber_eats" ? "Uber" : "Deliveroo"}
+                              {action.platform === "uber_eats" ? "Uber" : action.platform === "deliveroo" ? "Deliveroo" : "Toutes"}
                             </span>
                           </div>
                         </TableCell>
@@ -2045,37 +2062,73 @@ export default function RestaurantActions() {
                 <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
                 Plateforme *
               </Label>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, platform: "uber_eats" })}
-                  className={`flex items-center justify-center gap-3 p-5 rounded-xl border-2 transition-all ${
+                  className={cn(
+                    "relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all",
                     formData.platform === "uber_eats"
-                      ? "border-[#06C167] bg-[#06C167]/10 shadow-md shadow-[#06C167]/10"
-                      : "border-border hover:border-[#06C167]/50 hover:bg-muted/50"
-                  }`}
+                      ? "border-[#06C167] bg-[#06C167]/15 shadow-lg shadow-[#06C167]/20"
+                      : "border-border/50 bg-card hover:border-[#06C167]/50 hover:bg-[#06C167]/5"
+                  )}
                 >
-                  <div className={`p-2.5 rounded-xl ${formData.platform === "uber_eats" ? "bg-[#06C167]/20" : "bg-muted"}`}>
-                    <UberEatsLogo size={32} />
+                  {formData.platform === "uber_eats" && (
+                    <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[#06C167] flex items-center justify-center">
+                      <Check className="h-3 w-3 text-white" />
+                    </div>
+                  )}
+                  <div className={cn("p-2 rounded-lg", formData.platform === "uber_eats" ? "bg-[#06C167]/20" : "bg-muted")}>
+                    <UberEatsLogo size={28} />
                   </div>
-                  <span className={`font-semibold text-base ${formData.platform === "uber_eats" ? "text-[#06C167]" : ""}`}>
+                  <span className={cn("font-semibold text-sm", formData.platform === "uber_eats" ? "text-[#06C167]" : "text-foreground")}>
                     Uber Eats
                   </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, platform: "deliveroo" })}
-                  className={`flex items-center justify-center gap-3 p-5 rounded-xl border-2 transition-all ${
+                  className={cn(
+                    "relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all",
                     formData.platform === "deliveroo"
-                      ? "border-[#00CCBC] bg-[#00CCBC]/10 shadow-md shadow-[#00CCBC]/10"
-                      : "border-border hover:border-[#00CCBC]/50 hover:bg-muted/50"
-                  }`}
+                      ? "border-[#00CCBC] bg-[#00CCBC]/15 shadow-lg shadow-[#00CCBC]/20"
+                      : "border-border/50 bg-card hover:border-[#00CCBC]/50 hover:bg-[#00CCBC]/5"
+                  )}
                 >
-                  <div className={`p-2.5 rounded-xl ${formData.platform === "deliveroo" ? "bg-[#00CCBC]/20" : "bg-muted"}`}>
-                    <DeliverooLogo size={32} />
+                  {formData.platform === "deliveroo" && (
+                    <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[#00CCBC] flex items-center justify-center">
+                      <Check className="h-3 w-3 text-white" />
+                    </div>
+                  )}
+                  <div className={cn("p-2 rounded-lg", formData.platform === "deliveroo" ? "bg-[#00CCBC]/20" : "bg-muted")}>
+                    <DeliverooLogo size={28} />
                   </div>
-                  <span className={`font-semibold text-base ${formData.platform === "deliveroo" ? "text-[#00CCBC]" : ""}`}>
+                  <span className={cn("font-semibold text-sm", formData.platform === "deliveroo" ? "text-[#00CCBC]" : "text-foreground")}>
                     Deliveroo
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, platform: "all" })}
+                  className={cn(
+                    "relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all",
+                    formData.platform === "all"
+                      ? "border-primary bg-primary/15 shadow-lg shadow-primary/20"
+                      : "border-border/50 bg-card hover:border-primary/50 hover:bg-primary/5"
+                  )}
+                >
+                  {formData.platform === "all" && (
+                    <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                      <Check className="h-3 w-3 text-white" />
+                    </div>
+                  )}
+                  <div className={cn("p-2 rounded-lg flex items-center gap-1", formData.platform === "all" ? "bg-primary/20" : "bg-muted")}>
+                    <UberEatsLogo size={20} />
+                    <span className="text-muted-foreground text-xs">+</span>
+                    <DeliverooLogo size={20} />
+                  </div>
+                  <span className={cn("font-semibold text-sm", formData.platform === "all" ? "text-primary" : "text-foreground")}>
+                    Les deux
                   </span>
                 </button>
               </div>
