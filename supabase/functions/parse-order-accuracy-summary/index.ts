@@ -8,6 +8,7 @@ const corsHeaders = {
 
 interface ParsedDailyRow {
   date: string;
+  period_type: string;
   incorrect_orders_count: number;
   missing_items_count: number;
   missing_items_refund: number;
@@ -109,6 +110,7 @@ serve(async (req) => {
       const lower = h.toLowerCase().trim();
       if (lower === "jour" || lower === "day") columnMap.day = i;
       if (lower === "mois" || lower === "month") columnMap.month = i;
+      if (lower === "période" || lower === "period") columnMap.period = i;
       if (lower.includes("commandes incorrectes") && !lower.includes("l'année dernière")) columnMap.incorrect_orders = i;
       if (lower.includes("articles manquants") && !lower.includes("remboursé")) columnMap.missing_items = i;
       if (lower.includes("articles manquants") && lower.includes("remboursé")) columnMap.missing_items_refund = i;
@@ -142,15 +144,33 @@ serve(async (req) => {
           continue;
         }
 
-        // Parse date format: "01/01/2025" (DD/MM/YYYY)
-        const dateParts = dayStr.split("/");
-        if (dateParts.length !== 3) {
+        // Parse period type from "Période" column if present
+        let periodType = "current";
+        if (columnMap.period !== undefined) {
+          const periodStr = values[columnMap.period]?.toLowerCase().trim();
+          if (periodStr?.includes("dernière") || periodStr?.includes("previous") || periodStr?.includes("last")) {
+            periodType = "previous";
+          }
+        }
+
+        // Parse date - support both YYYY-MM-DD and DD/MM/YYYY formats
+        let dateStr: string;
+        if (dayStr.includes("-")) {
+          // Format YYYY-MM-DD
+          dateStr = dayStr;
+        } else if (dayStr.includes("/")) {
+          // Format DD/MM/YYYY
+          const dateParts = dayStr.split("/");
+          if (dateParts.length !== 3) {
+            skippedDetails.push({ rowIndex: i, reason: "invalid_date", details: dayStr });
+            continue;
+          }
+          const [day, month, year] = dateParts;
+          dateStr = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+        } else {
           skippedDetails.push({ rowIndex: i, reason: "invalid_date", details: dayStr });
           continue;
         }
-
-        const [day, month, year] = dateParts;
-        const dateStr = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 
         // Validate date
         const dateObj = new Date(dateStr);
@@ -178,6 +198,7 @@ serve(async (req) => {
 
         parsedRows.push({
           date: dateStr,
+          period_type: periodType,
           incorrect_orders_count,
           missing_items_count,
           missing_items_refund,
@@ -232,7 +253,7 @@ serve(async (req) => {
           .upsert({
             restaurant_id: restaurantId,
             date: row.date,
-            period_type: "current",
+            period_type: row.period_type,
             incorrect_orders_count: row.incorrect_orders_count,
             missing_items_count: row.missing_items_count,
             missing_items_refund: row.missing_items_refund,
