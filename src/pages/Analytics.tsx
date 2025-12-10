@@ -341,15 +341,16 @@ export default function Analytics() {
   });
 
   // Fetch ALL restaurants' conversion data for ranking comparison (no restaurant filter)
+  // Uses dynamic date range based on selected period (year, month, or custom range)
   const { data: allUberConversionData } = useQuery({
-    queryKey: ["analytics_conversion_uber_all", selectedYear],
+    queryKey: ["analytics_conversion_uber_all", selectedYear, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_conversion")
         .select("*")
         .eq("platform", "uber_eats")
-        .gte("date", `${selectedYear}-01-01`)
-        .lte("date", `${selectedYear}-12-31`)
+        .gte("date", format(startDate, "yyyy-MM-dd"))
+        .lte("date", format(endDate, "yyyy-MM-dd"))
         .order("date");
       
       if (error) throw error;
