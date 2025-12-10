@@ -31,6 +31,10 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from "recharts";
 import { ErrorRateEvolutionChart } from "./ErrorRateEvolutionChart";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
@@ -344,12 +348,17 @@ export function OrderAccuracyDashboard({
     if (!aggregatedData) return [];
 
     return [
-      { name: "Articles manquants", count: aggregatedData.missing_items, impact: aggregatedData.missing_items_refund },
-      { name: "Personnalisation manquante", count: aggregatedData.missing_customization, impact: aggregatedData.missing_customization_refund },
-      { name: "Mauvaise commande", count: aggregatedData.wrong_order, impact: aggregatedData.wrong_order_refund },
-      { name: "Article incorrect", count: aggregatedData.incorrect_item, impact: aggregatedData.incorrect_item_refund },
+      { name: "Articles manquants", count: aggregatedData.missing_items, impact: aggregatedData.missing_items_refund, color: "#ef4444" },
+      { name: "Personnalisation manquante", count: aggregatedData.missing_customization, impact: aggregatedData.missing_customization_refund, color: "#8b5cf6" },
+      { name: "Mauvaise commande", count: aggregatedData.wrong_order, impact: aggregatedData.wrong_order_refund, color: "#3b82f6" },
+      { name: "Article incorrect", count: aggregatedData.incorrect_item, impact: aggregatedData.incorrect_item_refund, color: "#f97316" },
     ].filter(c => c.count > 0);
   }, [aggregatedData]);
+
+  // Calculate total for percentage
+  const totalErrorCount = useMemo(() => {
+    return categoryData.reduce((sum, c) => sum + c.count, 0);
+  }, [categoryData]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("fr-FR", {
@@ -508,9 +517,57 @@ export function OrderAccuracyDashboard({
         onNextMonth={() => {}}
       />
 
-      {/* Financial Impact by Category */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Error Distribution and Financial Impact */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Pie Chart - Error Distribution */}
         <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Détail du problème</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {categoryData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    dataKey="count"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={90}
+                    innerRadius={50}
+                    paddingAngle={2}
+                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number, name: string) => [
+                      `${value} (${totalErrorCount > 0 ? ((value / totalErrorCount) * 100).toFixed(1) : 0}%)`,
+                      name
+                    ]}
+                  />
+                  <Legend 
+                    layout="vertical" 
+                    align="right" 
+                    verticalAlign="middle"
+                    formatter={(value, entry: any) => (
+                      <span className="text-xs">{value}</span>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">Aucune donnée</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Bar Chart - Financial Impact */}
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-lg">Impact financier par catégorie</CardTitle>
           </CardHeader>
@@ -528,9 +585,12 @@ export function OrderAccuracyDashboard({
                   <Bar 
                     dataKey="impact" 
                     name="Remboursements" 
-                    fill="hsl(var(--destructive))" 
                     radius={[0, 4, 4, 0]}
-                  />
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`bar-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
