@@ -104,23 +104,71 @@ serve(async (req) => {
     const headers = parseCSVLine(lines[headerIndex]);
     console.log("[parse-order-accuracy-summary] Headers:", headers);
 
-    // Map columns
+    // Map columns - Uber Eats uses various French headers
     const columnMap: Record<string, number> = {};
     headers.forEach((h, i) => {
       const lower = h.toLowerCase().trim();
+      
+      // Date columns
       if (lower === "jour" || lower === "day") columnMap.day = i;
       if (lower === "mois" || lower === "month") columnMap.month = i;
       if (lower === "période" || lower === "period") columnMap.period = i;
-      if (lower.includes("commandes incorrectes") && !lower.includes("l'année dernière")) columnMap.incorrect_orders = i;
-      if (lower.includes("articles manquants") && !lower.includes("remboursé")) columnMap.missing_items = i;
-      if (lower.includes("articles manquants") && lower.includes("remboursé")) columnMap.missing_items_refund = i;
-      if (lower.includes("personnalisation manquante") && !lower.includes("remboursé")) columnMap.missing_customization = i;
-      if (lower.includes("personnalisation manquante") && lower.includes("remboursé")) columnMap.missing_customization_refund = i;
-      if (lower.includes("mauvaise commande") && !lower.includes("remboursé")) columnMap.wrong_order = i;
-      if (lower.includes("mauvaise commande") && lower.includes("remboursé")) columnMap.wrong_order_refund = i;
-      if (lower.includes("article incorrect") && !lower.includes("remboursé")) columnMap.incorrect_item = i;
-      if (lower.includes("article incorrect") && lower.includes("remboursé")) columnMap.incorrect_item_refund = i;
-      if (lower.includes("total remboursé") || (lower === "remboursé" && !lower.includes("article"))) columnMap.total_refund = i;
+      
+      // Total incorrect orders (exclude year comparison columns)
+      if ((lower.includes("total des commandes incorrectes") || lower.includes("commandes incorrectes")) 
+          && !lower.includes("l'année dernière") && !lower.includes("manquants") && !lower.includes("personnalisation") 
+          && !lower.includes("mauvaise") && !lower.includes("article incorrect")) {
+        columnMap.incorrect_orders = i;
+      }
+      
+      // Missing items - count (Uber: "Commandes incorrectes comportant des plats/articles manquants")
+      if ((lower.includes("articles manquants") || lower.includes("plats/articles manquants")) 
+          && !lower.includes("remboursement") && !lower.includes("remboursé")) {
+        columnMap.missing_items = i;
+      }
+      // Missing items - refund (Uber: "Remboursements effectués pour des plats/articles manquants")
+      if ((lower.includes("articles manquants") || lower.includes("plats/articles manquants")) 
+          && (lower.includes("remboursement") || lower.includes("remboursé"))) {
+        columnMap.missing_items_refund = i;
+      }
+      
+      // Missing customization - count (Uber: "Commandes incorrectes avec personnalisation manquante")
+      if (lower.includes("personnalisation manquante") 
+          && !lower.includes("remboursement") && !lower.includes("remboursé")) {
+        columnMap.missing_customization = i;
+      }
+      // Missing customization - refund (Uber: "Remboursements versés pour une personnalisation manquante")
+      if (lower.includes("personnalisation manquante") 
+          && (lower.includes("remboursement") || lower.includes("remboursé"))) {
+        columnMap.missing_customization_refund = i;
+      }
+      
+      // Wrong order - count (Uber: "Commandes incorrectes suite à une livraison de mauvaise commande")
+      if (lower.includes("mauvaise commande") 
+          && !lower.includes("remboursement") && !lower.includes("remboursé")) {
+        columnMap.wrong_order = i;
+      }
+      // Wrong order - refund (Uber: "Remboursements payés pour une mauvaise commande livrée")
+      if (lower.includes("mauvaise commande") 
+          && (lower.includes("remboursement") || lower.includes("remboursé"))) {
+        columnMap.wrong_order_refund = i;
+      }
+      
+      // Incorrect item - count (Uber: "Commandes incorrectes suite à une livraison d'article incorrect")
+      if (lower.includes("article incorrect") 
+          && !lower.includes("remboursement") && !lower.includes("remboursé")) {
+        columnMap.incorrect_item = i;
+      }
+      // Incorrect item - refund (Uber: "Remboursements payés suite à une livraison d'article incorrect")
+      if (lower.includes("article incorrect") 
+          && (lower.includes("remboursement") || lower.includes("remboursé"))) {
+        columnMap.incorrect_item_refund = i;
+      }
+      
+      // Total refund (Uber: "Total des remboursements versés")
+      if (lower.includes("total") && (lower.includes("remboursement") || lower.includes("remboursé"))) {
+        columnMap.total_refund = i;
+      }
     });
 
     console.log("[parse-order-accuracy-summary] Column mapping:", columnMap);
