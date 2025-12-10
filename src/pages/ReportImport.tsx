@@ -29,10 +29,11 @@ const REPORT_THEMES = [
   },
   {
     id: "marketing",
-    label: "Marketing",
+    label: "Marketing & Conversion",
     icon: Megaphone,
     types: [
       { value: "marketing_campaigns", label: "Campagnes Marketing", description: "Offres promotionnelles et annonces publicitaires", icon: Megaphone },
+      { value: "conversion_funnel", label: "Tunnel de conversion", description: "Visites, vues menu, ajouts panier, commandes (user-conversion)", icon: TrendingUp },
     ]
   },
   {
@@ -230,6 +231,12 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
+      // Check for conversion funnel headers
+      if ((lines[i].includes("Utilisateurs ayant visité") || lines[i].includes("Utilisateurs ayant visite")) &&
+          (lines[i].includes("menu a été consulté") || lines[i].includes("menu consulté") || lines[i].includes("Plat ajouté"))) {
+        headerRowIndex = i;
+        break;
+      }
     }
 
     if (headerRowIndex === -1) {
@@ -298,8 +305,8 @@ export default function ReportImport() {
       return;
     }
 
-    // For sales_over_time, marketing_campaigns, reviews, order_accuracy_summary, and item_issues_leaderboard, restaurant selection is required
-    const requiresRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "order_accuracy_summary", "item_issues_leaderboard"].includes(reportType);
+    // For sales_over_time, marketing_campaigns, reviews, order_accuracy_summary, item_issues_leaderboard, and conversion_funnel, restaurant selection is required
+    const requiresRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"].includes(reportType);
     if (requiresRestaurant && !selectedRestaurantId) {
       toast({
         title: "Restaurant requis",
@@ -323,6 +330,7 @@ export default function ReportImport() {
         order_history: "parse-order-history",
         order_accuracy_summary: "parse-order-accuracy-summary",
         item_issues_leaderboard: "parse-item-issues-leaderboard",
+        conversion_funnel: "parse-conversion-report",
       };
       const functionName = functionMap[reportType] || "parse-payment-report";
       
@@ -333,7 +341,7 @@ export default function ReportImport() {
       };
 
       // Add restaurantId for specific report types
-      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard"];
+      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"];
       if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
         body.restaurantId = selectedRestaurantId;
       }
@@ -442,6 +450,7 @@ export default function ReportImport() {
         inaccurate_orders: "parse-inaccurate-orders",
         order_accuracy_summary: "parse-order-accuracy-summary",
         item_issues_leaderboard: "parse-item-issues-leaderboard",
+        conversion_funnel: "parse-conversion-report",
       };
       const functionName = functionMap[reportType] || "parse-payment-report";
       
@@ -452,7 +461,7 @@ export default function ReportImport() {
       };
 
       // Add restaurantId for specific report types
-      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard"];
+      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"];
       if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
         body.restaurantId = selectedRestaurantId;
       }
@@ -480,7 +489,9 @@ export default function ReportImport() {
                   ? `${importData.stats?.inserted || 0} créneaux horaires importés`
                   : reportType === "inaccurate_orders"
                     ? `${importData.stats?.inserted || 0} erreurs de commande importées`
-                    : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
+                    : reportType === "conversion_funnel"
+                      ? `${importData.stats?.inserted || 0} jours de conversion importés`
+                      : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
         toast({
           title: "Import réussi",
           description: statsMessage,
