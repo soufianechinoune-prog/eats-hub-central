@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import {
   Tooltip,
@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "restaurants-preferences";
 
@@ -121,44 +122,83 @@ const Restaurants = () => {
     return filtered;
   }, [restaurants, statusFilter, searchQuery]);
 
-  // Sort restaurants
+  // Sort restaurants - pinned first, then by column
   const sortedRestaurants = useMemo(() => {
-    if (!sortColumn) return filteredRestaurants;
+    let sorted = [...filteredRestaurants];
     
-    return [...filteredRestaurants].sort((a, b) => {
-      let aVal: string | null = null;
-      let bVal: string | null = null;
-      
-      switch (sortColumn) {
-        case "name":
-          aVal = a.name?.toLowerCase() || "";
-          bVal = b.name?.toLowerCase() || "";
-          break;
-        case "city":
-          aVal = a.city?.toLowerCase() || "";
-          bVal = b.city?.toLowerCase() || "";
-          break;
-        case "manager":
-          aVal = `${a.manager_first_name || ""} ${a.manager_last_name || ""}`.toLowerCase().trim();
-          bVal = `${b.manager_first_name || ""} ${b.manager_last_name || ""}`.toLowerCase().trim();
-          break;
-        case "account_manager":
-          aVal = a.account_manager_name?.toLowerCase() || "";
-          bVal = b.account_manager_name?.toLowerCase() || "";
-          break;
-        case "deliveroo_account_manager":
-          aVal = a.deliveroo_account_manager_name?.toLowerCase() || "";
-          bVal = b.deliveroo_account_manager_name?.toLowerCase() || "";
-          break;
-        default:
-          return 0;
-      }
-      
-      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+    // Sort by column if selected
+    if (sortColumn) {
+      sorted.sort((a, b) => {
+        let aVal: string | null = null;
+        let bVal: string | null = null;
+        
+        switch (sortColumn) {
+          case "name":
+            aVal = a.name?.toLowerCase() || "";
+            bVal = b.name?.toLowerCase() || "";
+            break;
+          case "city":
+            aVal = a.city?.toLowerCase() || "";
+            bVal = b.city?.toLowerCase() || "";
+            break;
+          case "manager":
+            aVal = `${a.manager_first_name || ""} ${a.manager_last_name || ""}`.toLowerCase().trim();
+            bVal = `${b.manager_first_name || ""} ${b.manager_last_name || ""}`.toLowerCase().trim();
+            break;
+          case "account_manager":
+            aVal = a.account_manager_name?.toLowerCase() || "";
+            bVal = b.account_manager_name?.toLowerCase() || "";
+            break;
+          case "deliveroo_account_manager":
+            aVal = a.deliveroo_account_manager_name?.toLowerCase() || "";
+            bVal = b.deliveroo_account_manager_name?.toLowerCase() || "";
+            break;
+          default:
+            return 0;
+        }
+        
+        if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    
+    // Always put pinned restaurants first
+    sorted.sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
       return 0;
     });
+    
+    return sorted;
   }, [filteredRestaurants, sortColumn, sortDirection]);
+
+  const pinnedCount = useMemo(() => 
+    restaurants?.filter(r => r.is_pinned).length || 0
+  , [restaurants]);
+
+  const togglePin = async (id: string, currentPinned: boolean) => {
+    const { error } = await supabase
+      .from("restaurants")
+      .update({ is_pinned: !currentPinned })
+      .eq("id", id);
+    
+    if (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier l'épingle",
+        variant: "destructive",
+      });
+    } else {
+      refetch();
+      toast({
+        title: currentPinned ? "Restaurant désépinglé" : "Restaurant épinglé",
+        description: currentPinned 
+          ? "Le restaurant n'apparaîtra plus en priorité" 
+          : "Le restaurant apparaîtra en haut des listes",
+      });
+    }
+  };
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -214,7 +254,15 @@ const Restaurants = () => {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle>Liste des restaurants</CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle>Liste des restaurants</CardTitle>
+            {pinnedCount > 0 && (
+              <Badge variant="secondary" className="gap-1">
+                <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                {pinnedCount} épinglé{pinnedCount > 1 ? "s" : ""}
+              </Badge>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -251,6 +299,9 @@ const Restaurants = () => {
                     onCheckedChange={toggleSelectAll}
                     aria-label="Tout sélectionner"
                   />
+                </TableHead>
+                <TableHead className="w-12 text-center">
+                  <Star className="h-4 w-4 mx-auto text-muted-foreground" />
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50 select-none"
@@ -309,7 +360,7 @@ const Restaurants = () => {
             <TableBody>
               {sortedRestaurants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     Aucun restaurant trouvé
                   </TableCell>
                 </TableRow>
@@ -317,7 +368,10 @@ const Restaurants = () => {
                 sortedRestaurants.map((restaurant) => (
                   <TableRow 
                     key={restaurant.id} 
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    className={cn(
+                      "cursor-pointer hover:bg-muted/50 transition-colors",
+                      restaurant.is_pinned && "bg-amber-500/5"
+                    )}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -325,6 +379,22 @@ const Restaurants = () => {
                         onCheckedChange={() => toggleSelect(restaurant.id)}
                         aria-label={`Sélectionner ${restaurant.name}`}
                       />
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()} className="text-center">
+                      <button
+                        onClick={() => togglePin(restaurant.id, !!restaurant.is_pinned)}
+                        className="p-1 rounded-md hover:bg-muted transition-colors"
+                        title={restaurant.is_pinned ? "Désépingler" : "Épingler"}
+                      >
+                        <Star 
+                          className={cn(
+                            "h-4 w-4 transition-colors",
+                            restaurant.is_pinned 
+                              ? "fill-amber-500 text-amber-500" 
+                              : "text-muted-foreground/40 hover:text-amber-500"
+                          )} 
+                        />
+                      </button>
                     </TableCell>
                     <TableCell className="font-medium" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.name}
