@@ -340,6 +340,31 @@ export default function Analytics() {
     placeholderData: (previousData) => previousData,
   });
 
+  // Fetch ALL restaurants' conversion data for ranking comparison (no restaurant filter)
+  const { data: allUberConversionData } = useQuery({
+    queryKey: ["analytics_conversion_uber_all", selectedYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("daily_conversion")
+        .select("*")
+        .eq("platform", "uber_eats")
+        .gte("date", `${selectedYear}-01-01`)
+        .lte("date", `${selectedYear}-12-31`)
+        .order("date");
+      
+      if (error) throw error;
+      
+      const dailyData = data?.map(item => ({
+        ...item,
+        month: new Date(item.date).getMonth() + 1,
+        year: new Date(item.date).getFullYear(),
+      })) || [];
+      
+      return aggregateDailyConversionByMonth(dailyData);
+    },
+    placeholderData: (previousData) => previousData,
+  });
+
   const { data: uberFeesData, isLoading: loadingUberFees } = useQuery({
     queryKey: ["analytics_fees_uber", restaurantFilter, selectedYear],
     queryFn: async () => {
@@ -984,6 +1009,7 @@ export default function Analytics() {
                   viewMode={viewMode as "revenue" | "conversion" | "finances"}
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
+                  allConversionData={allUberConversionData}
                   granularity={granularity}
                   comparisonMode={comparisonMode}
                   onComparisonModeChange={setComparisonMode}

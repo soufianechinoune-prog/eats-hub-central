@@ -38,6 +38,7 @@ interface RestaurantConversionData {
 interface ConversionScatterPlotProps {
   data: RestaurantConversionData[];
   className?: string;
+  highlightedRestaurants?: string[];
 }
 
 // Quadrant colors
@@ -51,6 +52,7 @@ const QUADRANT_COLORS = {
 export function ConversionScatterPlot({
   data,
   className,
+  highlightedRestaurants = [],
 }: ConversionScatterPlotProps) {
   // Calculate scatter data
   const scatterData = useMemo(() => {
@@ -208,15 +210,18 @@ export function ConversionScatterPlot({
               <Tooltip content={<CustomTooltip />} />
               
               <Scatter data={scatterData} fill="hsl(var(--primary))">
-                {scatterData.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={getQuadrantColor(entry.visits, entry.conversionRate)}
-                    fillOpacity={0.7}
-                    stroke={getQuadrantColor(entry.visits, entry.conversionRate)}
-                    strokeWidth={2}
-                  />
-                ))}
+                {scatterData.map((entry, index) => {
+                  const isHighlighted = highlightedRestaurants.includes(entry.restaurantId);
+                  return (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={getQuadrantColor(entry.visits, entry.conversionRate)}
+                      fillOpacity={isHighlighted ? 1 : 0.6}
+                      stroke={isHighlighted ? "hsl(var(--foreground))" : getQuadrantColor(entry.visits, entry.conversionRate)}
+                      strokeWidth={isHighlighted ? 4 : 2}
+                    />
+                  );
+                })}
               </Scatter>
             </ScatterChart>
           </ResponsiveContainer>
