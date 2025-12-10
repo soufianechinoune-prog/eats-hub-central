@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronsUpDown, Store, Calendar, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronsUpDown, Store, Calendar, X, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
@@ -79,12 +79,26 @@ export function AnalyticsHeader() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, city")
+        .select("id, name, city, is_pinned")
         .order("name");
       if (error) throw error;
       return data;
     },
   });
+
+  const pinnedRestaurants = useMemo(() => 
+    restaurants?.filter(r => r.is_pinned) || []
+  , [restaurants]);
+
+  const unpinnedRestaurants = useMemo(() => 
+    restaurants?.filter(r => !r.is_pinned) || []
+  , [restaurants]);
+
+  const selectAllPinned = () => {
+    const pinnedIds = pinnedRestaurants.map(r => r.id);
+    setSelectedRestaurants(pinnedIds);
+    setVisibleRestaurants(pinnedIds);
+  };
 
   const toggleRestaurant = (id: string) => {
     if (id === "all") {
@@ -178,6 +192,8 @@ export function AnalyticsHeader() {
                 <CommandInput placeholder="Rechercher un restaurant..." />
                 <CommandList>
                   <CommandEmpty>Aucun restaurant trouvé.</CommandEmpty>
+                  
+                  {/* Quick actions */}
                   <CommandGroup>
                     <CommandItem
                       value="all"
@@ -191,7 +207,51 @@ export function AnalyticsHeader() {
                       />
                       <span className="font-medium">Tous les restaurants</span>
                     </CommandItem>
-                    {restaurants?.map((restaurant) => (
+                    {pinnedRestaurants.length > 0 && (
+                      <CommandItem
+                        value="select-all-pinned"
+                        onSelect={selectAllPinned}
+                        className="text-amber-600"
+                      >
+                        <Star className="mr-2 h-4 w-4 fill-amber-500 text-amber-500" />
+                        <span className="font-medium">Sélectionner les {pinnedRestaurants.length} épinglés</span>
+                      </CommandItem>
+                    )}
+                  </CommandGroup>
+
+                  {/* Pinned restaurants */}
+                  {pinnedRestaurants.length > 0 && (
+                    <CommandGroup heading={`⭐ Épinglés (${pinnedRestaurants.length})`}>
+                      {pinnedRestaurants.map((restaurant) => (
+                        <CommandItem
+                          key={restaurant.id}
+                          value={restaurant.name}
+                          onSelect={() => toggleRestaurant(restaurant.id)}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              visibleRestaurants.includes(restaurant.id)
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          <div className="flex flex-col">
+                            <span>{restaurant.name}</span>
+                            {restaurant.city && (
+                              <span className="text-xs text-muted-foreground">
+                                {restaurant.city}
+                              </span>
+                            )}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+
+                  {/* Other restaurants */}
+                  <CommandGroup heading={pinnedRestaurants.length > 0 ? "Autres restaurants" : undefined}>
+                    {unpinnedRestaurants.map((restaurant) => (
                       <CommandItem
                         key={restaurant.id}
                         value={restaurant.name}
