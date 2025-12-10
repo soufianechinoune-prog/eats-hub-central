@@ -2183,6 +2183,7 @@ export type Database = {
           deliveroo_store_id: string | null
           id: string
           is_active: boolean | null
+          is_pinned: boolean | null
           latitude: number | null
           longitude: number | null
           manager_first_name: string | null
@@ -2216,6 +2217,7 @@ export type Database = {
           deliveroo_store_id?: string | null
           id?: string
           is_active?: boolean | null
+          is_pinned?: boolean | null
           latitude?: number | null
           longitude?: number | null
           manager_first_name?: string | null
@@ -2249,6 +2251,7 @@ export type Database = {
           deliveroo_store_id?: string | null
           id?: string
           is_active?: boolean | null
+          is_pinned?: boolean | null
           latitude?: number | null
           longitude?: number | null
           manager_first_name?: string | null

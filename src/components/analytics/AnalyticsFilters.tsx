@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Check, ChevronsUpDown, Store, Calendar, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Check, ChevronsUpDown, Store, Calendar, X, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ interface Restaurant {
   id: string;
   name: string;
   city?: string | null;
+  is_pinned?: boolean | null;
 }
 
 interface AnalyticsFiltersProps {
@@ -93,6 +94,19 @@ export function AnalyticsFilters({
   const selectedRestaurantNames = restaurants
     ?.filter((r) => selectedRestaurants.includes(r.id))
     .map((r) => r.name) || [];
+
+  const pinnedRestaurants = useMemo(() => 
+    restaurants?.filter(r => r.is_pinned) || []
+  , [restaurants]);
+
+  const unpinnedRestaurants = useMemo(() => 
+    restaurants?.filter(r => !r.is_pinned) || []
+  , [restaurants]);
+
+  const selectAllPinned = () => {
+    const pinnedIds = pinnedRestaurants.map(r => r.id);
+    onRestaurantsChange(pinnedIds);
+  };
 
   const handleMonthSelect = (monthIndex: number) => {
     onPeriodModeChange("month");
@@ -167,6 +181,8 @@ export function AnalyticsFilters({
                 <CommandInput placeholder="Rechercher un restaurant..." />
                 <CommandList>
                   <CommandEmpty>Aucun restaurant trouvé.</CommandEmpty>
+                  
+                  {/* Quick actions */}
                   <CommandGroup>
                     <CommandItem
                       value="all"
@@ -180,7 +196,53 @@ export function AnalyticsFilters({
                       />
                       <span className="font-medium">Tous les restaurants</span>
                     </CommandItem>
-                    {restaurants?.map((restaurant) => (
+                    {pinnedRestaurants.length > 0 && (
+                      <CommandItem
+                        value="select-all-pinned"
+                        onSelect={selectAllPinned}
+                        className="text-amber-600"
+                      >
+                        <Star className="mr-2 h-4 w-4 fill-amber-500 text-amber-500" />
+                        <span className="font-medium">Sélectionner les {pinnedRestaurants.length} épinglés</span>
+                      </CommandItem>
+                    )}
+                  </CommandGroup>
+
+                  {/* Pinned restaurants */}
+                  {pinnedRestaurants.length > 0 && (
+                    <CommandGroup heading={`⭐ Épinglés (${pinnedRestaurants.length})`}>
+                      {pinnedRestaurants.map((restaurant) => (
+                        <CommandItem
+                          key={restaurant.id}
+                          value={restaurant.name}
+                          onSelect={() => toggleRestaurant(restaurant.id)}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedRestaurants.includes(restaurant.id)
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1.5">
+                              <span>{restaurant.name}</span>
+                            </div>
+                            {restaurant.city && (
+                              <span className="text-xs text-muted-foreground">
+                                {restaurant.city}
+                              </span>
+                            )}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+
+                  {/* Other restaurants */}
+                  <CommandGroup heading={pinnedRestaurants.length > 0 ? "Autres restaurants" : undefined}>
+                    {unpinnedRestaurants.map((restaurant) => (
                       <CommandItem
                         key={restaurant.id}
                         value={restaurant.name}
