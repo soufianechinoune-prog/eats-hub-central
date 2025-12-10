@@ -594,20 +594,25 @@ export function AnalyticsCharts({
   }, [actionsByMonth, startMonth, endMonth]);
 
   // Period events data for ReferenceArea rendering
+  // For categorical X-axis, we need to extend x2 to the NEXT month to ensure the area has width
   const periodEventsData = useMemo(() => {
     return periodEvents.map(event => {
-      const startMonth = new Date(event.start_date).getMonth();
-      const endMonth = event.end_date ? new Date(event.end_date).getMonth() : startMonth;
+      const eventStartMonth = new Date(event.start_date).getMonth();
+      const eventEndMonth = event.end_date ? new Date(event.end_date).getMonth() : eventStartMonth;
+      // Extend x2 to next month to include the full end month on categorical axis
+      const x2MonthIndex = Math.min(eventEndMonth + 1, 11);
       return {
         ...event,
-        x1: MONTHS[startMonth],
-        x2: MONTHS[endMonth],
+        x1: MONTHS[eventStartMonth],
+        x2: MONTHS[x2MonthIndex],
+        startMonthIndex: eventStartMonth,
+        endMonthIndex: eventEndMonth,
         color: ACTION_CATEGORY_COLORS[event.category] || "#059669",
       };
     }).filter(e => {
       // Filter to events within the displayed range
-      const startMonthNum = new Date(e.start_date).getMonth() + 1;
-      const endMonthNum = e.end_date ? new Date(e.end_date).getMonth() + 1 : startMonthNum;
+      const startMonthNum = e.startMonthIndex + 1;
+      const endMonthNum = e.endMonthIndex + 1;
       return startMonthNum <= endMonth && endMonthNum >= startMonth;
     });
   }, [periodEvents, startMonth, endMonth]);
@@ -1800,16 +1805,17 @@ export function AnalyticsCharts({
                             x1={event.x1}
                             x2={event.x2}
                             fill={event.color}
-                            fillOpacity={0.15}
+                            fillOpacity={0.25}
                             stroke={event.color}
-                            strokeOpacity={0.4}
-                            strokeDasharray="4 4"
+                            strokeOpacity={0.6}
+                            strokeWidth={2}
+                            strokeDasharray="6 3"
                             label={{
-                              value: event.title,
+                              value: `🌙 ${event.title}`,
                               position: 'insideTop',
                               fill: event.color,
-                              fontSize: 10,
-                              fontWeight: 500,
+                              fontSize: 11,
+                              fontWeight: 600,
                             }}
                           />
                         ))}
@@ -1928,16 +1934,17 @@ export function AnalyticsCharts({
                             x1={event.x1}
                             x2={event.x2}
                             fill={event.color}
-                            fillOpacity={0.15}
+                            fillOpacity={0.25}
                             stroke={event.color}
-                            strokeOpacity={0.4}
-                            strokeDasharray="4 4"
+                            strokeOpacity={0.6}
+                            strokeWidth={2}
+                            strokeDasharray="6 3"
                             label={{
-                              value: event.title,
+                              value: `🌙 ${event.title}`,
                               position: 'insideTop',
                               fill: event.color,
-                              fontSize: 10,
-                              fontWeight: 500,
+                              fontSize: 11,
+                              fontWeight: 600,
                             }}
                           />
                         ))}
@@ -2107,10 +2114,11 @@ export function AnalyticsCharts({
                     x1={event.x1}
                     x2={event.x2}
                     fill={event.color}
-                    fillOpacity={0.15}
+                    fillOpacity={0.25}
                     stroke={event.color}
-                    strokeOpacity={0.4}
-                    strokeDasharray="4 4"
+                    strokeOpacity={0.6}
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
                   />
                 ))}
                 {/* Action markers */}
@@ -2300,10 +2308,11 @@ export function AnalyticsCharts({
                     x1={event.x1}
                     x2={event.x2}
                     fill={event.color}
-                    fillOpacity={0.15}
+                    fillOpacity={0.25}
                     stroke={event.color}
-                    strokeOpacity={0.4}
-                    strokeDasharray="4 4"
+                    strokeOpacity={0.6}
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
                   />
                 ))}
                 {/* Action markers */}
@@ -2562,10 +2571,11 @@ export function AnalyticsCharts({
                     x1={event.x1}
                     x2={event.x2}
                     fill={event.color}
-                    fillOpacity={0.15}
+                    fillOpacity={0.25}
                     stroke={event.color}
-                    strokeOpacity={0.4}
-                    strokeDasharray="4 4"
+                    strokeOpacity={0.6}
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
                   />
                 ))}
                 {/* Action markers */}
@@ -2767,10 +2777,11 @@ export function AnalyticsCharts({
                     x1={event.x1}
                     x2={event.x2}
                     fill={event.color}
-                    fillOpacity={0.15}
+                    fillOpacity={0.25}
                     stroke={event.color}
-                    strokeOpacity={0.4}
-                    strokeDasharray="4 4"
+                    strokeOpacity={0.6}
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
                   />
                 ))}
                 {/* Action markers */}
@@ -2850,10 +2861,11 @@ export function AnalyticsCharts({
                     x1={event.x1}
                     x2={event.x2}
                     fill={event.color}
-                    fillOpacity={0.15}
+                    fillOpacity={0.25}
                     stroke={event.color}
-                    strokeOpacity={0.4}
-                    strokeDasharray="4 4"
+                    strokeOpacity={0.6}
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
                   />
                 ))}
                 {/* Action markers */}
@@ -2940,10 +2952,11 @@ export function AnalyticsCharts({
                     x2={event.x2}
                     yAxisId="left"
                     fill={event.color}
-                    fillOpacity={0.15}
+                    fillOpacity={0.25}
                     stroke={event.color}
-                    strokeOpacity={0.4}
-                    strokeDasharray="4 4"
+                    strokeOpacity={0.6}
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
                   />
                 ))}
                 {/* Action markers */}
