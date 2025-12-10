@@ -31,10 +31,10 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import { ErrorRateEvolutionChart } from "./ErrorRateEvolutionChart";
-import { FinancialImpactByCategory } from "./FinancialImpactByCategory";
+import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { fr } from "date-fns/locale";
 
 interface OrderAccuracyDashboardProps {
   selectedRestaurant: string;
@@ -59,8 +59,36 @@ export function OrderAccuracyDashboard({
   const [objective, setObjective] = useState(2);
   const [chartType, setChartType] = useState<"line" | "bar">("bar");
 
-  // Fetch monthly order accuracy from new official Uber data table
-  const { data: monthlyAccuracy, isLoading: isLoadingAccuracy } = useQuery({
+  // Fetch daily order accuracy data (new format)
+  const { data: dailyAccuracy, isLoading: isLoadingDaily } = useQuery({
+    queryKey: ["daily-order-accuracy", selectedRestaurant, selectedYear],
+    queryFn: async () => {
+      const startDate = `${selectedYear}-01-01`;
+      const endDate = `${selectedYear}-12-31`;
+      
+      let query = supabase
+        .from("daily_order_accuracy")
+        .select("*")
+        .gte("date", startDate)
+        .lte("date", endDate)
+        .eq("period_type", "current")
+        .order("date", { ascending: true });
+
+      if (selectedRestaurant !== "all") {
+        query = query.eq("restaurant_id", selectedRestaurant);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error("Error fetching daily accuracy:", error);
+        return [];
+      }
+      return data || [];
+    },
+  });
+
+  // Fallback: fetch monthly order accuracy (old format)
+  const { data: monthlyAccuracy, isLoading: isLoadingMonthly } = useQuery({
     queryKey: ["monthly-order-accuracy", selectedRestaurant, selectedYear],
     queryFn: async () => {
       let query = supabase
@@ -126,46 +154,82 @@ export function OrderAccuracyDashboard({
     },
   });
 
-  // Aggregate monthly data
+  // Determine which data source to use
+  const hasDaily = dailyAccuracy && dailyAccuracy.length > 0;
+  const hasMonthly = monthlyAccuracy && monthlyAccuracy.length > 0;
+  const useDaily = hasDaily;
+
+  // Aggregate data based on source and selection
   const aggregatedData = useMemo(() => {
-    if (!monthlyAccuracy || monthlyAccuracy.length === 0) return null;
+    if (useDaily && dailyAccuracy) {
+      // Filter daily data by selected month if needed
+      let filtered = dailyAccuracy;
+      if (selectedMonth !== "all") {
+        filtered = dailyAccuracy.filter(d => {
+          const date = parseISO(d.date);
+          return date.getMonth() + 1 === selectedMonth;
+        });
+      }
 
-    const filtered = selectedMonth === "all" 
-      ? monthlyAccuracy 
-      : monthlyAccuracy.filter(m => m.month === selectedMonth);
+      return filtered.reduce((acc, d) => ({
+        incorrect_orders: acc.incorrect_orders + (d.incorrect_orders_count || 0),
+        missing_items: acc.missing_items + (d.missing_items_count || 0),
+        missing_items_refund: acc.missing_items_refund + Number(d.missing_items_refund || 0),
+        missing_customization: acc.missing_customization + (d.missing_customization_count || 0),
+        missing_customization_refund: acc.missing_customization_refund + Number(d.missing_customization_refund || 0),
+        wrong_order: acc.wrong_order + (d.wrong_order_count || 0),
+        wrong_order_refund: acc.wrong_order_refund + Number(d.wrong_order_refund || 0),
+        incorrect_item: acc.incorrect_item + (d.incorrect_item_count || 0),
+        incorrect_item_refund: acc.incorrect_item_refund + Number(d.incorrect_item_refund || 0),
+        total_refund: acc.total_refund + Number(d.total_refund || 0),
+      }), {
+        incorrect_orders: 0,
+        missing_items: 0,
+        missing_items_refund: 0,
+        missing_customization: 0,
+        missing_customization_refund: 0,
+        wrong_order: 0,
+        wrong_order_refund: 0,
+        incorrect_item: 0,
+        incorrect_item_refund: 0,
+        total_refund: 0,
+      });
+    } else if (monthlyAccuracy && monthlyAccuracy.length > 0) {
+      const filtered = selectedMonth === "all" 
+        ? monthlyAccuracy 
+        : monthlyAccuracy.filter(m => m.month === selectedMonth);
 
-    const totals = filtered.reduce((acc, m) => ({
-      incorrect_orders: acc.incorrect_orders + (m.incorrect_orders_count || 0),
-      missing_items: acc.missing_items + (m.missing_items_count || 0),
-      missing_items_refund: acc.missing_items_refund + (m.missing_items_refund || 0),
-      missing_customization: acc.missing_customization + (m.missing_customization_count || 0),
-      missing_customization_refund: acc.missing_customization_refund + (m.missing_customization_refund || 0),
-      wrong_order: acc.wrong_order + (m.wrong_order_count || 0),
-      wrong_order_refund: acc.wrong_order_refund + (m.wrong_order_refund || 0),
-      incorrect_item: acc.incorrect_item + (m.incorrect_item_count || 0),
-      incorrect_item_refund: acc.incorrect_item_refund + (m.incorrect_item_refund || 0),
-      total_refund: acc.total_refund + (m.total_refund || 0),
-    }), {
-      incorrect_orders: 0,
-      missing_items: 0,
-      missing_items_refund: 0,
-      missing_customization: 0,
-      missing_customization_refund: 0,
-      wrong_order: 0,
-      wrong_order_refund: 0,
-      incorrect_item: 0,
-      incorrect_item_refund: 0,
-      total_refund: 0,
-    });
+      return filtered.reduce((acc, m) => ({
+        incorrect_orders: acc.incorrect_orders + (m.incorrect_orders_count || 0),
+        missing_items: acc.missing_items + (m.missing_items_count || 0),
+        missing_items_refund: acc.missing_items_refund + Number(m.missing_items_refund || 0),
+        missing_customization: acc.missing_customization + (m.missing_customization_count || 0),
+        missing_customization_refund: acc.missing_customization_refund + Number(m.missing_customization_refund || 0),
+        wrong_order: acc.wrong_order + (m.wrong_order_count || 0),
+        wrong_order_refund: acc.wrong_order_refund + Number(m.wrong_order_refund || 0),
+        incorrect_item: acc.incorrect_item + (m.incorrect_item_count || 0),
+        incorrect_item_refund: acc.incorrect_item_refund + Number(m.incorrect_item_refund || 0),
+        total_refund: acc.total_refund + Number(m.total_refund || 0),
+      }), {
+        incorrect_orders: 0,
+        missing_items: 0,
+        missing_items_refund: 0,
+        missing_customization: 0,
+        missing_customization_refund: 0,
+        wrong_order: 0,
+        wrong_order_refund: 0,
+        incorrect_item: 0,
+        incorrect_item_refund: 0,
+        total_refund: 0,
+      });
+    }
+    
+    return null;
+  }, [dailyAccuracy, monthlyAccuracy, selectedMonth, useDaily]);
 
-    return totals;
-  }, [monthlyAccuracy, selectedMonth]);
-
-  // Calculate order count from sales data for error rate
+  // Calculate order count from sales data
   const orderCount = useMemo(() => {
     if (!salesData || salesData.length === 0) return 0;
-    
-    const monthsWithData = monthlyAccuracy?.map(m => m.month) || [];
     
     if (selectedMonth !== "all") {
       return salesData
@@ -173,10 +237,21 @@ export function OrderAccuracyDashboard({
         .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
     }
     
-    return salesData
-      .filter((r: any) => monthsWithData.includes(r.month))
-      .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
-  }, [salesData, selectedMonth, monthlyAccuracy]);
+    // For year view, only count months with error data
+    if (useDaily && dailyAccuracy) {
+      const monthsWithData = [...new Set(dailyAccuracy.map(d => parseISO(d.date).getMonth() + 1))];
+      return salesData
+        .filter((r: any) => monthsWithData.includes(r.month))
+        .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
+    } else if (monthlyAccuracy) {
+      const monthsWithData = monthlyAccuracy.map(m => m.month);
+      return salesData
+        .filter((r: any) => monthsWithData.includes(r.month))
+        .reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
+    }
+    
+    return salesData.reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
+  }, [salesData, selectedMonth, dailyAccuracy, monthlyAccuracy, useDaily]);
 
   // Calculate KPIs
   const kpis = useMemo(() => {
@@ -201,19 +276,7 @@ export function OrderAccuracyDashboard({
 
   // Build evolution data for chart
   const errorEvolutionData = useMemo(() => {
-    if (!monthlyAccuracy) return [];
-
     const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
-
-    // Group by month
-    const monthlyData: Record<number, { errors: number; refund: number }> = {};
-    monthlyAccuracy.forEach(m => {
-      if (!monthlyData[m.month]) {
-        monthlyData[m.month] = { errors: 0, refund: 0 };
-      }
-      monthlyData[m.month].errors += m.incorrect_orders_count || 0;
-      monthlyData[m.month].refund += m.total_refund || 0;
-    });
 
     // Get order counts by month from sales data
     const monthlyOrders: Record<number, number> = {};
@@ -221,20 +284,60 @@ export function OrderAccuracyDashboard({
       monthlyOrders[r.month] = (monthlyOrders[r.month] || 0) + (r.order_count || 0);
     });
 
-    return Object.entries(monthlyData)
-      .sort(([a], [b]) => parseInt(a) - parseInt(b))
-      .map(([month, data]) => {
-        const orders = monthlyOrders[parseInt(month)] || 0;
-        return {
-          period: `${selectedYear}-${String(month).padStart(2, "0")}`,
-          label: monthNames[parseInt(month) - 1],
-          errorRate: orders > 0 ? (data.errors / orders) * 100 : null,
-          errorCount: data.errors,
-          orderCount: orders,
-          hasSalesData: orders > 0,
-        };
+    if (useDaily && dailyAccuracy && dailyAccuracy.length > 0) {
+      // Aggregate daily data by month
+      const monthlyData: Record<number, { errors: number; refund: number }> = {};
+      
+      dailyAccuracy.forEach(d => {
+        const month = parseISO(d.date).getMonth() + 1;
+        if (!monthlyData[month]) {
+          monthlyData[month] = { errors: 0, refund: 0 };
+        }
+        monthlyData[month].errors += d.incorrect_orders_count || 0;
+        monthlyData[month].refund += Number(d.total_refund || 0);
       });
-  }, [monthlyAccuracy, salesData, selectedYear]);
+
+      return Object.entries(monthlyData)
+        .sort(([a], [b]) => parseInt(a) - parseInt(b))
+        .map(([month, data]) => {
+          const orders = monthlyOrders[parseInt(month)] || 0;
+          return {
+            period: `${selectedYear}-${String(month).padStart(2, "0")}`,
+            label: monthNames[parseInt(month) - 1],
+            errorRate: orders > 0 ? (data.errors / orders) * 100 : null,
+            errorCount: data.errors,
+            orderCount: orders,
+            hasSalesData: orders > 0,
+          };
+        });
+    } else if (monthlyAccuracy && monthlyAccuracy.length > 0) {
+      // Group monthly data
+      const monthlyData: Record<number, { errors: number; refund: number }> = {};
+      monthlyAccuracy.forEach(m => {
+        if (!monthlyData[m.month]) {
+          monthlyData[m.month] = { errors: 0, refund: 0 };
+        }
+        monthlyData[m.month].errors += m.incorrect_orders_count || 0;
+        monthlyData[m.month].refund += Number(m.total_refund || 0);
+      });
+
+      return Object.entries(monthlyData)
+        .sort(([a], [b]) => parseInt(a) - parseInt(b))
+        .map(([month, data]) => {
+          const orders = monthlyOrders[parseInt(month)] || 0;
+          return {
+            period: `${selectedYear}-${String(month).padStart(2, "0")}`,
+            label: monthNames[parseInt(month) - 1],
+            errorRate: orders > 0 ? (data.errors / orders) * 100 : null,
+            errorCount: data.errors,
+            orderCount: orders,
+            hasSalesData: orders > 0,
+          };
+        });
+    }
+    
+    return [];
+  }, [dailyAccuracy, monthlyAccuracy, salesData, selectedYear, useDaily]);
 
   // Financial impact by category
   const categoryData = useMemo(() => {
@@ -255,7 +358,7 @@ export function OrderAccuracyDashboard({
     }).format(amount);
   };
 
-  const isLoading = isLoadingAccuracy || isLoadingProducts;
+  const isLoading = isLoadingDaily || isLoadingMonthly || isLoadingProducts;
 
   if (isLoading) {
     return (
@@ -265,7 +368,7 @@ export function OrderAccuracyDashboard({
     );
   }
 
-  if (!monthlyAccuracy || monthlyAccuracy.length === 0) {
+  if (!hasDaily && !hasMonthly) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
@@ -285,7 +388,7 @@ export function OrderAccuracyDashboard({
       <Alert className="border-blue-500/50 bg-blue-500/10">
         <Info className="h-4 w-4 text-blue-500" />
         <AlertDescription className="text-blue-700 dark:text-blue-400">
-          Données officielles Uber Eats importées depuis le rapport "order-accuracy-inaccurate-issues-summary".
+          Données officielles Uber Eats • Format: {useDaily ? "Journalier" : "Mensuel"} • {useDaily ? dailyAccuracy?.length : monthlyAccuracy?.length} enregistrements
         </AlertDescription>
       </Alert>
 
@@ -473,58 +576,12 @@ export function OrderAccuracyDashboard({
               </ScrollArea>
             ) : (
               <p className="text-center text-muted-foreground py-8">
-                Importez le fichier "item-issues-leaderboard" pour voir le classement
+                Aucune donnée. Importez le fichier "Top articles problématiques".
               </p>
             )}
           </CardContent>
         </Card>
       </div>
-
-      {/* Monthly Details Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Détail mensuel</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[400px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Mois</TableHead>
-                  <TableHead className="text-right">Incorrectes</TableHead>
-                  <TableHead className="text-right">Articles manquants</TableHead>
-                  <TableHead className="text-right">Perso. manquante</TableHead>
-                  <TableHead className="text-right">Mauvaise commande</TableHead>
-                  <TableHead className="text-right">Article incorrect</TableHead>
-                  <TableHead className="text-right">Remboursé</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {monthlyAccuracy
-                  .sort((a, b) => a.month - b.month)
-                  .map((m) => {
-                    const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-                    return (
-                      <TableRow key={m.id}>
-                        <TableCell className="font-medium">
-                          {monthNames[m.month - 1]} {m.year}
-                        </TableCell>
-                        <TableCell className="text-right">{m.incorrect_orders_count}</TableCell>
-                        <TableCell className="text-right">{m.missing_items_count}</TableCell>
-                        <TableCell className="text-right">{m.missing_customization_count}</TableCell>
-                        <TableCell className="text-right">{m.wrong_order_count}</TableCell>
-                        <TableCell className="text-right">{m.incorrect_item_count}</TableCell>
-                        <TableCell className="text-right font-medium text-destructive">
-                          {formatCurrency(m.total_refund || 0)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-              </TableBody>
-            </Table>
-          </ScrollArea>
-        </CardContent>
-      </Card>
     </div>
   );
 }
