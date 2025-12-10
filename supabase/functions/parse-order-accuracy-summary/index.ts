@@ -6,10 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface ParsedRow {
-  month: string;
-  year: number;
-  monthNum: number;
+interface ParsedDailyRow {
+  date: string;
   incorrect_orders_count: number;
   missing_items_count: number;
   missing_items_refund: number;
@@ -20,7 +18,21 @@ interface ParsedRow {
   incorrect_item_count: number;
   incorrect_item_refund: number;
   total_refund: number;
-  period_type: "current" | "previous";
+}
+
+interface ParsedMonthlyRow {
+  year: number;
+  month: number;
+  incorrect_orders_count: number;
+  missing_items_count: number;
+  missing_items_refund: number;
+  missing_customization_count: number;
+  missing_customization_refund: number;
+  wrong_order_count: number;
+  wrong_order_refund: number;
+  incorrect_item_count: number;
+  incorrect_item_refund: number;
+  total_refund: number;
 }
 
 serve(async (req) => {
@@ -62,22 +74,31 @@ serve(async (req) => {
     // Parse CSV
     const lines = csvContent.split("\n").filter((line: string) => line.trim());
     
-    // Find header line
+    // Detect format and find header line
     let headerIndex = -1;
+    let isDaily = false;
+    
     for (let i = 0; i < Math.min(lines.length, 10); i++) {
       const line = lines[i].toLowerCase();
-      if (line.includes("mois") || line.includes("month") || line.includes("commandes incorrectes")) {
+      if (line.includes("jour")) {
         headerIndex = i;
+        isDaily = true;
+        break;
+      } else if (line.includes("mois") || line.includes("month")) {
+        headerIndex = i;
+        isDaily = false;
         break;
       }
     }
 
     if (headerIndex === -1) {
       return new Response(
-        JSON.stringify({ success: false, error: "Could not find header row" }),
+        JSON.stringify({ success: false, error: "Could not find header row (looking for 'Jour' or 'Mois')" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
+
+    console.log(`[parse-order-accuracy-summary] Detected format: ${isDaily ? 'DAILY' : 'MONTHLY'}`);
 
     const headers = parseCSVLine(lines[headerIndex]);
     console.log("[parse-order-accuracy-summary] Headers:", headers);
@@ -86,9 +107,9 @@ serve(async (req) => {
     const columnMap: Record<string, number> = {};
     headers.forEach((h, i) => {
       const lower = h.toLowerCase().trim();
+      if (lower === "jour" || lower === "day") columnMap.day = i;
       if (lower === "mois" || lower === "month") columnMap.month = i;
       if (lower.includes("commandes incorrectes") && !lower.includes("l'année dernière")) columnMap.incorrect_orders = i;
-      if (lower.includes("commandes incorrectes") && lower.includes("l'année dernière")) columnMap.incorrect_orders_prev = i;
       if (lower.includes("articles manquants") && !lower.includes("remboursé")) columnMap.missing_items = i;
       if (lower.includes("articles manquants") && lower.includes("remboursé")) columnMap.missing_items_refund = i;
       if (lower.includes("personnalisation manquante") && !lower.includes("remboursé")) columnMap.missing_customization = i;
@@ -102,134 +123,275 @@ serve(async (req) => {
 
     console.log("[parse-order-accuracy-summary] Column mapping:", columnMap);
 
-    const monthNameToNum: Record<string, number> = {
-      "janvier": 1, "january": 1, "jan": 1,
-      "février": 2, "february": 2, "feb": 2, "fév": 2,
-      "mars": 3, "march": 3, "mar": 3,
-      "avril": 4, "april": 4, "apr": 4, "avr": 4,
-      "mai": 5, "may": 5,
-      "juin": 6, "june": 6, "jun": 6,
-      "juillet": 7, "july": 7, "jul": 7, "juil": 7,
-      "août": 8, "august": 8, "aug": 8, "aout": 8,
-      "septembre": 9, "september": 9, "sep": 9, "sept": 9,
-      "octobre": 10, "october": 10, "oct": 10,
-      "novembre": 11, "november": 11, "nov": 11,
-      "décembre": 12, "december": 12, "dec": 12, "déc": 12,
-    };
-
-    const parsedRows: ParsedRow[] = [];
-    const currentYear = new Date().getFullYear();
     const skippedDetails: Array<{ rowIndex: number; reason: string; details: string }> = [];
+    
+    if (isDaily) {
+      // Parse daily format
+      const parsedRows: ParsedDailyRow[] = [];
+      
+      for (let i = headerIndex + 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        if (values.length < 2) continue;
 
-    for (let i = headerIndex + 1; i < lines.length; i++) {
-      const values = parseCSVLine(lines[i]);
-      if (values.length < 2) continue;
+        const dayStr = values[columnMap.day]?.trim();
+        if (!dayStr) continue;
 
-      const monthStr = values[columnMap.month]?.toLowerCase().trim();
-      if (!monthStr) continue;
+        // Skip totals row
+        if (dayStr.toLowerCase().includes("total") || dayStr.toLowerCase().includes("tous")) {
+          skippedDetails.push({ rowIndex: i, reason: "total_row", details: dayStr });
+          continue;
+        }
 
-      // Skip totals row
-      if (monthStr.includes("total") || monthStr.includes("tous")) {
-        skippedDetails.push({ rowIndex: i, reason: "total_row", details: monthStr });
-        continue;
+        // Parse date format: "01/01/2025" (DD/MM/YYYY)
+        const dateParts = dayStr.split("/");
+        if (dateParts.length !== 3) {
+          skippedDetails.push({ rowIndex: i, reason: "invalid_date", details: dayStr });
+          continue;
+        }
+
+        const [day, month, year] = dateParts;
+        const dateStr = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+
+        // Validate date
+        const dateObj = new Date(dateStr);
+        if (isNaN(dateObj.getTime())) {
+          skippedDetails.push({ rowIndex: i, reason: "invalid_date", details: dayStr });
+          continue;
+        }
+
+        const missing_items_count = parseNumber(values[columnMap.missing_items]);
+        const missing_items_refund = parseCurrency(values[columnMap.missing_items_refund]);
+        const missing_customization_count = parseNumber(values[columnMap.missing_customization]);
+        const missing_customization_refund = parseCurrency(values[columnMap.missing_customization_refund]);
+        const wrong_order_count = parseNumber(values[columnMap.wrong_order]);
+        const wrong_order_refund = parseCurrency(values[columnMap.wrong_order_refund]);
+        const incorrect_item_count = parseNumber(values[columnMap.incorrect_item]);
+        const incorrect_item_refund = parseCurrency(values[columnMap.incorrect_item_refund]);
+
+        const total_refund = columnMap.total_refund !== undefined 
+          ? parseCurrency(values[columnMap.total_refund])
+          : missing_items_refund + missing_customization_refund + wrong_order_refund + incorrect_item_refund;
+
+        const incorrect_orders_count = columnMap.incorrect_orders !== undefined
+          ? parseNumber(values[columnMap.incorrect_orders])
+          : missing_items_count + missing_customization_count + wrong_order_count + incorrect_item_count;
+
+        parsedRows.push({
+          date: dateStr,
+          incorrect_orders_count,
+          missing_items_count,
+          missing_items_refund,
+          missing_customization_count,
+          missing_customization_refund,
+          wrong_order_count,
+          wrong_order_refund,
+          incorrect_item_count,
+          incorrect_item_refund,
+          total_refund,
+        });
       }
 
-      const monthNum = monthNameToNum[monthStr];
-      if (!monthNum) {
-        skippedDetails.push({ rowIndex: i, reason: "unknown_month", details: monthStr });
-        continue;
-      }
+      console.log(`[parse-order-accuracy-summary] Parsed ${parsedRows.length} daily rows`);
 
-      // Determine year based on month (if future month, it's previous year)
-      const currentMonth = new Date().getMonth() + 1;
-      const year = monthNum > currentMonth ? currentYear - 1 : currentYear;
-
-      parsedRows.push({
-        month: monthStr,
-        year,
-        monthNum,
-        incorrect_orders_count: parseNumber(values[columnMap.incorrect_orders]),
-        missing_items_count: parseNumber(values[columnMap.missing_items]),
-        missing_items_refund: parseCurrency(values[columnMap.missing_items_refund]),
-        missing_customization_count: parseNumber(values[columnMap.missing_customization]),
-        missing_customization_refund: parseCurrency(values[columnMap.missing_customization_refund]),
-        wrong_order_count: parseNumber(values[columnMap.wrong_order]),
-        wrong_order_refund: parseCurrency(values[columnMap.wrong_order_refund]),
-        incorrect_item_count: parseNumber(values[columnMap.incorrect_item]),
-        incorrect_item_refund: parseCurrency(values[columnMap.incorrect_item_refund]),
-        total_refund: parseCurrency(values[columnMap.total_refund]),
-        period_type: "current",
-      });
-    }
-
-    console.log(`[parse-order-accuracy-summary] Parsed ${parsedRows.length} rows`);
-
-    const result = {
-      success: true,
-      reportType: "order_accuracy_summary",
-      dryRun,
-      stats: {
-        totalRows: parsedRows.length,
-        inserted: 0,
-        updated: 0,
-        skipped: skippedDetails.length,
-        errors: 0,
-      },
-      errorDetails: [] as string[],
-      validation: {
-        dateRange: {
-          start: parsedRows.length > 0 ? `${Math.min(...parsedRows.map(r => r.year))}-${String(Math.min(...parsedRows.map(r => r.monthNum))).padStart(2, "0")}-01` : null,
-          end: parsedRows.length > 0 ? `${Math.max(...parsedRows.map(r => r.year))}-${String(Math.max(...parsedRows.map(r => r.monthNum))).padStart(2, "0")}-28` : null,
+      const dates = parsedRows.map(r => r.date).sort();
+      
+      const result = {
+        success: true,
+        reportType: "order_accuracy_summary",
+        format: "daily",
+        dryRun,
+        stats: {
+          totalRows: parsedRows.length,
+          inserted: 0,
+          updated: 0,
+          skipped: skippedDetails.length,
+          errors: 0,
         },
-        restaurants: [{ id: restaurant.id, name: restaurant.name, orderCount: parsedRows.length }],
-        unknownStoreIds: [] as string[],
-        skippedDetails,
-      },
-    };
+        errorDetails: [] as string[],
+        validation: {
+          dateRange: {
+            start: dates[0] || null,
+            end: dates[dates.length - 1] || null,
+          },
+          restaurants: [{ id: restaurant.id, name: restaurant.name, orderCount: parsedRows.length }],
+          unknownStoreIds: [] as string[],
+          skippedDetails,
+        },
+      };
 
-    if (dryRun) {
+      if (dryRun) {
+        return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Insert daily data
+      for (const row of parsedRows) {
+        const { error: upsertError } = await supabase
+          .from("daily_order_accuracy")
+          .upsert({
+            restaurant_id: restaurantId,
+            date: row.date,
+            period_type: "current",
+            incorrect_orders_count: row.incorrect_orders_count,
+            missing_items_count: row.missing_items_count,
+            missing_items_refund: row.missing_items_refund,
+            missing_customization_count: row.missing_customization_count,
+            missing_customization_refund: row.missing_customization_refund,
+            wrong_order_count: row.wrong_order_count,
+            wrong_order_refund: row.wrong_order_refund,
+            incorrect_item_count: row.incorrect_item_count,
+            incorrect_item_refund: row.incorrect_item_refund,
+            total_refund: row.total_refund,
+          }, {
+            onConflict: "restaurant_id,date,period_type",
+          });
+
+        if (upsertError) {
+          console.error("[parse-order-accuracy-summary] Upsert error:", upsertError);
+          result.stats.errors++;
+          result.errorDetails.push(`${row.date}: ${upsertError.message}`);
+        } else {
+          result.stats.inserted++;
+        }
+      }
+
+      console.log(`[parse-order-accuracy-summary] Import complete: ${result.stats.inserted} inserted, ${result.stats.errors} errors`);
+
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+
+    } else {
+      // Parse monthly format (original logic)
+      const parsedRows: ParsedMonthlyRow[] = [];
+      
+      const monthNameToNum: Record<string, number> = {
+        "janvier": 1, "january": 1, "jan": 1,
+        "février": 2, "february": 2, "feb": 2, "fév": 2,
+        "mars": 3, "march": 3, "mar": 3,
+        "avril": 4, "april": 4, "apr": 4, "avr": 4,
+        "mai": 5, "may": 5,
+        "juin": 6, "june": 6, "jun": 6,
+        "juillet": 7, "july": 7, "jul": 7, "juil": 7,
+        "août": 8, "august": 8, "aug": 8, "aout": 8,
+        "septembre": 9, "september": 9, "sep": 9, "sept": 9,
+        "octobre": 10, "october": 10, "oct": 10,
+        "novembre": 11, "november": 11, "nov": 11,
+        "décembre": 12, "december": 12, "dec": 12, "déc": 12,
+      };
+
+      const currentYear = new Date().getFullYear();
+
+      for (let i = headerIndex + 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        if (values.length < 2) continue;
+
+        const monthStr = values[columnMap.month]?.toLowerCase().trim();
+        if (!monthStr) continue;
+
+        // Skip totals row
+        if (monthStr.includes("total") || monthStr.includes("tous")) {
+          skippedDetails.push({ rowIndex: i, reason: "total_row", details: monthStr });
+          continue;
+        }
+
+        const monthNum = monthNameToNum[monthStr];
+        if (!monthNum) {
+          skippedDetails.push({ rowIndex: i, reason: "unknown_month", details: monthStr });
+          continue;
+        }
+
+        // Determine year based on month (if future month, it's previous year)
+        const currentMonth = new Date().getMonth() + 1;
+        const year = monthNum > currentMonth ? currentYear - 1 : currentYear;
+
+        parsedRows.push({
+          year,
+          month: monthNum,
+          incorrect_orders_count: parseNumber(values[columnMap.incorrect_orders]),
+          missing_items_count: parseNumber(values[columnMap.missing_items]),
+          missing_items_refund: parseCurrency(values[columnMap.missing_items_refund]),
+          missing_customization_count: parseNumber(values[columnMap.missing_customization]),
+          missing_customization_refund: parseCurrency(values[columnMap.missing_customization_refund]),
+          wrong_order_count: parseNumber(values[columnMap.wrong_order]),
+          wrong_order_refund: parseCurrency(values[columnMap.wrong_order_refund]),
+          incorrect_item_count: parseNumber(values[columnMap.incorrect_item]),
+          incorrect_item_refund: parseCurrency(values[columnMap.incorrect_item_refund]),
+          total_refund: parseCurrency(values[columnMap.total_refund]),
+        });
+      }
+
+      console.log(`[parse-order-accuracy-summary] Parsed ${parsedRows.length} monthly rows`);
+
+      const result = {
+        success: true,
+        reportType: "order_accuracy_summary",
+        format: "monthly",
+        dryRun,
+        stats: {
+          totalRows: parsedRows.length,
+          inserted: 0,
+          updated: 0,
+          skipped: skippedDetails.length,
+          errors: 0,
+        },
+        errorDetails: [] as string[],
+        validation: {
+          dateRange: {
+            start: parsedRows.length > 0 ? `${Math.min(...parsedRows.map(r => r.year))}-${String(Math.min(...parsedRows.map(r => r.month))).padStart(2, "0")}-01` : null,
+            end: parsedRows.length > 0 ? `${Math.max(...parsedRows.map(r => r.year))}-${String(Math.max(...parsedRows.map(r => r.month))).padStart(2, "0")}-28` : null,
+          },
+          restaurants: [{ id: restaurant.id, name: restaurant.name, orderCount: parsedRows.length }],
+          unknownStoreIds: [] as string[],
+          skippedDetails,
+        },
+      };
+
+      if (dryRun) {
+        return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Insert monthly data
+      for (const row of parsedRows) {
+        const { error: upsertError } = await supabase
+          .from("monthly_order_accuracy")
+          .upsert({
+            restaurant_id: restaurantId,
+            year: row.year,
+            month: row.month,
+            period_type: "current",
+            incorrect_orders_count: row.incorrect_orders_count,
+            missing_items_count: row.missing_items_count,
+            missing_items_refund: row.missing_items_refund,
+            missing_customization_count: row.missing_customization_count,
+            missing_customization_refund: row.missing_customization_refund,
+            wrong_order_count: row.wrong_order_count,
+            wrong_order_refund: row.wrong_order_refund,
+            incorrect_item_count: row.incorrect_item_count,
+            incorrect_item_refund: row.incorrect_item_refund,
+            total_refund: row.total_refund,
+          }, {
+            onConflict: "restaurant_id,year,month,period_type",
+          });
+
+        if (upsertError) {
+          console.error("[parse-order-accuracy-summary] Upsert error:", upsertError);
+          result.stats.errors++;
+          result.errorDetails.push(`Month ${row.month}/${row.year}: ${upsertError.message}`);
+        } else {
+          result.stats.inserted++;
+        }
+      }
+
+      console.log(`[parse-order-accuracy-summary] Import complete: ${result.stats.inserted} inserted, ${result.stats.errors} errors`);
+
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // Insert data
-    for (const row of parsedRows) {
-      const { error: upsertError } = await supabase
-        .from("monthly_order_accuracy")
-        .upsert({
-          restaurant_id: restaurantId,
-          year: row.year,
-          month: row.monthNum,
-          period_type: row.period_type,
-          incorrect_orders_count: row.incorrect_orders_count,
-          missing_items_count: row.missing_items_count,
-          missing_items_refund: row.missing_items_refund,
-          missing_customization_count: row.missing_customization_count,
-          missing_customization_refund: row.missing_customization_refund,
-          wrong_order_count: row.wrong_order_count,
-          wrong_order_refund: row.wrong_order_refund,
-          incorrect_item_count: row.incorrect_item_count,
-          incorrect_item_refund: row.incorrect_item_refund,
-          total_refund: row.total_refund,
-        }, {
-          onConflict: "restaurant_id,year,month,period_type",
-        });
-
-      if (upsertError) {
-        console.error("[parse-order-accuracy-summary] Upsert error:", upsertError);
-        result.stats.errors++;
-        result.errorDetails.push(`Month ${row.monthNum}/${row.year}: ${upsertError.message}`);
-      } else {
-        result.stats.inserted++;
-      }
-    }
-
-    console.log(`[parse-order-accuracy-summary] Import complete: ${result.stats.inserted} inserted, ${result.stats.errors} errors`);
-
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
   } catch (error: any) {
     console.error("[parse-order-accuracy-summary] Error:", error);
     return new Response(

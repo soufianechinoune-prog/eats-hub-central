@@ -352,6 +352,68 @@ export type Database = {
           },
         ]
       }
+      daily_order_accuracy: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          incorrect_item_count: number
+          incorrect_item_refund: number
+          incorrect_orders_count: number
+          missing_customization_count: number
+          missing_customization_refund: number
+          missing_items_count: number
+          missing_items_refund: number
+          period_type: string
+          restaurant_id: string
+          total_refund: number
+          wrong_order_count: number
+          wrong_order_refund: number
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          incorrect_item_count?: number
+          incorrect_item_refund?: number
+          incorrect_orders_count?: number
+          missing_customization_count?: number
+          missing_customization_refund?: number
+          missing_items_count?: number
+          missing_items_refund?: number
+          period_type?: string
+          restaurant_id: string
+          total_refund?: number
+          wrong_order_count?: number
+          wrong_order_refund?: number
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          incorrect_item_count?: number
+          incorrect_item_refund?: number
+          incorrect_orders_count?: number
+          missing_customization_count?: number
+          missing_customization_refund?: number
+          missing_items_count?: number
+          missing_items_refund?: number
+          period_type?: string
+          restaurant_id?: string
+          total_refund?: number
+          wrong_order_count?: number
+          wrong_order_refund?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_order_accuracy_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_revenue: {
         Row: {
           average_basket: number | null
