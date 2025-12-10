@@ -83,6 +83,7 @@ export const ACTION_CATEGORY_COLORS: Record<string, string> = {
   marketing: "#3b82f6", // blue
   menu: "#10b981", // emerald
   operational: "#64748b", // slate
+  events: "#059669", // emerald-600 for religious/cultural events
 };
 
 // Category icons (for reference in tooltips)
@@ -93,4 +94,5 @@ export const ACTION_CATEGORY_LABELS: Record<string, string> = {
   marketing: "Marketing",
   menu: "Menu",
   operational: "Opérations",
+  events: "Événements",
 };
