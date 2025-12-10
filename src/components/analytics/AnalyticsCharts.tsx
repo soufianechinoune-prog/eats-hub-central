@@ -36,6 +36,9 @@ import {
 } from "lucide-react";
 import { ConversionFunnelChart } from "./ConversionFunnelChart";
 import { ConversionLeakyBucket } from "./ConversionLeakyBucket";
+import { ConversionRankingByStage } from "./ConversionRankingByStage";
+import { ConversionScatterPlot } from "./ConversionScatterPlot";
+import { RevenuePerVisitKPI } from "./RevenuePerVisitKPI";
 import {
   LineChart,
   Line,
@@ -2339,16 +2342,69 @@ export function AnalyticsCharts({
       />
       )}
 
-      {/* Leaky Bucket Analysis - Visual representation of funnel losses */}
+      {/* Leaky Bucket Analysis + Revenue per Visit KPI */}
       {showConversion && aggregatedConversionData.length > 0 && (
-        <ConversionLeakyBucket
-          data={{
-            visits: aggregatedConversionData.reduce((sum, d) => sum + d.visits, 0),
-            views: aggregatedConversionData.reduce((sum, d) => sum + d.views, 0),
-            cart: aggregatedConversionData.reduce((sum, d) => sum + d.cart, 0),
-            orders: aggregatedConversionData.reduce((sum, d) => sum + d.orders, 0),
-          }}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <ConversionLeakyBucket
+              data={{
+                visits: aggregatedConversionData.reduce((sum, d) => sum + d.visits, 0),
+                views: aggregatedConversionData.reduce((sum, d) => sum + d.views, 0),
+                cart: aggregatedConversionData.reduce((sum, d) => sum + d.cart, 0),
+                orders: aggregatedConversionData.reduce((sum, d) => sum + d.orders, 0),
+              }}
+            />
+          </div>
+          <div className="flex flex-col gap-4">
+            <RevenuePerVisitKPI
+              visits={aggregatedConversionData.reduce((sum, d) => sum + d.visits, 0)}
+              revenue={aggregatedRevenueData.reduce((sum, d) => sum + d.revenue, 0)}
+              previousVisits={aggregatedConversionData.reduce((sum, d) => sum + d.prevVisits, 0)}
+              previousRevenue={aggregatedRevenueData.reduce((sum, d) => sum + d.prevRevenue, 0)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Multi-restaurant charts - only show when multiple restaurants selected */}
+      {showConversion && selectedRestaurants.length > 1 && conversionData && (
+        (() => {
+          // Calculate per-restaurant data
+          const perRestaurantData = (() => {
+            const restaurantMap: Record<string, { visits: number; views: number; cart: number; orders: number }> = {};
+            
+            conversionData.forEach((item: any) => {
+              const restaurantId = item.restaurant_id;
+              if (!restaurantId) return;
+              
+              if (!restaurantMap[restaurantId]) {
+                restaurantMap[restaurantId] = { visits: 0, views: 0, cart: 0, orders: 0 };
+              }
+              restaurantMap[restaurantId].visits += item.visits || 0;
+              restaurantMap[restaurantId].views += item.menu_views || 0;
+              restaurantMap[restaurantId].cart += item.add_to_cart || 0;
+              restaurantMap[restaurantId].orders += item.orders || 0;
+            });
+            
+            return Object.entries(restaurantMap).map(([restaurantId, data]) => {
+              const restaurant = restaurants.find(r => r.id === restaurantId);
+              return {
+                restaurantId,
+                restaurantName: restaurant?.name || 'Restaurant inconnu',
+                ...data,
+              };
+            }).filter(r => r.visits > 0);
+          })();
+
+          if (perRestaurantData.length < 2) return null;
+
+          return (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ConversionRankingByStage data={perRestaurantData} />
+              <ConversionScatterPlot data={perRestaurantData} />
+            </div>
+          );
+        })()
       )}
       {showConversion && (
       <Card>
