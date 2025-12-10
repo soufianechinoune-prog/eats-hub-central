@@ -102,6 +102,26 @@ interface ImportResult {
   errorDetails: string[];
 }
 
+// Multi-file batch state
+interface BatchFile {
+  file: File;
+  content: string;
+  dateRange: { start: string | null; end: string | null };
+  daysCount: number;
+  status: "pending" | "processing" | "success" | "error";
+  error?: string;
+  result?: ImportResult;
+}
+
+interface BatchResult {
+  totalFiles: number;
+  successFiles: number;
+  errorFiles: number;
+  totalDays: number;
+  dateRangeStart: string | null;
+  dateRangeEnd: string | null;
+}
+
 export default function ReportImport() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -115,7 +135,12 @@ export default function ReportImport() {
   const [isLoading, setIsLoading] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [validationResult, setValidationResult] = useState<ImportResult | null>(null);
-  const [step, setStep] = useState<"upload" | "preview" | "validation" | "importing" | "complete">("upload");
+  const [step, setStep] = useState<"upload" | "preview" | "validation" | "importing" | "complete" | "batch-preview" | "batch-importing" | "batch-complete">("upload");
+  
+  // Multi-file batch state
+  const [batchFiles, setBatchFiles] = useState<BatchFile[]>([]);
+  const [batchProgress, setBatchProgress] = useState(0);
+  const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
 
   // Fetch restaurants for selector
   const { data: restaurants = [] } = useQuery({
@@ -130,6 +155,197 @@ export default function ReportImport() {
       return data || [];
     },
   });
+
+  // Extract date range from conversion CSV content
+  const extractConversionDateRange = (content: string): { start: string | null; end: string | null; daysCount: number } => {
+    const lines = content.split("\n").filter(l => l.trim());
+    let startDateIdx = -1, endDateIdx = -1;
+    
+    // Find header row
+    for (let i = 0; i < Math.min(10, lines.length); i++) {
+      if (lines[i].includes("Date de début") || lines[i].includes("Date de fin")) {
+        const headers = parseCSVLine(lines[i]);
+        startDateIdx = headers.findIndex(h => h.toLowerCase().includes("date de début"));
+        endDateIdx = headers.findIndex(h => h.toLowerCase().includes("date de fin"));
+        
+        // Find first data row with "Cette période"
+        for (let j = i + 1; j < lines.length; j++) {
+          const values = parseCSVLine(lines[j]);
+          if (values.some(v => v.includes("Cette période"))) {
+            const startStr = values[startDateIdx] || null;
+            const endStr = values[endDateIdx] || null;
+            
+            // Parse dates (format: DD/MM/YYYY or YYYY-MM-DD)
+            const parseDate = (str: string | null): string | null => {
+              if (!str) return null;
+              const match = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+              if (match) return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+              const isoMatch = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+              if (isoMatch) return str;
+              return null;
+            };
+            
+            const start = parseDate(startStr);
+            const end = parseDate(endStr);
+            const daysCount = start && end ? Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)) + 1 : 0;
+            
+            return { start, end, daysCount };
+          }
+        }
+        break;
+      }
+    }
+    return { start: null, end: null, daysCount: 0 };
+  };
+
+  // Handle multiple file selection for conversion_funnel
+  const handleMultiFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files).slice(0, 10); // Max 10 files
+    
+    // Validate all are CSV
+    const invalidFile = fileArray.find(f => !f.name.endsWith(".csv"));
+    if (invalidFile) {
+      toast({
+        title: "Format invalide",
+        description: `Le fichier "${invalidFile.name}" n'est pas un CSV`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setImportResult(null);
+    setValidationResult(null);
+    setBatchResult(null);
+
+    // Read all files and extract date ranges
+    const batchFilesPromises = fileArray.map(async (file): Promise<BatchFile> => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const content = event.target?.result as string;
+          const dateRange = extractConversionDateRange(content);
+          resolve({
+            file,
+            content,
+            dateRange: { start: dateRange.start, end: dateRange.end },
+            daysCount: dateRange.daysCount,
+            status: "pending",
+          });
+        };
+        reader.readAsText(file);
+      });
+    });
+
+    const loadedFiles = await Promise.all(batchFilesPromises);
+    
+    // Sort by start date
+    loadedFiles.sort((a, b) => {
+      if (!a.dateRange.start || !b.dateRange.start) return 0;
+      return a.dateRange.start.localeCompare(b.dateRange.start);
+    });
+
+    setBatchFiles(loadedFiles);
+    setStep("batch-preview");
+  };
+
+  // Process batch import
+  const handleBatchImport = async () => {
+    if (!selectedRestaurantId) {
+      toast({
+        title: "Restaurant requis",
+        description: "Veuillez sélectionner un restaurant",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setStep("batch-importing");
+    setIsLoading(true);
+    setBatchProgress(0);
+
+    const results: BatchFile[] = [...batchFiles];
+    let successCount = 0;
+    let errorCount = 0;
+    let totalDays = 0;
+    let minDate: string | null = null;
+    let maxDate: string | null = null;
+
+    for (let i = 0; i < results.length; i++) {
+      results[i].status = "processing";
+      setBatchFiles([...results]);
+
+      try {
+        const { data, error } = await supabase.functions.invoke("parse-conversion-report", {
+          body: {
+            csvContent: results[i].content,
+            restaurantId: selectedRestaurantId,
+            dryRun: false,
+          },
+        });
+
+        if (error) throw error;
+
+        results[i].status = "success";
+        results[i].result = data as ImportResult;
+        successCount++;
+        totalDays += results[i].daysCount;
+
+        // Track min/max dates
+        if (results[i].dateRange.start) {
+          if (!minDate || results[i].dateRange.start < minDate) minDate = results[i].dateRange.start;
+        }
+        if (results[i].dateRange.end) {
+          if (!maxDate || results[i].dateRange.end > maxDate) maxDate = results[i].dateRange.end;
+        }
+
+        // Save import record
+        await supabase.from("csv_imports").insert({
+          file_name: results[i].file.name,
+          file_size: results[i].file.size,
+          report_type: "conversion_funnel",
+          total_rows: data.stats?.totalRows || 0,
+          inserted_count: data.stats?.inserted || 0,
+          updated_count: data.stats?.updated || 0,
+          skipped_count: data.stats?.skipped || 0,
+          error_count: data.stats?.errors || 0,
+          status: "completed",
+          date_range_start: results[i].dateRange.start,
+          date_range_end: results[i].dateRange.end,
+          restaurants_count: 1,
+          restaurant_ids: [selectedRestaurantId],
+        });
+
+      } catch (error: any) {
+        results[i].status = "error";
+        results[i].error = error.message || "Erreur d'import";
+        errorCount++;
+      }
+
+      setBatchFiles([...results]);
+      setBatchProgress(((i + 1) / results.length) * 100);
+    }
+
+    setBatchResult({
+      totalFiles: results.length,
+      successFiles: successCount,
+      errorFiles: errorCount,
+      totalDays,
+      dateRangeStart: minDate,
+      dateRangeEnd: maxDate,
+    });
+
+    setStep("batch-complete");
+    setIsLoading(false);
+
+    toast({
+      title: successCount === results.length ? "Import terminé" : "Import partiel",
+      description: `${successCount}/${results.length} fichiers importés avec succès`,
+      variant: successCount === results.length ? "default" : "destructive",
+    });
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -534,6 +750,9 @@ export default function ReportImport() {
     setImportResult(null);
     setValidationResult(null);
     setSelectedRestaurantId("");
+    setBatchFiles([]);
+    setBatchProgress(0);
+    setBatchResult(null);
     setStep("upload");
   };
 
@@ -710,7 +929,7 @@ export default function ReportImport() {
                   </div>
 
                   {/* Restaurant selector for specific report types */}
-                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "order_accuracy_summary" || reportType === "item_issues_leaderboard") && (
+                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "order_accuracy_summary" || reportType === "item_issues_leaderboard" || reportType === "conversion_funnel") && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Restaurant concerné *</label>
                       <Select value={selectedRestaurantId} onValueChange={setSelectedRestaurantId}>
@@ -729,6 +948,8 @@ export default function ReportImport() {
                       <p className="text-xs text-muted-foreground">
                         {reportType === "marketing_campaigns" 
                           ? "Les fichiers d'offres ne contiennent pas d'identifiant restaurant. Pour les annonces, le restaurant sera auto-détecté si possible."
+                          : reportType === "conversion_funnel"
+                          ? "Le tunnel de conversion ne contient pas d'identifiant restaurant. Sélectionnez celui concerné."
                           : "Ce rapport ne contient pas d'identifiant restaurant, sélectionnez celui concerné."}
                       </p>
                     </div>
@@ -759,7 +980,16 @@ export default function ReportImport() {
                       <AlertDescription>
                         {reportType === "reviews_order" 
                           ? "Fichier restaurant_rating_local.csv - Contient les notes globales (1-5 étoiles) et tags par commande."
-                          : "Fichier restaurant_rating_sku_local.csv - Contient les notes par article (pouce haut/bas) et tags produits."}
+                      : "Fichier restaurant_rating_sku_local.csv - Contient les notes par article (pouce haut/bas) et tags produits."}
+                      </AlertDescription>
+                    </Alert>
+                  ) : reportType === "conversion_funnel" ? (
+                    <Alert className="bg-emerald-500/10 border-emerald-500/20">
+                      <TrendingUp className="h-4 w-4 text-emerald-500" />
+                      <AlertTitle className="text-emerald-600">Tunnel de conversion</AlertTitle>
+                      <AlertDescription>
+                        Fichier user-conversion*.csv - Visites, vues menu, ajouts panier et commandes. 
+                        Importez plusieurs fichiers (max 10) en une seule fois pour gagner du temps.
                       </AlertDescription>
                     </Alert>
                   ) : (
@@ -779,9 +1009,13 @@ export default function ReportImport() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Upload className="h-5 w-5" />
-                    Fichier CSV
+                    {reportType === "conversion_funnel" ? "Fichiers CSV (max 10)" : "Fichier CSV"}
                   </CardTitle>
-                  <CardDescription>Glissez-déposez ou sélectionnez votre fichier</CardDescription>
+                  <CardDescription>
+                    {reportType === "conversion_funnel" 
+                      ? "Sélectionnez plusieurs fichiers de conversion pour les importer en une fois"
+                      : "Glissez-déposez ou sélectionnez votre fichier"}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <label
@@ -793,18 +1027,23 @@ export default function ReportImport() {
                       <p className="mb-2 text-sm text-muted-foreground">
                         <span className="font-semibold">Cliquez pour sélectionner</span> ou glissez-déposez
                       </p>
-                      <p className="text-xs text-muted-foreground">Fichier CSV uniquement</p>
+                      <p className="text-xs text-muted-foreground">
+                        {reportType === "conversion_funnel" 
+                          ? "Fichiers CSV (jusqu'à 10 fichiers)" 
+                          : "Fichier CSV uniquement"}
+                      </p>
                     </div>
                     <input
                       id="csv-upload"
                       type="file"
                       className="hidden"
                       accept=".csv"
-                      onChange={handleFileChange}
+                      multiple={reportType === "conversion_funnel"}
+                      onChange={reportType === "conversion_funnel" ? handleMultiFileChange : handleFileChange}
                     />
                   </label>
 
-                  {file && (
+                  {file && reportType !== "conversion_funnel" && (
                     <div className="mt-4 p-3 bg-muted rounded-lg flex items-center gap-3">
                       <FileSpreadsheet className="h-5 w-5 text-primary" />
                       <div className="flex-1 min-w-0">
@@ -1139,6 +1378,202 @@ export default function ReportImport() {
                     Voir l'historique
                   </Button>
                   <Button onClick={resetImport}>Importer un autre fichier</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Batch preview step for multi-file conversion import */}
+          {step === "batch-preview" && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileSpreadsheet className="h-5 w-5" />
+                      {batchFiles.length} fichiers sélectionnés
+                    </CardTitle>
+                    <CardDescription>
+                      Vérifiez les périodes détectées avant d'importer
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-muted-foreground">Restaurant :</span>
+                    <Select value={selectedRestaurantId} onValueChange={setSelectedRestaurantId}>
+                      <SelectTrigger className={`w-[280px] ${!selectedRestaurantId ? 'border-destructive ring-1 ring-destructive' : ''}`}>
+                        <SelectValue placeholder="Sélectionner un restaurant *" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {restaurants?.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.name} {r.city && `(${r.city})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <Badge variant="outline" className="text-sm">
+                    {batchFiles.reduce((acc, f) => acc + f.daysCount, 0)} jours au total
+                  </Badge>
+                  {batchFiles.length > 0 && batchFiles[0].dateRange.start && batchFiles[batchFiles.length - 1].dateRange.end && (
+                    <Badge variant="secondary" className="text-sm">
+                      {formatDate(batchFiles[0].dateRange.start)} → {formatDate(batchFiles[batchFiles.length - 1].dateRange.end)}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="border rounded-lg overflow-auto max-h-[400px]">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background">
+                      <TableRow>
+                        <TableHead className="w-8">#</TableHead>
+                        <TableHead>Fichier</TableHead>
+                        <TableHead>Période</TableHead>
+                        <TableHead className="text-center">Jours</TableHead>
+                        <TableHead className="text-center">Statut</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {batchFiles.map((bf, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{idx + 1}</TableCell>
+                          <TableCell className="font-medium text-sm">{bf.file.name}</TableCell>
+                          <TableCell className="text-sm">
+                            {bf.dateRange.start && bf.dateRange.end 
+                              ? `${formatDate(bf.dateRange.start)} → ${formatDate(bf.dateRange.end)}`
+                              : <span className="text-muted-foreground">Non détectée</span>
+                            }
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline">{bf.daysCount || "?"}</Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {bf.status === "pending" && <Badge variant="secondary">En attente</Badge>}
+                            {bf.status === "processing" && <Badge className="bg-blue-500">En cours...</Badge>}
+                            {bf.status === "success" && <Badge className="bg-green-500">✓ OK</Badge>}
+                            {bf.status === "error" && <Badge variant="destructive">Erreur</Badge>}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={resetImport}>
+                    Annuler
+                  </Button>
+                  <Button 
+                    onClick={handleBatchImport} 
+                    disabled={!selectedRestaurantId || isLoading}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    Importer les {batchFiles.length} fichiers
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Batch importing step */}
+          {step === "batch-importing" && (
+            <Card>
+              <CardContent className="py-12">
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                  <div className="text-center">
+                    <h3 className="text-lg font-medium">Import en cours...</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Traitement de {batchFiles.filter(f => f.status === "success").length + 1}/{batchFiles.length} fichiers
+                    </p>
+                  </div>
+                  <Progress value={batchProgress} className="w-64" />
+                  
+                  {/* Live status */}
+                  <div className="mt-4 w-full max-w-md space-y-2">
+                    {batchFiles.map((bf, idx) => (
+                      <div key={idx} className={`flex items-center gap-2 text-sm ${bf.status === "processing" ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                        {bf.status === "pending" && <div className="w-4 h-4 rounded-full border-2" />}
+                        {bf.status === "processing" && <Loader2 className="h-4 w-4 animate-spin" />}
+                        {bf.status === "success" && <CheckCircle className="h-4 w-4 text-green-500" />}
+                        {bf.status === "error" && <XCircle className="h-4 w-4 text-destructive" />}
+                        <span className="truncate">{bf.file.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Batch complete step */}
+          {step === "batch-complete" && batchResult && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  {batchResult.errorFiles === 0 ? (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  )}
+                  {batchResult.errorFiles === 0 ? "Import terminé avec succès" : "Import terminé avec erreurs"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-4 bg-muted rounded-lg text-center">
+                    <p className="text-2xl font-bold">{batchResult.totalFiles}</p>
+                    <p className="text-sm text-muted-foreground">Fichiers traités</p>
+                  </div>
+                  <div className="p-4 bg-green-500/10 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-green-600">{batchResult.successFiles}</p>
+                    <p className="text-sm text-muted-foreground">Réussis</p>
+                  </div>
+                  <div className="p-4 bg-red-500/10 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-red-600">{batchResult.errorFiles}</p>
+                    <p className="text-sm text-muted-foreground">Erreurs</p>
+                  </div>
+                  <div className="p-4 bg-blue-500/10 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-blue-600">{batchResult.totalDays}</p>
+                    <p className="text-sm text-muted-foreground">Jours importés</p>
+                  </div>
+                </div>
+
+                {batchResult.dateRangeStart && batchResult.dateRangeEnd && (
+                  <Alert className="bg-primary/5 border-primary/20">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <AlertTitle className="text-primary">Période couverte</AlertTitle>
+                    <AlertDescription>
+                      Du {formatDate(batchResult.dateRangeStart)} au {formatDate(batchResult.dateRangeEnd)}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Error details */}
+                {batchFiles.filter(f => f.status === "error").length > 0 && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Fichiers en erreur</AlertTitle>
+                    <AlertDescription>
+                      <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                        {batchFiles.filter(f => f.status === "error").map((bf, idx) => (
+                          <li key={idx}>{bf.file.name}: {bf.error}</li>
+                        ))}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => setActiveTab("history")}>
+                    <History className="h-4 w-4 mr-2" />
+                    Voir l'historique
+                  </Button>
+                  <Button onClick={resetImport}>Importer d'autres fichiers</Button>
                 </div>
               </CardContent>
             </Card>
