@@ -154,7 +154,7 @@ export function ConversionRankingByStage({
                   <TooltipProvider>
                     <UITooltip>
                       <TooltipTrigger asChild>
-                        <span className="text-sm font-medium truncate max-w-[150px] cursor-help">
+                        <span className="text-sm font-medium truncate max-w-[280px] cursor-help">
                           {restaurant.restaurantName}
                         </span>
                       </TooltipTrigger>
