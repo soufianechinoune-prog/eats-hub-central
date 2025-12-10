@@ -166,6 +166,7 @@ interface RestaurantAction {
   action_type: string;
   title: string;
   start_date: string;
+  end_date?: string;
   platform: string;
 }
 
@@ -219,6 +220,7 @@ const ACTION_CATEGORY_COLORS: Record<string, string> = {
   marketing: "#3b82f6",
   menu: "#10b981",
   operational: "#64748b",
+  events: "#059669",
 };
 
 const ACTION_CATEGORY_ICONS: Record<string, any> = {
@@ -237,6 +239,7 @@ const ACTION_CATEGORY_LABELS: Record<string, string> = {
   marketing: "Marketing",
   menu: "Menu",
   operational: "Opérations",
+  events: "Événements",
 };
 
 // Helper to calculate variation percentage
@@ -553,25 +556,61 @@ export function AnalyticsCharts({
     return actions.filter(a => selectedCategories.has(a.category));
   }, [actions, selectedCategories]);
 
-  // Group actions by month for reference lines (using filtered actions)
+  // Separate punctual actions from period events (events with start_date and end_date)
+  const { punctualActions, periodEvents } = useMemo(() => {
+    const punctual: RestaurantAction[] = [];
+    const periods: RestaurantAction[] = [];
+    
+    filteredActions.forEach(action => {
+      // Events category with both start and end date are period events
+      if (action.category === "events" && action.end_date) {
+        periods.push(action);
+      } else {
+        punctual.push(action);
+      }
+    });
+    
+    return { punctualActions: punctual, periodEvents: periods };
+  }, [filteredActions]);
+
+  // Group punctual actions by month for reference lines
   const actionsByMonth = useMemo(() => {
-    if (!filteredActions || filteredActions.length === 0) return {};
+    if (!punctualActions || punctualActions.length === 0) return {};
     
     const byMonth: Record<number, RestaurantAction[]> = {};
-    filteredActions.forEach(action => {
+    punctualActions.forEach(action => {
       const month = new Date(action.start_date).getMonth() + 1;
       if (!byMonth[month]) byMonth[month] = [];
       byMonth[month].push(action);
     });
     return byMonth;
-  }, [filteredActions]);
+  }, [punctualActions]);
 
-  // Get unique months with actions within the range
+  // Get unique months with punctual actions within the range
   const actionMonths = useMemo(() => {
     return Object.keys(actionsByMonth)
       .map(Number)
       .filter(m => m >= startMonth && m <= endMonth);
   }, [actionsByMonth, startMonth, endMonth]);
+
+  // Period events data for ReferenceArea rendering
+  const periodEventsData = useMemo(() => {
+    return periodEvents.map(event => {
+      const startMonth = new Date(event.start_date).getMonth();
+      const endMonth = event.end_date ? new Date(event.end_date).getMonth() : startMonth;
+      return {
+        ...event,
+        x1: MONTHS[startMonth],
+        x2: MONTHS[endMonth],
+        color: ACTION_CATEGORY_COLORS[event.category] || "#059669",
+      };
+    }).filter(e => {
+      // Filter to events within the displayed range
+      const startMonthNum = new Date(e.start_date).getMonth() + 1;
+      const endMonthNum = e.end_date ? new Date(e.end_date).getMonth() + 1 : startMonthNum;
+      return startMonthNum <= endMonth && endMonthNum >= startMonth;
+    });
+  }, [periodEvents, startMonth, endMonth]);
 
   // Helper to check if actions should be shown for a specific chart
   const shouldShowActionsForChart = (chartKey: keyof Omit<ChartActionsConfig, "global">) => {
@@ -1754,7 +1793,27 @@ export function AnalyticsCharts({
                             );
                           }}
                         />
-                        {/* Action markers (only in year view) */}
+                        {/* Period events as ReferenceArea (e.g., Ramadan) */}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && periodEventsData.map(event => (
+                          <ReferenceArea
+                            key={`period-${event.id}`}
+                            x1={event.x1}
+                            x2={event.x2}
+                            fill={event.color}
+                            fillOpacity={0.15}
+                            stroke={event.color}
+                            strokeOpacity={0.4}
+                            strokeDasharray="4 4"
+                            label={{
+                              value: event.title,
+                              position: 'insideTop',
+                              fill: event.color,
+                              fontSize: 10,
+                              fontWeight: 500,
+                            }}
+                          />
+                        ))}
+                        {/* Punctual action markers (only in year view) */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
                           const monthActions = actionsByMonth[monthNum] || [];
                           const primaryAction = monthActions[0];
@@ -1862,7 +1921,27 @@ export function AnalyticsCharts({
                             );
                           }}
                         />
-                        {/* Action markers (only in year view) */}
+                        {/* Period events as ReferenceArea (e.g., Ramadan) */}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && periodEventsData.map(event => (
+                          <ReferenceArea
+                            key={`period-${event.id}`}
+                            x1={event.x1}
+                            x2={event.x2}
+                            fill={event.color}
+                            fillOpacity={0.15}
+                            stroke={event.color}
+                            strokeOpacity={0.4}
+                            strokeDasharray="4 4"
+                            label={{
+                              value: event.title,
+                              position: 'insideTop',
+                              fill: event.color,
+                              fontSize: 10,
+                              fontWeight: 500,
+                            }}
+                          />
+                        ))}
+                        {/* Punctual action markers (only in year view) */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
                           const monthActions = actionsByMonth[monthNum] || [];
                           const primaryAction = monthActions[0];
@@ -2021,6 +2100,19 @@ export function AnalyticsCharts({
                   }}
                   formatter={(value: number) => [value.toLocaleString('fr-FR'), 'Commandes']}
                 />
+                {/* Period events as ReferenceArea */}
+                {shouldShowActionsForChart("revenue") && periodEventsData.map(event => (
+                  <ReferenceArea
+                    key={`period-orders-${event.id}`}
+                    x1={event.x1}
+                    x2={event.x2}
+                    fill={event.color}
+                    fillOpacity={0.15}
+                    stroke={event.color}
+                    strokeOpacity={0.4}
+                    strokeDasharray="4 4"
+                  />
+                ))}
                 {/* Action markers */}
                 {shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
@@ -2201,6 +2293,19 @@ export function AnalyticsCharts({
                     animationEasing={CHART_ANIMATION_EASING}
                   />
                 )}
+                {/* Period events as ReferenceArea */}
+                {shouldShowActionsForChart("avgBasket") && periodEventsData.map(event => (
+                  <ReferenceArea
+                    key={`period-avgbasket-${event.id}`}
+                    x1={event.x1}
+                    x2={event.x2}
+                    fill={event.color}
+                    fillOpacity={0.15}
+                    stroke={event.color}
+                    strokeOpacity={0.4}
+                    strokeDasharray="4 4"
+                  />
+                ))}
                 {/* Action markers */}
                 {shouldShowActionsForChart("avgBasket") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
@@ -2450,6 +2555,19 @@ export function AnalyticsCharts({
                   }}
                 />
                 <Legend />
+                {/* Period events as ReferenceArea */}
+                {shouldShowActionsForChart("conversionRate") && periodEventsData.map(event => (
+                  <ReferenceArea
+                    key={`period-conv-${event.id}`}
+                    x1={event.x1}
+                    x2={event.x2}
+                    fill={event.color}
+                    fillOpacity={0.15}
+                    stroke={event.color}
+                    strokeOpacity={0.4}
+                    strokeDasharray="4 4"
+                  />
+                ))}
                 {/* Action markers */}
                 {shouldShowActionsForChart("conversionRate") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
@@ -2642,6 +2760,19 @@ export function AnalyticsCharts({
                   }}
                   formatter={(value: number, name: string) => [value.toLocaleString('fr-FR') + ' €', name]}
                 />
+                {/* Period events as ReferenceArea */}
+                {shouldShowActionsForChart("fees") && periodEventsData.map(event => (
+                  <ReferenceArea
+                    key={`period-fees-${event.id}`}
+                    x1={event.x1}
+                    x2={event.x2}
+                    fill={event.color}
+                    fillOpacity={0.15}
+                    stroke={event.color}
+                    strokeOpacity={0.4}
+                    strokeDasharray="4 4"
+                  />
+                ))}
                 {/* Action markers */}
                 {shouldShowActionsForChart("fees") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
@@ -2712,6 +2843,19 @@ export function AnalyticsCharts({
                   }}
                   formatter={(value: number, name: string) => [value.toLocaleString('fr-FR') + ' €', name]}
                 />
+                {/* Period events as ReferenceArea */}
+                {shouldShowActionsForChart("netPayout") && periodEventsData.map(event => (
+                  <ReferenceArea
+                    key={`period-net-${event.id}`}
+                    x1={event.x1}
+                    x2={event.x2}
+                    fill={event.color}
+                    fillOpacity={0.15}
+                    stroke={event.color}
+                    strokeOpacity={0.4}
+                    strokeDasharray="4 4"
+                  />
+                ))}
                 {/* Action markers */}
                 {shouldShowActionsForChart("netPayout") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
@@ -2788,6 +2932,20 @@ export function AnalyticsCharts({
                     return [value.toLocaleString('fr-FR') + ' €', name];
                   }}
                 />
+                {/* Period events as ReferenceArea */}
+                {shouldShowActionsForChart("profitability") && periodEventsData.map(event => (
+                  <ReferenceArea
+                    key={`period-profit-${event.id}`}
+                    x1={event.x1}
+                    x2={event.x2}
+                    yAxisId="left"
+                    fill={event.color}
+                    fillOpacity={0.15}
+                    stroke={event.color}
+                    strokeOpacity={0.4}
+                    strokeDasharray="4 4"
+                  />
+                ))}
                 {/* Action markers */}
                 {shouldShowActionsForChart("profitability") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
