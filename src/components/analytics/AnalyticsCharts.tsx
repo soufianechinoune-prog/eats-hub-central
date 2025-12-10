@@ -35,6 +35,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { ConversionFunnelChart } from "./ConversionFunnelChart";
+import { ConversionLeakyBucket } from "./ConversionLeakyBucket";
 import {
   LineChart,
   Line,
@@ -2338,7 +2339,17 @@ export function AnalyticsCharts({
       />
       )}
 
-      {/* Conversion Rate Chart with N-1 */}
+      {/* Leaky Bucket Analysis - Visual representation of funnel losses */}
+      {showConversion && aggregatedConversionData.length > 0 && (
+        <ConversionLeakyBucket
+          data={{
+            visits: aggregatedConversionData.reduce((sum, d) => sum + d.visits, 0),
+            views: aggregatedConversionData.reduce((sum, d) => sum + d.views, 0),
+            cart: aggregatedConversionData.reduce((sum, d) => sum + d.cart, 0),
+            orders: aggregatedConversionData.reduce((sum, d) => sum + d.orders, 0),
+          }}
+        />
+      )}
       {showConversion && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
