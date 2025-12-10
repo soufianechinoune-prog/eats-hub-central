@@ -41,7 +41,7 @@ import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 
 interface OrderAccuracyDashboardProps {
-  selectedRestaurant: string;
+  selectedRestaurants: string[];
   selectedYear: number;
   selectedMonth: number | "all";
   restaurants: Array<{ id: string; name: string }>;
@@ -55,17 +55,20 @@ const ERROR_TYPE_COLORS: Record<string, string> = {
 };
 
 export function OrderAccuracyDashboard({
-  selectedRestaurant,
+  selectedRestaurants,
   selectedYear,
   selectedMonth,
   restaurants,
 }: OrderAccuracyDashboardProps) {
+  // Determine if we're selecting all or specific restaurants
+  const isAllRestaurants = selectedRestaurants.length === 0;
+  const restaurantIds = isAllRestaurants ? restaurants.map(r => r.id) : selectedRestaurants;
   const [objective, setObjective] = useState(2);
   const [chartType, setChartType] = useState<"line" | "bar">("bar");
 
   // Fetch daily order accuracy data (new format)
   const { data: dailyAccuracy, isLoading: isLoadingDaily } = useQuery({
-    queryKey: ["daily-order-accuracy", selectedRestaurant, selectedYear],
+    queryKey: ["daily-order-accuracy", restaurantIds, selectedYear],
     queryFn: async () => {
       const startDate = `${selectedYear}-01-01`;
       const endDate = `${selectedYear}-12-31`;
@@ -78,8 +81,8 @@ export function OrderAccuracyDashboard({
         .eq("period_type", "current")
         .order("date", { ascending: true });
 
-      if (selectedRestaurant !== "all") {
-        query = query.eq("restaurant_id", selectedRestaurant);
+      if (!isAllRestaurants && restaurantIds.length > 0) {
+        query = query.in("restaurant_id", restaurantIds);
       }
 
       const { data, error } = await query;
@@ -93,7 +96,7 @@ export function OrderAccuracyDashboard({
 
   // Fallback: fetch monthly order accuracy (old format)
   const { data: monthlyAccuracy, isLoading: isLoadingMonthly } = useQuery({
-    queryKey: ["monthly-order-accuracy", selectedRestaurant, selectedYear],
+    queryKey: ["monthly-order-accuracy", restaurantIds, selectedYear],
     queryFn: async () => {
       let query = supabase
         .from("monthly_order_accuracy")
@@ -102,8 +105,8 @@ export function OrderAccuracyDashboard({
         .eq("period_type", "current")
         .order("month", { ascending: true });
 
-      if (selectedRestaurant !== "all") {
-        query = query.eq("restaurant_id", selectedRestaurant);
+      if (!isAllRestaurants && restaurantIds.length > 0) {
+        query = query.in("restaurant_id", restaurantIds);
       }
 
       const { data, error } = await query;
@@ -117,7 +120,7 @@ export function OrderAccuracyDashboard({
 
   // Fetch product issues ranking
   const { data: productIssues, isLoading: isLoadingProducts } = useQuery({
-    queryKey: ["product-issues-ranking", selectedRestaurant, selectedYear],
+    queryKey: ["product-issues-ranking", restaurantIds, selectedYear],
     queryFn: async () => {
       let query = supabase
         .from("product_issues_ranking")
@@ -126,8 +129,8 @@ export function OrderAccuracyDashboard({
         .order("volume", { ascending: false })
         .limit(10);
 
-      if (selectedRestaurant !== "all") {
-        query = query.eq("restaurant_id", selectedRestaurant);
+      if (!isAllRestaurants && restaurantIds.length > 0) {
+        query = query.in("restaurant_id", restaurantIds);
       }
 
       const { data, error } = await query;
@@ -141,12 +144,8 @@ export function OrderAccuracyDashboard({
 
   // Fetch sales data for error rate calculation
   const { data: salesData } = useQuery({
-    queryKey: ["sales-for-error-rate", selectedRestaurant, selectedYear, restaurants],
+    queryKey: ["sales-for-error-rate", restaurantIds, selectedYear],
     queryFn: async () => {
-      const restaurantIds = selectedRestaurant === "all" 
-        ? restaurants.map(r => r.id)
-        : [selectedRestaurant];
-      
       const { data, error } = await supabase.rpc("get_monthly_sales_from_daily", {
         p_year: selectedYear,
         p_restaurant_ids: restaurantIds,

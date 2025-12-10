@@ -137,7 +137,7 @@ const Operations = () => {
 
         <TabsContent value="order-accuracy">
           <OrderAccuracyDashboard
-            selectedRestaurant={selectedRestaurant}
+            selectedRestaurants={selectedRestaurant === "all" ? [] : [selectedRestaurant]}
             selectedYear={selectedYear}
             selectedMonth={selectedMonth}
             restaurants={restaurants || []}

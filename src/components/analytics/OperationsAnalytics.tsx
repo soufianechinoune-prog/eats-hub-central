@@ -524,7 +524,7 @@ export function OperationsAnalytics() {
 
         <TabsContent value="orderErrors" className="mt-6">
           <OrderAccuracyDashboard
-            selectedRestaurant={selectedRestaurants.length > 0 ? selectedRestaurants[0] : "all"}
+            selectedRestaurants={selectedRestaurants}
             selectedYear={selectedYear}
             selectedMonth={periodMode === "year" ? "all" : selectedMonth}
             restaurants={restaurants || []}
