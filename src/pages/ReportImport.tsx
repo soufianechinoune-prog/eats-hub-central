@@ -669,8 +669,8 @@ export default function ReportImport() {
                     </SelectContent>
                   </Select>
 
-                  {/* Restaurant selector for Sales Over Time and Marketing Campaigns */}
-                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns") && (
+                  {/* Restaurant selector for specific report types */}
+                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "order_accuracy_summary" || reportType === "item_issues_leaderboard") && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Restaurant concerné *</label>
                       <Select value={selectedRestaurantId} onValueChange={setSelectedRestaurantId}>
