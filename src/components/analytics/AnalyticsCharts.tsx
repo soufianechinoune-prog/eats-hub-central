@@ -283,9 +283,11 @@ function ChartActionToggle({
   onChange: (config: ChartActionsConfig) => void;
   hasActions: boolean;
 }) {
-  if (!config.global || !hasActions) return null;
+  // Always hide if global toggle is off
+  if (!config.global) return null;
 
   const isActive = config[chartKey];
+  const isDisabled = !hasActions;
   
   return (
     <TooltipProvider>
@@ -294,20 +296,27 @@ function ChartActionToggle({
           <Button
             variant="ghost"
             size="sm"
+            disabled={isDisabled}
             className={cn(
               "h-7 w-7 p-0 rounded-full transition-colors",
-              isActive 
-                ? "bg-primary/10 text-primary hover:bg-primary/20" 
-                : "bg-muted/50 text-muted-foreground hover:bg-muted"
+              isDisabled
+                ? "bg-muted/30 text-muted-foreground/50 cursor-not-allowed opacity-50"
+                : isActive 
+                  ? "bg-primary/10 text-primary hover:bg-primary/20" 
+                  : "bg-muted/50 text-muted-foreground hover:bg-muted"
             )}
-            onClick={() => onChange({ ...config, [chartKey]: !isActive })}
+            onClick={() => !isDisabled && onChange({ ...config, [chartKey]: !isActive })}
           >
-            <Zap className={cn("h-3.5 w-3.5", isActive && "fill-primary")} />
+            <Zap className={cn("h-3.5 w-3.5", !isDisabled && isActive && "fill-primary")} />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="left">
           <p className="text-xs">
-            {isActive ? "Masquer les actions" : "Afficher les actions"}
+            {isDisabled 
+              ? "Aucune action enregistrée pour cette période"
+              : isActive 
+                ? "Masquer les actions" 
+                : "Afficher les actions"}
           </p>
         </TooltipContent>
       </UITooltip>
