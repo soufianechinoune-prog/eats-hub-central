@@ -28,6 +28,7 @@ interface RestaurantConversionData {
 interface ConversionRankingByStageProps {
   data: RestaurantConversionData[];
   className?: string;
+  highlightedRestaurants?: string[];
 }
 
 type StageKey = "visits" | "views" | "cart" | "orders" | "conversionRate";
@@ -43,6 +44,7 @@ const STAGES: { key: StageKey; label: string; icon: React.ElementType; color: st
 export function ConversionRankingByStage({
   data,
   className,
+  highlightedRestaurants = [],
 }: ConversionRankingByStageProps) {
   const [selectedStage, setSelectedStage] = useState<StageKey>("conversionRate");
 
@@ -127,6 +129,7 @@ export function ConversionRankingByStage({
         {rankings.map((restaurant, index) => {
           const barWidth = maxValue > 0 ? (restaurant.value / maxValue) * 100 : 0;
           const isTop3 = index < 3;
+          const isHighlighted = highlightedRestaurants.includes(restaurant.restaurantId);
 
           return (
             <motion.div
@@ -135,8 +138,9 @@ export function ConversionRankingByStage({
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.05, duration: 0.2 }}
               className={cn(
-                "flex items-center gap-3 py-1.5",
-                isTop3 && "bg-muted/30 -mx-2 px-2 rounded-lg"
+                "flex items-center gap-3 py-1.5 transition-all",
+                isTop3 && "bg-muted/30 -mx-2 px-2 rounded-lg",
+                isHighlighted && "bg-primary/10 border-l-4 border-primary -mx-2 px-2 rounded-r-lg"
               )}
             >
               {/* Rank medal */}

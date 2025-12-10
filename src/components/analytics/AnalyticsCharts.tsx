@@ -202,6 +202,7 @@ interface AnalyticsChartsProps {
   viewMode?: "all" | "revenue" | "conversion" | "finances";
   restaurants?: { id: string; name: string; city?: string }[];
   selectedRestaurants?: string[];
+  allConversionData?: MonthlyConversion[];
   granularity?: "daily" | "weekly" | "monthly";
   comparisonMode?: "yearOverYear" | "rollingPeriod";
   onComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
@@ -465,6 +466,7 @@ export function AnalyticsCharts({
   viewMode = "all",
   restaurants = [],
   selectedRestaurants = [],
+  allConversionData,
   granularity = "monthly",
   comparisonMode = "yearOverYear",
   onComparisonModeChange,
@@ -2526,14 +2528,14 @@ export function AnalyticsCharts({
       </Card>
       )}
 
-      {/* Multi-restaurant charts - only show when multiple restaurants selected */}
-      {showConversion && selectedRestaurants.length > 1 && conversionData && (
+      {/* Restaurant ranking charts - always show to see position even with single restaurant */}
+      {showConversion && allConversionData && allConversionData.length > 0 && (
         (() => {
-          // Calculate per-restaurant data
+          // Calculate per-restaurant data from ALL restaurants
           const perRestaurantData = (() => {
             const restaurantMap: Record<string, { visits: number; views: number; cart: number; orders: number }> = {};
             
-            conversionData.forEach((item: any) => {
+            allConversionData.forEach((item: any) => {
               const restaurantId = item.restaurant_id;
               if (!restaurantId) return;
               
@@ -2551,6 +2553,7 @@ export function AnalyticsCharts({
               return {
                 restaurantId,
                 restaurantName: restaurant?.name || 'Restaurant inconnu',
+                isSelected: selectedRestaurants.includes(restaurantId),
                 ...data,
               };
             }).filter(r => r.visits > 0);
@@ -2560,8 +2563,14 @@ export function AnalyticsCharts({
 
           return (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <ConversionRankingByStage data={perRestaurantData} />
-              <ConversionScatterPlot data={perRestaurantData} />
+              <ConversionRankingByStage 
+                data={perRestaurantData} 
+                highlightedRestaurants={selectedRestaurants}
+              />
+              <ConversionScatterPlot 
+                data={perRestaurantData}
+                highlightedRestaurants={selectedRestaurants}
+              />
             </div>
           );
         })()
