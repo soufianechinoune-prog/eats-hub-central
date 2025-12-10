@@ -224,6 +224,12 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
+      // Check for order accuracy summary headers (daily or monthly)
+      if ((lines[i].includes("Jour") || lines[i].includes("Mois")) && 
+          (lines[i].includes("Commandes incorrectes") || lines[i].includes("Articles manquants"))) {
+        headerRowIndex = i;
+        break;
+      }
     }
 
     if (headerRowIndex === -1) {
