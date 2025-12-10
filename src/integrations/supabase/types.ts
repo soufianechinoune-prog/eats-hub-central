@@ -301,6 +301,7 @@ export type Database = {
           created_at: string
           date: string
           id: string
+          is_averaged: boolean | null
           menu_views: number
           orders: number
           overall_rate: number | null
@@ -317,6 +318,7 @@ export type Database = {
           created_at?: string
           date: string
           id?: string
+          is_averaged?: boolean | null
           menu_views?: number
           orders?: number
           overall_rate?: number | null
@@ -333,6 +335,7 @@ export type Database = {
           created_at?: string
           date?: string
           id?: string
+          is_averaged?: boolean | null
           menu_views?: number
           orders?: number
           overall_rate?: number | null

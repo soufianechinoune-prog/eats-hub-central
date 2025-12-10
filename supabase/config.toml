@@ -86,3 +86,6 @@ verify_jwt = false
 
 [functions.parse-item-issues-leaderboard]
 verify_jwt = false
+
+[functions.parse-conversion-report]
+verify_jwt = false
