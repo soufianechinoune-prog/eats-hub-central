@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -641,35 +641,62 @@ export default function ReportImport() {
                   <CardDescription>Sélectionnez le type de rapport que vous importez</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Select value={reportType} onValueChange={(value) => {
-                    setReportType(value);
-                    setSelectedRestaurantId("");
-                  }}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REPORT_THEMES.map((theme) => (
-                        <div key={theme.id}>
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 flex items-center gap-2">
-                            <theme.icon className="h-3.5 w-3.5" />
-                            {theme.label}
+                  <div className="flex gap-2">
+                    <Select value={reportType} onValueChange={(value) => {
+                      setReportType(value);
+                      setSelectedRestaurantId("");
+                    }}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REPORT_THEMES.map((theme) => (
+                          <div key={theme.id}>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 flex items-center gap-2">
+                              <theme.icon className="h-3.5 w-3.5" />
+                              {theme.label}
+                            </div>
+                            {theme.types.map((type) => (
+                              <SelectItem key={type.value} value={type.value} className="pl-6">
+                                <div className="flex flex-col">
+                                  <span className="flex items-center gap-2">
+                                    {type.icon && <type.icon className="h-4 w-4 text-primary" />}
+                                    {type.label}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">{type.description}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
                           </div>
-                          {theme.types.map((type) => (
-                            <SelectItem key={type.value} value={type.value} className="pl-6">
-                              <div className="flex flex-col">
-                                <span className="flex items-center gap-2">
-                                  {type.icon && <type.icon className="h-4 w-4 text-primary" />}
-                                  {type.label}
-                                </span>
-                                <span className="text-xs text-muted-foreground">{type.description}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </div>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        // Map report type to guide section ID
+                        const guideMap: Record<string, string> = {
+                          sales_over_time: "sales-over-time",
+                          payment_order_level: "payment-orders",
+                          payment_item_level: "payment-items",
+                          payout_summary: "payout-summary",
+                          marketing_campaigns: "marketing-campaigns",
+                          reviews_order: "reviews-order",
+                          reviews_item: "reviews-item",
+                          downtime_report: "downtime-report",
+                          order_history: "order-history",
+                          order_accuracy_summary: "order-accuracy-summary",
+                          item_issues_leaderboard: "item-issues-leaderboard",
+                        };
+                        const sectionId = guideMap[reportType] || "";
+                        navigate(`/import-guide#${sectionId}`);
+                      }}
+                      title="Voir le tutoriel pour ce type de rapport"
+                    >
+                      <HelpCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
 
                   {/* Restaurant selector for specific report types */}
                   {(reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "order_accuracy_summary" || reportType === "item_issues_leaderboard") && (
