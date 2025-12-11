@@ -39,8 +39,10 @@ import {
   Plus,
   Package,
   Euro,
+  BarChart3,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
+import { PriceDecompositionMini } from "./PriceDecompositionBar";
 
 interface MenuItem {
   id: string;
@@ -431,11 +433,17 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                     <TableHead className="font-semibold text-center">
                       <div className="flex items-center justify-center gap-1">
                         <Euro className="h-4 w-4 text-primary" />
-                        Food Cost
+                        Food Cost HT
                       </div>
                     </TableHead>
                     <TableHead className="font-semibold text-center">Marge Uber</TableHead>
                     <TableHead className="font-semibold text-center">Marge Deliveroo</TableHead>
+                    <TableHead className="font-semibold text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <BarChart3 className="h-4 w-4 text-primary" />
+                        Décomposition
+                      </div>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -508,6 +516,23 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                           <Badge className={getMarginBadgeClass(marginDeliveroo)}>
                             {marginDeliveroo !== null ? `${marginDeliveroo.toFixed(1)}%` : "-"}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {item.price_uber ? (
+                            <PriceDecompositionMini
+                              priceTTC={item.price_uber}
+                              foodCostHT={item.food_cost}
+                              platform="uber"
+                            />
+                          ) : item.price_deliveroo ? (
+                            <PriceDecompositionMini
+                              priceTTC={item.price_deliveroo}
+                              foodCostHT={item.food_cost}
+                              platform="deliveroo"
+                            />
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
                         </TableCell>
                       </motion.tr>
                     );
@@ -597,7 +622,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
             <div className="grid gap-2">
               <Label htmlFor="new-food-cost" className="flex items-center gap-1">
                 <Calculator className="h-4 w-4 text-primary" />
-                Food Cost (€)
+                Food Cost HT (€)
               </Label>
               <Input
                 id="new-food-cost"
@@ -606,7 +631,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                 min="0"
                 value={newProduct.food_cost}
                 onChange={(e) => setNewProduct({ ...newProduct, food_cost: e.target.value })}
-                placeholder="0.00"
+                placeholder="Coût matière hors taxes"
               />
             </div>
           </div>
