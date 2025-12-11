@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { PriceDecompositionMini } from "./PriceDecompositionBar";
+import { PriceDecompositionDetail } from "./PriceDecompositionDetail";
 
 interface MenuItem {
   id: string;
@@ -92,6 +93,8 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<MenuItem | null>(null);
+  const [isDecompositionOpen, setIsDecompositionOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({
     name: "",
     category: "",
@@ -518,21 +521,29 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {item.price_uber ? (
-                            <PriceDecompositionMini
-                              priceTTC={item.price_uber}
-                              foodCostHT={item.food_cost}
-                              platform="uber"
-                            />
-                          ) : item.price_deliveroo ? (
-                            <PriceDecompositionMini
-                              priceTTC={item.price_deliveroo}
-                              foodCostHT={item.food_cost}
-                              platform="deliveroo"
-                            />
-                          ) : (
-                            <span className="text-muted-foreground text-xs">-</span>
-                          )}
+                          <button
+                            onClick={() => {
+                              setSelectedProduct(item);
+                              setIsDecompositionOpen(true);
+                            }}
+                            className="cursor-pointer hover:scale-105 transition-transform"
+                          >
+                            {item.price_uber ? (
+                              <PriceDecompositionMini
+                                priceTTC={item.price_uber}
+                                foodCostHT={item.food_cost}
+                                platform="uber"
+                              />
+                            ) : item.price_deliveroo ? (
+                              <PriceDecompositionMini
+                                priceTTC={item.price_deliveroo}
+                                foodCostHT={item.food_cost}
+                                platform="deliveroo"
+                              />
+                            ) : (
+                              <span className="text-muted-foreground text-xs">-</span>
+                            )}
+                          </button>
                         </TableCell>
                       </motion.tr>
                     );
@@ -645,6 +656,15 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Price Decomposition Detail Dialog */}
+      {selectedProduct && (
+        <PriceDecompositionDetail
+          open={isDecompositionOpen}
+          onOpenChange={setIsDecompositionOpen}
+          product={selectedProduct}
+        />
+      )}
     </div>
   );
 }
