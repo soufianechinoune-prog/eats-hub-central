@@ -349,7 +349,7 @@ export function useProcessedContextualEvents(
   }, [contextualEvents, startMonth, endMonth, MONTHS]);
 }
 
-// Process events for DAILY view (drilldown mode)
+// Process events for DAILY view (drilldown mode or global daily view)
 export function useProcessedContextualEventsDaily(
   contextualEvents: ContextualEvent[],
   drillDownMonth: number | null,
@@ -358,28 +358,29 @@ export function useProcessedContextualEventsDaily(
 ) {
   return useMemo(() => {
     console.log('[ContextualEventsDaily] params', { drillDownMonth, selectedYear, count: contextualEvents.length });
-    if (!drillDownMonth) {
-      return { holidays: [], schoolHolidays: [], footballMatches: [] };
-    }
 
     const holidays: ProcessedEvent[] = [];
     const schoolHolidays: ProcessedEvent[] = [];
     const footballMatches: ProcessedEvent[] = [];
 
+    // Define the visible window: either the selected month, or the whole year when no month is specified
+    const windowStart = drillDownMonth
+      ? new Date(selectedYear, drillDownMonth - 1, 1)
+      : new Date(selectedYear, 0, 1);
+    const windowEnd = drillDownMonth
+      ? new Date(selectedYear, drillDownMonth, 0) // last day of month
+      : new Date(selectedYear, 11, 31);
+
     contextualEvents.forEach((event) => {
       const eventStart = new Date(event.start_date);
       const eventEnd = event.end_date ? new Date(event.end_date) : eventStart;
 
-      // Check if event overlaps with the drilldown month
-      const monthStart = new Date(selectedYear, drillDownMonth - 1, 1);
-      const monthEnd = new Date(selectedYear, drillDownMonth, 0); // Last day of month
+      // Skip if event doesn't overlap with the visible window (month or full year)
+      if (eventEnd < windowStart || eventStart > windowEnd) return;
 
-      // Skip if event doesn't overlap with the drilldown month
-      if (eventEnd < monthStart || eventStart > monthEnd) return;
-
-      // Calculate x1 and x2 for daily axis
-      const x1Date = eventStart < monthStart ? monthStart : eventStart;
-      const x2Date = eventEnd > monthEnd ? monthEnd : eventEnd;
+      // Clamp to the visible window
+      const x1Date = eventStart < windowStart ? windowStart : eventStart;
+      const x2Date = eventEnd > windowEnd ? windowEnd : eventEnd;
 
       const processed: ProcessedEvent = {
         ...event,
