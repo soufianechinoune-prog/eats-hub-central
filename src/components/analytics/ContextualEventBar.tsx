@@ -98,7 +98,7 @@ function HolidayMarkerLabel({
             </TooltipTrigger>
             <TooltipContent
               side="bottom"
-              className="max-w-xs z-50"
+              className="max-w-xs z-[100]"
               sideOffset={5}
             >
               <div className="space-y-1">
@@ -171,7 +171,7 @@ function SchoolHolidayLabel({
             </TooltipTrigger>
             <TooltipContent
               side="bottom"
-              className="max-w-xs z-50"
+              className="max-w-xs z-[100]"
               sideOffset={5}
             >
               <div className="space-y-1">

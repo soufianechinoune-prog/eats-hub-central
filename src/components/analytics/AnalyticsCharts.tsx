@@ -1803,7 +1803,7 @@ export function AnalyticsCharts({
                             return (
                               <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
                                 <p className="font-medium mb-2">
-                                  {drillDownMonth ? `${label} ${MONTHS[drillDownMonth - 1]}` : label}
+                                  {drillDownMonth ? `${data.dayOfWeek ? `${data.dayOfWeek}. ` : ''}${label} ${MONTHS[drillDownMonth - 1]}` : label}
                                 </p>
                                 <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
                                   CA {currentLabel}: {(data.revenue || 0).toLocaleString('fr-FR')} €
@@ -1967,7 +1967,7 @@ export function AnalyticsCharts({
                             return (
                               <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
                                 <p className="font-medium mb-2">
-                                  {drillDownMonth ? `${label} ${MONTHS[drillDownMonth - 1]}` : label}
+                                  {drillDownMonth ? `${data.dayOfWeek ? `${data.dayOfWeek}. ` : ''}${label} ${MONTHS[drillDownMonth - 1]}` : label}
                                 </p>
                                 <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
                                   CA {currentLabel}: {(data.revenue || 0).toLocaleString('fr-FR')} €
