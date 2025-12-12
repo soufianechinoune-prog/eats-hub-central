@@ -922,6 +922,7 @@ export function AnalyticsCharts({
 
   // Drill-down data for specific month (daily view)
   // Drill-down chart data - uses revenueData directly when in month mode (granularity is daily)
+  // We also enrich with football match data for tooltip display
   const drillDownChartData = useMemo(() => {
     if (!drillDownMonth || granularity !== "daily" || !revenueData) return [];
     
@@ -1818,27 +1819,29 @@ export function AnalyticsCharts({
                                     </p>
                                   </>
                                 )}
-                                {isDailyView && activeDailyMonth && (
-                                  dailyFootballMatches.filter((match) => match.x1 === label).length > 0 && (
+                                {/* Football matches in tooltip */}
+                                {(() => {
+                                  // Get matches for this day - label is the day number as string
+                                  const matchesForDay = dailyFootballMatches.filter((match) => match.x1 === label);
+                                  if (matchesForDay.length === 0) return null;
+                                  return (
                                     <div className="mt-2 pt-2 border-t border-border/60">
-                                      {dailyFootballMatches
-                                        .filter((match) => match.x1 === label)
-                                        .map((match) => (
-                                          <div key={match.id} className="text-xs space-y-0.5">
-                                            <div className="font-semibold flex items-center gap-1">
-                                              <span>⚽</span>
-                                              <span>{match.home_team} vs {match.away_team}</span>
-                                            </div>
-                                            {(match.time || match.venue) && (
-                                              <p className="text-[11px] text-muted-foreground">
-                                                {match.time}{match.time && match.venue ? ' • ' : ''}{match.venue}
-                                              </p>
-                                            )}
+                                      {matchesForDay.map((match) => (
+                                        <div key={match.id} className="text-xs space-y-0.5">
+                                          <div className="font-semibold flex items-center gap-1">
+                                            <span>⚽</span>
+                                            <span>{match.home_team} vs {match.away_team}</span>
                                           </div>
-                                        ))}
+                                          {(match.time || match.venue) && (
+                                            <p className="text-[11px] text-muted-foreground">
+                                              {match.time}{match.time && match.venue ? ' • ' : ''}{match.venue}
+                                            </p>
+                                          )}
+                                        </div>
+                                      ))}
                                     </div>
-                                  )
-                                )}
+                                  );
+                                })()}
                               </div>
                             );
                           }}
@@ -1878,9 +1881,16 @@ export function AnalyticsCharts({
                         {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailyHolidays.map(event => 
                           renderPublicHolidayMarkerDaily(event)
                         )}
-                        {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailyFootballMatches.map(event => 
-                          renderFootballMatchMarkerDaily(event)
-                        )}
+                        {/* Football match markers - DAILY VIEW: simple line, details shown in tooltip */}
+                        {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailyFootballMatches.map(event => (
+                          <ReferenceLine
+                            key={`match-daily-${event.id}`}
+                            x={event.x1}
+                            stroke="rgba(59, 130, 246, 0.6)"
+                            strokeWidth={1.5}
+                            strokeDasharray="2 2"
+                          />
+                        ))}
                         {/* Punctual action markers - YEAR VIEW */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
                           const monthActions = actionsByMonth[monthNum] || [];
@@ -2003,6 +2013,28 @@ export function AnalyticsCharts({
                                     </p>
                                   </>
                                 )}
+                                {/* Football matches in tooltip */}
+                                {(() => {
+                                  const matchesForDay = dailyFootballMatches.filter((match) => match.x1 === label);
+                                  if (matchesForDay.length === 0) return null;
+                                  return (
+                                    <div className="mt-2 pt-2 border-t border-border/60">
+                                      {matchesForDay.map((match) => (
+                                        <div key={match.id} className="text-xs space-y-0.5">
+                                          <div className="font-semibold flex items-center gap-1">
+                                            <span>⚽</span>
+                                            <span>{match.home_team} vs {match.away_team}</span>
+                                          </div>
+                                          {(match.time || match.venue) && (
+                                            <p className="text-[11px] text-muted-foreground">
+                                              {match.time}{match.time && match.venue ? ' • ' : ''}{match.venue}
+                                            </p>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             );
                           }}
@@ -2042,9 +2074,16 @@ export function AnalyticsCharts({
                         {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailyHolidays.map(event => 
                           renderPublicHolidayMarkerDaily(event)
                         )}
-                        {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailyFootballMatches.map(event => 
-                          renderFootballMatchMarkerDaily(event)
-                        )}
+                        {/* Football match markers - DAILY VIEW: simple line, details shown in tooltip */}
+                        {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailyFootballMatches.map(event => (
+                          <ReferenceLine
+                            key={`match-line-daily-${event.id}`}
+                            x={event.x1}
+                            stroke="rgba(59, 130, 246, 0.6)"
+                            strokeWidth={1.5}
+                            strokeDasharray="2 2"
+                          />
+                        ))}
                         {/* Punctual action markers - YEAR VIEW */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
                           const monthActions = actionsByMonth[monthNum] || [];
