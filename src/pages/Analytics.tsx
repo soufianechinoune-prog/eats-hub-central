@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { AnalyticsCharts, ChartActionsConfig, ActionCategoryFilter } from "@/components/analytics/AnalyticsCharts";
+import { AnalyticsCharts, ChartActionsConfig } from "@/components/analytics/AnalyticsCharts";
 import { RestaurantRanking } from "@/components/analytics/RestaurantRanking";
 import { useAnalyticsPdfExport } from "@/hooks/useAnalyticsPdfExport";
 import { useRestaurantActions } from "@/hooks/useRestaurantActions";
@@ -71,8 +71,6 @@ export default function Analytics() {
     }
     return DEFAULT_CHART_ACTIONS_CONFIG;
   });
-  const [selectedCategories, setSelectedCategories] = useState<ActionCategoryFilter>(new Set());
-  
   // Granular action filtering - track selected action IDs
   const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
   const [hasInitializedActions, setHasInitializedActions] = useState(false);
@@ -121,17 +119,6 @@ export default function Analytics() {
     handleChartActionsConfigChange({ ...chartActionsConfig, global: value });
   };
 
-  const handleCategoryToggle = (category: string) => {
-    setSelectedCategories(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(category)) {
-        newSet.delete(category);
-      } else {
-        newSet.add(category);
-      }
-      return newSet;
-    });
-  };
   
 
   const navigate = useNavigate();
@@ -1045,11 +1032,14 @@ export default function Analytics() {
                 ? deliverooPrevFeesData
                 : globalPrevFeesData;
             
-            const currentActions = selectedPlatform === "uber_eats"
+            // Filter actions based on selected IDs from ActionFilterPopover
+            const baseActions = selectedPlatform === "uber_eats"
               ? uberActions
               : selectedPlatform === "deliveroo"
                 ? deliverooActions
                 : globalActions;
+            
+            const currentActions = (baseActions || []).filter(a => selectedActionIds.has(a.id));
 
             // Render appropriate view
             if (viewMode === "reviews") {
@@ -1086,8 +1076,6 @@ export default function Analytics() {
                   chartActionsConfig={chartActionsConfig}
                   onChartActionsConfigChange={handleChartActionsConfigChange}
                   onActionClick={handleActionClick}
-                  selectedCategories={selectedCategories}
-                  onCategoryToggle={handleCategoryToggle}
                   viewMode={viewMode as "revenue" | "conversion" | "finances"}
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
