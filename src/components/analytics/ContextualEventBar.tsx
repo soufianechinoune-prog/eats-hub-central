@@ -357,6 +357,7 @@ export function useProcessedContextualEventsDaily(
   formatDateFn: (date: Date) => string // Format function to match X-axis (e.g., "05/03")
 ) {
   return useMemo(() => {
+    console.log('[ContextualEventsDaily] params', { drillDownMonth, selectedYear, count: contextualEvents.length });
     if (!drillDownMonth) {
       return { holidays: [], schoolHolidays: [], footballMatches: [] };
     }
@@ -399,6 +400,12 @@ export function useProcessedContextualEventsDaily(
           footballMatches.push(processed);
           break;
       }
+    });
+
+    console.log('[ContextualEventsDaily] result', {
+      holidays: holidays.length,
+      schoolHolidays: schoolHolidays.length,
+      footballMatches: footballMatches.length,
     });
 
     // Limit football matches to avoid clutter
