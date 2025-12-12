@@ -153,8 +153,16 @@ export function useSchoolHolidays(
       }
     });
     
-    return Array.from(zones);
-  }, [restaurants]);
+    const result = Array.from(zones);
+    console.log('[useSchoolHolidays] relevantZones from restaurants', {
+      year,
+      restaurantCount: restaurants.length,
+      restaurants,
+      relevantZones: result,
+    });
+    
+    return result;
+  }, [restaurants, year]);
 
   // Filter holidays by relevant zones and merge adjacent periods
   const contextualEvents: ContextualEvent[] = useMemo(() => {
