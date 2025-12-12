@@ -660,9 +660,10 @@ export function AnalyticsCharts({
     return null;
   }, [drillDownMonth, granularity, startMonth, endMonth]);
 
-  // Format function for daily X-axis values
+  // Format function for daily X-axis values - MUST match the chart's X-axis format
   const formatDailyXValue = useMemo(() => {
-    return (date: Date) => format(date, 'dd/MM', { locale: fr });
+    // In drilldown mode, the chart uses just the day number as string (e.g., "1", "2", ...)
+    return (date: Date) => String(date.getDate());
   }, []);
 
   // Process contextual events for DAILY view (drilldown or global daily mode)
@@ -681,20 +682,23 @@ export function AnalyticsCharts({
   const dailyActions = useMemo(() => {
     if (!isDailyView || !punctualActions || punctualActions.length === 0) return [];
 
-    return punctualActions.filter(action => {
-      const actionDate = new Date(action.start_date);
-      const actionMonth = actionDate.getMonth() + 1;
-      const actionYear = actionDate.getFullYear();
+    return punctualActions
+      .filter(action => {
+        const actionDate = new Date(action.start_date);
+        const actionMonth = actionDate.getMonth() + 1;
+        const actionYear = actionDate.getFullYear();
 
-      // If we have an active month, restrict to it, otherwise keep all dates in the selected year
-      if (activeDailyMonth) {
-        return actionMonth === activeDailyMonth && actionYear === selectedYear;
-      }
-      return actionYear === selectedYear;
-    }).map(action => ({
-      ...action,
-      xValue: format(new Date(action.start_date), 'dd/MM', { locale: fr }),
-    }));
+        // If we have an active month, restrict to it, otherwise keep all dates in the selected year
+        if (activeDailyMonth) {
+          return actionMonth === activeDailyMonth && actionYear === selectedYear;
+        }
+        return actionYear === selectedYear;
+      })
+      .map(action => ({
+        ...action,
+        // Use day number as string to match daily X-axis domain ("1", "2", ...)
+        xValue: String(new Date(action.start_date).getDate()),
+      }));
   }, [punctualActions, isDailyView, activeDailyMonth, selectedYear]);
 
   // Helper to check if actions should be shown for a specific chart
