@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowUp, Loader2, Sparkles, Plus, Trash2, MessageSquare, TrendingUp, Award, Lightbulb, DollarSign, Search, X as XIcon } from 'lucide-react';
+import { ArrowUp, Loader2, Sparkles, Plus, Trash2, MessageSquare, TrendingUp, Award, Lightbulb, DollarSign, Search, X as XIcon, Zap, MapPin, Star, ThumbsUp, ThumbsDown, Clock, AlertTriangle, CheckCircle, BarChart, Target, AlertCircle, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAIAdvisor } from '@/hooks/useAIAdvisor';
+import { usePageContext } from '@/hooks/usePageContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -18,7 +19,25 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-const EXAMPLE_QUESTIONS = [
+const ICON_MAP: Record<string, any> = {
+  TrendingUp,
+  Award,
+  Lightbulb,
+  DollarSign,
+  MapPin,
+  Star,
+  ThumbsUp,
+  ThumbsDown,
+  Clock,
+  AlertTriangle,
+  CheckCircle,
+  BarChart,
+  Target,
+  AlertCircle,
+  Package,
+};
+
+const DEFAULT_QUESTIONS = [
   {
     icon: TrendingUp,
     title: "Analyse mes performances",
@@ -53,6 +72,7 @@ export const AIAdvisorChat = () => {
     deleteConversation,
     renameConversation 
   } = useAIAdvisor();
+  const pageContext = usePageContext();
   const [input, setInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -60,6 +80,22 @@ export const AIAdvisorChat = () => {
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+
+  // Get contextual questions based on current page
+  const contextualQuestions = pageContext.suggestedQuestions.map(q => ({
+    icon: ICON_MAP[q.icon] || Lightbulb,
+    title: q.title,
+    question: q.question,
+  }));
+
+  // Combine with one default question
+  const displayedQuestions = [...contextualQuestions, DEFAULT_QUESTIONS[3]];
+
+  const handleQuickAnalysis = async () => {
+    if (isLoading) return;
+    const analysisMessage = `[ANALYSE RAPIDE - ${pageContext.pageNameFr}]\n\n${pageContext.analysisPrompt}`;
+    await sendMessage(analysisMessage);
+  };
 
   // Filter conversations based on search query
   const filteredConversations = conversations.filter(conv => 
@@ -303,23 +339,50 @@ export const AIAdvisorChat = () => {
             </motion.h4>
             
             <motion.p 
-              className="text-sm text-muted-foreground mb-8"
+              className="text-sm text-muted-foreground mb-4"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
             >
               Votre conseiller IA pour Chicken Street
             </motion.p>
+
+            {/* Quick Analysis Button */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35 }}
+              className="mb-6"
+            >
+              <Button
+                onClick={handleQuickAnalysis}
+                disabled={isLoading}
+                className="group relative overflow-hidden bg-gradient-to-r from-ai-gradient-start to-ai-gradient-end hover:shadow-lg hover:shadow-ai-gradient-start/30 transition-all px-6 py-5 rounded-2xl"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                <Zap className="h-5 w-5 mr-2" />
+                <span className="font-medium">Analyse rapide : {pageContext.pageNameFr}</span>
+              </Button>
+            </motion.div>
+
+            <motion.p 
+              className="text-xs text-muted-foreground mb-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+            >
+              Ou posez une question :
+            </motion.p>
             
             <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
-              {EXAMPLE_QUESTIONS.map((item, idx) => {
+              {displayedQuestions.map((item, idx) => {
                 const Icon = item.icon;
                 return (
                   <motion.button
                     key={idx}
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.4 + idx * 0.1, type: "spring", bounce: 0.4 }}
+                    transition={{ delay: 0.45 + idx * 0.1, type: "spring", bounce: 0.4 }}
                     whileHover={{ scale: 1.02, y: -2 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setInput(item.question)}
