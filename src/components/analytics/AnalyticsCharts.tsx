@@ -183,6 +183,16 @@ export interface ChartActionsConfig {
 
 export type ActionCategoryFilter = Set<string>;
 
+interface ContextualEvent {
+  id: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  type: "school_holiday" | "football_match" | "public_holiday";
+  color: { bg: string; text: string; border: string };
+  icon: string;
+}
+
 interface AnalyticsChartsProps {
   revenueData: MonthlyRevenue[] | undefined;
   conversionData: MonthlyConversion[] | undefined;
@@ -208,6 +218,8 @@ interface AnalyticsChartsProps {
   // Drill-down props (synchronized with global context)
   drillDownMonth?: number | null;
   onDrillDownChange?: (month: number | null) => void;
+  // Contextual events
+  contextualEvents?: ContextualEvent[];
 }
 
 // Action category colors
@@ -480,6 +492,7 @@ export function AnalyticsCharts({
   onComparisonModeChange,
   drillDownMonth,
   onDrillDownChange,
+  contextualEvents = [],
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
   
@@ -617,6 +630,30 @@ export function AnalyticsCharts({
       return startMonthNum <= endMonth && endMonthNum >= startMonth;
     });
   }, [periodEvents, startMonth, endMonth]);
+
+  // Contextual events data for ReferenceArea rendering (holidays, school holidays, football)
+  const contextualEventsData = useMemo(() => {
+    return contextualEvents.map(event => {
+      const eventStartMonth = new Date(event.start_date).getMonth();
+      const eventEndMonth = event.end_date ? new Date(event.end_date).getMonth() : eventStartMonth;
+      // For single-day events like public holidays, still use the same month for x1 and x2
+      const x2MonthIndex = event.type === "public_holiday" 
+        ? eventStartMonth 
+        : Math.min(eventEndMonth + 1, 11);
+      return {
+        ...event,
+        x1: MONTHS[eventStartMonth],
+        x2: MONTHS[x2MonthIndex],
+        startMonthIndex: eventStartMonth,
+        endMonthIndex: eventEndMonth,
+      };
+    }).filter(e => {
+      // Filter to events within the displayed range
+      const startMonthNum = e.startMonthIndex + 1;
+      const endMonthNum = e.endMonthIndex + 1;
+      return startMonthNum <= endMonth && endMonthNum >= startMonth;
+    });
+  }, [contextualEvents, startMonth, endMonth]);
 
   // Helper to check if actions should be shown for a specific chart
   const shouldShowActionsForChart = (chartKey: keyof Omit<ChartActionsConfig, "global">) => {
@@ -1753,6 +1790,27 @@ export function AnalyticsCharts({
                               fill: event.color,
                               fontSize: 11,
                               fontWeight: 600,
+                            }}
+                          />
+                        ))}
+                        {/* Contextual events (holidays, school holidays, football) */}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && contextualEventsData.map(event => (
+                          <ReferenceArea
+                            key={`ctx-${event.id}`}
+                            x1={event.x1}
+                            x2={event.type === "public_holiday" ? event.x1 : event.x2}
+                            fill={event.color.bg}
+                            fillOpacity={0.3}
+                            stroke={event.color.border}
+                            strokeOpacity={0.7}
+                            strokeWidth={1}
+                            strokeDasharray={event.type === "public_holiday" ? "3 2" : "4 2"}
+                            label={{
+                              value: `${event.icon} ${event.description}`,
+                              position: 'insideTop',
+                              fill: event.color.text,
+                              fontSize: 10,
+                              fontWeight: 500,
                             }}
                           />
                         ))}
