@@ -1023,11 +1023,15 @@ export function AnalyticsCharts({
     };
   }, [drillDownChartData]);
 
-  // Handle bar click for drill-down
+  // Handle bar/line click for drill-down
   const handleRevenueBarClick = (data: any) => {
     if (drillDownMonth) return; // Already in drill-down
-    if (data && data.monthNum && onDrillDownChange) {
-      onDrillDownChange(data.monthNum);
+    
+    // Support both BarChart (data.monthNum) and LineChart (data.activePayload) click formats
+    const monthNum = data?.monthNum || data?.activePayload?.[0]?.payload?.monthNum;
+    
+    if (monthNum && onDrillDownChange) {
+      onDrillDownChange(monthNum);
     }
   };
 
@@ -1917,7 +1921,11 @@ export function AnalyticsCharts({
                         )}
                       </BarChart>
                     ) : (
-                      <LineChart data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}>
+                      <LineChart 
+                        data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}
+                        onClick={!drillDownMonth ? handleRevenueBarClick : undefined}
+                        style={{ cursor: !drillDownMonth ? 'pointer' : undefined }}
+                      >
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis dataKey="month" className="text-xs" />
                         <YAxis className="text-xs" />
