@@ -198,8 +198,6 @@ interface AnalyticsChartsProps {
   chartActionsConfig?: ChartActionsConfig;
   onChartActionsConfigChange?: (config: ChartActionsConfig) => void;
   onActionClick?: (actionId: string) => void;
-  selectedCategories?: ActionCategoryFilter;
-  onCategoryToggle?: (category: string) => void;
   viewMode?: "all" | "revenue" | "conversion" | "finances";
   restaurants?: { id: string; name: string; city?: string }[];
   selectedRestaurants?: string[];
@@ -473,8 +471,6 @@ export function AnalyticsCharts({
   chartActionsConfig,
   onChartActionsConfigChange,
   onActionClick,
-  selectedCategories,
-  onCategoryToggle,
   viewMode = "all",
   restaurants = [],
   selectedRestaurants = [],
@@ -558,12 +554,8 @@ export function AnalyticsCharts({
     localStorage.setItem('conversionTarget', String(conversionTarget));
   }, [conversionTarget]);
 
-  // Filter actions by selected categories
-  const filteredActions = useMemo(() => {
-    if (!actions || actions.length === 0) return [];
-    if (!selectedCategories || selectedCategories.size === 0) return actions;
-    return actions.filter(a => selectedCategories.has(a.category));
-  }, [actions, selectedCategories]);
+  // Actions are already filtered by parent component - use directly
+  const filteredActions = actions || [];
 
   // Separate punctual actions from period events (events with start_date and end_date)
   const { punctualActions, periodEvents } = useMemo(() => {
@@ -1444,71 +1436,7 @@ export function AnalyticsCharts({
 
   return (
     <div className="space-y-6">
-      {/* Actions Legend */}
-      {config.global && actions && actions.length > 0 && (
-        <Card className="bg-muted/30">
-          <CardContent className="py-3">
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Zap className="h-4 w-4 text-primary" />
-                Actions affichées ({filteredActions.length}/{actions.length})
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(ACTION_CATEGORY_LABELS).map(([key, label]) => {
-                  const count = actions.filter(a => a.category === key).length;
-                  if (count === 0) return null;
-                  const Icon = ACTION_CATEGORY_ICONS[key] || Zap;
-                  const isSelected = !selectedCategories || selectedCategories.size === 0 || selectedCategories.has(key);
-                  const categoryColor = ACTION_CATEGORY_COLORS[key];
-                  
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => onCategoryToggle?.(key)}
-                      className={cn(
-                        "flex items-center gap-1.5 text-xs px-2 py-1 rounded-full transition-all cursor-pointer border",
-                        isSelected 
-                          ? "bg-background shadow-sm border-border"
-                          : "bg-muted/50 opacity-50 border-transparent hover:opacity-75"
-                      )}
-                      style={{
-                        borderColor: isSelected ? categoryColor : undefined,
-                      }}
-                    >
-                      <div 
-                        className={cn(
-                          "w-2.5 h-2.5 rounded-full transition-opacity",
-                          !isSelected && "opacity-40"
-                        )}
-                        style={{ backgroundColor: categoryColor }} 
-                      />
-                      <Icon 
-                        className={cn(
-                          "h-3 w-3 transition-opacity",
-                          !isSelected && "opacity-40"
-                        )} 
-                        style={{ color: categoryColor }} 
-                      />
-                      <span className={cn(!isSelected && "line-through")}>{label} ({count})</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedCategories && selectedCategories.size > 0 && (
-                <button
-                  onClick={() => {
-                    // Clear all filters by toggling all selected categories off
-                    selectedCategories.forEach(cat => onCategoryToggle?.(cat));
-                  }}
-                  className="text-xs text-muted-foreground hover:text-foreground underline"
-                >
-                  Réinitialiser
-                </button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Actions are now filtered by ActionFilterPopover in parent */}
 
       {/* Revenue Chart with N-1 comparison */}
       {showRevenue && (
