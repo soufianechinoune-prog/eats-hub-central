@@ -1843,10 +1843,7 @@ export function AnalyticsCharts({
                             }}
                           />
                         ))}
-                        {/* Contextual events - YEAR VIEW */}
-                        {!drillDownMonth && shouldShowActionsForChart("revenue") && schoolHolidays.map(event => 
-                          renderSchoolHolidayArea(event)
-                        )}
+                        {/* Contextual events - YEAR VIEW (no school holidays - only visible in daily drill-down) */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && holidays.map(event => 
                           renderPublicHolidayMarker(event)
                         )}
@@ -2010,10 +2007,7 @@ export function AnalyticsCharts({
                             }}
                           />
                         ))}
-                        {/* Contextual events - YEAR VIEW */}
-                        {!drillDownMonth && shouldShowActionsForChart("revenue") && schoolHolidays.map(event => 
-                          renderSchoolHolidayArea(event)
-                        )}
+                        {/* Contextual events - YEAR VIEW (no school holidays - only visible in daily drill-down) */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && holidays.map(event => 
                           renderPublicHolidayMarker(event)
                         )}
