@@ -232,10 +232,18 @@ export default function Analytics() {
     },
   });
   
+  // Filter restaurants to only selected ones for contextual events (school holidays zones)
+  const selectedRestaurantsData = useMemo(() => {
+    if (!restaurants || selectedRestaurants.length === 0) {
+      return restaurants || []; // Show all zones when no specific selection
+    }
+    return restaurants.filter(r => selectedRestaurants.includes(r.id));
+  }, [restaurants, selectedRestaurants]);
+
   // Fetch contextual events (after restaurants are loaded)
   const { contextualEvents: holidayEvents } = useFrenchHolidays(selectedYear, showHolidays);
-  const { contextualEvents: schoolHolidayEvents, loading: schoolHolidaysLoading } = useSchoolHolidays(selectedYear, restaurants || [], showSchoolHolidays);
-  const { footballEvents, loading: footballLoading } = useFootballMatches(selectedYear, restaurants || [], showFootballMatches);
+  const { contextualEvents: schoolHolidayEvents, loading: schoolHolidaysLoading, relevantZones } = useSchoolHolidays(selectedYear, selectedRestaurantsData, showSchoolHolidays);
+  const { footballEvents, loading: footballLoading } = useFootballMatches(selectedYear, selectedRestaurantsData, showFootballMatches);
 
   // Build filter for restaurants
   const restaurantFilter = selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
