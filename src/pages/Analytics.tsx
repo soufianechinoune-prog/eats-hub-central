@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -19,6 +19,10 @@ import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import Reviews from "@/pages/Reviews";
 import { OperationsAnalytics } from "@/components/analytics/OperationsAnalytics";
+import { ActionFilterPopover } from "@/components/analytics/ActionFilterPopover";
+import { useFrenchHolidays } from "@/hooks/useFrenchHolidays";
+import { useSchoolHolidays } from "@/hooks/useSchoolHolidays";
+import { useFootballMatches } from "@/hooks/useFootballMatches";
 
 const DEFAULT_CHART_ACTIONS_CONFIG: ChartActionsConfig = {
   global: true,
@@ -68,6 +72,15 @@ export default function Analytics() {
     return DEFAULT_CHART_ACTIONS_CONFIG;
   });
   const [selectedCategories, setSelectedCategories] = useState<ActionCategoryFilter>(new Set());
+  
+  // Granular action filtering - track selected action IDs
+  const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
+  const [hasInitializedActions, setHasInitializedActions] = useState(false);
+  
+  // Contextual events toggles
+  const [showHolidays, setShowHolidays] = useState(true);
+  const [showSchoolHolidays, setShowSchoolHolidays] = useState(true);
+  const [showFootballMatches, setShowFootballMatches] = useState(true);
 
   // Handler for synchronized drill-down (changes global context)
   const handleMonthDrillDown = (month: number | null) => {
@@ -119,6 +132,7 @@ export default function Analytics() {
       return newSet;
     });
   };
+  
 
   const navigate = useNavigate();
 
@@ -147,6 +161,57 @@ export default function Analytics() {
     all.forEach(a => uniqueMap.set(a.id, a));
     return Array.from(uniqueMap.values());
   }, [uberActions, deliverooActions]);
+  
+  
+  // Initialize selectedActionIds with all actions when first loaded
+  useEffect(() => {
+    if (!hasInitializedActions && globalActions.length > 0) {
+      setSelectedActionIds(new Set(globalActions.map(a => a.id)));
+      setHasInitializedActions(true);
+    }
+  }, [globalActions, hasInitializedActions]);
+  
+  // Granular action filtering handlers
+  const handleActionToggle = useCallback((actionId: string) => {
+    setSelectedActionIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(actionId)) {
+        newSet.delete(actionId);
+      } else {
+        newSet.add(actionId);
+      }
+      return newSet;
+    });
+  }, []);
+  
+  const handleSelectAllCategory = useCallback((category: string, selected: boolean) => {
+    const categoryActionIds = globalActions.filter(a => a.category === category).map(a => a.id);
+    
+    setSelectedActionIds(prev => {
+      const newSet = new Set(prev);
+      categoryActionIds.forEach(id => {
+        if (selected) {
+          newSet.add(id);
+        } else {
+          newSet.delete(id);
+        }
+      });
+      return newSet;
+    });
+  }, [globalActions]);
+  
+  const handleSelectAll = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedActionIds(new Set(globalActions.map(a => a.id)));
+    } else {
+      setSelectedActionIds(new Set());
+    }
+  }, [globalActions]);
+  
+  // Filter actions based on selected IDs
+  const filteredGlobalActions = useMemo(() => {
+    return globalActions.filter(a => selectedActionIds.has(a.id));
+  }, [globalActions, selectedActionIds]);
 
   // Determine month range based on period mode
   const getEffectiveMonthRange = () => {
@@ -169,16 +234,21 @@ export default function Analytics() {
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
-    queryKey: ["restaurants"],
+    queryKey: ["restaurants_with_postal"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, city")
+        .select("id, name, city, postal_code")
         .order("name");
       if (error) throw error;
       return data || [];
     },
   });
+  
+  // Fetch contextual events (after restaurants are loaded)
+  const { contextualEvents: holidayEvents } = useFrenchHolidays(selectedYear, showHolidays);
+  const { contextualEvents: schoolHolidayEvents, loading: schoolHolidaysLoading } = useSchoolHolidays(selectedYear, restaurants || [], showSchoolHolidays);
+  const { footballEvents, loading: footballLoading } = useFootballMatches(selectedYear, restaurants || [], showFootballMatches);
 
   // Build filter for restaurants
   const restaurantFilter = selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
@@ -886,37 +956,48 @@ export default function Analytics() {
       <AnalyticsHeader />
 
       {/* Granularity Badge and Actions Toggle */}
-      <div className="flex items-center justify-between gap-3 p-4 bg-muted/30 rounded-lg border">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Zap className="h-4 w-4 text-primary" />
-            <Label htmlFor="show-actions" className="text-sm font-medium cursor-pointer">
-              Afficher les actions sur les graphiques
-            </Label>
+      <div className="flex flex-col gap-3 p-4 bg-muted/30 rounded-lg border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              <Label htmlFor="show-actions" className="text-sm font-medium cursor-pointer">
+                Afficher les actions
+              </Label>
+            </div>
+            <Switch
+              id="show-actions"
+              checked={chartActionsConfig.global}
+              onCheckedChange={handleGlobalToggleChange}
+            />
           </div>
-          <Switch
-            id="show-actions"
-            checked={chartActionsConfig.global}
-            onCheckedChange={handleGlobalToggleChange}
-          />
-          <span className="text-xs text-muted-foreground">
-            ({(selectedPlatform === "uber_eats" ? uberActions : selectedPlatform === "deliveroo" ? deliverooActions : globalActions)?.length || 0} actions)
-          </span>
-          {chartActionsConfig.global && (
-            <span className="text-xs text-muted-foreground ml-2 border-l pl-3">
-              Utilisez ⚡ sur chaque graphique pour affiner
-            </span>
-          )}
+          <Badge 
+            variant={granularity === "daily" ? "default" : "secondary"} 
+            className="text-xs font-medium gap-1.5 px-3 py-1"
+          >
+            {granularity === "daily" && "📅"}
+            {granularity === "weekly" && "📊"}
+            {granularity === "monthly" && "📆"}
+            {granularity === "daily" ? "Données quotidiennes" : granularity === "weekly" ? "Données hebdomadaires" : "Données mensuelles"}
+          </Badge>
         </div>
-        <Badge 
-          variant={granularity === "daily" ? "default" : "secondary"} 
-          className="text-xs font-medium gap-1.5 px-3 py-1"
-        >
-          {granularity === "daily" && "📅"}
-          {granularity === "weekly" && "📊"}
-          {granularity === "monthly" && "📆"}
-          {granularity === "daily" ? "Données quotidiennes" : granularity === "weekly" ? "Données hebdomadaires" : "Données mensuelles"}
-        </Badge>
+        
+        {/* Granular action filtering */}
+        {chartActionsConfig.global && (
+          <ActionFilterPopover
+            actions={globalActions}
+            selectedActionIds={selectedActionIds}
+            onActionToggle={handleActionToggle}
+            onSelectAllCategory={handleSelectAllCategory}
+            onSelectAll={handleSelectAll}
+            showHolidays={showHolidays}
+            showSchoolHolidays={showSchoolHolidays}
+            showFootballMatches={showFootballMatches}
+            onHolidaysToggle={setShowHolidays}
+            onSchoolHolidaysToggle={setShowSchoolHolidays}
+            onFootballMatchesToggle={setShowFootballMatches}
+          />
+        )}
       </div>
 
       {/* Content based on selected platform from context */}
