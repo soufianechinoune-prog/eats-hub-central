@@ -641,7 +641,7 @@ export function AnalyticsCharts({
     });
   }, [periodEvents, startMonth, endMonth]);
 
-  // Process contextual events into categorized groups for differentiated rendering
+  // Process contextual events into categorized groups for differentiated rendering (YEAR view)
   const { holidays, schoolHolidays, footballMatches } = useProcessedContextualEvents(
     contextualEvents,
     startMonth,
@@ -649,37 +649,53 @@ export function AnalyticsCharts({
     MONTHS
   );
 
+  // Determine if we are in a DAILY view (either explicit daily granularity, or drilldown on a month)
+  const isDailyView = granularity === "daily" || !!drillDownMonth;
+
+  // When in daily mode without drillDownMonth (e.g. global "Données quotidiennes"),
+  // if a single month is selected we use it as the active month for contextual events/actions.
+  const activeDailyMonth = useMemo(() => {
+    if (drillDownMonth) return drillDownMonth;
+    if (granularity === "daily" && startMonth === endMonth) return startMonth;
+    return null;
+  }, [drillDownMonth, granularity, startMonth, endMonth]);
+
   // Format function for daily X-axis values
   const formatDailyXValue = useMemo(() => {
     return (date: Date) => format(date, 'dd/MM', { locale: fr });
   }, []);
 
-  // Process contextual events for DAILY view (drilldown mode)
+  // Process contextual events for DAILY view (drilldown or global daily mode)
   const { 
     holidays: dailyHolidays, 
     schoolHolidays: dailySchoolHolidays, 
     footballMatches: dailyFootballMatches 
   } = useProcessedContextualEventsDaily(
     contextualEvents,
-    drillDownMonth,
+    activeDailyMonth,
     selectedYear,
     formatDailyXValue
   );
 
-  // Actions filtered for daily view (drilldown month)
+  // Actions filtered for daily view (drilldown month or selected daily month)
   const dailyActions = useMemo(() => {
-    if (!drillDownMonth || !punctualActions || punctualActions.length === 0) return [];
-    
+    if (!isDailyView || !punctualActions || punctualActions.length === 0) return [];
+
     return punctualActions.filter(action => {
       const actionDate = new Date(action.start_date);
       const actionMonth = actionDate.getMonth() + 1;
       const actionYear = actionDate.getFullYear();
-      return actionMonth === drillDownMonth && actionYear === selectedYear;
+
+      // If we have an active month, restrict to it, otherwise keep all dates in the selected year
+      if (activeDailyMonth) {
+        return actionMonth === activeDailyMonth && actionYear === selectedYear;
+      }
+      return actionYear === selectedYear;
     }).map(action => ({
       ...action,
       xValue: format(new Date(action.start_date), 'dd/MM', { locale: fr }),
     }));
-  }, [punctualActions, drillDownMonth, selectedYear]);
+  }, [punctualActions, isDailyView, activeDailyMonth, selectedYear]);
 
   // Helper to check if actions should be shown for a specific chart
   const shouldShowActionsForChart = (chartKey: keyof Omit<ChartActionsConfig, "global">) => {
