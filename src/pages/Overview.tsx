@@ -657,7 +657,7 @@ const Overview = () => {
                             <TableCell className="font-semibold group-hover:text-emerald-600 transition-colors">{resto.name}</TableCell>
                             <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
                             <TableCell className="text-right">
-                              <span className="flex items-center justify-end gap-2 font-bold text-lg text-emerald-600 dark:text-emerald-400">
+                              <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                                 {resto.revenue.toLocaleString('fr-FR')} €
                               </span>
                             </TableCell>
@@ -703,7 +703,7 @@ const Overview = () => {
                             <TableCell className="font-semibold group-hover:text-red-600 transition-colors">{resto.name}</TableCell>
                             <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
                             <TableCell className="text-right">
-                              <span className="flex items-center justify-end gap-2 font-bold text-lg text-red-600">
+                              <span className="font-bold text-sm text-red-600 whitespace-nowrap">
                                 {resto.revenue.toLocaleString('fr-FR')} €
                               </span>
                             </TableCell>
