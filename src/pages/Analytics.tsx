@@ -225,7 +225,7 @@ export default function Analytics() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, city, postal_code")
+        .select("id, name, city, postal_code, is_pinned")
         .order("name");
       if (error) throw error;
       return data || [];
@@ -233,10 +233,15 @@ export default function Analytics() {
   });
   
   // Filter restaurants to only selected ones for contextual events (school holidays zones)
+  // When no specific selection, use pinned restaurants to determine zones
   const selectedRestaurantsData = useMemo(() => {
-    if (!restaurants || selectedRestaurants.length === 0) {
-      return restaurants || []; // Show all zones when no specific selection
+    if (!restaurants) return [];
+    
+    if (selectedRestaurants.length === 0) {
+      // Use pinned restaurants for zone filtering when "Tous les restaurants"
+      return restaurants.filter(r => r.is_pinned);
     }
+    
     return restaurants.filter(r => selectedRestaurants.includes(r.id));
   }, [restaurants, selectedRestaurants]);
 
