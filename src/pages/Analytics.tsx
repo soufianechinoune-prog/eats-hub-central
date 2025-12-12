@@ -25,7 +25,7 @@ import { useSchoolHolidays } from "@/hooks/useSchoolHolidays";
 import { useFootballMatches } from "@/hooks/useFootballMatches";
 
 const DEFAULT_CHART_ACTIONS_CONFIG: ChartActionsConfig = {
-  global: true,
+  global: false,
   revenue: true,
   conversionFunnel: true,
   conversionRate: true,
@@ -75,10 +75,10 @@ export default function Analytics() {
   const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
   const [hasInitializedActions, setHasInitializedActions] = useState(false);
   
-  // Contextual events toggles
-  const [showHolidays, setShowHolidays] = useState(true);
-  const [showSchoolHolidays, setShowSchoolHolidays] = useState(true);
-  const [showFootballMatches, setShowFootballMatches] = useState(true);
+  // Contextual events toggles - all OFF by default
+  const [showHolidays, setShowHolidays] = useState(false);
+  const [showSchoolHolidays, setShowSchoolHolidays] = useState(false);
+  const [showFootballMatches, setShowFootballMatches] = useState(false);
 
   // Handler for synchronized drill-down (changes global context)
   const handleMonthDrillDown = (month: number | null) => {
@@ -1040,6 +1040,13 @@ export default function Analytics() {
                 : globalActions;
             
             const currentActions = (baseActions || []).filter(a => selectedActionIds.has(a.id));
+            
+            // Combine contextual events
+            const allContextualEvents = [
+              ...(holidayEvents || []),
+              ...(schoolHolidayEvents || []),
+              ...(footballEvents || []),
+            ];
 
             // Render appropriate view
             if (viewMode === "reviews") {
@@ -1085,6 +1092,7 @@ export default function Analytics() {
                   onComparisonModeChange={setComparisonMode}
                   drillDownMonth={drillDownMonth}
                   onDrillDownChange={handleMonthDrillDown}
+                  contextualEvents={allContextualEvents}
                 />
               );
             }
