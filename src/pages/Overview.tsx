@@ -13,10 +13,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
 
-type PeriodOption = "7d" | "30d" | "current_month" | "year";
+type PeriodOption = "previous_week" | "7d" | "30d" | "current_month" | "year";
 
 const Overview = () => {
-  const [period, setPeriod] = useState<PeriodOption>("7d");
+  const [period, setPeriod] = useState<PeriodOption>("previous_week");
   const [rankingTab, setRankingTab] = useState<"rating" | "revenue" | "profitability">("rating");
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -26,23 +26,44 @@ const Overview = () => {
   const getDateRange = () => {
     const now = new Date();
     let startDate = new Date();
+    let endDate = new Date();
     
     switch (period) {
+      case "previous_week":
+        // Find last Sunday (end of previous week)
+        const dayOfWeek = now.getDay(); // 0 = Sunday
+        const daysSinceSunday = dayOfWeek === 0 ? 7 : dayOfWeek;
+        const lastSunday = new Date(now);
+        lastSunday.setDate(now.getDate() - daysSinceSunday);
+        lastSunday.setHours(23, 59, 59, 999);
+        
+        // Find the Monday of that week (6 days before Sunday)
+        const lastMonday = new Date(lastSunday);
+        lastMonday.setDate(lastSunday.getDate() - 6);
+        lastMonday.setHours(0, 0, 0, 0);
+        
+        startDate = lastMonday;
+        endDate = lastSunday;
+        break;
       case "7d":
         startDate.setDate(now.getDate() - 7);
+        endDate = now;
         break;
       case "30d":
         startDate.setDate(now.getDate() - 30);
+        endDate = now;
         break;
       case "current_month":
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = now;
         break;
       case "year":
         startDate = new Date(now.getFullYear(), 0, 1);
+        endDate = now;
         break;
     }
     
-    return { startDate, endDate: now };
+    return { startDate, endDate };
   };
 
   const { startDate, endDate } = getDateRange();
@@ -53,11 +74,12 @@ const Overview = () => {
     queryFn: async () => {
       console.log("Fetching network health data...");
       
-      // Fetch all active restaurants with their data
+      // Fetch pinned restaurants only
       const { data: restaurants, error: restaurantsError } = await supabase
         .from("restaurants")
         .select("*")
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .eq("is_pinned", true);
       
       if (restaurantsError) {
         console.error("Error fetching restaurants:", restaurantsError);
@@ -192,6 +214,7 @@ const Overview = () => {
 
   const getPeriodLabel = () => {
     switch (period) {
+      case "previous_week": return "Semaine précédente";
       case "7d": return "7 derniers jours";
       case "30d": return "30 derniers jours";
       case "current_month": return "Mois en cours";
@@ -253,7 +276,7 @@ const Overview = () => {
             </span>
             <span className="text-sm">·</span>
             <span className="font-semibold">{networkData?.totalRestaurants || 0}</span>
-            <span>restaurants actifs</span>
+            <span>restaurants suivis</span>
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -280,6 +303,7 @@ const Overview = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="previous_week">Semaine précédente</SelectItem>
               <SelectItem value="7d">7 derniers jours</SelectItem>
               <SelectItem value="30d">30 derniers jours</SelectItem>
               <SelectItem value="current_month">Mois en cours</SelectItem>
