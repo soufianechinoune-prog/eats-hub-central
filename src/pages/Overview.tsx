@@ -68,11 +68,15 @@ const Overview = () => {
 
   const { startDate, endDate } = getDateRange();
 
+  // Format dates for queries
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = endDate.toISOString().split('T')[0];
+
   // Fetch network health data
   const { data: networkData, isLoading, error } = useQuery({
-    queryKey: ["network-health", period],
+    queryKey: ["network-health", period, startDateStr, endDateStr],
     queryFn: async () => {
-      console.log("Fetching network health data...");
+      console.log("Fetching network health data for period:", startDateStr, "to", endDateStr);
       
       // Fetch pinned restaurants only
       const { data: restaurants, error: restaurantsError } = await supabase
@@ -86,52 +90,144 @@ const Overview = () => {
         throw restaurantsError;
       }
 
-      console.log("Total restaurants:", restaurants?.length);
-
-      // Fetch monthly fees for profitability calculation
-      const { data: feesData, error: feesError } = await supabase
-        .from("monthly_fees")
-        .select("restaurant_id, platform, net_payout, uber_fee, marketing_fee, offers_cost, ads_cost, error_adjustments, eco_contribution")
-        .gte("created_at", startDate.toISOString())
-        .lte("created_at", endDate.toISOString());
-
-      if (feesError) {
-        console.error("Error fetching fees:", feesError);
+      console.log("Pinned restaurants:", restaurants?.length, restaurants?.map(r => r.name));
+      
+      const restaurantIds = restaurants?.map(r => r.id) || [];
+      
+      if (restaurantIds.length === 0) {
+        return {
+          global: { rating: null, prepTime: null, errorRate: null, incorrectOrderRate: null, profitability: null, downtime: null, productRating: null },
+          uber: { rating: null, prepTime: null, errorRate: null, incorrectOrderRate: null, profitability: null, downtime: null },
+          deliveroo: { rating: null, prepTime: null, errorRate: null, incorrectOrderRate: null, profitability: null, downtime: null },
+          topByRating: [], flopByRating: [], topByRevenue: [], flopByRevenue: [], topByProfitability: [], flopByProfitability: [],
+          topProducts: [], improvementProducts: [], totalRestaurants: 0, hasData: false,
+        };
       }
 
-      // Fetch monthly revenue for profitability calculation
-      const { data: revenueData, error: revenueError } = await supabase
-        .from("monthly_revenue")
-        .select("restaurant_id, platform, revenue_ttc, order_count")
-        .gte("created_at", startDate.toISOString())
-        .lte("created_at", endDate.toISOString());
+      // 1. Fetch daily sales (CA et commandes) - use date field
+      const { data: dailySalesData, error: salesError } = await supabase
+        .from("daily_sales_uber")
+        .select("restaurant_id, date, revenue_ttc, order_count, average_basket, platform")
+        .gte("date", startDateStr)
+        .lte("date", endDateStr)
+        .in("restaurant_id", restaurantIds);
 
-      if (revenueError) {
-        console.error("Error fetching revenue:", revenueError);
-      }
+      if (salesError) console.error("Error fetching daily sales:", salesError);
+      console.log("Daily sales data:", dailySalesData?.length, "rows");
 
-      // Calculate restaurant performance metrics using ONLY real data
+      // 2. Fetch customer reviews - use review_date field
+      const { data: reviewsData, error: reviewsError } = await supabase
+        .from("customer_reviews")
+        .select("restaurant_id, overall_rating, review_date, platform")
+        .gte("review_date", startDate.toISOString())
+        .lte("review_date", endDate.toISOString())
+        .in("restaurant_id", restaurantIds);
+
+      if (reviewsError) console.error("Error fetching reviews:", reviewsError);
+      console.log("Reviews data:", reviewsData?.length, "rows");
+
+      // 3. Fetch order history for prep times - use order_datetime field
+      const { data: orderHistoryData, error: historyError } = await supabase
+        .from("order_history")
+        .select("restaurant_id, initial_prep_time_minutes, avoidable_wait_time_minutes, order_datetime, platform")
+        .gte("order_datetime", startDate.toISOString())
+        .lte("order_datetime", endDate.toISOString())
+        .in("restaurant_id", restaurantIds);
+
+      if (historyError) console.error("Error fetching order history:", historyError);
+      console.log("Order history data:", orderHistoryData?.length, "rows");
+
+      // 4. Fetch order errors - use error_date field
+      const { data: errorsData, error: errorsError } = await supabase
+        .from("order_errors")
+        .select("restaurant_id, error_date, financial_impact")
+        .gte("error_date", startDate.toISOString())
+        .lte("error_date", endDate.toISOString())
+        .in("restaurant_id", restaurantIds);
+
+      if (errorsError) console.error("Error fetching errors:", errorsError);
+      console.log("Errors data:", errorsData?.length, "rows");
+
+      // 5. Fetch daily order accuracy - use date field
+      const { data: accuracyData, error: accuracyError } = await supabase
+        .from("daily_order_accuracy")
+        .select("*")
+        .gte("date", startDateStr)
+        .lte("date", endDateStr)
+        .in("restaurant_id", restaurantIds);
+
+      if (accuracyError) console.error("Error fetching accuracy:", accuracyError);
+      console.log("Accuracy data:", accuracyData?.length, "rows");
+
+      // 6. Fetch menu item reviews - use review_date field
+      const { data: menuReviewsData, error: menuReviewsError } = await supabase
+        .from("menu_item_reviews")
+        .select("restaurant_id, rating, thumb_up, thumb_down, item_title, platform")
+        .gte("review_date", startDate.toISOString())
+        .lte("review_date", endDate.toISOString())
+        .in("restaurant_id", restaurantIds);
+
+      if (menuReviewsError) console.error("Error fetching menu reviews:", menuReviewsError);
+      console.log("Menu reviews data:", menuReviewsData?.length, "rows");
+
+      // Calculate aggregated metrics
+      const totalRevenue = dailySalesData?.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0) || 0;
+      const totalOrders = dailySalesData?.reduce((sum, d) => sum + Number(d.order_count || 0), 0) || 0;
+      
+      // Average rating from reviews
+      const avgRating = reviewsData && reviewsData.length > 0
+        ? reviewsData.reduce((sum, r) => sum + Number(r.overall_rating || 0), 0) / reviewsData.length
+        : null;
+
+      // Average prep time from order history
+      const validPrepTimes = orderHistoryData?.filter(o => o.initial_prep_time_minutes != null) || [];
+      const avgPrepTime = validPrepTimes.length > 0
+        ? validPrepTimes.reduce((sum, o) => sum + Number(o.initial_prep_time_minutes || 0), 0) / validPrepTimes.length
+        : null;
+
+      // Error rate = errors / total orders
+      const totalErrors = errorsData?.length || 0;
+      const errorRate = totalOrders > 0 ? (totalErrors / totalOrders) * 100 : null;
+
+      // Incorrect order rate from accuracy data
+      const totalIncorrectOrders = accuracyData?.reduce((sum, a) => sum + Number(a.incorrect_orders_count || 0), 0) || 0;
+      const incorrectOrderRate = totalOrders > 0 ? (totalIncorrectOrders / totalOrders) * 100 : null;
+
+      // Product rating from menu reviews
+      const avgProductRating = menuReviewsData && menuReviewsData.length > 0
+        ? menuReviewsData.reduce((sum, r) => sum + Number(r.rating || 0), 0) / menuReviewsData.length
+        : null;
+
+      // Calculate per-restaurant metrics
       const restaurantMetrics = restaurants?.map(resto => {
-        // Calculate profitability and revenue from real fees and revenue data
-        const restoFees = feesData?.filter(f => f.restaurant_id === resto.id) || [];
-        const restoRevenue = revenueData?.filter(r => r.restaurant_id === resto.id) || [];
-        
-        const totalPayout = restoFees.reduce((sum, f) => sum + (Number(f.net_payout) || 0), 0);
-        const totalRevenue = restoRevenue.reduce((sum, r) => sum + (Number(r.revenue_ttc) || 0), 0);
-        
-        // Real profitability calculation - 0 if no data
-        const profitability = totalRevenue > 0 ? (totalPayout / totalRevenue) * 100 : 0;
+        const restoSales = dailySalesData?.filter(d => d.restaurant_id === resto.id) || [];
+        const restoReviews = reviewsData?.filter(r => r.restaurant_id === resto.id) || [];
+        const restoHistory = orderHistoryData?.filter(h => h.restaurant_id === resto.id) || [];
+        const restoErrors = errorsData?.filter(e => e.restaurant_id === resto.id) || [];
 
-        // Only use real data - no mocks
+        const revenue = restoSales.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0);
+        const orders = restoSales.reduce((sum, d) => sum + Number(d.order_count || 0), 0);
+        const rating = restoReviews.length > 0
+          ? restoReviews.reduce((sum, r) => sum + Number(r.overall_rating || 0), 0) / restoReviews.length
+          : 0;
+        const validPrep = restoHistory.filter(h => h.initial_prep_time_minutes != null);
+        const prepTime = validPrep.length > 0
+          ? validPrep.reduce((sum, h) => sum + Number(h.initial_prep_time_minutes || 0), 0) / validPrep.length
+          : 0;
+        const restoErrorRate = orders > 0 ? (restoErrors.length / orders) * 100 : 0;
+        
+        // For profitability, we'd need fees data - for now set to 0
+        const profitability = 0;
+
         return {
           id: resto.id,
           name: resto.name,
           city: resto.city,
-          rating: 0, // Will come from customer_reviews when available
-          prepTime: 0, // Will come from delivery_stats when available
-          errorRate: 0, // Will come from order_errors when available
-          profitability: parseFloat(profitability.toFixed(1)),
-          revenue: totalRevenue,
+          rating: parseFloat(rating.toFixed(1)),
+          prepTime: Math.round(prepTime),
+          errorRate: parseFloat(restoErrorRate.toFixed(1)),
+          profitability,
+          revenue,
         };
       }) || [];
 
@@ -148,50 +244,55 @@ const Overview = () => {
       const topByProfitability = sortedByProfitability.slice(0, 5);
       const flopByProfitability = sortedByProfitability.slice(-5).reverse();
 
-      // Calculate network-wide averages
-      const avgRating = restaurantMetrics.reduce((sum, r) => sum + r.rating, 0) / (restaurantMetrics.length || 1);
-      const avgProfitability = restaurantMetrics.reduce((sum, r) => sum + r.profitability, 0) / (restaurantMetrics.length || 1);
+      // Platform-specific metrics
+      const uberSales = dailySalesData?.filter(d => d.platform === "uber_eats") || [];
+      const uberReviews = reviewsData?.filter(r => r.platform === "uber_eats") || [];
+      const uberHistory = orderHistoryData?.filter(h => h.platform === "uber_eats") || [];
+      
+      const uberRevenue = uberSales.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0);
+      const uberOrders = uberSales.reduce((sum, d) => sum + Number(d.order_count || 0), 0);
+      const uberRating = uberReviews.length > 0 
+        ? uberReviews.reduce((sum, r) => sum + Number(r.overall_rating || 0), 0) / uberReviews.length 
+        : null;
+      const uberValidPrep = uberHistory.filter(h => h.initial_prep_time_minutes != null);
+      const uberPrepTime = uberValidPrep.length > 0
+        ? uberValidPrep.reduce((sum, h) => sum + Number(h.initial_prep_time_minutes || 0), 0) / uberValidPrep.length
+        : null;
 
-      // Calculate platform-specific metrics
-      const uberFees = feesData?.filter(f => f.platform === "uber_eats") || [];
-      const deliverooFees = feesData?.filter(f => f.platform === "deliveroo") || [];
-      const uberRevenue = revenueData?.filter(r => r.platform === "uber_eats") || [];
-      const deliverooRevenue = revenueData?.filter(r => r.platform === "deliveroo") || [];
+      const deliverooSales = dailySalesData?.filter(d => d.platform === "deliveroo") || [];
+      const deliverooReviews = reviewsData?.filter(r => r.platform === "deliveroo") || [];
+      
+      const deliverooRevenue = deliverooSales.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0);
+      const deliverooOrders = deliverooSales.reduce((sum, d) => sum + Number(d.order_count || 0), 0);
+      const deliverooRating = deliverooReviews.length > 0
+        ? deliverooReviews.reduce((sum, r) => sum + Number(r.overall_rating || 0), 0) / deliverooReviews.length
+        : null;
 
-      const uberTotalPayout = uberFees.reduce((sum, f) => sum + (Number(f.net_payout) || 0), 0);
-      const uberTotalRevenue = uberRevenue.reduce((sum, r) => sum + (Number(r.revenue_ttc) || 0), 0);
-      const uberProfitability = uberTotalRevenue > 0 ? (uberTotalPayout / uberTotalRevenue) * 100 : 0;
-
-      const deliverooTotalPayout = deliverooFees.reduce((sum, f) => sum + (Number(f.net_payout) || 0), 0);
-      const deliverooTotalRevenue = deliverooRevenue.reduce((sum, r) => sum + (Number(r.revenue_ttc) || 0), 0);
-      const deliverooProfitability = deliverooTotalRevenue > 0 ? (deliverooTotalPayout / deliverooTotalRevenue) * 100 : 0;
-
-      // Return ONLY real data - no mock values
       const result = {
         global: {
-          rating: 0, // Will come from customer_reviews
-          prepTime: 0, // Will come from delivery_stats
-          errorRate: 0, // Will come from order_errors
-          incorrectOrderRate: 0, // Will come from order_errors
-          profitability: parseFloat(avgProfitability.toFixed(1)),
-          downtime: 0, // Will come from downtime_logs
-          productRating: 0, // Will come from menu_item_reviews
+          rating: avgRating,
+          prepTime: avgPrepTime != null ? Math.round(avgPrepTime) : null,
+          errorRate: errorRate,
+          incorrectOrderRate: incorrectOrderRate,
+          profitability: null, // Needs monthly_fees data
+          downtime: null, // Needs hourly_availability data
+          productRating: avgProductRating,
         },
         uber: {
-          rating: 0, // Will come from customer_reviews
-          prepTime: 0, // Will come from delivery_stats
-          errorRate: 0, // Will come from order_errors
-          incorrectOrderRate: 0, // Will come from order_errors
-          profitability: parseFloat(uberProfitability.toFixed(1)),
-          downtime: 0, // Will come from downtime_logs
+          rating: uberRating,
+          prepTime: uberPrepTime != null ? Math.round(uberPrepTime) : null,
+          errorRate: uberOrders > 0 ? (errorsData?.length || 0) / uberOrders * 100 : null,
+          incorrectOrderRate: null,
+          profitability: null,
+          downtime: null,
         },
         deliveroo: {
-          rating: 0, // Will come from customer_reviews
-          prepTime: 0, // Will come from delivery_stats
-          errorRate: 0, // Will come from order_errors
-          incorrectOrderRate: 0, // Will come from order_errors
-          profitability: parseFloat(deliverooProfitability.toFixed(1)),
-          downtime: 0, // Will come from downtime_logs
+          rating: deliverooRating,
+          prepTime: null,
+          errorRate: null,
+          incorrectOrderRate: null,
+          profitability: null,
+          downtime: null,
         },
         topByRating,
         flopByRating,
@@ -199,10 +300,10 @@ const Overview = () => {
         flopByRevenue,
         topByProfitability,
         flopByProfitability,
-        topProducts: [], // Will come from menu_item_reviews
-        improvementProducts: [], // Will come from menu_item_reviews
+        topProducts: [],
+        improvementProducts: [],
         totalRestaurants: restaurants?.length || 0,
-        hasData: (revenueData?.length || 0) > 0 || (feesData?.length || 0) > 0,
+        hasData: (dailySalesData?.length || 0) > 0 || (reviewsData?.length || 0) > 0,
       };
 
       console.log("Returning data:", result);
@@ -341,13 +442,13 @@ const Overview = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <MetricRow icon={Star} label="Note moyenne" value={networkData?.global.rating.toFixed(1)} unit="/5" color="text-blue-500" />
+                <MetricRow icon={Star} label="Note moyenne" value={networkData?.global.rating != null ? networkData.global.rating.toFixed(1) : null} unit="/5" color="text-blue-500" />
                 <MetricRow icon={Clock} label="Temps préparation" value={networkData?.global.prepTime} unit="min" color="text-amber-500" />
-                <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.global.errorRate.toFixed(1)} unit="%" color="text-red-500" />
-                <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.global.incorrectOrderRate.toFixed(1)} unit="%" color="text-red-400" />
-                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability.toFixed(1)} unit="%" color="text-emerald-500" />
+                <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.global.errorRate != null ? networkData.global.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
+                <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.global.incorrectOrderRate != null ? networkData.global.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
+                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability != null ? networkData.global.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={networkData?.global.downtime} unit="min" color="text-orange-500" />
-                <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productRating.toFixed(1)} unit="/5" color="text-violet-500" />
+                <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productRating != null ? networkData.global.productRating.toFixed(1) : null} unit="/5" color="text-violet-500" />
               </CardContent>
             </Card>
 
@@ -367,11 +468,11 @@ const Overview = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <MetricRow icon={Star} label="Note moyenne" value={networkData?.uber.rating.toFixed(1)} unit="/5" color="text-blue-500" />
+                <MetricRow icon={Star} label="Note moyenne" value={networkData?.uber.rating != null ? networkData.uber.rating.toFixed(1) : null} unit="/5" color="text-blue-500" />
                 <MetricRow icon={Clock} label="Temps préparation" value={networkData?.uber.prepTime} unit="min" color="text-amber-500" />
-                <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.uber.errorRate.toFixed(1)} unit="%" color="text-red-500" />
-                <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate.toFixed(1)} unit="%" color="text-red-400" />
-                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability.toFixed(1)} unit="%" color="text-emerald-500" />
+                <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.uber.errorRate != null ? networkData.uber.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
+                <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
+                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability != null ? networkData.uber.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={networkData?.uber.downtime} unit="min" color="text-orange-500" />
               </CardContent>
             </Card>
@@ -392,11 +493,11 @@ const Overview = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <MetricRow icon={Star} label="Note moyenne" value={networkData?.deliveroo.rating.toFixed(1)} unit="/5" color="text-blue-500" />
+                <MetricRow icon={Star} label="Note moyenne" value={networkData?.deliveroo.rating != null ? networkData.deliveroo.rating.toFixed(1) : null} unit="/5" color="text-blue-500" />
                 <MetricRow icon={Clock} label="Temps préparation" value={networkData?.deliveroo.prepTime} unit="min" color="text-amber-500" />
-                <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.deliveroo.errorRate.toFixed(1)} unit="%" color="text-red-500" />
-                <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate.toFixed(1)} unit="%" color="text-red-400" />
-                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability.toFixed(1)} unit="%" color="text-emerald-500" />
+                <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.deliveroo.errorRate != null ? networkData.deliveroo.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
+                <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate != null ? networkData.deliveroo.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
+                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability != null ? networkData.deliveroo.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={networkData?.deliveroo.downtime} unit="min" color="text-orange-500" />
               </CardContent>
             </Card>
