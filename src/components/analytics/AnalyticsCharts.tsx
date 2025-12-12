@@ -1803,7 +1803,7 @@ export function AnalyticsCharts({
                             return (
                               <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
                                 <p className="font-medium mb-2">
-                                  {drillDownMonth ? `${data.dayOfWeek ? `${data.dayOfWeek}. ` : ''}${label} ${MONTHS[drillDownMonth - 1]}` : label}
+                                  {drillDownMonth ? `${data.dayOfWeek ? `${data.dayOfWeek}. ` : ""}${label} ${MONTHS[drillDownMonth - 1]}` : label}
                                 </p>
                                 <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>
                                   CA {currentLabel}: {(data.revenue || 0).toLocaleString('fr-FR')} €
@@ -1817,6 +1817,27 @@ export function AnalyticsCharts({
                                       {variation > 0 ? '+' : ''}{variation.toFixed(1)}%
                                     </p>
                                   </>
+                                )}
+                                {isDailyView && activeDailyMonth && (
+                                  dailyFootballMatches.filter((match) => match.x1 === label).length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-border/60">
+                                      {dailyFootballMatches
+                                        .filter((match) => match.x1 === label)
+                                        .map((match) => (
+                                          <div key={match.id} className="text-xs space-y-0.5">
+                                            <div className="font-semibold flex items-center gap-1">
+                                              <span>⚽</span>
+                                              <span>{match.home_team} vs {match.away_team}</span>
+                                            </div>
+                                            {(match.time || match.venue) && (
+                                              <p className="text-[11px] text-muted-foreground">
+                                                {match.time}{match.time && match.venue ? ' • ' : ''}{match.venue}
+                                              </p>
+                                            )}
+                                          </div>
+                                        ))}
+                                    </div>
+                                  )
                                 )}
                               </div>
                             );
