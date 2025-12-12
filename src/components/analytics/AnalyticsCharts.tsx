@@ -1846,13 +1846,13 @@ export function AnalyticsCharts({
                           renderFootballMatchMarker(event)
                         )}
                         {/* Contextual events - DAILY VIEW */}
-                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailySchoolHolidays.map(event => 
+                        {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailySchoolHolidays.map(event => 
                           renderSchoolHolidayAreaDaily(event)
                         )}
-                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyHolidays.map(event => 
+                        {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailyHolidays.map(event => 
                           renderPublicHolidayMarkerDaily(event)
                         )}
-                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyFootballMatches.map(event => 
+                        {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailyFootballMatches.map(event => 
                           renderFootballMatchMarkerDaily(event)
                         )}
                         {/* Punctual action markers - YEAR VIEW */}
@@ -1873,7 +1873,7 @@ export function AnalyticsCharts({
                           );
                         })}
                         {/* Punctual action markers - DAILY VIEW */}
-                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyActions.map(action => {
+                        {isDailyView && shouldShowActionsForChart("revenue") && dailyActions.map(action => {
                           const color = ACTION_CATEGORY_COLORS[action.category] || "#64748b";
                           return (
                             <ReferenceLine
@@ -2009,13 +2009,13 @@ export function AnalyticsCharts({
                           renderFootballMatchMarker(event)
                         )}
                         {/* Contextual events - DAILY VIEW */}
-                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailySchoolHolidays.map(event => 
+                        {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailySchoolHolidays.map(event => 
                           renderSchoolHolidayAreaDaily(event)
                         )}
-                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyHolidays.map(event => 
+                        {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailyHolidays.map(event => 
                           renderPublicHolidayMarkerDaily(event)
                         )}
-                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyFootballMatches.map(event => 
+                        {isDailyView && activeDailyMonth && shouldShowActionsForChart("revenue") && dailyFootballMatches.map(event => 
                           renderFootballMatchMarkerDaily(event)
                         )}
                         {/* Punctual action markers - YEAR VIEW */}
@@ -2036,7 +2036,7 @@ export function AnalyticsCharts({
                           );
                         })}
                         {/* Punctual action markers - DAILY VIEW */}
-                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyActions.map(action => {
+                        {isDailyView && shouldShowActionsForChart("revenue") && dailyActions.map(action => {
                           const color = ACTION_CATEGORY_COLORS[action.category] || "#64748b";
                           return (
                             <ReferenceLine
