@@ -99,9 +99,9 @@ export function useFootballMatches(
       competition: match.competition,
       time: match.time,
       color: {
-        bg: "bg-blue-600/20",
-        text: "text-blue-700 dark:text-blue-300",
-        border: "border-blue-600",
+        bg: "rgba(59, 130, 246, 0.08)",
+        text: "#2563eb",
+        border: "rgba(59, 130, 246, 0.6)",
       },
       icon: "⚽",
       home_team: match.home_team,
