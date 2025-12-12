@@ -63,6 +63,44 @@ export interface ContextualEvent {
   venue?: string;
 }
 
+// Function to merge adjacent/overlapping school holiday periods
+function mergeAdjacentPeriods(events: ContextualEvent[]): ContextualEvent[] {
+  if (events.length === 0) return [];
+  
+  // Sort by start date
+  const sorted = [...events].sort((a, b) => 
+    new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+  );
+  
+  const merged: ContextualEvent[] = [];
+  let current = { ...sorted[0] };
+  
+  for (let i = 1; i < sorted.length; i++) {
+    const next = sorted[i];
+    const currentEnd = new Date(current.end_date);
+    const nextStart = new Date(next.start_date);
+    
+    // If periods overlap or are within 7 days of each other
+    const daysDiff = (nextStart.getTime() - currentEnd.getTime()) / (1000 * 60 * 60 * 24);
+    
+    if (daysDiff <= 7) {
+      // Merge: extend current's end date if needed
+      const nextEnd = new Date(next.end_date);
+      if (nextEnd > currentEnd) {
+        current.end_date = next.end_date;
+      }
+      current.title = "Vacances scolaires";
+      current.description = `Vacances scolaires - ${current.zones.join(', ')}`;
+    } else {
+      merged.push(current);
+      current = { ...next };
+    }
+  }
+  
+  merged.push(current);
+  return merged;
+}
+
 export function useSchoolHolidays(
   year: number,
   restaurants: Restaurant[],
@@ -118,11 +156,11 @@ export function useSchoolHolidays(
     return Array.from(zones);
   }, [restaurants]);
 
-  // Filter holidays by relevant zones
+  // Filter holidays by relevant zones and merge adjacent periods
   const contextualEvents: ContextualEvent[] = useMemo(() => {
     if (!enabled || holidays.length === 0) return [];
     
-    return holidays
+    const filtered = holidays
       .filter(holiday => {
         // If no restaurants selected, show all zones
         if (relevantZones.length === 0) return true;
@@ -144,6 +182,9 @@ export function useSchoolHolidays(
         },
         icon: "🎒",
       }));
+    
+    // Merge adjacent periods to avoid visual overlapping
+    return mergeAdjacentPeriods(filtered);
   }, [holidays, relevantZones, enabled]);
 
   return {
