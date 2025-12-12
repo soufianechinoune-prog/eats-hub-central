@@ -35,6 +35,12 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { ConversionFunnelChart } from "./ConversionFunnelChart";
+import {
+  useProcessedContextualEvents,
+  renderPublicHolidayMarker,
+  renderSchoolHolidayArea,
+  renderFootballMatchMarker,
+} from "./ContextualEventBar";
 import { ConversionLeakyBucket } from "./ConversionLeakyBucket";
 import { ConversionRankingByStage } from "./ConversionRankingByStage";
 import { ConversionScatterPlot } from "./ConversionScatterPlot";
@@ -631,29 +637,13 @@ export function AnalyticsCharts({
     });
   }, [periodEvents, startMonth, endMonth]);
 
-  // Contextual events data for ReferenceArea rendering (holidays, school holidays, football)
-  const contextualEventsData = useMemo(() => {
-    return contextualEvents.map(event => {
-      const eventStartMonth = new Date(event.start_date).getMonth();
-      const eventEndMonth = event.end_date ? new Date(event.end_date).getMonth() : eventStartMonth;
-      // For single-day events like public holidays, still use the same month for x1 and x2
-      const x2MonthIndex = event.type === "public_holiday" 
-        ? eventStartMonth 
-        : Math.min(eventEndMonth + 1, 11);
-      return {
-        ...event,
-        x1: MONTHS[eventStartMonth],
-        x2: MONTHS[x2MonthIndex],
-        startMonthIndex: eventStartMonth,
-        endMonthIndex: eventEndMonth,
-      };
-    }).filter(e => {
-      // Filter to events within the displayed range
-      const startMonthNum = e.startMonthIndex + 1;
-      const endMonthNum = e.endMonthIndex + 1;
-      return startMonthNum <= endMonth && endMonthNum >= startMonth;
-    });
-  }, [contextualEvents, startMonth, endMonth]);
+  // Process contextual events into categorized groups for differentiated rendering
+  const { holidays, schoolHolidays, footballMatches } = useProcessedContextualEvents(
+    contextualEvents,
+    startMonth,
+    endMonth,
+    MONTHS
+  );
 
   // Helper to check if actions should be shown for a specific chart
   const shouldShowActionsForChart = (chartKey: keyof Omit<ChartActionsConfig, "global">) => {
@@ -1793,27 +1783,19 @@ export function AnalyticsCharts({
                             }}
                           />
                         ))}
-                        {/* Contextual events (holidays, school holidays, football) */}
-                        {!drillDownMonth && shouldShowActionsForChart("revenue") && contextualEventsData.map(event => (
-                          <ReferenceArea
-                            key={`ctx-${event.id}`}
-                            x1={event.x1}
-                            x2={event.type === "public_holiday" ? event.x1 : event.x2}
-                            fill={event.color.bg}
-                            fillOpacity={0.3}
-                            stroke={event.color.border}
-                            strokeOpacity={0.7}
-                            strokeWidth={1}
-                            strokeDasharray={event.type === "public_holiday" ? "3 2" : "4 2"}
-                            label={{
-                              value: `${event.icon} ${event.description}`,
-                              position: 'insideTop',
-                              fill: event.color.text,
-                              fontSize: 10,
-                              fontWeight: 500,
-                            }}
-                          />
-                        ))}
+                        {/* Contextual events - differentiated by type */}
+                        {/* School holidays as light zones */}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && schoolHolidays.map(event => 
+                          renderSchoolHolidayArea(event)
+                        )}
+                        {/* Public holidays as vertical lines with emoji markers */}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && holidays.map(event => 
+                          renderPublicHolidayMarker(event)
+                        )}
+                        {/* Football matches as discrete markers */}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && footballMatches.map(event => 
+                          renderFootballMatchMarker(event)
+                        )}
                         {/* Punctual action markers (only in year view) */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
                           const monthActions = actionsByMonth[monthNum] || [];

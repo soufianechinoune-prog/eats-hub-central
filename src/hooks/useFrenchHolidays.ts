@@ -87,9 +87,9 @@ export function useFrenchHolidays(year: number, enabled: boolean = true) {
       type: "public_holiday" as const,
       zones: [], // Applies to all of France
       color: {
-        bg: "bg-red-500/20",
-        text: "text-red-700 dark:text-red-300",
-        border: "border-red-500",
+        bg: "rgba(239, 68, 68, 0.08)",
+        text: "#dc2626",
+        border: "rgba(239, 68, 68, 0.6)",
       },
       icon: "🇫🇷",
     }));

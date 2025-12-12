@@ -138,9 +138,9 @@ export function useSchoolHolidays(
         type: "school_holiday" as const,
         zones: holiday.zones,
         color: {
-          bg: "bg-orange-500/20",
-          text: "text-orange-700 dark:text-orange-300",
-          border: "border-orange-500",
+          bg: "rgba(249, 115, 22, 0.08)",
+          text: "#ea580c",
+          border: "rgba(249, 115, 22, 0.4)",
         },
         icon: "🎒",
       }));
