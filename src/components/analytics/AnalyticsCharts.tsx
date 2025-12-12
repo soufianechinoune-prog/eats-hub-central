@@ -37,9 +37,13 @@ import {
 import { ConversionFunnelChart } from "./ConversionFunnelChart";
 import {
   useProcessedContextualEvents,
+  useProcessedContextualEventsDaily,
   renderPublicHolidayMarker,
   renderSchoolHolidayArea,
   renderFootballMatchMarker,
+  renderPublicHolidayMarkerDaily,
+  renderSchoolHolidayAreaDaily,
+  renderFootballMatchMarkerDaily,
 } from "./ContextualEventBar";
 import { ConversionLeakyBucket } from "./ConversionLeakyBucket";
 import { ConversionRankingByStage } from "./ConversionRankingByStage";
@@ -644,6 +648,38 @@ export function AnalyticsCharts({
     endMonth,
     MONTHS
   );
+
+  // Format function for daily X-axis values
+  const formatDailyXValue = useMemo(() => {
+    return (date: Date) => format(date, 'dd/MM', { locale: fr });
+  }, []);
+
+  // Process contextual events for DAILY view (drilldown mode)
+  const { 
+    holidays: dailyHolidays, 
+    schoolHolidays: dailySchoolHolidays, 
+    footballMatches: dailyFootballMatches 
+  } = useProcessedContextualEventsDaily(
+    contextualEvents,
+    drillDownMonth,
+    selectedYear,
+    formatDailyXValue
+  );
+
+  // Actions filtered for daily view (drilldown month)
+  const dailyActions = useMemo(() => {
+    if (!drillDownMonth || !punctualActions || punctualActions.length === 0) return [];
+    
+    return punctualActions.filter(action => {
+      const actionDate = new Date(action.start_date);
+      const actionMonth = actionDate.getMonth() + 1;
+      const actionYear = actionDate.getFullYear();
+      return actionMonth === drillDownMonth && actionYear === selectedYear;
+    }).map(action => ({
+      ...action,
+      xValue: format(new Date(action.start_date), 'dd/MM', { locale: fr }),
+    }));
+  }, [punctualActions, drillDownMonth, selectedYear]);
 
   // Helper to check if actions should be shown for a specific chart
   const shouldShowActionsForChart = (chartKey: keyof Omit<ChartActionsConfig, "global">) => {
@@ -1762,7 +1798,7 @@ export function AnalyticsCharts({
                             );
                           }}
                         />
-                        {/* Period events as ReferenceArea (e.g., Ramadan) */}
+                        {/* Period events as ReferenceArea (e.g., Ramadan) - only in year view */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && periodEventsData.map(event => (
                           <ReferenceArea
                             key={`period-${event.id}`}
@@ -1783,20 +1819,27 @@ export function AnalyticsCharts({
                             }}
                           />
                         ))}
-                        {/* Contextual events - differentiated by type */}
-                        {/* School holidays as light zones */}
+                        {/* Contextual events - YEAR VIEW */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && schoolHolidays.map(event => 
                           renderSchoolHolidayArea(event)
                         )}
-                        {/* Public holidays as vertical lines with emoji markers */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && holidays.map(event => 
                           renderPublicHolidayMarker(event)
                         )}
-                        {/* Football matches as discrete markers */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && footballMatches.map(event => 
                           renderFootballMatchMarker(event)
                         )}
-                        {/* Punctual action markers (only in year view) */}
+                        {/* Contextual events - DAILY VIEW */}
+                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailySchoolHolidays.map(event => 
+                          renderSchoolHolidayAreaDaily(event)
+                        )}
+                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyHolidays.map(event => 
+                          renderPublicHolidayMarkerDaily(event)
+                        )}
+                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyFootballMatches.map(event => 
+                          renderFootballMatchMarkerDaily(event)
+                        )}
+                        {/* Punctual action markers - YEAR VIEW */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
                           const monthActions = actionsByMonth[monthNum] || [];
                           const primaryAction = monthActions[0];
@@ -1810,6 +1853,20 @@ export function AnalyticsCharts({
                               strokeWidth={2}
                               strokeDasharray="5 5"
                               label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                            />
+                          );
+                        })}
+                        {/* Punctual action markers - DAILY VIEW */}
+                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyActions.map(action => {
+                          const color = ACTION_CATEGORY_COLORS[action.category] || "#64748b";
+                          return (
+                            <ReferenceLine
+                              key={`action-daily-${action.id}`}
+                              x={action.xValue}
+                              stroke={color}
+                              strokeWidth={2}
+                              strokeDasharray="5 5"
+                              label={<ActionMarkerLabel actions={[action]} color={color} onActionClick={onActionClick} />}
                             />
                           );
                         })}
@@ -1904,10 +1961,10 @@ export function AnalyticsCharts({
                             );
                           }}
                         />
-                        {/* Period events as ReferenceArea (e.g., Ramadan) */}
+                        {/* Period events as ReferenceArea (e.g., Ramadan) - only in year view */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && periodEventsData.map(event => (
                           <ReferenceArea
-                            key={`period-${event.id}`}
+                            key={`period-line-${event.id}`}
                             x1={event.x1}
                             x2={event.x2}
                             fill={event.color}
@@ -1925,7 +1982,27 @@ export function AnalyticsCharts({
                             }}
                           />
                         ))}
-                        {/* Punctual action markers (only in year view) */}
+                        {/* Contextual events - YEAR VIEW */}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && schoolHolidays.map(event => 
+                          renderSchoolHolidayArea(event)
+                        )}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && holidays.map(event => 
+                          renderPublicHolidayMarker(event)
+                        )}
+                        {!drillDownMonth && shouldShowActionsForChart("revenue") && footballMatches.map(event => 
+                          renderFootballMatchMarker(event)
+                        )}
+                        {/* Contextual events - DAILY VIEW */}
+                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailySchoolHolidays.map(event => 
+                          renderSchoolHolidayAreaDaily(event)
+                        )}
+                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyHolidays.map(event => 
+                          renderPublicHolidayMarkerDaily(event)
+                        )}
+                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyFootballMatches.map(event => 
+                          renderFootballMatchMarkerDaily(event)
+                        )}
+                        {/* Punctual action markers - YEAR VIEW */}
                         {!drillDownMonth && shouldShowActionsForChart("revenue") && actionMonths.map(monthNum => {
                           const monthActions = actionsByMonth[monthNum] || [];
                           const primaryAction = monthActions[0];
@@ -1933,12 +2010,26 @@ export function AnalyticsCharts({
                           const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
                           return (
                             <ReferenceLine
-                              key={`action-${monthNum}`}
+                              key={`action-line-${monthNum}`}
                               x={MONTHS[monthNum - 1]}
                               stroke={color}
                               strokeWidth={2}
                               strokeDasharray="5 5"
                               label={<ActionMarkerLabel actions={monthActions} color={color} onActionClick={onActionClick} />}
+                            />
+                          );
+                        })}
+                        {/* Punctual action markers - DAILY VIEW */}
+                        {drillDownMonth && shouldShowActionsForChart("revenue") && dailyActions.map(action => {
+                          const color = ACTION_CATEGORY_COLORS[action.category] || "#64748b";
+                          return (
+                            <ReferenceLine
+                              key={`action-daily-line-${action.id}`}
+                              x={action.xValue}
+                              stroke={color}
+                              strokeWidth={2}
+                              strokeDasharray="5 5"
+                              label={<ActionMarkerLabel actions={[action]} color={color} onActionClick={onActionClick} />}
                             />
                           );
                         })}
