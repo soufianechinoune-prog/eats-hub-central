@@ -251,7 +251,54 @@ export function renderFootballMatchMarker(event: ProcessedEvent) {
   );
 }
 
-// Main export: process and categorize events
+// Daily view rendering functions (x value is formatted date like "05/03")
+export function renderPublicHolidayMarkerDaily(event: ProcessedEvent) {
+  const colors = CONTEXTUAL_EVENT_COLORS.public_holiday;
+  return (
+    <ReferenceLine
+      key={`holiday-daily-${event.id}`}
+      x={event.x1}
+      stroke={colors.stroke}
+      strokeWidth={1.5}
+      strokeDasharray="3 3"
+      label={<HolidayMarkerLabel event={event} />}
+    />
+  );
+}
+
+export function renderSchoolHolidayAreaDaily(event: ProcessedEvent) {
+  const colors = CONTEXTUAL_EVENT_COLORS.school_holiday;
+  return (
+    <ReferenceArea
+      key={`school-daily-${event.id}`}
+      x1={event.x1}
+      x2={event.x2}
+      fill={colors.fill}
+      fillOpacity={1}
+      stroke={colors.stroke}
+      strokeOpacity={0.5}
+      strokeWidth={1}
+      strokeDasharray="4 2"
+      label={<SchoolHolidayLabel event={event} />}
+    />
+  );
+}
+
+export function renderFootballMatchMarkerDaily(event: ProcessedEvent) {
+  const colors = CONTEXTUAL_EVENT_COLORS.football_match;
+  return (
+    <ReferenceLine
+      key={`match-daily-${event.id}`}
+      x={event.x1}
+      stroke={colors.stroke}
+      strokeWidth={1.5}
+      strokeDasharray="2 2"
+      label={<HolidayMarkerLabel event={event} />}
+    />
+  );
+}
+
+// Main export: process and categorize events for MONTHLY view
 export function useProcessedContextualEvents(
   contextualEvents: ContextualEvent[],
   startMonth: number,
@@ -300,4 +347,63 @@ export function useProcessedContextualEvents(
 
     return { holidays, schoolHolidays, footballMatches: limitedMatches };
   }, [contextualEvents, startMonth, endMonth, MONTHS]);
+}
+
+// Process events for DAILY view (drilldown mode)
+export function useProcessedContextualEventsDaily(
+  contextualEvents: ContextualEvent[],
+  drillDownMonth: number | null,
+  selectedYear: number,
+  formatDateFn: (date: Date) => string // Format function to match X-axis (e.g., "05/03")
+) {
+  return useMemo(() => {
+    if (!drillDownMonth) {
+      return { holidays: [], schoolHolidays: [], footballMatches: [] };
+    }
+
+    const holidays: ProcessedEvent[] = [];
+    const schoolHolidays: ProcessedEvent[] = [];
+    const footballMatches: ProcessedEvent[] = [];
+
+    contextualEvents.forEach((event) => {
+      const eventStart = new Date(event.start_date);
+      const eventEnd = event.end_date ? new Date(event.end_date) : eventStart;
+
+      // Check if event overlaps with the drilldown month
+      const monthStart = new Date(selectedYear, drillDownMonth - 1, 1);
+      const monthEnd = new Date(selectedYear, drillDownMonth, 0); // Last day of month
+
+      // Skip if event doesn't overlap with the drilldown month
+      if (eventEnd < monthStart || eventStart > monthEnd) return;
+
+      // Calculate x1 and x2 for daily axis
+      const x1Date = eventStart < monthStart ? monthStart : eventStart;
+      const x2Date = eventEnd > monthEnd ? monthEnd : eventEnd;
+
+      const processed: ProcessedEvent = {
+        ...event,
+        x1: formatDateFn(x1Date),
+        x2: formatDateFn(x2Date),
+        startMonthIndex: eventStart.getMonth(),
+        endMonthIndex: eventEnd.getMonth(),
+      };
+
+      switch (event.type) {
+        case "public_holiday":
+          holidays.push(processed);
+          break;
+        case "school_holiday":
+          schoolHolidays.push(processed);
+          break;
+        case "football_match":
+          footballMatches.push(processed);
+          break;
+      }
+    });
+
+    // Limit football matches to avoid clutter
+    const limitedMatches = footballMatches.slice(0, 8);
+
+    return { holidays, schoolHolidays, footballMatches: limitedMatches };
+  }, [contextualEvents, drillDownMonth, selectedYear, formatDateFn]);
 }
