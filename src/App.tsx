@@ -29,6 +29,7 @@ import Operations from "./pages/Operations";
 import Cartography from "./pages/Cartography";
 import ReportImport from "./pages/ReportImport";
 import ImportGuide from "./pages/ImportGuide";
+import DowntimeComparison from "./pages/DowntimeComparison";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 
 const queryClient = new QueryClient({
@@ -213,6 +214,14 @@ const App = () => {
                 element={
                   <AppLayout>
                     <ImportGuide />
+                  </AppLayout>
+                }
+              />
+              <Route
+                path="/compare/downtime"
+                element={
+                  <AppLayout>
+                    <DowntimeComparison />
                   </AppLayout>
                 }
               />
