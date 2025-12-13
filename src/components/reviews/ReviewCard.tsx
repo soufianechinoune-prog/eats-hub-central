@@ -78,9 +78,11 @@ export function ReviewCard({
             <span className="text-sm text-muted-foreground">
               {format(new Date(reviewDate), "dd MMM yyyy", { locale: fr })}
             </span>
-            <span className="text-sm text-muted-foreground">
-              • {orderTotal.toFixed(2)}€
-            </span>
+            {orderTotal != null && (
+              <span className="text-sm text-muted-foreground">
+                • {orderTotal.toFixed(2)}€
+              </span>
+            )}
           </div>
 
           {/* Comment */}
