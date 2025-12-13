@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Star, Clock, TrendingDown, Percent, DollarSign, PauseCircle, Award, Euro, FileDown, FileSpreadsheet } from "lucide-react";
+import { Star, Clock, TrendingDown, Percent, DollarSign, PauseCircle, Award, Euro, FileDown, FileSpreadsheet, ChevronRight } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -487,7 +487,7 @@ const Overview = () => {
                 <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.global.errorRate != null ? networkData.global.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.global.incorrectOrderRate != null ? networkData.global.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability != null ? networkData.global.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.global.downtime)} color="text-orange-500" />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.global.downtime)} color="text-orange-500" onClick={() => navigate('/compare/downtime')} />
                 <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productRating != null ? networkData.global.productRating.toFixed(1) : null} unit="/5" color="text-violet-500" />
               </CardContent>
             </Card>
@@ -513,7 +513,7 @@ const Overview = () => {
                 <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.uber.errorRate != null ? networkData.uber.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability != null ? networkData.uber.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.uber.downtime)} color="text-orange-500" />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.uber.downtime)} color="text-orange-500" onClick={() => navigate('/compare/downtime')} />
               </CardContent>
             </Card>
 
@@ -538,7 +538,7 @@ const Overview = () => {
                 <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.deliveroo.errorRate != null ? networkData.deliveroo.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate != null ? networkData.deliveroo.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability != null ? networkData.deliveroo.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" onClick={() => navigate('/compare/downtime')} />
               </CardContent>
             </Card>
           </div>
@@ -948,13 +948,15 @@ const MetricRow = ({
   label, 
   value, 
   unit, 
-  color 
+  color,
+  onClick
 }: { 
   icon: any; 
   label: string; 
   value: any; 
   unit?: string; 
   color: string;
+  onClick?: () => void;
 }) => {
   // Display "--" for 0 or null/undefined values
   const displayValue = value === 0 || value === null || value === undefined || value === "0" || value === "0.0" 
@@ -963,10 +965,19 @@ const MetricRow = ({
   const showUnit = displayValue !== "--";
   
   return (
-    <div className="flex items-center justify-between text-sm">
+    <div 
+      className={cn(
+        "flex items-center justify-between text-sm",
+        onClick && "cursor-pointer hover:bg-muted/50 -mx-2 px-2 py-1 rounded-lg transition-colors group"
+      )}
+      onClick={onClick}
+    >
       <span className="flex items-center gap-2 text-muted-foreground">
         <Icon className="h-4 w-4" />
         {label}
+        {onClick && (
+          <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+        )}
       </span>
       <span className={cn("font-semibold", displayValue === "--" ? "text-muted-foreground" : color)}>
         {displayValue}{showUnit ? unit : ""}
