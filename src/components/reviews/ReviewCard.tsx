@@ -27,14 +27,15 @@ export function ReviewCard({
   responseStatus,
   platform,
 }: ReviewCardProps) {
-  const initials = customerName
+  const safeName = customerName || "Client";
+  const initials = safeName
     .split(" ")
     .map((n) => n[0])
     .join("")
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || "?";
 
-  const avatarColor = `hsl(${(customerName.charCodeAt(0) * 137) % 360}, 70%, 60%)`;
+  const avatarColor = `hsl(${(safeName.charCodeAt(0) * 137) % 360}, 70%, 60%)`;
 
   return (
     <Card className="p-4 hover:shadow-lg transition-shadow duration-200">
