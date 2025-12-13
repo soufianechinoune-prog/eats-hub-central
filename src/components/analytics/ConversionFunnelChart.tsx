@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   Zap,
 } from "lucide-react";
+import { ConversionFunnelUberStyle } from "./ConversionFunnelUberStyle";
 import {
   LineChart,
   Line,
@@ -545,6 +546,22 @@ export function ConversionFunnelChart({
           </TooltipProvider>
         </div>
 
+        {/* Uber-style vertical funnel chart */}
+        <ConversionFunnelUberStyle
+          data={{
+            visits: funnelMetrics.visits,
+            views: funnelMetrics.views,
+            cart: funnelMetrics.cart,
+            orders: funnelMetrics.orders,
+          }}
+          previousData={data.length > 0 && data[0].prevVisits > 0 ? {
+            visits: data.reduce((acc, d) => acc + d.prevVisits, 0),
+            views: Math.round(data.reduce((acc, d) => acc + d.prevVisits * (d.prevConversionRate / 100 || 0.25), 0)),
+            cart: Math.round(data.reduce((acc, d) => acc + d.prevVisits * (d.prevConversionRate / 100 || 0.25) * 0.4, 0)),
+            orders: Math.round(data.reduce((acc, d) => acc + d.prevVisits * d.prevConversionRate / 100, 0)),
+          } : undefined}
+          className="mb-4"
+        />
 
         {/* Interactive Legend for Volumes view */}
         <AnimatePresence mode="wait">
