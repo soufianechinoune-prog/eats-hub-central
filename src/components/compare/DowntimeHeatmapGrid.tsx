@@ -77,7 +77,7 @@ export const DowntimeHeatmapGrid = ({ stats, dateRange }: DowntimeHeatmapGridPro
     });
   }, [stats]);
 
-  const handleCellClick = (restaurantId: string, restaurantName: string) => {
+  const handleCellClick = (restaurantId: string) => {
     // Get the date from dateRange for context
     const targetDate = dateRange?.start || new Date();
     
@@ -87,8 +87,8 @@ export const DowntimeHeatmapGrid = ({ stats, dateRange }: DowntimeHeatmapGridPro
     setSelectedMonth(targetDate.getMonth() + 1);
     setSelectedYear(targetDate.getFullYear());
     
-    // Navigate to operations analytics
-    navigate("/analytics?view=operations");
+    // Navigate to operations analytics (correct route)
+    navigate("/analytics/operations");
   };
 
   if (stats.length === 0) {
@@ -126,7 +126,7 @@ export const DowntimeHeatmapGrid = ({ stats, dateRange }: DowntimeHeatmapGridPro
                       <Tooltip key={dayIndex}>
                         <TooltipTrigger asChild>
                           <div
-                            onClick={() => handleCellClick(stat.id, stat.name)}
+                            onClick={() => handleCellClick(stat.id)}
                             className={cn(
                               "flex-1 h-8 rounded transition-all hover:scale-105 cursor-pointer flex items-center justify-center hover:ring-2 hover:ring-primary/50",
                               getIntensityColor(value, stat.maxValue)
