@@ -28,19 +28,19 @@ const getMedal = (index: number): string => {
   return "";
 };
 
-const getBarColor = (minutes: number): string => {
-  if (minutes === 0) return "bg-emerald-500";
-  if (minutes <= 30) return "bg-emerald-400";
-  if (minutes <= 60) return "bg-amber-400";
-  if (minutes <= 120) return "bg-orange-400";
+const getBarColor = (availabilityRate: number): string => {
+  if (availabilityRate === 100) return "bg-emerald-500";
+  if (availabilityRate >= 99) return "bg-emerald-400";
+  if (availabilityRate >= 98) return "bg-amber-400";
+  if (availabilityRate >= 95) return "bg-orange-400";
   return "bg-red-500";
 };
 
-const getStatusLabel = (minutes: number): { text: string; color: string } => {
-  if (minutes === 0) return { text: "Parfait", color: "text-emerald-500" };
-  if (minutes <= 30) return { text: "Excellent", color: "text-emerald-400" };
-  if (minutes <= 60) return { text: "Bon", color: "text-amber-500" };
-  if (minutes <= 120) return { text: "À surveiller", color: "text-orange-500" };
+const getStatusLabel = (availabilityRate: number): { text: string; color: string } => {
+  if (availabilityRate === 100) return { text: "Parfait", color: "text-emerald-500" };
+  if (availabilityRate >= 99) return { text: "Excellent", color: "text-emerald-400" };
+  if (availabilityRate >= 98) return { text: "Bon", color: "text-amber-500" };
+  if (availabilityRate >= 95) return { text: "À surveiller", color: "text-orange-500" };
   return { text: "Critique", color: "text-red-500" };
 };
 
@@ -58,10 +58,8 @@ export const DowntimeRankingBars = ({ stats }: DowntimeRankingBarsProps) => {
   return (
     <div className="space-y-4">
       {stats.map((stat, index) => {
-        const barWidth = stat.totalOfflineMinutes === 0 
-          ? 0 
-          : Math.max((stat.totalOfflineMinutes / maxMinutes) * 100, 5);
-        const status = getStatusLabel(stat.totalOfflineMinutes);
+        const barWidth = stat.availabilityRate;
+        const status = getStatusLabel(stat.availabilityRate);
         
         return (
           <motion.div
@@ -80,8 +78,8 @@ export const DowntimeRankingBars = ({ stats }: DowntimeRankingBarsProps) => {
                 <span className={cn("text-sm font-medium", status.color)}>
                   {status.text}
                 </span>
-                <span className="font-semibold tabular-nums min-w-[70px] text-right">
-                  {formatMinutesToDisplay(stat.totalOfflineMinutes)}
+                <span className="font-semibold tabular-nums min-w-[80px] text-right">
+                  {stat.availabilityRate.toFixed(1)}%
                 </span>
               </div>
             </div>
@@ -91,13 +89,13 @@ export const DowntimeRankingBars = ({ stats }: DowntimeRankingBarsProps) => {
                 initial={{ width: 0 }}
                 animate={{ width: `${barWidth}%` }}
                 transition={{ duration: 0.8, ease: "easeOut", delay: index * 0.1 }}
-                className={cn("h-full rounded-full", getBarColor(stat.totalOfflineMinutes))}
+                className={cn("h-full rounded-full", getBarColor(stat.availabilityRate))}
               />
             </div>
             
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Disponibilité: {stat.availabilityRate.toFixed(1)}%</span>
-              {stat.totalOfflineMinutes === 0 && (
+              <span>Temps hors ligne: {formatMinutesToDisplay(stat.totalOfflineMinutes)}</span>
+              {stat.availabilityRate === 100 && (
                 <span className="text-emerald-500">✓ 100% en ligne</span>
               )}
             </div>
