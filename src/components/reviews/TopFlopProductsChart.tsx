@@ -17,14 +17,14 @@ interface TopFlopProductsChartProps {
 }
 
 export function TopFlopProductsChart({ topProducts, flopProducts }: TopFlopProductsChartProps) {
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload, isFlop = false }: any) => {
     if (active && payload && payload.length) {
       const d = payload[0].payload;
       return (
         <div className="bg-card border border-border rounded-lg p-3 shadow-lg max-w-[200px]">
           <p className="font-medium text-sm truncate">{d.itemTitle}</p>
           <p className="text-sm mt-1">
-            Taux: <strong>{d.approvalRate.toFixed(1)}%</strong>
+            {isFlop ? "Désapprobation" : "Approbation"}: <strong>{isFlop ? (100 - d.approvalRate).toFixed(1) : d.approvalRate.toFixed(1)}%</strong>
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             {d.thumbsUp} 👍 / {d.thumbsDown} 👎 ({d.count} avis)
@@ -46,9 +46,12 @@ export function TopFlopProductsChart({ topProducts, flopProducts }: TopFlopProdu
     displayName: truncateName(p.itemTitle)
   }));
 
+  // Pour les flops, on utilise le "taux de désapprobation" (100 - approvalRate)
+  // pour que les barres soient visibles (sinon approvalRate proche de 0 = barre invisible)
   const flopData = flopProducts.map(p => ({
     ...p,
-    displayName: truncateName(p.itemTitle)
+    displayName: truncateName(p.itemTitle),
+    disapprovalRate: 100 - p.approvalRate // Inverser pour afficher des barres visibles
   }));
 
   const getMedal = (index: number) => {
@@ -130,8 +133,8 @@ export function TopFlopProductsChart({ topProducts, flopProducts }: TopFlopProdu
                     tick={{ fontSize: 10 }}
                     stroke="hsl(var(--muted-foreground))"
                   />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="approvalRate" radius={[0, 4, 4, 0]}>
+                  <Tooltip content={<CustomTooltip isFlop={true} />} />
+                  <Bar dataKey="disapprovalRate" radius={[0, 4, 4, 0]}>
                     {flopData.map((entry, index) => (
                       <Cell 
                         key={`cell-flop-${index}`} 
