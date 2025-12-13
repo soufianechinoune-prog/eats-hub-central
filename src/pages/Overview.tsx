@@ -209,10 +209,14 @@ const Overview = () => {
         ? menuReviewsData.reduce((sum, r) => sum + Number(r.rating || 0), 0) / menuReviewsData.length
         : null;
 
-      // Calculate downtime from availability data
+      // Calculate downtime from availability data - arrondi à 1 décimale
       const totalOfflineMinutes = availabilityData?.reduce((sum, a) => sum + Number(a.offline_minutes || 0), 0) || 0;
-      const downtimeHours = totalOfflineMinutes / 60;
-      console.log("Total offline minutes:", totalOfflineMinutes, "= hours:", downtimeHours);
+      const downtimeHours = totalOfflineMinutes > 0 ? Math.round(totalOfflineMinutes / 6) / 10 : null; // En heures avec 1 décimale
+      
+      // Downtime Uber-spécifique
+      const uberAvailability = availabilityData?.filter(a => a.platform === "uber_eats") || [];
+      const uberOfflineMinutes = uberAvailability.reduce((sum, a) => sum + Number(a.offline_minutes || 0), 0);
+      const uberDowntimeHours = uberOfflineMinutes > 0 ? Math.round(uberOfflineMinutes / 6) / 10 : null;
 
       // Calculate per-restaurant metrics
       const restaurantMetrics = restaurants?.map(resto => {
@@ -291,16 +295,16 @@ const Overview = () => {
           errorRate: errorRate,
           incorrectOrderRate: incorrectOrderRate,
           profitability: null, // Needs monthly_fees data
-          downtime: downtimeHours > 0 ? downtimeHours : null,
+          downtime: downtimeHours,
           productRating: avgProductRating,
         },
         uber: {
           rating: uberRating,
           prepTime: uberPrepTime != null ? Math.round(uberPrepTime) : null,
           errorRate: uberOrders > 0 ? (errorsData?.length || 0) / uberOrders * 100 : null,
-          incorrectOrderRate: null,
+          incorrectOrderRate: incorrectOrderRate, // Données Uber uniquement pour l'instant
           profitability: null,
-          downtime: null,
+          downtime: uberDowntimeHours,
         },
         deliveroo: {
           rating: deliverooRating,
