@@ -1,33 +1,25 @@
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReviewsOverview } from "@/components/reviews/ReviewsOverview";
 import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
 import { ReviewsMenuItems } from "@/components/reviews/ReviewsMenuItems";
 import { useCustomerReviews, useMenuItemReviews } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { Eye, Users, ChefHat } from "lucide-react";
+import { PeriodSelector, PeriodOption, getDateRangeFromPeriod, getPeriodLabel } from "@/components/analytics/PeriodSelector";
+import { Eye, Users, ChefHat, Calendar } from "lucide-react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
 export default function Reviews() {
   const {
     selectedRestaurants,
     selectedPlatform,
-    selectedYear,
-    selectedMonth,
-    periodMode,
   } = useAnalyticsContext();
 
-  // Calculate date range based on period mode
-  let startDate: Date;
-  let endDate: Date;
+  const [period, setPeriod] = useState<PeriodOption>("30d");
 
-  if (periodMode === "month" && selectedMonth !== null) {
-    // Monthly view - filter to selected month
-    startDate = new Date(selectedYear, selectedMonth, 1);
-    endDate = new Date(selectedYear, selectedMonth + 1, 0); // Last day of month
-  } else {
-    // Yearly view - full year
-    startDate = new Date(selectedYear, 0, 1);
-    endDate = new Date(selectedYear, 11, 31);
-  }
+  // Get date range from selected period
+  const { startDate, endDate } = getDateRangeFromPeriod(period);
 
   const restaurantIds =
     selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
@@ -55,8 +47,29 @@ export default function Reviews() {
     );
   }
 
+  // Format period display
+  const periodLabel = getPeriodLabel(period);
+  const dateRangeLabel = `${format(startDate, "d MMM", { locale: fr })} - ${format(endDate, "d MMM yyyy", { locale: fr })}`;
+
   return (
     <div className="space-y-6">
+      {/* Period selector header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Calendar className="h-5 w-5 text-muted-foreground" />
+          <div className="flex items-center gap-2">
+            <PeriodSelector 
+              value={period} 
+              onChange={setPeriod}
+              className="w-[200px] bg-background border-border"
+            />
+            <span className="text-sm text-muted-foreground">
+              ({dateRangeLabel})
+            </span>
+          </div>
+        </div>
+      </div>
+
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-3">
           <TabsTrigger value="overview" className="flex items-center gap-2">
