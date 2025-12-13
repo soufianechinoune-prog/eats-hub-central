@@ -1,8 +1,9 @@
-import { Star, ThumbsUp, ThumbsDown, MessageSquare } from "lucide-react";
+import { Star, MessageSquare, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { getTagLabel, isNegativeTag } from "@/lib/reviewTagLabels";
 
 interface ReviewCardProps {
   customerName: string;
@@ -94,12 +95,28 @@ export function ReviewCard({
 
           {/* Tags */}
           {tags && tags.length > 0 && (
-            <div className="flex gap-1 flex-wrap">
-              {tags.map((tag, idx) => (
-                <Badge key={idx} variant="secondary" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
+            <div className="flex gap-1.5 flex-wrap">
+              {tags.map((tag, idx) => {
+                const isNegative = isNegativeTag(tag);
+                return (
+                  <Badge 
+                    key={idx} 
+                    variant="secondary" 
+                    className={`text-xs flex items-center gap-1 ${
+                      isNegative 
+                        ? "bg-destructive/10 text-destructive border-destructive/20" 
+                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                    }`}
+                  >
+                    {isNegative ? (
+                      <ThumbsDown className="h-3 w-3" />
+                    ) : (
+                      <ThumbsUp className="h-3 w-3" />
+                    )}
+                    {getTagLabel(tag)}
+                  </Badge>
+                );
+              })}
             </div>
           )}
 
