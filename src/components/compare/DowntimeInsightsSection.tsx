@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { AlertTriangle, CheckCircle2, TrendingDown, BarChart3 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { extractCityName } from "@/lib/restaurantUtils";
 
 interface RestaurantStat {
   id: string;
@@ -69,7 +70,7 @@ export const DowntimeInsightsSection = ({ stats }: DowntimeInsightsSectionProps)
       bgColor: "bg-emerald-500/10",
       borderColor: "border-emerald-500/20",
       title: "Meilleur performer",
-      value: bestPerformer.name,
+      value: extractCityName(bestPerformer.name),
       detail: bestPerformer.totalOfflineMinutes === 0 
         ? "100% disponible" 
         : `Seulement ${formatMinutesToDisplay(bestPerformer.totalOfflineMinutes)} d'inactivité`,
@@ -81,7 +82,7 @@ export const DowntimeInsightsSection = ({ stats }: DowntimeInsightsSectionProps)
       bgColor: "bg-red-500/10",
       borderColor: "border-red-500/20",
       title: "À surveiller",
-      value: worstPerformer.name,
+      value: extractCityName(worstPerformer.name),
       detail: `${formatMinutesToDisplay(worstPerformer.totalOfflineMinutes)} d'inactivité`,
     },
     // Gap between best and worst
@@ -92,7 +93,7 @@ export const DowntimeInsightsSection = ({ stats }: DowntimeInsightsSectionProps)
       borderColor: "border-blue-500/20",
       title: "Écart max",
       value: formatMinutesToDisplay(gap),
-      detail: `Entre ${bestPerformer.name} et ${worstPerformer.name}`,
+      detail: `Entre ${extractCityName(bestPerformer.name)} et ${extractCityName(worstPerformer.name)}`,
     },
     // Peak hour
     peakHour && Number(peakHour[1]) > 0 && {
@@ -122,7 +123,7 @@ export const DowntimeInsightsSection = ({ stats }: DowntimeInsightsSectionProps)
       borderColor: "border-emerald-500/20",
       title: "100% disponible",
       value: `${perfectRestaurants.length} restaurant${perfectRestaurants.length > 1 ? "s" : ""}`,
-      detail: perfectRestaurants.map(r => r.name).join(", "),
+      detail: perfectRestaurants.map(r => extractCityName(r.name)).join(", "),
     },
   ].filter(Boolean);
 

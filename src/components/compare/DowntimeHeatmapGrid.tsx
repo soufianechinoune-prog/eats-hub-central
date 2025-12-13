@@ -1,6 +1,9 @@
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { extractCityName } from "@/lib/restaurantUtils";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 interface RestaurantStat {
   id: string;
@@ -12,6 +15,7 @@ interface RestaurantStat {
 
 interface DowntimeHeatmapGridProps {
   stats: RestaurantStat[];
+  dateRange?: { start: Date; end: Date };
 }
 
 const WEEKDAYS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
@@ -35,7 +39,15 @@ const getIntensityColor = (value: number, max: number): string => {
   return "bg-red-500";
 };
 
-export const DowntimeHeatmapGrid = ({ stats }: DowntimeHeatmapGridProps) => {
+export const DowntimeHeatmapGrid = ({ stats, dateRange }: DowntimeHeatmapGridProps) => {
+  const navigate = useNavigate();
+  const { 
+    setSelectedRestaurants, 
+    setPeriodMode, 
+    setSelectedMonth,
+    setSelectedYear 
+  } = useAnalyticsContext();
+
   // Aggregate by day x hour across all restaurants
   const heatmapData = useMemo(() => {
     const grid: Record<string, number> = {};
@@ -65,6 +77,20 @@ export const DowntimeHeatmapGrid = ({ stats }: DowntimeHeatmapGridProps) => {
     });
   }, [stats]);
 
+  const handleCellClick = (restaurantId: string, restaurantName: string) => {
+    // Get the date from dateRange for context
+    const targetDate = dateRange?.start || new Date();
+    
+    // Update analytics context
+    setSelectedRestaurants([restaurantId]);
+    setPeriodMode("month");
+    setSelectedMonth(targetDate.getMonth() + 1);
+    setSelectedYear(targetDate.getFullYear());
+    
+    // Navigate to operations analytics
+    navigate("/analytics?view=operations");
+  };
+
   if (stats.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-8">
@@ -81,39 +107,51 @@ export const DowntimeHeatmapGrid = ({ stats }: DowntimeHeatmapGridProps) => {
           Inactivité par jour de la semaine
         </h4>
         <div className="space-y-3">
-          {restaurantWeeklyData.map(stat => (
-            <div key={stat.id} className="flex items-center gap-3">
-              <span className="w-32 text-sm font-medium truncate">{stat.name}</span>
-              <div className="flex gap-1 flex-1">
-                {WEEKDAYS.map((day, dayIndex) => {
-                  const value = stat.weekdayData[dayIndex] || 0;
-                  return (
-                    <Tooltip key={dayIndex}>
-                      <TooltipTrigger asChild>
-                        <div
-                          className={cn(
-                            "flex-1 h-8 rounded transition-all hover:scale-105 cursor-pointer flex items-center justify-center",
-                            getIntensityColor(value, stat.maxValue)
-                          )}
-                        >
-                          <span className="text-xs font-medium text-foreground/80">
-                            {day}
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="font-medium">{stat.name}</p>
-                        <p>{day}: {formatMinutesToDisplay(value)}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
+          {restaurantWeeklyData.map(stat => {
+            const cityName = extractCityName(stat.name);
+            return (
+              <div key={stat.id} className="flex items-center gap-3">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-24 text-sm font-medium truncate cursor-help">{cityName}</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    <p>{stat.name}</p>
+                  </TooltipContent>
+                </Tooltip>
+                <div className="flex gap-1 flex-1">
+                  {WEEKDAYS.map((day, dayIndex) => {
+                    const value = stat.weekdayData[dayIndex] || 0;
+                    return (
+                      <Tooltip key={dayIndex}>
+                        <TooltipTrigger asChild>
+                          <div
+                            onClick={() => handleCellClick(stat.id, stat.name)}
+                            className={cn(
+                              "flex-1 h-8 rounded transition-all hover:scale-105 cursor-pointer flex items-center justify-center hover:ring-2 hover:ring-primary/50",
+                              getIntensityColor(value, stat.maxValue)
+                            )}
+                          >
+                            <span className="text-xs font-medium text-foreground/80">
+                              {day}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="font-medium">{cityName}</p>
+                          <p>{day}: {formatMinutesToDisplay(value)}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Cliquer pour voir les détails</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+                <span className="text-sm tabular-nums w-20 text-right">
+                  {formatMinutesToDisplay(stat.totalOfflineMinutes)}
+                </span>
               </div>
-              <span className="text-sm tabular-nums w-20 text-right">
-                {formatMinutesToDisplay(stat.totalOfflineMinutes)}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

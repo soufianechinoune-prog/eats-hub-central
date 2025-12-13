@@ -220,7 +220,7 @@ const DowntimeComparison = () => {
                 <CardTitle className="text-lg">Patterns d'inactivité</CardTitle>
               </CardHeader>
               <CardContent>
-                <DowntimeHeatmapGrid stats={restaurantStats} />
+                <DowntimeHeatmapGrid stats={restaurantStats} dateRange={dateRange} />
               </CardContent>
             </Card>
           </div>
