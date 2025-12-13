@@ -213,8 +213,24 @@ export function useMenuItemReviewsStats(reviews: MenuItemReview[]) {
     });
   }, [reviews]);
 
-  // Filtrer les produits avec au moins un avis thumb pour Top/Flop
-  const productsWithThumbs = productStats.filter(p => (p.thumbsUp + p.thumbsDown) > 0);
+  // Filtrer les produits avec au moins un avis thumb et exclure "Article inconnu"
+  const productsWithThumbs = productStats.filter(p => 
+    (p.thumbsUp + p.thumbsDown) > 0 && 
+    !p.itemTitle.toLowerCase().includes('article inconnu') &&
+    !p.itemTitle.toLowerCase().includes('unknown item')
+  );
+  
+  // Pour les flops: trier par nombre de thumbsDown décroissant (impact réel)
+  // puis par taux d'approbation croissant (qualité)
+  const flopProducts = [...productsWithThumbs]
+    .filter(p => p.thumbsDown > 0)
+    .sort((a, b) => {
+      // Prioriser les produits avec plus de thumbsDown
+      if (b.thumbsDown !== a.thumbsDown) return b.thumbsDown - a.thumbsDown;
+      // À égalité, le pire taux d'approbation en premier
+      return a.approvalRate - b.approvalRate;
+    })
+    .slice(0, 5);
   
   return {
     monthlyApprovalRates,
@@ -223,10 +239,6 @@ export function useMenuItemReviewsStats(reviews: MenuItemReview[]) {
     productStats,
     dayOfWeekStats,
     topProducts: productsWithThumbs.slice(0, 5),
-    // Pour les flops, prendre les produits avec thumbs down
-    flopProducts: [...productsWithThumbs]
-      .filter(p => p.thumbsDown > 0)
-      .sort((a, b) => a.approvalRate - b.approvalRate)
-      .slice(0, 5)
+    flopProducts
   };
 }

@@ -23,9 +23,20 @@ export function TopFlopProductsChart({ topProducts, flopProducts }: TopFlopProdu
       return (
         <div className="bg-card border border-border rounded-lg p-3 shadow-lg max-w-[200px]">
           <p className="font-medium text-sm truncate">{d.itemTitle}</p>
-          <p className="text-sm mt-1">
-            {isFlop ? "Désapprobation" : "Approbation"}: <strong>{isFlop ? (100 - d.approvalRate).toFixed(1) : d.approvalRate.toFixed(1)}%</strong>
-          </p>
+          {isFlop ? (
+            <>
+              <p className="text-sm mt-1">
+                <strong>{d.thumbsDown}</strong> avis négatifs
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Taux approbation: {d.approvalRate.toFixed(1)}%
+              </p>
+            </>
+          ) : (
+            <p className="text-sm mt-1">
+              Approbation: <strong>{d.approvalRate.toFixed(1)}%</strong>
+            </p>
+          )}
           <p className="text-xs text-muted-foreground mt-1">
             {d.thumbsUp} 👍 / {d.thumbsDown} 👎 ({d.count} avis)
           </p>
@@ -46,13 +57,14 @@ export function TopFlopProductsChart({ topProducts, flopProducts }: TopFlopProdu
     displayName: truncateName(p.itemTitle)
   }));
 
-  // Pour les flops, on utilise le "taux de désapprobation" (100 - approvalRate)
-  // pour que les barres soient visibles (sinon approvalRate proche de 0 = barre invisible)
+  // Pour les flops, on affiche le nombre de thumbsDown (impact réel)
   const flopData = flopProducts.map(p => ({
     ...p,
-    displayName: truncateName(p.itemTitle),
-    disapprovalRate: 100 - p.approvalRate // Inverser pour afficher des barres visibles
+    displayName: truncateName(p.itemTitle)
   }));
+  
+  // Calculer le max pour normaliser les barres
+  const maxThumbsDown = Math.max(...flopData.map(p => p.thumbsDown), 1);
 
   const getMedal = (index: number) => {
     if (index === 0) return "🥇";
@@ -125,7 +137,7 @@ export function TopFlopProductsChart({ topProducts, flopProducts }: TopFlopProdu
                   layout="vertical"
                   margin={{ top: 0, right: 10, left: 0, bottom: 0 }}
                 >
-                  <XAxis type="number" hide domain={[0, 100]} />
+                  <XAxis type="number" hide domain={[0, maxThumbsDown]} />
                   <YAxis 
                     type="category" 
                     dataKey="displayName" 
@@ -134,7 +146,7 @@ export function TopFlopProductsChart({ topProducts, flopProducts }: TopFlopProdu
                     stroke="hsl(var(--muted-foreground))"
                   />
                   <Tooltip content={<CustomTooltip isFlop={true} />} />
-                  <Bar dataKey="disapprovalRate" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="thumbsDown" radius={[0, 4, 4, 0]}>
                     {flopData.map((entry, index) => (
                       <Cell 
                         key={`cell-flop-${index}`} 
@@ -146,7 +158,7 @@ export function TopFlopProductsChart({ topProducts, flopProducts }: TopFlopProdu
               </ResponsiveContainer>
             ) : (
               <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
-                Aucun produit
+                Aucun produit avec avis négatifs
               </div>
             )}
           </div>
