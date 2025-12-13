@@ -57,24 +57,58 @@ function parseDate(dateStr: string): string | null {
   return null;
 }
 
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
+/**
+ * Parse CSV content handling multi-line fields within quotes
+ * Returns an array of rows, each row being an array of field values
+ */
+function parseCSVContent(content: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = '';
   let inQuotes = false;
   
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    
     if (char === '"') {
-      inQuotes = !inQuotes;
+      // Handle escaped quotes ""
+      if (inQuotes && content[i + 1] === '"') {
+        currentField += '"';
+        i++; // Skip the next quote
+      } else {
+        inQuotes = !inQuotes;
+      }
     } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
+      currentRow.push(currentField.trim());
+      currentField = '';
+    } else if ((char === '\n' || char === '\r') && !inQuotes) {
+      // Skip \r\n sequence
+      if (char === '\r' && content[i + 1] === '\n') {
+        i++;
+      }
+      // Only add row if it has content
+      if (currentField || currentRow.length > 0) {
+        currentRow.push(currentField.trim());
+        if (currentRow.some(f => f)) {
+          rows.push(currentRow);
+        }
+        currentRow = [];
+        currentField = '';
+      }
     } else {
-      current += char;
+      currentField += char;
     }
   }
-  result.push(current.trim());
-  return result;
+  
+  // Don't forget the last row
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    if (currentRow.some(f => f)) {
+      rows.push(currentRow);
+    }
+  }
+  
+  return rows;
 }
 
 // Normalize restaurant name for matching - remove all punctuation and extra spaces
@@ -102,8 +136,10 @@ Deno.serve(async (req) => {
     
     console.log('Parsing order-level reviews, dryRun:', dryRun, 'restaurantId override:', restaurantId);
 
-    const lines = csvContent.split('\n').filter((line: string) => line.trim());
-    if (lines.length < 2) {
+    // Use the new CSV parser that handles multi-line fields
+    const allRows = parseCSVContent(csvContent);
+    
+    if (allRows.length < 2) {
       return new Response(JSON.stringify({ 
         success: false, 
         error: 'Fichier vide ou invalide' 
@@ -112,7 +148,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
+    const headers = allRows[0].map(h => h.toLowerCase().trim());
     console.log('Headers detected:', headers);
 
     // Map column indices - support multiple header variations
@@ -191,6 +227,7 @@ Deno.serve(async (req) => {
       updated: 0,
       skipped: 0,
       errors: 0,
+      invalidRatings: 0,
     };
 
     const skippedDetails: { rowIndex: number; reason: string; details: string }[] = [];
@@ -201,8 +238,9 @@ Deno.serve(async (req) => {
 
     const reviewsToInsert: any[] = [];
 
-    for (let i = 1; i < lines.length; i++) {
-      const values = parseCSVLine(lines[i]);
+    // Process data rows (skip header at index 0)
+    for (let i = 1; i < allRows.length; i++) {
+      const values = allRows[i];
       if (values.length < 3) continue;
       
       stats.totalRows++;
@@ -276,8 +314,18 @@ Deno.serve(async (req) => {
         if (!dateEnd || reviewDate > dateEnd) dateEnd = reviewDate;
       }
 
-      // Parse rating (1-5 scale)
-      const rating = ratingStr ? parseInt(ratingStr, 10) : null;
+      // Parse rating (1-5 scale) with validation
+      let rating: number | null = null;
+      if (ratingStr) {
+        const parsedRating = parseInt(ratingStr, 10);
+        if (!isNaN(parsedRating) && parsedRating >= 1 && parsedRating <= 5) {
+          rating = parsedRating;
+        } else {
+          // Log invalid rating for debugging
+          console.warn(`Invalid rating "${ratingStr}" for order ${orderUuid || orderId} at row ${i + 1}`);
+          stats.invalidRatings++;
+        }
+      }
       
       // Parse tags
       const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t) : [];
@@ -307,6 +355,7 @@ Deno.serve(async (req) => {
       })),
       unknownStoreIds: Array.from(unknownStoreIds),
       skippedDetails,
+      invalidRatingsCount: stats.invalidRatings,
     };
 
     if (dryRun) {
