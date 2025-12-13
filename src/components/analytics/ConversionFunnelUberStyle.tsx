@@ -124,7 +124,7 @@ export function ConversionFunnelUberStyle({
         {/* Global conversion rate header */}
         <div className="mb-6 p-4 bg-muted/30 rounded-lg border">
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold">{Math.round(menuConversionRate)} %</span>
+            <span className="text-3xl font-bold">{menuConversionRate.toFixed(1)} %</span>
             {menuRateVariation !== null && (
               <span className={cn(
                 "text-sm font-medium",
@@ -141,60 +141,79 @@ export function ConversionFunnelUberStyle({
           </div>
         </div>
 
-        {/* Funnel bars */}
-        <div className="flex items-end justify-between gap-4 px-4">
+        {/* Funnel bars with arrows */}
+        <div className="flex items-end justify-between gap-2 px-4">
           {steps.map((step, index) => {
             const barHeight = maxValue > 0 
               ? (step.value / maxValue) * maxBarHeight 
               : 0;
             const variation = calcVariation(step.value, step.previousValue);
+            
+            // Calculate step-to-step conversion rate
+            const prevStep = index > 0 ? steps[index - 1] : null;
+            const stepConversionRate = prevStep && prevStep.value > 0 
+              ? (step.value / prevStep.value) * 100 
+              : null;
 
             return (
-              <motion.div
-                key={step.key}
-                initial={animated ? { opacity: 0, y: 20 } : false}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1, duration: 0.3 }}
-                className="flex-1 flex flex-col items-center"
-              >
-                {/* Bar container */}
-                <div 
-                  className="w-full flex items-end justify-center"
-                  style={{ height: maxBarHeight }}
+              <div key={step.key} className="flex items-end flex-1">
+                {/* Arrow with conversion rate (before each column except first) */}
+                {index > 0 && (
+                  <div className="flex flex-col items-center justify-end mx-1" style={{ height: maxBarHeight }}>
+                    <div className="flex flex-col items-center mb-auto mt-4">
+                      <span className="text-xs font-semibold text-primary">
+                        {stepConversionRate?.toFixed(1)}%
+                      </span>
+                      <span className="text-muted-foreground text-lg">→</span>
+                    </div>
+                  </div>
+                )}
+                
+                <motion.div
+                  initial={animated ? { opacity: 0, y: 20 } : false}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1, duration: 0.3 }}
+                  className="flex-1 flex flex-col items-center"
                 >
-                  <motion.div
-                    initial={animated ? { height: 0 } : false}
-                    animate={{ height: Math.max(barHeight, 8) }}
-                    transition={{ delay: index * 0.1 + 0.2, duration: 0.5, ease: "easeOut" }}
-                    className="w-full max-w-[100px] bg-primary rounded-t-md relative group cursor-pointer"
-                    style={{ minHeight: 8 }}
+                  {/* Bar container */}
+                  <div 
+                    className="w-full flex items-end justify-center"
+                    style={{ height: maxBarHeight }}
                   >
-                    {/* Hover tooltip effect */}
-                    <div className="absolute inset-0 bg-primary/80 rounded-t-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </motion.div>
-                </div>
+                    <motion.div
+                      initial={animated ? { height: 0 } : false}
+                      animate={{ height: Math.max(barHeight, 8) }}
+                      transition={{ delay: index * 0.1 + 0.2, duration: 0.5, ease: "easeOut" }}
+                      className="w-full max-w-[80px] bg-primary rounded-t-md relative group cursor-pointer"
+                      style={{ minHeight: 8 }}
+                    >
+                      {/* Hover tooltip effect */}
+                      <div className="absolute inset-0 bg-primary/80 rounded-t-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </motion.div>
+                  </div>
 
-                {/* Divider line */}
-                <div className="w-full h-px bg-border mt-2" />
+                  {/* Divider line */}
+                  <div className="w-full h-px bg-border mt-2" />
 
-                {/* Label */}
-                <p className="text-xs text-muted-foreground text-center mt-3 leading-tight min-h-[32px] px-1">
-                  {step.label}
-                </p>
+                  {/* Label */}
+                  <p className="text-xs text-muted-foreground text-center mt-3 leading-tight min-h-[32px] px-1">
+                    {step.label}
+                  </p>
 
-                {/* Value and variation */}
-                <div className="flex items-baseline gap-1.5 mt-2">
-                  <span className="text-xl font-bold">{formatNumber(step.value)}</span>
-                  {variation !== null && (
-                    <span className={cn(
-                      "text-xs font-medium",
-                      variation >= 0 ? "text-emerald-600" : "text-red-500"
-                    )}>
-                      {variation >= 0 ? "↑" : "↓"} {Math.abs(variation).toFixed(0)} %
-                    </span>
-                  )}
-                </div>
-              </motion.div>
+                  {/* Value and variation */}
+                  <div className="flex items-baseline gap-1.5 mt-2">
+                    <span className="text-xl font-bold">{formatNumber(step.value)}</span>
+                    {variation !== null && (
+                      <span className={cn(
+                        "text-xs font-medium",
+                        variation >= 0 ? "text-emerald-600" : "text-red-500"
+                      )}>
+                        {variation >= 0 ? "↑" : "↓"} {Math.abs(variation).toFixed(0)} %
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              </div>
             );
           })}
         </div>
