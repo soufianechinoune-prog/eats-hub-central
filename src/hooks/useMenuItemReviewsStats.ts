@@ -213,13 +213,20 @@ export function useMenuItemReviewsStats(reviews: MenuItemReview[]) {
     });
   }, [reviews]);
 
+  // Filtrer les produits avec au moins un avis thumb pour Top/Flop
+  const productsWithThumbs = productStats.filter(p => (p.thumbsUp + p.thumbsDown) > 0);
+  
   return {
     monthlyApprovalRates,
     tagStats,
     globalThumbsStats,
     productStats,
     dayOfWeekStats,
-    topProducts: productStats.slice(0, 5),
-    flopProducts: [...productStats].sort((a, b) => a.approvalRate - b.approvalRate).slice(0, 5)
+    topProducts: productsWithThumbs.slice(0, 5),
+    // Pour les flops, prendre les produits avec thumbs down
+    flopProducts: [...productsWithThumbs]
+      .filter(p => p.thumbsDown > 0)
+      .sort((a, b) => a.approvalRate - b.approvalRate)
+      .slice(0, 5)
   };
 }
