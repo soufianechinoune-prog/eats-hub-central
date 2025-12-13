@@ -1,25 +1,21 @@
-import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReviewsOverview } from "@/components/reviews/ReviewsOverview";
 import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
 import { ReviewsMenuItems } from "@/components/reviews/ReviewsMenuItems";
 import { useCustomerReviews, useMenuItemReviews } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { PeriodSelector, PeriodOption, getDateRangeFromPeriod, getPeriodLabel } from "@/components/analytics/PeriodSelector";
-import { Eye, Users, ChefHat, Calendar } from "lucide-react";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { Eye, Users, ChefHat } from "lucide-react";
 
 export default function Reviews() {
   const {
     selectedRestaurants,
     selectedPlatform,
+    selectedYear,
   } = useAnalyticsContext();
 
-  const [period, setPeriod] = useState<PeriodOption>("30d");
-
-  // Get date range from selected period
-  const { startDate, endDate } = getDateRangeFromPeriod(period);
+  // Always fetch full year data for reviews - drill-down is handled in UI
+  const yearStartDate = new Date(selectedYear, 0, 1);
+  const yearEndDate = new Date(selectedYear, 11, 31);
 
   const restaurantIds =
     selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
@@ -27,12 +23,12 @@ export default function Reviews() {
   const {
     data: customerReviews,
     isLoading: isLoadingCustomer,
-  } = useCustomerReviews(restaurantIds, selectedPlatform, startDate, endDate);
+  } = useCustomerReviews(restaurantIds, selectedPlatform, yearStartDate, yearEndDate);
 
   const {
     data: menuItemReviews,
     isLoading: isLoadingMenuItems,
-  } = useMenuItemReviews(restaurantIds, selectedPlatform, startDate, endDate);
+  } = useMenuItemReviews(restaurantIds, selectedPlatform, yearStartDate, yearEndDate);
 
   const isLoading = isLoadingCustomer || isLoadingMenuItems;
 
@@ -47,29 +43,8 @@ export default function Reviews() {
     );
   }
 
-  // Format period display
-  const periodLabel = getPeriodLabel(period);
-  const dateRangeLabel = `${format(startDate, "d MMM", { locale: fr })} - ${format(endDate, "d MMM yyyy", { locale: fr })}`;
-
   return (
     <div className="space-y-6">
-      {/* Period selector header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Calendar className="h-5 w-5 text-muted-foreground" />
-          <div className="flex items-center gap-2">
-            <PeriodSelector 
-              value={period} 
-              onChange={setPeriod}
-              className="w-[200px] bg-background border-border"
-            />
-            <span className="text-sm text-muted-foreground">
-              ({dateRangeLabel})
-            </span>
-          </div>
-        </div>
-      </div>
-
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-3">
           <TabsTrigger value="overview" className="flex items-center gap-2">
