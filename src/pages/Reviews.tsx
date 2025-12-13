@@ -10,12 +10,12 @@ export default function Reviews() {
   const {
     selectedRestaurants,
     selectedPlatform,
-    selectedYear,
+    dateRange,
   } = useAnalyticsContext();
 
-  // Always fetch full year data for reviews - drill-down is handled in UI
-  const yearStartDate = new Date(selectedYear, 0, 1);
-  const yearEndDate = new Date(selectedYear, 11, 31);
+  // Use dateRange from context for period filtering
+  const startDate = dateRange?.from;
+  const endDate = dateRange?.to;
 
   const restaurantIds =
     selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
@@ -23,12 +23,12 @@ export default function Reviews() {
   const {
     data: customerReviews,
     isLoading: isLoadingCustomer,
-  } = useCustomerReviews(restaurantIds, selectedPlatform, yearStartDate, yearEndDate);
+  } = useCustomerReviews(restaurantIds, selectedPlatform, startDate, endDate);
 
   const {
     data: menuItemReviews,
     isLoading: isLoadingMenuItems,
-  } = useMenuItemReviews(restaurantIds, selectedPlatform, yearStartDate, yearEndDate);
+  } = useMenuItemReviews(restaurantIds, selectedPlatform, startDate, endDate);
 
   const isLoading = isLoadingCustomer || isLoadingMenuItems;
 
