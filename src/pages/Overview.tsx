@@ -170,6 +170,17 @@ const Overview = () => {
       if (menuReviewsError) console.error("Error fetching menu reviews:", menuReviewsError);
       console.log("Menu reviews data:", menuReviewsData?.length, "rows");
 
+      // 7. Fetch hourly availability for downtime - use hour_start field
+      const { data: availabilityData, error: availabilityError } = await supabase
+        .from("hourly_availability")
+        .select("restaurant_id, hour_start, online_minutes, offline_minutes, platform")
+        .gte("hour_start", startDate.toISOString())
+        .lte("hour_start", endDate.toISOString())
+        .in("restaurant_id", restaurantIds);
+
+      if (availabilityError) console.error("Error fetching availability:", availabilityError);
+      console.log("Availability data:", availabilityData?.length, "rows");
+
       // Calculate aggregated metrics
       const totalRevenue = dailySalesData?.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0) || 0;
       const totalOrders = dailySalesData?.reduce((sum, d) => sum + Number(d.order_count || 0), 0) || 0;
@@ -197,6 +208,11 @@ const Overview = () => {
       const avgProductRating = menuReviewsData && menuReviewsData.length > 0
         ? menuReviewsData.reduce((sum, r) => sum + Number(r.rating || 0), 0) / menuReviewsData.length
         : null;
+
+      // Calculate downtime from availability data
+      const totalOfflineMinutes = availabilityData?.reduce((sum, a) => sum + Number(a.offline_minutes || 0), 0) || 0;
+      const downtimeHours = totalOfflineMinutes / 60;
+      console.log("Total offline minutes:", totalOfflineMinutes, "= hours:", downtimeHours);
 
       // Calculate per-restaurant metrics
       const restaurantMetrics = restaurants?.map(resto => {
@@ -275,7 +291,7 @@ const Overview = () => {
           errorRate: errorRate,
           incorrectOrderRate: incorrectOrderRate,
           profitability: null, // Needs monthly_fees data
-          downtime: null, // Needs hourly_availability data
+          downtime: downtimeHours > 0 ? downtimeHours : null,
           productRating: avgProductRating,
         },
         uber: {
