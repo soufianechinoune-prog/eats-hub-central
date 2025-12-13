@@ -24,6 +24,17 @@ const formatMinutesToTime = (minutes: number | null | undefined): string | null 
   return `${mins} min ${secs} s`;
 };
 
+// Formater les heures en "Xh Ymin" pour le temps d'inactivité (ex: 4.5 → "4h 30min")
+const formatHoursToTime = (hours: number | null | undefined): string | null => {
+  if (hours == null || isNaN(hours)) return null;
+  const totalMinutes = Math.round(hours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (h === 0) return `${mins}min`;
+  if (mins === 0) return `${h}h`;
+  return `${h}h ${mins}min`;
+};
+
 const Overview = () => {
   const [period, setPeriod] = useState<PeriodOption>("previous_week");
   const [rankingTab, setRankingTab] = useState<"rating" | "revenue" | "profitability">("rating");
@@ -476,7 +487,7 @@ const Overview = () => {
                 <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.global.errorRate != null ? networkData.global.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.global.incorrectOrderRate != null ? networkData.global.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability != null ? networkData.global.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatMinutesToTime(networkData?.global.downtime != null ? networkData.global.downtime * 60 : null)} color="text-orange-500" />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.global.downtime)} color="text-orange-500" />
                 <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productRating != null ? networkData.global.productRating.toFixed(1) : null} unit="/5" color="text-violet-500" />
               </CardContent>
             </Card>
@@ -502,7 +513,7 @@ const Overview = () => {
                 <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.uber.errorRate != null ? networkData.uber.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability != null ? networkData.uber.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatMinutesToTime(networkData?.uber.downtime != null ? networkData.uber.downtime * 60 : null)} color="text-orange-500" />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.uber.downtime)} color="text-orange-500" />
               </CardContent>
             </Card>
 
@@ -527,7 +538,7 @@ const Overview = () => {
                 <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.deliveroo.errorRate != null ? networkData.deliveroo.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate != null ? networkData.deliveroo.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability != null ? networkData.deliveroo.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatMinutesToTime(networkData?.deliveroo.downtime != null ? networkData.deliveroo.downtime * 60 : null)} color="text-orange-500" />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" />
               </CardContent>
             </Card>
           </div>
