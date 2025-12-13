@@ -15,6 +15,17 @@ import { useOverviewExport } from "@/hooks/useOverviewExport";
 
 type PeriodOption = "previous_week" | "7d" | "30d" | "current_month" | "year";
 
+// Formater les minutes en "XmYs" (ex: 4.5 → "4m30s")
+const formatMinutesToTime = (minutes: number | null | undefined): string | null => {
+  if (minutes == null || isNaN(minutes)) return null;
+  const totalSeconds = Math.round(minutes * 60);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  if (mins === 0) return `${secs}s`;
+  if (secs === 0) return `${mins}m`;
+  return `${mins}m${secs}s`;
+};
+
 const Overview = () => {
   const [period, setPeriod] = useState<PeriodOption>("previous_week");
   const [rankingTab, setRankingTab] = useState<"rating" | "revenue" | "profitability">("rating");
@@ -463,11 +474,11 @@ const Overview = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <MetricRow icon={Star} label="Note moyenne" value={networkData?.global.rating != null ? networkData.global.rating.toFixed(1) : null} unit="/5" color="text-blue-500" />
-                <MetricRow icon={Clock} label="Temps préparation" value={networkData?.global.prepTime} unit="min" color="text-amber-500" />
+                <MetricRow icon={Clock} label="Temps préparation" value={formatMinutesToTime(networkData?.global.prepTime)} color="text-amber-500" />
                 <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.global.errorRate != null ? networkData.global.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.global.incorrectOrderRate != null ? networkData.global.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability != null ? networkData.global.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={networkData?.global.downtime} unit="min" color="text-orange-500" />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatMinutesToTime(networkData?.global.downtime != null ? networkData.global.downtime * 60 : null)} color="text-orange-500" />
                 <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productRating != null ? networkData.global.productRating.toFixed(1) : null} unit="/5" color="text-violet-500" />
               </CardContent>
             </Card>
@@ -489,11 +500,11 @@ const Overview = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <MetricRow icon={Star} label="Note moyenne" value={networkData?.uber.rating != null ? networkData.uber.rating.toFixed(1) : null} unit="/5" color="text-blue-500" />
-                <MetricRow icon={Clock} label="Temps préparation" value={networkData?.uber.prepTime} unit="min" color="text-amber-500" />
+                <MetricRow icon={Clock} label="Temps préparation" value={formatMinutesToTime(networkData?.uber.prepTime)} color="text-amber-500" />
                 <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.uber.errorRate != null ? networkData.uber.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability != null ? networkData.uber.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={networkData?.uber.downtime} unit="min" color="text-orange-500" />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatMinutesToTime(networkData?.uber.downtime != null ? networkData.uber.downtime * 60 : null)} color="text-orange-500" />
               </CardContent>
             </Card>
 
@@ -514,11 +525,11 @@ const Overview = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <MetricRow icon={Star} label="Note moyenne" value={networkData?.deliveroo.rating != null ? networkData.deliveroo.rating.toFixed(1) : null} unit="/5" color="text-blue-500" />
-                <MetricRow icon={Clock} label="Temps préparation" value={networkData?.deliveroo.prepTime} unit="min" color="text-amber-500" />
+                <MetricRow icon={Clock} label="Temps préparation" value={formatMinutesToTime(networkData?.deliveroo.prepTime)} color="text-amber-500" />
                 <MetricRow icon={TrendingDown} label="Taux d'erreur" value={networkData?.deliveroo.errorRate != null ? networkData.deliveroo.errorRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate != null ? networkData.deliveroo.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-400" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability != null ? networkData.deliveroo.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={networkData?.deliveroo.downtime} unit="min" color="text-orange-500" />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatMinutesToTime(networkData?.deliveroo.downtime != null ? networkData.deliveroo.downtime * 60 : null)} color="text-orange-500" />
               </CardContent>
             </Card>
           </div>
@@ -933,7 +944,7 @@ const MetricRow = ({
   icon: any; 
   label: string; 
   value: any; 
-  unit: string; 
+  unit?: string; 
   color: string;
 }) => {
   // Display "--" for 0 or null/undefined values
