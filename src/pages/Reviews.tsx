@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReviewsOverview } from "@/components/reviews/ReviewsOverview";
 import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
@@ -10,12 +12,31 @@ export default function Reviews() {
   const {
     selectedRestaurants,
     selectedPlatform,
+    selectedYear,
+    selectedMonth,
+    periodMode,
     dateRange,
   } = useAnalyticsContext();
 
-  // Use dateRange from context for period filtering
-  const startDate = dateRange?.from;
-  const endDate = dateRange?.to;
+  // Calculer les dates de filtrage selon le mode de période
+  const { startDate, endDate } = useMemo(() => {
+    if (periodMode === "range" && dateRange?.from && dateRange?.to) {
+      return { startDate: dateRange.from, endDate: dateRange.to };
+    } else if (periodMode === "month") {
+      const monthDate = new Date(selectedYear, selectedMonth - 1, 1);
+      return { 
+        startDate: startOfMonth(monthDate), 
+        endDate: endOfMonth(monthDate) 
+      };
+    } else {
+      // periodMode === "year" or default
+      const yearDate = new Date(selectedYear, 0, 1);
+      return { 
+        startDate: startOfYear(yearDate), 
+        endDate: endOfYear(yearDate) 
+      };
+    }
+  }, [periodMode, dateRange, selectedYear, selectedMonth]);
 
   const restaurantIds =
     selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
