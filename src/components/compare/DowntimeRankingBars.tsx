@@ -1,5 +1,9 @@
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { extractCityName } from "@/lib/restaurantUtils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface RestaurantStat {
   id: string;
@@ -45,7 +49,20 @@ const getStatusLabel = (availabilityRate: number): { text: string; color: string
 };
 
 export const DowntimeRankingBars = ({ stats }: DowntimeRankingBarsProps) => {
+  const navigate = useNavigate();
+  const { toggleRestaurantSelection, setSelectedMonth, setSelectedYear, setPeriodMode } = useAnalyticsContext();
   const maxMinutes = Math.max(...stats.map(s => s.totalOfflineMinutes), 1);
+
+  const handleRestaurantClick = (restaurantId: string) => {
+    // Update analytics context to show this restaurant with month view (no drill-down)
+    toggleRestaurantSelection(restaurantId);
+    setPeriodMode("month");
+    setSelectedMonth(new Date().getMonth() + 1);
+    setSelectedYear(new Date().getFullYear());
+    
+    // Navigate without day param = month view
+    navigate("/analytics/operations");
+  };
 
   if (stats.length === 0) {
     return (
@@ -60,6 +77,7 @@ export const DowntimeRankingBars = ({ stats }: DowntimeRankingBarsProps) => {
       {stats.map((stat, index) => {
         const barWidth = stat.availabilityRate;
         const status = getStatusLabel(stat.availabilityRate);
+        const cityName = extractCityName(stat.name);
         
         return (
           <motion.div
@@ -67,12 +85,18 @@ export const DowntimeRankingBars = ({ stats }: DowntimeRankingBarsProps) => {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="space-y-2"
+            className="space-y-2 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors -mx-2"
+            onClick={() => handleRestaurantClick(stat.id)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-lg w-6">{getMedal(index)}</span>
-                <span className="font-medium">{stat.name}</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="font-medium hover:text-primary transition-colors">{cityName}</span>
+                  </TooltipTrigger>
+                  <TooltipContent>{stat.name}</TooltipContent>
+                </Tooltip>
               </div>
               <div className="flex items-center gap-3">
                 <span className={cn("text-sm font-medium", status.color)}>

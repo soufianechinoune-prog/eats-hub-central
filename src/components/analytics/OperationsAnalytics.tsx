@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,9 +51,26 @@ export function OperationsAnalytics() {
     setSelectedMonth,
   } = useAnalyticsContext();
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<"availability" | "waitTime" | "orderErrors">("availability");
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [selectedDay, setSelectedDay] = useState<string | null>(null); // format "yyyy-MM-dd"
+
+  // Initialize from URL parameter "day" for drill-down navigation
+  useEffect(() => {
+    const dayParam = searchParams.get("day");
+    if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
+      setSelectedDay(dayParam);
+      // Also set periodMode to month if coming from external navigation
+      if (periodMode === "year") {
+        const targetMonth = parseInt(dayParam.substring(5, 7), 10);
+        setPeriodMode("month");
+        setSelectedMonth(targetMonth);
+      }
+      // Clean URL after initialization
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
