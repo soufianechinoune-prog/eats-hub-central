@@ -11,11 +11,23 @@ export default function Reviews() {
     selectedRestaurants,
     selectedPlatform,
     selectedYear,
+    selectedMonth,
+    periodMode,
   } = useAnalyticsContext();
 
-  // Always fetch full year data for reviews - drill-down is handled in UI
-  const yearStartDate = new Date(selectedYear, 0, 1);
-  const yearEndDate = new Date(selectedYear, 11, 31);
+  // Calculate date range based on period mode
+  let startDate: Date;
+  let endDate: Date;
+
+  if (periodMode === "month" && selectedMonth !== null) {
+    // Monthly view - filter to selected month
+    startDate = new Date(selectedYear, selectedMonth, 1);
+    endDate = new Date(selectedYear, selectedMonth + 1, 0); // Last day of month
+  } else {
+    // Yearly view - full year
+    startDate = new Date(selectedYear, 0, 1);
+    endDate = new Date(selectedYear, 11, 31);
+  }
 
   const restaurantIds =
     selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
@@ -23,12 +35,12 @@ export default function Reviews() {
   const {
     data: customerReviews,
     isLoading: isLoadingCustomer,
-  } = useCustomerReviews(restaurantIds, selectedPlatform, yearStartDate, yearEndDate);
+  } = useCustomerReviews(restaurantIds, selectedPlatform, startDate, endDate);
 
   const {
     data: menuItemReviews,
     isLoading: isLoadingMenuItems,
-  } = useMenuItemReviews(restaurantIds, selectedPlatform, yearStartDate, yearEndDate);
+  } = useMenuItemReviews(restaurantIds, selectedPlatform, startDate, endDate);
 
   const isLoading = isLoadingCustomer || isLoadingMenuItems;
 
