@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { extractCityName } from "@/lib/restaurantUtils";
@@ -77,9 +78,20 @@ export const DowntimeHeatmapGrid = ({ stats, dateRange }: DowntimeHeatmapGridPro
     });
   }, [stats]);
 
-  const handleCellClick = (restaurantId: string) => {
-    // Get the date from dateRange for context
-    const targetDate = dateRange?.start || new Date();
+  const handleCellClick = (restaurantId: string, dayIndex: number) => {
+    // Calculate the actual date for the clicked day within the current period
+    const startDate = dateRange?.start || new Date();
+    
+    // dayIndex: 0=Dim, 1=Lun, 2=Mar, 3=Mer, 4=Jeu, 5=Ven, 6=Sam (WEEKDAYS array order)
+    const startDayOfWeek = startDate.getDay(); // JS: 0=Dim, 1=Lun, ...
+    
+    let daysToAdd = dayIndex - startDayOfWeek;
+    if (daysToAdd < 0) daysToAdd += 7;
+    
+    const targetDate = new Date(startDate);
+    targetDate.setDate(targetDate.getDate() + daysToAdd);
+    
+    const dayString = format(targetDate, "yyyy-MM-dd");
     
     // Update analytics context
     setSelectedRestaurants([restaurantId]);
@@ -87,8 +99,8 @@ export const DowntimeHeatmapGrid = ({ stats, dateRange }: DowntimeHeatmapGridPro
     setSelectedMonth(targetDate.getMonth() + 1);
     setSelectedYear(targetDate.getFullYear());
     
-    // Navigate to operations analytics (correct route)
-    navigate("/analytics/operations");
+    // Navigate to operations analytics with day parameter for hourly drill-down
+    navigate(`/analytics/operations?day=${dayString}`);
   };
 
   if (stats.length === 0) {
@@ -126,7 +138,7 @@ export const DowntimeHeatmapGrid = ({ stats, dateRange }: DowntimeHeatmapGridPro
                       <Tooltip key={dayIndex}>
                         <TooltipTrigger asChild>
                           <div
-                            onClick={() => handleCellClick(stat.id)}
+                            onClick={() => handleCellClick(stat.id, dayIndex)}
                             className={cn(
                               "flex-1 h-8 rounded transition-all hover:scale-105 cursor-pointer flex items-center justify-center hover:ring-2 hover:ring-primary/50",
                               getIntensityColor(value, stat.maxValue)
