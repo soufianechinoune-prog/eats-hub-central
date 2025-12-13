@@ -15,15 +15,13 @@ import { useOverviewExport } from "@/hooks/useOverviewExport";
 
 type PeriodOption = "previous_week" | "7d" | "30d" | "current_month" | "year";
 
-// Formater les minutes en "XmYs" (ex: 4.5 → "4m30s")
+// Formater les minutes en "X min Y s" (ex: 4.5 → "4 min 30 s")
 const formatMinutesToTime = (minutes: number | null | undefined): string | null => {
   if (minutes == null || isNaN(minutes)) return null;
   const totalSeconds = Math.round(minutes * 60);
   const mins = Math.floor(totalSeconds / 60);
   const secs = totalSeconds % 60;
-  if (mins === 0) return `${secs}s`;
-  if (secs === 0) return `${mins}m`;
-  return `${mins}m${secs}s`;
+  return `${mins} min ${secs} s`;
 };
 
 const Overview = () => {
