@@ -80,10 +80,10 @@ export function ConversionFunnelUberStyle({
     },
   ], [data, previousData]);
 
-  // Overall menu conversion rate (visits to views)
-  const menuConversionRate = data.visits > 0 ? (data.views / data.visits) * 100 : 0;
-  const previousMenuConversionRate = previousData && previousData.visits > 0 
-    ? (previousData.views / previousData.visits) * 100 
+  // Overall menu conversion rate: orders / menu views (comme Uber Eats)
+  const menuConversionRate = data.views > 0 ? (data.orders / data.views) * 100 : 0;
+  const previousMenuConversionRate = previousData && previousData.views > 0 
+    ? (previousData.orders / previousData.views) * 100 
     : null;
   const menuRateVariation = previousMenuConversionRate 
     ? menuConversionRate - previousMenuConversionRate 
