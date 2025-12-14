@@ -139,7 +139,7 @@ export default function WeeklyReports() {
     return { start, end };
   }, []);
 
-  // Fetch pinned restaurants with WhatsApp
+  // Fetch pinned restaurants (show all, even without WhatsApp)
   const { data: restaurants = [], isLoading: loadingRestaurants } = useQuery({
     queryKey: ["restaurants-weekly-reports"],
     queryFn: async () => {
@@ -148,7 +148,6 @@ export default function WeeklyReports() {
         .select("id, name, city, manager_first_name, manager_last_name, manager_whatsapp, is_pinned")
         .eq("is_active", true)
         .eq("is_pinned", true)
-        .not("manager_whatsapp", "is", null)
         .order("name");
 
       if (error) throw error;
