@@ -2056,7 +2056,10 @@ export type Database = {
           name: string
           objectives: Json | null
           outro_template: string | null
+          requires_validation: boolean | null
           schedule_day: number | null
+          schedule_day_of_month: number | null
+          schedule_frequency: string | null
           schedule_time: string | null
           updated_at: string
         }
@@ -2073,7 +2076,10 @@ export type Database = {
           name: string
           objectives?: Json | null
           outro_template?: string | null
+          requires_validation?: boolean | null
           schedule_day?: number | null
+          schedule_day_of_month?: number | null
+          schedule_frequency?: string | null
           schedule_time?: string | null
           updated_at?: string
         }
@@ -2090,7 +2096,10 @@ export type Database = {
           name?: string
           objectives?: Json | null
           outro_template?: string | null
+          requires_validation?: boolean | null
           schedule_day?: number | null
+          schedule_day_of_month?: number | null
+          schedule_frequency?: string | null
           schedule_time?: string | null
           updated_at?: string
         }

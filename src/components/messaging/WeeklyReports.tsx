@@ -1,7 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -39,7 +37,6 @@ import {
   Loader2,
   Plus,
   Trash2,
-  Settings,
   Eye,
   RefreshCw,
   ChevronDown,
@@ -47,15 +44,20 @@ import {
   Clock,
   AlertTriangle,
   ShoppingCart,
-  Target,
   BarChart3,
   Zap,
   FileText,
   Calendar,
   Check,
-  Copy,
   Edit3,
   PlayCircle,
+  History,
+  CheckCircle2,
+  XCircle,
+  CalendarDays,
+  Repeat,
+  Bell,
+  BellOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, subWeeks } from "date-fns";
@@ -98,8 +100,11 @@ interface ReportTemplate {
   outro_template: string;
   objectives: Objectives;
   is_scheduled: boolean;
+  schedule_frequency: string;
   schedule_day: number | null;
+  schedule_day_of_month: number | null;
   schedule_time: string | null;
+  requires_validation: boolean;
   last_sent_at: string | null;
   is_default: boolean;
   created_at: string;
@@ -125,12 +130,37 @@ interface WeeklyKPIs {
   error_count: number;
 }
 
-// Icon mapping
-const iconMap: Record<string, React.ReactNode> = {
-  BarChart3: <BarChart3 className="h-5 w-5" />,
-  AlertTriangle: <AlertTriangle className="h-5 w-5" />,
-  Zap: <Zap className="h-5 w-5" />,
-  FileText: <FileText className="h-5 w-5" />,
+interface ReportHistoryItem {
+  id: string;
+  sent_at: string;
+  restaurant_name: string | null;
+  recipient_name: string | null;
+  status: string;
+  message_content: string;
+}
+
+// Icon mapping with gradient colors
+const templateStyles: Record<string, { icon: React.ReactNode; gradient: string; color: string }> = {
+  BarChart3: { 
+    icon: <BarChart3 className="h-6 w-6" />, 
+    gradient: "from-blue-500/20 to-cyan-500/20",
+    color: "text-blue-500"
+  },
+  AlertTriangle: { 
+    icon: <AlertTriangle className="h-6 w-6" />, 
+    gradient: "from-orange-500/20 to-red-500/20",
+    color: "text-orange-500"
+  },
+  Zap: { 
+    icon: <Zap className="h-6 w-6" />, 
+    gradient: "from-yellow-500/20 to-amber-500/20",
+    color: "text-yellow-500"
+  },
+  FileText: { 
+    icon: <FileText className="h-6 w-6" />, 
+    gradient: "from-emerald-500/20 to-green-500/20",
+    color: "text-emerald-500"
+  },
 };
 
 // Helpers
@@ -156,6 +186,12 @@ const DAYS_OF_WEEK = [
   { value: 4, label: "Jeudi" },
   { value: 5, label: "Vendredi" },
   { value: 6, label: "Samedi" },
+];
+
+const FREQUENCIES = [
+  { value: "weekly", label: "Hebdomadaire", icon: CalendarDays, desc: "Chaque semaine" },
+  { value: "bimonthly", label: "Bi-mensuel", icon: Repeat, desc: "1er et 15 du mois" },
+  { value: "monthly", label: "Mensuel", icon: Calendar, desc: "Une fois par mois" },
 ];
 
 const getStatusEmoji = (value: number | null, objective: number, isLowerBetter: boolean = false): string => {
@@ -185,11 +221,24 @@ const formatPercent = (value: number | null): string => {
   return `${value.toFixed(1)}%`;
 };
 
+const getFrequencyLabel = (frequency: string, day: number | null, dayOfMonth: number | null): string => {
+  switch (frequency) {
+    case "weekly":
+      return DAYS_OF_WEEK.find(d => d.value === day)?.label || "Dimanche";
+    case "bimonthly":
+      return "1er et 15";
+    case "monthly":
+      return `Le ${dayOfMonth || 1}`;
+    default:
+      return "";
+  }
+};
+
 export default function WeeklyReports() {
   const queryClient = useQueryClient();
   
   // State
-  const [activeTab, setActiveTab] = useState<"templates" | "send">("templates");
+  const [activeTab, setActiveTab] = useState<"templates" | "send" | "history">("templates");
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Partial<ReportTemplate> | null>(null);
@@ -226,6 +275,8 @@ export default function WeeklyReports() {
         ...t,
         data_blocks: t.data_blocks as unknown as DataBlocks,
         objectives: t.objectives as unknown as Objectives,
+        schedule_frequency: t.schedule_frequency || "weekly",
+        requires_validation: t.requires_validation ?? true,
       })) as ReportTemplate[];
     },
   });
@@ -246,40 +297,56 @@ export default function WeeklyReports() {
     },
   });
 
+  // Fetch report history
+  const { data: reportHistory = [] } = useQuery({
+    queryKey: ["report-history"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("message_history")
+        .select("id, sent_at, restaurant_name, recipient_name, status, message_content")
+        .ilike("message_content", "%📊%")
+        .order("sent_at", { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      return data as ReportHistoryItem[];
+    },
+  });
+
   // Save template mutation
   const saveTemplateMutation = useMutation({
     mutationFn: async (template: Partial<ReportTemplate>) => {
+      const payload = {
+        name: template.name,
+        description: template.description,
+        icon: template.icon,
+        data_blocks: JSON.parse(JSON.stringify(template.data_blocks)),
+        intro_template: template.intro_template,
+        outro_template: template.outro_template,
+        objectives: JSON.parse(JSON.stringify(template.objectives)),
+        is_scheduled: template.is_scheduled,
+        schedule_frequency: template.schedule_frequency || "weekly",
+        schedule_day: template.schedule_day,
+        schedule_day_of_month: template.schedule_day_of_month,
+        schedule_time: template.schedule_time,
+        requires_validation: template.requires_validation ?? true,
+      };
+
       if (template.id) {
         const { error } = await supabase
           .from("report_templates")
-          .update({
-            name: template.name,
-            description: template.description,
-            icon: template.icon,
-            data_blocks: JSON.parse(JSON.stringify(template.data_blocks)),
-            intro_template: template.intro_template,
-            outro_template: template.outro_template,
-            objectives: JSON.parse(JSON.stringify(template.objectives)),
-            is_scheduled: template.is_scheduled,
-            schedule_day: template.schedule_day,
-            schedule_time: template.schedule_time,
-          })
+          .update(payload)
           .eq("id", template.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("report_templates")
           .insert([{
+            ...payload,
             name: template.name!,
-            description: template.description,
             icon: template.icon || "FileText",
             data_blocks: JSON.parse(JSON.stringify(template.data_blocks || DEFAULT_DATA_BLOCKS)),
-            intro_template: template.intro_template,
-            outro_template: template.outro_template,
             objectives: JSON.parse(JSON.stringify(template.objectives || DEFAULT_OBJECTIVES)),
-            is_scheduled: template.is_scheduled || false,
-            schedule_day: template.schedule_day,
-            schedule_time: template.schedule_time,
           }]);
         if (error) throw error;
       }
@@ -330,7 +397,6 @@ export default function WeeklyReports() {
 
     const lines: string[] = [];
 
-    // Commandes & CA
     if (blocks.orders_revenue) {
       lines.push("📦 *COMMANDES & CA*");
       lines.push(`• Commandes : ${kpi.order_count}${kpi.order_variation !== null ? ` (${kpi.order_variation >= 0 ? "+" : ""}${kpi.order_variation.toFixed(0)}%)` : ""}`);
@@ -339,7 +405,6 @@ export default function WeeklyReports() {
       lines.push("");
     }
 
-    // Note moyenne
     if (blocks.rating) {
       lines.push("⭐ *NOTE MOYENNE*");
       lines.push(`• Moyenne : ${kpi.average_rating !== null ? kpi.average_rating.toFixed(1) : "--"} ${getStatusEmoji(kpi.average_rating, objectives.rating)} (${kpi.review_count} avis)`);
@@ -347,7 +412,6 @@ export default function WeeklyReports() {
       lines.push("");
     }
 
-    // Temps opérationnels
     if (blocks.operations) {
       lines.push("⏱️ *TEMPS OPÉRATIONNELS*");
       lines.push(`• Temps de préparation : ${formatDuration(kpi.avg_prep_time)} ${getStatusEmoji(kpi.avg_prep_time, objectives.prep_time, true)}`);
@@ -357,7 +421,6 @@ export default function WeeklyReports() {
       lines.push("");
     }
 
-    // Taux d'erreur
     if (blocks.errors) {
       lines.push("❌ *TAUX D'ERREUR*");
       lines.push(`• Pourcentage d'erreurs : ${formatPercent(kpi.error_rate)} ${getStatusEmoji(kpi.error_rate, objectives.error_rate, true)} (${kpi.error_count} erreurs)`);
@@ -390,7 +453,6 @@ export default function WeeklyReports() {
       const kpis: WeeklyKPIs[] = data.reports || [];
       setGeneratedKPIs(kpis);
       
-      // Pre-select all with WhatsApp and generate messages
       const newSelected = new Set<string>();
       const newMessages: Record<string, string> = {};
       
@@ -447,7 +509,6 @@ export default function WeeklyReports() {
 
         if (error) {
           failedCount++;
-          console.error(`Failed to send to ${kpi.restaurant_name}:`, error);
         } else {
           sentCount++;
         }
@@ -461,6 +522,7 @@ export default function WeeklyReports() {
         setSelectedReports(new Set());
         setEditedMessages({});
         setActiveTab("templates");
+        queryClient.invalidateQueries({ queryKey: ["report-history"] });
       } else {
         toast.warning(`${sentCount} envoyé(s), ${failedCount} échec(s)`);
       }
@@ -484,8 +546,11 @@ export default function WeeklyReports() {
       outro_template: "\n\n💪 Bonne continuation !",
       objectives: { ...DEFAULT_OBJECTIVES },
       is_scheduled: false,
+      schedule_frequency: "weekly",
       schedule_day: 0,
+      schedule_day_of_month: 1,
       schedule_time: "09:00",
+      requires_validation: true,
     });
     setShowTemplateEditor(true);
   };
@@ -528,177 +593,220 @@ export default function WeeklyReports() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Premium Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Rapports Hebdomadaires</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Rapports WhatsApp
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
             Semaine du {format(lastWeek.start, "d MMMM", { locale: fr })} au {format(lastWeek.end, "d MMMM yyyy", { locale: fr })}
           </p>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "templates" | "send")}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="templates" className="gap-2">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "templates" | "send" | "history")}>
+        <TabsList className="grid w-full max-w-lg grid-cols-3 p-1 bg-secondary/50 backdrop-blur-sm">
+          <TabsTrigger value="templates" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <FileText className="h-4 w-4" />
             Templates
           </TabsTrigger>
-          <TabsTrigger value="send" className="gap-2" disabled={generatedKPIs.length === 0}>
+          <TabsTrigger value="send" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" disabled={generatedKPIs.length === 0}>
             <Send className="h-4 w-4" />
             Envoi ({generatedKPIs.length})
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <History className="h-4 w-4" />
+            Historique
           </TabsTrigger>
         </TabsList>
 
         {/* Templates Tab */}
-        <TabsContent value="templates" className="space-y-4 mt-4">
-          {/* Template Grid */}
+        <TabsContent value="templates" className="space-y-6 mt-6">
+          {/* Template Grid - Premium Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {templates.map((template) => (
-              <Card
-                key={template.id}
-                className={cn(
-                  "cursor-pointer transition-all hover:shadow-md",
-                  selectedTemplate?.id === template.id && "ring-2 ring-primary"
-                )}
-                onClick={() => setSelectedTemplate(template)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                        {iconMap[template.icon] || <FileText className="h-5 w-5" />}
+            {templates.map((template) => {
+              const style = templateStyles[template.icon] || templateStyles.FileText;
+              const isSelected = selectedTemplate?.id === template.id;
+              
+              return (
+                <motion.div
+                  key={template.id}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Card
+                    className={cn(
+                      "cursor-pointer transition-all duration-300 backdrop-blur-xl border-2 overflow-hidden",
+                      "bg-gradient-to-br",
+                      style.gradient,
+                      isSelected 
+                        ? "ring-2 ring-primary border-primary/50 shadow-lg shadow-primary/10" 
+                        : "border-border/50 hover:border-primary/30 hover:shadow-md"
+                    )}
+                    onClick={() => setSelectedTemplate(template)}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "h-12 w-12 rounded-xl flex items-center justify-center transition-colors",
+                            "bg-background/80 backdrop-blur-sm",
+                            style.color
+                          )}>
+                            {style.icon}
+                          </div>
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              {template.name}
+                              {template.is_default && (
+                                <Badge variant="secondary" className="text-xs font-normal">Défaut</Badge>
+                              )}
+                            </CardTitle>
+                            <p className="text-xs text-muted-foreground mt-0.5">{template.description}</p>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-4 w-4 text-primary-foreground" />
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <CardTitle className="text-base flex items-center gap-2">
-                          {template.name}
-                          {template.is_default && (
-                            <Badge variant="secondary" className="text-xs">Par défaut</Badge>
-                          )}
-                        </CardTitle>
-                        <p className="text-xs text-muted-foreground">{template.description}</p>
+                    </CardHeader>
+                    <CardContent className="pt-0 space-y-3">
+                      {/* Data blocks badges */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {template.data_blocks.orders_revenue && (
+                          <Badge variant="outline" className="text-xs gap-1 bg-background/50">
+                            <ShoppingCart className="h-3 w-3" /> CA
+                          </Badge>
+                        )}
+                        {template.data_blocks.rating && (
+                          <Badge variant="outline" className="text-xs gap-1 bg-background/50">
+                            <Star className="h-3 w-3" /> Note
+                          </Badge>
+                        )}
+                        {template.data_blocks.operations && (
+                          <Badge variant="outline" className="text-xs gap-1 bg-background/50">
+                            <Clock className="h-3 w-3" /> Temps
+                          </Badge>
+                        )}
+                        {template.data_blocks.errors && (
+                          <Badge variant="outline" className="text-xs gap-1 bg-background/50">
+                            <AlertTriangle className="h-3 w-3" /> Erreurs
+                          </Badge>
+                        )}
                       </div>
-                    </div>
-                    {selectedTemplate?.id === template.id && (
-                      <Check className="h-5 w-5 text-primary" />
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {/* Data blocks badges */}
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {template.data_blocks.orders_revenue && (
-                      <Badge variant="outline" className="text-xs gap-1">
-                        <ShoppingCart className="h-3 w-3" /> CA
-                      </Badge>
-                    )}
-                    {template.data_blocks.rating && (
-                      <Badge variant="outline" className="text-xs gap-1">
-                        <Star className="h-3 w-3" /> Note
-                      </Badge>
-                    )}
-                    {template.data_blocks.operations && (
-                      <Badge variant="outline" className="text-xs gap-1">
-                        <Clock className="h-3 w-3" /> Temps
-                      </Badge>
-                    )}
-                    {template.data_blocks.errors && (
-                      <Badge variant="outline" className="text-xs gap-1">
-                        <AlertTriangle className="h-3 w-3" /> Erreurs
-                      </Badge>
-                    )}
-                  </div>
 
-                  {/* Schedule badge */}
-                  {template.is_scheduled && (
-                    <Badge variant="secondary" className="text-xs gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {DAYS_OF_WEEK.find(d => d.value === template.schedule_day)?.label} à {template.schedule_time?.slice(0, 5)}
-                    </Badge>
-                  )}
+                      {/* Schedule info */}
+                      {template.is_scheduled && (
+                        <div className="flex items-center gap-2">
+                          <Badge className={cn(
+                            "text-xs gap-1.5",
+                            template.requires_validation 
+                              ? "bg-amber-500/10 text-amber-600 border-amber-500/30" 
+                              : "bg-green-500/10 text-green-600 border-green-500/30"
+                          )}>
+                            {template.requires_validation ? <Bell className="h-3 w-3" /> : <BellOff className="h-3 w-3" />}
+                            {FREQUENCIES.find(f => f.value === template.schedule_frequency)?.label}
+                            {" • "}
+                            {getFrequencyLabel(template.schedule_frequency, template.schedule_day, template.schedule_day_of_month)}
+                            {" à "}
+                            {template.schedule_time?.slice(0, 5)}
+                          </Badge>
+                        </div>
+                      )}
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 mt-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 gap-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditTemplate(template);
-                      }}
-                    >
-                      <Edit3 className="h-3.5 w-3.5" />
-                      Modifier
-                    </Button>
-                    {!template.is_default && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 gap-1 text-destructive hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm("Supprimer ce template ?")) {
-                            deleteTemplateMutation.mutate(template.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 pt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 gap-1.5 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditTemplate(template);
+                          }}
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                          Modifier
+                        </Button>
+                        {!template.is_default && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm("Supprimer ce template ?")) {
+                                deleteTemplateMutation.mutate(template.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
 
             {/* Add new template card */}
-            <Card
-              className="cursor-pointer border-dashed transition-all hover:border-primary hover:bg-primary/5"
-              onClick={openNewTemplate}
-            >
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                  <Plus className="h-6 w-6 text-primary" />
-                </div>
-                <p className="font-medium">Créer un template</p>
-                <p className="text-xs">Personnalisez vos rapports</p>
-              </CardContent>
-            </Card>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Card
+                className="cursor-pointer border-2 border-dashed transition-all hover:border-primary hover:bg-primary/5 min-h-[200px] flex items-center justify-center"
+                onClick={openNewTemplate}
+              >
+                <CardContent className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                  <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                    <Plus className="h-7 w-7 text-primary" />
+                  </div>
+                  <p className="font-medium text-foreground">Créer un template</p>
+                  <p className="text-xs mt-1">Personnalisez vos rapports</p>
+                </CardContent>
+              </Card>
+            </motion.div>
           </div>
 
-          {/* Generate button */}
-          <Card className="bg-secondary/30">
-            <CardContent className="py-4 flex items-center justify-between">
+          {/* Generate button - Premium style */}
+          <Card className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-primary/20">
+            <CardContent className="py-5 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="text-sm">
-                  <span className="font-medium">{restaurants.length} restaurant(s) épinglé(s)</span>
-                  <span className="text-muted-foreground ml-2">
-                    • {restaurants.filter(r => r.manager_whatsapp).length} avec WhatsApp
-                  </span>
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Send className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">{restaurants.length} restaurant(s) épinglé(s)</p>
+                  <p className="text-sm text-muted-foreground">
+                    {restaurants.filter(r => r.manager_whatsapp).length} avec WhatsApp configuré
+                  </p>
                 </div>
               </div>
               <Button
                 onClick={generateReports}
                 disabled={isGenerating || loadingRestaurants || restaurants.length === 0 || !selectedTemplate}
-                className="gap-2"
+                size="lg"
+                className="gap-2 shadow-lg"
               >
                 {isGenerating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <PlayCircle className="h-4 w-4" />
                 )}
-                Générer avec "{selectedTemplate?.name || "..."}"
+                Générer les rapports
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* Send Tab */}
-        <TabsContent value="send" className="space-y-4 mt-4">
+        <TabsContent value="send" className="space-y-4 mt-6">
           {generatedKPIs.length > 0 && (
             <>
               {/* Action bar */}
-              <Card className="bg-secondary/30">
+              <Card className="bg-gradient-to-r from-[#25D366]/5 via-[#25D366]/10 to-[#25D366]/5 border-[#25D366]/20">
                 <CardContent className="py-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <Checkbox
@@ -711,21 +819,22 @@ export default function WeeklyReports() {
                         }
                       }}
                     />
-                    <span className="text-sm font-medium">
+                    <span className="font-medium">
                       {selectedReports.size} / {generatedKPIs.filter(k => k.manager_whatsapp).length} sélectionné(s)
                     </span>
                   </div>
                   <Button
                     onClick={sendReports}
                     disabled={isSending || selectedReports.size === 0}
-                    className="gap-2 bg-[#25D366] hover:bg-[#25D366]/90 text-white"
+                    className="gap-2 bg-[#25D366] hover:bg-[#25D366]/90 text-white shadow-lg"
+                    size="lg"
                   >
                     {isSending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Send className="h-4 w-4" />
                     )}
-                    Envoyer {selectedReports.size > 0 ? `(${selectedReports.size})` : ""}
+                    Envoyer via WhatsApp
                   </Button>
                 </CardContent>
               </Card>
@@ -743,7 +852,7 @@ export default function WeeklyReports() {
                     >
                       <Card className={cn(
                         "transition-all",
-                        selectedReports.has(kpi.restaurant_id) && "ring-2 ring-primary/30",
+                        selectedReports.has(kpi.restaurant_id) && "ring-2 ring-primary/30 bg-primary/5",
                         !kpi.manager_whatsapp && "opacity-50"
                       )}>
                         <CardHeader className="pb-3">
@@ -820,7 +929,6 @@ export default function WeeklyReports() {
                                     {kpi.average_rating?.toFixed(1) || "--"}
                                     <span className="text-xs">{getStatusEmoji(kpi.average_rating, selectedTemplate?.objectives.rating || 4.4)}</span>
                                   </div>
-                                  <div className="text-xs text-muted-foreground">{kpi.review_count} avis</div>
                                 </div>
                                 <div className="p-3 rounded-lg bg-secondary/50">
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
@@ -831,7 +939,6 @@ export default function WeeklyReports() {
                                     {formatDuration(kpi.avg_prep_time)}
                                     <span className="text-xs">{getStatusEmoji(kpi.avg_prep_time, selectedTemplate?.objectives.prep_time || 20, true)}</span>
                                   </div>
-                                  <div className="text-xs text-muted-foreground">Obj: -{selectedTemplate?.objectives.prep_time || 20}min</div>
                                 </div>
                                 <div className="p-3 rounded-lg bg-secondary/50">
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
@@ -842,7 +949,6 @@ export default function WeeklyReports() {
                                     {formatPercent(kpi.error_rate)}
                                     <span className="text-xs">{getStatusEmoji(kpi.error_rate, selectedTemplate?.objectives.error_rate || 3, true)}</span>
                                   </div>
-                                  <div className="text-xs text-muted-foreground">{kpi.error_count} erreurs</div>
                                 </div>
                               </div>
 
@@ -878,6 +984,65 @@ export default function WeeklyReports() {
             </>
           )}
         </TabsContent>
+
+        {/* History Tab */}
+        <TabsContent value="history" className="space-y-4 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Historique des envois
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {reportHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <p>Aucun rapport envoyé pour le moment</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {reportHistory.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-secondary/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "h-10 w-10 rounded-full flex items-center justify-center",
+                          item.status === "sent" || item.status === "delivered" || item.status === "read"
+                            ? "bg-green-500/10 text-green-600"
+                            : "bg-red-500/10 text-red-600"
+                        )}>
+                          {item.status === "sent" || item.status === "delivered" || item.status === "read" ? (
+                            <CheckCircle2 className="h-5 w-5" />
+                          ) : (
+                            <XCircle className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium">{item.restaurant_name || "Restaurant"}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {item.recipient_name} • {format(new Date(item.sent_at || ""), "d MMM yyyy à HH:mm", { locale: fr })}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant={
+                        item.status === "read" ? "default" :
+                        item.status === "delivered" ? "secondary" :
+                        item.status === "sent" ? "outline" : "destructive"
+                      }>
+                        {item.status === "read" ? "Lu" :
+                         item.status === "delivered" ? "Délivré" :
+                         item.status === "sent" ? "Envoyé" : "Échec"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Template Editor Dialog */}
@@ -894,185 +1059,54 @@ export default function WeeklyReports() {
           </DialogHeader>
 
           {editingTemplate && (
-            <div className="space-y-6 py-4">
-              {/* Basic info */}
-              <div className="grid gap-4 sm:grid-cols-2">
+            <Tabs defaultValue="general" className="mt-4">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="general">Général</TabsTrigger>
+                <TabsTrigger value="content">Contenu</TabsTrigger>
+                <TabsTrigger value="objectives">Objectifs</TabsTrigger>
+                <TabsTrigger value="schedule">Programmation</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="general" className="space-y-4 mt-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Nom du template</Label>
+                    <Input
+                      value={editingTemplate.name || ""}
+                      onChange={(e) => setEditingTemplate(prev => ({ ...prev!, name: e.target.value }))}
+                      placeholder="Ex: Rapport hebdo"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Icône</Label>
+                    <Select
+                      value={editingTemplate.icon || "FileText"}
+                      onValueChange={(v) => setEditingTemplate(prev => ({ ...prev!, icon: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="FileText">📄 Document</SelectItem>
+                        <SelectItem value="BarChart3">📊 Graphique</SelectItem>
+                        <SelectItem value="AlertTriangle">⚠️ Alerte</SelectItem>
+                        <SelectItem value="Zap">⚡ Express</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label>Nom du template</Label>
+                  <Label>Description</Label>
                   <Input
-                    value={editingTemplate.name || ""}
-                    onChange={(e) => setEditingTemplate(prev => ({ ...prev!, name: e.target.value }))}
-                    placeholder="Ex: Rapport hebdo"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Icône</Label>
-                  <Select
-                    value={editingTemplate.icon || "FileText"}
-                    onValueChange={(v) => setEditingTemplate(prev => ({ ...prev!, icon: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FileText">📄 Document</SelectItem>
-                      <SelectItem value="BarChart3">📊 Graphique</SelectItem>
-                      <SelectItem value="AlertTriangle">⚠️ Alerte</SelectItem>
-                      <SelectItem value="Zap">⚡ Express</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Input
-                  value={editingTemplate.description || ""}
-                  onChange={(e) => setEditingTemplate(prev => ({ ...prev!, description: e.target.value }))}
-                  placeholder="Courte description du template"
-                />
-              </div>
-
-              <Separator />
-
-              {/* Data blocks */}
-              <div className="space-y-3">
-                <Label>Sections à inclure</Label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="flex items-center justify-between p-3 rounded-lg border">
-                    <div className="flex items-center gap-2">
-                      <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">Commandes & CA</span>
-                    </div>
-                    <Switch
-                      checked={editingTemplate.data_blocks?.orders_revenue ?? true}
-                      onCheckedChange={(checked) => setEditingTemplate(prev => ({
-                        ...prev!,
-                        data_blocks: { ...prev!.data_blocks!, orders_revenue: checked }
-                      }))}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg border">
-                    <div className="flex items-center gap-2">
-                      <Star className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">Note moyenne</span>
-                    </div>
-                    <Switch
-                      checked={editingTemplate.data_blocks?.rating ?? true}
-                      onCheckedChange={(checked) => setEditingTemplate(prev => ({
-                        ...prev!,
-                        data_blocks: { ...prev!.data_blocks!, rating: checked }
-                      }))}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg border">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">Temps opérationnels</span>
-                    </div>
-                    <Switch
-                      checked={editingTemplate.data_blocks?.operations ?? true}
-                      onCheckedChange={(checked) => setEditingTemplate(prev => ({
-                        ...prev!,
-                        data_blocks: { ...prev!.data_blocks!, operations: checked }
-                      }))}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg border">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">Taux d'erreur</span>
-                    </div>
-                    <Switch
-                      checked={editingTemplate.data_blocks?.errors ?? true}
-                      onCheckedChange={(checked) => setEditingTemplate(prev => ({
-                        ...prev!,
-                        data_blocks: { ...prev!.data_blocks!, errors: checked }
-                      }))}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Objectives */}
-              <div className="space-y-4">
-                <Label>Objectifs</Label>
-                
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Temps de préparation max</span>
-                    <Badge variant="secondary">{editingTemplate.objectives?.prep_time || 20} min</Badge>
-                  </div>
-                  <Slider
-                    value={[editingTemplate.objectives?.prep_time || 20]}
-                    onValueChange={([v]) => setEditingTemplate(prev => ({
-                      ...prev!,
-                      objectives: { ...prev!.objectives!, prep_time: v }
-                    }))}
-                    min={10}
-                    max={30}
-                    step={1}
+                    value={editingTemplate.description || ""}
+                    onChange={(e) => setEditingTemplate(prev => ({ ...prev!, description: e.target.value }))}
+                    placeholder="Courte description du template"
                   />
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Temps d'attente coursier max</span>
-                    <Badge variant="secondary">{editingTemplate.objectives?.courier_wait || 5} min</Badge>
-                  </div>
-                  <Slider
-                    value={[editingTemplate.objectives?.courier_wait || 5]}
-                    onValueChange={([v]) => setEditingTemplate(prev => ({
-                      ...prev!,
-                      objectives: { ...prev!.objectives!, courier_wait: v }
-                    }))}
-                    min={1}
-                    max={10}
-                    step={1}
-                  />
-                </div>
+                <Separator />
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Note moyenne minimum</span>
-                    <Badge variant="secondary">{(editingTemplate.objectives?.rating || 4.4).toFixed(1)}</Badge>
-                  </div>
-                  <Slider
-                    value={[(editingTemplate.objectives?.rating || 4.4) * 10]}
-                    onValueChange={([v]) => setEditingTemplate(prev => ({
-                      ...prev!,
-                      objectives: { ...prev!.objectives!, rating: v / 10 }
-                    }))}
-                    min={35}
-                    max={50}
-                    step={1}
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Taux d'erreur maximum</span>
-                    <Badge variant="secondary">{editingTemplate.objectives?.error_rate || 3}%</Badge>
-                  </div>
-                  <Slider
-                    value={[editingTemplate.objectives?.error_rate || 3]}
-                    onValueChange={([v]) => setEditingTemplate(prev => ({
-                      ...prev!,
-                      objectives: { ...prev!.objectives!, error_rate: v }
-                    }))}
-                    min={1}
-                    max={10}
-                    step={0.5}
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Messages */}
-              <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Message d'introduction</Label>
                   <Textarea
@@ -1094,17 +1128,154 @@ export default function WeeklyReports() {
                     rows={2}
                   />
                 </div>
-              </div>
+              </TabsContent>
 
-              <Separator />
+              <TabsContent value="content" className="space-y-4 mt-4">
+                <div className="space-y-3">
+                  <Label>Sections à inclure</Label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                          <ShoppingCart className="h-4 w-4 text-blue-500" />
+                        </div>
+                        <span className="font-medium">Commandes & CA</span>
+                      </div>
+                      <Switch
+                        checked={editingTemplate.data_blocks?.orders_revenue ?? true}
+                        onCheckedChange={(checked) => setEditingTemplate(prev => ({
+                          ...prev!,
+                          data_blocks: { ...prev!.data_blocks!, orders_revenue: checked }
+                        }))}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                          <Star className="h-4 w-4 text-yellow-500" />
+                        </div>
+                        <span className="font-medium">Note moyenne</span>
+                      </div>
+                      <Switch
+                        checked={editingTemplate.data_blocks?.rating ?? true}
+                        onCheckedChange={(checked) => setEditingTemplate(prev => ({
+                          ...prev!,
+                          data_blocks: { ...prev!.data_blocks!, rating: checked }
+                        }))}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                          <Clock className="h-4 w-4 text-purple-500" />
+                        </div>
+                        <span className="font-medium">Temps opérationnels</span>
+                      </div>
+                      <Switch
+                        checked={editingTemplate.data_blocks?.operations ?? true}
+                        onCheckedChange={(checked) => setEditingTemplate(prev => ({
+                          ...prev!,
+                          data_blocks: { ...prev!.data_blocks!, operations: checked }
+                        }))}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                          <AlertTriangle className="h-4 w-4 text-red-500" />
+                        </div>
+                        <span className="font-medium">Taux d'erreur</span>
+                      </div>
+                      <Switch
+                        checked={editingTemplate.data_blocks?.errors ?? true}
+                        onCheckedChange={(checked) => setEditingTemplate(prev => ({
+                          ...prev!,
+                          data_blocks: { ...prev!.data_blocks!, errors: checked }
+                        }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
 
-              {/* Scheduling */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+              <TabsContent value="objectives" className="space-y-4 mt-4">
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Temps de préparation max</span>
+                      <Badge variant="secondary" className="text-sm">{editingTemplate.objectives?.prep_time || 20} min</Badge>
+                    </div>
+                    <Slider
+                      value={[editingTemplate.objectives?.prep_time || 20]}
+                      onValueChange={([v]) => setEditingTemplate(prev => ({
+                        ...prev!,
+                        objectives: { ...prev!.objectives!, prep_time: v }
+                      }))}
+                      min={10}
+                      max={30}
+                      step={1}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Temps d'attente coursier max</span>
+                      <Badge variant="secondary" className="text-sm">{editingTemplate.objectives?.courier_wait || 5} min</Badge>
+                    </div>
+                    <Slider
+                      value={[editingTemplate.objectives?.courier_wait || 5]}
+                      onValueChange={([v]) => setEditingTemplate(prev => ({
+                        ...prev!,
+                        objectives: { ...prev!.objectives!, courier_wait: v }
+                      }))}
+                      min={1}
+                      max={10}
+                      step={1}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Note moyenne minimum</span>
+                      <Badge variant="secondary" className="text-sm">{(editingTemplate.objectives?.rating || 4.4).toFixed(1)}</Badge>
+                    </div>
+                    <Slider
+                      value={[(editingTemplate.objectives?.rating || 4.4) * 10]}
+                      onValueChange={([v]) => setEditingTemplate(prev => ({
+                        ...prev!,
+                        objectives: { ...prev!.objectives!, rating: v / 10 }
+                      }))}
+                      min={35}
+                      max={50}
+                      step={1}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Taux d'erreur maximum</span>
+                      <Badge variant="secondary" className="text-sm">{editingTemplate.objectives?.error_rate || 3}%</Badge>
+                    </div>
+                    <Slider
+                      value={[editingTemplate.objectives?.error_rate || 3]}
+                      onValueChange={([v]) => setEditingTemplate(prev => ({
+                        ...prev!,
+                        objectives: { ...prev!.objectives!, error_rate: v }
+                      }))}
+                      min={1}
+                      max={10}
+                      step={0.5}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="schedule" className="space-y-4 mt-4">
+                <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                   <div>
-                    <Label>Programmation automatique</Label>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Envoyer automatiquement chaque semaine
+                    <Label className="text-base">Programmation automatique</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Envoyer automatiquement selon la fréquence choisie
                     </p>
                   </div>
                   <Switch
@@ -1114,40 +1285,119 @@ export default function WeeklyReports() {
                 </div>
 
                 {editingTemplate.is_scheduled && (
-                  <div className="grid gap-4 sm:grid-cols-2 p-4 rounded-lg bg-secondary/30">
-                    <div className="space-y-2">
-                      <Label>Jour d'envoi</Label>
-                      <Select
-                        value={String(editingTemplate.schedule_day ?? 0)}
-                        onValueChange={(v) => setEditingTemplate(prev => ({ ...prev!, schedule_day: parseInt(v) }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DAYS_OF_WEEK.map(day => (
-                            <SelectItem key={day.value} value={String(day.value)}>
-                              {day.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <div className="space-y-4 p-4 rounded-lg bg-secondary/30">
+                    {/* Frequency selection */}
+                    <div className="space-y-3">
+                      <Label>Fréquence d'envoi</Label>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        {FREQUENCIES.map((freq) => (
+                          <div
+                            key={freq.value}
+                            className={cn(
+                              "flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all",
+                              editingTemplate.schedule_frequency === freq.value
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-primary/50"
+                            )}
+                            onClick={() => setEditingTemplate(prev => ({ ...prev!, schedule_frequency: freq.value }))}
+                          >
+                            <freq.icon className={cn(
+                              "h-5 w-5",
+                              editingTemplate.schedule_frequency === freq.value ? "text-primary" : "text-muted-foreground"
+                            )} />
+                            <div>
+                              <p className="font-medium text-sm">{freq.label}</p>
+                              <p className="text-xs text-muted-foreground">{freq.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Heure d'envoi</Label>
-                      <Input
-                        type="time"
-                        value={editingTemplate.schedule_time || "09:00"}
-                        onChange={(e) => setEditingTemplate(prev => ({ ...prev!, schedule_time: e.target.value }))}
+
+                    {/* Day selection based on frequency */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {editingTemplate.schedule_frequency === "weekly" && (
+                        <div className="space-y-2">
+                          <Label>Jour d'envoi</Label>
+                          <Select
+                            value={String(editingTemplate.schedule_day ?? 0)}
+                            onValueChange={(v) => setEditingTemplate(prev => ({ ...prev!, schedule_day: parseInt(v) }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DAYS_OF_WEEK.map(day => (
+                                <SelectItem key={day.value} value={String(day.value)}>
+                                  {day.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {editingTemplate.schedule_frequency === "monthly" && (
+                        <div className="space-y-2">
+                          <Label>Jour du mois</Label>
+                          <Select
+                            value={String(editingTemplate.schedule_day_of_month ?? 1)}
+                            onValueChange={(v) => setEditingTemplate(prev => ({ ...prev!, schedule_day_of_month: parseInt(v) }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                                <SelectItem key={day} value={String(day)}>
+                                  Le {day}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label>Heure d'envoi</Label>
+                        <Input
+                          type="time"
+                          value={editingTemplate.schedule_time || "09:00"}
+                          onChange={(e) => setEditingTemplate(prev => ({ ...prev!, schedule_time: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Validation toggle */}
+                    <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                      <div className="flex items-center gap-3">
+                        {editingTemplate.requires_validation ? (
+                          <Bell className="h-5 w-5 text-amber-500" />
+                        ) : (
+                          <BellOff className="h-5 w-5 text-green-500" />
+                        )}
+                        <div>
+                          <Label className="text-base">Validation requise</Label>
+                          <p className="text-sm text-muted-foreground">
+                            {editingTemplate.requires_validation 
+                              ? "Vous recevrez une notification pour valider avant envoi"
+                              : "Les rapports seront envoyés automatiquement"
+                            }
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={editingTemplate.requires_validation ?? true}
+                        onCheckedChange={(checked) => setEditingTemplate(prev => ({ ...prev!, requires_validation: checked }))}
                       />
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
+              </TabsContent>
+            </Tabs>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="mt-6">
             <Button variant="outline" onClick={() => setShowTemplateEditor(false)}>
               Annuler
             </Button>
