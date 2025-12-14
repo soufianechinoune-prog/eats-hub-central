@@ -53,6 +53,7 @@ import {
   Image as ImageIcon,
   FileText,
   Pencil,
+  FileBarChart,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -62,6 +63,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import ConversationView from "@/components/messaging/ConversationView";
 import CampaignHistory from "@/components/messaging/CampaignHistory";
+import WeeklyReports from "@/components/messaging/WeeklyReports";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -662,6 +664,13 @@ export default function Messaging() {
           >
             <History className="h-4 w-4" />
             <span>Historique</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="weekly-reports" 
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm transition-all"
+          >
+            <FileBarChart className="h-4 w-4" />
+            <span>Rapports Hebdo</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1323,6 +1332,18 @@ export default function Messaging() {
               exit="exit"
             >
               <CampaignHistory />
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="weekly-reports" className="mt-6" asChild>
+            <motion.div
+              key="weekly-reports"
+              variants={tabContentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <WeeklyReports />
             </motion.div>
           </TabsContent>
         </AnimatePresence>
