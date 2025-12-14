@@ -2042,6 +2042,60 @@ export type Database = {
           },
         ]
       }
+      report_templates: {
+        Row: {
+          created_at: string
+          data_blocks: Json
+          description: string | null
+          icon: string | null
+          id: string
+          intro_template: string | null
+          is_default: boolean | null
+          is_scheduled: boolean | null
+          last_sent_at: string | null
+          name: string
+          objectives: Json | null
+          outro_template: string | null
+          schedule_day: number | null
+          schedule_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_blocks?: Json
+          description?: string | null
+          icon?: string | null
+          id?: string
+          intro_template?: string | null
+          is_default?: boolean | null
+          is_scheduled?: boolean | null
+          last_sent_at?: string | null
+          name: string
+          objectives?: Json | null
+          outro_template?: string | null
+          schedule_day?: number | null
+          schedule_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_blocks?: Json
+          description?: string | null
+          icon?: string | null
+          id?: string
+          intro_template?: string | null
+          is_default?: boolean | null
+          is_scheduled?: boolean | null
+          last_sent_at?: string | null
+          name?: string
+          objectives?: Json | null
+          outro_template?: string | null
+          schedule_day?: number | null
+          schedule_time?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       reports: {
         Row: {
           completed_at: string | null
