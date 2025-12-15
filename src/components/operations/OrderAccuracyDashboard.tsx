@@ -65,6 +65,10 @@ export function OrderAccuracyDashboard({
   const restaurantIds = isAllRestaurants ? restaurants.map(r => r.id) : selectedRestaurants;
   const [objective, setObjective] = useState(2);
   const [chartType, setChartType] = useState<"line" | "bar">("bar");
+  
+  // Drill-down state for chart
+  const [chartPeriodMode, setChartPeriodMode] = useState<"year" | "month">("year");
+  const [chartSelectedMonth, setChartSelectedMonth] = useState<number | null>(null);
 
   // Fetch daily order accuracy data (new format)
   const { data: dailyAccuracy, isLoading: isLoadingDaily } = useQuery({
@@ -155,6 +159,29 @@ export function OrderAccuracyDashboard({
       if (error) return [];
       return data || [];
     },
+  });
+
+  // Fetch daily sales data for drill-down
+  const { data: dailySalesData } = useQuery({
+    queryKey: ["daily-sales-for-error-rate", restaurantIds, selectedYear, chartSelectedMonth],
+    queryFn: async () => {
+      if (!chartSelectedMonth) return [];
+      
+      const startDate = `${selectedYear}-${String(chartSelectedMonth).padStart(2, "0")}-01`;
+      const lastDay = new Date(selectedYear, chartSelectedMonth, 0).getDate();
+      const endDate = `${selectedYear}-${String(chartSelectedMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+      
+      const { data, error } = await supabase.rpc("get_daily_sales_uber", {
+        p_start_date: startDate,
+        p_end_date: endDate,
+        p_restaurant_ids: restaurantIds,
+        p_period_type: "current",
+      });
+      
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!chartSelectedMonth,
   });
 
   // Determine which data source to use
@@ -281,6 +308,49 @@ export function OrderAccuracyDashboard({
   const errorEvolutionData = useMemo(() => {
     const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 
+    // DAILY VIEW (drill-down mode)
+    if (chartPeriodMode === "month" && chartSelectedMonth && dailyAccuracy) {
+      // Get daily order counts from daily sales data
+      const dailyOrders: Record<string, number> = {};
+      (dailySalesData || []).forEach((r: any) => {
+        const dateStr = r.date;
+        dailyOrders[dateStr] = (dailyOrders[dateStr] || 0) + (r.order_count || 0);
+      });
+
+      // Filter daily accuracy data for the selected month
+      const filteredDailyAccuracy = dailyAccuracy.filter(d => {
+        const date = parseISO(d.date);
+        return date.getMonth() + 1 === chartSelectedMonth;
+      });
+
+      // Group by day
+      const dailyData: Record<string, { errors: number; refund: number }> = {};
+      filteredDailyAccuracy.forEach(d => {
+        const dateStr = d.date;
+        if (!dailyData[dateStr]) {
+          dailyData[dateStr] = { errors: 0, refund: 0 };
+        }
+        dailyData[dateStr].errors += d.incorrect_orders_count || 0;
+        dailyData[dateStr].refund += Number(d.total_refund || 0);
+      });
+
+      return Object.entries(dailyData)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([dateStr, data]) => {
+          const date = parseISO(dateStr);
+          const orders = dailyOrders[dateStr] || 0;
+          return {
+            period: dateStr,
+            label: format(date, "d", { locale: fr }),
+            errorRate: orders > 0 ? (data.errors / orders) * 100 : null,
+            errorCount: data.errors,
+            orderCount: orders,
+            hasSalesData: orders > 0,
+          };
+        });
+    }
+
+    // MONTHLY VIEW (year view)
     // Get order counts by month from sales data
     const monthlyOrders: Record<number, number> = {};
     (salesData || []).forEach((r: any) => {
@@ -340,7 +410,26 @@ export function OrderAccuracyDashboard({
     }
     
     return [];
-  }, [dailyAccuracy, monthlyAccuracy, salesData, selectedYear, useDaily]);
+  }, [dailyAccuracy, monthlyAccuracy, salesData, dailySalesData, selectedYear, useDaily, chartPeriodMode, chartSelectedMonth]);
+
+  // Drill-down handlers
+  const handleDrillDown = (month: number) => {
+    setChartPeriodMode("month");
+    setChartSelectedMonth(month);
+  };
+
+  const handleBackToYear = () => {
+    setChartPeriodMode("year");
+    setChartSelectedMonth(null);
+  };
+
+  const handlePrevMonth = () => {
+    setChartSelectedMonth(prev => prev && prev > 1 ? prev - 1 : 12);
+  };
+
+  const handleNextMonth = () => {
+    setChartSelectedMonth(prev => prev && prev < 12 ? prev + 1 : 1);
+  };
 
   // Financial impact by category
   const categoryData = useMemo(() => {
@@ -508,12 +597,12 @@ export function OrderAccuracyDashboard({
         onObjectiveChange={setObjective}
         chartType={chartType}
         onChartTypeChange={setChartType}
-        periodMode="year"
-        selectedMonth={null}
-        onDrillDown={() => {}}
-        onBackToYear={() => {}}
-        onPrevMonth={() => {}}
-        onNextMonth={() => {}}
+        periodMode={chartPeriodMode}
+        selectedMonth={chartSelectedMonth}
+        onDrillDown={handleDrillDown}
+        onBackToYear={handleBackToYear}
+        onPrevMonth={handlePrevMonth}
+        onNextMonth={handleNextMonth}
       />
 
       {/* Error Distribution and Financial Impact */}
