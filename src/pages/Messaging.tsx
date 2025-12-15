@@ -46,7 +46,6 @@ import {
   Clock,
   Calendar,
   Trash2,
-  History,
   Users,
   Sparkles,
   Paperclip,
@@ -62,7 +61,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import ConversationView from "@/components/messaging/ConversationView";
-import CampaignHistory from "@/components/messaging/CampaignHistory";
+import OutboundMessages from "@/components/messaging/OutboundMessages";
 import WeeklyReports from "@/components/messaging/WeeklyReports";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -647,11 +646,11 @@ export default function Messaging() {
             <span>Composer</span>
           </TabsTrigger>
           <TabsTrigger 
-            value="scheduled" 
+            value="outbound" 
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm transition-all"
           >
-            <Clock className="h-4 w-4" />
-            <span>Programmés</span>
+            <Send className="h-4 w-4" />
+            <span>Envois</span>
             {scheduledMessages.filter(m => m.status === "pending").length > 0 && (
               <span className="ml-1 flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-amber-500 text-white">
                 {scheduledMessages.filter(m => m.status === "pending").length}
@@ -659,18 +658,11 @@ export default function Messaging() {
             )}
           </TabsTrigger>
           <TabsTrigger 
-            value="history" 
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm transition-all"
-          >
-            <History className="h-4 w-4" />
-            <span>Historique</span>
-          </TabsTrigger>
-          <TabsTrigger 
-            value="weekly-reports" 
+            value="reports" 
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm transition-all"
           >
             <FileBarChart className="h-4 w-4" />
-            <span>Rapports Hebdo</span>
+            <span>Rapports</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1177,165 +1169,24 @@ export default function Messaging() {
             </motion.div>
           </TabsContent>
 
-          <TabsContent value="scheduled" className="mt-6" asChild>
+          <TabsContent value="outbound" className="mt-6" asChild>
             <motion.div
-              key="scheduled"
+              key="outbound"
               variants={tabContentVariants}
               initial="hidden"
               animate="visible"
               exit="exit"
             >
-              <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
-                <div className="p-6 border-b border-border/50">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                      <Clock className="h-5 w-5 text-amber-500" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">Messages programmés</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {scheduledMessages.filter(m => m.status === "pending").length} message(s) en attente
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <CardContent className="p-0">
-                  {isLoadingScheduled ? (
-                    <div className="flex items-center justify-center py-12 text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      Chargement...
-                    </div>
-                  ) : scheduledMessages.length === 0 ? (
-                    <div className="text-center py-16 text-muted-foreground">
-                      <Clock className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                      <p className="font-medium">Aucun message programmé</p>
-                      <p className="text-sm mt-1">Les messages programmés apparaîtront ici</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-border/50">
-                      {scheduledMessages.map((msg, index) => (
-                        <motion.div 
-                          key={msg.id} 
-                          className="p-5 hover:bg-secondary/30 transition-colors"
-                          custom={index}
-                          variants={listItemVariants}
-                          initial="hidden"
-                          animate="visible"
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
-                              <Calendar className="h-5 w-5 text-muted-foreground" />
-                            </div>
-                            <div className="flex-1 min-w-0 space-y-2">
-                              <div className="flex items-center gap-3">
-                                {getScheduledStatusBadge(msg.status)}
-                                <span className="text-sm font-medium text-foreground">
-                                  {format(new Date(msg.scheduled_at), "d MMMM yyyy à HH:mm", { locale: fr })}
-                                </span>
-                              </div>
-                              {msg.subject && (
-                                <p className="text-sm font-semibold text-foreground flex items-center gap-2">
-                                  <span className="text-muted-foreground">📌</span>
-                                  {msg.subject}
-                                </p>
-                              )}
-                              <p className="text-sm text-muted-foreground line-clamp-2">{msg.message}</p>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <Badge variant="secondary" className="text-xs">
-                                  <Users className="h-3 w-3 mr-1" />
-                                  {msg.recipients.length} destinataire{msg.recipients.length > 1 ? "s" : ""}
-                                </Badge>
-                                {msg.media_url && (
-                                  <HoverCard>
-                                    <HoverCardTrigger asChild>
-                                      <Badge variant="outline" className="text-xs cursor-pointer">
-                                        {msg.media_type === 'image' ? (
-                                          <><ImageIcon className="h-3 w-3 mr-1" />Image</>
-                                        ) : (
-                                          <><FileText className="h-3 w-3 mr-1" />Document</>
-                                        )}
-                                      </Badge>
-                                    </HoverCardTrigger>
-                                    <HoverCardContent className="w-64 p-2" side="top">
-                                      {msg.media_type === 'image' ? (
-                                        <img 
-                                          src={msg.media_url} 
-                                          alt="Média joint" 
-                                          className="w-full h-auto rounded-lg object-cover max-h-48"
-                                        />
-                                      ) : (
-                                        <div className="flex items-center gap-3 p-2">
-                                          <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
-                                            <FileText className="h-5 w-5 text-muted-foreground" />
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium truncate">Document joint</p>
-                                            <p className="text-xs text-muted-foreground truncate">{msg.media_url.split('/').pop()}</p>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </HoverCardContent>
-                                  </HoverCard>
-                                )}
-                                {msg.sent_count > 0 && (
-                                  <span className="text-xs text-whatsapp">
-                                    {msg.sent_count} envoyé{msg.sent_count > 1 ? "s" : ""}
-                                  </span>
-                                )}
-                                {msg.failed_count > 0 && (
-                                  <span className="text-xs text-destructive">
-                                    {msg.failed_count} échec{msg.failed_count > 1 ? "s" : ""}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {msg.status === "pending" && (
-                              <div className="flex items-center gap-1">
-                                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => openEditDialog(msg)}
-                                    className="h-9 w-9 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10"
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                </motion.div>
-                                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => deleteScheduledMessage(msg.id)}
-                                    className="h-9 w-9 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </motion.div>
-                              </div>
-                            )}
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <OutboundMessages 
+                scheduledMessages={scheduledMessages}
+                isLoadingScheduled={isLoadingScheduled}
+                onDeleteScheduled={deleteScheduledMessage}
+                onEditScheduled={openEditDialog}
+              />
             </motion.div>
           </TabsContent>
 
-          <TabsContent value="history" className="mt-6" asChild>
-            <motion.div
-              key="history"
-              variants={tabContentVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
-              <CampaignHistory />
-            </motion.div>
-          </TabsContent>
-
-          <TabsContent value="weekly-reports" className="mt-6" asChild>
+          <TabsContent value="reports" className="mt-6" asChild>
             <motion.div
               key="weekly-reports"
               variants={tabContentVariants}

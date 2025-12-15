@@ -21,6 +21,8 @@ interface SendRequest {
   skip_campaign?: boolean;
   // Message type for unified history filtering
   message_type?: 'campaign' | 'report' | 'individual' | 'chatbot';
+  // Batch ID for grouping related messages
+  batch_id?: string;
 }
 
 serve(async (req) => {
@@ -46,7 +48,10 @@ serve(async (req) => {
       ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
       : null;
 
-    const { recipients, message, scheduled_message_id, skip_campaign, message_type }: SendRequest = await req.json();
+    const { recipients, message, scheduled_message_id, skip_campaign, message_type, batch_id: providedBatchId }: SendRequest = await req.json();
+    
+    // Generate batch_id for grouping if multiple recipients and not already provided
+    const batchId = providedBatchId || (recipients.length > 1 ? crypto.randomUUID() : null);
     
     // Determine message type based on content or explicit parameter
     const determineMessageType = (content: string, hasCampaign: boolean): string => {
@@ -138,7 +143,7 @@ serve(async (req) => {
           console.log(`Message sent successfully to ${phone}, ID: ${data.id}`);
           sentCount++;
           
-          // Log to message_history with campaign_id and message_type
+          // Log to message_history with campaign_id, batch_id, and message_type
           if (supabase) {
             const msgType = determineMessageType(personalizedMessage, !!campaignId);
             await supabase.from('message_history').insert({
@@ -153,6 +158,7 @@ serve(async (req) => {
               sent_at: new Date().toISOString(),
               scheduled_message_id: scheduled_message_id || null,
               campaign_id: campaignId,
+              batch_id: batchId,
               message_type: msgType,
             });
           }
@@ -167,7 +173,7 @@ serve(async (req) => {
           console.error(`Failed to send to ${phone}:`, data);
           failedCount++;
           
-          // Log failed message to history with campaign_id and message_type
+          // Log failed message to history with campaign_id, batch_id, and message_type
           if (supabase) {
             const msgType = determineMessageType(personalizedMessage, !!campaignId);
             await supabase.from('message_history').insert({
@@ -181,6 +187,7 @@ serve(async (req) => {
               error_message: data.error || 'Unknown error',
               scheduled_message_id: scheduled_message_id || null,
               campaign_id: campaignId,
+              batch_id: batchId,
               message_type: msgType,
             });
           }
@@ -197,7 +204,7 @@ serve(async (req) => {
         console.error(`Error sending to ${phone}:`, errorMessage);
         failedCount++;
         
-        // Log error to history with campaign_id and message_type
+        // Log error to history with campaign_id, batch_id, and message_type
         if (supabase) {
           const msgType = determineMessageType(personalizedMessage, !!campaignId);
           await supabase.from('message_history').insert({
@@ -211,6 +218,7 @@ serve(async (req) => {
             error_message: errorMessage,
             scheduled_message_id: scheduled_message_id || null,
             campaign_id: campaignId,
+            batch_id: batchId,
             message_type: msgType,
           });
         }
@@ -253,6 +261,7 @@ serve(async (req) => {
         failed: failedCount,
         results,
         campaign_id: campaignId,
+        batch_id: batchId,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
