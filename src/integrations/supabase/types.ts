@@ -856,6 +856,7 @@ export type Database = {
       }
       message_history: {
         Row: {
+          batch_id: string | null
           campaign_id: string | null
           created_at: string
           delivered_at: string | null
@@ -879,6 +880,7 @@ export type Database = {
           ultramsg_message_id: string | null
         }
         Insert: {
+          batch_id?: string | null
           campaign_id?: string | null
           created_at?: string
           delivered_at?: string | null
@@ -902,6 +904,7 @@ export type Database = {
           ultramsg_message_id?: string | null
         }
         Update: {
+          batch_id?: string | null
           campaign_id?: string | null
           created_at?: string
           delivered_at?: string | null
