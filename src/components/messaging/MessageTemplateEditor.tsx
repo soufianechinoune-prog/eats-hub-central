@@ -7,9 +7,7 @@ import {
   PopoverContent, 
   PopoverTrigger 
 } from "@/components/ui/popover";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { 
   Eye, 
   Edit3, 
@@ -20,7 +18,8 @@ import {
   Star, 
   Clock, 
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  Check
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -66,13 +65,43 @@ const AVAILABLE_VARIABLES: VariableDefinition[] = [
   { key: "emoji_erreur", label: "Emoji erreur", description: "✅ si objectif atteint", example: "✅", category: "errors" },
 ];
 
-const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  manager: { label: "Manager", icon: <User className="h-3.5 w-3.5" />, color: "bg-blue-500/10 text-blue-600 border-blue-500/30" },
-  period: { label: "Période", icon: <Calendar className="h-3.5 w-3.5" />, color: "bg-purple-500/10 text-purple-600 border-purple-500/30" },
-  orders: { label: "CA & Commandes", icon: <ShoppingCart className="h-3.5 w-3.5" />, color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" },
-  rating: { label: "Note", icon: <Star className="h-3.5 w-3.5" />, color: "bg-amber-500/10 text-amber-600 border-amber-500/30" },
-  operations: { label: "Temps", icon: <Clock className="h-3.5 w-3.5" />, color: "bg-indigo-500/10 text-indigo-600 border-indigo-500/30" },
-  errors: { label: "Erreurs", icon: <AlertTriangle className="h-3.5 w-3.5" />, color: "bg-red-500/10 text-red-600 border-red-500/30" },
+const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string; bgGradient: string }> = {
+  manager: { 
+    label: "Manager", 
+    icon: <User className="h-3 w-3" />, 
+    color: "text-blue-600 dark:text-blue-400",
+    bgGradient: "bg-gradient-to-r from-blue-500/20 to-blue-400/10 border-blue-500/30 hover:border-blue-500/50"
+  },
+  period: { 
+    label: "Période", 
+    icon: <Calendar className="h-3 w-3" />, 
+    color: "text-violet-600 dark:text-violet-400",
+    bgGradient: "bg-gradient-to-r from-violet-500/20 to-violet-400/10 border-violet-500/30 hover:border-violet-500/50"
+  },
+  orders: { 
+    label: "CA & Commandes", 
+    icon: <ShoppingCart className="h-3 w-3" />, 
+    color: "text-emerald-600 dark:text-emerald-400",
+    bgGradient: "bg-gradient-to-r from-emerald-500/20 to-emerald-400/10 border-emerald-500/30 hover:border-emerald-500/50"
+  },
+  rating: { 
+    label: "Note", 
+    icon: <Star className="h-3 w-3" />, 
+    color: "text-amber-600 dark:text-amber-400",
+    bgGradient: "bg-gradient-to-r from-amber-500/20 to-amber-400/10 border-amber-500/30 hover:border-amber-500/50"
+  },
+  operations: { 
+    label: "Temps", 
+    icon: <Clock className="h-3 w-3" />, 
+    color: "text-indigo-600 dark:text-indigo-400",
+    bgGradient: "bg-gradient-to-r from-indigo-500/20 to-indigo-400/10 border-indigo-500/30 hover:border-indigo-500/50"
+  },
+  errors: { 
+    label: "Erreurs", 
+    icon: <AlertTriangle className="h-3 w-3" />, 
+    color: "text-rose-600 dark:text-rose-400",
+    bgGradient: "bg-gradient-to-r from-rose-500/20 to-rose-400/10 border-rose-500/30 hover:border-rose-500/50"
+  },
 };
 
 interface MessageTemplateEditorProps {
@@ -104,16 +133,13 @@ export default function MessageTemplateEditor({
     let match;
 
     while ((match = regex.exec(value)) !== null) {
-      // Add text before the variable
       if (match.index > lastIndex) {
         parts.push({ type: "text", content: value.slice(lastIndex, match.index) });
       }
-      // Add the variable
       parts.push({ type: "variable", content: match[1] });
       lastIndex = regex.lastIndex;
     }
 
-    // Add remaining text
     if (lastIndex < value.length) {
       parts.push({ type: "text", content: value.slice(lastIndex) });
     }
@@ -143,7 +169,6 @@ export default function MessageTemplateEditor({
     onChange(newValue);
     setShowVariables(false);
 
-    // Restore focus and cursor
     setTimeout(() => {
       textarea.focus();
       const newPos = start + key.length + 2;
@@ -167,83 +192,102 @@ export default function MessageTemplateEditor({
   }, []);
 
   return (
-    <div className={cn("space-y-3", className)}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {/* Mode toggle */}
-          <div className="flex items-center rounded-lg border bg-secondary/30 p-0.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-7 px-3 gap-1.5 text-xs rounded-md",
-                mode === "edit" && "bg-background shadow-sm"
-              )}
-              onClick={() => setMode("edit")}
-            >
-              <Edit3 className="h-3.5 w-3.5" />
-              Éditer
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-7 px-3 gap-1.5 text-xs rounded-md",
-                mode === "preview" && "bg-background shadow-sm"
-              )}
-              onClick={() => setMode("preview")}
-            >
-              <Eye className="h-3.5 w-3.5" />
-              Aperçu
-            </Button>
-          </div>
+    <div className={cn("space-y-4", className)}>
+      {/* Modern Toolbar */}
+      <div className="flex items-center justify-between gap-3">
+        {/* Mode toggle - pill style */}
+        <div className="inline-flex items-center rounded-full bg-muted/60 backdrop-blur-sm p-1 border border-border/50">
+          <motion.button
+            onClick={() => setMode("edit")}
+            className={cn(
+              "relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-colors",
+              mode === "edit" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {mode === "edit" && (
+              <motion.div
+                layoutId="mode-indicator"
+                className="absolute inset-0 bg-primary rounded-full shadow-lg"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+              />
+            )}
+            <Edit3 className="h-4 w-4 relative z-10" />
+            <span className="relative z-10">Éditer</span>
+          </motion.button>
+          
+          <motion.button
+            onClick={() => setMode("preview")}
+            className={cn(
+              "relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-colors",
+              mode === "preview" ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {mode === "preview" && (
+              <motion.div
+                layoutId="mode-indicator"
+                className="absolute inset-0 bg-primary rounded-full shadow-lg"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+              />
+            )}
+            <Eye className="h-4 w-4 relative z-10" />
+            <span className="relative z-10">Aperçu</span>
+          </motion.button>
         </div>
 
-        {/* Insert variable button */}
+        {/* Insert variable button - modern style */}
         {mode === "edit" && !disabled && (
           <Popover open={showVariables} onOpenChange={setShowVariables}>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
-                <Sparkles className="h-3.5 w-3.5" />
-                Insérer une variable
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-9 gap-2 rounded-full bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 hover:border-primary/50 hover:bg-primary/15 transition-all duration-300"
+              >
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="font-medium">Variables</span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="end">
-              <div className="p-3 border-b">
-                <h4 className="font-medium text-sm">Variables disponibles</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Cliquez pour insérer à la position du curseur
-                </p>
+            <PopoverContent className="w-96 p-0 rounded-2xl border-border/50 shadow-2xl backdrop-blur-xl" align="end">
+              <div className="p-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-transparent">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-sm">Variables dynamiques</h4>
+                    <p className="text-xs text-muted-foreground">Cliquez pour insérer</p>
+                  </div>
+                </div>
               </div>
-              <ScrollArea className="h-[300px]">
-                <div className="p-2 space-y-3">
+              <ScrollArea className="h-[320px]">
+                <div className="p-3 space-y-4">
                   {Object.entries(variablesByCategory).map(([category, vars]) => {
                     const config = CATEGORY_CONFIG[category];
                     return (
                       <div key={category}>
-                        <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
-                          {config.icon}
-                          <span className="font-medium">{config.label}</span>
+                        <div className={cn(
+                          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium mb-2",
+                          config.bgGradient, "border"
+                        )}>
+                          <span className={config.color}>{config.icon}</span>
+                          <span className={config.color}>{config.label}</span>
                         </div>
-                        <div className="space-y-1 mt-1">
+                        <div className="grid grid-cols-2 gap-2">
                           {vars.map(v => (
-                            <button
+                            <motion.button
                               key={v.key}
-                              className="w-full flex items-center justify-between p-2 rounded-md hover:bg-secondary/50 transition-colors text-left"
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              className={cn(
+                                "flex flex-col items-start p-3 rounded-xl border transition-all duration-200",
+                                config.bgGradient,
+                                "hover:shadow-md"
+                              )}
                               onClick={() => insertVariable(v.key)}
                             >
-                              <div className="flex items-center gap-2">
-                                <Badge 
-                                  variant="outline" 
-                                  className={cn("text-xs font-mono", config.color)}
-                                >
-                                  {`{${v.key}}`}
-                                </Badge>
-                                <span className="text-sm">{v.label}</span>
-                              </div>
-                              <span className="text-xs text-muted-foreground">{v.example}</span>
-                            </button>
+                              <span className={cn("text-sm font-medium", config.color)}>{v.label}</span>
+                              <span className="text-xs text-muted-foreground mt-0.5 font-mono">{v.example}</span>
+                            </motion.button>
                           ))}
                         </div>
                       </div>
@@ -256,98 +300,113 @@ export default function MessageTemplateEditor({
         )}
       </div>
 
-      {/* Editor / Preview */}
+      {/* Editor / Preview with smooth transitions */}
       <AnimatePresence mode="wait">
         {mode === "edit" ? (
           <motion.div
             key="edit"
-            initial={{ opacity: 0, y: 5 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="space-y-4"
           >
-            {/* Visual editor with inline badges */}
+            {/* Visual editor card */}
             <div 
               className={cn(
-                "relative border rounded-lg bg-background overflow-hidden",
+                "relative rounded-2xl border-2 border-dashed border-border/60 bg-gradient-to-br from-muted/30 to-muted/10 backdrop-blur-sm overflow-hidden transition-all duration-300",
+                "hover:border-primary/30 focus-within:border-primary/50 focus-within:shadow-lg focus-within:shadow-primary/5",
                 disabled && "opacity-50 pointer-events-none"
               )}
             >
-              {/* Visual representation of message with variable badges */}
+              {/* Visual representation with modern variable badges */}
               <div 
-                className="p-3 pb-1 text-sm whitespace-pre-wrap break-words"
+                className="p-5 text-sm leading-relaxed whitespace-pre-wrap break-words"
                 style={{ minHeight }}
               >
-                {segments.map((seg, i) => {
-                  if (seg.type === "text") {
-                    return <span key={i}>{seg.content}</span>;
-                  }
-                  
-                  const varInfo = getVariableInfo(seg.content);
-                  const category = varInfo?.category || "manager";
-                  const config = CATEGORY_CONFIG[category];
-                  
-                  return (
-                    <Badge 
-                      key={i}
-                      variant="outline"
-                      className={cn(
-                        "mx-0.5 text-xs font-mono cursor-default inline-flex items-center gap-1",
-                        config.color
-                      )}
-                    >
-                      {config.icon}
-                      {varInfo?.label || seg.content}
-                    </Badge>
-                  );
-                })}
-                {segments.length === 0 && (
-                  <span className="text-muted-foreground italic">
+                {segments.length > 0 ? (
+                  segments.map((seg, i) => {
+                    if (seg.type === "text") {
+                      return <span key={i} className="text-foreground">{seg.content}</span>;
+                    }
+                    
+                    const varInfo = getVariableInfo(seg.content);
+                    const category = varInfo?.category || "manager";
+                    const config = CATEGORY_CONFIG[category];
+                    
+                    return (
+                      <motion.span
+                        key={i}
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="inline-flex"
+                      >
+                        <Badge 
+                          variant="outline"
+                          className={cn(
+                            "mx-1 px-2.5 py-1 text-xs font-medium rounded-full cursor-default inline-flex items-center gap-1.5 border-2 transition-all duration-200 hover:shadow-md",
+                            config.bgGradient,
+                            config.color
+                          )}
+                        >
+                          {config.icon}
+                          {varInfo?.label || seg.content}
+                        </Badge>
+                      </motion.span>
+                    );
+                  })
+                ) : (
+                  <span className="text-muted-foreground/60 italic flex items-center gap-2">
+                    <Edit3 className="h-4 w-4" />
                     Commencez à écrire votre message...
                   </span>
                 )}
               </div>
 
-              {/* Hidden textarea for actual editing */}
-              <Textarea
-                ref={textareaRef}
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className="absolute inset-0 opacity-0 resize-none cursor-text"
-                style={{ minHeight }}
-                disabled={disabled}
-              />
-              
-              {/* Visible textarea overlay for editing */}
-              <div className="border-t bg-secondary/30">
+              {/* Subtle separator */}
+              <div className="h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+
+              {/* Code editor area */}
+              <div className="relative bg-muted/20">
+                <div className="absolute left-3 top-3 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500/50" />
+                  Code
+                </div>
                 <Textarea
+                  ref={textareaRef}
                   value={value}
                   onChange={(e) => onChange(e.target.value)}
-                  placeholder="Écrivez votre message. Utilisez {variable} pour insérer des données dynamiques."
-                  className="border-0 bg-transparent font-mono text-xs resize-none focus-visible:ring-0"
-                  style={{ minHeight: "80px" }}
+                  placeholder="Écrivez votre message avec {variable} pour les données dynamiques..."
+                  className="border-0 bg-transparent font-mono text-xs resize-none focus-visible:ring-0 pt-8 px-3 pb-3 text-muted-foreground"
+                  style={{ minHeight: "100px" }}
                   disabled={disabled}
                 />
               </div>
             </div>
 
-            {/* Quick variable buttons */}
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            {/* Quick insert pills */}
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs text-muted-foreground py-1.5 mr-1">Ajout rapide :</span>
               {["prenom", "date_debut", "date_fin", "ca", "note", "temps_prep"].map(key => {
                 const v = getVariableInfo(key);
                 const config = CATEGORY_CONFIG[v?.category || "manager"];
                 return (
-                  <Button
+                  <motion.button
                     key={key}
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs gap-1"
+                    whileHover={{ scale: 1.05, y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-full border transition-all duration-200",
+                      config.bgGradient,
+                      config.color,
+                      "hover:shadow-md"
+                    )}
                     onClick={() => insertVariable(key)}
                     disabled={disabled}
                   >
                     <Plus className="h-3 w-3" />
                     {v?.label}
-                  </Button>
+                  </motion.button>
                 );
               })}
             </div>
@@ -355,27 +414,54 @@ export default function MessageTemplateEditor({
         ) : (
           <motion.div
             key="preview"
-            initial={{ opacity: 0, y: 5 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            {/* WhatsApp-style preview */}
-            <div className="rounded-lg border bg-[#e5ddd5] dark:bg-[#0b141a] p-4">
-              <div className="max-w-[85%] ml-auto">
-                <div className="bg-[#dcf8c6] dark:bg-[#005c4b] rounded-lg rounded-tr-none p-3 shadow-sm">
-                  <p className="text-sm whitespace-pre-wrap text-black dark:text-white">
-                    {previewText}
-                  </p>
-                  <div className="flex items-center justify-end gap-1 mt-1">
-                    <span className="text-[10px] text-black/50 dark:text-white/50">
-                      12:34
-                    </span>
-                  </div>
+            {/* Modern WhatsApp-style preview */}
+            <div className="rounded-2xl overflow-hidden border border-border/50 shadow-xl">
+              {/* WhatsApp header */}
+              <div className="bg-[#075e54] dark:bg-[#1f2c33] px-4 py-3 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <User className="h-5 w-5 text-white/80" />
+                </div>
+                <div>
+                  <p className="text-white font-medium text-sm">{previewData.prenom || "Manager"}</p>
+                  <p className="text-white/60 text-xs">en ligne</p>
+                </div>
+              </div>
+              
+              {/* Chat area */}
+              <div 
+                className="bg-[#e5ddd5] dark:bg-[#0b141a] p-4 bg-opacity-95"
+                style={{ 
+                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+                }}
+              >
+                <div className="max-w-[85%] ml-auto">
+                  <motion.div 
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="bg-[#dcf8c6] dark:bg-[#005c4b] rounded-2xl rounded-tr-sm p-4 shadow-lg relative"
+                  >
+                    <p className="text-sm whitespace-pre-wrap text-[#111b21] dark:text-white leading-relaxed">
+                      {previewText || "Votre message apparaîtra ici..."}
+                    </p>
+                    <div className="flex items-center justify-end gap-1.5 mt-2">
+                      <span className="text-[11px] text-[#111b21]/50 dark:text-white/50">
+                        {new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <Check className="h-3.5 w-3.5 text-[#53bdeb]" />
+                      <Check className="h-3.5 w-3.5 text-[#53bdeb] -ml-2" />
+                    </div>
+                  </motion.div>
                 </div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2 text-center">
+            
+            <p className="text-xs text-muted-foreground mt-3 text-center flex items-center justify-center gap-2">
+              <Eye className="h-3.5 w-3.5" />
               Aperçu avec données d'exemple
             </p>
           </motion.div>
