@@ -51,9 +51,6 @@ import {
   Check,
   Edit3,
   PlayCircle,
-  History,
-  CheckCircle2,
-  XCircle,
   CalendarDays,
   Repeat,
   Bell,
@@ -128,15 +125,6 @@ interface WeeklyKPIs {
   avg_courier_wait: number | null;
   error_rate: number | null;
   error_count: number;
-}
-
-interface ReportHistoryItem {
-  id: string;
-  sent_at: string;
-  restaurant_name: string | null;
-  recipient_name: string | null;
-  status: string;
-  message_content: string;
 }
 
 // Icon mapping with gradient colors
@@ -238,7 +226,7 @@ export default function WeeklyReports() {
   const queryClient = useQueryClient();
   
   // State
-  const [activeTab, setActiveTab] = useState<"templates" | "send" | "history">("templates");
+  const [activeTab, setActiveTab] = useState<"templates" | "send">("templates");
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Partial<ReportTemplate> | null>(null);
@@ -294,22 +282,6 @@ export default function WeeklyReports() {
 
       if (error) throw error;
       return data as Restaurant[];
-    },
-  });
-
-  // Fetch report history
-  const { data: reportHistory = [] } = useQuery({
-    queryKey: ["report-history"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("message_history")
-        .select("id, sent_at, restaurant_name, recipient_name, status, message_content")
-        .ilike("message_content", "%📊%")
-        .order("sent_at", { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      return data as ReportHistoryItem[];
     },
   });
 
@@ -605,8 +577,8 @@ export default function WeeklyReports() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "templates" | "send" | "history")}>
-        <TabsList className="grid w-full max-w-lg grid-cols-3 p-1 bg-secondary/50 backdrop-blur-sm">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "templates" | "send")}>
+        <TabsList className="grid w-full max-w-md grid-cols-2 p-1 bg-secondary/50 backdrop-blur-sm">
           <TabsTrigger value="templates" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <FileText className="h-4 w-4" />
             Templates
@@ -614,10 +586,6 @@ export default function WeeklyReports() {
           <TabsTrigger value="send" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" disabled={generatedKPIs.length === 0}>
             <Send className="h-4 w-4" />
             Envoi ({generatedKPIs.length})
-          </TabsTrigger>
-          <TabsTrigger value="history" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <History className="h-4 w-4" />
-            Historique
           </TabsTrigger>
         </TabsList>
 
@@ -985,64 +953,6 @@ export default function WeeklyReports() {
           )}
         </TabsContent>
 
-        {/* History Tab */}
-        <TabsContent value="history" className="space-y-4 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <History className="h-5 w-5" />
-                Historique des envois
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {reportHistory.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                  <p>Aucun rapport envoyé pour le moment</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {reportHistory.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-secondary/30 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          "h-10 w-10 rounded-full flex items-center justify-center",
-                          item.status === "sent" || item.status === "delivered" || item.status === "read"
-                            ? "bg-green-500/10 text-green-600"
-                            : "bg-red-500/10 text-red-600"
-                        )}>
-                          {item.status === "sent" || item.status === "delivered" || item.status === "read" ? (
-                            <CheckCircle2 className="h-5 w-5" />
-                          ) : (
-                            <XCircle className="h-5 w-5" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium">{item.restaurant_name || "Restaurant"}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {item.recipient_name} • {format(new Date(item.sent_at || ""), "d MMM yyyy à HH:mm", { locale: fr })}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant={
-                        item.status === "read" ? "default" :
-                        item.status === "delivered" ? "secondary" :
-                        item.status === "sent" ? "outline" : "destructive"
-                      }>
-                        {item.status === "read" ? "Lu" :
-                         item.status === "delivered" ? "Délivré" :
-                         item.status === "sent" ? "Envoyé" : "Échec"}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* Template Editor Dialog */}

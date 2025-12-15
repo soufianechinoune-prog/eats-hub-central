@@ -866,6 +866,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           message_content: string
+          message_type: string | null
           read_at: string | null
           recipient_name: string | null
           recipient_phone: string
@@ -888,6 +889,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_content: string
+          message_type?: string | null
           read_at?: string | null
           recipient_name?: string | null
           recipient_phone: string
@@ -910,6 +912,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_content?: string
+          message_type?: string | null
           read_at?: string | null
           recipient_name?: string | null
           recipient_phone?: string
