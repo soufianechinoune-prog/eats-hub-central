@@ -13,12 +13,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group";
 import {
   History,
   Send,
@@ -30,11 +27,42 @@ import {
   ChevronRight,
   Phone,
   Sparkles,
+  FileBarChart,
+  Megaphone,
+  MessageCircle,
+  Bot,
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+
+// Unified message type for the new structure
+interface UnifiedMessage {
+  id: string;
+  type: "campaign" | "report" | "individual" | "chatbot";
+  recipient_phone: string;
+  recipient_name: string | null;
+  restaurant_name: string | null;
+  message_content: string;
+  status: string;
+  sent_at: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+  campaign_id: string | null;
+  // Campaign-specific fields
+  campaign?: {
+    id: string;
+    message_template: string;
+    recipient_count: number;
+    sent_count: number;
+    delivered_count: number;
+    read_count: number;
+    failed_count: number;
+    status: string;
+    sent_at: string;
+  };
+}
 
 interface Campaign {
   id: string;
@@ -70,14 +98,38 @@ const listItemVariants = {
   })
 };
 
+// Type filter configuration
+const TYPE_FILTERS = [
+  { value: "all", label: "Tous", icon: History },
+  { value: "campaign", label: "Campagnes", icon: Megaphone, color: "text-whatsapp" },
+  { value: "report", label: "Rapports", icon: FileBarChart, color: "text-violet-500" },
+  { value: "individual", label: "Messages", icon: MessageCircle, color: "text-blue-500" },
+];
+
 export default function CampaignHistory() {
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
 
+  // Fetch all messages (unified)
+  const { data: allMessages = [], isLoading: loadingMessages } = useQuery({
+    queryKey: ["unified-message-history"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("message_history")
+        .select("*")
+        .eq("direction", "outbound")
+        .order("sent_at", { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Fetch campaigns
-  const { data: campaigns = [], isLoading } = useQuery({
+  const { data: campaigns = [], isLoading: loadingCampaigns } = useQuery({
     queryKey: ["message-campaigns"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -111,7 +163,18 @@ export default function CampaignHistory() {
   // Subscribe to realtime updates
   useEffect(() => {
     const channel = supabase
-      .channel("campaign-changes")
+      .channel("unified-history-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "message_history",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["unified-message-history"] });
+        }
+      )
       .on(
         "postgres_changes",
         {
@@ -130,33 +193,135 @@ export default function CampaignHistory() {
     };
   }, [queryClient]);
 
-  // Filtered campaigns
-  const filteredCampaigns = useMemo(() => {
-    if (statusFilter === "all") return campaigns;
-    return campaigns.filter((c) => c.status === statusFilter);
-  }, [campaigns, statusFilter]);
+  // Determine message type based on content and flags
+  const getMessageType = (msg: any): "campaign" | "report" | "individual" | "chatbot" => {
+    // First check if we have explicit message_type from DB
+    if (msg.message_type && msg.message_type !== "individual") {
+      return msg.message_type;
+    }
+    // Fallback to content-based detection
+    if (msg.message_content?.includes("📊") || msg.message_content?.toLowerCase().includes("rapport")) {
+      return "report";
+    }
+    if (msg.campaign_id) {
+      return "campaign";
+    }
+    if (msg.direction === "inbound") {
+      return "chatbot";
+    }
+    return "individual";
+  };
+
+  // Grouped view: combine campaigns and individual messages
+  const unifiedHistory = useMemo(() => {
+    const items: Array<{
+      id: string;
+      type: "campaign" | "report" | "individual" | "chatbot";
+      date: Date;
+      content: string;
+      status: string;
+      recipientCount?: number;
+      campaign?: Campaign;
+      message?: typeof allMessages[0];
+    }> = [];
+
+    // Add campaigns
+    campaigns.forEach(campaign => {
+      items.push({
+        id: `campaign-${campaign.id}`,
+        type: "campaign",
+        date: new Date(campaign.sent_at),
+        content: campaign.message_template,
+        status: campaign.status,
+        recipientCount: campaign.recipient_count,
+        campaign,
+      });
+    });
+
+    // Add non-campaign messages (reports, individual)
+    allMessages
+      .filter(msg => !msg.campaign_id)
+      .forEach(msg => {
+        const msgType = getMessageType(msg);
+        items.push({
+          id: msg.id,
+          type: msgType,
+          date: new Date(msg.sent_at || msg.created_at),
+          content: msg.message_content,
+          status: msg.status,
+          message: msg,
+        });
+      });
+
+    // Sort by date
+    items.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    // Apply filter
+    if (typeFilter !== "all") {
+      return items.filter(item => item.type === typeFilter);
+    }
+
+    return items;
+  }, [campaigns, allMessages, typeFilter]);
 
   // Stats
   const stats = useMemo(() => {
-    const totalSent = campaigns.reduce((acc, c) => acc + c.sent_count, 0);
-    const totalDelivered = campaigns.reduce((acc, c) => acc + c.delivered_count, 0);
-    const totalRead = campaigns.reduce((acc, c) => acc + c.read_count, 0);
-    const totalFailed = campaigns.reduce((acc, c) => acc + c.failed_count, 0);
-    return { totalSent, totalDelivered, totalRead, totalFailed, count: campaigns.length };
-  }, [campaigns]);
+    const totalCampaigns = campaigns.length;
+    const totalReports = allMessages.filter(m => getMessageType(m) === "report" && !m.campaign_id).length;
+    const totalIndividual = allMessages.filter(m => getMessageType(m) === "individual" && !m.campaign_id).length;
+    const totalMessages = allMessages.length;
+    return { totalCampaigns, totalReports, totalIndividual, totalMessages };
+  }, [campaigns, allMessages]);
+
+  const getTypeBadge = (type: string) => {
+    switch (type) {
+      case "campaign":
+        return (
+          <Badge className="bg-whatsapp/10 text-whatsapp border-whatsapp/20 text-xs">
+            <Megaphone className="h-3 w-3 mr-1" />
+            Campagne
+          </Badge>
+        );
+      case "report":
+        return (
+          <Badge className="bg-violet-500/10 text-violet-600 border-violet-200 text-xs">
+            <FileBarChart className="h-3 w-3 mr-1" />
+            Rapport
+          </Badge>
+        );
+      case "chatbot":
+        return (
+          <Badge className="bg-amber-500/10 text-amber-600 border-amber-200 text-xs">
+            <Bot className="h-3 w-3 mr-1" />
+            Chatbot
+          </Badge>
+        );
+      default:
+        return (
+          <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-xs">
+            <MessageCircle className="h-3 w-3 mr-1" />
+            Message
+          </Badge>
+        );
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "sending":
-        return <Badge className="bg-blue-500/10 text-blue-600 border-blue-200"><Loader2 className="h-3 w-3 mr-1 animate-spin" />En cours</Badge>;
+        return <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-xs"><Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" />En cours</Badge>;
       case "sent":
-        return <Badge className="bg-whatsapp/10 text-whatsapp border-whatsapp/20"><Send className="h-3 w-3 mr-1" />Envoyé</Badge>;
+        return <Badge className="bg-whatsapp/10 text-whatsapp border-whatsapp/20 text-xs"><Send className="h-2.5 w-2.5 mr-1" />Envoyé</Badge>;
+      case "delivered":
+        return <Badge className="bg-whatsapp/10 text-whatsapp border-whatsapp/20 text-xs"><CheckCheck className="h-2.5 w-2.5 mr-1" />Délivré</Badge>;
+      case "read":
+        return <Badge className="bg-primary/10 text-primary border-primary/20 text-xs"><Eye className="h-2.5 w-2.5 mr-1" />Lu</Badge>;
       case "partial":
-        return <Badge className="bg-amber-500/10 text-amber-600 border-amber-200"><AlertCircle className="h-3 w-3 mr-1" />Partiel</Badge>;
+        return <Badge className="bg-amber-500/10 text-amber-600 border-amber-200 text-xs"><AlertCircle className="h-2.5 w-2.5 mr-1" />Partiel</Badge>;
       case "failed":
-        return <Badge className="bg-destructive/10 text-destructive border-destructive/20"><AlertCircle className="h-3 w-3 mr-1" />Échec</Badge>;
+        return <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs"><AlertCircle className="h-2.5 w-2.5 mr-1" />Échec</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline" className="text-xs">{status}</Badge>;
     }
   };
 
@@ -190,50 +355,48 @@ export default function CampaignHistory() {
     return Math.round((campaign.read_count / campaign.recipient_count) * 100);
   };
 
+  const isLoading = loadingMessages || loadingCampaigns;
+
   return (
     <>
-      <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)]">
+      <Card className="overflow-hidden border-0 shadow-[var(--shadow-card)] backdrop-blur-xl bg-background/80">
         <div className="p-6 border-b border-border/50">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-violet-500/20 flex items-center justify-center">
                 <History className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Historique des campagnes</h3>
-                <p className="text-sm text-muted-foreground">{stats.count} campagne{stats.count > 1 ? "s" : ""} • {stats.totalSent} messages</p>
+                <h3 className="font-semibold text-foreground">Historique unifié</h3>
+                <p className="text-sm text-muted-foreground">
+                  {stats.totalCampaigns} campagne{stats.totalCampaigns > 1 ? "s" : ""} • 
+                  {stats.totalReports} rapport{stats.totalReports > 1 ? "s" : ""} • 
+                  {stats.totalMessages} messages
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              {/* Stats badges */}
-              <div className="hidden md:flex items-center gap-2">
-                <Badge className="bg-whatsapp/10 text-whatsapp border-0">
-                  <CheckCheck className="h-3 w-3 mr-1" />
-                  {stats.totalDelivered}
-                </Badge>
-                <Badge className="bg-primary/10 text-primary border-0">
-                  <Eye className="h-3 w-3 mr-1" />
-                  {stats.totalRead}
-                </Badge>
-                {stats.totalFailed > 0 && (
-                  <Badge className="bg-destructive/10 text-destructive border-0">
-                    <AlertCircle className="h-3 w-3 mr-1" />
-                    {stats.totalFailed}
-                  </Badge>
-                )}
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-9 rounded-lg">
-                  <SelectValue placeholder="Filtrer" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous</SelectItem>
-                  <SelectItem value="sent">Envoyés</SelectItem>
-                  <SelectItem value="partial">Partiels</SelectItem>
-                  <SelectItem value="failed">Échecs</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+
+            {/* Type filter toggle */}
+            <ToggleGroup 
+              type="single" 
+              value={typeFilter} 
+              onValueChange={(val) => val && setTypeFilter(val)}
+              className="bg-secondary/50 rounded-lg p-1"
+            >
+              {TYPE_FILTERS.map(filter => (
+                <ToggleGroupItem 
+                  key={filter.value} 
+                  value={filter.value}
+                  className={cn(
+                    "text-xs px-3 py-1.5 data-[state=on]:bg-background data-[state=on]:shadow-sm",
+                    filter.color
+                  )}
+                >
+                  <filter.icon className="h-3.5 w-3.5 mr-1.5" />
+                  {filter.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </div>
         </div>
         <CardContent className="p-0">
@@ -243,39 +406,54 @@ export default function CampaignHistory() {
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
                 Chargement...
               </div>
-            ) : filteredCampaigns.length === 0 ? (
+            ) : unifiedHistory.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                <p className="font-medium">Aucune campagne</p>
-                <p className="text-sm mt-1">Les envois groupés apparaîtront ici</p>
+                <p className="font-medium">Aucun historique</p>
+                <p className="text-sm mt-1">Les messages envoyés apparaîtront ici</p>
               </div>
             ) : (
               <div className="divide-y divide-border/50">
-                {filteredCampaigns.map((campaign, index) => (
+                {unifiedHistory.map((item, index) => (
                   <motion.div
-                    key={campaign.id}
-                    className="p-5 hover:bg-secondary/30 transition-colors cursor-pointer group"
+                    key={item.id}
+                    className={cn(
+                      "p-5 hover:bg-secondary/30 transition-colors group",
+                      item.type === "campaign" && "cursor-pointer"
+                    )}
                     custom={index}
                     variants={listItemVariants}
                     initial="hidden"
                     animate="visible"
-                    onClick={() => openCampaignDetail(campaign)}
+                    onClick={() => item.campaign && openCampaignDetail(item.campaign)}
                   >
                     <div className="flex items-start gap-4">
-                      <div className="h-10 w-10 rounded-xl bg-whatsapp/10 flex items-center justify-center shrink-0">
-                        <Send className="h-5 w-5 text-whatsapp" />
+                      {/* Icon based on type */}
+                      <div className={cn(
+                        "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
+                        item.type === "campaign" && "bg-whatsapp/10",
+                        item.type === "report" && "bg-violet-500/10",
+                        item.type === "individual" && "bg-blue-500/10",
+                        item.type === "chatbot" && "bg-amber-500/10"
+                      )}>
+                        {item.type === "campaign" && <Megaphone className="h-5 w-5 text-whatsapp" />}
+                        {item.type === "report" && <FileBarChart className="h-5 w-5 text-violet-500" />}
+                        {item.type === "individual" && <MessageCircle className="h-5 w-5 text-blue-500" />}
+                        {item.type === "chatbot" && <Bot className="h-5 w-5 text-amber-500" />}
                       </div>
+                      
                       <div className="flex-1 min-w-0 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {getStatusBadge(campaign.status)}
+                          {getTypeBadge(item.type)}
+                          {getStatusBadge(item.status)}
                           <span className="text-sm font-medium text-foreground">
-                            {format(new Date(campaign.sent_at), "d MMMM yyyy à HH:mm", { locale: fr })}
+                            {format(item.date, "d MMMM yyyy à HH:mm", { locale: fr })}
                           </span>
                         </div>
                         
-                        {/* Message template preview with variables highlighted */}
+                        {/* Content preview */}
                         <p className="text-sm text-muted-foreground line-clamp-2">
-                          {campaign.message_template.split(/(\{[^}]+\})/).map((part, i) => 
+                          {item.content.split(/(\{[^}]+\})/).map((part, i) => 
                             part.match(/^\{[^}]+\}$/) ? (
                               <span key={i} className="text-primary font-medium bg-primary/10 px-1 rounded">
                                 {part}
@@ -286,56 +464,77 @@ export default function CampaignHistory() {
                           )}
                         </p>
                         
-                        {/* KPIs row */}
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <Badge variant="secondary" className="text-xs">
-                            <Users className="h-3 w-3 mr-1" />
-                            {campaign.recipient_count} destinataire{campaign.recipient_count > 1 ? "s" : ""}
-                          </Badge>
-                          
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <span className="text-whatsapp font-medium">
-                              ✓ {campaign.sent_count}
-                            </span>
-                            <span className="text-muted-foreground">•</span>
-                            <span className="text-whatsapp font-medium">
-                              ✓✓ {campaign.delivered_count}
-                            </span>
-                            <span className="text-muted-foreground">•</span>
-                            <span className="text-primary font-medium">
-                              👁 {campaign.read_count}
-                            </span>
-                            {campaign.failed_count > 0 && (
-                              <>
-                                <span className="text-muted-foreground">•</span>
-                                <span className="text-destructive font-medium">
-                                  ⚠ {campaign.failed_count}
+                        {/* Campaign-specific KPIs */}
+                        {item.campaign && (
+                          <>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <Badge variant="secondary" className="text-xs">
+                                <Users className="h-3 w-3 mr-1" />
+                                {item.campaign.recipient_count} destinataire{item.campaign.recipient_count > 1 ? "s" : ""}
+                              </Badge>
+                              
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <span className="text-whatsapp font-medium">
+                                  ✓ {item.campaign.sent_count}
                                 </span>
+                                <span className="text-muted-foreground">•</span>
+                                <span className="text-whatsapp font-medium">
+                                  ✓✓ {item.campaign.delivered_count}
+                                </span>
+                                <span className="text-muted-foreground">•</span>
+                                <span className="text-primary font-medium">
+                                  👁 {item.campaign.read_count}
+                                </span>
+                                {item.campaign.failed_count > 0 && (
+                                  <>
+                                    <span className="text-muted-foreground">•</span>
+                                    <span className="text-destructive font-medium">
+                                      ⚠ {item.campaign.failed_count}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Progress bars */}
+                            <div className="flex items-center gap-4 pt-1">
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span>Délivré</span>
+                                  <span>{getDeliveryProgress(item.campaign)}%</span>
+                                </div>
+                                <Progress value={getDeliveryProgress(item.campaign)} className="h-1.5" />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span>Lu</span>
+                                  <span>{getReadProgress(item.campaign)}%</span>
+                                </div>
+                                <Progress value={getReadProgress(item.campaign)} className="h-1.5 [&>div]:bg-primary" />
+                              </div>
+                            </div>
+                          </>
+                        )}
+
+                        {/* Individual message info */}
+                        {item.message && !item.campaign && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            {item.message.restaurant_name && (
+                              <span className="font-medium">{item.message.restaurant_name}</span>
+                            )}
+                            {item.message.recipient_name && (
+                              <>
+                                <span>•</span>
+                                <span>{item.message.recipient_name}</span>
                               </>
                             )}
                           </div>
-                        </div>
-                        
-                        {/* Progress bars */}
-                        <div className="flex items-center gap-4 pt-1">
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <span>Délivré</span>
-                              <span>{getDeliveryProgress(campaign)}%</span>
-                            </div>
-                            <Progress value={getDeliveryProgress(campaign)} className="h-1.5" />
-                          </div>
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <span>Lu</span>
-                              <span>{getReadProgress(campaign)}%</span>
-                            </div>
-                            <Progress value={getReadProgress(campaign)} className="h-1.5 [&>div]:bg-primary" />
-                          </div>
-                        </div>
+                        )}
                       </div>
                       
-                      <ChevronRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                      {item.campaign && (
+                        <ChevronRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                      )}
                     </div>
                   </motion.div>
                 ))}
@@ -351,7 +550,7 @@ export default function CampaignHistory() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-lg bg-whatsapp/10 flex items-center justify-center">
-                <Send className="h-4 w-4 text-whatsapp" />
+                <Megaphone className="h-4 w-4 text-whatsapp" />
               </div>
               Détail de la campagne
             </DialogTitle>
@@ -414,36 +613,28 @@ export default function CampaignHistory() {
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       Chargement...
                     </div>
+                  ) : campaignMessages.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      Aucun détail disponible
+                    </div>
                   ) : (
                     <div className="divide-y divide-border/50">
                       {campaignMessages.map((msg) => (
-                        <div key={msg.id} className="p-3 hover:bg-secondary/30 transition-colors">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
-                                <span className="text-xs font-medium">
-                                  {(msg.recipient_name || msg.restaurant_name || "?").charAt(0).toUpperCase()}
-                                </span>
-                              </div>
-                              <div className="min-w-0">
-                                <div className="font-medium text-sm truncate">
-                                  {msg.restaurant_name || msg.recipient_name || msg.recipient_phone}
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Phone className="h-3 w-3" />
-                                  {msg.recipient_phone}
-                                </div>
-                              </div>
+                        <div key={msg.id} className="p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center">
+                              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
                             </div>
-                            <div className="flex items-center gap-2">
-                              {getMessageStatusBadge(msg.status)}
-                              {msg.read_at && (
-                                <span className="text-xs text-muted-foreground">
-                                  {format(new Date(msg.read_at), "HH:mm", { locale: fr })}
-                                </span>
-                              )}
+                            <div>
+                              <div className="text-sm font-medium">
+                                {msg.restaurant_name || msg.recipient_name || msg.recipient_phone}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {msg.recipient_phone}
+                              </div>
                             </div>
                           </div>
+                          {getMessageStatusBadge(msg.status)}
                         </div>
                       ))}
                     </div>
