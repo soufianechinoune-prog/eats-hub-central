@@ -991,11 +991,15 @@ export default function WeeklyReports() {
 
           {editingTemplate && (
             <Tabs defaultValue="general" className="mt-4">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="general">Général</TabsTrigger>
                 <TabsTrigger value="content">Contenu</TabsTrigger>
                 <TabsTrigger value="objectives">Objectifs</TabsTrigger>
                 <TabsTrigger value="schedule">Programmation</TabsTrigger>
+                <TabsTrigger value="preview" className="gap-1.5">
+                  <Eye className="h-3.5 w-3.5" />
+                  Aperçu
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="general" className="space-y-4 mt-4">
@@ -1046,19 +1050,19 @@ export default function WeeklyReports() {
                     previewData={{
                       prenom: "Jean",
                       restaurant: "Chicken Street Antony",
-                      date_debut: "09/12",
-                      date_fin: "15/12",
+                      date_debut: format(lastWeek.start, "d MMMM", { locale: fr }),
+                      date_fin: format(lastWeek.end, "d MMMM", { locale: fr }),
                       commandes: "142",
                       ca: "2 847 €",
                       panier_moyen: "20,05 €",
-                      variation_ca: "+8,5",
-                      note_moyenne: "4.6",
+                      variation_ca: "+8,5%",
+                      note: "4.6",
                       nb_avis: "23",
-                      emoji_note: "⭐",
+                      emoji_note: "✅",
                       temps_prep: "12 min",
                       temps_coursier: "4 min",
                       emoji_temps: "✅",
-                      taux_erreur: "2.1",
+                      taux_erreur: "2.1%",
                       nb_erreurs: "3",
                       emoji_erreur: "✅"
                     }}
@@ -1343,6 +1347,96 @@ export default function WeeklyReports() {
                     </div>
                   </div>
                 )}
+              </TabsContent>
+
+              <TabsContent value="preview" className="mt-4">
+                {/* Full message preview */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Eye className="h-4 w-4" />
+                    <span>Aperçu du message complet tel qu'il sera envoyé</span>
+                  </div>
+                  
+                  {/* WhatsApp-style full preview */}
+                  <div className="rounded-xl bg-[#0b141a] overflow-hidden border border-border/30">
+                    {/* Chat header */}
+                    <div className="flex items-center gap-3 px-4 py-3 bg-[#1f2c34] border-b border-white/5">
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-base">
+                        J
+                      </div>
+                      <div>
+                        <div className="font-medium text-white text-sm">Jean Dupont</div>
+                        <div className="text-[11px] text-white/50">Manager • Chicken Street Antony</div>
+                      </div>
+                    </div>
+                    
+                    {/* Message bubble with full generated content */}
+                    <div className="p-4 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.02%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')]">
+                      <div className="max-w-[90%] ml-auto">
+                        <div className="bg-[#005c4b] rounded-xl rounded-tr-sm p-4 shadow-lg">
+                          <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                            {(() => {
+                              // Generate full preview message
+                              const dateStart = format(lastWeek.start, "d MMMM", { locale: fr });
+                              const dateEnd = format(lastWeek.end, "d MMMM", { locale: fr });
+                              const objectives = editingTemplate?.objectives || DEFAULT_OBJECTIVES;
+                              const blocks = editingTemplate?.data_blocks || DEFAULT_DATA_BLOCKS;
+                              
+                              let intro = (editingTemplate?.intro_template || "")
+                                .replace(/{prenom}/g, "Jean")
+                                .replace(/{restaurant}/g, "Chicken Street Antony")
+                                .replace(/{date_debut}/g, dateStart)
+                                .replace(/{date_fin}/g, dateEnd);
+                              
+                              const lines: string[] = [];
+                              
+                              if (blocks.orders_revenue) {
+                                lines.push("📦 *COMMANDES & CA*");
+                                lines.push("• Commandes : 142 (+12%)");
+                                lines.push("• Chiffre d'affaires : 2 847 € (+8%)");
+                                lines.push("• Panier moyen : 20,05 €");
+                                lines.push("");
+                              }
+                              
+                              if (blocks.rating) {
+                                lines.push("⭐ *NOTE MOYENNE*");
+                                lines.push(`• Moyenne : 4.6 ✅ (23 avis)`);
+                                lines.push(`   ↳ Objectif : ${objectives.rating}`);
+                                lines.push("");
+                              }
+                              
+                              if (blocks.operations) {
+                                lines.push("⏱️ *TEMPS OPÉRATIONNELS*");
+                                lines.push(`• Temps de préparation : 12 min ✅`);
+                                lines.push(`   ↳ Objectif : -${objectives.prep_time} min`);
+                                lines.push(`• Temps d'attente coursier : 4 min ✅`);
+                                lines.push(`   ↳ Objectif : -${objectives.courier_wait} min`);
+                                lines.push("");
+                              }
+                              
+                              if (blocks.errors) {
+                                lines.push("❌ *TAUX D'ERREUR*");
+                                lines.push(`• Pourcentage d'erreurs : 2.1% ✅ (3 erreurs)`);
+                                lines.push(`   ↳ Objectif : -${objectives.error_rate}%`);
+                              }
+                              
+                              return intro + lines.join("\n") + (editingTemplate?.outro_template || "");
+                            })()}
+                          </p>
+                          <div className="flex items-center justify-end gap-1 mt-3 text-[10px] text-white/60">
+                            <span>Dimanche 12:00</span>
+                            <Check className="h-3.5 w-3.5 text-white/40" />
+                            <Check className="h-3.5 w-3.5 text-sky-400 -ml-2" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground text-center">
+                    Les valeurs affichées sont des exemples. Le message réel utilisera les données de chaque restaurant.
+                  </p>
+                </div>
               </TabsContent>
             </Tabs>
           )}
