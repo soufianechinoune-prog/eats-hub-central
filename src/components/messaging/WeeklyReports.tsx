@@ -1040,23 +1040,42 @@ export default function WeeklyReports() {
 
                 <div className="space-y-2">
                   <Label>Message d'introduction</Label>
-                  <Textarea
+                  <MessageTemplateEditor
                     value={editingTemplate.intro_template || ""}
-                    onChange={(e) => setEditingTemplate(prev => ({ ...prev!, intro_template: e.target.value }))}
-                    placeholder="Variables: {prenom}, {date_debut}, {date_fin}"
-                    rows={3}
+                    onChange={(value) => setEditingTemplate(prev => ({ ...prev!, intro_template: value }))}
+                    previewData={{
+                      prenom: "Jean",
+                      restaurant: "Chicken Street Antony",
+                      date_debut: "09/12",
+                      date_fin: "15/12",
+                      commandes: "142",
+                      ca: "2 847 €",
+                      panier_moyen: "20,05 €",
+                      variation_ca: "+8,5",
+                      note_moyenne: "4.6",
+                      nb_avis: "23",
+                      emoji_note: "⭐",
+                      temps_prep: "12 min",
+                      temps_coursier: "4 min",
+                      emoji_temps: "✅",
+                      taux_erreur: "2.1",
+                      nb_erreurs: "3",
+                      emoji_erreur: "✅"
+                    }}
+                    minHeight="120px"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Variables: {"{prenom}"}, {"{date_debut}"}, {"{date_fin}"}
-                  </p>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Message de conclusion</Label>
-                  <Textarea
+                  <MessageTemplateEditor
                     value={editingTemplate.outro_template || ""}
-                    onChange={(e) => setEditingTemplate(prev => ({ ...prev!, outro_template: e.target.value }))}
-                    rows={2}
+                    onChange={(value) => setEditingTemplate(prev => ({ ...prev!, outro_template: value }))}
+                    previewData={{
+                      prenom: "Jean",
+                      restaurant: "Chicken Street Antony"
+                    }}
+                    minHeight="80px"
                   />
                 </div>
               </TabsContent>
