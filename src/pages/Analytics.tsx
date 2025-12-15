@@ -375,7 +375,7 @@ export default function Analytics() {
     queryKey: ["analytics_conversion_uber", restaurantFilter, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
       console.log("[Analytics] Fetching uber conversion data", { restaurantFilter, selectedYear, granularity });
-      
+
       // Always fetch from daily_conversion and aggregate if needed
       let query = supabase
         .from("daily_conversion")
@@ -384,32 +384,34 @@ export default function Analytics() {
         .gte("date", `${selectedYear}-01-01`)
         .lte("date", `${selectedYear}-12-31`)
         .order("date");
-      
+
       if (restaurantFilter) {
         query = query.in("restaurant_id", restaurantFilter);
       }
-      
+
       const { data, error } = await query;
       if (error) throw error;
-      
+
       console.log("[Analytics] Uber conversion result:", data?.length, "rows");
-      
-      const dailyData = data?.map(item => ({
-        ...item,
-        month: new Date(item.date).getMonth() + 1,
-        year: new Date(item.date).getFullYear(),
-      })) || [];
-      
+
+      const dailyData =
+        data?.map((item) => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+
       if (granularity === "daily") {
-        // Filter to the specific date range for daily view
-        return dailyData.filter(item => {
-          const itemDate = new Date(item.date);
-          return itemDate >= startDate && itemDate <= endDate;
-        });
-      } else {
-        // Aggregate by month for monthly view
-        return aggregateDailyConversionByMonth(dailyData);
+        // Filter to the specific date range for daily view (string compare to avoid timezone issues)
+        const startKey = format(startDate, "yyyy-MM-dd");
+        const endKey = format(endDate, "yyyy-MM-dd");
+        const filtered = dailyData.filter((item) => item.date >= startKey && item.date <= endKey);
+        console.log("[Analytics] Uber conversion filtered:", filtered.length, "rows", { startKey, endKey });
+        return filtered;
       }
+
+      // Aggregate by month for monthly view
+      return aggregateDailyConversionByMonth(dailyData);
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -568,34 +570,38 @@ export default function Analytics() {
         .gte("date", `${prevYear}-01-01`)
         .lte("date", `${prevYear}-12-31`)
         .order("date");
-      
+
       if (restaurantFilter) {
         query = query.in("restaurant_id", restaurantFilter);
       }
-      
+
       const { data, error } = await query;
       if (error) throw error;
-      
-      const dailyData = data?.map(item => ({
-        ...item,
-        month: new Date(item.date).getMonth() + 1,
-        year: new Date(item.date).getFullYear(),
-      })) || [];
-      
+
+      const dailyData =
+        data?.map((item) => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+
       if (granularity === "daily") {
+        // Shift the selected period by -1 year, using string compare to avoid timezone issues
         const prevStartDate = new Date(startDate);
         prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
         const prevEndDate = new Date(endDate);
         prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
-        
-        return dailyData.filter(item => {
-          const itemDate = new Date(item.date);
-          return itemDate >= prevStartDate && itemDate <= prevEndDate;
-        });
-      } else {
-        return aggregateDailyConversionByMonth(dailyData);
+
+        const startKey = format(prevStartDate, "yyyy-MM-dd");
+        const endKey = format(prevEndDate, "yyyy-MM-dd");
+
+        return dailyData.filter((item) => item.date >= startKey && item.date <= endKey);
       }
+
+      return aggregateDailyConversionByMonth(dailyData);
     },
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   const { data: uberPrevFeesData } = useQuery({
@@ -674,30 +680,32 @@ export default function Analytics() {
         .gte("date", `${selectedYear}-01-01`)
         .lte("date", `${selectedYear}-12-31`)
         .order("date");
-      
+
       if (restaurantFilter) {
         query = query.in("restaurant_id", restaurantFilter);
       }
-      
+
       const { data, error } = await query;
       if (error) throw error;
-      
-      const dailyData = data?.map(item => ({
-        ...item,
-        month: new Date(item.date).getMonth() + 1,
-        year: new Date(item.date).getFullYear(),
-      })) || [];
-      
+
+      const dailyData =
+        data?.map((item) => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+
       if (granularity === "daily") {
-        return dailyData.filter(item => {
-          const itemDate = new Date(item.date);
-          return itemDate >= startDate && itemDate <= endDate;
-        });
-      } else {
-        return aggregateDailyConversionByMonth(dailyData);
+        // String compare to avoid timezone issues
+        const startKey = format(startDate, "yyyy-MM-dd");
+        const endKey = format(endDate, "yyyy-MM-dd");
+        return dailyData.filter((item) => item.date >= startKey && item.date <= endKey);
       }
+
+      return aggregateDailyConversionByMonth(dailyData);
     },
-    placeholderData: (previousData) => previousData,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   const { data: deliverooFeesData, isLoading: loadingDeliverooFees } = useQuery({
@@ -781,34 +789,37 @@ export default function Analytics() {
         .gte("date", `${prevYear}-01-01`)
         .lte("date", `${prevYear}-12-31`)
         .order("date");
-      
+
       if (restaurantFilter) {
         query = query.in("restaurant_id", restaurantFilter);
       }
-      
+
       const { data, error } = await query;
       if (error) throw error;
-      
-      const dailyData = data?.map(item => ({
-        ...item,
-        month: new Date(item.date).getMonth() + 1,
-        year: new Date(item.date).getFullYear(),
-      })) || [];
-      
+
+      const dailyData =
+        data?.map((item) => ({
+          ...item,
+          month: new Date(item.date).getMonth() + 1,
+          year: new Date(item.date).getFullYear(),
+        })) || [];
+
       if (granularity === "daily") {
         const prevStartDate = new Date(startDate);
         prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
         const prevEndDate = new Date(endDate);
         prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
-        
-        return dailyData.filter(item => {
-          const itemDate = new Date(item.date);
-          return itemDate >= prevStartDate && itemDate <= prevEndDate;
-        });
-      } else {
-        return aggregateDailyConversionByMonth(dailyData);
+
+        const startKey = format(prevStartDate, "yyyy-MM-dd");
+        const endKey = format(prevEndDate, "yyyy-MM-dd");
+
+        return dailyData.filter((item) => item.date >= startKey && item.date <= endKey);
       }
+
+      return aggregateDailyConversionByMonth(dailyData);
     },
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   const { data: deliverooPrevFeesData } = useQuery({
