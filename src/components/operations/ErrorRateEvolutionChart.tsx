@@ -107,9 +107,15 @@ export function ErrorRateEvolutionChart({
     : Math.max(...data.map(d => d.errorCount), 10);
   const yDomain: [number, number] = [0, Math.ceil(maxValue * 1.2)];
 
+  const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+  
   const chartTitle = hasAnySalesData 
-    ? "Évolution du taux d'erreur" 
-    : "Évolution du nombre d'erreurs";
+    ? periodMode === "month" && selectedMonth
+      ? `Évolution du taux d'erreur - ${monthNames[selectedMonth - 1]}`
+      : "Évolution du taux d'erreur" 
+    : periodMode === "month" && selectedMonth
+      ? `Évolution du nombre d'erreurs - ${monthNames[selectedMonth - 1]}`
+      : "Évolution du nombre d'erreurs";
   const chartSubtitle = hasAnySalesData
     ? `Objectif: < ${objective}% d'erreurs`
     : "Données de ventes manquantes - affichage du nombre d'erreurs";
