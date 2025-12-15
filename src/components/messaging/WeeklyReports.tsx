@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import MessageTemplateEditor from "./MessageTemplateEditor";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -920,7 +921,7 @@ export default function WeeklyReports() {
                                 </div>
                               </div>
 
-                              {/* Editable message */}
+                              {/* Editable message with visual editor */}
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                   <Label className="text-sm">Message à envoyer</Label>
@@ -934,11 +935,31 @@ export default function WeeklyReports() {
                                     Régénérer
                                   </Button>
                                 </div>
-                                <Textarea
+                                <MessageTemplateEditor
                                   value={editedMessages[kpi.restaurant_id] || (selectedTemplate ? generateMessage(kpi, selectedTemplate) : "")}
-                                  onChange={(e) => updateMessage(kpi.restaurant_id, e.target.value)}
-                                  className="min-h-[200px] font-mono text-xs"
+                                  onChange={(msg) => updateMessage(kpi.restaurant_id, msg)}
                                   disabled={!kpi.manager_whatsapp}
+                                  previewData={{
+                                    prenom: kpi.manager_name.split(" ")[0] || "",
+                                    restaurant: kpi.restaurant_name,
+                                    date_debut: format(lastWeek.start, "d MMMM", { locale: fr }),
+                                    date_fin: format(lastWeek.end, "d MMMM", { locale: fr }),
+                                    commandes: String(kpi.order_count),
+                                    ca: formatCurrency(kpi.revenue),
+                                    panier_moyen: formatCurrency(kpi.average_basket),
+                                    variation_cmd: kpi.order_variation !== null ? `${kpi.order_variation >= 0 ? "+" : ""}${kpi.order_variation.toFixed(0)}%` : "--",
+                                    variation_ca: kpi.revenue_variation !== null ? `${kpi.revenue_variation >= 0 ? "+" : ""}${kpi.revenue_variation.toFixed(0)}%` : "--",
+                                    note: kpi.average_rating?.toFixed(1) || "--",
+                                    nb_avis: String(kpi.review_count),
+                                    emoji_note: getStatusEmoji(kpi.average_rating, selectedTemplate?.objectives.rating || 4.4),
+                                    temps_prep: formatDuration(kpi.avg_prep_time),
+                                    temps_coursier: formatDuration(kpi.avg_courier_wait),
+                                    emoji_temps: getStatusEmoji(kpi.avg_prep_time, selectedTemplate?.objectives.prep_time || 20, true),
+                                    taux_erreur: formatPercent(kpi.error_rate),
+                                    nb_erreurs: String(kpi.error_count),
+                                    emoji_erreur: getStatusEmoji(kpi.error_rate, selectedTemplate?.objectives.error_rate || 3, true),
+                                  }}
+                                  minHeight="150px"
                                 />
                               </div>
                             </CardContent>
