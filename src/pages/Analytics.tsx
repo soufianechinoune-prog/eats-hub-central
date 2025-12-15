@@ -374,6 +374,8 @@ export default function Analytics() {
   const { data: uberConversionData, isLoading: loadingUberConversion } = useQuery({
     queryKey: ["analytics_conversion_uber", restaurantFilter, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
+      console.log("[Analytics] Fetching uber conversion data", { restaurantFilter, selectedYear, granularity });
+      
       // Always fetch from daily_conversion and aggregate if needed
       let query = supabase
         .from("daily_conversion")
@@ -389,6 +391,8 @@ export default function Analytics() {
       
       const { data, error } = await query;
       if (error) throw error;
+      
+      console.log("[Analytics] Uber conversion result:", data?.length, "rows");
       
       const dailyData = data?.map(item => ({
         ...item,
@@ -407,7 +411,8 @@ export default function Analytics() {
         return aggregateDailyConversionByMonth(dailyData);
       }
     },
-    placeholderData: (previousData) => previousData,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   // Fetch ALL restaurants' conversion data for ranking comparison (no restaurant filter)
