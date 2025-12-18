@@ -267,14 +267,29 @@ async function fetchRestaurantData(supabase: any, restaurantId: string, supabase
   
   const yesterdayRevenue = yesterdayRevenueData || { revenue_ttc: 0, order_count: 0, average_basket: 0 };
 
-  // Fetch current month conversion
-  const { data: currentConversion } = await supabase
-    .from('monthly_conversion')
-    .select('visits, menu_views, add_to_cart, orders, overall_rate')
+  // Fetch current month conversion from daily_conversion
+  const { data: dailyConversionData } = await supabase
+    .from('daily_conversion')
+    .select('visits, menu_views, add_to_cart, orders')
     .eq('restaurant_id', restaurantId)
-    .eq('year', currentYear)
-    .eq('month', currentMonth)
-    .maybeSingle();
+    .gte('date', monthStart)
+    .lte('date', yesterdayStr);
+
+  // Aggregate conversion data
+  let currentConversion = { visits: 0, menu_views: 0, add_to_cart: 0, orders: 0, overall_rate: 0 };
+  if (dailyConversionData && dailyConversionData.length > 0) {
+    const totalVisits = dailyConversionData.reduce((sum: number, d: any) => sum + (d.visits || 0), 0);
+    const totalMenuViews = dailyConversionData.reduce((sum: number, d: any) => sum + (d.menu_views || 0), 0);
+    const totalAddToCart = dailyConversionData.reduce((sum: number, d: any) => sum + (d.add_to_cart || 0), 0);
+    const totalOrders = dailyConversionData.reduce((sum: number, d: any) => sum + (d.orders || 0), 0);
+    currentConversion = {
+      visits: totalVisits,
+      menu_views: totalMenuViews,
+      add_to_cart: totalAddToCart,
+      orders: totalOrders,
+      overall_rate: totalVisits > 0 ? Math.round((totalOrders / totalVisits) * 10000) / 100 : 0 // en %
+    };
+  }
 
   // Fetch current month fees
   const { data: currentFees } = await supabase
