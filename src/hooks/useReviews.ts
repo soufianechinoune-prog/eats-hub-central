@@ -1,6 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+// Format date as YYYY-MM-DD without UTC conversion to avoid timezone issues
+function formatDateLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export interface CustomerReview {
   id: string;
   restaurant_id: string;
@@ -61,11 +69,11 @@ async function fetchAllCustomerReviews(
     }
 
     if (startDate) {
-      query = query.gte("review_date", startDate.toISOString().split("T")[0]);
+      query = query.gte("review_date", formatDateLocal(startDate));
     }
 
     if (endDate) {
-      query = query.lte("review_date", endDate.toISOString().split("T")[0]);
+      query = query.lte("review_date", formatDateLocal(endDate));
     }
 
     const { data, error } = await query;
@@ -115,11 +123,11 @@ async function fetchAllMenuItemReviews(
     }
 
     if (startDate) {
-      query = query.gte("review_date", startDate.toISOString().split("T")[0]);
+      query = query.gte("review_date", formatDateLocal(startDate));
     }
 
     if (endDate) {
-      query = query.lte("review_date", endDate.toISOString().split("T")[0]);
+      query = query.lte("review_date", formatDateLocal(endDate));
     }
 
     const { data, error } = await query;
