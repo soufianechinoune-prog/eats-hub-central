@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { formatPhoneNumber } from "@/lib/utils";
+import OpeningHoursEditor from "@/components/restaurants/OpeningHoursEditor";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -483,6 +484,9 @@ const RestaurantDetail = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Opening Hours */}
+      <OpeningHoursEditor restaurantId={id!} />
 
       {/* Connexion API Status */}
       <Card>
