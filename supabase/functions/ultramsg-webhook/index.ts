@@ -211,33 +211,61 @@ async function fetchRestaurantData(supabase: any, restaurantId: string, supabase
   // Fetch contextual events in parallel with other queries
   const contextualEventsPromise = fetchContextualEvents(supabaseUrl, postalCode);
 
-  // Fetch monthly revenue for current month
-  const { data: currentMonthRevenue } = await supabase
-    .from('monthly_revenue')
-    .select('revenue_ttc, order_count, average_basket')
-    .eq('restaurant_id', restaurantId)
-    .eq('year', currentYear)
-    .eq('month', currentMonth)
-    .maybeSingle();
-
-  // Fetch previous month for comparison
+  // Calculate month boundaries for current and previous month
   const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
   const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-  const { data: prevMonthRevenue } = await supabase
-    .from('monthly_revenue')
-    .select('revenue_ttc, order_count, average_basket')
-    .eq('restaurant_id', restaurantId)
-    .eq('year', prevYear)
-    .eq('month', prevMonth)
-    .maybeSingle();
+  const prevMonthStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+  const prevMonthEnd = new Date(prevYear, prevMonth, 0).toISOString().split('T')[0]; // Last day of prev month
 
-  // Fetch yesterday's revenue from daily_revenue
-  const { data: yesterdayRevenue } = await supabase
-    .from('daily_revenue')
+  // Fetch current month daily sales from daily_sales_uber
+  const { data: currentMonthDailySales } = await supabase
+    .from('daily_sales_uber')
+    .select('revenue_ttc, order_count')
+    .eq('restaurant_id', restaurantId)
+    .gte('date', monthStart)
+    .lte('date', yesterdayStr);
+
+  // Aggregate current month data
+  let currentMonthRevenue = { revenue_ttc: 0, order_count: 0, average_basket: 0 };
+  if (currentMonthDailySales && currentMonthDailySales.length > 0) {
+    const totalRevenue = currentMonthDailySales.reduce((sum: number, d: any) => sum + (d.revenue_ttc || 0), 0);
+    const totalOrders = currentMonthDailySales.reduce((sum: number, d: any) => sum + (d.order_count || 0), 0);
+    currentMonthRevenue = {
+      revenue_ttc: totalRevenue,
+      order_count: totalOrders,
+      average_basket: totalOrders > 0 ? Math.round(totalRevenue / totalOrders * 100) / 100 : 0
+    };
+  }
+
+  // Fetch previous month daily sales from daily_sales_uber
+  const { data: prevMonthDailySales } = await supabase
+    .from('daily_sales_uber')
+    .select('revenue_ttc, order_count')
+    .eq('restaurant_id', restaurantId)
+    .gte('date', prevMonthStart)
+    .lte('date', prevMonthEnd);
+
+  // Aggregate previous month data
+  let prevMonthRevenue = { revenue_ttc: 0, order_count: 0, average_basket: 0 };
+  if (prevMonthDailySales && prevMonthDailySales.length > 0) {
+    const totalRevenue = prevMonthDailySales.reduce((sum: number, d: any) => sum + (d.revenue_ttc || 0), 0);
+    const totalOrders = prevMonthDailySales.reduce((sum: number, d: any) => sum + (d.order_count || 0), 0);
+    prevMonthRevenue = {
+      revenue_ttc: totalRevenue,
+      order_count: totalOrders,
+      average_basket: totalOrders > 0 ? Math.round(totalRevenue / totalOrders * 100) / 100 : 0
+    };
+  }
+
+  // Fetch yesterday's revenue from daily_sales_uber
+  const { data: yesterdayRevenueData } = await supabase
+    .from('daily_sales_uber')
     .select('revenue_ttc, order_count, average_basket')
     .eq('restaurant_id', restaurantId)
     .eq('date', yesterdayStr)
     .maybeSingle();
+  
+  const yesterdayRevenue = yesterdayRevenueData || { revenue_ttc: 0, order_count: 0, average_basket: 0 };
 
   // Fetch current month conversion
   const { data: currentConversion } = await supabase
@@ -426,19 +454,19 @@ async function fetchRestaurantData(supabase: any, restaurantId: string, supabase
 
   return {
     currentMonthData: {
-      revenue: currentMonthRevenue?.revenue_ttc || 0,
-      orders: currentMonthRevenue?.order_count || 0,
-      averageBasket: currentMonthRevenue?.average_basket || 0,
+      revenue: currentMonthRevenue.revenue_ttc,
+      orders: currentMonthRevenue.order_count,
+      averageBasket: currentMonthRevenue.average_basket,
     },
     previousMonth: {
-      revenue: prevMonthRevenue?.revenue_ttc || 0,
-      orders: prevMonthRevenue?.order_count || 0,
-      averageBasket: prevMonthRevenue?.average_basket || 0,
+      revenue: prevMonthRevenue.revenue_ttc,
+      orders: prevMonthRevenue.order_count,
+      averageBasket: prevMonthRevenue.average_basket,
     },
     yesterday: {
-      revenue: yesterdayRevenue?.revenue_ttc || 0,
-      orders: yesterdayRevenue?.order_count || 0,
-      averageBasket: yesterdayRevenue?.average_basket || 0,
+      revenue: yesterdayRevenue.revenue_ttc || 0,
+      orders: yesterdayRevenue.order_count || 0,
+      averageBasket: yesterdayRevenue.average_basket || 0,
     },
     conversion: {
       visits: currentConversion?.visits || 0,
