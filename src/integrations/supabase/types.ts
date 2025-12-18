@@ -665,6 +665,78 @@ export type Database = {
         }
         Relationships: []
       }
+      manager_restaurants: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary: boolean | null
+          manager_id: string
+          restaurant_id: string
+          role: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean | null
+          manager_id: string
+          restaurant_id: string
+          role?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean | null
+          manager_id?: string
+          restaurant_id?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manager_restaurants_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "managers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manager_restaurants_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      managers: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       menu_item_changes: {
         Row: {
           change_type: string
