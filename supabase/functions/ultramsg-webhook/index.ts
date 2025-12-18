@@ -1055,40 +1055,76 @@ async function parseAndSendReport(
   return { modifiedResponse, reportSent };
 }
 
-// Main handler for manager queries
+// Main handler for manager queries - NOW SUPPORTS MULTIPLE RESTAURANTS
 async function handleManagerQuery(
   supabase: any,
-  restaurant: any,
+  restaurants: any[], // Array of restaurants the manager has access to
+  manager: any | null, // Manager info from managers table (can be null for legacy)
   query: string,
   phone: string
 ): Promise<void> {
   console.log(`=== CHATBOT PROCESSING ===`);
-  console.log(`Restaurant: ${restaurant.name}`);
+  console.log(`Manager: ${manager?.first_name || 'Unknown'} ${manager?.last_name || ''}`);
+  console.log(`Restaurants (${restaurants.length}):`, restaurants.map(r => r.name).join(', '));
   console.log(`Query: ${query}`);
 
   // Detect intent and entities
   const { intent, entities } = detectIntent(query);
   console.log(`Detected intent: ${intent}`, entities);
 
-  // Fetch restaurant performance data
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-  const restaurantData = await fetchRestaurantData(supabase, restaurant.id, supabaseUrl, restaurant.postal_code);
-  console.log('Fetched restaurant data with contextual events');
+  // Determine which restaurant(s) to query based on the message
+  // Check if user is asking about a specific restaurant
+  const lowerQuery = query.toLowerCase();
+  let targetRestaurants = restaurants;
+  
+  // Try to match restaurant names in the query
+  const matchedRestaurant = restaurants.find(r => {
+    const restaurantName = r.name.toLowerCase();
+    // Extract city name from restaurant name (e.g., "CHICKEN STREET BOURG-EN-BRESSE" -> "bourg")
+    const cityMatch = restaurantName.match(/chicken street\s+(.+)/i);
+    if (cityMatch) {
+      const cityName = cityMatch[1].toLowerCase().split('-')[0]; // Get first part of hyphenated name
+      return lowerQuery.includes(cityName) || lowerQuery.includes(restaurantName);
+    }
+    return lowerQuery.includes(restaurantName);
+  });
 
-  // Build AI prompt
-  const systemPrompt = buildManagerPrompt(restaurant, restaurantData);
+  if (matchedRestaurant) {
+    console.log(`Query targets specific restaurant: ${matchedRestaurant.name}`);
+    targetRestaurants = [matchedRestaurant];
+  }
+
+  // Fetch data for all target restaurants
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+  const allRestaurantData: any[] = [];
+  
+  for (const restaurant of targetRestaurants) {
+    const data = await fetchRestaurantData(supabase, restaurant.id, supabaseUrl, restaurant.postal_code);
+    allRestaurantData.push({
+      restaurant,
+      data,
+    });
+  }
+  console.log(`Fetched data for ${allRestaurantData.length} restaurant(s)`);
+
+  // Build AI prompt with multi-restaurant context
+  const systemPrompt = buildMultiRestaurantPrompt(manager, allRestaurantData);
 
   // Call AI
   const aiResult = await callAI(systemPrompt, query);
-  const managerName = `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim();
+  const managerName = manager 
+    ? `${manager.first_name || ''} ${manager.last_name || ''}`.trim()
+    : `${targetRestaurants[0]?.manager_first_name || ''} ${targetRestaurants[0]?.manager_last_name || ''}`.trim();
 
   // Process action commands if present in AI response
+  // Use the first/primary restaurant for action creation
+  const primaryRestaurant = targetRestaurants.find(r => r.is_primary) || targetRestaurants[0];
   let finalResponse = aiResult.content;
   let actionCreated = false;
   let reportSent = false;
   
   if (finalResponse && finalResponse.includes('[ACTION:')) {
-    const actionResult = await parseAndCreateAction(supabase, finalResponse, restaurant.id);
+    const actionResult = await parseAndCreateAction(supabase, finalResponse, primaryRestaurant.id);
     finalResponse = actionResult.modifiedResponse;
     actionCreated = actionResult.actionCreated;
     
@@ -1102,8 +1138,8 @@ async function handleManagerQuery(
     const reportResult = await parseAndSendReport(
       supabase, 
       finalResponse, 
-      restaurant.id, 
-      restaurant.name, 
+      primaryRestaurant.id, 
+      primaryRestaurant.name, 
       phone
     );
     finalResponse = reportResult.modifiedResponse;
@@ -1119,15 +1155,21 @@ async function handleManagerQuery(
   if (actionCreated) finalIntent = 'action_request';
   if (reportSent) finalIntent = 'report_request';
 
-  // Log interaction to chatbot_interactions
+  // Log interaction to chatbot_interactions (use primary restaurant)
   const interactionLog = {
-    restaurant_id: restaurant.id,
+    restaurant_id: primaryRestaurant.id,
     manager_phone: phone,
     manager_name: managerName || null,
     query,
     response: finalResponse,
     intent: finalIntent,
-    detected_entities: { ...entities, action_created: actionCreated, report_sent: reportSent },
+    detected_entities: { 
+      ...entities, 
+      action_created: actionCreated, 
+      report_sent: reportSent,
+      restaurants_count: restaurants.length,
+      target_restaurants: targetRestaurants.map(r => r.name),
+    },
     response_time_ms: aiResult.responseTimeMs,
     ai_model: 'google/gemini-2.5-flash',
     tokens_used: aiResult.tokensUsed || null,
@@ -1151,8 +1193,8 @@ async function handleManagerQuery(
         sender_phone: null,
         recipient_phone: phone,
         recipient_name: managerName,
-        restaurant_id: restaurant.id,
-        restaurant_name: restaurant.name,
+        restaurant_id: primaryRestaurant.id,
+        restaurant_name: primaryRestaurant.name,
         message_content: finalResponse,
         status: 'sent',
         sent_at: new Date().toISOString(),
@@ -1165,6 +1207,84 @@ async function handleManagerQuery(
     await sendWhatsAppReply(phone, fallbackMessage);
     console.log('Sent fallback message due to AI error');
   }
+}
+
+// Build prompt for multiple restaurants
+function buildMultiRestaurantPrompt(manager: any | null, restaurantDataList: any[]): string {
+  const monthNames = ['', 'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 
+                      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  
+  const managerFirstName = manager?.first_name || restaurantDataList[0]?.restaurant?.manager_first_name || 'Manager';
+  const managerLastName = manager?.last_name || restaurantDataList[0]?.restaurant?.manager_last_name || '';
+  
+  // If single restaurant, use the original detailed format
+  if (restaurantDataList.length === 1) {
+    const { restaurant, data } = restaurantDataList[0];
+    return buildManagerPrompt({
+      ...restaurant,
+      manager_first_name: managerFirstName,
+      manager_last_name: managerLastName,
+    }, data);
+  }
+  
+  // Multiple restaurants - build comparative prompt
+  const currentMonth = restaurantDataList[0]?.data?.currentMonth || new Date().getMonth() + 1;
+  const currentYear = restaurantDataList[0]?.data?.currentYear || new Date().getFullYear();
+  const currentMonthName = monthNames[currentMonth];
+  
+  let restaurantSections = '';
+  let totalRevenue = 0;
+  let totalOrders = 0;
+  let totalErrors = 0;
+  
+  for (const { restaurant, data } of restaurantDataList) {
+    totalRevenue += data.currentMonthData.revenue || 0;
+    totalOrders += data.currentMonthData.orders || 0;
+    totalErrors += data.errors.count || 0;
+    
+    restaurantSections += `
+📍 ${restaurant.name}:
+- CA ce mois: ${data.currentMonthData.revenue.toLocaleString('fr-FR')}€
+- Commandes: ${data.currentMonthData.orders}
+- Panier moyen: ${data.currentMonthData.averageBasket.toFixed(2)}€
+- Note moyenne: ${data.reviews.avgOverall > 0 ? data.reviews.avgOverall.toFixed(1) + '/5' : 'N/A'}
+- Erreurs ce mois: ${data.errors.count}
+- Temps prépa moyen: ${data.delivery.avgPrepTime > 0 ? Math.round(data.delivery.avgPrepTime) + ' min' : 'N/A'}
+`;
+  }
+
+  return `Tu es l'assistant WhatsApp intelligent pour un manager multi-sites de la chaîne Chicken Street.
+
+MANAGER:
+- Prénom: ${managerFirstName}
+- Nom: ${managerLastName}
+- Nombre de restaurants gérés: ${restaurantDataList.length}
+
+📊 VUE D'ENSEMBLE - ${currentMonthName} ${currentYear}:
+- CA TOTAL: ${totalRevenue.toLocaleString('fr-FR')}€
+- COMMANDES TOTAL: ${totalOrders}
+- ERREURS TOTAL: ${totalErrors}
+
+📍 DÉTAIL PAR RESTAURANT:
+${restaurantSections}
+
+CAPACITÉS:
+1. Répondre aux questions sur les performances globales ou par restaurant
+2. Comparer les performances entre restaurants
+3. Identifier les restaurants nécessitant attention
+4. Donner des conseils d'amélioration personnalisés par restaurant
+5. PRÉDIRE LES JOURS DE RUSH basés sur les événements
+6. CRÉER DES ACTIONS - Tag: [ACTION:Titre|YYYY-MM-DD|categorie]
+7. ENVOYER UN RAPPORT - Tag: [RAPPORT:type]
+
+RÈGLES:
+- CONCIS et DIRECT (c'est WhatsApp)
+- Max 6-8 lignes pour une vue multi-restaurants
+- Émojis pour lisibilité
+- Tutoie le manager
+- Si le manager demande un restaurant spécifique, concentre-toi sur celui-là
+- Si la question est générale, donne une vue d'ensemble comparative
+- Sujets restaurant uniquement`;
 }
 
 serve(async (req) => {
@@ -1202,20 +1322,97 @@ serve(async (req) => {
       
       console.log('Normalized sender phone:', normalizedPhone);
       
-      // Try to find associated restaurant by manager_whatsapp
-      const { data: restaurants } = await supabase
-        .from('restaurants')
-        .select('id, name, manager_first_name, manager_last_name, manager_whatsapp')
-        .not('manager_whatsapp', 'is', null);
+      // === NEW: Try to find manager in the managers table first ===
+      let manager: any = null;
+      let managerRestaurants: any[] = [];
       
-      // Find restaurant by comparing normalized phone numbers
-      const restaurant = restaurants?.find((r: any) => {
-        if (!r.manager_whatsapp) return false;
-        const normalizedManagerPhone = normalizePhoneNumber(r.manager_whatsapp);
-        return normalizedManagerPhone.includes(normalizedPhone) || normalizedPhone.includes(normalizedManagerPhone);
-      }) || null;
+      // Try finding manager by normalized phone (various formats)
+      const phoneVariants = [
+        normalizedPhone,
+        normalizedPhone.replace('+', ''),
+        '+' + normalizedPhone.replace('+', ''),
+        '0' + normalizedPhone.slice(-9), // French format
+      ];
       
-      console.log('Associated restaurant:', restaurant?.name || 'None found');
+      for (const phoneVariant of phoneVariants) {
+        const { data: foundManager } = await supabase
+          .from('managers')
+          .select('id, phone, first_name, last_name, email')
+          .or(`phone.eq.${phoneVariant},phone.ilike.%${phoneVariant.slice(-9)}%`)
+          .maybeSingle();
+        
+        if (foundManager) {
+          manager = foundManager;
+          break;
+        }
+      }
+      
+      if (manager) {
+        console.log(`Found manager: ${manager.first_name} ${manager.last_name} (ID: ${manager.id})`);
+        
+        // Get all restaurants this manager has access to
+        const { data: managerLinks } = await supabase
+          .from('manager_restaurants')
+          .select(`
+            restaurant_id,
+            role,
+            is_primary,
+            restaurants (
+              id,
+              name,
+              manager_first_name,
+              manager_last_name,
+              postal_code
+            )
+          `)
+          .eq('manager_id', manager.id);
+        
+        if (managerLinks && managerLinks.length > 0) {
+          managerRestaurants = managerLinks
+            .filter((link: any) => link.restaurants)
+            .map((link: any) => ({
+              ...link.restaurants,
+              role: link.role,
+              is_primary: link.is_primary,
+              // Use manager info from managers table
+              manager_first_name: manager.first_name,
+              manager_last_name: manager.last_name,
+            }));
+          console.log(`Manager has access to ${managerRestaurants.length} restaurants:`, managerRestaurants.map((r: any) => r.name).join(', '));
+        }
+      }
+      
+      // === FALLBACK: Legacy logic using restaurants.manager_whatsapp ===
+      if (managerRestaurants.length === 0) {
+        console.log('No manager found in managers table, trying legacy lookup...');
+        
+        const { data: restaurants } = await supabase
+          .from('restaurants')
+          .select('id, name, manager_first_name, manager_last_name, manager_whatsapp, postal_code')
+          .not('manager_whatsapp', 'is', null);
+        
+        // Find ALL restaurants matching this phone (not just the first one)
+        const matchingRestaurants = restaurants?.filter((r: any) => {
+          if (!r.manager_whatsapp) return false;
+          const normalizedManagerPhone = normalizePhoneNumber(r.manager_whatsapp);
+          return normalizedManagerPhone.includes(normalizedPhone) || normalizedPhone.includes(normalizedManagerPhone);
+        }) || [];
+        
+        if (matchingRestaurants.length > 0) {
+          managerRestaurants = matchingRestaurants;
+          console.log(`Legacy lookup found ${managerRestaurants.length} restaurants:`, managerRestaurants.map((r: any) => r.name).join(', '));
+        }
+      }
+      
+      // For backwards compatibility, use first restaurant for message logging
+      const primaryRestaurant = managerRestaurants.find((r: any) => r.is_primary) || managerRestaurants[0] || null;
+      const managerName = manager 
+        ? `${manager.first_name || ''} ${manager.last_name || ''}`.trim()
+        : primaryRestaurant 
+          ? `${primaryRestaurant.manager_first_name || ''} ${primaryRestaurant.manager_last_name || ''}`.trim()
+          : null;
+      
+      console.log('Primary restaurant:', primaryRestaurant?.name || 'None found');
 
       // Check if this is an "echo" message (already sent as outbound in the last 30 seconds)
       const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
@@ -1243,11 +1440,9 @@ serve(async (req) => {
           direction: 'inbound',
           sender_phone: normalizedPhone,
           recipient_phone: normalizedPhone,
-          recipient_name: restaurant 
-            ? `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim() 
-            : null,
-          restaurant_id: restaurant?.id || null,
-          restaurant_name: restaurant?.name || null,
+          recipient_name: managerName,
+          restaurant_id: primaryRestaurant?.id || null,
+          restaurant_name: primaryRestaurant?.name || null,
           message_content: messageData.body,
           ultramsg_message_id: messageData.id || messageData.sid || null,
           status: 'received',
@@ -1264,12 +1459,13 @@ serve(async (req) => {
       // Only respond if:
       // 1. The message is from a known restaurant manager
       // 2. The message looks like a query (not a simple response)
-      if (restaurant && isQueryMessage(messageData.body)) {
+      if (managerRestaurants.length > 0 && isQueryMessage(messageData.body)) {
         console.log('Query detected, activating chatbot...');
         // Handle asynchronously to not block the webhook response
-        handleManagerQuery(supabase, restaurant, messageData.body, normalizedPhone)
+        // Pass ALL restaurants the manager has access to
+        handleManagerQuery(supabase, managerRestaurants, manager, messageData.body, normalizedPhone)
           .catch(err => console.error('Chatbot error:', err));
-      } else if (!restaurant) {
+      } else if (managerRestaurants.length === 0) {
         console.log('No restaurant found for this phone, skipping chatbot');
       } else {
         console.log('Message does not appear to be a query, skipping chatbot');
