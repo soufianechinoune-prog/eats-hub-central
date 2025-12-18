@@ -76,10 +76,8 @@ const OpeningHoursEditor = ({ restaurantId }: OpeningHoursEditorProps) => {
           s.start_time === oldSlot.start_time && 
           s.end_time === oldSlot.end_time) {
         const updated = { ...s, [field]: value };
-        // Check if overnight
-        if (updated.end_time < updated.start_time) {
-          updated.is_overnight = true;
-        }
+        // Always recalculate if overnight based on current values
+        updated.is_overnight = updated.end_time < updated.start_time;
         return updated;
       }
       return s;
