@@ -48,6 +48,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import csLogo from "@/assets/cs-logo.jpeg";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
@@ -354,6 +355,9 @@ export function AppSidebar() {
                     {!collapsed && <span>Confidentialité</span>}
                   </NavLink>
                 </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <ThemeToggle collapsed={collapsed} />
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout}>
