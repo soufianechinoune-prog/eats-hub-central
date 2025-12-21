@@ -74,7 +74,7 @@ export const AIAdvisorChat = () => {
     renameConversation 
   } = useAIAdvisor();
   const pageContext = usePageContext();
-  const { pendingMessage, setPendingMessage } = useAIAdvisorContext();
+  const { queuedVersion, consumeQueuedMessage } = useAIAdvisorContext();
   const [input, setInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -83,23 +83,15 @@ export const AIAdvisorChat = () => {
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   
-  // Handle pending message from external components
-  const pendingMessageProcessed = useRef(false);
-  
+  // Consume queued message (safe against double effects / remount)
   useEffect(() => {
-    if (pendingMessage && !isLoading && !pendingMessageProcessed.current) {
-      pendingMessageProcessed.current = true;
-      sendMessage(pendingMessage);
-      setPendingMessage(null);
+    if (isLoading) return;
+    const msg = consumeQueuedMessage();
+    if (msg) {
+      sendMessage(msg);
     }
-  }, [pendingMessage, isLoading]);
-  
-  // Reset the flag when pendingMessage changes
-  useEffect(() => {
-    if (!pendingMessage) {
-      pendingMessageProcessed.current = false;
-    }
-  }, [pendingMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queuedVersion, isLoading]);
 
   // Get contextual questions based on current page
   const contextualQuestions = pageContext.suggestedQuestions.map(q => ({
