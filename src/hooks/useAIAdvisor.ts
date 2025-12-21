@@ -196,14 +196,20 @@ export const useAIAdvisor = () => {
           .insert({
             conversation_id: conversationId,
             role: 'assistant',
-            content: assistantContent
+            content: assistantContent,
           });
-        
+
         // Update conversation timestamp
         await supabase
           .from('ai_conversations')
           .update({ updated_at: new Date().toISOString() })
           .eq('id', conversationId);
+      }
+
+      // Always reload conversation to ensure UI is in sync (even if streaming parsing fails)
+      if (conversationId) {
+        await loadConversation(conversationId);
+        await loadConversations();
       }
 
       setIsLoading(false);
