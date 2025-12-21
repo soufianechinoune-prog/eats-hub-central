@@ -19,7 +19,7 @@ const OpeningHoursComparison = () => {
   const lastMonth = subMonths(new Date(), 1);
 
   // Fetch pinned restaurants
-  const { data: pinnedRestaurants } = useQuery({
+  const { data: pinnedRestaurants, isLoading: loadingRestaurants } = useQuery({
     queryKey: ["pinned-restaurants"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -156,7 +156,7 @@ const OpeningHoursComparison = () => {
   }, [restaurantStats]);
 
   const periodLabel = format(lastMonth, "MMMM yyyy", { locale: fr });
-  const isLoading = loadingHours || loadingRevenue;
+  const isLoading = loadingRestaurants || loadingHours || loadingRevenue;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
