@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { KPICard } from "@/components/dashboard/KPICard";
+import { ConversionTab } from "@/components/dashboard/ConversionTab";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -18,14 +19,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Euro, ShoppingCart, TrendingUp, Ticket } from "lucide-react";
+import { Euro, ShoppingCart, TrendingUp, Ticket, Percent } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { DateRange, RestaurantPerformance } from "@/types";
 
 const Dashboard = () => {
   const [dateRange, setDateRange] = useState<DateRange>("7");
+  const [activeTab, setActiveTab] = useState("overview");
   const navigate = useNavigate();
 
   // Fetch KPIs
@@ -134,96 +137,116 @@ const Dashboard = () => {
         </Select>
       </div>
 
-      {/* KPIs */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          title="CA Brut"
-          value={formatCurrency(kpis?.totalGrossRevenue || 0)}
-          icon={Euro}
-        />
-        <KPICard
-          title="CA Net"
-          value={formatCurrency(kpis?.totalNetRevenue || 0)}
-          icon={TrendingUp}
-        />
-        <KPICard
-          title="Commandes"
-          value={kpis?.totalOrders || 0}
-          icon={ShoppingCart}
-        />
-        <KPICard
-          title="Panier Moyen"
-          value={formatCurrency(kpis?.averageTicket || 0)}
-          icon={Ticket}
-        />
-      </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="overview" className="gap-2">
+            <Euro className="h-4 w-4" />
+            Revenus
+          </TabsTrigger>
+          <TabsTrigger value="conversion" className="gap-2">
+            <Percent className="h-4 w-4" />
+            Taux de conversion
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Restaurant comparison table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Comparaison des restaurants</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Restaurant</TableHead>
-                <TableHead>Ville</TableHead>
-                <TableHead className="text-right">CA Brut</TableHead>
-                <TableHead className="text-right">CA Net</TableHead>
-                <TableHead className="text-right">Commandes</TableHead>
-                <TableHead className="text-center">Promos</TableHead>
-                <TableHead className="text-center">Connexion</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {restaurantPerformance?.map((perf) => (
-                <TableRow key={perf.restaurant.id}>
-                  <TableCell className="font-medium">
-                    {perf.restaurant.name}
-                  </TableCell>
-                  <TableCell>{perf.restaurant.city}</TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(perf.grossRevenue)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(perf.netRevenue)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {perf.ordersCount}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {perf.activePromotions > 0 ? (
-                      <Badge variant="outline">{perf.activePromotions}</Badge>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {perf.hasConnection ? (
-                      <Badge className="bg-accent">Connecté</Badge>
-                    ) : (
-                      <Badge variant="outline">Non connecté</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        navigate(`/restaurants/${perf.restaurant.id}`)
-                      }
-                    >
-                      Détails
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        <TabsContent value="overview" className="space-y-6 mt-6">
+          {/* KPIs */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <KPICard
+              title="CA Brut"
+              value={formatCurrency(kpis?.totalGrossRevenue || 0)}
+              icon={Euro}
+            />
+            <KPICard
+              title="CA Net"
+              value={formatCurrency(kpis?.totalNetRevenue || 0)}
+              icon={TrendingUp}
+            />
+            <KPICard
+              title="Commandes"
+              value={kpis?.totalOrders || 0}
+              icon={ShoppingCart}
+            />
+            <KPICard
+              title="Panier Moyen"
+              value={formatCurrency(kpis?.averageTicket || 0)}
+              icon={Ticket}
+            />
+          </div>
+
+          {/* Restaurant comparison table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Comparaison des restaurants</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Restaurant</TableHead>
+                    <TableHead>Ville</TableHead>
+                    <TableHead className="text-right">CA Brut</TableHead>
+                    <TableHead className="text-right">CA Net</TableHead>
+                    <TableHead className="text-right">Commandes</TableHead>
+                    <TableHead className="text-center">Promos</TableHead>
+                    <TableHead className="text-center">Connexion</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {restaurantPerformance?.map((perf) => (
+                    <TableRow key={perf.restaurant.id}>
+                      <TableCell className="font-medium">
+                        {perf.restaurant.name}
+                      </TableCell>
+                      <TableCell>{perf.restaurant.city}</TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(perf.grossRevenue)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(perf.netRevenue)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {perf.ordersCount}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {perf.activePromotions > 0 ? (
+                          <Badge variant="outline">{perf.activePromotions}</Badge>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {perf.hasConnection ? (
+                          <Badge className="bg-accent">Connecté</Badge>
+                        ) : (
+                          <Badge variant="outline">Non connecté</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            navigate(`/restaurants/${perf.restaurant.id}`)
+                          }
+                        >
+                          Détails
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="conversion" className="mt-6">
+          <ConversionTab dateRange={dateRange} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
