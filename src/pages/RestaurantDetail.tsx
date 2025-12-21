@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { formatPhoneNumber } from "@/lib/utils";
 import OpeningHoursEditor from "@/components/restaurants/OpeningHoursEditor";
+import { OpeningHoursAnalytics } from "@/components/restaurants/OpeningHoursAnalytics";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -485,8 +486,12 @@ const RestaurantDetail = () => {
         </Card>
       </div>
 
-      {/* Opening Hours */}
+      {/* Opening Hours Analytics */}
+      <OpeningHoursAnalytics restaurantId={id!} restaurantName={restaurant.name} />
+
+      {/* Opening Hours Editor */}
       <OpeningHoursEditor restaurantId={id!} />
+
 
       {/* Connexion API Status */}
       <Card>
