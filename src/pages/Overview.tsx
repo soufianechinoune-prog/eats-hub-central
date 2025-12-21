@@ -35,7 +35,8 @@ const formatHoursToTime = (hours: number | null | undefined): string | null => {
 };
 
 const Overview = () => {
-  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("previous_week");
+  const defaultPeriodMode: OverviewPeriodMode = "previous_week";
+  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(defaultPeriodMode);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -43,6 +44,15 @@ const Overview = () => {
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
   const { exportToPdf, exportToExcel, isExporting } = useOverviewExport();
+
+  const isCustomPeriod = periodMode !== defaultPeriodMode;
+
+  const handleResetPeriod = () => {
+    setPeriodMode(defaultPeriodMode);
+    setSelectedYear(new Date().getFullYear());
+    setSelectedMonth(new Date().getMonth() + 1);
+    setDateRange(undefined);
+  };
 
   // Calculate date range based on selected period
   const getDateRangeFromPeriod = () => {
@@ -473,6 +483,8 @@ const Overview = () => {
             onMonthChange={setSelectedMonth}
             dateRange={dateRange}
             onDateRangeChange={setDateRange}
+            showReset={isCustomPeriod}
+            onReset={handleResetPeriod}
           />
         </div>
       </div>

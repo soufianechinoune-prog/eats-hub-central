@@ -11,7 +11,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { Calendar, ChevronsUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, ChevronsUpDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 const MONTHS_SHORT = [
   "Jan", "Fév", "Mar", "Avr", "Mai", "Jun",
@@ -37,6 +37,8 @@ interface OverviewPeriodSelectorProps {
   onMonthChange: (month: number) => void;
   dateRange?: DateRange;
   onDateRangeChange: (range: DateRange | undefined) => void;
+  onReset?: () => void;
+  showReset?: boolean;
 }
 
 export function OverviewPeriodSelector({
@@ -48,6 +50,8 @@ export function OverviewPeriodSelector({
   onMonthChange,
   dateRange,
   onDateRangeChange,
+  onReset,
+  showReset = false,
 }: OverviewPeriodSelectorProps) {
   const [periodOpen, setPeriodOpen] = useState(false);
   const [tempYear, setTempYear] = useState(selectedYear);
@@ -110,19 +114,20 @@ export function OverviewPeriodSelector({
   };
 
   return (
-    <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className="min-w-[180px] justify-between bg-background"
-        >
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            <span className="font-medium">{getPeriodDisplayText()}</span>
-          </div>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
-        </Button>
-      </PopoverTrigger>
+    <div className="flex items-center gap-2">
+      <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className="min-w-[180px] justify-between bg-background"
+          >
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              <span className="font-medium">{getPeriodDisplayText()}</span>
+            </div>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
+          </Button>
+        </PopoverTrigger>
       <PopoverContent 
         className="w-auto p-0 bg-background border shadow-xl rounded-xl overflow-hidden" 
         align="end"
@@ -275,5 +280,18 @@ export function OverviewPeriodSelector({
         </Tabs>
       </PopoverContent>
     </Popover>
+    
+    {showReset && onReset && (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9 text-muted-foreground hover:text-foreground"
+        onClick={onReset}
+        title="Réinitialiser la période"
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    )}
+  </div>
   );
 }
