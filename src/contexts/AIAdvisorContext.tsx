@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useRef, useState, ReactNode } from 'react';
 
 interface AIAdvisorContextType {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
-  pendingMessage: string | null;
-  setPendingMessage: (message: string | null) => void;
+  queuedVersion: number;
+  consumeQueuedMessage: () => string | null;
   openWithMessage: (message: string) => void;
 }
 
@@ -12,15 +12,23 @@ const AIAdvisorContext = createContext<AIAdvisorContextType | undefined>(undefin
 
 export const AIAdvisorProvider = ({ children }: { children: ReactNode }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const queuedMessageRef = useRef<string | null>(null);
+  const [queuedVersion, setQueuedVersion] = useState(0);
 
   const openWithMessage = (message: string) => {
-    setPendingMessage(message);
+    queuedMessageRef.current = message;
+    setQueuedVersion((v) => v + 1);
     setIsOpen(true);
   };
 
+  const consumeQueuedMessage = () => {
+    const msg = queuedMessageRef.current;
+    queuedMessageRef.current = null;
+    return msg;
+  };
+
   return (
-    <AIAdvisorContext.Provider value={{ isOpen, setIsOpen, pendingMessage, setPendingMessage, openWithMessage }}>
+    <AIAdvisorContext.Provider value={{ isOpen, setIsOpen, queuedVersion, consumeQueuedMessage, openWithMessage }}>
       {children}
     </AIAdvisorContext.Provider>
   );
