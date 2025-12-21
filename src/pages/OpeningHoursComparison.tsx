@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +16,9 @@ const DAY_LABELS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
 const OpeningHoursComparison = () => {
   const navigate = useNavigate();
-  const lastMonth = subMonths(new Date(), 1);
+  const lastMonth = useMemo(() => subMonths(new Date(), 1), []);
+  const revenueYear = lastMonth.getFullYear();
+  const revenueMonth = lastMonth.getMonth() + 1;
 
   // Fetch pinned restaurants
   const { data: pinnedRestaurants, isLoading: loadingRestaurants } = useQuery({
@@ -51,7 +53,7 @@ const OpeningHoursComparison = () => {
 
   // Fetch revenue data for last month
   const { data: revenueData, isPending: pendingRevenue, isFetching: fetchingRevenue } = useQuery({
-    queryKey: ["opening-hours-revenue", pinnedRestaurants?.map(r => r.id), lastMonth],
+    queryKey: ["opening-hours-revenue", pinnedRestaurants?.map(r => r.id), revenueYear, revenueMonth],
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
       
@@ -59,8 +61,8 @@ const OpeningHoursComparison = () => {
         .from("monthly_revenue")
         .select("restaurant_id, revenue_ttc, order_count")
         .in("restaurant_id", pinnedRestaurants.map(r => r.id))
-        .eq("year", lastMonth.getFullYear())
-        .eq("month", lastMonth.getMonth() + 1);
+        .eq("year", revenueYear)
+        .eq("month", revenueMonth);
       
       if (error) throw error;
       return data || [];
@@ -156,31 +158,46 @@ const OpeningHoursComparison = () => {
   }, [restaurantStats]);
 
   const periodLabel = format(lastMonth, "MMMM yyyy", { locale: fr });
-  
-  // Debug logs for query states
-  console.log("[OpeningHoursComparison] Query states:", {
-    pinnedRestaurants: { 
-      count: pinnedRestaurants?.length ?? 0, 
-      loading: loadingRestaurants 
-    },
-    openingHours: { 
-      count: openingHoursData?.length ?? 0, 
-      pending: pendingHours, 
-      fetching: fetchingHours,
-      enabled: !!pinnedRestaurants?.length 
-    },
-    revenue: { 
-      count: revenueData?.length ?? 0, 
-      pending: pendingRevenue, 
-      fetching: fetchingRevenue,
-      enabled: !!pinnedRestaurants?.length 
-    },
-    restaurantStats: restaurantStats.length
-  });
-  
-  // Use isPending for dependent queries - stays true until data arrives
-  const isLoading = loadingRestaurants || 
-    (!!pinnedRestaurants?.length && (pendingHours || pendingRevenue));
+
+  // Debug logs for query states (log on change, not every render)
+  useEffect(() => {
+    console.debug("[OpeningHoursComparison] Query states:", {
+      period: { year: revenueYear, month: revenueMonth },
+      pinnedRestaurants: {
+        count: pinnedRestaurants?.length ?? 0,
+        loading: loadingRestaurants,
+      },
+      openingHours: {
+        count: openingHoursData?.length ?? 0,
+        pending: pendingHours,
+        fetching: fetchingHours,
+        enabled: !!pinnedRestaurants?.length,
+      },
+      revenue: {
+        count: revenueData?.length ?? 0,
+        pending: pendingRevenue,
+        fetching: fetchingRevenue,
+        enabled: !!pinnedRestaurants?.length,
+      },
+      restaurantStats: restaurantStats.length,
+    });
+  }, [
+    revenueYear,
+    revenueMonth,
+    loadingRestaurants,
+    pinnedRestaurants?.length,
+    pendingHours,
+    fetchingHours,
+    openingHoursData?.length,
+    pendingRevenue,
+    fetchingRevenue,
+    revenueData?.length,
+    restaurantStats.length,
+  ]);
+
+  // Loading state (dependent queries)
+  const isLoading =
+    loadingRestaurants || (!!pinnedRestaurants?.length && (pendingHours || pendingRevenue));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
