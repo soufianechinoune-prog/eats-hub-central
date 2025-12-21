@@ -11,12 +11,11 @@ import {
   TrendingUp, 
   Target,
   ArrowUpRight,
-  ChevronRight,
   Sparkles,
-  Bot,
+  Eye,
   Loader2
 } from "lucide-react";
-import { useAIAdvisor } from "@/hooks/useAIAdvisor";
+import { useAIAdvisorContext } from "@/contexts/AIAdvisorContext";
 
 interface Restaurant {
   id: string;
@@ -67,50 +66,7 @@ export const HourlyOpportunitiesAnalysis = ({
   endDate 
 }: HourlyOpportunitiesAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const { sendMessage } = useAIAdvisor();
-
-  // Generate AI analysis prompt from current data
-  const handleAnalyzeWithAI = async () => {
-    if (!restaurantPerformance.length) return;
-    
-    setIsAnalyzing(true);
-    
-    try {
-      // Build contextualized prompt with performance data
-      const performanceLines = restaurantPerformance.map(({ restaurant, slotPerformance, totalOrders, totalRevenue }) => {
-        const slotDetails = slotPerformance
-          .filter(s => s.orders > 0)
-          .map(s => `  - ${s.label} (${s.range}) : ${s.orders} cmd (${s.revenuePercent}% CA)${s.revenuePercent >= 30 ? " ← point fort" : s.revenuePercent < 10 && s.orders > 0 ? " ← opportunité ?" : ""}`)
-          .join("\n");
-        
-        return `**${restaurant.name}** : ${totalOrders} commandes, ${totalRevenue.toLocaleString()}€\n${slotDetails}`;
-      }).join("\n\n");
-
-      const opportunitiesLines = extensionOpportunities.length > 0
-        ? "\n\n**Opportunités d'extension détectées :**\n" + extensionOpportunities.map(opp => 
-            `- ${opp.restaurant.name} pourrait gagner +${opp.estimatedOrders} cmd (~${opp.estimatedRevenue}€) en restant ouvert jusqu'à ${opp.potentialHours.map(h => `${h}h`).join(", ")}`
-          ).join("\n")
-        : "";
-
-      const prompt = `Voici les données de performance par créneau horaire de mes restaurants du ${startDate} au ${endDate} :
-
-${performanceLines}
-${opportunitiesLines}
-
-Analyse ces données et donne-moi des recommandations concrètes pour optimiser les horaires d'ouverture. Identifie :
-1. Les créneaux sous-exploités par restaurant
-2. Les opportunités d'extension horaire les plus rentables
-3. Des actions concrètes à mettre en place
-
-Sois précis et actionnable.`;
-
-      await sendMessage(prompt);
-    } catch (error) {
-      console.error("Error sending AI analysis:", error);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+  const { openWithMessage } = useAIAdvisorContext();
   
   // Fetch hourly order data from order_history
   const { data: hourlyData, isLoading } = useQuery({
@@ -437,16 +393,50 @@ Sois précis et actionnable.`;
             <Button
               variant="outline"
               size="sm"
-              onClick={handleAnalyzeWithAI}
+              onClick={() => {
+                if (isAnalyzing || !restaurantPerformance.length) return;
+                setIsAnalyzing(true);
+                
+                // Build contextualized prompt with performance data
+                const performanceLines = restaurantPerformance.map(({ restaurant, slotPerformance, totalOrders, totalRevenue }) => {
+                  const slotDetails = slotPerformance
+                    .filter(s => s.orders > 0)
+                    .map(s => `  - ${s.label} (${s.range}) : ${s.orders} cmd (${s.revenuePercent}% CA)${s.revenuePercent >= 30 ? " ← point fort" : s.revenuePercent < 10 && s.orders > 0 ? " ← opportunité ?" : ""}`)
+                    .join("\n");
+                  
+                  return `**${restaurant.name}** : ${totalOrders} commandes, ${totalRevenue.toLocaleString()}€\n${slotDetails}`;
+                }).join("\n\n");
+
+                const opportunitiesLines = extensionOpportunities.length > 0
+                  ? "\n\n**Opportunités d'extension détectées :**\n" + extensionOpportunities.map(opp => 
+                      `- ${opp.restaurant.name} pourrait gagner +${opp.estimatedOrders} cmd (~${opp.estimatedRevenue}€) en restant ouvert jusqu'à ${opp.potentialHours.map(h => `${h}h`).join(", ")}`
+                    ).join("\n")
+                  : "";
+
+                const prompt = `Voici les données de performance par créneau horaire de mes restaurants du ${startDate} au ${endDate} :
+
+${performanceLines}
+${opportunitiesLines}
+
+Analyse ces données et donne-moi des recommandations concrètes pour optimiser les horaires d'ouverture. Identifie :
+1. Les créneaux sous-exploités par restaurant
+2. Les opportunités d'extension horaire les plus rentables
+3. Des actions concrètes à mettre en place
+
+Sois précis et actionnable.`;
+
+                openWithMessage(prompt);
+                setIsAnalyzing(false);
+              }}
               disabled={isAnalyzing}
               className="gap-2 bg-gradient-to-r from-violet-500/10 to-purple-500/10 border-violet-500/30 hover:border-violet-500/50 hover:bg-violet-500/20 transition-all"
             >
               {isAnalyzing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Bot className="h-4 w-4 text-violet-600" />
+                <Eye className="h-4 w-4 text-violet-600" />
               )}
-              <span className="text-violet-700 dark:text-violet-400">Analyser avec Jiminy</span>
+              <span className="text-violet-700 dark:text-violet-400">Samir Vision</span>
               <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 bg-violet-500/20 text-violet-600 border-violet-500/30">
                 IA
               </Badge>
@@ -504,7 +494,7 @@ Sois précis et actionnable.`;
           
           <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              <ChevronRight className="h-3 w-3" />
+              <Sparkles className="h-3 w-3" />
               % CA = part du chiffre d'affaires du créneau
             </span>
             <span className="text-green-600">≥30% = créneau fort</span>

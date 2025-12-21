@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAIAdvisor } from '@/hooks/useAIAdvisor';
 import { usePageContext } from '@/hooks/usePageContext';
+import { useAIAdvisorContext } from '@/contexts/AIAdvisorContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -73,6 +74,7 @@ export const AIAdvisorChat = () => {
     renameConversation 
   } = useAIAdvisor();
   const pageContext = usePageContext();
+  const { pendingMessage, setPendingMessage } = useAIAdvisorContext();
   const [input, setInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -80,6 +82,14 @@ export const AIAdvisorChat = () => {
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  
+  // Handle pending message from external components
+  useEffect(() => {
+    if (pendingMessage && !isLoading) {
+      sendMessage(pendingMessage);
+      setPendingMessage(null);
+    }
+  }, [pendingMessage, isLoading, sendMessage, setPendingMessage]);
 
   // Get contextual questions based on current page
   const contextualQuestions = pageContext.suggestedQuestions.map(q => ({
@@ -335,7 +345,7 @@ export const AIAdvisorChat = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
             >
-              CS Advisor
+              Samir Vision
             </motion.h4>
             
             <motion.p 
@@ -344,7 +354,7 @@ export const AIAdvisorChat = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
             >
-              Votre conseiller IA pour Chicken Street
+              L'IA qui voit tout pour Chicken Street
             </motion.p>
 
             {/* Quick Analysis Button */}
