@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
@@ -37,7 +37,15 @@ const COLORS = [
 
 const RatingsComparison = () => {
   const navigate = useNavigate();
-  const [period, setPeriod] = useState<PeriodType>("month");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialPeriod = (searchParams.get('period') as PeriodType) || 'month';
+  const [period, setPeriod] = useState<PeriodType>(initialPeriod);
+
+  // Sync period changes with URL
+  const handlePeriodChange = (newPeriod: PeriodType) => {
+    setPeriod(newPeriod);
+    setSearchParams({ period: newPeriod });
+  };
 
   // Calculate date range based on period
   const dateRange = useMemo(() => {
@@ -257,7 +265,7 @@ const RatingsComparison = () => {
               <Calendar className="h-4 w-4" />
               <span>{periodLabel}</span>
             </div>
-            <Select value={period} onValueChange={(v) => setPeriod(v as PeriodType)}>
+            <Select value={period} onValueChange={(v) => handlePeriodChange(v as PeriodType)}>
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
