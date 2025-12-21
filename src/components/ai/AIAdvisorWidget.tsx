@@ -1,12 +1,11 @@
-import { useState } from 'react';
 import { Sparkles, X, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AIAdvisorChat } from './AIAdvisorChat';
+import { useAIAdvisorContext } from '@/contexts/AIAdvisorContext';
 
 export const AIAdvisorWidget = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const { isOpen, setIsOpen } = useAIAdvisorContext();
 
   return (
     <>
@@ -17,12 +16,11 @@ export const AIAdvisorWidget = () => {
             animate={{ 
               opacity: 1, 
               scale: 1, 
-              y: 0,
-              height: isMinimized ? 'auto' : '600px'
+              y: 0
             }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: "spring", bounce: 0.3, duration: 0.5 }}
-            className="fixed bottom-24 right-6 z-50 w-[900px] bg-card/95 backdrop-blur-xl border border-border/50 rounded-3xl shadow-2xl overflow-hidden"
+            className="fixed bottom-24 right-6 z-50 w-[900px] h-[600px] bg-card/95 backdrop-blur-xl border border-border/50 rounded-3xl shadow-2xl overflow-hidden"
           >
             <div className="relative flex items-center justify-between px-6 py-4 bg-gradient-to-r from-ai-gradient-start/10 via-ai-gradient-end/5 to-transparent border-b border-border/50">
               <div className="flex items-center gap-3">
@@ -40,7 +38,7 @@ export const AIAdvisorWidget = () => {
                   <Sparkles className="h-5 w-5 text-white" />
                 </motion.div>
                 <div>
-                  <h3 className="font-semibold text-foreground">CS Advisor</h3>
+                  <h3 className="font-semibold text-foreground">Samir Vision</h3>
                   <motion.p 
                     className="text-xs text-muted-foreground"
                     animate={{ opacity: [0.5, 1, 0.5] }}
@@ -54,14 +52,6 @@ export const AIAdvisorWidget = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setIsMinimized(!isMinimized)}
-                  className="h-8 w-8 p-0 hover:bg-muted/50"
-                >
-                  <Minimize2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
                   onClick={() => setIsOpen(false)}
                   className="h-8 w-8 p-0 hover:bg-muted/50"
                 >
@@ -70,9 +60,7 @@ export const AIAdvisorWidget = () => {
               </div>
             </div>
             
-            {!isMinimized && (
-              <AIAdvisorChat />
-            )}
+            <AIAdvisorChat />
           </motion.div>
         )}
       </AnimatePresence>
@@ -105,7 +93,7 @@ export const AIAdvisorWidget = () => {
               exit={{ opacity: 0, y: -10 }}
               className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-gradient-to-r from-ai-gradient-start to-ai-gradient-end text-white text-[10px] font-medium shadow-lg whitespace-nowrap"
             >
-              Powered by AI
+              Samir Vision
             </motion.div>
           )}
         </AnimatePresence>
