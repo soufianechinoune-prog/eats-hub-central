@@ -4,21 +4,23 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Clock, Calendar, TrendingUp, Award, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Clock, Calendar, Award, AlertTriangle, Euro } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
+import { OpeningHoursInsights } from "@/components/compare/OpeningHoursInsights";
+import { TimeSlotAnalysis } from "@/components/compare/TimeSlotAnalysis";
 
 const DAY_LABELS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
 const OpeningHoursComparison = () => {
   const navigate = useNavigate();
   const lastMonth = useMemo(() => subMonths(new Date(), 1), []);
-  const revenueYear = lastMonth.getFullYear();
-  const revenueMonth = lastMonth.getMonth() + 1;
+  const startDate = format(startOfMonth(lastMonth), "yyyy-MM-dd");
+  const endDate = format(endOfMonth(lastMonth), "yyyy-MM-dd");
 
   // Fetch pinned restaurants
   const { data: pinnedRestaurants, isLoading: loadingRestaurants } = useQuery({
@@ -51,21 +53,36 @@ const OpeningHoursComparison = () => {
     enabled: !!pinnedRestaurants?.length,
   });
 
-  // Fetch revenue data for last month
+  // Fetch revenue data from daily_sales_uber (has actual data) instead of monthly_revenue (empty)
   const { data: revenueData, isPending: pendingRevenue, isFetching: fetchingRevenue } = useQuery({
-    queryKey: ["opening-hours-revenue", pinnedRestaurants?.map(r => r.id), revenueYear, revenueMonth],
+    queryKey: ["opening-hours-revenue-daily", pinnedRestaurants?.map(r => r.id), startDate, endDate],
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
       
       const { data, error } = await supabase
-        .from("monthly_revenue")
-        .select("restaurant_id, revenue_ttc, order_count")
+        .from("daily_sales_uber")
+        .select("restaurant_id, revenue_ttc, order_count, date")
         .in("restaurant_id", pinnedRestaurants.map(r => r.id))
-        .eq("year", revenueYear)
-        .eq("month", revenueMonth);
+        .gte("date", startDate)
+        .lte("date", endDate);
       
       if (error) throw error;
-      return data || [];
+      
+      // Aggregate by restaurant
+      const aggregated = (data || []).reduce((acc, row) => {
+        if (!acc[row.restaurant_id]) {
+          acc[row.restaurant_id] = { revenue_ttc: 0, order_count: 0 };
+        }
+        acc[row.restaurant_id].revenue_ttc += row.revenue_ttc || 0;
+        acc[row.restaurant_id].order_count += row.order_count || 0;
+        return acc;
+      }, {} as Record<string, { revenue_ttc: number; order_count: number }>);
+      
+      return Object.entries(aggregated).map(([restaurant_id, stats]) => ({
+        restaurant_id,
+        revenue_ttc: stats.revenue_ttc,
+        order_count: stats.order_count
+      }));
     },
     enabled: !!pinnedRestaurants?.length,
   });
@@ -76,7 +93,7 @@ const OpeningHoursComparison = () => {
     
     const stats = pinnedRestaurants.map(restaurant => {
       const restaurantHours = openingHoursData.filter(h => h.restaurant_id === restaurant.id);
-      const restaurantRevenue = revenueData?.filter(r => r.restaurant_id === restaurant.id) || [];
+      const restaurantRevenue = revenueData?.find(r => r.restaurant_id === restaurant.id);
       
       // Calculate total hours per platform
       const calculateHours = (slots: typeof restaurantHours) => {
@@ -105,8 +122,8 @@ const OpeningHoursComparison = () => {
       const missingDays = [0, 1, 2, 3, 4, 5, 6].filter(day => !allDays.has(day));
       
       // Revenue calculations
-      const totalRevenue = restaurantRevenue.reduce((sum, r) => sum + (r.revenue_ttc || 0), 0);
-      const totalOrders = restaurantRevenue.reduce((sum, r) => sum + (r.order_count || 0), 0);
+      const totalRevenue = restaurantRevenue?.revenue_ttc || 0;
+      const totalOrders = restaurantRevenue?.order_count || 0;
       const hoursPerMonth = totalHoursPerWeek * 4.3;
       const revenuePerHour = hoursPerMonth > 0 ? totalRevenue / hoursPerMonth : 0;
       
@@ -131,15 +148,20 @@ const OpeningHoursComparison = () => {
 
   // Global KPIs
   const globalStats = useMemo(() => {
-    if (!restaurantStats.length) return { avgHours: 0, avgRevenuePerHour: 0, totalRestaurants: 0 };
+    if (!restaurantStats.length) return { avgHours: 0, avgRevenuePerHour: 0, totalRestaurants: 0, totalRevenue: 0 };
     
     const avgHours = restaurantStats.reduce((sum, r) => sum + r.totalHoursPerWeek, 0) / restaurantStats.length;
-    const avgRevenuePerHour = restaurantStats.reduce((sum, r) => sum + r.revenuePerHour, 0) / restaurantStats.length;
+    const restaurantsWithRevenue = restaurantStats.filter(r => r.revenuePerHour > 0);
+    const avgRevenuePerHour = restaurantsWithRevenue.length > 0 
+      ? restaurantsWithRevenue.reduce((sum, r) => sum + r.revenuePerHour, 0) / restaurantsWithRevenue.length
+      : 0;
+    const totalRevenue = restaurantStats.reduce((sum, r) => sum + r.totalRevenue, 0);
     
     return {
       avgHours: Math.round(avgHours * 10) / 10,
       avgRevenuePerHour: Math.round(avgRevenuePerHour),
       totalRestaurants: restaurantStats.length,
+      totalRevenue,
     };
   }, [restaurantStats]);
 
@@ -162,7 +184,7 @@ const OpeningHoursComparison = () => {
   // Debug logs for query states (log on change, not every render)
   useEffect(() => {
     console.debug("[OpeningHoursComparison] Query states:", {
-      period: { year: revenueYear, month: revenueMonth },
+      period: { startDate, endDate },
       pinnedRestaurants: {
         count: pinnedRestaurants?.length ?? 0,
         loading: loadingRestaurants,
@@ -178,12 +200,13 @@ const OpeningHoursComparison = () => {
         pending: pendingRevenue,
         fetching: fetchingRevenue,
         enabled: !!pinnedRestaurants?.length,
+        totalRevenue: revenueData?.reduce((sum, r) => sum + (r.revenue_ttc || 0), 0) || 0,
       },
       restaurantStats: restaurantStats.length,
     });
   }, [
-    revenueYear,
-    revenueMonth,
+    startDate,
+    endDate,
     loadingRestaurants,
     pinnedRestaurants?.length,
     pendingHours,
@@ -191,7 +214,7 @@ const OpeningHoursComparison = () => {
     openingHoursData?.length,
     pendingRevenue,
     fetchingRevenue,
-    revenueData?.length,
+    revenueData,
     restaurantStats.length,
   ]);
 
@@ -214,9 +237,9 @@ const OpeningHoursComparison = () => {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Comparaison Horaires</h1>
+              <h1 className="text-2xl font-bold">Analyse des Horaires</h1>
               <p className="text-muted-foreground text-sm">
-                Analyse comparative des horaires d'ouverture du réseau
+                Optimisation des horaires d'ouverture et revenus par créneau
               </p>
             </div>
           </div>
@@ -251,9 +274,12 @@ const OpeningHoursComparison = () => {
                 <CardContent className="pt-6">
                   <div>
                     <p className="text-sm text-muted-foreground">CA moyen / heure</p>
-                    <p className="text-3xl font-bold">{globalStats.avgRevenuePerHour}€</p>
+                    <p className="text-3xl font-bold flex items-center gap-2">
+                      <Euro className="h-6 w-6 text-primary" />
+                      {globalStats.avgRevenuePerHour}€
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {globalStats.avgRevenuePerHour >= 30 ? "Excellent" : globalStats.avgRevenuePerHour >= 15 ? "Correct" : "À optimiser"}
+                      {globalStats.avgRevenuePerHour >= 30 ? "✅ Excellent" : globalStats.avgRevenuePerHour >= 15 ? "⚡ Correct" : globalStats.avgRevenuePerHour > 0 ? "⚠️ À optimiser" : "Données manquantes"}
                     </p>
                   </div>
                 </CardContent>
@@ -286,7 +312,14 @@ const OpeningHoursComparison = () => {
               </Card>
             </div>
 
-            {/* Ranking + Heatmap */}
+            {/* NOUVEAU: Section Insights intelligents */}
+            <OpeningHoursInsights 
+              restaurantStats={restaurantStats}
+              networkAvgRevenuePerHour={globalStats.avgRevenuePerHour}
+              networkAvgHours={globalStats.avgHours}
+            />
+
+            {/* Ranking + Time Slot Analysis + Heatmap */}
             <div className="grid lg:grid-cols-2 gap-6">
               {/* Ranking */}
               <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
@@ -349,9 +382,10 @@ const OpeningHoursComparison = () => {
                               "font-medium",
                               resto.revenuePerHour >= 30 ? "text-green-600" :
                               resto.revenuePerHour >= 15 ? "text-amber-600" :
-                              "text-muted-foreground"
+                              resto.revenuePerHour > 0 ? "text-muted-foreground" :
+                              "text-muted-foreground/50"
                             )}>
-                              {resto.revenuePerHour}€
+                              {resto.revenuePerHour > 0 ? `${resto.revenuePerHour}€` : "—"}
                             </span>
                           </TableCell>
                         </TableRow>
@@ -368,105 +402,82 @@ const OpeningHoursComparison = () => {
                 </CardContent>
               </Card>
 
-              {/* Heatmap - Days Coverage */}
-              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-primary" />
-                    Couverture par jour
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {/* Header */}
-                    <div className="grid grid-cols-8 gap-1 text-xs font-medium text-muted-foreground">
-                      <div></div>
-                      {DAY_LABELS.map(day => (
-                        <div key={day} className="text-center">{day}</div>
-                      ))}
-                    </div>
-                    
-                    {/* Rows */}
-                    {heatmapData.map(row => (
-                      <div key={row.name} className="grid grid-cols-8 gap-1 items-center">
-                        <div className="text-xs font-medium truncate pr-2" title={row.name}>
-                          {row.name.length > 12 ? row.name.slice(0, 12) + "..." : row.name}
-                        </div>
-                        {row.days.map(cell => (
-                          <div
-                            key={cell.day}
-                            className={cn(
-                              "h-8 rounded flex items-center justify-center text-xs",
-                              cell.uber && cell.deliveroo && "bg-green-500/30 text-green-700 dark:text-green-400",
-                              cell.uber && !cell.deliveroo && "bg-uber/30 text-uber",
-                              !cell.uber && cell.deliveroo && "bg-deliveroo/30 text-deliveroo",
-                              !cell.covered && "bg-muted/50 text-muted-foreground"
-                            )}
-                            title={
-                              cell.uber && cell.deliveroo ? "Uber + Deliveroo" :
-                              cell.uber ? "Uber Eats uniquement" :
-                              cell.deliveroo ? "Deliveroo uniquement" :
-                              "Non couvert"
-                            }
-                          >
-                            {cell.uber && cell.deliveroo ? "✓✓" : cell.covered ? "✓" : "—"}
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                    
-                    {/* Legend */}
-                    <div className="flex items-center gap-4 pt-4 text-xs text-muted-foreground border-t mt-4">
-                      <div className="flex items-center gap-1">
-                        <div className="w-4 h-4 rounded bg-green-500/30"></div>
-                        <span>Uber + Deliveroo</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-4 h-4 rounded bg-uber/30"></div>
-                        <span>Uber seul</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-4 h-4 rounded bg-deliveroo/30"></div>
-                        <span>Deliveroo seul</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-4 h-4 rounded bg-muted/50"></div>
-                        <span>Non couvert</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* NOUVEAU: Time Slot Analysis */}
+              <TimeSlotAnalysis 
+                openingHoursData={openingHoursData || []}
+                restaurantStats={restaurantStats}
+              />
             </div>
 
-            {/* Suggestions */}
-            {restaurantStats.some(r => r.revenuePerHour >= 30 && r.totalHoursPerWeek < 70) && (
-              <Card className="backdrop-blur-xl bg-green-500/5 border-green-500/30 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2 text-green-700 dark:text-green-400">
-                    <TrendingUp className="h-5 w-5" />
-                    Opportunités d'extension
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {restaurantStats
-                      .filter(r => r.revenuePerHour >= 30 && r.totalHoursPerWeek < 70)
-                      .map(r => (
-                        <li key={r.id} className="text-sm flex items-center gap-2">
-                          <Badge variant="outline" className="bg-green-500/10">
-                            {r.revenuePerHour}€/h
-                          </Badge>
-                          <span className="font-medium">{r.name}</span>
-                          <span className="text-muted-foreground">
-                            - CA/h élevé avec seulement {r.totalHoursPerWeek}h/sem
-                          </span>
-                        </li>
+            {/* Heatmap - Days Coverage */}
+            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  Couverture par jour et par restaurant
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {/* Header */}
+                  <div className="grid grid-cols-8 gap-1 text-xs font-medium text-muted-foreground">
+                    <div></div>
+                    {DAY_LABELS.map(day => (
+                      <div key={day} className="text-center">{day}</div>
+                    ))}
+                  </div>
+                  
+                  {/* Rows */}
+                  {heatmapData.map(row => (
+                    <div key={row.name} className="grid grid-cols-8 gap-1 items-center">
+                      <div className="text-xs font-medium truncate pr-2" title={row.name}>
+                        {row.name.length > 12 ? row.name.slice(0, 12) + "..." : row.name}
+                      </div>
+                      {row.days.map(cell => (
+                        <div
+                          key={cell.day}
+                          className={cn(
+                            "h-8 rounded flex items-center justify-center text-xs",
+                            cell.uber && cell.deliveroo && "bg-green-500/30 text-green-700 dark:text-green-400",
+                            cell.uber && !cell.deliveroo && "bg-uber/30 text-uber",
+                            !cell.uber && cell.deliveroo && "bg-deliveroo/30 text-deliveroo",
+                            !cell.covered && "bg-muted/50 text-muted-foreground"
+                          )}
+                          title={
+                            cell.uber && cell.deliveroo ? "Uber + Deliveroo" :
+                            cell.uber ? "Uber Eats uniquement" :
+                            cell.deliveroo ? "Deliveroo uniquement" :
+                            "Non couvert"
+                          }
+                        >
+                          {cell.uber && cell.deliveroo ? "✓✓" : cell.covered ? "✓" : "—"}
+                        </div>
                       ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
+                    </div>
+                  ))}
+                  
+                  {/* Legend */}
+                  <div className="flex items-center gap-4 pt-4 text-xs text-muted-foreground border-t mt-4">
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-4 rounded bg-green-500/30"></div>
+                      <span>Uber + Deliveroo</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-4 rounded bg-uber/30"></div>
+                      <span>Uber seul</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-4 rounded bg-deliveroo/30"></div>
+                      <span>Deliveroo seul</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-4 rounded bg-muted/50"></div>
+                      <span>Non couvert</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
