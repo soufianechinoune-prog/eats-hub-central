@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Calendar, Star, TrendingUp, TrendingDown, Award } from "lucide-react";
+import { ArrowLeft, Calendar, Star, TrendingUp, Award, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,16 +12,15 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { cn } from "@/lib/utils";
+import { RatingsHeatmapGrid } from "@/components/compare/RatingsHeatmapGrid";
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
   Legend,
   Cell,
 } from "recharts";
@@ -410,55 +409,20 @@ const RatingsComparison = () => {
                 </CardContent>
               </Card>
 
-              {/* Evolution Chart */}
+              {/* Heatmap Evolution */}
               <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    Évolution des notes
+                    <BarChart3 className="h-5 w-5 text-primary" />
+                    Performance par période
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {evolutionData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={evolutionData}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                        <XAxis 
-                          dataKey="displayDate" 
-                          className="text-xs" 
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
-                        <YAxis 
-                          domain={[0, 5]} 
-                          className="text-xs"
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'hsl(var(--card))', 
-                            borderColor: 'hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                        />
-                        <Legend />
-                        {restaurantStats.slice(0, 5).map((resto, idx) => (
-                          <Line
-                            key={resto.id}
-                            type="monotone"
-                            dataKey={resto.name}
-                            stroke={COLORS[idx % COLORS.length]}
-                            strokeWidth={2}
-                            dot={{ r: 3 }}
-                            activeDot={{ r: 5 }}
-                          />
-                        ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                      Aucune donnée disponible
-                    </div>
-                  )}
+                  <RatingsHeatmapGrid 
+                    data={restaurantStats} 
+                    dateRange={dateRange} 
+                    period={period}
+                  />
                 </CardContent>
               </Card>
             </div>
