@@ -1,9 +1,9 @@
 import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import type { DateRange } from "react-day-picker";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Star, Clock, TrendingDown, Percent, DollarSign, PauseCircle, Award, Euro, FileDown, FileSpreadsheet, ChevronRight } from "lucide-react";
@@ -12,8 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
-
-type PeriodOption = "previous_week" | "7d" | "30d" | "current_month" | "year";
+import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 
 // Formater les minutes en "X min Y s" (ex: 4.5 → "4 min 30 s")
 const formatMinutesToTime = (minutes: number | null | undefined): string | null => {
@@ -36,19 +35,22 @@ const formatHoursToTime = (hours: number | null | undefined): string | null => {
 };
 
 const Overview = () => {
-  const [period, setPeriod] = useState<PeriodOption>("previous_week");
+  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("previous_week");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [rankingTab, setRankingTab] = useState<"rating" | "revenue" | "profitability">("rating");
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
   const { exportToPdf, exportToExcel, isExporting } = useOverviewExport();
 
   // Calculate date range based on selected period
-  const getDateRange = () => {
+  const getDateRangeFromPeriod = () => {
     const now = new Date();
-    let startDate = new Date();
-    let endDate = new Date();
+    let start = new Date();
+    let end = new Date();
     
-    switch (period) {
+    switch (periodMode) {
       case "previous_week":
         // Find last Sunday (end of previous week)
         const dayOfWeek = now.getDay(); // 0 = Sunday
@@ -62,31 +64,42 @@ const Overview = () => {
         lastMonday.setDate(lastSunday.getDate() - 6);
         lastMonday.setHours(0, 0, 0, 0);
         
-        startDate = lastMonday;
-        endDate = lastSunday;
+        start = lastMonday;
+        end = lastSunday;
         break;
       case "7d":
-        startDate.setDate(now.getDate() - 7);
-        endDate = now;
+        start.setDate(now.getDate() - 7);
+        end = now;
         break;
       case "30d":
-        startDate.setDate(now.getDate() - 30);
-        endDate = now;
+        start.setDate(now.getDate() - 30);
+        end = now;
         break;
       case "current_month":
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = now;
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = now;
         break;
       case "year":
-        startDate = new Date(now.getFullYear(), 0, 1);
-        endDate = now;
+        start = new Date(selectedYear, 0, 1);
+        end = new Date(selectedYear, 11, 31);
+        break;
+      case "custom_month":
+        start = new Date(selectedYear, selectedMonth - 1, 1);
+        end = new Date(selectedYear, selectedMonth, 0); // Last day of month
+        break;
+      case "custom_range":
+        if (dateRange?.from && dateRange?.to) {
+          start = dateRange.from;
+          end = dateRange.to;
+        }
         break;
     }
     
-    return { startDate, endDate };
+    return { startDate: start, endDate: end };
   };
 
-  const { startDate, endDate } = getDateRange();
+
+  const { startDate, endDate } = getDateRangeFromPeriod();
 
   // Format dates for queries
   const startDateStr = startDate.toISOString().split('T')[0];
@@ -94,7 +107,7 @@ const Overview = () => {
 
   // Fetch network health data
   const { data: networkData, isLoading, error } = useQuery({
-    queryKey: ["network-health", period, startDateStr, endDateStr],
+    queryKey: ["network-health", periodMode, selectedYear, selectedMonth, dateRange?.from?.toISOString(), dateRange?.to?.toISOString(), startDateStr, endDateStr],
     queryFn: async () => {
       console.log("Fetching network health data for period:", startDateStr, "to", endDateStr);
       
@@ -353,13 +366,25 @@ const Overview = () => {
 
   console.log("Query state - isLoading:", isLoading, "error:", error, "data:", networkData);
 
+  const MONTHS_FULL = [
+    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+  ];
+
   const getPeriodLabel = () => {
-    switch (period) {
+    switch (periodMode) {
       case "previous_week": return "Semaine précédente";
       case "7d": return "7 derniers jours";
       case "30d": return "30 derniers jours";
       case "current_month": return "Mois en cours";
-      case "year": return "Année en cours";
+      case "year": return `${selectedYear}`;
+      case "custom_month": return `${MONTHS_FULL[selectedMonth - 1]} ${selectedYear}`;
+      case "custom_range": 
+        if (dateRange?.from && dateRange?.to) {
+          return `${dateRange.from.toLocaleDateString('fr-FR')} – ${dateRange.to.toLocaleDateString('fr-FR')}`;
+        }
+        return "Période personnalisée";
+      default: return "Période";
     }
   };
 
@@ -439,18 +464,16 @@ const Overview = () => {
             <FileSpreadsheet className="h-4 w-4" />
             Excel
           </Button>
-          <Select value={period} onValueChange={(v) => setPeriod(v as PeriodOption)}>
-            <SelectTrigger className="w-[240px] h-12 border-2 bg-background/50 backdrop-blur">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="previous_week">Semaine précédente</SelectItem>
-              <SelectItem value="7d">7 derniers jours</SelectItem>
-              <SelectItem value="30d">30 derniers jours</SelectItem>
-              <SelectItem value="current_month">Mois en cours</SelectItem>
-              <SelectItem value="year">Année en cours</SelectItem>
-            </SelectContent>
-          </Select>
+          <OverviewPeriodSelector
+            periodMode={periodMode}
+            onPeriodModeChange={setPeriodMode}
+            selectedYear={selectedYear}
+            onYearChange={setSelectedYear}
+            selectedMonth={selectedMonth}
+            onMonthChange={setSelectedMonth}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+          />
         </div>
       </div>
 
