@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { 
@@ -11,8 +12,11 @@ import {
   Target,
   ArrowUpRight,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Bot,
+  Loader2
 } from "lucide-react";
+import { useAIAdvisor } from "@/hooks/useAIAdvisor";
 
 interface Restaurant {
   id: string;
@@ -62,6 +66,51 @@ export const HourlyOpportunitiesAnalysis = ({
   startDate, 
   endDate 
 }: HourlyOpportunitiesAnalysisProps) => {
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const { sendMessage } = useAIAdvisor();
+
+  // Generate AI analysis prompt from current data
+  const handleAnalyzeWithAI = async () => {
+    if (!restaurantPerformance.length) return;
+    
+    setIsAnalyzing(true);
+    
+    try {
+      // Build contextualized prompt with performance data
+      const performanceLines = restaurantPerformance.map(({ restaurant, slotPerformance, totalOrders, totalRevenue }) => {
+        const slotDetails = slotPerformance
+          .filter(s => s.orders > 0)
+          .map(s => `  - ${s.label} (${s.range}) : ${s.orders} cmd (${s.revenuePercent}% CA)${s.revenuePercent >= 30 ? " ← point fort" : s.revenuePercent < 10 && s.orders > 0 ? " ← opportunité ?" : ""}`)
+          .join("\n");
+        
+        return `**${restaurant.name}** : ${totalOrders} commandes, ${totalRevenue.toLocaleString()}€\n${slotDetails}`;
+      }).join("\n\n");
+
+      const opportunitiesLines = extensionOpportunities.length > 0
+        ? "\n\n**Opportunités d'extension détectées :**\n" + extensionOpportunities.map(opp => 
+            `- ${opp.restaurant.name} pourrait gagner +${opp.estimatedOrders} cmd (~${opp.estimatedRevenue}€) en restant ouvert jusqu'à ${opp.potentialHours.map(h => `${h}h`).join(", ")}`
+          ).join("\n")
+        : "";
+
+      const prompt = `Voici les données de performance par créneau horaire de mes restaurants du ${startDate} au ${endDate} :
+
+${performanceLines}
+${opportunitiesLines}
+
+Analyse ces données et donne-moi des recommandations concrètes pour optimiser les horaires d'ouverture. Identifie :
+1. Les créneaux sous-exploités par restaurant
+2. Les opportunités d'extension horaire les plus rentables
+3. Des actions concrètes à mettre en place
+
+Sois précis et actionnable.`;
+
+      await sendMessage(prompt);
+    } catch (error) {
+      console.error("Error sending AI analysis:", error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
   
   // Fetch hourly order data from order_history
   const { data: hourlyData, isLoading } = useQuery({
@@ -380,10 +429,29 @@ export const HourlyOpportunitiesAnalysis = ({
       {/* Performance by Time Slot */}
       <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Performance par créneau horaire
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Performance par créneau horaire
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAnalyzeWithAI}
+              disabled={isAnalyzing}
+              className="gap-2 bg-gradient-to-r from-violet-500/10 to-purple-500/10 border-violet-500/30 hover:border-violet-500/50 hover:bg-violet-500/20 transition-all"
+            >
+              {isAnalyzing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Bot className="h-4 w-4 text-violet-600" />
+              )}
+              <span className="text-violet-700 dark:text-violet-400">Analyser avec Jiminy</span>
+              <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 bg-violet-500/20 text-violet-600 border-violet-500/30">
+                IA
+              </Badge>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -404,9 +472,9 @@ export const HourlyOpportunitiesAnalysis = ({
             <TableBody>
               {restaurantPerformance.slice(0, 8).map(({ restaurant, slotPerformance, totalOrders, totalRevenue }) => (
                 <TableRow key={restaurant.id} className="hover:bg-muted/50 transition-colors border-border/30">
-                  <TableCell className="font-medium">
-                    <span className="truncate max-w-[120px] block" title={restaurant.name}>
-                      {restaurant.name.length > 18 ? restaurant.name.slice(0, 18) + "..." : restaurant.name}
+                  <TableCell className="font-medium min-w-[200px]">
+                    <span className="block" title={restaurant.name}>
+                      {restaurant.name}
                     </span>
                   </TableCell>
                   {slotPerformance.map(slot => (
