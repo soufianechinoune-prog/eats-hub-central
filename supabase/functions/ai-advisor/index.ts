@@ -78,6 +78,48 @@ Deno.serve(async (req) => {
       .select('id, name, name_uber, name_deliveroo, price_uber, price_deliveroo, category, food_cost, is_active')
       .eq('is_active', true);
 
+    // Get opening hours for all restaurants
+    const { data: openingHours } = await supabase
+      .from('restaurant_opening_hours')
+      .select('restaurant_id, platform, day_of_week, start_time, end_time, is_overnight');
+
+    // Process opening hours to calculate total hours per restaurant/platform
+    const processedOpeningHours = (openingHours || []).reduce((acc: any, slot: any) => {
+      const key = `${slot.restaurant_id}_${slot.platform}`;
+      if (!acc[key]) {
+        acc[key] = {
+          restaurant_id: slot.restaurant_id,
+          platform: slot.platform,
+          slots: [],
+          total_hours_per_week: 0
+        };
+      }
+      
+      // Calculate hours for this slot
+      const [startH, startM] = slot.start_time.split(':').map(Number);
+      const [endH, endM] = slot.end_time.split(':').map(Number);
+      let hours = (endH + endM/60) - (startH + startM/60);
+      if (slot.is_overnight || hours < 0) {
+        hours = 24 - (startH + startM/60) + (endH + endM/60);
+      }
+      
+      acc[key].slots.push({
+        day: slot.day_of_week,
+        start: slot.start_time,
+        end: slot.end_time,
+        hours: Math.round(hours * 10) / 10
+      });
+      acc[key].total_hours_per_week += hours;
+      
+      return acc;
+    }, {});
+
+    // Convert to array and round totals
+    const openingHoursSummary = Object.values(processedOpeningHours).map((item: any) => ({
+      ...item,
+      total_hours_per_week: Math.round(item.total_hours_per_week * 10) / 10
+    }));
+
     // Build context for AI
     const contextData = {
       restaurants: restaurants || [],
@@ -86,6 +128,7 @@ Deno.serve(async (req) => {
       fees: feesData || [],
       actions: actionsData || [],
       menuItems: menuItems || [],
+      openingHours: openingHoursSummary,
       currentPeriod: { year: currentYear, month: currentMonth }
     };
 
@@ -98,6 +141,7 @@ Tu as accès aux données suivantes:
 - Données de frais (commissions, marketing, offres, publicité)
 - Historique des actions marketing
 - ${contextData.menuItems.length} produits du catalogue avec prix Uber/Deliveroo (name, price_uber, price_deliveroo, category, food_cost)
+- Horaires d'ouverture par restaurant et plateforme (jours, créneaux, heures totales/semaine)
 
 DONNÉES DISPONIBLES:
 ${JSON.stringify(contextData, null, 2)}
@@ -111,10 +155,20 @@ INSTRUCTIONS:
 - Réponds en français de manière professionnelle et concise
 - Si les données ne permettent pas de répondre, dis-le clairement
 
+ANALYSES HORAIRES D'OUVERTURE:
+- Compare les heures d'ouverture entre restaurants (total heures/semaine)
+- Identifie les restaurants avec peu d'heures d'ouverture vs le reste du réseau
+- Calcule le CA/h d'ouverture = CA mensuel / (heures/semaine × 4)
+- Suggère des extensions d'horaires si le CA/h est élevé
+- Identifie les jours non couverts qui pourraient générer du CA
+- Compare la couverture Uber vs Deliveroo par restaurant
+
 BENCHMARKS:
 - Taux de conversion correct: 5-10%, excellent: >10%, faible: <5%
 - Rentabilité correcte: >60%, moyenne: 40-60%, faible: <40%
-- Panier moyen industrie: 20-30€`;
+- Panier moyen industrie: 20-30€
+- Heures d'ouverture réseau moyen: 50-70h/semaine
+- CA/h d'ouverture correct: 15-25€/h, excellent: >30€/h`;
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
