@@ -50,10 +50,11 @@ const HOUR_LABELS: Record<number, string> = {
 };
 
 const TIME_SLOTS = [
-  { label: "Déjeuner", hours: [11, 12, 13, 14], color: "text-amber-600" },
-  { label: "Dîner", hours: [18, 19, 20, 21], color: "text-blue-600" },
-  { label: "Soirée", hours: [22, 23], color: "text-purple-600" },
-  { label: "Late-night", hours: [0, 1, 2, 3], color: "text-rose-600" },
+  { label: "Déjeuner", hours: [11, 12, 13, 14], color: "text-amber-600", range: "11h-15h" },
+  { label: "Après-midi", hours: [15, 16, 17], color: "text-cyan-600", range: "15h-18h" },
+  { label: "Dîner", hours: [18, 19, 20, 21], color: "text-blue-600", range: "18h-22h" },
+  { label: "Soirée", hours: [22, 23], color: "text-purple-600", range: "22h-00h" },
+  { label: "Late-night", hours: [0, 1, 2, 3], color: "text-rose-600", range: "00h-04h" },
 ];
 
 export const HourlyOpportunitiesAnalysis = ({ 
@@ -255,25 +256,23 @@ export const HourlyOpportunitiesAnalysis = ({
         const totalOrders = slotData.reduce((sum, d) => sum + d.order_count, 0);
         const totalRevenue = slotData.reduce((sum, d) => sum + d.revenue, 0);
         
-        // Calculate network average for this slot
-        const networkSlotOrders = slot.hours.reduce((sum, h) => 
-          sum + (networkAverages[h]?.avgOrders || 0), 0
-        );
-        
-        const vsNetwork = networkSlotOrders > 0 
-          ? Math.round((totalOrders / networkSlotOrders - 1) * 100)
-          : 0;
-        
         return {
           ...slot,
           orders: totalOrders,
           revenue: totalRevenue,
-          vsNetwork,
+          revenuePercent: 0, // Will be calculated after we have totals
         };
       });
 
       const totalOrders = slotPerformance.reduce((sum, s) => sum + s.orders, 0);
       const totalRevenue = slotPerformance.reduce((sum, s) => sum + s.revenue, 0);
+
+      // Calculate % of revenue for each slot
+      slotPerformance.forEach(slot => {
+        slot.revenuePercent = totalRevenue > 0 
+          ? Math.round((slot.revenue / totalRevenue) * 100)
+          : 0;
+      });
 
       return {
         restaurant,
@@ -282,7 +281,7 @@ export const HourlyOpportunitiesAnalysis = ({
         totalRevenue,
       };
     }).sort((a, b) => b.totalRevenue - a.totalRevenue);
-  }, [hourlyData, restaurants, networkAverages]);
+  }, [hourlyData, restaurants]);
 
   if (isLoading) {
     return (
@@ -395,7 +394,7 @@ export const HourlyOpportunitiesAnalysis = ({
                   <TableHead key={slot.label} className={cn("text-center text-xs font-semibold uppercase", slot.color)}>
                     {slot.label}
                     <div className="text-[10px] font-normal text-muted-foreground">
-                      {slot.hours[0]}h-{slot.hours[slot.hours.length - 1] + 1}h
+                      {slot.range}
                     </div>
                   </TableHead>
                 ))}
@@ -416,11 +415,12 @@ export const HourlyOpportunitiesAnalysis = ({
                         <span className="font-semibold">{slot.orders}</span>
                         <span className={cn(
                           "text-xs",
-                          slot.vsNetwork > 10 ? "text-green-600" :
-                          slot.vsNetwork < -10 ? "text-red-500" :
-                          "text-muted-foreground"
+                          slot.revenuePercent >= 30 ? "text-green-600" :
+                          slot.revenuePercent >= 15 ? "text-blue-600" :
+                          slot.revenuePercent > 0 ? "text-muted-foreground" :
+                          "text-muted-foreground/50"
                         )}>
-                          {slot.vsNetwork > 0 ? "+" : ""}{slot.vsNetwork}%
+                          {slot.revenuePercent}% CA
                         </span>
                       </div>
                     </TableCell>
@@ -437,10 +437,10 @@ export const HourlyOpportunitiesAnalysis = ({
           <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <ChevronRight className="h-3 w-3" />
-              % vs moyenne réseau
+              % CA = part du chiffre d'affaires du créneau
             </span>
-            <span className="text-green-600">+10% = surperforme</span>
-            <span className="text-red-500">-10% = sous-performe</span>
+            <span className="text-green-600">≥30% = créneau fort</span>
+            <span className="text-blue-600">≥15% = créneau moyen</span>
           </div>
         </CardContent>
       </Card>
