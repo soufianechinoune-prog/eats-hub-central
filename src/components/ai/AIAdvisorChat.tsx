@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowUp, Loader2, Sparkles, Plus, Trash2, MessageSquare, TrendingUp, Award, Lightbulb, DollarSign, Search, X as XIcon, Zap, MapPin, Star, ThumbsUp, ThumbsDown, Clock, AlertTriangle, CheckCircle, BarChart, Target, AlertCircle, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -84,12 +84,22 @@ export const AIAdvisorChat = () => {
   const [editingTitle, setEditingTitle] = useState('');
   
   // Handle pending message from external components
+  const pendingMessageProcessed = useRef(false);
+  
   useEffect(() => {
-    if (pendingMessage && !isLoading) {
+    if (pendingMessage && !isLoading && !pendingMessageProcessed.current) {
+      pendingMessageProcessed.current = true;
       sendMessage(pendingMessage);
       setPendingMessage(null);
     }
-  }, [pendingMessage, isLoading, sendMessage, setPendingMessage]);
+  }, [pendingMessage, isLoading]);
+  
+  // Reset the flag when pendingMessage changes
+  useEffect(() => {
+    if (!pendingMessage) {
+      pendingMessageProcessed.current = false;
+    }
+  }, [pendingMessage]);
 
   // Get contextual questions based on current page
   const contextualQuestions = pageContext.suggestedQuestions.map(q => ({
