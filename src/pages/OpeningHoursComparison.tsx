@@ -33,7 +33,7 @@ const OpeningHoursComparison = () => {
   });
 
   // Fetch all opening hours for pinned restaurants
-  const { data: openingHoursData, isLoading: loadingHours } = useQuery({
+  const { data: openingHoursData, isPending: pendingHours, isFetching: fetchingHours } = useQuery({
     queryKey: ["opening-hours-comparison", pinnedRestaurants?.map(r => r.id)],
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
@@ -50,7 +50,7 @@ const OpeningHoursComparison = () => {
   });
 
   // Fetch revenue data for last month
-  const { data: revenueData, isLoading: loadingRevenue } = useQuery({
+  const { data: revenueData, isPending: pendingRevenue, isFetching: fetchingRevenue } = useQuery({
     queryKey: ["opening-hours-revenue", pinnedRestaurants?.map(r => r.id), lastMonth],
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
@@ -156,7 +156,31 @@ const OpeningHoursComparison = () => {
   }, [restaurantStats]);
 
   const periodLabel = format(lastMonth, "MMMM yyyy", { locale: fr });
-  const isLoading = loadingRestaurants || loadingHours || loadingRevenue;
+  
+  // Debug logs for query states
+  console.log("[OpeningHoursComparison] Query states:", {
+    pinnedRestaurants: { 
+      count: pinnedRestaurants?.length ?? 0, 
+      loading: loadingRestaurants 
+    },
+    openingHours: { 
+      count: openingHoursData?.length ?? 0, 
+      pending: pendingHours, 
+      fetching: fetchingHours,
+      enabled: !!pinnedRestaurants?.length 
+    },
+    revenue: { 
+      count: revenueData?.length ?? 0, 
+      pending: pendingRevenue, 
+      fetching: fetchingRevenue,
+      enabled: !!pinnedRestaurants?.length 
+    },
+    restaurantStats: restaurantStats.length
+  });
+  
+  // Use isPending for dependent queries - stays true until data arrives
+  const isLoading = loadingRestaurants || 
+    (!!pinnedRestaurants?.length && (pendingHours || pendingRevenue));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
