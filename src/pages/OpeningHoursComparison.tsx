@@ -1,9 +1,10 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, subDays, startOfWeek, endOfWeek, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
 import { ArrowLeft, Clock, Calendar, Award, AlertTriangle, Euro } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,15 +13,78 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { OpeningHoursInsights } from "@/components/compare/OpeningHoursInsights";
-import { TimeSlotAnalysis } from "@/components/compare/TimeSlotAnalysis";
+import { HourlyOpportunitiesAnalysis } from "@/components/compare/HourlyOpportunitiesAnalysis";
+import { OverviewPeriodSelector, OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 
 const DAY_LABELS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
 const OpeningHoursComparison = () => {
   const navigate = useNavigate();
-  const lastMonth = useMemo(() => subMonths(new Date(), 1), []);
-  const startDate = format(startOfMonth(lastMonth), "yyyy-MM-dd");
-  const endDate = format(endOfMonth(lastMonth), "yyyy-MM-dd");
+  
+  // Period state
+  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("30d");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+
+  // Calculate date range based on period mode
+  const { startDate, endDate } = useMemo(() => {
+    const now = new Date();
+    
+    switch (periodMode) {
+      case "previous_week": {
+        const prevWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+        const prevWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+        return {
+          startDate: format(prevWeekStart, "yyyy-MM-dd"),
+          endDate: format(prevWeekEnd, "yyyy-MM-dd"),
+        };
+      }
+      case "7d":
+        return {
+          startDate: format(subDays(now, 7), "yyyy-MM-dd"),
+          endDate: format(now, "yyyy-MM-dd"),
+        };
+      case "30d":
+        return {
+          startDate: format(subDays(now, 30), "yyyy-MM-dd"),
+          endDate: format(now, "yyyy-MM-dd"),
+        };
+      case "current_month":
+        return {
+          startDate: format(startOfMonth(now), "yyyy-MM-dd"),
+          endDate: format(now, "yyyy-MM-dd"),
+        };
+      case "year":
+        return {
+          startDate: `${selectedYear}-01-01`,
+          endDate: `${selectedYear}-12-31`,
+        };
+      case "custom_month": {
+        const monthDate = new Date(selectedYear, selectedMonth - 1, 1);
+        return {
+          startDate: format(startOfMonth(monthDate), "yyyy-MM-dd"),
+          endDate: format(endOfMonth(monthDate), "yyyy-MM-dd"),
+        };
+      }
+      case "custom_range":
+        if (dateRange?.from && dateRange?.to) {
+          return {
+            startDate: format(dateRange.from, "yyyy-MM-dd"),
+            endDate: format(dateRange.to, "yyyy-MM-dd"),
+          };
+        }
+        return {
+          startDate: format(subDays(now, 30), "yyyy-MM-dd"),
+          endDate: format(now, "yyyy-MM-dd"),
+        };
+      default:
+        return {
+          startDate: format(subDays(now, 30), "yyyy-MM-dd"),
+          endDate: format(now, "yyyy-MM-dd"),
+        };
+    }
+  }, [periodMode, selectedYear, selectedMonth, dateRange]);
 
   // Fetch pinned restaurants
   const { data: pinnedRestaurants, isLoading: loadingRestaurants } = useQuery({
@@ -121,7 +185,7 @@ const OpeningHoursComparison = () => {
       const allDays = new Set([...uberDays, ...deliverooDays]);
       const missingDays = [0, 1, 2, 3, 4, 5, 6].filter(day => !allDays.has(day));
       
-      // Revenue calculations
+      // Revenue calculations - adjusted for period length
       const totalRevenue = restaurantRevenue?.revenue_ttc || 0;
       const totalOrders = restaurantRevenue?.order_count || 0;
       const hoursPerMonth = totalHoursPerWeek * 4.3;
@@ -179,12 +243,10 @@ const OpeningHoursComparison = () => {
     }));
   }, [restaurantStats]);
 
-  const periodLabel = format(lastMonth, "MMMM yyyy", { locale: fr });
-
   // Debug logs for query states (log on change, not every render)
   useEffect(() => {
     console.debug("[OpeningHoursComparison] Query states:", {
-      period: { startDate, endDate },
+      period: { startDate, endDate, mode: periodMode },
       pinnedRestaurants: {
         count: pinnedRestaurants?.length ?? 0,
         loading: loadingRestaurants,
@@ -207,6 +269,7 @@ const OpeningHoursComparison = () => {
   }, [
     startDate,
     endDate,
+    periodMode,
     loadingRestaurants,
     pinnedRestaurants?.length,
     pendingHours,
@@ -226,7 +289,7 @@ const OpeningHoursComparison = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -244,10 +307,16 @@ const OpeningHoursComparison = () => {
             </div>
           </div>
           
-          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
-            <Calendar className="h-4 w-4" />
-            <span>Données {periodLabel}</span>
-          </div>
+          <OverviewPeriodSelector
+            periodMode={periodMode}
+            onPeriodModeChange={setPeriodMode}
+            selectedYear={selectedYear}
+            onYearChange={setSelectedYear}
+            selectedMonth={selectedMonth}
+            onMonthChange={setSelectedMonth}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+          />
         </div>
 
         {isLoading ? (
@@ -312,14 +381,21 @@ const OpeningHoursComparison = () => {
               </Card>
             </div>
 
-            {/* NOUVEAU: Section Insights intelligents */}
+            {/* NOUVEAU: Analyse des opportunités horaires basée sur order_history */}
+            <HourlyOpportunitiesAnalysis
+              restaurants={pinnedRestaurants || []}
+              startDate={startDate}
+              endDate={endDate}
+            />
+
+            {/* Section Insights intelligents */}
             <OpeningHoursInsights 
               restaurantStats={restaurantStats}
               networkAvgRevenuePerHour={globalStats.avgRevenuePerHour}
               networkAvgHours={globalStats.avgHours}
             />
 
-            {/* Ranking + Time Slot Analysis + Heatmap */}
+            {/* Ranking + Heatmap */}
             <div className="grid lg:grid-cols-2 gap-6">
               {/* Ranking */}
               <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
@@ -402,82 +478,76 @@ const OpeningHoursComparison = () => {
                 </CardContent>
               </Card>
 
-              {/* NOUVEAU: Time Slot Analysis */}
-              <TimeSlotAnalysis 
-                openingHoursData={openingHoursData || []}
-                restaurantStats={restaurantStats}
-              />
-            </div>
-
-            {/* Heatmap - Days Coverage */}
-            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  Couverture par jour et par restaurant
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {/* Header */}
-                  <div className="grid grid-cols-8 gap-1 text-xs font-medium text-muted-foreground">
-                    <div></div>
-                    {DAY_LABELS.map(day => (
-                      <div key={day} className="text-center">{day}</div>
-                    ))}
-                  </div>
-                  
-                  {/* Rows */}
-                  {heatmapData.map(row => (
-                    <div key={row.name} className="grid grid-cols-8 gap-1 items-center">
-                      <div className="text-xs font-medium truncate pr-2" title={row.name}>
-                        {row.name.length > 12 ? row.name.slice(0, 12) + "..." : row.name}
-                      </div>
-                      {row.days.map(cell => (
-                        <div
-                          key={cell.day}
-                          className={cn(
-                            "h-8 rounded flex items-center justify-center text-xs",
-                            cell.uber && cell.deliveroo && "bg-green-500/30 text-green-700 dark:text-green-400",
-                            cell.uber && !cell.deliveroo && "bg-uber/30 text-uber",
-                            !cell.uber && cell.deliveroo && "bg-deliveroo/30 text-deliveroo",
-                            !cell.covered && "bg-muted/50 text-muted-foreground"
-                          )}
-                          title={
-                            cell.uber && cell.deliveroo ? "Uber + Deliveroo" :
-                            cell.uber ? "Uber Eats uniquement" :
-                            cell.deliveroo ? "Deliveroo uniquement" :
-                            "Non couvert"
-                          }
-                        >
-                          {cell.uber && cell.deliveroo ? "✓✓" : cell.covered ? "✓" : "—"}
-                        </div>
+              {/* Heatmap - Days Coverage */}
+              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    Couverture par jour
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {/* Header */}
+                    <div className="grid grid-cols-8 gap-1 text-xs font-medium text-muted-foreground">
+                      <div></div>
+                      {DAY_LABELS.map(day => (
+                        <div key={day} className="text-center">{day}</div>
                       ))}
                     </div>
-                  ))}
-                  
-                  {/* Legend */}
-                  <div className="flex items-center gap-4 pt-4 text-xs text-muted-foreground border-t mt-4">
-                    <div className="flex items-center gap-1">
-                      <div className="w-4 h-4 rounded bg-green-500/30"></div>
-                      <span>Uber + Deliveroo</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-4 h-4 rounded bg-uber/30"></div>
-                      <span>Uber seul</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-4 h-4 rounded bg-deliveroo/30"></div>
-                      <span>Deliveroo seul</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-4 h-4 rounded bg-muted/50"></div>
-                      <span>Non couvert</span>
+                    
+                    {/* Rows */}
+                    {heatmapData.map(row => (
+                      <div key={row.name} className="grid grid-cols-8 gap-1 items-center">
+                        <div className="text-xs font-medium truncate pr-2" title={row.name}>
+                          {row.name.length > 12 ? row.name.slice(0, 12) + "..." : row.name}
+                        </div>
+                        {row.days.map(cell => (
+                          <div
+                            key={cell.day}
+                            className={cn(
+                              "h-8 rounded flex items-center justify-center text-xs",
+                              cell.uber && cell.deliveroo && "bg-green-500/30 text-green-700 dark:text-green-400",
+                              cell.uber && !cell.deliveroo && "bg-uber/30 text-uber",
+                              !cell.uber && cell.deliveroo && "bg-deliveroo/30 text-deliveroo",
+                              !cell.covered && "bg-muted/50 text-muted-foreground"
+                            )}
+                            title={
+                              cell.uber && cell.deliveroo ? "Uber + Deliveroo" :
+                              cell.uber ? "Uber Eats uniquement" :
+                              cell.deliveroo ? "Deliveroo uniquement" :
+                              "Non couvert"
+                            }
+                          >
+                            {cell.uber && cell.deliveroo ? "✓✓" : cell.covered ? "✓" : "—"}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    
+                    {/* Legend */}
+                    <div className="flex items-center gap-4 pt-4 text-xs text-muted-foreground border-t mt-4">
+                      <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-green-500/30"></div>
+                        <span>Uber + Deliveroo</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-uber/30"></div>
+                        <span>Uber seul</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-deliveroo/30"></div>
+                        <span>Deliveroo seul</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-muted/50"></div>
+                        <span>Non couvert</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )}
       </div>
