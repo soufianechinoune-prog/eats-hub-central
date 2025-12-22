@@ -68,57 +68,28 @@ export const HourlyOpportunitiesAnalysis = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { openWithMessage } = useAIAdvisorContext();
   
-  // Fetch hourly order data from order_history
+  // Fetch hourly order data using RPC function (avoids 1000 row limit)
   const { data: hourlyData, isLoading } = useQuery({
-    queryKey: ["hourly-orders", restaurants.map(r => r.id), startDate, endDate],
+    queryKey: ["hourly-orders-rpc", restaurants.map(r => r.id), startDate, endDate],
     queryFn: async () => {
       if (!restaurants?.length) return [];
       
       const { data, error } = await supabase
-        .from("order_history")
-        .select("restaurant_id, order_datetime, order_amount, order_status")
-        .in("restaurant_id", restaurants.map(r => r.id))
-        .gte("order_datetime", startDate)
-        .lte("order_datetime", endDate)
-        .eq("order_status", "completed");
+        .rpc("get_hourly_order_performance", {
+          p_restaurant_ids: restaurants.map(r => r.id),
+          p_start_date: startDate,
+          p_end_date: endDate,
+        });
       
       if (error) throw error;
       
-      // Group by restaurant and hour
-      const grouped: Record<string, Record<number, { count: number; revenue: number }>> = {};
-      
-      (data || []).forEach(order => {
-        if (!order.order_datetime) return;
-        
-        const date = new Date(order.order_datetime);
-        const hour = date.getHours();
-        const restaurantId = order.restaurant_id;
-        
-        if (!grouped[restaurantId]) {
-          grouped[restaurantId] = {};
-        }
-        if (!grouped[restaurantId][hour]) {
-          grouped[restaurantId][hour] = { count: 0, revenue: 0 };
-        }
-        
-        grouped[restaurantId][hour].count += 1;
-        grouped[restaurantId][hour].revenue += order.order_amount || 0;
-      });
-      
-      // Convert to array format
-      const result: HourlyData[] = [];
-      Object.entries(grouped).forEach(([restaurantId, hours]) => {
-        Object.entries(hours).forEach(([hour, stats]) => {
-          result.push({
-            restaurant_id: restaurantId,
-            hour: parseInt(hour),
-            order_count: stats.count,
-            revenue: stats.revenue,
-          });
-        });
-      });
-      
-      return result;
+      // Convert to expected format
+      return (data || []).map((row: { restaurant_id: string; hour: number; order_count: number; revenue: number }) => ({
+        restaurant_id: row.restaurant_id,
+        hour: row.hour,
+        order_count: Number(row.order_count),
+        revenue: Number(row.revenue),
+      })) as HourlyData[];
     },
     enabled: restaurants?.length > 0,
   });

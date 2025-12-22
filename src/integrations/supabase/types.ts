@@ -2621,6 +2621,19 @@ export type Database = {
           revenue_ttc: number
         }[]
       }
+      get_hourly_order_performance: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          hour: number
+          order_count: number
+          restaurant_id: string
+          revenue: number
+        }[]
+      }
       get_monthly_revenue_from_orders: {
         Args: { p_restaurant_ids?: string[]; p_year: number }
         Returns: {
