@@ -18,19 +18,9 @@ import {
   ShoppingCart,
   Euro,
   ShoppingBag,
-  Radar
 } from "lucide-react";
 import { useAIAdvisorContext } from "@/contexts/AIAdvisorContext";
-import {
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar as RechartsRadar,
-  ResponsiveContainer,
-  Legend,
-  Tooltip,
-} from "recharts";
+import { SlotDetailSheet } from "./SlotDetailSheet";
 
 type DisplayMode = 'orders' | 'revenue' | 'basket';
 
@@ -84,6 +74,10 @@ export const HourlyOpportunitiesAnalysis = ({
 }: HourlyOpportunitiesAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('orders');
+  const [selectedSlot, setSelectedSlot] = useState<{
+    restaurant: Restaurant;
+    slot: typeof TIME_SLOTS[0];
+  } | null>(null);
   const { openWithMessage } = useAIAdvisorContext();
   
   // Fetch hourly order data using RPC function (avoids 1000 row limit)
@@ -572,7 +566,11 @@ Format court et direct, max 150 mots.`;
                     };
                     
                     return (
-                      <TableCell key={slot.label} className="text-center">
+                      <TableCell 
+                        key={slot.label} 
+                        className="text-center cursor-pointer hover:bg-muted/70 transition-colors"
+                        onClick={() => setSelectedSlot({ restaurant, slot })}
+                      >
                         <div className="flex flex-col items-center gap-0.5">
                           {renderContent()}
                           {/* Visual tags for surveillance */}
@@ -638,87 +636,16 @@ Format court et direct, max 150 mots.`;
         </CardContent>
       </Card>
 
-      {/* Radar Chart - Visual comparison */}
-      {restaurantPerformance.length > 0 && (
-        <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Radar className="h-5 w-5 text-primary" />
-              Profil horaire par restaurant
-              <Badge variant="outline" className="ml-2 text-xs">
-                Vue radar
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart
-                  data={TIME_SLOTS.map(slot => {
-                    const dataPoint: Record<string, string | number> = {
-                      slot: slot.label,
-                    };
-                    restaurantPerformance.slice(0, 6).forEach(({ restaurant, slotPerformance }) => {
-                      const slotData = slotPerformance.find(s => s.label === slot.label);
-                      dataPoint[restaurant.name] = slotData?.revenuePercent || 0;
-                    });
-                    return dataPoint;
-                  })}
-                  margin={{ top: 20, right: 30, bottom: 20, left: 30 }}
-                >
-                  <PolarGrid stroke="hsl(var(--border))" />
-                  <PolarAngleAxis 
-                    dataKey="slot" 
-                    tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
-                  />
-                  <PolarRadiusAxis 
-                    angle={90} 
-                    domain={[0, 50]} 
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                    tickFormatter={(value) => `${value}%`}
-                  />
-                  {restaurantPerformance.slice(0, 6).map(({ restaurant }, index) => {
-                    const colors = [
-                      'hsl(var(--primary))',
-                      'hsl(142, 76%, 36%)',
-                      'hsl(217, 91%, 60%)',
-                      'hsl(280, 67%, 54%)',
-                      'hsl(25, 95%, 53%)',
-                      'hsl(339, 82%, 51%)',
-                    ];
-                    return (
-                      <RechartsRadar
-                        key={restaurant.id}
-                        name={restaurant.name}
-                        dataKey={restaurant.name}
-                        stroke={colors[index % colors.length]}
-                        fill={colors[index % colors.length]}
-                        fillOpacity={0.15}
-                        strokeWidth={2}
-                      />
-                    );
-                  })}
-                  <Legend 
-                    wrapperStyle={{ fontSize: '12px' }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                    }}
-                    formatter={(value: number) => [`${value}% du CA`, '']}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              Chaque axe représente un créneau horaire. Plus le point est éloigné du centre, plus le % du CA est élevé.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Slot Detail Sheet */}
+      <SlotDetailSheet
+        open={!!selectedSlot}
+        onOpenChange={(open) => !open && setSelectedSlot(null)}
+        restaurant={selectedSlot?.restaurant || null}
+        slot={selectedSlot?.slot || null}
+        startDate={startDate}
+        endDate={endDate}
+        displayMode={displayMode}
+      />
     </div>
   );
 };
