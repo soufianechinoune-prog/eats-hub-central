@@ -49,6 +49,7 @@ import { ConversionLeakyBucket } from "./ConversionLeakyBucket";
 import { ConversionRankingByStage } from "./ConversionRankingByStage";
 import { ConversionScatterPlot } from "./ConversionScatterPlot";
 import { RevenuePerVisitKPI } from "./RevenuePerVisitKPI";
+import { SelectedRestaurantsRankingChart } from "./SelectedRestaurantsRankingChart";
 import {
   LineChart,
   Line,
@@ -1496,6 +1497,34 @@ export function AnalyticsCharts({
   // Check if drill-down data has comparison data (for rolling period mode)
   const hasDrillDownPrevData = showComparison && drillDownChartData.some(d => d.prevRevenue > 0);
 
+  // Prepare monthly data per restaurant for ranking evolution chart
+  const revenueByRestaurantMonthly = useMemo(() => {
+    if (!revenueData) return [];
+    return revenueData
+      .filter((r: any) => r.restaurant_id && r.month >= startMonth && r.month <= endMonth)
+      .map((r: any) => ({
+        restaurant_id: r.restaurant_id,
+        month: r.month,
+        value: Number(r.revenue_ttc) || 0,
+      }));
+  }, [revenueData, startMonth, endMonth]);
+
+  const conversionByRestaurantMonthly = useMemo(() => {
+    if (!conversionData) return [];
+    return conversionData
+      .filter((r: any) => r.restaurant_id && r.month >= startMonth && r.month <= endMonth)
+      .map((r: any) => ({
+        restaurant_id: r.restaurant_id,
+        month: r.month,
+        value: r.visits > 0 ? (Number(r.orders) / Number(r.visits)) * 100 : 0,
+      }));
+  }, [conversionData, startMonth, endMonth]);
+
+  const formatCurrency = (v: number) => 
+    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+  
+  const formatPercent = (v: number) => `${v.toFixed(1)}%`;
+
   if (!hasData) {
     return (
       <Card>
@@ -1525,6 +1554,32 @@ export function AnalyticsCharts({
   return (
     <div className="space-y-6">
       {/* Actions are now filtered by ActionFilterPopover in parent */}
+
+      {/* Selected Restaurants Ranking Evolution Chart - Revenue */}
+      {showRevenue && selectedRestaurants.length > 0 && (
+        <SelectedRestaurantsRankingChart
+          restaurants={restaurants}
+          selectedRestaurants={selectedRestaurants}
+          monthlyData={revenueByRestaurantMonthly}
+          metricLabel="du CA"
+          formatValue={formatCurrency}
+          startMonth={startMonth}
+          endMonth={endMonth}
+        />
+      )}
+
+      {/* Selected Restaurants Ranking Evolution Chart - Conversion */}
+      {showConversion && selectedRestaurants.length > 0 && (
+        <SelectedRestaurantsRankingChart
+          restaurants={restaurants}
+          selectedRestaurants={selectedRestaurants}
+          monthlyData={conversionByRestaurantMonthly}
+          metricLabel="de la conversion"
+          formatValue={formatPercent}
+          startMonth={startMonth}
+          endMonth={endMonth}
+        />
+      )}
 
       {/* Revenue Chart with N-1 comparison */}
       {showRevenue && (
