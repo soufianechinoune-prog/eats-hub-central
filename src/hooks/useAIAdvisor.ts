@@ -79,6 +79,12 @@ export const useAIAdvisor = () => {
   const sendMessage = async (userMessage: string) => {
     if (!userMessage.trim()) return;
 
+    console.log('[useAIAdvisor.sendMessage] start', {
+      userMessageLen: userMessage.length,
+      currentConversationId,
+      existingMessages: messages.length,
+    });
+
     const newUserMessage: Message = { role: 'user', content: userMessage };
     setMessages((prev) => [...prev, newUserMessage]);
     setIsLoading(true);
@@ -93,13 +99,15 @@ export const useAIAdvisor = () => {
           .insert({ title })
           .select()
           .single();
-        
+
         if (newConv) {
           conversationId = newConv.id;
           setCurrentConversationId(conversationId);
           await loadConversations();
         }
       }
+
+      console.log('[useAIAdvisor.sendMessage] conversation', { conversationId });
 
       // Save user message
       if (conversationId) {
@@ -108,32 +116,44 @@ export const useAIAdvisor = () => {
           .insert({
             conversation_id: conversationId,
             role: 'user',
-            content: userMessage
+            content: userMessage,
           });
-        
+
         // Update conversation timestamp
         await supabase
           .from('ai_conversations')
           .update({ updated_at: new Date().toISOString() })
           .eq('id', conversationId);
       }
+
+      const payloadMessages = [...messages, newUserMessage];
+      console.log('[useAIAdvisor.sendMessage] calling ai-advisor', {
+        payloadMessagesCount: payloadMessages.length,
+      });
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-advisor`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({
-            messages: [...messages, newUserMessage],
+            messages: payloadMessages,
           }),
         }
       );
 
+      console.log('[useAIAdvisor.sendMessage] ai-advisor response', {
+        ok: response.ok,
+        status: response.status,
+        hasBody: !!response.body,
+      });
+
       if (!response.ok || !response.body) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erreur de connexion');
+        const error = await response.json().catch(() => ({}));
+        throw new Error((error as any).error || 'Erreur de connexion');
       }
 
       const reader = response.body.getReader();
@@ -141,15 +161,15 @@ export const useAIAdvisor = () => {
       let textBuffer = '';
       let streamDone = false;
       let assistantContent = '';
+      let chunks = 0;
+      let deltas = 0;
 
       const updateAssistantMessage = (content: string) => {
         assistantContent = content;
         setMessages((prev) => {
           const lastMsg = prev[prev.length - 1];
           if (lastMsg?.role === 'assistant') {
-            return prev.map((m, i) => 
-              i === prev.length - 1 ? { ...m, content } : m
-            );
+            return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content } : m));
           }
           return [...prev, { role: 'assistant', content }];
         });
@@ -158,7 +178,8 @@ export const useAIAdvisor = () => {
       while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
+        chunks += 1;
         textBuffer += decoder.decode(value, { stream: true });
 
         let newlineIndex: number;
@@ -180,14 +201,22 @@ export const useAIAdvisor = () => {
             const parsed = JSON.parse(jsonStr);
             const content = parsed.choices?.[0]?.delta?.content as string | undefined;
             if (content) {
+              deltas += 1;
               updateAssistantMessage(assistantContent + content);
             }
           } catch {
+            // Incomplete JSON split across chunks
             textBuffer = line + '\n' + textBuffer;
             break;
           }
         }
       }
+
+      console.log('[useAIAdvisor.sendMessage] stream done', {
+        chunks,
+        deltas,
+        assistantLen: assistantContent.length,
+      });
 
       // Save assistant message
       if (conversationId && assistantContent) {
@@ -213,7 +242,6 @@ export const useAIAdvisor = () => {
       }
 
       setIsLoading(false);
-
     } catch (error: any) {
       console.error('AI Advisor error:', error);
       setMessages((prev) => [

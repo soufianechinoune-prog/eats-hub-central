@@ -84,10 +84,23 @@ export const AIAdvisorChat = () => {
   const [editingTitle, setEditingTitle] = useState('');
   
   // Consume queued message (safe against double effects / remount)
+  const processedQueuedVersionRef = useRef<number>(-1);
+
   useEffect(() => {
     if (isLoading) return;
+    if (queuedVersion <= 0) return;
+
+    // Prevent double-send when React StrictMode / remount triggers effects twice
+    if (processedQueuedVersionRef.current === queuedVersion) {
+      console.log('[AIAdvisorChat] queued message already processed:', { queuedVersion });
+      return;
+    }
+
     const msg = consumeQueuedMessage();
+    console.log('[AIAdvisorChat] consumeQueuedMessage:', { queuedVersion, hasMessage: !!msg });
+
     if (msg) {
+      processedQueuedVersionRef.current = queuedVersion;
       sendMessage(msg);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

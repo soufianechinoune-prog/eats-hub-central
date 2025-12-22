@@ -16,6 +16,7 @@ export const AIAdvisorProvider = ({ children }: { children: ReactNode }) => {
   const [queuedVersion, setQueuedVersion] = useState(0);
 
   const openWithMessage = (message: string) => {
+    console.log('[AIAdvisorContext] openWithMessage', { len: message.length });
     queuedMessageRef.current = message;
     setQueuedVersion((v) => v + 1);
     setIsOpen(true);
@@ -23,6 +24,7 @@ export const AIAdvisorProvider = ({ children }: { children: ReactNode }) => {
 
   const consumeQueuedMessage = () => {
     const msg = queuedMessageRef.current;
+    console.log('[AIAdvisorContext] consumeQueuedMessage', { hasMessage: !!msg });
     queuedMessageRef.current = null;
     return msg;
   };
