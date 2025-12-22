@@ -410,17 +410,18 @@ export const HourlyOpportunitiesAnalysis = ({
                           .join('\n')
                       : '';
 
-                  const prompt = `Voici les données de performance par créneau horaire de mes restaurants du ${startDate} au ${endDate} :
-
+                  const prompt = `Données horaires ${startDate} au ${endDate} :
 ${performanceLines}
 ${opportunitiesLines}
 
-Analyse ces données et donne-moi des recommandations concrètes pour optimiser les horaires d'ouverture. Identifie :
-1. Les créneaux sous-exploités par restaurant
-2. Les opportunités d'extension horaire les plus rentables
-3. Des actions concrètes à mettre en place
+Donne-moi une synthèse en 5 bullet points MAX :
+• Le restaurant prioritaire à optimiser et pourquoi
+• Le gain potentiel estimé (€/mois)
+• L'action concrète à faire cette semaine
+• Un insight surprenant dans les données
+• La prochaine étape recommandée
 
-Sois précis et actionnable.`;
+Format court et direct, max 150 mots.`;
 
                   console.log('[HourlyOpportunitiesAnalysis] openWithMessage(prompt)', {
                     promptLen: prompt.length,
@@ -470,22 +471,50 @@ Sois précis et actionnable.`;
                       {restaurant.name}
                     </span>
                   </TableCell>
-                  {slotPerformance.map(slot => (
-                    <TableCell key={slot.label} className="text-center">
-                      <div className="flex flex-col items-center">
-                        <span className="font-semibold">{slot.orders}</span>
-                        <span className={cn(
-                          "text-xs",
-                          slot.revenuePercent >= 30 ? "text-green-600" :
-                          slot.revenuePercent >= 15 ? "text-blue-600" :
-                          slot.revenuePercent > 0 ? "text-muted-foreground" :
-                          "text-muted-foreground/50"
-                        )}>
-                          {slot.revenuePercent}% CA
-                        </span>
-                      </div>
-                    </TableCell>
-                  ))}
+                  {slotPerformance.map(slot => {
+                    // Check if this slot has an extension opportunity for this restaurant
+                    const hasOpportunity = extensionOpportunities.some(
+                      opp => opp.restaurant.id === restaurant.id && 
+                             slot.hours.some(h => opp.potentialHours.includes(h))
+                    );
+                    // Check if this is a strong slot
+                    const isStrong = slot.revenuePercent >= 30;
+                    // Check if under-exploited (has orders but low share)
+                    const isUnderExploited = slot.orders > 0 && slot.revenuePercent < 10;
+                    
+                    return (
+                      <TableCell key={slot.label} className="text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="font-semibold">{slot.orders}</span>
+                          <span className={cn(
+                            "text-xs",
+                            slot.revenuePercent >= 30 ? "text-green-600" :
+                            slot.revenuePercent >= 15 ? "text-blue-600" :
+                            slot.revenuePercent > 0 ? "text-muted-foreground" :
+                            "text-muted-foreground/50"
+                          )}>
+                            {slot.revenuePercent}% CA
+                          </span>
+                          {/* Visual tags for surveillance */}
+                          {hasOpportunity && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 mt-0.5 bg-amber-500/10 text-amber-600 border-amber-500/30">
+                              À surveiller
+                            </Badge>
+                          )}
+                          {isStrong && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 mt-0.5 bg-green-500/10 text-green-600 border-green-500/30">
+                              Point fort
+                            </Badge>
+                          )}
+                          {isUnderExploited && !hasOpportunity && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 mt-0.5 bg-orange-500/10 text-orange-600 border-orange-500/30">
+                              Sous-exploité
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                    );
+                  })}
                   <TableCell className="text-right">
                     <div className="font-bold">{totalOrders} cmd</div>
                     <div className="text-xs text-muted-foreground">{totalRevenue.toLocaleString()}€</div>
@@ -495,13 +524,20 @@ Sois précis et actionnable.`;
             </TableBody>
           </Table>
           
-          <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <Sparkles className="h-3 w-3" />
-              % CA = part du chiffre d'affaires du créneau
+              % CA = part du CA
             </span>
-            <span className="text-green-600">≥30% = créneau fort</span>
-            <span className="text-blue-600">≥15% = créneau moyen</span>
+            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-green-500/10 text-green-600 border-green-500/30">
+              Point fort
+            </Badge>
+            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-500/10 text-amber-600 border-amber-500/30">
+              À surveiller
+            </Badge>
+            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-500/10 text-orange-600 border-orange-500/30">
+              Sous-exploité
+            </Badge>
           </div>
         </CardContent>
       </Card>
