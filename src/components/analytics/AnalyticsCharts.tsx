@@ -1497,28 +1497,68 @@ export function AnalyticsCharts({
   // Check if drill-down data has comparison data (for rolling period mode)
   const hasDrillDownPrevData = showComparison && drillDownChartData.some(d => d.prevRevenue > 0);
 
-  // Prepare monthly data per restaurant for ranking evolution chart
-  const revenueByRestaurantMonthly = useMemo(() => {
+  // Prepare time series data per restaurant for ranking evolution chart (adaptive granularity)
+  // This provides data in { restaurant_id, date (ISO string), value } format
+  const revenueByRestaurantTimeSeries = useMemo(() => {
     if (!revenueData) return [];
-    return revenueData
-      .filter((r: any) => r.restaurant_id && r.month >= startMonth && r.month <= endMonth)
-      .map((r: any) => ({
-        restaurant_id: r.restaurant_id,
-        month: r.month,
-        value: Number(r.revenue_ttc) || 0,
-      }));
-  }, [revenueData, startMonth, endMonth]);
+    
+    // Check if we have daily data (presence of 'date' field)
+    const hasDailyData = revenueData.length > 0 && 'date' in revenueData[0];
+    
+    if (hasDailyData) {
+      // Use daily data directly - filter to valid entries with restaurant_id and date
+      return revenueData
+        .filter((r: any) => r.restaurant_id && r.date)
+        .map((r: any) => ({
+          restaurant_id: r.restaurant_id,
+          date: r.date, // Already in ISO format
+          value: Number(r.revenue_ttc) || 0,
+        }));
+    } else {
+      // Monthly data - convert month number to ISO date string (first day of month)
+      return revenueData
+        .filter((r: any) => r.restaurant_id && r.month >= startMonth && r.month <= endMonth)
+        .map((r: any) => ({
+          restaurant_id: r.restaurant_id,
+          date: `${selectedYear}-${String(r.month).padStart(2, '0')}-01`,
+          value: Number(r.revenue_ttc) || 0,
+        }));
+    }
+  }, [revenueData, startMonth, endMonth, selectedYear]);
 
-  const conversionByRestaurantMonthly = useMemo(() => {
+  const conversionByRestaurantTimeSeries = useMemo(() => {
     if (!conversionData) return [];
-    return conversionData
-      .filter((r: any) => r.restaurant_id && r.month >= startMonth && r.month <= endMonth)
-      .map((r: any) => ({
-        restaurant_id: r.restaurant_id,
-        month: r.month,
-        value: r.visits > 0 ? (Number(r.orders) / Number(r.visits)) * 100 : 0,
-      }));
-  }, [conversionData, startMonth, endMonth]);
+    
+    // Check if we have daily data (presence of 'date' field)
+    const hasDailyData = conversionData.length > 0 && 'date' in conversionData[0];
+    
+    if (hasDailyData) {
+      // Use daily data directly
+      return conversionData
+        .filter((r: any) => r.restaurant_id && r.date)
+        .map((r: any) => ({
+          restaurant_id: r.restaurant_id,
+          date: r.date,
+          value: r.visits > 0 ? (Number(r.orders) / Number(r.visits)) * 100 : 0,
+        }));
+    } else {
+      // Monthly data
+      return conversionData
+        .filter((r: any) => r.restaurant_id && r.month >= startMonth && r.month <= endMonth)
+        .map((r: any) => ({
+          restaurant_id: r.restaurant_id,
+          date: `${selectedYear}-${String(r.month).padStart(2, '0')}-01`,
+          value: r.visits > 0 ? (Number(r.orders) / Number(r.visits)) * 100 : 0,
+        }));
+    }
+  }, [conversionData, startMonth, endMonth, selectedYear]);
+
+  // Compute startDate and endDate based on period selection
+  const chartDateRange = useMemo(() => {
+    const startDate = new Date(selectedYear, startMonth - 1, 1);
+    const endDate = new Date(selectedYear, endMonth, 0); // Last day of endMonth
+    return { startDate, endDate };
+  }, [selectedYear, startMonth, endMonth]);
 
   const formatCurrency = (v: number) => 
     new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
@@ -1560,11 +1600,12 @@ export function AnalyticsCharts({
         <SelectedRestaurantsRankingChart
           restaurants={restaurants}
           selectedRestaurants={selectedRestaurants}
-          monthlyData={revenueByRestaurantMonthly}
+          timeSeriesData={revenueByRestaurantTimeSeries}
           metricLabel="du CA"
           formatValue={formatCurrency}
-          startMonth={startMonth}
-          endMonth={endMonth}
+          granularity={granularity}
+          startDate={chartDateRange.startDate}
+          endDate={chartDateRange.endDate}
         />
       )}
 
@@ -1573,11 +1614,12 @@ export function AnalyticsCharts({
         <SelectedRestaurantsRankingChart
           restaurants={restaurants}
           selectedRestaurants={selectedRestaurants}
-          monthlyData={conversionByRestaurantMonthly}
+          timeSeriesData={conversionByRestaurantTimeSeries}
           metricLabel="de la conversion"
           formatValue={formatPercent}
-          startMonth={startMonth}
-          endMonth={endMonth}
+          granularity={granularity}
+          startDate={chartDateRange.startDate}
+          endDate={chartDateRange.endDate}
         />
       )}
 
