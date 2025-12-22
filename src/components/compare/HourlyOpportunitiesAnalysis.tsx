@@ -396,24 +396,50 @@ export const HourlyOpportunitiesAnalysis = ({
               onClick={() => {
                 if (isAnalyzing || !restaurantPerformance.length) return;
                 setIsAnalyzing(true);
-                
-                // Build contextualized prompt with performance data
-                const performanceLines = restaurantPerformance.map(({ restaurant, slotPerformance, totalOrders, totalRevenue }) => {
-                  const slotDetails = slotPerformance
-                    .filter(s => s.orders > 0)
-                    .map(s => `  - ${s.label} (${s.range}) : ${s.orders} cmd (${s.revenuePercent}% CA)${s.revenuePercent >= 30 ? " ← point fort" : s.revenuePercent < 10 && s.orders > 0 ? " ← opportunité ?" : ""}`)
-                    .join("\n");
-                  
-                  return `**${restaurant.name}** : ${totalOrders} commandes, ${totalRevenue.toLocaleString()}€\n${slotDetails}`;
-                }).join("\n\n");
 
-                const opportunitiesLines = extensionOpportunities.length > 0
-                  ? "\n\n**Opportunités d'extension détectées :**\n" + extensionOpportunities.map(opp => 
-                      `- ${opp.restaurant.name} pourrait gagner +${opp.estimatedOrders} cmd (~${opp.estimatedRevenue}€) en restant ouvert jusqu'à ${opp.potentialHours.map(h => `${h}h`).join(", ")}`
-                    ).join("\n")
-                  : "";
+                try {
+                  console.log('[HourlyOpportunitiesAnalysis] Samir Vision click', {
+                    restaurants: restaurants.length,
+                    startDate,
+                    endDate,
+                    performanceRows: restaurantPerformance.length,
+                    opportunities: extensionOpportunities.length,
+                  });
 
-                const prompt = `Voici les données de performance par créneau horaire de mes restaurants du ${startDate} au ${endDate} :
+                  // Build contextualized prompt with performance data
+                  const performanceLines = restaurantPerformance
+                    .map(({ restaurant, slotPerformance, totalOrders, totalRevenue }) => {
+                      const slotDetails = slotPerformance
+                        .filter((s) => s.orders > 0)
+                        .map(
+                          (s) =>
+                            `  - ${s.label} (${s.range}) : ${s.orders} cmd (${s.revenuePercent}% CA)${
+                              s.revenuePercent >= 30
+                                ? ' ← point fort'
+                                : s.revenuePercent < 10 && s.orders > 0
+                                  ? ' ← opportunité ?'
+                                  : ''
+                            }`
+                        )
+                        .join('\n');
+
+                      return `**${restaurant.name}** : ${totalOrders} commandes, ${totalRevenue.toLocaleString()}€\n${slotDetails}`;
+                    })
+                    .join('\n\n');
+
+                  const opportunitiesLines =
+                    extensionOpportunities.length > 0
+                      ?
+                        "\n\n**Opportunités d'extension détectées :**\n" +
+                        extensionOpportunities
+                          .map(
+                            (opp) =>
+                              `- ${opp.restaurant.name} pourrait gagner +${opp.estimatedOrders} cmd (~${opp.estimatedRevenue}€) en restant ouvert jusqu'à ${opp.potentialHours.map((h) => `${h}h`).join(', ')}`
+                          )
+                          .join('\n')
+                      : '';
+
+                  const prompt = `Voici les données de performance par créneau horaire de mes restaurants du ${startDate} au ${endDate} :
 
 ${performanceLines}
 ${opportunitiesLines}
@@ -425,8 +451,14 @@ Analyse ces données et donne-moi des recommandations concrètes pour optimiser 
 
 Sois précis et actionnable.`;
 
-                openWithMessage(prompt);
-                setIsAnalyzing(false);
+                  console.log('[HourlyOpportunitiesAnalysis] openWithMessage(prompt)', {
+                    promptLen: prompt.length,
+                  });
+
+                  openWithMessage(prompt);
+                } finally {
+                  setIsAnalyzing(false);
+                }
               }}
               disabled={isAnalyzing}
               className="gap-2 bg-gradient-to-r from-violet-500/10 to-purple-500/10 border-violet-500/30 hover:border-violet-500/50 hover:bg-violet-500/20 transition-all"
