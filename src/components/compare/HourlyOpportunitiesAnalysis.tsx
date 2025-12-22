@@ -17,9 +17,20 @@ import {
   Loader2,
   ShoppingCart,
   Euro,
-  ShoppingBag
+  ShoppingBag,
+  Radar
 } from "lucide-react";
 import { useAIAdvisorContext } from "@/contexts/AIAdvisorContext";
+import {
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar as RechartsRadar,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+} from "recharts";
 
 type DisplayMode = 'orders' | 'revenue' | 'basket';
 
@@ -380,15 +391,15 @@ export const HourlyOpportunitiesAnalysis = ({
                 onValueChange={(v) => v && setDisplayMode(v as DisplayMode)}
                 className="bg-muted/50 rounded-lg p-0.5"
               >
-                <ToggleGroupItem value="orders" aria-label="Commandes" className="gap-1.5 text-xs px-2.5 py-1 data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                <ToggleGroupItem value="orders" aria-label="Commandes" className="gap-1.5 text-xs px-2.5 py-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm">
                   <ShoppingCart className="h-3.5 w-3.5" />
                   Cmd
                 </ToggleGroupItem>
-                <ToggleGroupItem value="revenue" aria-label="Chiffre d'affaires" className="gap-1.5 text-xs px-2.5 py-1 data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                <ToggleGroupItem value="revenue" aria-label="Chiffre d'affaires" className="gap-1.5 text-xs px-2.5 py-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm">
                   <Euro className="h-3.5 w-3.5" />
                   CA
                 </ToggleGroupItem>
-                <ToggleGroupItem value="basket" aria-label="Panier moyen" className="gap-1.5 text-xs px-2.5 py-1 data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                <ToggleGroupItem value="basket" aria-label="Panier moyen" className="gap-1.5 text-xs px-2.5 py-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm">
                   <ShoppingBag className="h-3.5 w-3.5" />
                   Panier
                 </ToggleGroupItem>
@@ -626,6 +637,88 @@ Format court et direct, max 150 mots.`;
           </div>
         </CardContent>
       </Card>
+
+      {/* Radar Chart - Visual comparison */}
+      {restaurantPerformance.length > 0 && (
+        <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Radar className="h-5 w-5 text-primary" />
+              Profil horaire par restaurant
+              <Badge variant="outline" className="ml-2 text-xs">
+                Vue radar
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[400px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart
+                  data={TIME_SLOTS.map(slot => {
+                    const dataPoint: Record<string, string | number> = {
+                      slot: slot.label,
+                    };
+                    restaurantPerformance.slice(0, 6).forEach(({ restaurant, slotPerformance }) => {
+                      const slotData = slotPerformance.find(s => s.label === slot.label);
+                      dataPoint[restaurant.name] = slotData?.revenuePercent || 0;
+                    });
+                    return dataPoint;
+                  })}
+                  margin={{ top: 20, right: 30, bottom: 20, left: 30 }}
+                >
+                  <PolarGrid stroke="hsl(var(--border))" />
+                  <PolarAngleAxis 
+                    dataKey="slot" 
+                    tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
+                  />
+                  <PolarRadiusAxis 
+                    angle={90} 
+                    domain={[0, 50]} 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  {restaurantPerformance.slice(0, 6).map(({ restaurant }, index) => {
+                    const colors = [
+                      'hsl(var(--primary))',
+                      'hsl(142, 76%, 36%)',
+                      'hsl(217, 91%, 60%)',
+                      'hsl(280, 67%, 54%)',
+                      'hsl(25, 95%, 53%)',
+                      'hsl(339, 82%, 51%)',
+                    ];
+                    return (
+                      <RechartsRadar
+                        key={restaurant.id}
+                        name={restaurant.name}
+                        dataKey={restaurant.name}
+                        stroke={colors[index % colors.length]}
+                        fill={colors[index % colors.length]}
+                        fillOpacity={0.15}
+                        strokeWidth={2}
+                      />
+                    );
+                  })}
+                  <Legend 
+                    wrapperStyle={{ fontSize: '12px' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                    }}
+                    formatter={(value: number) => [`${value}% du CA`, '']}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              Chaque axe représente un créneau horaire. Plus le point est éloigné du centre, plus le % du CA est élevé.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
