@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { 
   Clock, 
@@ -13,9 +14,14 @@ import {
   ArrowUpRight,
   Sparkles,
   Eye,
-  Loader2
+  Loader2,
+  ShoppingCart,
+  Euro,
+  ShoppingBag
 } from "lucide-react";
 import { useAIAdvisorContext } from "@/contexts/AIAdvisorContext";
+
+type DisplayMode = 'orders' | 'revenue' | 'basket';
 
 interface Restaurant {
   id: string;
@@ -66,6 +72,7 @@ export const HourlyOpportunitiesAnalysis = ({
   endDate 
 }: HourlyOpportunitiesAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('orders');
   const { openWithMessage } = useAIAdvisorContext();
   
   // Fetch hourly order data using RPC function (avoids 1000 row limit)
@@ -231,11 +238,13 @@ export const HourlyOpportunitiesAnalysis = ({
         const slotData = restaurantData.filter(d => slot.hours.includes(d.hour));
         const totalOrders = slotData.reduce((sum, d) => sum + d.order_count, 0);
         const totalRevenue = slotData.reduce((sum, d) => sum + d.revenue, 0);
+        const avgBasket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
         
         return {
           ...slot,
           orders: totalOrders,
           revenue: totalRevenue,
+          avgBasket,
           revenuePercent: 0, // Will be calculated after we have totals
         };
       });
@@ -250,11 +259,14 @@ export const HourlyOpportunitiesAnalysis = ({
           : 0;
       });
 
+      const avgBasket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
       return {
         restaurant,
         slotPerformance,
         totalOrders,
         totalRevenue,
+        avgBasket,
       };
     }).sort((a, b) => b.totalRevenue - a.totalRevenue);
   }, [hourlyData, restaurants]);
@@ -356,12 +368,32 @@ export const HourlyOpportunitiesAnalysis = ({
       {/* Performance by Time Slot */}
       <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
               Performance par créneau horaire
             </CardTitle>
-            <Button
+            <div className="flex items-center gap-3">
+              <ToggleGroup 
+                type="single" 
+                value={displayMode} 
+                onValueChange={(v) => v && setDisplayMode(v as DisplayMode)}
+                className="bg-muted/50 rounded-lg p-0.5"
+              >
+                <ToggleGroupItem value="orders" aria-label="Commandes" className="gap-1.5 text-xs px-2.5 py-1 data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                  <ShoppingCart className="h-3.5 w-3.5" />
+                  Cmd
+                </ToggleGroupItem>
+                <ToggleGroupItem value="revenue" aria-label="Chiffre d'affaires" className="gap-1.5 text-xs px-2.5 py-1 data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                  <Euro className="h-3.5 w-3.5" />
+                  CA
+                </ToggleGroupItem>
+                <ToggleGroupItem value="basket" aria-label="Panier moyen" className="gap-1.5 text-xs px-2.5 py-1 data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                  <ShoppingBag className="h-3.5 w-3.5" />
+                  Panier
+                </ToggleGroupItem>
+              </ToggleGroup>
+              <Button
               variant="outline"
               size="sm"
               onClick={() => {
@@ -445,6 +477,7 @@ Format court et direct, max 150 mots.`;
                 IA
               </Badge>
             </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -464,7 +497,7 @@ Format court et direct, max 150 mots.`;
               </TableRow>
             </TableHeader>
             <TableBody>
-              {restaurantPerformance.slice(0, 8).map(({ restaurant, slotPerformance, totalOrders, totalRevenue }) => (
+              {restaurantPerformance.slice(0, 8).map(({ restaurant, slotPerformance, totalOrders, totalRevenue, avgBasket }) => (
                 <TableRow key={restaurant.id} className="hover:bg-muted/50 transition-colors border-border/30">
                   <TableCell className="font-medium min-w-[200px]">
                     <span className="block" title={restaurant.name}>
@@ -482,19 +515,55 @@ Format court et direct, max 150 mots.`;
                     // Check if under-exploited (has orders but low share)
                     const isUnderExploited = slot.orders > 0 && slot.revenuePercent < 10;
                     
+                    // Render content based on display mode
+                    const renderContent = () => {
+                      switch (displayMode) {
+                        case 'orders':
+                          return (
+                            <>
+                              <span className="font-semibold">{slot.orders}</span>
+                              <span className={cn(
+                                "text-xs",
+                                slot.revenuePercent >= 30 ? "text-green-600" :
+                                slot.revenuePercent >= 15 ? "text-blue-600" :
+                                slot.revenuePercent > 0 ? "text-muted-foreground" :
+                                "text-muted-foreground/50"
+                              )}>
+                                {slot.revenuePercent}% CA
+                              </span>
+                            </>
+                          );
+                        case 'revenue':
+                          return (
+                            <>
+                              <span className="font-semibold">{slot.revenue.toLocaleString()}€</span>
+                              <span className={cn(
+                                "text-xs",
+                                slot.revenuePercent >= 30 ? "text-green-600" :
+                                slot.revenuePercent >= 15 ? "text-blue-600" :
+                                slot.revenuePercent > 0 ? "text-muted-foreground" :
+                                "text-muted-foreground/50"
+                              )}>
+                                {slot.revenuePercent}%
+                              </span>
+                            </>
+                          );
+                        case 'basket':
+                          return (
+                            <>
+                              <span className="font-semibold">{slot.avgBasket.toFixed(2)}€</span>
+                              <span className="text-xs text-muted-foreground">
+                                {slot.orders} cmd
+                              </span>
+                            </>
+                          );
+                      }
+                    };
+                    
                     return (
                       <TableCell key={slot.label} className="text-center">
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className="font-semibold">{slot.orders}</span>
-                          <span className={cn(
-                            "text-xs",
-                            slot.revenuePercent >= 30 ? "text-green-600" :
-                            slot.revenuePercent >= 15 ? "text-blue-600" :
-                            slot.revenuePercent > 0 ? "text-muted-foreground" :
-                            "text-muted-foreground/50"
-                          )}>
-                            {slot.revenuePercent}% CA
-                          </span>
+                          {renderContent()}
                           {/* Visual tags for surveillance */}
                           {hasOpportunity && (
                             <Badge variant="outline" className="text-[9px] px-1 py-0 mt-0.5 bg-amber-500/10 text-amber-600 border-amber-500/30">
@@ -516,8 +585,24 @@ Format court et direct, max 150 mots.`;
                     );
                   })}
                   <TableCell className="text-right">
-                    <div className="font-bold">{totalOrders} cmd</div>
-                    <div className="text-xs text-muted-foreground">{totalRevenue.toLocaleString()}€</div>
+                    {displayMode === 'orders' && (
+                      <>
+                        <div className="font-bold">{totalOrders} cmd</div>
+                        <div className="text-xs text-muted-foreground">{totalRevenue.toLocaleString()}€</div>
+                      </>
+                    )}
+                    {displayMode === 'revenue' && (
+                      <>
+                        <div className="font-bold">{totalRevenue.toLocaleString()}€</div>
+                        <div className="text-xs text-muted-foreground">{totalOrders} cmd</div>
+                      </>
+                    )}
+                    {displayMode === 'basket' && (
+                      <>
+                        <div className="font-bold">{avgBasket.toFixed(2)}€</div>
+                        <div className="text-xs text-muted-foreground">{totalOrders} cmd</div>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
