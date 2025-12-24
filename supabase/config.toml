@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.generate-weekly-report]
 verify_jwt = false
+
+[functions.notify-tablet-pause]
+verify_jwt = false
