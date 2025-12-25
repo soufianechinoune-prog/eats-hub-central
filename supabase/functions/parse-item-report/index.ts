@@ -306,8 +306,8 @@ serve(async (req) => {
     const uniqueFlowIds = [...new Set(itemsToUpsert.map(item => item.uber_flow_id).filter(Boolean))];
     console.log(`Looking up ${uniqueFlowIds.length} unique flow IDs...`);
 
-    // Chunk the flow IDs to avoid Supabase .in() limit (max ~1000 items)
-    const CHUNK_SIZE = 500;
+    // Chunk the flow IDs to avoid URL too long errors (reduced from 500 to 50)
+    const CHUNK_SIZE = 50;
     const flowIdChunks: string[][] = [];
     for (let j = 0; j < uniqueFlowIds.length; j += CHUNK_SIZE) {
       flowIdChunks.push(uniqueFlowIds.slice(j, j + CHUNK_SIZE));
