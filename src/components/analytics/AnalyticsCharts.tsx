@@ -1606,6 +1606,12 @@ export function AnalyticsCharts({
           granularity={granularity}
           startDate={chartDateRange.startDate}
           endDate={chartDateRange.endDate}
+          onMonthClick={(monthKey) => {
+            // monthKey is "yyyy-MM" format, extract month number
+            const month = parseInt(monthKey.split('-')[1], 10);
+            onDrillDownChange?.(month);
+          }}
+          isClickable={granularity === "monthly" && !!onDrillDownChange}
         />
       )}
 
@@ -1620,6 +1626,11 @@ export function AnalyticsCharts({
           granularity={granularity}
           startDate={chartDateRange.startDate}
           endDate={chartDateRange.endDate}
+          onMonthClick={(monthKey) => {
+            const month = parseInt(monthKey.split('-')[1], 10);
+            onDrillDownChange?.(month);
+          }}
+          isClickable={granularity === "monthly" && !!onDrillDownChange}
         />
       )}
 
