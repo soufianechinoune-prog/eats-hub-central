@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, parseISO, startOfWeek, getWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -26,6 +27,8 @@ interface SelectedRestaurantsRankingChartProps {
   granularity: "daily" | "weekly" | "monthly";
   startDate: Date;
   endDate: Date;
+  onMonthClick?: (monthKey: string) => void;
+  isClickable?: boolean;
 }
 
 const COLORS = [
@@ -41,21 +44,33 @@ const COLORS = [
   "#84cc16", // lime
 ];
 
-// Custom dot that shows the value
-const CustomDot = (props: any) => {
-  const { cx, cy, payload, dataKey, stroke } = props;
+// Format rank as ordinal (1er, 2ème, 3ème...)
+const formatRank = (rank: number): string => {
+  if (rank === 1) return "1er";
+  return `${rank}ème`;
+};
+
+// Custom dot that shows the rank
+const RankDot = (props: any) => {
+  const { cx, cy, payload, dataKey, stroke, onClick, isClickable } = props;
   
-  if (!cx || !cy || payload[dataKey] === undefined || payload[dataKey] === null) return null;
+  if (!cx || !cy) return null;
   
-  const value = payload[dataKey];
+  const rankKey = `${dataKey}_rank`;
+  const rank = payload[rankKey];
+  
+  if (rank === undefined || rank === null) return null;
   
   return (
-    <g>
+    <g 
+      style={{ cursor: isClickable ? 'pointer' : 'default' }}
+      onClick={() => isClickable && onClick?.(payload.dateKey)}
+    >
       {/* Outer circle */}
       <circle
         cx={cx}
         cy={cy}
-        r={14}
+        r={16}
         fill={stroke}
         fillOpacity={0.15}
         stroke={stroke}
@@ -65,29 +80,34 @@ const CustomDot = (props: any) => {
       <circle
         cx={cx}
         cy={cy}
-        r={5}
+        r={6}
         fill={stroke}
       />
-      {/* Value label */}
+      {/* Rank label */}
       <text
         x={cx}
-        y={cy - 22}
+        y={cy - 24}
         textAnchor="middle"
         fill={stroke}
-        fontSize={10}
+        fontSize={11}
         fontWeight="bold"
       >
-        {typeof value === 'number' ? value.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) : value}
+        {formatRank(rank)}
       </text>
     </g>
   );
 };
 
 // Simpler dot for dense data (daily/weekly)
-const SimpleDot = (props: any) => {
-  const { cx, cy, stroke } = props;
+const SimpleRankDot = (props: any) => {
+  const { cx, cy, stroke, payload, dataKey, onClick, isClickable } = props;
   
   if (!cx || !cy) return null;
+  
+  const rankKey = `${dataKey}_rank`;
+  const rank = payload[rankKey];
+  
+  if (rank === undefined || rank === null) return null;
   
   return (
     <circle
@@ -97,6 +117,8 @@ const SimpleDot = (props: any) => {
       fill={stroke}
       stroke="hsl(var(--background))"
       strokeWidth={2}
+      style={{ cursor: isClickable ? 'pointer' : 'default' }}
+      onClick={() => isClickable && onClick?.(payload.dateKey)}
     />
   );
 };
@@ -110,123 +132,139 @@ export function SelectedRestaurantsRankingChart({
   granularity,
   startDate,
   endDate,
+  onMonthClick,
+  isClickable = true,
 }: SelectedRestaurantsRankingChartProps) {
   // Get selected restaurant objects
   const selectedRestaurantObjects = useMemo(() => {
     return restaurants.filter(r => selectedRestaurants.includes(r.id));
   }, [restaurants, selectedRestaurants]);
 
-  // Build chart data based on granularity
+  // Build chart data based on granularity and calculate ranks
   const chartData = useMemo(() => {
-    if (granularity === "daily") {
-      // Generate all days in the range
-      const days: Date[] = [];
-      const current = new Date(startDate);
-      while (current <= endDate) {
-        days.push(new Date(current));
-        current.setDate(current.getDate() + 1);
-      }
-      
-      return days.map(day => {
-        const dateStr = format(day, "yyyy-MM-dd");
-        const point: Record<string, any> = { 
-          dateKey: dateStr,
-          label: format(day, "d MMM", { locale: fr }),
-          shortLabel: format(day, "d", { locale: fr }),
-        };
-        
-        selectedRestaurantObjects.forEach(restaurant => {
-          const dataPoint = timeSeriesData.find(
-            d => d.restaurant_id === restaurant.id && d.date === dateStr
-          );
-          point[restaurant.id] = dataPoint?.value ?? null;
-        });
-        
-        return point;
-      });
-    } else if (granularity === "weekly") {
-      // Group by week
-      const weeks = new Map<string, { weekStart: Date; weekNum: number }>();
-      const current = new Date(startDate);
-      while (current <= endDate) {
-        const weekStart = startOfWeek(current, { weekStartsOn: 1 });
-        const weekKey = format(weekStart, "yyyy-MM-dd");
-        if (!weeks.has(weekKey)) {
-          weeks.set(weekKey, { weekStart, weekNum: getWeek(current, { weekStartsOn: 1 }) });
+    const buildBaseData = () => {
+      if (granularity === "daily") {
+        // Generate all days in the range
+        const days: Date[] = [];
+        const current = new Date(startDate);
+        while (current <= endDate) {
+          days.push(new Date(current));
+          current.setDate(current.getDate() + 1);
         }
-        current.setDate(current.getDate() + 1);
-      }
-      
-      return Array.from(weeks.entries()).map(([weekKey, { weekStart, weekNum }]) => {
-        const point: Record<string, any> = { 
-          dateKey: weekKey,
-          label: `Sem. ${weekNum}`,
-          shortLabel: `S${weekNum}`,
-        };
         
-        selectedRestaurantObjects.forEach(restaurant => {
-          // Sum all values for this week
-          const weekDataPoints = timeSeriesData.filter(d => {
-            if (d.restaurant_id !== restaurant.id) return false;
-            const dataDate = parseISO(d.date);
-            const dataWeekStart = startOfWeek(dataDate, { weekStartsOn: 1 });
-            return format(dataWeekStart, "yyyy-MM-dd") === weekKey;
+        return days.map(day => {
+          const dateStr = format(day, "yyyy-MM-dd");
+          const point: Record<string, any> = { 
+            dateKey: dateStr,
+            label: format(day, "d MMM", { locale: fr }),
+            shortLabel: format(day, "d", { locale: fr }),
+          };
+          
+          selectedRestaurantObjects.forEach(restaurant => {
+            const dataPoint = timeSeriesData.find(
+              d => d.restaurant_id === restaurant.id && d.date === dateStr
+            );
+            point[restaurant.id] = dataPoint?.value ?? null;
           });
-          const total = weekDataPoints.reduce((sum, dp) => sum + dp.value, 0);
-          point[restaurant.id] = weekDataPoints.length > 0 ? total : null;
+          
+          return point;
         });
-        
-        return point;
-      });
-    } else {
-      // Monthly
-      const months = new Map<string, { month: number; year: number }>();
-      const current = new Date(startDate);
-      while (current <= endDate) {
-        const monthKey = format(current, "yyyy-MM");
-        if (!months.has(monthKey)) {
-          months.set(monthKey, { month: current.getMonth() + 1, year: current.getFullYear() });
+      } else if (granularity === "weekly") {
+        // Group by week
+        const weeks = new Map<string, { weekStart: Date; weekNum: number }>();
+        const current = new Date(startDate);
+        while (current <= endDate) {
+          const weekStart = startOfWeek(current, { weekStartsOn: 1 });
+          const weekKey = format(weekStart, "yyyy-MM-dd");
+          if (!weeks.has(weekKey)) {
+            weeks.set(weekKey, { weekStart, weekNum: getWeek(current, { weekStartsOn: 1 }) });
+          }
+          current.setDate(current.getDate() + 1);
         }
-        current.setMonth(current.getMonth() + 1);
-      }
-      
-      const MONTHS_FR = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
-      
-      return Array.from(months.entries()).map(([monthKey, { month }]) => {
-        const point: Record<string, any> = { 
-          dateKey: monthKey,
-          label: MONTHS_FR[month - 1],
-          shortLabel: MONTHS_FR[month - 1],
-        };
         
-        selectedRestaurantObjects.forEach(restaurant => {
-          // Sum all values for this month
-          const monthDataPoints = timeSeriesData.filter(d => {
-            if (d.restaurant_id !== restaurant.id) return false;
-            return d.date.startsWith(monthKey);
+        return Array.from(weeks.entries()).map(([weekKey, { weekStart, weekNum }]) => {
+          const point: Record<string, any> = { 
+            dateKey: weekKey,
+            label: `Sem. ${weekNum}`,
+            shortLabel: `S${weekNum}`,
+          };
+          
+          selectedRestaurantObjects.forEach(restaurant => {
+            // Sum all values for this week
+            const weekDataPoints = timeSeriesData.filter(d => {
+              if (d.restaurant_id !== restaurant.id) return false;
+              const dataDate = parseISO(d.date);
+              const dataWeekStart = startOfWeek(dataDate, { weekStartsOn: 1 });
+              return format(dataWeekStart, "yyyy-MM-dd") === weekKey;
+            });
+            const total = weekDataPoints.reduce((sum, dp) => sum + dp.value, 0);
+            point[restaurant.id] = weekDataPoints.length > 0 ? total : null;
           });
-          const total = monthDataPoints.reduce((sum, dp) => sum + dp.value, 0);
-          point[restaurant.id] = monthDataPoints.length > 0 ? total : null;
+          
+          return point;
         });
+      } else {
+        // Monthly
+        const months = new Map<string, { month: number; year: number }>();
+        const current = new Date(startDate);
+        while (current <= endDate) {
+          const monthKey = format(current, "yyyy-MM");
+          if (!months.has(monthKey)) {
+            months.set(monthKey, { month: current.getMonth() + 1, year: current.getFullYear() });
+          }
+          current.setMonth(current.getMonth() + 1);
+        }
         
-        return point;
+        const MONTHS_FR = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+        
+        return Array.from(months.entries()).map(([monthKey, { month }]) => {
+          const point: Record<string, any> = { 
+            dateKey: monthKey,
+            label: MONTHS_FR[month - 1],
+            shortLabel: MONTHS_FR[month - 1],
+          };
+          
+          selectedRestaurantObjects.forEach(restaurant => {
+            // Sum all values for this month
+            const monthDataPoints = timeSeriesData.filter(d => {
+              if (d.restaurant_id !== restaurant.id) return false;
+              return d.date.startsWith(monthKey);
+            });
+            const total = monthDataPoints.reduce((sum, dp) => sum + dp.value, 0);
+            point[restaurant.id] = monthDataPoints.length > 0 ? total : null;
+          });
+          
+          return point;
+        });
+      }
+    };
+
+    const baseData = buildBaseData();
+    
+    // Now calculate ranks for each time point
+    return baseData.map(point => {
+      // Get all restaurant values for this point and sort
+      const restaurantValues = selectedRestaurantObjects
+        .map(r => ({
+          id: r.id,
+          value: point[r.id] as number | null
+        }))
+        .filter(rv => rv.value !== null && rv.value > 0)
+        .sort((a, b) => (b.value as number) - (a.value as number));
+      
+      // Assign ranks
+      const enrichedPoint = { ...point };
+      restaurantValues.forEach((rv, index) => {
+        enrichedPoint[`${rv.id}_rank`] = index + 1;
+        enrichedPoint[`${rv.id}_value`] = rv.value; // Keep original value for tooltip
       });
-    }
+      
+      return enrichedPoint;
+    });
   }, [selectedRestaurantObjects, timeSeriesData, granularity, startDate, endDate]);
 
-  // Calculate max value for Y axis
-  const maxValue = useMemo(() => {
-    let max = 0;
-    chartData.forEach(point => {
-      selectedRestaurantObjects.forEach(r => {
-        const val = point[r.id];
-        if (typeof val === 'number' && val > max) {
-          max = val;
-        }
-      });
-    });
-    return max * 1.2; // Add 20% padding for labels
-  }, [chartData, selectedRestaurantObjects]);
+  // Max rank for Y axis domain (number of restaurants)
+  const maxRank = selectedRestaurantObjects.length;
 
   if (selectedRestaurantObjects.length === 0 || chartData.length === 0) {
     return null;
@@ -234,23 +272,78 @@ export function SelectedRestaurantsRankingChart({
 
   // Use simpler dots for dense data
   const useDenseMode = granularity === "daily" || (granularity === "weekly" && chartData.length > 8);
-  const DotComponent = useDenseMode ? SimpleDot : CustomDot;
   
   // Show fewer ticks for dense data
   const tickInterval = useDenseMode && chartData.length > 15 
     ? Math.ceil(chartData.length / 10) - 1 
     : 0;
 
+  // Handle click on data point
+  const handlePointClick = (dateKey: string) => {
+    if (granularity === "monthly" && onMonthClick) {
+      onMonthClick(dateKey);
+    }
+  };
+
+  // Custom tooltip formatter for ranks
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload || payload.length === 0) return null;
+    
+    // Sort entries by rank
+    const sortedPayload = [...payload]
+      .filter((entry: any) => entry.value !== null && entry.value !== undefined)
+      .sort((a: any, b: any) => (a.value as number) - (b.value as number));
+    
+    return (
+      <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-sm">
+        <div className="font-medium text-foreground mb-2 pb-2 border-b border-border">
+          {label}
+        </div>
+        <div className="space-y-1.5">
+          {sortedPayload.map((entry: any) => {
+            const restaurant = selectedRestaurantObjects.find(r => r.id === entry.dataKey);
+            const rank = entry.value;
+            const valueKey = `${entry.dataKey}_value`;
+            const originalValue = entry.payload[valueKey];
+            
+            return (
+              <div key={entry.dataKey} className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: entry.stroke }}
+                  />
+                  <span className="font-medium">{formatRank(rank)}</span>
+                  <span className="text-muted-foreground truncate max-w-[120px]">
+                    {restaurant?.name}
+                  </span>
+                </div>
+                <span className="font-medium">
+                  {originalValue !== undefined ? formatValue(originalValue) : '-'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const canDrillDown = granularity === "monthly" && isClickable && onMonthClick;
+
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-primary" />
-          Évolution {metricLabel} — {selectedRestaurantObjects.length === 1 
+          Classement {metricLabel} — {selectedRestaurantObjects.length === 1 
             ? selectedRestaurantObjects[0].name 
             : `${selectedRestaurantObjects.length} restaurants`}
           <span className="text-xs font-normal text-muted-foreground ml-2">
             ({granularity === "daily" ? "quotidien" : granularity === "weekly" ? "hebdomadaire" : "mensuel"})
+            {canDrillDown && (
+              <span className="ml-1 text-primary">• Cliquez pour voir le détail</span>
+            )}
           </span>
         </CardTitle>
       </CardHeader>
@@ -259,7 +352,13 @@ export function SelectedRestaurantsRankingChart({
           <ResponsiveContainer width="100%" height="100%">
             <LineChart 
               data={chartData} 
-              margin={{ top: useDenseMode ? 20 : 40, right: 30, left: 10, bottom: 5 }}
+              margin={{ top: useDenseMode ? 20 : 45, right: 30, left: 10, bottom: 5 }}
+              onClick={(data) => {
+                if (canDrillDown && data?.activePayload?.[0]?.payload?.dateKey) {
+                  handlePointClick(data.activePayload[0].payload.dateKey);
+                }
+              }}
+              style={{ cursor: canDrillDown ? 'pointer' : 'default' }}
             >
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis 
@@ -273,37 +372,28 @@ export function SelectedRestaurantsRankingChart({
               <YAxis 
                 tick={{ fontSize: 11 }} 
                 className="text-muted-foreground"
-                tickFormatter={(value) => {
-                  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-                  if (value >= 1000) return `${(value / 1000).toFixed(0)}k`;
-                  return value.toLocaleString('fr-FR');
-                }}
-                domain={[0, maxValue]}
+                tickFormatter={(value) => formatRank(value)}
+                domain={[1, maxRank]}
+                reversed={true}
+                allowDecimals={false}
+                ticks={Array.from({ length: maxRank }, (_, i) => i + 1)}
                 axisLine={{ stroke: 'hsl(var(--border))' }}
                 tickLine={{ stroke: 'hsl(var(--border))' }}
               />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                }}
-                formatter={(value: number, name: string) => {
-                  const restaurant = selectedRestaurantObjects.find(r => r.id === name);
-                  return [formatValue(value), restaurant?.name || name];
-                }}
-                labelFormatter={(label) => label}
-              />
+              <Tooltip content={<CustomTooltip />} />
               {selectedRestaurantObjects.map((restaurant, index) => (
                 <Line
                   key={restaurant.id}
                   type="monotone"
-                  dataKey={restaurant.id}
+                  dataKey={`${restaurant.id}_rank`}
                   name={restaurant.id}
                   stroke={COLORS[index % COLORS.length]}
                   strokeWidth={2}
-                  dot={useDenseMode ? <SimpleDot /> : <CustomDot />}
-                  activeDot={{ r: 6, strokeWidth: 2 }}
+                  dot={useDenseMode 
+                    ? <SimpleRankDot onClick={handlePointClick} isClickable={canDrillDown} />
+                    : <RankDot onClick={handlePointClick} isClickable={canDrillDown} />
+                  }
+                  activeDot={{ r: 8, strokeWidth: 2 }}
                   connectNulls={false}
                 />
               ))}
