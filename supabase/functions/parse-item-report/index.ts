@@ -162,13 +162,13 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { csvContent, reportType } = await req.json();
+    const { csvContent, reportType, dryRun = false } = await req.json();
 
     if (!csvContent) {
       throw new Error('CSV content is required');
     }
 
-    console.log('Parsing item-level report CSV...');
+    console.log(`Parsing item-level report CSV... (dryRun: ${dryRun})`);
     const rows = parseCSV(csvContent);
     
     if (rows.length < 2) {
@@ -350,6 +350,77 @@ serve(async (req) => {
 
     console.log(`Found ${Object.keys(flowIdToOrderId).length} matching orders`);
 
+    // For dry run, simulate what would happen
+    if (dryRun) {
+      let wouldInsert = 0;
+      let wouldUpdate = 0;
+      let orphanCount = 0;
+
+      // Get existing items for all orders in batches
+      const orderIds = Object.values(flowIdToOrderId);
+      const existingItemsMap: Record<string, Set<string>> = {};
+
+      if (orderIds.length > 0) {
+        const orderIdChunks: string[][] = [];
+        for (let j = 0; j < orderIds.length; j += CHUNK_SIZE) {
+          orderIdChunks.push(orderIds.slice(j, j + CHUNK_SIZE));
+        }
+
+        for (const chunk of orderIdChunks) {
+          const { data: existingItems } = await supabase
+            .from('order_items')
+            .select('order_id, item_id')
+            .in('order_id', chunk);
+
+          if (existingItems) {
+            for (const item of existingItems) {
+              if (!existingItemsMap[item.order_id]) {
+                existingItemsMap[item.order_id] = new Set();
+              }
+              existingItemsMap[item.order_id].add(item.item_id);
+            }
+          }
+        }
+      }
+
+      for (const item of itemsToUpsert) {
+        const orderId = flowIdToOrderId[item.uber_flow_id];
+        
+        if (!orderId) {
+          orphanCount++;
+          continue;
+        }
+
+        const existingItemIds = existingItemsMap[orderId];
+        if (existingItemIds && existingItemIds.has(item.item_id)) {
+          wouldUpdate++;
+        } else {
+          wouldInsert++;
+        }
+      }
+
+      const result = {
+        success: true,
+        reportType: "payment_item_level",
+        stats: {
+          totalRows: itemsToUpsert.length,
+          totalItems: itemsToUpsert.length,
+          inserted: wouldInsert,
+          updated: wouldUpdate,
+          skipped: orphanCount,
+          orphaned: orphanCount,
+          errors: 0,
+        },
+        message: `Validation: ${wouldInsert} articles à insérer, ${wouldUpdate} à mettre à jour, ${orphanCount} orphelins (commande non trouvée)`
+      };
+
+      console.log('Dry run result:', result);
+
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Process items in batches
     let insertedCount = 0;
     let updatedCount = 0;
@@ -414,11 +485,13 @@ serve(async (req) => {
 
     const result = {
       success: true,
-      reportType,
+      reportType: "payment_item_level",
       stats: {
+        totalRows: itemsToUpsert.length,
         totalItems: itemsToUpsert.length,
         inserted: insertedCount,
         updated: updatedCount,
+        skipped: orphanCount,
         orphaned: orphanCount,
         errors: errorCount,
       },
@@ -439,7 +512,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: false, 
         error: errorMessage,
-        stats: { totalItems: 0, inserted: 0, updated: 0, orphaned: 0, errors: 1 }
+        stats: { totalRows: 0, totalItems: 0, inserted: 0, updated: 0, skipped: 0, orphaned: 0, errors: 1 }
       }),
       { 
         status: 500, 
