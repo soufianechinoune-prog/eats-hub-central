@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
-import { TrendingUp } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { TrendingUp, Eye, EyeOff } from "lucide-react";
 import { format, parseISO, startOfWeek, getWeek } from "date-fns";
 import { fr } from "date-fns/locale";
+import { Button } from "@/components/ui/button";
 
 interface Restaurant {
   id: string;
@@ -30,7 +31,8 @@ interface SelectedRestaurantsRankingChartProps {
   isClickable?: boolean;
 }
 
-const COLORS = [
+// Top 10 colors - modern vibrant palette
+const TOP_COLORS = [
   "#3b82f6", // blue
   "#10b981", // emerald
   "#f59e0b", // amber
@@ -39,105 +41,16 @@ const COLORS = [
   "#06b6d4", // cyan
   "#f97316", // orange
   "#14b8a6", // teal
+  "#6366f1", // indigo
+  "#84cc16", // lime
 ];
+
+const GRAY_COLOR = "hsl(var(--muted-foreground) / 0.25)";
 
 // Format rank as short ordinal
 const formatRank = (rank: number): string => {
   if (rank === 1) return "1er";
   return `${rank}e`;
-};
-
-// Custom dot - clean modern style
-const ModernDot = (props: any) => {
-  const { cx, cy, payload, dataKey, stroke, onClick, isClickable, index } = props;
-  
-  if (!cx || !cy || payload[dataKey] === undefined || payload[dataKey] === null) return null;
-  
-  const rankKey = `${dataKey}_rank`;
-  const rank = payload[rankKey];
-  
-  if (!rank) return null;
-
-  return (
-    <g 
-      style={{ cursor: isClickable ? 'pointer' : 'default' }}
-      onClick={() => isClickable && onClick?.(payload.dateKey)}
-    >
-      {/* Clean dot */}
-      <circle
-        cx={cx}
-        cy={cy}
-        r={6}
-        fill={stroke}
-        stroke="hsl(var(--background))"
-        strokeWidth={2}
-      />
-    </g>
-  );
-};
-
-// Custom label renderer that handles overlaps
-const RankLabel = (props: any) => {
-  const { x, y, value, stroke, payload, dataKey, allRestaurants, chartData, index } = props;
-  
-  if (!x || !y || !value) return null;
-  
-  // Get all restaurants' Y positions for this data point to detect overlaps
-  const currentDataPoint = chartData?.[index];
-  if (!currentDataPoint) return null;
-  
-  // Calculate offset based on rank to spread labels vertically
-  const rank = value;
-  const baseOffset = -16;
-  // Stagger labels: odd ranks go up, even ranks go slightly to the side
-  const yOffset = baseOffset - ((rank - 1) * 2);
-  const xOffset = (rank % 2 === 0) ? 8 : -8;
-  
-  return (
-    <g>
-      {/* Background pill */}
-      <rect
-        x={x + xOffset - 14}
-        y={y + yOffset - 8}
-        width={28}
-        height={16}
-        rx={8}
-        fill={stroke}
-        fillOpacity={0.9}
-      />
-      {/* Rank text */}
-      <text
-        x={x + xOffset}
-        y={y + yOffset + 4}
-        textAnchor="middle"
-        fill="white"
-        fontSize={9}
-        fontWeight="600"
-      >
-        {formatRank(value)}
-      </text>
-    </g>
-  );
-};
-
-// Simple dot for dense mode
-const SimpleDot = (props: any) => {
-  const { cx, cy, stroke, onClick, payload, isClickable } = props;
-  
-  if (!cx || !cy) return null;
-  
-  return (
-    <circle
-      cx={cx}
-      cy={cy}
-      r={3}
-      fill={stroke}
-      stroke="hsl(var(--background))"
-      strokeWidth={1.5}
-      style={{ cursor: isClickable ? 'pointer' : 'default' }}
-      onClick={() => isClickable && onClick?.(payload?.dateKey)}
-    />
-  );
 };
 
 export function SelectedRestaurantsRankingChart({
@@ -152,11 +65,15 @@ export function SelectedRestaurantsRankingChart({
   onMonthClick,
   isClickable = true,
 }: SelectedRestaurantsRankingChartProps) {
+  const [showAllRestaurants, setShowAllRestaurants] = useState(false);
+  const [hoveredRestaurant, setHoveredRestaurant] = useState<string | null>(null);
+
   const selectedRestaurantObjects = useMemo(() => {
     return restaurants.filter(r => selectedRestaurants.includes(r.id));
   }, [restaurants, selectedRestaurants]);
 
-  const chartData = useMemo(() => {
+  // Build time periods and calculate ranks
+  const { chartData, maxRank, restaurantRankings } = useMemo(() => {
     const buildBaseData = () => {
       if (granularity === "daily") {
         const days: Date[] = [];
@@ -168,20 +85,10 @@ export function SelectedRestaurantsRankingChart({
         
         return days.map(day => {
           const dateStr = format(day, "yyyy-MM-dd");
-          const point: Record<string, any> = { 
+          return { 
             dateKey: dateStr,
             label: format(day, "d MMM", { locale: fr }),
-            shortLabel: format(day, "d", { locale: fr }),
           };
-          
-          selectedRestaurantObjects.forEach(restaurant => {
-            const dataPoint = timeSeriesData.find(
-              d => d.restaurant_id === restaurant.id && d.date === dateStr
-            );
-            point[restaurant.id] = dataPoint?.value ?? null;
-          });
-          
-          return point;
         });
       } else if (granularity === "weekly") {
         const weeks = new Map<string, { weekStart: Date; weekNum: number }>();
@@ -195,26 +102,10 @@ export function SelectedRestaurantsRankingChart({
           current.setDate(current.getDate() + 1);
         }
         
-        return Array.from(weeks.entries()).map(([weekKey, { weekNum }]) => {
-          const point: Record<string, any> = { 
-            dateKey: weekKey,
-            label: `Sem. ${weekNum}`,
-            shortLabel: `S${weekNum}`,
-          };
-          
-          selectedRestaurantObjects.forEach(restaurant => {
-            const weekDataPoints = timeSeriesData.filter(d => {
-              if (d.restaurant_id !== restaurant.id) return false;
-              const dataDate = parseISO(d.date);
-              const dataWeekStart = startOfWeek(dataDate, { weekStartsOn: 1 });
-              return format(dataWeekStart, "yyyy-MM-dd") === weekKey;
-            });
-            const total = weekDataPoints.reduce((sum, dp) => sum + dp.value, 0);
-            point[restaurant.id] = weekDataPoints.length > 0 ? total : null;
-          });
-          
-          return point;
-        });
+        return Array.from(weeks.entries()).map(([weekKey, { weekNum }]) => ({
+          dateKey: weekKey,
+          label: `S${weekNum}`,
+        }));
       } else {
         const months = new Map<string, { month: number; year: number }>();
         const current = new Date(startDate);
@@ -228,62 +119,83 @@ export function SelectedRestaurantsRankingChart({
         
         const MONTHS_FR = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
         
-        return Array.from(months.entries()).map(([monthKey, { month }]) => {
-          const point: Record<string, any> = { 
-            dateKey: monthKey,
-            label: MONTHS_FR[month - 1],
-            shortLabel: MONTHS_FR[month - 1],
-          };
-          
-          selectedRestaurantObjects.forEach(restaurant => {
-            const monthDataPoints = timeSeriesData.filter(d => {
-              if (d.restaurant_id !== restaurant.id) return false;
-              return d.date.startsWith(monthKey);
-            });
-            const total = monthDataPoints.reduce((sum, dp) => sum + dp.value, 0);
-            point[restaurant.id] = monthDataPoints.length > 0 ? total : null;
-          });
-          
-          return point;
-        });
+        return Array.from(months.entries()).map(([monthKey, { month }]) => ({
+          dateKey: monthKey,
+          label: MONTHS_FR[month - 1],
+        }));
       }
     };
 
-    const baseData = buildBaseData();
+    const basePeriods = buildBaseData();
     
-    // Calculate ranks for each time point
-    return baseData.map(point => {
-      const restaurantValues = selectedRestaurantObjects
-        .map(r => ({ id: r.id, value: point[r.id] as number | null }))
-        .filter(rv => rv.value !== null && rv.value > 0)
-        .sort((a, b) => (b.value as number) - (a.value as number));
-      
-      const enrichedPoint = { ...point };
-      restaurantValues.forEach((rv, index) => {
-        enrichedPoint[`${rv.id}_rank`] = index + 1;
-      });
-      
-      return enrichedPoint;
-    });
-  }, [selectedRestaurantObjects, timeSeriesData, granularity, startDate, endDate]);
+    // Calculate CA for each restaurant at each period
+    const getValueForPeriod = (restaurantId: string, dateKey: string) => {
+      if (granularity === "daily") {
+        const dataPoint = timeSeriesData.find(
+          d => d.restaurant_id === restaurantId && d.date === dateKey
+        );
+        return dataPoint?.value ?? 0;
+      } else if (granularity === "weekly") {
+        const weekDataPoints = timeSeriesData.filter(d => {
+          if (d.restaurant_id !== restaurantId) return false;
+          const dataDate = parseISO(d.date);
+          const dataWeekStart = startOfWeek(dataDate, { weekStartsOn: 1 });
+          return format(dataWeekStart, "yyyy-MM-dd") === dateKey;
+        });
+        return weekDataPoints.reduce((sum, dp) => sum + dp.value, 0);
+      } else {
+        const monthDataPoints = timeSeriesData.filter(d => {
+          if (d.restaurant_id !== restaurantId) return false;
+          return d.date.startsWith(dateKey);
+        });
+        return monthDataPoints.reduce((sum, dp) => sum + dp.value, 0);
+      }
+    };
 
-  const maxValue = useMemo(() => {
-    let max = 0;
-    chartData.forEach(point => {
-      selectedRestaurantObjects.forEach(r => {
-        const val = point[r.id];
-        if (typeof val === 'number' && val > max) max = val;
+    // Build chart data with ranks
+    let globalMaxRank = 1;
+    const data = basePeriods.map(period => {
+      const point: Record<string, any> = { 
+        dateKey: period.dateKey,
+        label: period.label,
+      };
+      
+      // Calculate values and sort for ranking
+      const restaurantValues = selectedRestaurantObjects
+        .map(r => ({
+          id: r.id,
+          value: getValueForPeriod(r.id, period.dateKey),
+        }))
+        .filter(rv => rv.value > 0)
+        .sort((a, b) => b.value - a.value);
+      
+      // Assign ranks
+      restaurantValues.forEach((rv, index) => {
+        const rank = index + 1;
+        point[rv.id] = rank; // Y-axis will be rank
+        point[`${rv.id}_value`] = rv.value; // Store actual value for tooltip
+        if (rank > globalMaxRank) globalMaxRank = rank;
       });
+      
+      return point;
     });
-    return max * 1.25;
-  }, [chartData, selectedRestaurantObjects]);
+
+    // Calculate average rank for each restaurant to determine top 10
+    const avgRanks: { id: string; avgRank: number; name: string }[] = selectedRestaurantObjects.map(r => {
+      const ranks = data
+        .map(d => d[r.id] as number)
+        .filter(rank => rank !== undefined);
+      const avgRank = ranks.length > 0 ? ranks.reduce((a, b) => a + b, 0) / ranks.length : Infinity;
+      return { id: r.id, avgRank, name: r.name };
+    });
+    avgRanks.sort((a, b) => a.avgRank - b.avgRank);
+
+    return { chartData: data, maxRank: globalMaxRank, restaurantRankings: avgRanks };
+  }, [selectedRestaurantObjects, timeSeriesData, granularity, startDate, endDate]);
 
   if (selectedRestaurantObjects.length === 0 || chartData.length === 0) {
     return null;
   }
-
-  const useDenseMode = granularity === "daily" || (granularity === "weekly" && chartData.length > 8);
-  const tickInterval = useDenseMode && chartData.length > 15 ? Math.ceil(chartData.length / 10) - 1 : 0;
 
   const handlePointClick = (dateKey: string) => {
     if (granularity === "monthly" && onMonthClick) {
@@ -291,100 +203,119 @@ export function SelectedRestaurantsRankingChart({
     }
   };
 
+  const canDrillDown = granularity === "monthly" && isClickable && onMonthClick;
+
+  // Determine which restaurants to show and their colors
+  const getRestaurantStyle = (restaurantId: string) => {
+    const rankIndex = restaurantRankings.findIndex(r => r.id === restaurantId);
+    const isTop10 = rankIndex < 10;
+    const isHovered = hoveredRestaurant === restaurantId;
+    
+    if (!showAllRestaurants && !isTop10) {
+      return { 
+        color: GRAY_COLOR, 
+        opacity: isHovered ? 0.8 : 0.3, 
+        strokeWidth: isHovered ? 2.5 : 1,
+        isVisible: true 
+      };
+    }
+    
+    return {
+      color: isTop10 ? TOP_COLORS[rankIndex % TOP_COLORS.length] : GRAY_COLOR,
+      opacity: isHovered ? 1 : (hoveredRestaurant ? 0.3 : 0.8),
+      strokeWidth: isHovered ? 3 : 2,
+      isVisible: true,
+    };
+  };
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || payload.length === 0) return null;
     
-    const sortedPayload = [...payload]
-      .filter((entry: any) => entry.value !== null && entry.value !== undefined)
-      .sort((a: any, b: any) => (b.value as number) - (a.value as number));
+    // Get all restaurants with their ranks and values for this point
+    const currentPoint = chartData.find(d => d.label === label);
+    if (!currentPoint) return null;
+
+    const restaurantData = selectedRestaurantObjects
+      .map(r => ({
+        id: r.id,
+        name: r.name,
+        rank: currentPoint[r.id] as number | undefined,
+        value: currentPoint[`${r.id}_value`] as number | undefined,
+        style: getRestaurantStyle(r.id),
+      }))
+      .filter(r => r.rank !== undefined)
+      .sort((a, b) => (a.rank as number) - (b.rank as number));
     
     return (
-      <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-xl shadow-xl p-4 text-sm">
-        <div className="font-semibold text-foreground mb-3 pb-2 border-b border-border/50">
+      <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-xl shadow-2xl p-4 text-sm max-h-[400px] overflow-auto">
+        <div className="font-semibold text-foreground mb-3 pb-2 border-b border-border/50 sticky top-0 bg-popover/95">
           {label}
         </div>
-        <div className="space-y-2">
-          {sortedPayload.map((entry: any, idx: number) => {
-            const restaurant = selectedRestaurantObjects.find(r => r.id === entry.dataKey);
-            const rank = idx + 1;
-            
-            return (
-              <div key={entry.dataKey} className="flex items-center justify-between gap-6">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: entry.stroke }}
-                  />
-                  <span 
-                    className="text-xs font-bold px-1.5 py-0.5 rounded-full text-white"
-                    style={{ backgroundColor: entry.stroke }}
-                  >
-                    {formatRank(rank)}
-                  </span>
-                  <span className="text-muted-foreground truncate max-w-[140px]">
-                    {restaurant?.name}
-                  </span>
-                </div>
-                <span className="font-semibold tabular-nums">
-                  {formatValue(entry.value)}
+        <div className="space-y-1.5">
+          {restaurantData.slice(0, showAllRestaurants ? undefined : 10).map((r) => (
+            <div 
+              key={r.id} 
+              className="flex items-center justify-between gap-4 py-1 hover:bg-muted/30 rounded px-1 -mx-1"
+              onMouseEnter={() => setHoveredRestaurant(r.id)}
+              onMouseLeave={() => setHoveredRestaurant(null)}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                  style={{ backgroundColor: r.style.color === GRAY_COLOR ? 'hsl(var(--muted-foreground))' : r.style.color }}
+                >
+                  {r.rank}
+                </span>
+                <span className="text-muted-foreground truncate">
+                  {r.name}
                 </span>
               </div>
-            );
-          })}
+              <span className="font-semibold tabular-nums whitespace-nowrap">
+                {formatValue(r.value || 0)}
+              </span>
+            </div>
+          ))}
+          {!showAllRestaurants && restaurantData.length > 10 && (
+            <div className="text-xs text-muted-foreground text-center pt-2 border-t border-border/50">
+              +{restaurantData.length - 10} autres restaurants
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
-  const canDrillDown = granularity === "monthly" && isClickable && onMonthClick;
+  // Custom dot for endpoints only
+  const EndpointDot = ({ cx, cy, payload, dataKey, stroke, index }: any) => {
+    if (!cx || !cy) return null;
+    
+    const isFirst = index === 0;
+    const isLast = index === chartData.length - 1;
+    
+    if (!isFirst && !isLast) return null;
+    
+    const rank = payload[dataKey];
+    if (!rank) return null;
 
-  // Custom label component with smart positioning
-  const SmartRankLabel = ({ x, y, value, stroke, index }: any) => {
-    if (!x || !y || !value) return null;
-    
-    // Get current data point to check for overlaps
-    const currentPoint = chartData[index];
-    if (!currentPoint) return null;
-    
-    // Find all values at this point to determine overlap
-    const allValuesAtPoint = selectedRestaurantObjects
-      .map(r => ({ id: r.id, value: currentPoint[r.id], rank: currentPoint[`${r.id}_rank`] }))
-      .filter(v => v.value !== null && v.rank !== undefined)
-      .sort((a, b) => b.value - a.value);
-    
-    // Calculate vertical offset based on rank to prevent overlap
-    const myRank = value;
-    const baseY = -12;
-    
-    // Check if there are close values (potential overlaps)
-    let yOffset = baseY;
-    if (allValuesAtPoint.length > 1) {
-      // Stagger labels based on rank position
-      yOffset = baseY - (myRank - 1) * 14;
-    }
-    
     return (
       <g>
-        {/* Pill background */}
-        <rect
-          x={x - 13}
-          y={y + yOffset - 7}
-          width={26}
-          height={14}
-          rx={7}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={10}
           fill={stroke}
+          stroke="hsl(var(--background))"
+          strokeWidth={2}
         />
-        {/* Rank text */}
         <text
-          x={x}
-          y={y + yOffset + 3}
+          x={cx}
+          y={cy + 3.5}
           textAnchor="middle"
           fill="white"
-          fontSize={8}
+          fontSize={9}
           fontWeight="700"
-          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}
         >
-          {formatRank(value)}
+          {rank}
         </text>
       </g>
     );
@@ -393,28 +324,49 @@ export function SelectedRestaurantsRankingChart({
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          <span>Évolution {metricLabel}</span>
-          <span className="text-muted-foreground font-normal">
-            — {selectedRestaurantObjects.length === 1 
-              ? selectedRestaurantObjects[0].name 
-              : `${selectedRestaurantObjects.length} restaurants`}
-          </span>
-          <span className="text-xs font-normal text-muted-foreground ml-auto">
-            {granularity === "daily" ? "quotidien" : granularity === "weekly" ? "hebdomadaire" : "mensuel"}
-            {canDrillDown && (
-              <span className="ml-2 text-primary font-medium">• Cliquez pour le détail</span>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <span>Classement {metricLabel}</span>
+            <span className="text-muted-foreground font-normal">
+              — Bump Chart
+            </span>
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {selectedRestaurantObjects.length > 10 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAllRestaurants(!showAllRestaurants)}
+                className="h-7 text-xs gap-1.5"
+              >
+                {showAllRestaurants ? (
+                  <>
+                    <EyeOff className="h-3.5 w-3.5" />
+                    Top 10 seulement
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-3.5 w-3.5" />
+                    Voir tous ({selectedRestaurantObjects.length})
+                  </>
+                )}
+              </Button>
             )}
-          </span>
-        </CardTitle>
+            {canDrillDown && (
+              <span className="text-xs text-primary font-medium">
+                Cliquez pour le détail
+              </span>
+            )}
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="pt-2">
-        <div className="h-[340px]">
+        <div className="h-[400px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart 
               data={chartData} 
-              margin={{ top: useDenseMode ? 20 : 50, right: 20, left: 0, bottom: 5 }}
+              margin={{ top: 20, right: 30, left: 10, bottom: 5 }}
               onClick={(data) => {
                 if (canDrillDown && data?.activePayload?.[0]?.payload?.dateKey) {
                   handlePointClick(data.activePayload[0].payload.dateKey);
@@ -422,84 +374,113 @@ export function SelectedRestaurantsRankingChart({
               }}
               style={{ cursor: canDrillDown ? 'pointer' : 'default' }}
             >
-              <defs>
-                {selectedRestaurantObjects.map((_, index) => (
-                  <linearGradient key={index} id={`gradient-${index}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.05} />
-                  </linearGradient>
-                ))}
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+              <CartesianGrid 
+                strokeDasharray="3 3" 
+                stroke="hsl(var(--border))" 
+                strokeOpacity={0.3}
+                horizontal={true}
+                vertical={false}
+              />
               <XAxis 
                 dataKey="label"
                 tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} 
                 axisLine={{ stroke: 'hsl(var(--border))' }}
                 tickLine={false}
-                interval={tickInterval}
                 dy={8}
               />
               <YAxis 
+                domain={[1, Math.max(maxRank, 10)]}
+                reversed={true}
                 tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} 
-                tickFormatter={(value) => {
-                  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-                  if (value >= 1000) return `${(value / 1000).toFixed(0)}k`;
-                  return value.toLocaleString('fr-FR');
-                }}
-                domain={[0, maxValue]}
+                tickFormatter={(value) => formatRank(value)}
                 axisLine={false}
                 tickLine={false}
-                width={45}
+                width={35}
+                ticks={Array.from({ length: Math.min(maxRank, 10) }, (_, i) => i + 1)}
               />
               <Tooltip content={<CustomTooltip />} />
-              {selectedRestaurantObjects.map((restaurant, index) => (
-                <Line
-                  key={restaurant.id}
-                  type="monotone"
-                  dataKey={restaurant.id}
-                  name={restaurant.id}
-                  stroke={COLORS[index % COLORS.length]}
-                  strokeWidth={2.5}
-                  dot={useDenseMode 
-                    ? <SimpleDot onClick={handlePointClick} isClickable={canDrillDown} />
-                    : <ModernDot onClick={handlePointClick} isClickable={canDrillDown} />
-                  }
-                  activeDot={{ r: 8, strokeWidth: 2, stroke: 'hsl(var(--background))' }}
-                  connectNulls={false}
-                >
-                  {!useDenseMode && (
-                    <LabelList 
-                      dataKey={`${restaurant.id}_rank`}
-                      content={(props: any) => (
-                        <SmartRankLabel 
-                          {...props} 
-                          stroke={COLORS[index % COLORS.length]}
-                        />
-                      )}
-                    />
-                  )}
-                </Line>
-              ))}
+              
+              {/* Reference lines for podium positions */}
+              <ReferenceLine y={1} stroke="hsl(var(--primary))" strokeOpacity={0.2} strokeDasharray="5 5" />
+              <ReferenceLine y={3} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.1} strokeDasharray="3 3" />
+              
+              {/* Render non-top-10 restaurants first (behind) */}
+              {restaurantRankings.slice(10).map((ranking) => {
+                const style = getRestaurantStyle(ranking.id);
+                return (
+                  <Line
+                    key={ranking.id}
+                    type="monotone"
+                    dataKey={ranking.id}
+                    name={ranking.name}
+                    stroke={style.color}
+                    strokeWidth={style.strokeWidth}
+                    strokeOpacity={style.opacity}
+                    dot={false}
+                    activeDot={{ r: 6, strokeWidth: 2, stroke: 'hsl(var(--background))' }}
+                    connectNulls={false}
+                    onMouseEnter={() => setHoveredRestaurant(ranking.id)}
+                    onMouseLeave={() => setHoveredRestaurant(null)}
+                  />
+                );
+              })}
+              
+              {/* Render top 10 restaurants on top */}
+              {restaurantRankings.slice(0, 10).map((ranking, index) => {
+                const style = getRestaurantStyle(ranking.id);
+                return (
+                  <Line
+                    key={ranking.id}
+                    type="monotone"
+                    dataKey={ranking.id}
+                    name={ranking.name}
+                    stroke={style.color}
+                    strokeWidth={style.strokeWidth}
+                    strokeOpacity={style.opacity}
+                    dot={<EndpointDot />}
+                    activeDot={{ r: 8, strokeWidth: 2, stroke: 'hsl(var(--background))' }}
+                    connectNulls={false}
+                    onMouseEnter={() => setHoveredRestaurant(ranking.id)}
+                    onMouseLeave={() => setHoveredRestaurant(null)}
+                  />
+                );
+              })}
             </LineChart>
           </ResponsiveContainer>
         </div>
         
-        {/* Modern Legend */}
+        {/* Modern Legend - Top 10 */}
         <div className="flex flex-wrap gap-2 mt-4 justify-center">
-          {selectedRestaurantObjects.map((restaurant, index) => (
-            <div
-              key={restaurant.id}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors text-sm"
-            >
-              <span
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: COLORS[index % COLORS.length] }}
-              />
-              <span className="font-medium truncate max-w-[160px]">
-                {restaurant.name}
-              </span>
+          {restaurantRankings.slice(0, 10).map((ranking, index) => {
+            const isHovered = hoveredRestaurant === ranking.id;
+            return (
+              <div
+                key={ranking.id}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  isHovered 
+                    ? 'bg-muted ring-1 ring-primary/30' 
+                    : 'bg-muted/30 hover:bg-muted/50'
+                }`}
+                onMouseEnter={() => setHoveredRestaurant(ranking.id)}
+                onMouseLeave={() => setHoveredRestaurant(null)}
+              >
+                <span
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                  style={{ backgroundColor: TOP_COLORS[index % TOP_COLORS.length] }}
+                >
+                  {index + 1}
+                </span>
+                <span className="font-medium truncate max-w-[140px] text-sm">
+                  {ranking.name}
+                </span>
+              </div>
+            );
+          })}
+          {restaurantRankings.length > 10 && !showAllRestaurants && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/20 text-muted-foreground text-sm">
+              +{restaurantRankings.length - 10} autres
             </div>
-          ))}
+          )}
         </div>
       </CardContent>
     </Card>
