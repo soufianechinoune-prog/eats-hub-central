@@ -1,8 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { format, parseISO, startOfWeek, getWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -50,16 +49,15 @@ const formatRank = (rank: number): string => {
   return `${rank}ème`;
 };
 
-// Custom dot that shows the rank
+// Custom dot that shows the RANK (but position based on VALUE)
 const RankDot = (props: any) => {
   const { cx, cy, payload, dataKey, stroke, onClick, isClickable } = props;
   
-  if (!cx || !cy) return null;
+  if (!cx || !cy || payload[dataKey] === undefined || payload[dataKey] === null) return null;
   
+  // Get the rank for this restaurant at this point
   const rankKey = `${dataKey}_rank`;
   const rank = payload[rankKey];
-  
-  if (rank === undefined || rank === null) return null;
   
   return (
     <g 
@@ -70,7 +68,7 @@ const RankDot = (props: any) => {
       <circle
         cx={cx}
         cy={cy}
-        r={16}
+        r={14}
         fill={stroke}
         fillOpacity={0.15}
         stroke={stroke}
@@ -80,34 +78,29 @@ const RankDot = (props: any) => {
       <circle
         cx={cx}
         cy={cy}
-        r={6}
+        r={5}
         fill={stroke}
       />
-      {/* Rank label */}
+      {/* Rank label (instead of value) */}
       <text
         x={cx}
-        y={cy - 24}
+        y={cy - 22}
         textAnchor="middle"
         fill={stroke}
-        fontSize={11}
+        fontSize={10}
         fontWeight="bold"
       >
-        {formatRank(rank)}
+        {rank ? formatRank(rank) : ''}
       </text>
     </g>
   );
 };
 
 // Simpler dot for dense data (daily/weekly)
-const SimpleRankDot = (props: any) => {
-  const { cx, cy, stroke, payload, dataKey, onClick, isClickable } = props;
+const SimpleDot = (props: any) => {
+  const { cx, cy, stroke, onClick, payload, isClickable } = props;
   
   if (!cx || !cy) return null;
-  
-  const rankKey = `${dataKey}_rank`;
-  const rank = payload[rankKey];
-  
-  if (rank === undefined || rank === null) return null;
   
   return (
     <circle
@@ -118,7 +111,7 @@ const SimpleRankDot = (props: any) => {
       stroke="hsl(var(--background))"
       strokeWidth={2}
       style={{ cursor: isClickable ? 'pointer' : 'default' }}
-      onClick={() => isClickable && onClick?.(payload.dateKey)}
+      onClick={() => isClickable && onClick?.(payload?.dateKey)}
     />
   );
 };
@@ -140,7 +133,7 @@ export function SelectedRestaurantsRankingChart({
     return restaurants.filter(r => selectedRestaurants.includes(r.id));
   }, [restaurants, selectedRestaurants]);
 
-  // Build chart data based on granularity and calculate ranks
+  // Build chart data based on granularity
   const chartData = useMemo(() => {
     const buildBaseData = () => {
       if (granularity === "daily") {
@@ -241,9 +234,9 @@ export function SelectedRestaurantsRankingChart({
 
     const baseData = buildBaseData();
     
-    // Now calculate ranks for each time point
+    // Calculate ranks for each time point (for label display)
     return baseData.map(point => {
-      // Get all restaurant values for this point and sort
+      // Get all restaurant values for this point and sort by value descending
       const restaurantValues = selectedRestaurantObjects
         .map(r => ({
           id: r.id,
@@ -256,15 +249,25 @@ export function SelectedRestaurantsRankingChart({
       const enrichedPoint = { ...point };
       restaurantValues.forEach((rv, index) => {
         enrichedPoint[`${rv.id}_rank`] = index + 1;
-        enrichedPoint[`${rv.id}_value`] = rv.value; // Keep original value for tooltip
       });
       
       return enrichedPoint;
     });
   }, [selectedRestaurantObjects, timeSeriesData, granularity, startDate, endDate]);
 
-  // Max rank for Y axis domain (number of restaurants)
-  const maxRank = selectedRestaurantObjects.length;
+  // Calculate max value for Y axis (based on actual values, not ranks)
+  const maxValue = useMemo(() => {
+    let max = 0;
+    chartData.forEach(point => {
+      selectedRestaurantObjects.forEach(r => {
+        const val = point[r.id];
+        if (typeof val === 'number' && val > max) {
+          max = val;
+        }
+      });
+    });
+    return max * 1.2; // Add 20% padding for labels
+  }, [chartData, selectedRestaurantObjects]);
 
   if (selectedRestaurantObjects.length === 0 || chartData.length === 0) {
     return null;
@@ -285,14 +288,14 @@ export function SelectedRestaurantsRankingChart({
     }
   };
 
-  // Custom tooltip formatter for ranks
+  // Custom tooltip showing rank + value
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || payload.length === 0) return null;
     
-    // Sort entries by rank
+    // Sort entries by value (highest first)
     const sortedPayload = [...payload]
       .filter((entry: any) => entry.value !== null && entry.value !== undefined)
-      .sort((a: any, b: any) => (a.value as number) - (b.value as number));
+      .sort((a: any, b: any) => (b.value as number) - (a.value as number));
     
     return (
       <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-sm">
@@ -300,11 +303,10 @@ export function SelectedRestaurantsRankingChart({
           {label}
         </div>
         <div className="space-y-1.5">
-          {sortedPayload.map((entry: any) => {
+          {sortedPayload.map((entry: any, idx: number) => {
             const restaurant = selectedRestaurantObjects.find(r => r.id === entry.dataKey);
-            const rank = entry.value;
-            const valueKey = `${entry.dataKey}_value`;
-            const originalValue = entry.payload[valueKey];
+            const rank = idx + 1;
+            const value = entry.value;
             
             return (
               <div key={entry.dataKey} className="flex items-center justify-between gap-4">
@@ -313,13 +315,13 @@ export function SelectedRestaurantsRankingChart({
                     className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: entry.stroke }}
                   />
-                  <span className="font-medium">{formatRank(rank)}</span>
+                  <span className="font-medium text-primary">{formatRank(rank)}</span>
                   <span className="text-muted-foreground truncate max-w-[120px]">
                     {restaurant?.name}
                   </span>
                 </div>
                 <span className="font-medium">
-                  {originalValue !== undefined ? formatValue(originalValue) : '-'}
+                  {formatValue(value)}
                 </span>
               </div>
             );
@@ -336,7 +338,7 @@ export function SelectedRestaurantsRankingChart({
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-primary" />
-          Classement {metricLabel} — {selectedRestaurantObjects.length === 1 
+          Évolution {metricLabel} — {selectedRestaurantObjects.length === 1 
             ? selectedRestaurantObjects[0].name 
             : `${selectedRestaurantObjects.length} restaurants`}
           <span className="text-xs font-normal text-muted-foreground ml-2">
@@ -352,7 +354,7 @@ export function SelectedRestaurantsRankingChart({
           <ResponsiveContainer width="100%" height="100%">
             <LineChart 
               data={chartData} 
-              margin={{ top: useDenseMode ? 20 : 45, right: 30, left: 10, bottom: 5 }}
+              margin={{ top: useDenseMode ? 20 : 40, right: 30, left: 10, bottom: 5 }}
               onClick={(data) => {
                 if (canDrillDown && data?.activePayload?.[0]?.payload?.dateKey) {
                   handlePointClick(data.activePayload[0].payload.dateKey);
@@ -372,11 +374,12 @@ export function SelectedRestaurantsRankingChart({
               <YAxis 
                 tick={{ fontSize: 11 }} 
                 className="text-muted-foreground"
-                tickFormatter={(value) => formatRank(value)}
-                domain={[1, maxRank]}
-                reversed={true}
-                allowDecimals={false}
-                ticks={Array.from({ length: maxRank }, (_, i) => i + 1)}
+                tickFormatter={(value) => {
+                  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+                  if (value >= 1000) return `${(value / 1000).toFixed(0)}k`;
+                  return value.toLocaleString('fr-FR');
+                }}
+                domain={[0, maxValue]}
                 axisLine={{ stroke: 'hsl(var(--border))' }}
                 tickLine={{ stroke: 'hsl(var(--border))' }}
               />
@@ -385,15 +388,15 @@ export function SelectedRestaurantsRankingChart({
                 <Line
                   key={restaurant.id}
                   type="monotone"
-                  dataKey={`${restaurant.id}_rank`}
+                  dataKey={restaurant.id}
                   name={restaurant.id}
                   stroke={COLORS[index % COLORS.length]}
                   strokeWidth={2}
                   dot={useDenseMode 
-                    ? <SimpleRankDot onClick={handlePointClick} isClickable={canDrillDown} />
+                    ? <SimpleDot onClick={handlePointClick} isClickable={canDrillDown} />
                     : <RankDot onClick={handlePointClick} isClickable={canDrillDown} />
                   }
-                  activeDot={{ r: 8, strokeWidth: 2 }}
+                  activeDot={{ r: 6, strokeWidth: 2 }}
                   connectNulls={false}
                 />
               ))}
