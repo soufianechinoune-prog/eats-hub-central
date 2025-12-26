@@ -45,12 +45,15 @@ serve(async (req) => {
     let dateRangeEnd: string | null = null;
     
     if (fileName) {
-      const datePattern = /_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})\.csv$/i;
+      // Support formats: _2025-12-15_2025-12-21.csv, _2025-12-15_2025-12-21_3.csv, _2025-12-15_2025-12-21 (3).csv
+      const datePattern = /_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})(?:[_\s]*(?:\(\d+\)|\d+))?(?:\.csv)?$/i;
       const match = fileName.match(datePattern);
       if (match) {
         dateRangeStart = match[1];
         dateRangeEnd = match[2];
         console.log("[parse-item-issues-leaderboard] Extracted date range from filename:", dateRangeStart, "to", dateRangeEnd);
+      } else {
+        console.log("[parse-item-issues-leaderboard] Could not extract date from filename:", fileName);
       }
     }
 
