@@ -441,6 +441,12 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
+      // Check for item issues leaderboard v3 headers (new format)
+      if (lines[i].includes("Articles incorrects") && lines[i].includes("Nombre") &&
+          lines[i].includes("Problème avec le plat")) {
+        headerRowIndex = i;
+        break;
+      }
       // Check for order accuracy summary headers (daily or monthly)
       if ((lines[i].includes("Jour") || lines[i].includes("Mois")) && 
           (lines[i].includes("Commandes incorrectes") || lines[i].includes("Articles manquants"))) {
