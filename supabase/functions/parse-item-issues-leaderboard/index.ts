@@ -54,13 +54,25 @@ serve(async (req) => {
         console.log("[parse-item-issues-leaderboard] Extracted date range from filename:", dateRangeStart, "to", dateRangeEnd);
       } else {
         console.log("[parse-item-issues-leaderboard] Could not extract date from filename:", fileName);
+        // Return error - we require date range in filename to avoid bad data
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Impossible de détecter la période depuis le nom du fichier. Gardez le nom de fichier original d'Uber Eats (ex: Classement_articles_2025-12-15_2025-12-21.csv)",
+            fileName 
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
       }
-    }
-
-    // Fallback to year range if no date in filename
-    if (!dateRangeStart || !dateRangeEnd) {
-      dateRangeStart = `${targetYear}-01-01`;
-      dateRangeEnd = `${targetYear}-12-31`;
+    } else {
+      // No filename provided
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Nom de fichier requis pour détecter la période. Assurez-vous de garder le nom de fichier original d'Uber Eats." 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
     }
 
     const supabase = createClient(

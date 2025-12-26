@@ -216,6 +216,8 @@ export default function ImportChecklist() {
 
   // Calculate status for each report type
   // Uses date_range_start/end to check if import covers the selected period
+  // For monthly reports: require COMPLETE coverage (import must contain the full period)
+  // For weekly reports: require overlap is sufficient
   const getImportStatus = (reportType: string, frequency: "weekly" | "monthly", restaurantId?: string): ImportStatusInfo => {
     if (!imports) return { status: "pending", lastImport: null, importCount: 0 };
 
@@ -230,15 +232,37 @@ export default function ImportChecklist() {
         if (!imp.restaurant_ids.includes(restaurantId)) return false;
       }
       
-      // Check if the import's date range overlaps with the selected period
+      // Check if the import's date range matches the selected period
       if (imp.date_range_start && imp.date_range_end) {
         const importStart = new Date(imp.date_range_start);
         const importEnd = new Date(imp.date_range_end);
         
-        // Check for overlap: import range overlaps with period if
-        // importStart <= periodEnd AND importEnd >= periodStart
-        const hasOverlap = importStart <= periodEnd && importEnd >= periodStart;
-        return hasOverlap;
+        // Ignore imports with suspiciously large ranges (full year fallback = bad data)
+        const importDays = differenceInDays(importEnd, importStart);
+        if (importDays > 60) {
+          // This is likely a fallback "full year" range - ignore it
+          return false;
+        }
+        
+        if (frequency === "weekly") {
+          // For weekly: check for overlap
+          const hasOverlap = importStart <= periodEnd && importEnd >= periodStart;
+          return hasOverlap;
+        } else {
+          // For monthly: require complete coverage OR exact match for the period
+          // Import must fully contain the period: importStart <= periodStart AND importEnd >= periodEnd
+          const coversFullPeriod = importStart <= periodStart && importEnd >= periodEnd;
+          
+          // Also accept if the import period is within the month (partial month import for that month)
+          // Check if import overlaps with the month AND is specifically for this month
+          const importMonth = importStart.getMonth();
+          const importYear = importStart.getFullYear();
+          const periodMonth = periodStart.getMonth();
+          const periodYear = periodStart.getFullYear();
+          const sameMonthImport = importMonth === periodMonth && importYear === periodYear;
+          
+          return coversFullPeriod || sameMonthImport;
+        }
       }
       
       // Fallback: use imported_at if no date range available
