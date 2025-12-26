@@ -185,16 +185,14 @@ export default function ImportChecklist() {
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(selectedDate);
 
-  // Fetch import history
+  // Fetch import history - use date_range to check period coverage
   const { data: imports, isLoading } = useQuery({
     queryKey: ["csv-imports-checklist", format(weekStart, "yyyy-MM-dd"), format(monthEnd, "yyyy-MM-dd")],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("csv_imports")
-        .select("report_type, imported_at, status, restaurant_ids")
-        .gte("imported_at", monthStart.toISOString())
-        .lte("imported_at", monthEnd.toISOString())
-        .eq("status", "success");
+        .select("report_type, imported_at, status, restaurant_ids, date_range_start, date_range_end")
+        .eq("status", "completed");
       
       if (error) throw error;
       return data;
@@ -217,8 +215,12 @@ export default function ImportChecklist() {
   });
 
   // Calculate status for each report type
+  // Uses date_range_start/end to check if import covers the selected period
   const getImportStatus = (reportType: string, frequency: "weekly" | "monthly", restaurantId?: string): ImportStatusInfo => {
     if (!imports) return { status: "pending", lastImport: null, importCount: 0 };
+
+    const periodStart = frequency === "weekly" ? weekStart : monthStart;
+    const periodEnd = frequency === "weekly" ? weekEnd : monthEnd;
 
     const relevantImports = imports.filter(imp => {
       if (imp.report_type !== reportType) return false;
@@ -228,13 +230,20 @@ export default function ImportChecklist() {
         if (!imp.restaurant_ids.includes(restaurantId)) return false;
       }
       
-      const importDate = new Date(imp.imported_at);
-      
-      if (frequency === "weekly") {
-        return isWithinInterval(importDate, { start: weekStart, end: weekEnd });
-      } else {
-        return isWithinInterval(importDate, { start: monthStart, end: monthEnd });
+      // Check if the import's date range overlaps with the selected period
+      if (imp.date_range_start && imp.date_range_end) {
+        const importStart = new Date(imp.date_range_start);
+        const importEnd = new Date(imp.date_range_end);
+        
+        // Check for overlap: import range overlaps with period if
+        // importStart <= periodEnd AND importEnd >= periodStart
+        const hasOverlap = importStart <= periodEnd && importEnd >= periodStart;
+        return hasOverlap;
       }
+      
+      // Fallback: use imported_at if no date range available
+      const importDate = new Date(imp.imported_at);
+      return isWithinInterval(importDate, { start: periodStart, end: periodEnd });
     });
 
     if (relevantImports.length > 0) {
@@ -244,16 +253,9 @@ export default function ImportChecklist() {
 
     // Check if we're past the period (overdue)
     const now = new Date();
-    if (frequency === "weekly" && now > weekEnd) {
-      const daysOverdue = differenceInDays(now, weekEnd);
+    if (now > periodEnd) {
+      const daysOverdue = differenceInDays(now, periodEnd);
       // Critical if more than 7 days overdue
-      if (daysOverdue > 7) {
-        return { status: "critical", lastImport: null, importCount: 0, daysOverdue };
-      }
-      return { status: "overdue", lastImport: null, importCount: 0, daysOverdue };
-    }
-    if (frequency === "monthly" && now > monthEnd) {
-      const daysOverdue = differenceInDays(now, monthEnd);
       if (daysOverdue > 7) {
         return { status: "critical", lastImport: null, importCount: 0, daysOverdue };
       }
