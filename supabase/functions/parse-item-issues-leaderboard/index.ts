@@ -13,6 +13,13 @@ interface ParsedItem {
   issues_delta_percent: number | null;
   major_issue_type: string | null;
   has_missing_customization: boolean;
+  store_id: string | null;
+}
+
+interface RestaurantData {
+  id: string;
+  name: string;
+  items: ParsedItem[];
 }
 
 serve(async (req) => {
@@ -21,7 +28,7 @@ serve(async (req) => {
   }
 
   try {
-    const { csvContent, restaurantId, year, dryRun = false } = await req.json();
+    const { csvContent, restaurantId, year, fileName, dryRun = false } = await req.json();
 
     if (!csvContent) {
       return new Response(
@@ -31,7 +38,27 @@ serve(async (req) => {
     }
 
     const targetYear = year || new Date().getFullYear();
-    console.log("[parse-item-issues-leaderboard] Starting parse, year:", targetYear);
+    console.log("[parse-item-issues-leaderboard] Starting parse, year:", targetYear, "fileName:", fileName);
+
+    // Extract date range from filename if available (format: _YYYY-MM-DD_YYYY-MM-DD.csv)
+    let dateRangeStart: string | null = null;
+    let dateRangeEnd: string | null = null;
+    
+    if (fileName) {
+      const datePattern = /_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})\.csv$/i;
+      const match = fileName.match(datePattern);
+      if (match) {
+        dateRangeStart = match[1];
+        dateRangeEnd = match[2];
+        console.log("[parse-item-issues-leaderboard] Extracted date range from filename:", dateRangeStart, "to", dateRangeEnd);
+      }
+    }
+
+    // Fallback to year range if no date in filename
+    if (!dateRangeStart || !dateRangeEnd) {
+      dateRangeStart = `${targetYear}-01-01`;
+      dateRangeEnd = `${targetYear}-12-31`;
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -84,62 +111,24 @@ serve(async (req) => {
 
     console.log("[parse-item-issues-leaderboard] Column mapping:", columnMap);
 
-    // Try to auto-detect restaurant from store_id in data
-    let detectedRestaurantId = restaurantId;
-    let detectedStoreId: string | null = null;
+    // Fetch all restaurants for matching
+    const { data: allRestaurants } = await supabase
+      .from("restaurants")
+      .select("id, name, uber_store_id");
 
-    if (columnMap.store_id !== undefined && !restaurantId) {
-      // Look for store_id in first data row
-      if (headerIndex + 1 < lines.length) {
-        const firstDataRow = parseCSVLine(lines[headerIndex + 1]);
-        const storeIdValue = firstDataRow[columnMap.store_id]?.trim();
-        
-        if (storeIdValue) {
-          detectedStoreId = storeIdValue;
-          console.log("[parse-item-issues-leaderboard] Detected store_id:", storeIdValue);
-          
-          // Try to find restaurant by uber_store_id
-          const { data: restaurantByStoreId } = await supabase
-            .from("restaurants")
-            .select("id, name, uber_store_id")
-            .eq("uber_store_id", storeIdValue)
-            .single();
-          
-          if (restaurantByStoreId) {
-            detectedRestaurantId = restaurantByStoreId.id;
-            console.log("[parse-item-issues-leaderboard] Auto-detected restaurant:", restaurantByStoreId.name);
-          }
+    const restaurantsByStoreId = new Map<string, { id: string; name: string }>();
+    if (allRestaurants) {
+      for (const r of allRestaurants) {
+        if (r.uber_store_id) {
+          restaurantsByStoreId.set(r.uber_store_id, { id: r.id, name: r.name });
         }
       }
     }
 
-    if (!detectedRestaurantId) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Restaurant not found. Please select a restaurant or ensure the store_id matches a configured restaurant.",
-          detectedStoreId 
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
-
-    // Verify restaurant exists
-    const { data: restaurant, error: restError } = await supabase
-      .from("restaurants")
-      .select("id, name")
-      .eq("id", detectedRestaurantId)
-      .single();
-
-    if (restError || !restaurant) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Restaurant not found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
-
+    // Parse all items and group by store_id
     const parsedItems: ParsedItem[] = [];
     const skippedDetails: Array<{ rowIndex: number; reason: string; details: string }> = [];
+    const storeIdsFound = new Set<string>();
 
     for (let i = headerIndex + 1; i < lines.length; i++) {
       const values = parseCSVLine(lines[i]);
@@ -164,6 +153,12 @@ serve(async (req) => {
         }
       }
 
+      // Get store_id if available
+      const storeId = columnMap.store_id !== undefined ? values[columnMap.store_id]?.trim() || null : null;
+      if (storeId) {
+        storeIdsFound.add(storeId);
+      }
+
       parsedItems.push({
         item_title: itemTitle,
         volume: parseNumber(values[columnMap.volume]),
@@ -171,10 +166,75 @@ serve(async (req) => {
         issues_delta_percent: columnMap.issues_delta !== undefined ? parsePercentage(values[columnMap.issues_delta]) : null,
         major_issue_type: values[columnMap.major_issue]?.trim() || null,
         has_missing_customization: hasMissingCustomization,
+        store_id: storeId,
       });
     }
 
-    console.log(`[parse-item-issues-leaderboard] Parsed ${parsedItems.length} items for ${restaurant.name}`);
+    console.log(`[parse-item-issues-leaderboard] Parsed ${parsedItems.length} items, found ${storeIdsFound.size} unique store_ids`);
+
+    // Group items by restaurant
+    const restaurantsData: RestaurantData[] = [];
+    const unknownStoreIds: string[] = [];
+
+    if (storeIdsFound.size > 0) {
+      // Multi-restaurant file: group by store_id
+      const itemsByStoreId = new Map<string, ParsedItem[]>();
+      for (const item of parsedItems) {
+        const key = item.store_id || "unknown";
+        if (!itemsByStoreId.has(key)) {
+          itemsByStoreId.set(key, []);
+        }
+        itemsByStoreId.get(key)!.push(item);
+      }
+
+      for (const [storeId, items] of itemsByStoreId) {
+        if (storeId === "unknown") {
+          // Items without store_id - use provided restaurantId if available
+          if (restaurantId) {
+            const { data: rest } = await supabase
+              .from("restaurants")
+              .select("id, name")
+              .eq("id", restaurantId)
+              .single();
+            if (rest) {
+              restaurantsData.push({ id: rest.id, name: rest.name, items });
+            }
+          }
+        } else {
+          const restaurant = restaurantsByStoreId.get(storeId);
+          if (restaurant) {
+            restaurantsData.push({ id: restaurant.id, name: restaurant.name, items });
+          } else {
+            unknownStoreIds.push(storeId);
+            console.warn(`[parse-item-issues-leaderboard] Unknown store_id: ${storeId} (${items.length} items)`);
+          }
+        }
+      }
+    } else if (restaurantId) {
+      // Single restaurant file: use provided restaurantId
+      const { data: restaurant } = await supabase
+        .from("restaurants")
+        .select("id, name")
+        .eq("id", restaurantId)
+        .single();
+
+      if (restaurant) {
+        restaurantsData.push({ id: restaurant.id, name: restaurant.name, items: parsedItems });
+      }
+    }
+
+    if (restaurantsData.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "No restaurants found. Please select a restaurant or ensure the store_ids match configured restaurants.",
+          unknownStoreIds: Array.from(storeIdsFound),
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    console.log(`[parse-item-issues-leaderboard] Processing ${restaurantsData.length} restaurants`);
 
     const result = {
       success: true,
@@ -190,14 +250,13 @@ serve(async (req) => {
       errorDetails: [] as string[],
       validation: {
         dateRange: {
-          start: `${targetYear}-01-01`,
-          end: `${targetYear}-12-31`,
+          start: dateRangeStart,
+          end: dateRangeEnd,
         },
-        restaurants: [{ id: restaurant.id, name: restaurant.name, orderCount: parsedItems.length }],
-        unknownStoreIds: [] as string[],
+        restaurants: restaurantsData.map(r => ({ id: r.id, name: r.name, orderCount: r.items.length })),
+        unknownStoreIds,
         skippedDetails,
-        autoDetectedRestaurant: restaurantId ? null : restaurant.name,
-        detectedStoreId,
+        autoDetectedRestaurants: restaurantsData.map(r => r.name),
       },
     };
 
@@ -207,38 +266,53 @@ serve(async (req) => {
       });
     }
 
-    // Delete existing items for this restaurant/year before inserting new ones
-    const { error: deleteError } = await supabase
-      .from("product_issues_ranking")
-      .delete()
-      .eq("restaurant_id", detectedRestaurantId)
-      .eq("year", targetYear);
+    // Process each restaurant
+    for (const restData of restaurantsData) {
+      console.log(`[parse-item-issues-leaderboard] Processing ${restData.name}: ${restData.items.length} items`);
 
-    if (deleteError) {
-      console.error("[parse-item-issues-leaderboard] Delete error:", deleteError);
-    }
-
-    // Insert data
-    for (const item of parsedItems) {
-      const { error: insertError } = await supabase
+      // Delete existing items for this restaurant/year before inserting new ones
+      const { error: deleteError } = await supabase
         .from("product_issues_ranking")
-        .insert({
-          restaurant_id: detectedRestaurantId,
-          year: targetYear,
-          item_title: item.item_title,
-          volume: item.volume,
-          score: item.score,
-          issues_delta_percent: item.issues_delta_percent,
-          major_issue_type: item.major_issue_type,
-          has_missing_customization: item.has_missing_customization,
-        });
+        .delete()
+        .eq("restaurant_id", restData.id)
+        .eq("year", targetYear);
 
-      if (insertError) {
-        console.error("[parse-item-issues-leaderboard] Insert error:", insertError);
-        result.stats.errors++;
-        result.errorDetails.push(`Item "${item.item_title}": ${insertError.message}`);
-      } else {
-        result.stats.inserted++;
+      if (deleteError) {
+        console.error(`[parse-item-issues-leaderboard] Delete error for ${restData.name}:`, deleteError);
+      }
+
+      // Batch insert with upsert for safety
+      const records = restData.items.map(item => ({
+        restaurant_id: restData.id,
+        year: targetYear,
+        item_title: item.item_title,
+        volume: item.volume,
+        score: item.score,
+        issues_delta_percent: item.issues_delta_percent,
+        major_issue_type: item.major_issue_type,
+        has_missing_customization: item.has_missing_customization,
+      }));
+
+      // Insert in batches of 100
+      const batchSize = 100;
+      for (let i = 0; i < records.length; i += batchSize) {
+        const batch = records.slice(i, i + batchSize);
+        
+        const { error: upsertError, data: upsertData } = await supabase
+          .from("product_issues_ranking")
+          .upsert(batch, {
+            onConflict: "restaurant_id,year,item_title",
+            ignoreDuplicates: false,
+          })
+          .select();
+
+        if (upsertError) {
+          console.error(`[parse-item-issues-leaderboard] Upsert error for ${restData.name}:`, upsertError);
+          result.stats.errors += batch.length;
+          result.errorDetails.push(`${restData.name}: ${upsertError.message}`);
+        } else {
+          result.stats.inserted += upsertData?.length || batch.length;
+        }
       }
     }
 
