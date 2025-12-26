@@ -23,43 +23,30 @@ serve(async (req) => {
   try {
     const { csvContent, restaurantId, year, dryRun = false } = await req.json();
 
-    if (!csvContent || !restaurantId) {
+    if (!csvContent) {
       return new Response(
-        JSON.stringify({ success: false, error: "csvContent and restaurantId are required" }),
+        JSON.stringify({ success: false, error: "csvContent is required" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
     const targetYear = year || new Date().getFullYear();
-    console.log("[parse-item-issues-leaderboard] Starting parse for restaurant:", restaurantId, "year:", targetYear);
+    console.log("[parse-item-issues-leaderboard] Starting parse, year:", targetYear);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify restaurant exists
-    const { data: restaurant, error: restError } = await supabase
-      .from("restaurants")
-      .select("id, name")
-      .eq("id", restaurantId)
-      .single();
-
-    if (restError || !restaurant) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Restaurant not found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
-
     // Parse CSV
     const lines = csvContent.split("\n").filter((line: string) => line.trim());
     
-    // Find header line
+    // Find header line - support both old and new v3 format
     let headerIndex = -1;
     for (let i = 0; i < Math.min(lines.length, 10); i++) {
       const line = lines[i].toLowerCase();
-      if (line.includes("article") || line.includes("item") || line.includes("volume")) {
+      if (line.includes("article") || line.includes("item") || line.includes("volume") || 
+          line.includes("nombre") || line.includes("articles incorrects")) {
         headerIndex = i;
         break;
       }
@@ -75,19 +62,81 @@ serve(async (req) => {
     const headers = parseCSVLine(lines[headerIndex]);
     console.log("[parse-item-issues-leaderboard] Headers:", headers);
 
-    // Map columns
+    // Map columns - support both old and new v3 format
     const columnMap: Record<string, number> = {};
     headers.forEach((h, i) => {
       const lower = h.toLowerCase().trim();
-      if (lower === "article" || lower === "item" || lower === "nom de l'article") columnMap.item_title = i;
-      if (lower === "volume" || lower === "occurrences") columnMap.volume = i;
+      // Item title columns
+      if (lower === "article" || lower === "item" || lower === "nom de l'article" || lower === "articles incorrects") columnMap.item_title = i;
+      // Volume columns
+      if (lower === "volume" || lower === "occurrences" || lower === "nombre") columnMap.volume = i;
+      // Score columns
       if (lower === "score" || lower.includes("score")) columnMap.score = i;
+      // Delta/variation columns
       if (lower.includes("variation") || lower.includes("delta") || lower.includes("%")) columnMap.issues_delta = i;
-      if (lower.includes("problème principal") || lower.includes("issue type") || lower.includes("type de problème")) columnMap.major_issue = i;
-      if (lower.includes("personnalisation") || lower.includes("customization")) columnMap.has_customization = i;
+      // Issue type columns
+      if (lower.includes("problème principal") || lower.includes("issue type") || lower.includes("type de problème") || lower === "problème avec le plat") columnMap.major_issue = i;
+      // Customization columns - check for "oui/non" or count
+      if (lower.includes("personnalisation") || lower.includes("customization") || lower === "personnalisations incorrectes") columnMap.has_customization = i;
+      // Store ID column (v3 format)
+      if (lower === "id. externe du restaurant" || lower === "external store id" || lower === "store_id") columnMap.store_id = i;
     });
 
     console.log("[parse-item-issues-leaderboard] Column mapping:", columnMap);
+
+    // Try to auto-detect restaurant from store_id in data
+    let detectedRestaurantId = restaurantId;
+    let detectedStoreId: string | null = null;
+
+    if (columnMap.store_id !== undefined && !restaurantId) {
+      // Look for store_id in first data row
+      if (headerIndex + 1 < lines.length) {
+        const firstDataRow = parseCSVLine(lines[headerIndex + 1]);
+        const storeIdValue = firstDataRow[columnMap.store_id]?.trim();
+        
+        if (storeIdValue) {
+          detectedStoreId = storeIdValue;
+          console.log("[parse-item-issues-leaderboard] Detected store_id:", storeIdValue);
+          
+          // Try to find restaurant by uber_store_id
+          const { data: restaurantByStoreId } = await supabase
+            .from("restaurants")
+            .select("id, name, uber_store_id")
+            .eq("uber_store_id", storeIdValue)
+            .single();
+          
+          if (restaurantByStoreId) {
+            detectedRestaurantId = restaurantByStoreId.id;
+            console.log("[parse-item-issues-leaderboard] Auto-detected restaurant:", restaurantByStoreId.name);
+          }
+        }
+      }
+    }
+
+    if (!detectedRestaurantId) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Restaurant not found. Please select a restaurant or ensure the store_id matches a configured restaurant.",
+          detectedStoreId 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    // Verify restaurant exists
+    const { data: restaurant, error: restError } = await supabase
+      .from("restaurants")
+      .select("id, name")
+      .eq("id", detectedRestaurantId)
+      .single();
+
+    if (restError || !restaurant) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Restaurant not found" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
 
     const parsedItems: ParsedItem[] = [];
     const skippedDetails: Array<{ rowIndex: number; reason: string; details: string }> = [];
@@ -102,19 +151,30 @@ serve(async (req) => {
         continue;
       }
 
+      // Parse has_missing_customization - can be "oui/non" or a number
+      let hasMissingCustomization = false;
+      if (columnMap.has_customization !== undefined) {
+        const customValue = values[columnMap.has_customization]?.toLowerCase().trim();
+        if (customValue === "oui" || customValue === "yes") {
+          hasMissingCustomization = true;
+        } else {
+          // If it's a number > 0, consider it as having customization issues
+          const numValue = parseInt(customValue);
+          hasMissingCustomization = !isNaN(numValue) && numValue > 0;
+        }
+      }
+
       parsedItems.push({
         item_title: itemTitle,
         volume: parseNumber(values[columnMap.volume]),
         score: parseFloat(values[columnMap.score]?.replace(",", ".") || "0") || 0,
         issues_delta_percent: columnMap.issues_delta !== undefined ? parsePercentage(values[columnMap.issues_delta]) : null,
         major_issue_type: values[columnMap.major_issue]?.trim() || null,
-        has_missing_customization: columnMap.has_customization !== undefined 
-          ? (values[columnMap.has_customization]?.toLowerCase().includes("oui") || values[columnMap.has_customization]?.toLowerCase() === "yes")
-          : false,
+        has_missing_customization: hasMissingCustomization,
       });
     }
 
-    console.log(`[parse-item-issues-leaderboard] Parsed ${parsedItems.length} items`);
+    console.log(`[parse-item-issues-leaderboard] Parsed ${parsedItems.length} items for ${restaurant.name}`);
 
     const result = {
       success: true,
@@ -136,6 +196,8 @@ serve(async (req) => {
         restaurants: [{ id: restaurant.id, name: restaurant.name, orderCount: parsedItems.length }],
         unknownStoreIds: [] as string[],
         skippedDetails,
+        autoDetectedRestaurant: restaurantId ? null : restaurant.name,
+        detectedStoreId,
       },
     };
 
@@ -149,7 +211,7 @@ serve(async (req) => {
     const { error: deleteError } = await supabase
       .from("product_issues_ranking")
       .delete()
-      .eq("restaurant_id", restaurantId)
+      .eq("restaurant_id", detectedRestaurantId)
       .eq("year", targetYear);
 
     if (deleteError) {
@@ -161,7 +223,7 @@ serve(async (req) => {
       const { error: insertError } = await supabase
         .from("product_issues_ranking")
         .insert({
-          restaurant_id: restaurantId,
+          restaurant_id: detectedRestaurantId,
           year: targetYear,
           item_title: item.item_title,
           volume: item.volume,
