@@ -23,6 +23,7 @@ import {
   Home,
   Star,
   FileUp,
+  ClipboardCheck,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +82,11 @@ const dataItems = [
     title: "Saisie de données",
     url: "/data-entry",
     icon: PenLine,
+  },
+  {
+    title: "Checklist Imports",
+    url: "/import-checklist",
+    icon: ClipboardCheck,
   },
   {
     title: "Import Rapports",

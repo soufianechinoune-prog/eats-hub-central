@@ -31,6 +31,7 @@ import Operations from "./pages/Operations";
 import Cartography from "./pages/Cartography";
 import ReportImport from "./pages/ReportImport";
 import ImportGuide from "./pages/ImportGuide";
+import ImportChecklist from "./pages/ImportChecklist";
 import DowntimeComparison from "./pages/DowntimeComparison";
 import RatingsComparison from "./pages/RatingsComparison";
 import OpeningHoursComparison from "./pages/OpeningHoursComparison";
@@ -220,6 +221,14 @@ const App = () => {
                 element={
                   <AppLayout>
                     <ImportGuide />
+                  </AppLayout>
+                }
+              />
+              <Route
+                path="/import-checklist"
+                element={
+                  <AppLayout>
+                    <ImportChecklist />
                   </AppLayout>
                 }
               />
