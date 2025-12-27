@@ -36,6 +36,7 @@ import DowntimeComparison from "./pages/DowntimeComparison";
 import RatingsComparison from "./pages/RatingsComparison";
 import OpeningHoursComparison from "./pages/OpeningHoursComparison";
 import PrepTimeComparison from "./pages/PrepTimeComparison";
+import InaccurateOrdersComparison from "./pages/InaccurateOrdersComparison";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 
 const queryClient = new QueryClient({
@@ -262,6 +263,14 @@ const App = () => {
                 element={
                   <AppLayout>
                     <PrepTimeComparison />
+                  </AppLayout>
+                }
+              />
+              <Route
+                path="/compare/inaccurate-orders"
+                element={
+                  <AppLayout>
+                    <InaccurateOrdersComparison />
                   </AppLayout>
                 }
               />
