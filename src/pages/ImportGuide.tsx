@@ -325,6 +325,35 @@ const fileGuides: FileGuide[] = [
     theme: "operations"
   },
   {
+    id: "inaccurate-orders",
+    title: "Commandes incorrectes (détail)",
+    description: "Détail de chaque commande incorrecte avec type d'erreur, articles concernés et remboursements. Essentiel pour la page de comparaison.",
+    frequency: "Hebdomadaire",
+    frequencyBadge: "default",
+    path: [
+      "Uber Eats Manager → Qualité",
+      "Section 'Exactitude des commandes'",
+      "Tableau détaillé → Exporter (inaccurate_orders_v3)"
+    ],
+    parameters: [
+      "Période : Semaine ou mois",
+      "Format : CSV (inaccurate_orders_v3_xxx.csv)",
+      "Tous les restaurants ou un seul"
+    ],
+    dataImported: [
+      "ID commande",
+      "Date/heure commande",
+      "Restaurant",
+      "Problème avec la commande",
+      "Articles incorrects",
+      "Montant remboursé client",
+      "Part commerçant"
+    ],
+    targetTable: "order_errors",
+    yearsApplicable: "Tous",
+    theme: "operations"
+  },
+  {
     id: "order-accuracy-summary",
     title: "Résumé commandes incorrectes",
     description: "Données officielles Uber agrégées par jour/mois : nombre d'erreurs par type et remboursements associés.",
