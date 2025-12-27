@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PrepTimeRankingBars } from "@/components/compare/PrepTimeRankingBars";
-import { PrepTimeEvolutionChart } from "@/components/compare/PrepTimeEvolutionChart";
+
 import { PrepTimeInsightsSection } from "@/components/compare/PrepTimeInsightsSection";
 import { PrepTimeHeatmapGrid } from "@/components/compare/PrepTimeHeatmapGrid";
 
@@ -136,27 +136,6 @@ const PrepTimeComparison = () => {
     return stats.sort((a, b) => a.avgPrepTime - b.avgPrepTime);
   }, [orderHistoryData, pinnedRestaurants]);
 
-  // Prepare evolution chart data
-  const evolutionData = useMemo(() => {
-    if (!restaurantStats.length) return [];
-    
-    // Get all unique dates
-    const allDates = new Set<string>();
-    restaurantStats.forEach(r => {
-      Object.keys(r.dailyData).forEach(date => allDates.add(date));
-    });
-    
-    return Array.from(allDates)
-      .sort()
-      .map(date => {
-        const entry: Record<string, string | number> = { date };
-        restaurantStats.forEach(r => {
-          const dayData = r.dailyData[date];
-          entry[r.name] = dayData ? dayData.total / dayData.count : 0;
-        });
-        return entry;
-      });
-  }, [restaurantStats]);
 
   const periodLabel = useMemo(() => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
@@ -214,26 +193,15 @@ const PrepTimeComparison = () => {
             {/* Insights Section */}
             <PrepTimeInsightsSection stats={restaurantStats} period={period} />
 
-            {/* Ranking + Evolution */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-lg">Classement par rapidité</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <PrepTimeRankingBars stats={restaurantStats} />
-                </CardContent>
-              </Card>
-
-              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-lg">Évolution journalière</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <PrepTimeEvolutionChart data={evolutionData} restaurants={restaurantStats.map(r => r.name)} />
-                </CardContent>
-              </Card>
-            </div>
+            {/* Ranking - Full Width */}
+            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-lg">Classement par rapidité</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <PrepTimeRankingBars stats={restaurantStats} />
+              </CardContent>
+            </Card>
 
             {/* Heatmap */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
