@@ -75,8 +75,8 @@ export const PrepTimeRankingBars = ({ stats }: PrepTimeRankingBarsProps) => {
   return (
     <div className="space-y-4">
       {sortedStats.map((stat, index) => {
-        // Invert for display: faster = fuller bar
-        const barWidth = ((maxPrepTime - stat.avgPrepTime) / maxPrepTime) * 100 + 10;
+        // Direct proportion: longer bar = longer prep time
+        const barWidth = (stat.avgPrepTime / maxPrepTime) * 100;
         const status = getStatusLabel(stat.avgPrepTime);
         const cityName = extractCityName(stat.name);
         
