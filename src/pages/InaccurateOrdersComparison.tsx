@@ -54,18 +54,18 @@ const InaccurateOrdersComparison = () => {
     },
   });
 
-  // Fetch order errors data
-  const { data: orderErrorsData, isLoading: errorsLoading } = useQuery({
-    queryKey: ["inaccurate-orders-comparison-errors", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+  // Fetch daily order accuracy data (aggregated from Uber dashboard)
+  const { data: orderAccuracyData, isLoading: accuracyLoading } = useQuery({
+    queryKey: ["inaccurate-orders-comparison-accuracy", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
       
       const { data, error } = await supabase
-        .from("order_errors")
-        .select("restaurant_id, error_date, error_type, financial_impact")
+        .from("daily_order_accuracy")
+        .select("*")
         .in("restaurant_id", pinnedRestaurants.map(r => r.id))
-        .gte("error_date", dateRange.start.toISOString())
-        .lte("error_date", dateRange.end.toISOString());
+        .gte("date", format(dateRange.start, "yyyy-MM-dd"))
+        .lte("date", format(dateRange.end, "yyyy-MM-dd"));
       
       if (error) throw error;
       return data || [];
@@ -73,34 +73,34 @@ const InaccurateOrdersComparison = () => {
     enabled: !!pinnedRestaurants?.length,
   });
 
-  // Fetch latest error date to check data coverage
+  // Fetch latest accuracy date to check data coverage
   const { data: latestErrorDate } = useQuery({
-    queryKey: ["latest-error-date"],
+    queryKey: ["latest-accuracy-date"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("order_errors")
-        .select("error_date")
-        .order("error_date", { ascending: false })
+        .from("daily_order_accuracy")
+        .select("date")
+        .order("date", { ascending: false })
         .limit(1)
         .single();
       
       if (error) return null;
-      return data?.error_date ? parseISO(data.error_date) : null;
+      return data?.date ? parseISO(data.date) : null;
     },
   });
 
-  // Fetch order counts using RPC function (avoids 1000 row limit)
+  // Fetch order counts from daily_revenue for the period
   const { data: orderCountsData, isLoading: ordersLoading } = useQuery({
-    queryKey: ["inaccurate-orders-comparison-counts", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+    queryKey: ["inaccurate-orders-comparison-revenue", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
       
       const { data, error } = await supabase
-        .rpc("get_order_counts_for_accuracy", {
-          p_restaurant_ids: pinnedRestaurants.map(r => r.id),
-          p_start_date: dateRange.start.toISOString(),
-          p_end_date: dateRange.end.toISOString(),
-        });
+        .from("daily_revenue")
+        .select("restaurant_id, date, order_count")
+        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
+        .gte("date", format(dateRange.start, "yyyy-MM-dd"))
+        .lte("date", format(dateRange.end, "yyyy-MM-dd"));
       
       if (error) throw error;
       return data || [];
@@ -108,7 +108,7 @@ const InaccurateOrdersComparison = () => {
     enabled: !!pinnedRestaurants?.length,
   });
 
-  const isLoading = errorsLoading || ordersLoading;
+  const isLoading = accuracyLoading || ordersLoading;
 
   // Check if data is incomplete for selected period
   const dataIncomplete = useMemo(() => {
@@ -118,79 +118,67 @@ const InaccurateOrdersComparison = () => {
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!orderErrorsData || !orderCountsData || !pinnedRestaurants?.length) return [];
+    if (!orderAccuracyData || !pinnedRestaurants?.length) return [];
     
-    // Process RPC data into lookup maps
+    // Build order counts by restaurant and weekday
     const orderCountsByRestaurant: Record<string, {
       total: number;
       weekday: Record<number, number>;
-      hourly: Record<number, number>;
     }> = {};
     
-    orderCountsData.forEach((row: { 
-      restaurant_id: string; 
-      total_orders: number; 
-      weekday: number | null;
-      weekday_orders: number;
-      hour: number | null;
-      hourly_orders: number;
-    }) => {
+    orderCountsData?.forEach((row) => {
       if (!orderCountsByRestaurant[row.restaurant_id]) {
-        orderCountsByRestaurant[row.restaurant_id] = {
-          total: row.total_orders,
-          weekday: {},
-          hourly: {},
-        };
+        orderCountsByRestaurant[row.restaurant_id] = { total: 0, weekday: {} };
       }
-      if (row.weekday !== null) {
-        orderCountsByRestaurant[row.restaurant_id].weekday[row.weekday] = row.weekday_orders;
-      }
-      if (row.hour !== null) {
-        orderCountsByRestaurant[row.restaurant_id].hourly[row.hour] = row.hourly_orders;
+      orderCountsByRestaurant[row.restaurant_id].total += row.order_count || 0;
+      
+      if (row.date) {
+        const weekday = parseISO(row.date).getDay();
+        orderCountsByRestaurant[row.restaurant_id].weekday[weekday] = 
+          (orderCountsByRestaurant[row.restaurant_id].weekday[weekday] || 0) + (row.order_count || 0);
       }
     });
     
     const stats = pinnedRestaurants.map(restaurant => {
-      const restaurantErrors = orderErrorsData.filter(d => d.restaurant_id === restaurant.id);
-      const orderData = orderCountsByRestaurant[restaurant.id] || { total: 0, weekday: {}, hourly: {} };
+      const accuracyRecords = orderAccuracyData.filter(d => d.restaurant_id === restaurant.id);
+      const orderData = orderCountsByRestaurant[restaurant.id] || { total: 0, weekday: {} };
       
-      // Calculate error rate
-      const errorCount = restaurantErrors.length;
+      // Aggregate error counts from daily_order_accuracy
+      const errorCount = accuracyRecords.reduce((sum, r) => sum + (r.incorrect_orders_count || 0), 0);
+      const totalRefund = accuracyRecords.reduce((sum, r) => sum + (r.total_refund || 0), 0);
+      
+      // Category breakdown
+      const missingItems = accuracyRecords.reduce((sum, r) => sum + (r.missing_items_count || 0), 0);
+      const missingCustomizations = accuracyRecords.reduce((sum, r) => sum + (r.missing_customization_count || 0), 0);
+      const incorrectItems = accuracyRecords.reduce((sum, r) => sum + (r.incorrect_item_count || 0), 0);
+      const wrongOrders = accuracyRecords.reduce((sum, r) => sum + (r.wrong_order_count || 0), 0);
+      
+      // Refund breakdown
+      const missingItemsRefund = accuracyRecords.reduce((sum, r) => sum + (r.missing_items_refund || 0), 0);
+      const missingCustomizationsRefund = accuracyRecords.reduce((sum, r) => sum + (r.missing_customization_refund || 0), 0);
+      const incorrectItemRefund = accuracyRecords.reduce((sum, r) => sum + (r.incorrect_item_refund || 0), 0);
+      const wrongOrderRefund = accuracyRecords.reduce((sum, r) => sum + (r.wrong_order_refund || 0), 0);
+      
       const orderCount = orderData.total;
       const errorRate = orderCount > 0 ? (errorCount / orderCount) * 100 : 0;
-      
-      // Calculate total financial impact
-      const totalFinancialImpact = restaurantErrors.reduce((sum, e) => sum + (e.financial_impact || 0), 0);
       
       // Group errors by day of week
       const weekdayData: Record<number, { errors: number; orders: number }> = {};
       for (let i = 0; i <= 6; i++) {
         weekdayData[i] = { errors: 0, orders: orderData.weekday[i] || 0 };
       }
-      restaurantErrors.forEach(e => {
-        if (!e.error_date) return;
-        const errorDate = new Date(e.error_date);
-        const weekday = errorDate.getDay();
-        weekdayData[weekday].errors += 1;
+      accuracyRecords.forEach(r => {
+        if (!r.date) return;
+        const weekday = parseISO(r.date).getDay();
+        weekdayData[weekday].errors += r.incorrect_orders_count || 0;
       });
 
-      // Group errors by hour
-      const hourlyData: Record<number, { errors: number; orders: number }> = {};
-      for (let i = 0; i <= 23; i++) {
-        hourlyData[i] = { errors: 0, orders: orderData.hourly[i] || 0 };
-      }
-      restaurantErrors.forEach(e => {
-        if (!e.error_date) return;
-        const hour = new Date(e.error_date).getHours();
-        hourlyData[hour].errors += 1;
-      });
-
-      // Group by error type
+      // Build error types for compatibility
       const errorTypes: Record<string, number> = {};
-      restaurantErrors.forEach(e => {
-        const type = e.error_type || "Autre";
-        errorTypes[type] = (errorTypes[type] || 0) + 1;
-      });
+      if (missingItems > 0) errorTypes["Articles manquants"] = missingItems;
+      if (missingCustomizations > 0) errorTypes["Personnalisations manquantes"] = missingCustomizations;
+      if (incorrectItems > 0) errorTypes["Article incorrect"] = incorrectItems;
+      if (wrongOrders > 0) errorTypes["Commande incorrecte"] = wrongOrders;
       
       return {
         id: restaurant.id,
@@ -198,16 +186,29 @@ const InaccurateOrdersComparison = () => {
         errorRate,
         errorCount,
         orderCount,
-        totalFinancialImpact,
+        totalFinancialImpact: totalRefund,
         weekdayData,
-        hourlyData,
+        hourlyData: {} as Record<number, { errors: number; orders: number }>, // Not available in aggregated data
         errorTypes,
+        // Additional category details
+        categoryBreakdown: {
+          missingItems,
+          missingCustomizations,
+          incorrectItems,
+          wrongOrders,
+        },
+        refundBreakdown: {
+          missingItemsRefund,
+          missingCustomizationsRefund,
+          incorrectItemRefund,
+          wrongOrderRefund,
+        },
       };
     });
     
     // Sort by error rate (lowest first = best)
     return stats.sort((a, b) => a.errorRate - b.errorRate);
-  }, [orderErrorsData, orderCountsData, pinnedRestaurants]);
+  }, [orderAccuracyData, orderCountsData, pinnedRestaurants]);
 
   const periodLabel = useMemo(() => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
