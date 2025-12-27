@@ -2662,6 +2662,19 @@ export type Database = {
           year: number
         }[]
       }
+      get_order_counts_for_accuracy: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          hourly_counts: Json
+          restaurant_id: string
+          total_orders: number
+          weekday_counts: Json
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
