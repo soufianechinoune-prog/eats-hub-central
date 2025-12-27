@@ -109,11 +109,13 @@ const PrepTimeComparison = () => {
         hourlyData[hour].count += 1;
       });
 
-      // Group by day of week
+      // Group by day of week - use local timezone for correct day calculation
       const weekdayData: Record<number, { total: number; count: number }> = {};
       restaurantData.forEach(d => {
         if (!d.order_datetime) return;
-        const weekday = parseISO(d.order_datetime).getDay();
+        // Create date in local timezone instead of UTC to get correct weekday
+        const orderDate = new Date(d.order_datetime);
+        const weekday = orderDate.getDay();
         if (!weekdayData[weekday]) {
           weekdayData[weekday] = { total: 0, count: 0 };
         }
