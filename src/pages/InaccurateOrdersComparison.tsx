@@ -2,9 +2,10 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO, isAfter } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Calendar, TrendingDown } from "lucide-react";
+import { ArrowLeft, Calendar, TrendingDown, AlertTriangle, FileUp } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -72,6 +73,22 @@ const InaccurateOrdersComparison = () => {
     enabled: !!pinnedRestaurants?.length,
   });
 
+  // Fetch latest error date to check data coverage
+  const { data: latestErrorDate } = useQuery({
+    queryKey: ["latest-error-date"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_errors")
+        .select("error_date")
+        .order("error_date", { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (error) return null;
+      return data?.error_date ? parseISO(data.error_date) : null;
+    },
+  });
+
   // Fetch order history for total orders count
   const { data: orderHistoryData, isLoading: ordersLoading } = useQuery({
     queryKey: ["inaccurate-orders-comparison-orders", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
@@ -92,6 +109,12 @@ const InaccurateOrdersComparison = () => {
   });
 
   const isLoading = errorsLoading || ordersLoading;
+
+  // Check if data is incomplete for selected period
+  const dataIncomplete = useMemo(() => {
+    if (!latestErrorDate) return true;
+    return isAfter(dateRange.end, latestErrorDate);
+  }, [latestErrorDate, dateRange.end]);
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
@@ -229,6 +252,27 @@ const InaccurateOrdersComparison = () => {
           </div>
         ) : (
           <div className="grid gap-6">
+            {/* Warning if data is incomplete */}
+            {dataIncomplete && latestErrorDate && (
+              <Alert className="border-amber-500/50 bg-amber-500/10">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertTitle className="text-amber-600">Données incomplètes</AlertTitle>
+                <AlertDescription className="text-amber-600/80">
+                  Les données d'erreurs s'arrêtent au <strong>{format(latestErrorDate, "d MMMM yyyy", { locale: fr })}</strong>.
+                  Pour avoir les données complètes, importez le fichier <strong>"Inaccurate Orders"</strong> (inaccurate_orders_v3_xxx.csv) 
+                  depuis Uber Eats Manager → Rapports → Qualité des commandes.
+                  <Button 
+                    variant="link" 
+                    className="p-0 h-auto ml-2 text-amber-600 underline"
+                    onClick={() => navigate("/reports")}
+                  >
+                    <FileUp className="h-3 w-3 mr-1" />
+                    Importer
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Insights Section */}
             <InaccurateOrdersInsightsSection stats={restaurantStats} period={period} />
 
