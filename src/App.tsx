@@ -35,6 +35,7 @@ import ImportChecklist from "./pages/ImportChecklist";
 import DowntimeComparison from "./pages/DowntimeComparison";
 import RatingsComparison from "./pages/RatingsComparison";
 import OpeningHoursComparison from "./pages/OpeningHoursComparison";
+import PrepTimeComparison from "./pages/PrepTimeComparison";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 
 const queryClient = new QueryClient({
@@ -253,6 +254,14 @@ const App = () => {
                 element={
                   <AppLayout>
                     <OpeningHoursComparison />
+                  </AppLayout>
+                }
+              />
+              <Route
+                path="/compare/prep-time"
+                element={
+                  <AppLayout>
+                    <PrepTimeComparison />
                   </AppLayout>
                 }
               />
