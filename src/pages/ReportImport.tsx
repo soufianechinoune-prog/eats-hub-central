@@ -52,7 +52,8 @@ const REPORT_THEMES = [
     types: [
       { value: "downtime_report", label: "Temps d'inactivité", description: "Disponibilité horaire des restaurants (menu_downtime_local)", icon: Clock },
       { value: "order_history", label: "Historique des commandes", description: "Temps d'attente coursier, préparation, livraison (order_history_local)", icon: Clock },
-      { value: "order_accuracy_summary", label: "Résumé commandes incorrectes", description: "Données officielles Uber (order-accuracy-inaccurate-issues-summary)", icon: AlertTriangle },
+      { value: "inaccurate_orders", label: "Commandes incorrectes (détail)", description: "Détail des erreurs par commande (inaccurate_orders_v3_xxx.csv)", icon: AlertTriangle },
+      { value: "order_accuracy_summary", label: "Résumé commandes incorrectes", description: "Données agrégées jour/mois (order-accuracy-inaccurate-issues-summary)", icon: AlertTriangle },
       { value: "item_issues_leaderboard", label: "Top articles problématiques", description: "Classement des produits avec erreurs (item-issues-leaderboard)", icon: AlertTriangle },
     ]
   }
@@ -550,6 +551,7 @@ export default function ReportImport() {
         reviews_item: "parse-reviews-item",
         downtime_report: "parse-downtime-report",
         order_history: "parse-order-history",
+        inaccurate_orders: "parse-inaccurate-orders",
         order_accuracy_summary: "parse-order-accuracy-summary",
         item_issues_leaderboard: "parse-item-issues-leaderboard",
         conversion_funnel: "parse-conversion-report",
