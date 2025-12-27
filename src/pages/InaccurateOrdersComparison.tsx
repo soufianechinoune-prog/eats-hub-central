@@ -89,18 +89,18 @@ const InaccurateOrdersComparison = () => {
     },
   });
 
-  // Fetch order history for total orders count
-  const { data: orderHistoryData, isLoading: ordersLoading } = useQuery({
-    queryKey: ["inaccurate-orders-comparison-orders", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+  // Fetch order counts using RPC function (avoids 1000 row limit)
+  const { data: orderCountsData, isLoading: ordersLoading } = useQuery({
+    queryKey: ["inaccurate-orders-comparison-counts", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
       
       const { data, error } = await supabase
-        .from("order_history")
-        .select("restaurant_id, order_datetime")
-        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
-        .gte("order_datetime", dateRange.start.toISOString())
-        .lte("order_datetime", dateRange.end.toISOString());
+        .rpc("get_order_counts_for_accuracy", {
+          p_restaurant_ids: pinnedRestaurants.map(r => r.id),
+          p_start_date: dateRange.start.toISOString(),
+          p_end_date: dateRange.end.toISOString(),
+        });
       
       if (error) throw error;
       return data || [];
@@ -118,61 +118,71 @@ const InaccurateOrdersComparison = () => {
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!orderErrorsData || !orderHistoryData || !pinnedRestaurants?.length) return [];
+    if (!orderErrorsData || !orderCountsData || !pinnedRestaurants?.length) return [];
+    
+    // Process RPC data into lookup maps
+    const orderCountsByRestaurant: Record<string, {
+      total: number;
+      weekday: Record<number, number>;
+      hourly: Record<number, number>;
+    }> = {};
+    
+    orderCountsData.forEach((row: { 
+      restaurant_id: string; 
+      total_orders: number; 
+      weekday: number | null;
+      weekday_orders: number;
+      hour: number | null;
+      hourly_orders: number;
+    }) => {
+      if (!orderCountsByRestaurant[row.restaurant_id]) {
+        orderCountsByRestaurant[row.restaurant_id] = {
+          total: row.total_orders,
+          weekday: {},
+          hourly: {},
+        };
+      }
+      if (row.weekday !== null) {
+        orderCountsByRestaurant[row.restaurant_id].weekday[row.weekday] = row.weekday_orders;
+      }
+      if (row.hour !== null) {
+        orderCountsByRestaurant[row.restaurant_id].hourly[row.hour] = row.hourly_orders;
+      }
+    });
     
     const stats = pinnedRestaurants.map(restaurant => {
       const restaurantErrors = orderErrorsData.filter(d => d.restaurant_id === restaurant.id);
-      const restaurantOrders = orderHistoryData.filter(d => d.restaurant_id === restaurant.id);
+      const orderData = orderCountsByRestaurant[restaurant.id] || { total: 0, weekday: {}, hourly: {} };
       
       // Calculate error rate
       const errorCount = restaurantErrors.length;
-      const orderCount = restaurantOrders.length;
+      const orderCount = orderData.total;
       const errorRate = orderCount > 0 ? (errorCount / orderCount) * 100 : 0;
       
       // Calculate total financial impact
       const totalFinancialImpact = restaurantErrors.reduce((sum, e) => sum + (e.financial_impact || 0), 0);
       
-      // Group by day of week
+      // Group errors by day of week
       const weekdayData: Record<number, { errors: number; orders: number }> = {};
+      for (let i = 0; i <= 6; i++) {
+        weekdayData[i] = { errors: 0, orders: orderData.weekday[i] || 0 };
+      }
       restaurantErrors.forEach(e => {
         if (!e.error_date) return;
         const errorDate = new Date(e.error_date);
         const weekday = errorDate.getDay();
-        if (!weekdayData[weekday]) {
-          weekdayData[weekday] = { errors: 0, orders: 0 };
-        }
         weekdayData[weekday].errors += 1;
       });
-      
-      // Count orders by weekday
-      restaurantOrders.forEach(o => {
-        if (!o.order_datetime) return;
-        const orderDate = new Date(o.order_datetime);
-        const weekday = orderDate.getDay();
-        if (!weekdayData[weekday]) {
-          weekdayData[weekday] = { errors: 0, orders: 0 };
-        }
-        weekdayData[weekday].orders += 1;
-      });
 
-      // Group by hour
+      // Group errors by hour
       const hourlyData: Record<number, { errors: number; orders: number }> = {};
+      for (let i = 0; i <= 23; i++) {
+        hourlyData[i] = { errors: 0, orders: orderData.hourly[i] || 0 };
+      }
       restaurantErrors.forEach(e => {
         if (!e.error_date) return;
         const hour = new Date(e.error_date).getHours();
-        if (!hourlyData[hour]) {
-          hourlyData[hour] = { errors: 0, orders: 0 };
-        }
         hourlyData[hour].errors += 1;
-      });
-      
-      restaurantOrders.forEach(o => {
-        if (!o.order_datetime) return;
-        const hour = new Date(o.order_datetime).getHours();
-        if (!hourlyData[hour]) {
-          hourlyData[hour] = { errors: 0, orders: 0 };
-        }
-        hourlyData[hour].orders += 1;
       });
 
       // Group by error type
@@ -197,7 +207,7 @@ const InaccurateOrdersComparison = () => {
     
     // Sort by error rate (lowest first = best)
     return stats.sort((a, b) => a.errorRate - b.errorRate);
-  }, [orderErrorsData, orderHistoryData, pinnedRestaurants]);
+  }, [orderErrorsData, orderCountsData, pinnedRestaurants]);
 
   const periodLabel = useMemo(() => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;

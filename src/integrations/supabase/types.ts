@@ -2669,10 +2669,12 @@ export type Database = {
           p_start_date: string
         }
         Returns: {
-          hourly_counts: Json
+          hour: number
+          hourly_orders: number
           restaurant_id: string
           total_orders: number
-          weekday_counts: Json
+          weekday: number
+          weekday_orders: number
         }[]
       }
     }
