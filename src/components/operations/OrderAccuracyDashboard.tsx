@@ -124,7 +124,6 @@ export function OrderAccuracyDashboard({
         .select("*")
         .gte("date", effectiveDateRange.startDate)
         .lte("date", effectiveDateRange.endDate)
-        .eq("period_type", "current")
         .order("date", { ascending: true });
 
       if (!isAllRestaurants && restaurantIds.length > 0) {
@@ -148,7 +147,6 @@ export function OrderAccuracyDashboard({
         .from("monthly_order_accuracy")
         .select("*")
         .eq("year", selectedYear)
-        .eq("period_type", "current")
         .order("month", { ascending: true });
 
       if (!isAllRestaurants && restaurantIds.length > 0) {
