@@ -494,19 +494,7 @@ export function OperationsAnalytics() {
     );
   }
 
-  if (!availabilityData || availabilityData.length === 0) {
-    return (
-      <div className="text-center py-20 space-y-4">
-        <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto" />
-        <p className="text-lg text-muted-foreground">
-          Aucune donnée de disponibilité pour cette période.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Importez un fichier "Temps d'inactivité" depuis la page Import Rapports.
-        </p>
-      </div>
-    );
-  }
+  const hasAvailabilityData = availabilityData && availabilityData.length > 0;
 
   const getAvailabilityColor = (value: number) => {
     if (value >= 98) return "hsl(var(--chart-2))"; // Green
@@ -566,6 +554,18 @@ export function OperationsAnalytics() {
         </TabsContent>
 
         <TabsContent value="availability" className="mt-6 space-y-6">
+          {!hasAvailabilityData ? (
+            <div className="text-center py-20 space-y-4">
+              <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto" />
+              <p className="text-lg text-muted-foreground">
+                Aucune donnée de disponibilité pour cette période.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Importez un fichier "Temps d'inactivité" depuis la page Import Rapports.
+              </p>
+            </div>
+          ) : (
+            <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -974,6 +974,8 @@ export function OperationsAnalytics() {
           </CardContent>
         </Card>
       </div>
+            </>
+          )}
         </TabsContent>
       </Tabs>
     </div>
