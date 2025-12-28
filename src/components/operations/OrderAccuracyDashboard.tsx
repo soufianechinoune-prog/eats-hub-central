@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,10 +66,21 @@ export function OrderAccuracyDashboard({
   const [objective, setObjective] = useState(2);
   const [chartType, setChartType] = useState<"line" | "bar">("bar");
   
-  // Drill-down state for chart
+  // Chart mode (year vs month)
   const [chartPeriodMode, setChartPeriodMode] = useState<"year" | "month">("year");
   const [chartSelectedMonth, setChartSelectedMonth] = useState<number | null>(null);
 
+  // Keep the chart aligned with the global month filter to avoid KPI/chart mismatches
+  useEffect(() => {
+    if (selectedMonth === "all") {
+      setChartPeriodMode("year");
+      setChartSelectedMonth(null);
+      return;
+    }
+
+    setChartPeriodMode("month");
+    setChartSelectedMonth(selectedMonth);
+  }, [selectedMonth, selectedYear, restaurantIds.join(",")]);
   // Fetch daily order accuracy data (new format)
   const { data: dailyAccuracy, isLoading: isLoadingDaily } = useQuery({
     queryKey: ["daily-order-accuracy", restaurantIds, selectedYear],
