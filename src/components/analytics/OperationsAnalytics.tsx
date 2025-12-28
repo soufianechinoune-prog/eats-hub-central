@@ -49,6 +49,7 @@ export function OperationsAnalytics() {
     periodMode,
     setPeriodMode,
     setSelectedMonth,
+    dateRange: contextDateRange,
   } = useAnalyticsContext();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -74,6 +75,10 @@ export function OperationsAnalytics() {
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
+    // Use context date range for range mode
+    if (periodMode === "range" && contextDateRange?.from && contextDateRange?.to) {
+      return { start: contextDateRange.from, end: contextDateRange.to };
+    }
     if (periodMode === "month") {
       const start = startOfMonth(new Date(selectedYear, selectedMonth - 1));
       const end = endOfMonth(new Date(selectedYear, selectedMonth - 1));
@@ -83,7 +88,7 @@ export function OperationsAnalytics() {
     const start = new Date(selectedYear, 0, 1);
     const end = new Date(selectedYear, 11, 31);
     return { start, end };
-  }, [selectedYear, selectedMonth, periodMode]);
+  }, [selectedYear, selectedMonth, periodMode, contextDateRange]);
 
   // Fetch availability data with pagination to overcome 1000 row limit
   const { data: availabilityData, isLoading } = useQuery({
@@ -555,6 +560,8 @@ export function OperationsAnalytics() {
             selectedYear={selectedYear}
             selectedMonth={periodMode === "year" ? "all" : selectedMonth}
             restaurants={restaurants || []}
+            periodMode={periodMode}
+            dateRange={periodMode === "range" ? dateRange : undefined}
           />
         </TabsContent>
 

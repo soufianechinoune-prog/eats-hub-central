@@ -45,6 +45,8 @@ interface OrderAccuracyDashboardProps {
   selectedYear: number;
   selectedMonth: number | "all";
   restaurants: Array<{ id: string; name: string }>;
+  periodMode?: "year" | "month" | "range";
+  dateRange?: { start: Date; end: Date };
 }
 
 const ERROR_TYPE_COLORS: Record<string, string> = {
@@ -59,6 +61,8 @@ export function OrderAccuracyDashboard({
   selectedYear,
   selectedMonth,
   restaurants,
+  periodMode = "year",
+  dateRange,
 }: OrderAccuracyDashboardProps) {
   // Determine if we're selecting all or specific restaurants
   const isAllRestaurants = selectedRestaurants.length === 0;
@@ -70,8 +74,38 @@ export function OrderAccuracyDashboard({
   const [chartPeriodMode, setChartPeriodMode] = useState<"year" | "month">("year");
   const [chartSelectedMonth, setChartSelectedMonth] = useState<number | null>(null);
 
-  // Keep the chart aligned with the global month filter to avoid KPI/chart mismatches
+  // Calculate actual date range for filtering
+  const effectiveDateRange = useMemo(() => {
+    if (periodMode === "range" && dateRange) {
+      return {
+        startDate: format(dateRange.start, "yyyy-MM-dd"),
+        endDate: format(dateRange.end, "yyyy-MM-dd"),
+      };
+    }
+    if (periodMode === "month" && selectedMonth !== "all") {
+      const monthStart = startOfMonth(new Date(selectedYear, selectedMonth - 1));
+      const monthEnd = endOfMonth(monthStart);
+      return {
+        startDate: format(monthStart, "yyyy-MM-dd"),
+        endDate: format(monthEnd, "yyyy-MM-dd"),
+      };
+    }
+    // Year mode
+    return {
+      startDate: `${selectedYear}-01-01`,
+      endDate: `${selectedYear}-12-31`,
+    };
+  }, [periodMode, dateRange, selectedYear, selectedMonth]);
+
+  // Keep the chart aligned with the global filter
   useEffect(() => {
+    if (periodMode === "range") {
+      // For range mode, show daily data
+      setChartPeriodMode("month");
+      setChartSelectedMonth(null);
+      return;
+    }
+    
     if (selectedMonth === "all") {
       setChartPeriodMode("year");
       setChartSelectedMonth(null);
@@ -80,19 +114,16 @@ export function OrderAccuracyDashboard({
 
     setChartPeriodMode("month");
     setChartSelectedMonth(selectedMonth);
-  }, [selectedMonth, selectedYear, restaurantIds.join(",")]);
+  }, [selectedMonth, selectedYear, periodMode, restaurantIds.join(",")]);
   // Fetch daily order accuracy data (new format)
   const { data: dailyAccuracy, isLoading: isLoadingDaily } = useQuery({
-    queryKey: ["daily-order-accuracy", restaurantIds, selectedYear],
+    queryKey: ["daily-order-accuracy", restaurantIds, effectiveDateRange.startDate, effectiveDateRange.endDate],
     queryFn: async () => {
-      const startDate = `${selectedYear}-01-01`;
-      const endDate = `${selectedYear}-12-31`;
-      
       let query = supabase
         .from("daily_order_accuracy")
         .select("*")
-        .gte("date", startDate)
-        .lte("date", endDate)
+        .gte("date", effectiveDateRange.startDate)
+        .lte("date", effectiveDateRange.endDate)
         .eq("period_type", "current")
         .order("date", { ascending: true });
 
@@ -131,6 +162,7 @@ export function OrderAccuracyDashboard({
       }
       return data || [];
     },
+    enabled: periodMode !== "range", // Don't fetch monthly data in range mode
   });
 
   // Fetch product issues ranking
@@ -159,7 +191,7 @@ export function OrderAccuracyDashboard({
 
   // Fetch sales data for error rate calculation
   const { data: salesData } = useQuery({
-    queryKey: ["sales-for-error-rate", restaurantIds, selectedYear],
+    queryKey: ["sales-for-error-rate", restaurantIds, selectedYear, periodMode],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_monthly_sales_from_daily", {
         p_year: selectedYear,
@@ -170,17 +202,27 @@ export function OrderAccuracyDashboard({
       if (error) return [];
       return data || [];
     },
+    enabled: periodMode !== "range",
   });
 
-  // Fetch daily sales data for drill-down
+  // Fetch daily sales data for range mode or drill-down
   const { data: dailySalesData } = useQuery({
-    queryKey: ["daily-sales-for-error-rate", restaurantIds, selectedYear, chartSelectedMonth],
+    queryKey: ["daily-sales-for-error-rate", restaurantIds, effectiveDateRange.startDate, effectiveDateRange.endDate, periodMode, chartSelectedMonth],
     queryFn: async () => {
-      if (!chartSelectedMonth) return [];
+      // Use effective date range for range mode, or monthly range for drill-down
+      let startDate: string;
+      let endDate: string;
       
-      const startDate = `${selectedYear}-${String(chartSelectedMonth).padStart(2, "0")}-01`;
-      const lastDay = new Date(selectedYear, chartSelectedMonth, 0).getDate();
-      const endDate = `${selectedYear}-${String(chartSelectedMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+      if (periodMode === "range") {
+        startDate = effectiveDateRange.startDate;
+        endDate = effectiveDateRange.endDate;
+      } else if (chartSelectedMonth) {
+        startDate = `${selectedYear}-${String(chartSelectedMonth).padStart(2, "0")}-01`;
+        const lastDay = new Date(selectedYear, chartSelectedMonth, 0).getDate();
+        endDate = `${selectedYear}-${String(chartSelectedMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+      } else {
+        return [];
+      }
       
       const { data, error } = await supabase.rpc("get_daily_sales_uber", {
         p_start_date: startDate,
@@ -192,7 +234,7 @@ export function OrderAccuracyDashboard({
       if (error) return [];
       return data || [];
     },
-    enabled: !!chartSelectedMonth,
+    enabled: periodMode === "range" || !!chartSelectedMonth,
   });
 
   // Determine which data source to use
@@ -203,9 +245,10 @@ export function OrderAccuracyDashboard({
   // Aggregate data based on source and selection
   const aggregatedData = useMemo(() => {
     if (useDaily && dailyAccuracy) {
-      // Filter daily data by selected month if needed
+      // For range mode or specific month, daily data is already filtered by the query
+      // For year view with month filter, we need to filter here
       let filtered = dailyAccuracy;
-      if (selectedMonth !== "all") {
+      if (periodMode !== "range" && selectedMonth !== "all") {
         filtered = dailyAccuracy.filter(d => {
           const date = parseISO(d.date);
           return date.getMonth() + 1 === selectedMonth;
@@ -266,10 +309,16 @@ export function OrderAccuracyDashboard({
     }
     
     return null;
-  }, [dailyAccuracy, monthlyAccuracy, selectedMonth, useDaily]);
+  }, [dailyAccuracy, monthlyAccuracy, selectedMonth, periodMode, useDaily]);
 
   // Calculate order count from sales data
   const orderCount = useMemo(() => {
+    // For range mode, use daily sales data
+    if (periodMode === "range") {
+      if (!dailySalesData || dailySalesData.length === 0) return 0;
+      return dailySalesData.reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
+    }
+    
     if (!salesData || salesData.length === 0) return 0;
     
     if (selectedMonth !== "all") {
@@ -292,7 +341,7 @@ export function OrderAccuracyDashboard({
     }
     
     return salesData.reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
-  }, [salesData, selectedMonth, dailyAccuracy, monthlyAccuracy, useDaily]);
+  }, [salesData, dailySalesData, selectedMonth, dailyAccuracy, monthlyAccuracy, periodMode, useDaily]);
 
   // Calculate KPIs
   const kpis = useMemo(() => {
@@ -319,7 +368,43 @@ export function OrderAccuracyDashboard({
   const errorEvolutionData = useMemo(() => {
     const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 
-    // DAILY VIEW (drill-down mode)
+    // RANGE MODE - Show daily data for the selected range
+    if (periodMode === "range" && dailyAccuracy && dailyAccuracy.length > 0) {
+      // Get daily order counts from daily sales data
+      const dailyOrders: Record<string, number> = {};
+      (dailySalesData || []).forEach((r: any) => {
+        const dateStr = r.date;
+        dailyOrders[dateStr] = (dailyOrders[dateStr] || 0) + (r.order_count || 0);
+      });
+
+      // Group by day
+      const dailyData: Record<string, { errors: number; refund: number }> = {};
+      dailyAccuracy.forEach(d => {
+        const dateStr = d.date;
+        if (!dailyData[dateStr]) {
+          dailyData[dateStr] = { errors: 0, refund: 0 };
+        }
+        dailyData[dateStr].errors += d.incorrect_orders_count || 0;
+        dailyData[dateStr].refund += Number(d.total_refund || 0);
+      });
+
+      return Object.entries(dailyData)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([dateStr, data]) => {
+          const date = parseISO(dateStr);
+          const orders = dailyOrders[dateStr] || 0;
+          return {
+            period: dateStr,
+            label: format(date, "d MMM", { locale: fr }),
+            errorRate: orders > 0 ? (data.errors / orders) * 100 : null,
+            errorCount: data.errors,
+            orderCount: orders,
+            hasSalesData: orders > 0,
+          };
+        });
+    }
+
+    // DAILY VIEW (drill-down mode for month view)
     if (chartPeriodMode === "month" && chartSelectedMonth && dailyAccuracy) {
       // Get daily order counts from daily sales data
       const dailyOrders: Record<string, number> = {};
@@ -421,7 +506,7 @@ export function OrderAccuracyDashboard({
     }
     
     return [];
-  }, [dailyAccuracy, monthlyAccuracy, salesData, dailySalesData, selectedYear, useDaily, chartPeriodMode, chartSelectedMonth]);
+  }, [dailyAccuracy, monthlyAccuracy, salesData, dailySalesData, selectedYear, useDaily, chartPeriodMode, chartSelectedMonth, periodMode]);
 
   // Drill-down handlers
   const handleDrillDown = (month: number) => {
