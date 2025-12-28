@@ -285,18 +285,22 @@ serve(async (req) => {
     for (const restData of restaurantsData) {
       console.log(`[parse-item-issues-leaderboard] Processing ${restData.name}: ${restData.items.length} items`);
 
-      // Delete existing items for this restaurant/year before inserting new ones
+      // DELETE ONLY for this specific date range (not the entire year!)
+      // This allows cumulative imports for different periods
       const { error: deleteError } = await supabase
         .from("product_issues_ranking")
         .delete()
         .eq("restaurant_id", restData.id)
-        .eq("year", targetYear);
+        .eq("date_range_start", dateRangeStart)
+        .eq("date_range_end", dateRangeEnd);
 
       if (deleteError) {
         console.error(`[parse-item-issues-leaderboard] Delete error for ${restData.name}:`, deleteError);
+      } else {
+        console.log(`[parse-item-issues-leaderboard] Deleted existing data for ${restData.name} period ${dateRangeStart} to ${dateRangeEnd}`);
       }
 
-      // Batch insert with upsert for safety
+      // Build records WITH date range columns
       const records = restData.items.map(item => ({
         restaurant_id: restData.id,
         year: targetYear,
@@ -306,6 +310,8 @@ serve(async (req) => {
         issues_delta_percent: item.issues_delta_percent,
         major_issue_type: item.major_issue_type,
         has_missing_customization: item.has_missing_customization,
+        date_range_start: dateRangeStart,
+        date_range_end: dateRangeEnd,
       }));
 
       // Insert in batches of 100
@@ -316,7 +322,7 @@ serve(async (req) => {
         const { error: upsertError, data: upsertData } = await supabase
           .from("product_issues_ranking")
           .upsert(batch, {
-            onConflict: "restaurant_id,year,item_title",
+            onConflict: "restaurant_id,item_title,date_range_start,date_range_end",
             ignoreDuplicates: false,
           })
           .select();
