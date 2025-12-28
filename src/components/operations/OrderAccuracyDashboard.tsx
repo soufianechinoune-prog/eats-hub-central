@@ -40,7 +40,7 @@ import {
 import { ErrorRateEvolutionChart } from "./ErrorRateEvolutionChart";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
-import { extractCityName } from "@/lib/restaurantUtils";
+import { checkRestaurantOpeningDate } from "@/lib/restaurantOpeningDates";
 
 interface OrderAccuracyDashboardProps {
   selectedRestaurants: string[];
@@ -553,23 +553,12 @@ export function OrderAccuracyDashboard({
 
   // Check if Antony is selected and the date is before November 2025
   // IMPORTANT: This useMemo must be BEFORE any early returns to follow React hooks rules
-  const isAntonyBeforeOpening = useMemo(() => {
-    // Antony opened on November 1st, 2025
-    const antonyOpeningDate = new Date(2025, 10, 1); // November 1, 2025
-    
-    // Check if only Antony is selected
-    const selectedRestaurantNames = restaurants
-      .filter(r => restaurantIds.includes(r.id))
-      .map(r => r.name.toUpperCase());
-    
-    const onlyAntonySelected = selectedRestaurantNames.length === 1 && 
-      selectedRestaurantNames[0].includes("ANTONY");
-    
-    if (!onlyAntonySelected) return false;
-    
-    // Check if viewing a period before November 2025
-    const endDateObj = parseISO(effectiveDateRange.endDate);
-    return endDateObj < antonyOpeningDate;
+  const openingCheck = useMemo(() => {
+    return checkRestaurantOpeningDate(
+      restaurants,
+      restaurantIds,
+      effectiveDateRange.endDate
+    );
   }, [restaurantIds, restaurants, effectiveDateRange.endDate]);
 
   const isLoading = isLoadingDaily || isLoadingMonthly || isLoadingProducts;
@@ -583,18 +572,15 @@ export function OrderAccuracyDashboard({
   }
 
   if (!hasDaily && !hasMonthly) {
-    // Special message for Antony before opening
-    if (isAntonyBeforeOpening) {
-      const antonyRestaurant = restaurants.find(r => r.name.toUpperCase().includes("ANTONY"));
-      const cityName = antonyRestaurant ? extractCityName(antonyRestaurant.name) : "Antony";
-      
+    // Special message for restaurant before opening
+    if (openingCheck.isBeforeOpening) {
       return (
         <Card className="border-blue-500/30 bg-blue-500/5">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Building2 className="h-12 w-12 text-blue-500 mb-4" />
             <p className="text-lg font-medium mb-2">Point de vente récent</p>
             <p className="text-muted-foreground text-center max-w-md">
-              Le restaurant <span className="font-semibold text-foreground">{cityName}</span> a ouvert ses portes le <span className="font-semibold text-foreground">1er novembre 2025</span>. 
+              Le restaurant <span className="font-semibold text-foreground">{openingCheck.cityName}</span> a ouvert ses portes le <span className="font-semibold text-foreground">1er novembre 2025</span>. 
               Les données ne sont disponibles qu'à partir de cette date.
             </p>
           </CardContent>

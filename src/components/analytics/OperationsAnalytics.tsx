@@ -6,9 +6,10 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Clock, AlertTriangle, CheckCircle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight, Timer, Store } from "lucide-react";
+import { Loader2, Clock, AlertTriangle, CheckCircle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight, Timer, Store, Building2 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, addDays, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
+import { checkRestaurantOpeningDate } from "@/lib/restaurantOpeningDates";
 import {
   LineChart,
   Line,
@@ -555,15 +556,40 @@ export function OperationsAnalytics() {
 
         <TabsContent value="availability" className="mt-6 space-y-6">
           {!hasAvailabilityData ? (
-            <div className="text-center py-20 space-y-4">
-              <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto" />
-              <p className="text-lg text-muted-foreground">
-                Aucune donnée de disponibilité pour cette période.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Importez un fichier "Temps d'inactivité" depuis la page Import Rapports.
-              </p>
-            </div>
+            (() => {
+              const openingCheck = checkRestaurantOpeningDate(
+                restaurants || [],
+                selectedRestaurants,
+                format(dateRange.end, "yyyy-MM-dd")
+              );
+              
+              if (openingCheck.isBeforeOpening) {
+                return (
+                  <Card className="border-blue-500/30 bg-blue-500/5">
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <Building2 className="h-12 w-12 text-blue-500 mb-4" />
+                      <p className="text-lg font-medium mb-2">Point de vente récent</p>
+                      <p className="text-muted-foreground text-center max-w-md">
+                        Le restaurant <span className="font-semibold text-foreground">{openingCheck.cityName}</span> a ouvert ses portes le <span className="font-semibold text-foreground">1er novembre 2025</span>. 
+                        Les données ne sont disponibles qu'à partir de cette date.
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              }
+              
+              return (
+                <div className="text-center py-20 space-y-4">
+                  <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto" />
+                  <p className="text-lg text-muted-foreground">
+                    Aucune donnée de disponibilité pour cette période.
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Importez un fichier "Temps d'inactivité" depuis la page Import Rapports.
+                  </p>
+                </div>
+              );
+            })()
           ) : (
             <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

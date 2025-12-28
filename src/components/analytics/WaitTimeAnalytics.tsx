@@ -5,9 +5,10 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Clock, AlertTriangle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight, Timer, Ban, Target, CheckCircle2 } from "lucide-react";
+import { Loader2, Clock, AlertTriangle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight, Timer, Ban, Target, CheckCircle2, Building2 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, addDays, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
+import { checkRestaurantOpeningDate } from "@/lib/restaurantOpeningDates";
 import {
   LineChart,
   Line,
@@ -464,6 +465,27 @@ export function WaitTimeAnalytics() {
   }
 
   if (!orderHistoryData || orderHistoryData.length === 0) {
+    const openingCheck = checkRestaurantOpeningDate(
+      restaurants || [],
+      selectedRestaurants,
+      format(dateRange.end, "yyyy-MM-dd")
+    );
+    
+    if (openingCheck.isBeforeOpening) {
+      return (
+        <Card className="border-blue-500/30 bg-blue-500/5">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Building2 className="h-12 w-12 text-blue-500 mb-4" />
+            <p className="text-lg font-medium mb-2">Point de vente récent</p>
+            <p className="text-muted-foreground text-center max-w-md">
+              Le restaurant <span className="font-semibold text-foreground">{openingCheck.cityName}</span> a ouvert ses portes le <span className="font-semibold text-foreground">1er novembre 2025</span>. 
+              Les données ne sont disponibles qu'à partir de cette date.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+    
     return (
       <div className="text-center py-20 space-y-4">
         <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto" />
