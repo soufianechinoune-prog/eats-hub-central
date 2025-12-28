@@ -165,27 +165,62 @@ export function OrderAccuracyDashboard({
     enabled: periodMode !== "range", // Don't fetch monthly data in range mode
   });
 
-  // Fetch product issues ranking
+  // Fetch product issues ranking - now filtered by date range and aggregated
   const { data: productIssues, isLoading: isLoadingProducts } = useQuery({
-    queryKey: ["product-issues-ranking", restaurantIds, selectedYear],
+    queryKey: ["product-issues-ranking", restaurantIds, effectiveDateRange.startDate, effectiveDateRange.endDate],
     queryFn: async () => {
+      // Fetch all product issues that overlap with the selected date range
       let query = supabase
         .from("product_issues_ranking")
-        .select("*")
-        .eq("year", selectedYear)
-        .order("volume", { ascending: false })
-        .limit(10);
+        .select("*");
 
       if (!isAllRestaurants && restaurantIds.length > 0) {
         query = query.in("restaurant_id", restaurantIds);
       }
+
+      // Filter by date range overlap:
+      // Records where date_range_start <= effectiveDateRange.endDate AND date_range_end >= effectiveDateRange.startDate
+      query = query
+        .lte("date_range_start", effectiveDateRange.endDate)
+        .gte("date_range_end", effectiveDateRange.startDate);
 
       const { data, error } = await query;
       if (error) {
         console.error("Error fetching product issues:", error);
         return [];
       }
-      return data || [];
+
+      if (!data || data.length === 0) return [];
+
+      // Aggregate volumes by item_title across all matching date ranges
+      const aggregated = new Map<string, { item_title: string; volume: number; score: number; count: number }>();
+      
+      for (const item of data) {
+        const key = item.item_title;
+        if (aggregated.has(key)) {
+          const existing = aggregated.get(key)!;
+          existing.volume += item.volume || 0;
+          existing.score += item.score || 0;
+          existing.count += 1;
+        } else {
+          aggregated.set(key, {
+            item_title: item.item_title,
+            volume: item.volume || 0,
+            score: item.score || 0,
+            count: 1,
+          });
+        }
+      }
+
+      // Convert to array, calculate average score, sort by volume and take top 10
+      return Array.from(aggregated.values())
+        .map(item => ({
+          item_title: item.item_title,
+          volume: item.volume,
+          score: item.count > 0 ? item.score / item.count : 0,
+        }))
+        .sort((a, b) => b.volume - a.volume)
+        .slice(0, 10);
     },
   });
 

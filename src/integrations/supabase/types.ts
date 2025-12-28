@@ -2041,6 +2041,8 @@ export type Database = {
       product_issues_ranking: {
         Row: {
           created_at: string
+          date_range_end: string | null
+          date_range_start: string | null
           has_missing_customization: boolean | null
           id: string
           issues_delta_percent: number | null
@@ -2053,6 +2055,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
           has_missing_customization?: boolean | null
           id?: string
           issues_delta_percent?: number | null
@@ -2065,6 +2069,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
           has_missing_customization?: boolean | null
           id?: string
           issues_delta_percent?: number | null
