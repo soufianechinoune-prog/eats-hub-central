@@ -139,7 +139,7 @@ const Overview = () => {
       
       if (restaurantIds.length === 0) {
         return {
-          global: { rating: null, prepTime: null, errorRate: null, incorrectOrderRate: null, profitability: null, downtime: null, productRating: null },
+          global: { rating: null, prepTime: null, errorRate: null, incorrectOrderRate: null, profitability: null, downtime: null, productApprovalRate: null },
           uber: { rating: null, prepTime: null, errorRate: null, incorrectOrderRate: null, profitability: null, downtime: null },
           deliveroo: { rating: null, prepTime: null, errorRate: null, incorrectOrderRate: null, profitability: null, downtime: null },
           topByRating: [], flopByRating: [], topByRevenue: [], flopByRevenue: [], topByProfitability: [], flopByProfitability: [],
@@ -259,9 +259,9 @@ const Overview = () => {
       const totalIncorrectOrders = accuracyData?.reduce((sum, a) => sum + Number(a.incorrect_orders_count || 0), 0) || 0;
       const incorrectOrderRate = totalOrders > 0 ? (totalIncorrectOrders / totalOrders) * 100 : null;
 
-      // Product rating from menu reviews
-      const avgProductRating = menuReviewsData && menuReviewsData.length > 0
-        ? menuReviewsData.reduce((sum, r) => sum + Number(r.rating || 0), 0) / menuReviewsData.length
+      // Product approval rate from menu reviews (thumb_up = 1, thumb_down = 0)
+      const productApprovalRate = menuReviewsData && menuReviewsData.length > 0
+        ? (menuReviewsData.filter(r => r.thumb_up === 1).length / menuReviewsData.length) * 100
         : null;
 
       // Calculate downtime from availability data - arrondi à 1 décimale
@@ -372,7 +372,7 @@ const Overview = () => {
           incorrectOrderRate: incorrectOrderRate,
           profitability: null, // Needs monthly_fees data
           downtime: downtimeHours,
-          productRating: avgProductRating,
+          productApprovalRate: productApprovalRate,
         },
         uber: {
           rating: uberRating,
@@ -558,7 +558,7 @@ const Overview = () => {
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability != null ? networkData.global.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" />
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.global.downtime)} color="text-orange-500" onClick={() => navigate('/compare/downtime')} />
                 <MetricRow icon={Clock} label="Horaires d'ouverture" value="Voir analyse" color="text-indigo-500" onClick={() => navigate('/compare/opening-hours')} />
-                <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productRating != null ? networkData.global.productRating.toFixed(1) : null} unit="/5" color="text-violet-500" />
+                <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productApprovalRate != null ? Math.round(networkData.global.productApprovalRate) : null} unit="%" color="text-violet-500" />
               </CardContent>
             </Card>
 
