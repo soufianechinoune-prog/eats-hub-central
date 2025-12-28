@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -142,6 +142,9 @@ export default function ReportImport() {
   const [batchFiles, setBatchFiles] = useState<BatchFile[]>([]);
   const [batchProgress, setBatchProgress] = useState(0);
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
+  
+  // Delete existing data option
+  const [deleteExisting, setDeleteExisting] = useState(false);
 
   // Fetch restaurants for selector
   const { data: restaurants = [] } = useQuery({
@@ -690,6 +693,11 @@ export default function ReportImport() {
       if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
         body.restaurantId = selectedRestaurantId;
       }
+      
+      // Add deleteExisting option for order_accuracy_summary
+      if (reportType === "order_accuracy_summary" && deleteExisting) {
+        body.deleteExisting = true;
+      }
 
       const { data, error } = await supabase.functions.invoke(functionName, { body });
 
@@ -762,6 +770,7 @@ export default function ReportImport() {
     setBatchFiles([]);
     setBatchProgress(0);
     setBatchResult(null);
+    setDeleteExisting(false);
     setStep("upload");
   };
 
@@ -961,6 +970,28 @@ export default function ReportImport() {
                           ? "Le tunnel de conversion ne contient pas d'identifiant restaurant. Sélectionnez celui concerné."
                           : "Ce rapport ne contient pas d'identifiant restaurant, sélectionnez celui concerné."}
                       </p>
+                      
+                      {/* Delete existing data option for order_accuracy_summary */}
+                      {reportType === "order_accuracy_summary" && selectedRestaurantId && (
+                        <div className="flex items-center gap-3 p-3 bg-destructive/5 border border-destructive/20 rounded-lg mt-3">
+                          <input
+                            type="checkbox"
+                            id="deleteExisting"
+                            checked={deleteExisting}
+                            onChange={(e) => setDeleteExisting(e.target.checked)}
+                            className="h-4 w-4 rounded border-destructive/50 text-destructive focus:ring-destructive"
+                          />
+                          <label htmlFor="deleteExisting" className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                              Supprimer les données existantes
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Efface les données de la période avant d'importer pour éviter les doublons
+                            </p>
+                          </label>
+                        </div>
+                      )}
                     </div>
                   )}
 
