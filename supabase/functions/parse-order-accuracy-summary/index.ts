@@ -42,7 +42,7 @@ serve(async (req) => {
   }
 
   try {
-    const { csvContent, restaurantId, dryRun = false } = await req.json();
+    const { csvContent, restaurantId, dryRun = false, deleteExisting = false } = await req.json();
 
     if (!csvContent || !restaurantId) {
       return new Response(
@@ -51,7 +51,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("[parse-order-accuracy-summary] Starting parse for restaurant:", restaurantId);
+    console.log("[parse-order-accuracy-summary] Starting parse for restaurant:", restaurantId, "deleteExisting:", deleteExisting);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -294,6 +294,28 @@ serve(async (req) => {
         });
       }
 
+      // Delete existing data if requested
+      if (deleteExisting && dates.length > 0) {
+        const startDate = dates[0];
+        const endDate = dates[dates.length - 1];
+        console.log(`[parse-order-accuracy-summary] Deleting existing data from ${startDate} to ${endDate}`);
+        
+        const { error: deleteError, count: deletedCount } = await supabase
+          .from("daily_order_accuracy")
+          .delete({ count: "exact" })
+          .eq("restaurant_id", restaurantId)
+          .gte("date", startDate)
+          .lte("date", endDate);
+        
+        if (deleteError) {
+          console.error("[parse-order-accuracy-summary] Delete error:", deleteError);
+        } else {
+          console.log(`[parse-order-accuracy-summary] Deleted ${deletedCount} existing rows`);
+        }
+      }
+
+      const importedAt = new Date().toISOString();
+
       // Insert daily data
       for (const row of parsedRows) {
         const { error: upsertError } = await supabase
@@ -312,6 +334,7 @@ serve(async (req) => {
             incorrect_item_count: row.incorrect_item_count,
             incorrect_item_refund: row.incorrect_item_refund,
             total_refund: row.total_refund,
+            imported_at: importedAt,
           }, {
             onConflict: "restaurant_id,date,period_type",
           });
@@ -423,6 +446,26 @@ serve(async (req) => {
         });
       }
 
+      // Delete existing data if requested
+      if (deleteExisting && parsedRows.length > 0) {
+        const years = [...new Set(parsedRows.map(r => r.year))];
+        const months = [...new Set(parsedRows.map(r => r.month))];
+        console.log(`[parse-order-accuracy-summary] Deleting existing monthly data for years: ${years}, months: ${months}`);
+        
+        for (const year of years) {
+          for (const month of months) {
+            await supabase
+              .from("monthly_order_accuracy")
+              .delete()
+              .eq("restaurant_id", restaurantId)
+              .eq("year", year)
+              .eq("month", month);
+          }
+        }
+      }
+
+      const importedAt = new Date().toISOString();
+
       // Insert monthly data
       for (const row of parsedRows) {
         const { error: upsertError } = await supabase
@@ -442,6 +485,7 @@ serve(async (req) => {
             incorrect_item_count: row.incorrect_item_count,
             incorrect_item_refund: row.incorrect_item_refund,
             total_refund: row.total_refund,
+            imported_at: importedAt,
           }, {
             onConflict: "restaurant_id,year,month,period_type",
           });

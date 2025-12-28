@@ -360,6 +360,7 @@ export type Database = {
           created_at: string
           date: string
           id: string
+          imported_at: string | null
           incorrect_item_count: number
           incorrect_item_refund: number
           incorrect_orders_count: number
@@ -377,6 +378,7 @@ export type Database = {
           created_at?: string
           date: string
           id?: string
+          imported_at?: string | null
           incorrect_item_count?: number
           incorrect_item_refund?: number
           incorrect_orders_count?: number
@@ -394,6 +396,7 @@ export type Database = {
           created_at?: string
           date?: string
           id?: string
+          imported_at?: string | null
           incorrect_item_count?: number
           incorrect_item_refund?: number
           incorrect_orders_count?: number
@@ -1157,6 +1160,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          imported_at: string | null
           incorrect_item_count: number
           incorrect_item_refund: number
           incorrect_orders_count: number
@@ -1175,6 +1179,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          imported_at?: string | null
           incorrect_item_count?: number
           incorrect_item_refund?: number
           incorrect_orders_count?: number
@@ -1193,6 +1198,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          imported_at?: string | null
           incorrect_item_count?: number
           incorrect_item_refund?: number
           incorrect_orders_count?: number
