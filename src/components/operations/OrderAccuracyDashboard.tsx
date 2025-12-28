@@ -551,17 +551,8 @@ export function OrderAccuracyDashboard({
     }).format(amount);
   };
 
-  const isLoading = isLoadingDaily || isLoadingMonthly || isLoadingProducts;
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   // Check if Antony is selected and the date is before November 2025
+  // IMPORTANT: This useMemo must be BEFORE any early returns to follow React hooks rules
   const isAntonyBeforeOpening = useMemo(() => {
     // Antony opened on November 1st, 2025
     const antonyOpeningDate = new Date(2025, 10, 1); // November 1, 2025
@@ -580,6 +571,16 @@ export function OrderAccuracyDashboard({
     const endDateObj = parseISO(effectiveDateRange.endDate);
     return endDateObj < antonyOpeningDate;
   }, [restaurantIds, restaurants, effectiveDateRange.endDate]);
+
+  const isLoading = isLoadingDaily || isLoadingMonthly || isLoadingProducts;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!hasDaily && !hasMonthly) {
     // Special message for Antony before opening
