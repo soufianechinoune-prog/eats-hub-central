@@ -534,6 +534,28 @@ export function RatingEvolutionChart({
                     {/* Reference lines on left axis */}
                     <ReferenceLine yAxisId="left" y={4.5} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" strokeOpacity={0.5} />
                     <ReferenceLine yAxisId="left" y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    
+                    {/* Vertical dashed lines for actions */}
+                    {showActions && (periodMode === "month" 
+                      ? Array.from(actionsByDay.keys()).map(day => (
+                          <ReferenceLine 
+                            key={`action-line-${day}`}
+                            x={day} 
+                            stroke="hsl(var(--primary))" 
+                            strokeDasharray="4 4" 
+                            strokeOpacity={0.6}
+                          />
+                        ))
+                      : Array.from(actionsByMonth.keys()).map(month => (
+                          <ReferenceLine 
+                            key={`action-line-${month}`}
+                            x={month} 
+                            stroke="hsl(var(--primary))" 
+                            strokeDasharray="4 4" 
+                            strokeOpacity={0.6}
+                          />
+                        ))
+                    )}
                   </LineChart>
                 ) : (
                   <ComposedChart 
@@ -601,6 +623,28 @@ export function RatingEvolutionChart({
                     {/* Reference lines on left axis */}
                     <ReferenceLine yAxisId="left" y={4.5} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" strokeOpacity={0.5} />
                     <ReferenceLine yAxisId="left" y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    
+                    {/* Vertical dashed lines for actions */}
+                    {showActions && (periodMode === "month" 
+                      ? Array.from(actionsByDay.keys()).map(day => (
+                          <ReferenceLine 
+                            key={`action-line-${day}`}
+                            x={day} 
+                            stroke="hsl(var(--primary))" 
+                            strokeDasharray="4 4" 
+                            strokeOpacity={0.6}
+                          />
+                        ))
+                      : Array.from(actionsByMonth.keys()).map(month => (
+                          <ReferenceLine 
+                            key={`action-line-${month}`}
+                            x={month} 
+                            stroke="hsl(var(--primary))" 
+                            strokeDasharray="4 4" 
+                            strokeOpacity={0.6}
+                          />
+                        ))
+                    )}
                     
                     {/* Shaded area under rolling 90-day average on right axis */}
                     <Area
