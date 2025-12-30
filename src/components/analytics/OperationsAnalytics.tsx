@@ -54,7 +54,13 @@ export function OperationsAnalytics() {
   } = useAnalyticsContext();
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"availability" | "waitTime" | "orderErrors">("availability");
+  const [activeTab, setActiveTab] = useState<"availability" | "waitTime" | "orderErrors">(() => {
+    const stored = localStorage.getItem("operations-active-tab");
+    if (stored === "availability" || stored === "waitTime" || stored === "orderErrors") {
+      return stored;
+    }
+    return "availability";
+  });
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [selectedDay, setSelectedDay] = useState<string | null>(null); // format "yyyy-MM-dd"
 
@@ -62,12 +68,13 @@ export function OperationsAnalytics() {
   useEffect(() => {
     const dayParam = searchParams.get("day");
     const tabParam = searchParams.get("tab");
-    
+
     // Handle tab parameter for navigation from comparison pages
     if (tabParam === "orderErrors" || tabParam === "availability" || tabParam === "waitTime") {
       setActiveTab(tabParam);
+      localStorage.setItem("operations-active-tab", tabParam);
     }
-    
+
     if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
       setSelectedDay(dayParam);
       // Also set periodMode to month if coming from external navigation
@@ -77,24 +84,39 @@ export function OperationsAnalytics() {
         setSelectedMonth(targetMonth);
       }
     }
-    
+
     // Clean URL after initialization
     if (dayParam || tabParam) {
       setSearchParams({}, { replace: true });
     }
   }, []);
 
+  // Persist active sub-tab
+  useEffect(() => {
+    localStorage.setItem("operations-active-tab", activeTab);
+  }, [activeTab]);
+
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
-    // Use context date range for range mode
-    if (periodMode === "range" && contextDateRange?.from && contextDateRange?.to) {
-      return { start: contextDateRange.from, end: contextDateRange.to };
+    const usesContextRange =
+      (periodMode === "range" ||
+        periodMode === "previous_week" ||
+        periodMode === "7d" ||
+        periodMode === "30d" ||
+        periodMode === "current_month") &&
+      contextDateRange?.from &&
+      contextDateRange?.to;
+
+    if (usesContextRange) {
+      return { start: contextDateRange!.from!, end: contextDateRange!.to! };
     }
+
     if (periodMode === "month") {
       const start = startOfMonth(new Date(selectedYear, selectedMonth - 1));
       const end = endOfMonth(new Date(selectedYear, selectedMonth - 1));
       return { start, end };
     }
+
     // Year view
     const start = new Date(selectedYear, 0, 1);
     const end = new Date(selectedYear, 11, 31);
@@ -557,10 +579,18 @@ export function OperationsAnalytics() {
           <OrderAccuracyDashboard
             selectedRestaurants={selectedRestaurants}
             selectedYear={selectedYear}
-            selectedMonth={periodMode === "year" ? "all" : selectedMonth}
+            selectedMonth={periodMode === "month" ? selectedMonth : "all"}
             restaurants={restaurants || []}
             periodMode={periodMode}
-            dateRange={periodMode === "range" ? dateRange : undefined}
+            dateRange={
+              periodMode === "range" ||
+              periodMode === "previous_week" ||
+              periodMode === "7d" ||
+              periodMode === "30d" ||
+              periodMode === "current_month"
+                ? dateRange
+                : undefined
+            }
           />
         </TabsContent>
 
