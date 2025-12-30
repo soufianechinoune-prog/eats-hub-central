@@ -344,6 +344,35 @@ export function useReviewsStats(reviews: CustomerReview[], options?: UseReviewsS
     return validReviews.reduce((sum, r) => sum + (r.overall_rating || 0), 0) / validReviews.length;
   }, [reviews]);
 
+  // Cumulative average rating by date (for evolution curve)
+  // Returns a map of date -> cumulative average up to that date
+  const cumulativeAverageByDate = useMemo(() => {
+    if (!reviews.length) return new Map<string, number>();
+    
+    // Sort all reviews by date (chronological order)
+    const sortedReviews = [...reviews]
+      .filter(r => r.overall_rating !== null && r.review_date)
+      .sort((a, b) => new Date(a.review_date).getTime() - new Date(b.review_date).getTime());
+    
+    if (!sortedReviews.length) return new Map<string, number>();
+    
+    const result = new Map<string, number>();
+    let runningSum = 0;
+    let runningCount = 0;
+    
+    // Group reviews by date and calculate cumulative average
+    sortedReviews.forEach(review => {
+      runningSum += review.overall_rating || 0;
+      runningCount++;
+      
+      // Store the cumulative average at end of this day
+      const dateKey = new Date(review.review_date).toISOString().split('T')[0];
+      result.set(dateKey, runningSum / runningCount);
+    });
+    
+    return result;
+  }, [reviews]);
+
   return {
     stats,
     monthlyRatings,
@@ -351,5 +380,6 @@ export function useReviewsStats(reviews: CustomerReview[], options?: UseReviewsS
     dayStats,
     tagStats,
     globalAverageRating,
+    cumulativeAverageByDate,
   };
 }

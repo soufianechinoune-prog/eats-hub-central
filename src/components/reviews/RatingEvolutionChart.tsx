@@ -58,7 +58,6 @@ interface RatingEvolutionChartProps {
   chartType?: "line" | "bar";
   onChartTypeChange?: (type: "line" | "bar") => void;
   onAddAction?: (date: Date) => void;
-  globalAverageRating?: number;
 }
 
 export function RatingEvolutionChart({ 
@@ -75,8 +74,7 @@ export function RatingEvolutionChart({
   onNextMonth,
   chartType = "line",
   onChartTypeChange,
-  onAddAction,
-  globalAverageRating
+  onAddAction
 }: RatingEvolutionChartProps) {
 
   // State for context menu
@@ -196,6 +194,7 @@ export function RatingEvolutionChart({
     if (active && payload && payload.length) {
       const current = payload.find((p: any) => p.dataKey === "rating");
       const previous = payload.find((p: any) => p.dataKey === "previousRating");
+      const cumulative = payload.find((p: any) => p.dataKey === "cumulativeAvg");
       const monthActions = actionsByMonth.get(label) || [];
       const reviewCount = payload[0]?.payload?.count || 0;
 
@@ -209,8 +208,14 @@ export function RatingEvolutionChart({
               {current && current.value !== null && (
                 <div className="flex items-center gap-2 text-sm">
                   <div className="w-3 h-3 rounded-full bg-amber-500" />
-                  <span>Note actuelle: <strong>{current.value?.toFixed(2)}</strong></span>
+                  <span>Note du jour: <strong>{current.value?.toFixed(2)}</strong></span>
                   <span className="text-muted-foreground">({reviewCount} avis)</span>
+                </div>
+              )}
+              {cumulative?.value && cumulative.value !== null && (
+                <div className="flex items-center gap-2 text-sm mt-1">
+                  <div className="w-3 h-3 rounded-full bg-primary" />
+                  <span>Moyenne globale: <strong>{cumulative.value?.toFixed(2)}</strong></span>
                 </div>
               )}
               {previous?.value && previous.value !== null && (
@@ -417,7 +422,7 @@ export function RatingEvolutionChart({
                       connectNulls
                     />
                     
-                    {/* Current line */}
+                    {/* Current line (daily rating) */}
                     <Line
                       type="monotone"
                       dataKey="rating"
@@ -426,6 +431,18 @@ export function RatingEvolutionChart({
                       dot={<CustomDot />}
                       activeDot={{ r: 7, strokeWidth: 0 }}
                       connectNulls={true}
+                      name="Note du jour"
+                    />
+                    
+                    {/* Cumulative average line */}
+                    <Line
+                      type="monotone"
+                      dataKey="cumulativeAvg"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls={true}
+                      name="Moyenne globale"
                     />
 
                     {/* Reference lines - only show if in visible range */}
@@ -434,22 +451,6 @@ export function RatingEvolutionChart({
                     )}
                     {yMin <= 3.5 && yMax >= 3.5 && (
                       <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
-                    )}
-                    
-                    {/* Global average line */}
-                    {globalAverageRating && globalAverageRating >= yMin && globalAverageRating <= yMax && (
-                      <ReferenceLine 
-                        y={globalAverageRating} 
-                        stroke="hsl(var(--primary))" 
-                        strokeWidth={2}
-                        label={{ 
-                          value: `Moy: ${globalAverageRating.toFixed(2)}`,
-                          position: "right",
-                          fill: "hsl(var(--primary))",
-                          fontSize: 11,
-                          fontWeight: 600
-                        }}
-                      />
                     )}
                   </LineChart>
                 ) : (
@@ -501,21 +502,16 @@ export function RatingEvolutionChart({
                       <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                     )}
                     
-                    {/* Global average line */}
-                    {globalAverageRating && globalAverageRating >= yMin && globalAverageRating <= yMax && (
-                      <ReferenceLine 
-                        y={globalAverageRating} 
-                        stroke="hsl(var(--primary))" 
-                        strokeWidth={2}
-                        label={{ 
-                          value: `Moy: ${globalAverageRating.toFixed(2)}`,
-                          position: "right",
-                          fill: "hsl(var(--primary))",
-                          fontSize: 11,
-                          fontWeight: 600
-                        }}
-                      />
-                    )}
+                    {/* Cumulative average line for bar chart */}
+                    <Line
+                      type="monotone"
+                      dataKey="cumulativeAvg"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls={true}
+                      name="Moyenne globale"
+                    />
                   </BarChart>
                 )}
               </ResponsiveContainer>
@@ -538,12 +534,14 @@ export function RatingEvolutionChart({
 
         {/* Legend */}
         <div className="flex flex-wrap justify-center gap-4 mt-4 text-xs">
-          {globalAverageRating && (
-            <div className="flex items-center gap-1">
-              <div className="w-6 h-0.5 bg-primary" />
-              <span className="text-muted-foreground">Moyenne globale ({globalAverageRating.toFixed(2)})</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1">
+            <div className="w-6 h-0.5 bg-amber-500" />
+            <span className="text-muted-foreground">Note du jour</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-6 h-0.5 bg-primary" />
+            <span className="text-muted-foreground">Moyenne globale</span>
+          </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/50" />
             <span className="text-muted-foreground">Excellent (≥4.5)</span>
