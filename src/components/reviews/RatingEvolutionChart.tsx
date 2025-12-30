@@ -4,7 +4,7 @@ import { TrendingUp, BarChart3, LineChart as LineChartIcon, Zap, ArrowLeft, Chev
 import {
   LineChart,
   Line,
-  BarChart,
+  ComposedChart,
   Bar,
   XAxis,
   YAxis,
@@ -454,13 +454,18 @@ export function RatingEvolutionChart({
                     )}
                   </LineChart>
                 ) : (
-                  <BarChart 
+                  <ComposedChart 
                     data={data} 
                     margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
                     onClick={handleChartClick}
                     onMouseMove={handleContextMenu}
                     style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
                   >
+                    {/* Performance zones - adjusted to dynamic scale */}
+                    {yMin <= 4.5 && <ReferenceArea y1={Math.max(4.5, yMin)} y2={yMax} fill="hsl(var(--chart-2))" fillOpacity={0.1} />}
+                    {yMin <= 3.5 && <ReferenceArea y1={Math.max(3.5, yMin)} y2={Math.min(4.5, yMax)} fill="hsl(45 93% 47%)" fillOpacity={0.05} />}
+                    {yMin < 3.5 && <ReferenceArea y1={yMin} y2={Math.min(3.5, yMax)} fill="hsl(0 84% 60%)" fillOpacity={0.05} />}
+
                     <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                     <XAxis 
                       dataKey="month" 
@@ -502,7 +507,7 @@ export function RatingEvolutionChart({
                       <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                     )}
                     
-                    {/* Cumulative average line for bar chart */}
+                    {/* Rolling 90-day average line overlay */}
                     <Line
                       type="monotone"
                       dataKey="cumulativeAvg"
@@ -512,7 +517,7 @@ export function RatingEvolutionChart({
                       connectNulls={true}
                       name="Moyenne globale"
                     />
-                  </BarChart>
+                  </ComposedChart>
                 )}
               </ResponsiveContainer>
             </div>
