@@ -190,7 +190,7 @@ export function RatingEvolutionChart({
     };
   }, [data]);
 
-  // Get actions by month for markers
+  // Get actions by month for markers (year view)
   const actionsByMonth = useMemo(() => {
     const map = new Map<string, Action[]>();
     actions.forEach(action => {
@@ -201,6 +201,23 @@ export function RatingEvolutionChart({
     });
     return map;
   }, [actions]);
+
+  // Get actions by day for markers (month drill-down view)
+  const actionsByDay = useMemo(() => {
+    if (periodMode !== "month" || !selectedMonth || !selectedYear) return new Map<string, Action[]>();
+    
+    const map = new Map<string, Action[]>();
+    actions.forEach(action => {
+      const date = new Date(action.start_date);
+      // Only include actions from the selected month/year
+      if (date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear) {
+        const dayKey = String(date.getDate()); // "2" for 2nd of month
+        const existing = map.get(dayKey) || [];
+        map.set(dayKey, [...existing, action]);
+      }
+    });
+    return map;
+  }, [actions, periodMode, selectedMonth, selectedYear]);
 
   // Get bar color based on rating value
   const getBarColor = (rating: number) => {
@@ -214,7 +231,10 @@ export function RatingEvolutionChart({
       const current = payload.find((p: any) => p.dataKey === "rating");
       const previous = payload.find((p: any) => p.dataKey === "previousRating");
       const cumulative = payload.find((p: any) => p.dataKey === "cumulativeAvg");
-      const monthActions = actionsByMonth.get(label) || [];
+      // Use day-based lookup for month drill-down view, month-based for year view
+      const actionsForLabel = periodMode === "month" 
+        ? actionsByDay.get(label) || []
+        : actionsByMonth.get(label) || [];
       const reviewCount = payload[0]?.payload?.count || 0;
 
       return (
@@ -250,17 +270,19 @@ export function RatingEvolutionChart({
               )}
             </>
           )}
-          {showActions && monthActions.length > 0 && (
+          {showActions && actionsForLabel.length > 0 && (
             <div className="mt-2 pt-2 border-t border-border">
-              <p className="text-xs text-muted-foreground mb-1">Actions ce mois:</p>
-              {monthActions.slice(0, 3).map(action => (
+              <p className="text-xs text-muted-foreground mb-1">
+                {periodMode === "month" ? "Actions ce jour:" : "Actions ce mois:"}
+              </p>
+              {actionsForLabel.slice(0, 3).map(action => (
                 <div key={action.id} className="flex items-center gap-1 text-xs">
                   <Zap className="h-3 w-3 text-amber-500" />
                   <span className="truncate max-w-[200px]">{action.title}</span>
                 </div>
               ))}
-              {monthActions.length > 3 && (
-                <p className="text-xs text-muted-foreground">+{monthActions.length - 3} autres...</p>
+              {actionsForLabel.length > 3 && (
+                <p className="text-xs text-muted-foreground">+{actionsForLabel.length - 3} autres...</p>
               )}
             </div>
           )}
@@ -273,8 +295,12 @@ export function RatingEvolutionChart({
   // Custom dot for line chart with action markers
   const CustomDot = (props: any) => {
     const { cx, cy, payload } = props;
-    const monthActions = actionsByMonth.get(payload.month) || [];
-    const hasActions = showActions && monthActions.length > 0;
+    
+    // Use day-based lookup for month drill-down view, month-based for year view
+    const actionsForPoint = periodMode === "month" 
+      ? actionsByDay.get(payload.month) || []
+      : actionsByMonth.get(payload.month) || [];
+    const hasActions = showActions && actionsForPoint.length > 0;
 
     return (
       <g>
