@@ -17,23 +17,28 @@ import { ActionFormDialog } from "@/components/actions/ActionFormDialog";
 
 interface ReviewsOverviewProps {
   reviews: CustomerReview[];
+  allReviewsForRolling?: CustomerReview[];
 }
 
 // Quick period modes that should display daily data
 const DAILY_PERIOD_MODES = ["7d", "previous_week", "30d", "current_month", "range", "month"];
 
-export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
+export function ReviewsOverview({ reviews, allReviewsForRolling }: ReviewsOverviewProps) {
   const [showActions, setShowActions] = useState(true);
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionDialogDate, setActionDialogDate] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange } = useAnalyticsContext();
-  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating, rollingAverageByDate } = useReviewsStats(reviews, {
-    periodMode: periodMode as "year" | "month",
-    selectedMonth,
-    selectedYear
-  });
+  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating, rollingAverageByDate } = useReviewsStats(
+    reviews, 
+    {
+      periodMode: periodMode as "year" | "month",
+      selectedMonth,
+      selectedYear
+    },
+    allReviewsForRolling
+  );
 
   // Determine if we should show daily granularity
   const showDailyData = DAILY_PERIOD_MODES.includes(periodMode);
