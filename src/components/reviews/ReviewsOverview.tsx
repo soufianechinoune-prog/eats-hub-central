@@ -29,7 +29,7 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
   const [actionDialogDate, setActionDialogDate] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange } = useAnalyticsContext();
-  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating } = useReviewsStats(reviews, {
+  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating, cumulativeAverageByDate } = useReviewsStats(reviews, {
     periodMode: periodMode as "year" | "month",
     selectedMonth,
     selectedYear
@@ -120,21 +120,25 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
     // For month mode, use month-based logic
     if (periodMode === "month" && selectedMonth && selectedYear) {
       const daysInMonth = getDaysInMonth(new Date(selectedYear, selectedMonth - 1));
-      const dayMap = new Map<number, { total: number; count: number }>();
+      const dayMap = new Map<number, { total: number; count: number; dateKey: string }>();
 
       for (let i = 1; i <= daysInMonth; i++) {
-        dayMap.set(i, { total: 0, count: 0 });
+        const dateKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        dayMap.set(i, { total: 0, count: 0, dateKey });
       }
 
       reviews.forEach(review => {
         const date = new Date(review.review_date);
         if (date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear) {
           const day = date.getDate();
-          const existing = dayMap.get(day) || { total: 0, count: 0 };
-          dayMap.set(day, {
-            total: existing.total + (review.overall_rating || 0),
-            count: existing.count + 1
-          });
+          const existing = dayMap.get(day);
+          if (existing) {
+            dayMap.set(day, {
+              ...existing,
+              total: existing.total + (review.overall_rating || 0),
+              count: existing.count + 1
+            });
+          }
         }
       });
 
@@ -144,7 +148,8 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
           rating: data.count > 0 ? data.total / data.count : null,
           count: data.count,
           monthIndex: selectedMonth - 1,
-          year: selectedYear
+          year: selectedYear,
+          dateKey: data.dateKey
         }))
         .filter(d => d.count > 0)
         .sort((a, b) => parseInt(a.month) - parseInt(b.month));
@@ -181,22 +186,68 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
           rating: data.count > 0 ? data.total / data.count : null,
           count: data.count,
           monthIndex: data.date.getMonth(),
-          year: data.date.getFullYear()
+          year: data.date.getFullYear(),
+          dateKey: key
         }))
         .filter(d => d.count > 0)
-        .sort((a, b) => {
-          // Sort by actual date order
-          const dateA = new Date(a.year, a.monthIndex, parseInt(a.month) || 1);
-          const dateB = new Date(b.year, b.monthIndex, parseInt(b.month) || 1);
-          return dateA.getTime() - dateB.getTime();
-        });
+        .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
     }
 
     return [];
   }, [reviews, periodMode, selectedMonth, selectedYear, dateRange]);
 
-  // Chart data based on period mode
-  const chartData = showDailyData ? dailyRatings : monthlyRatings;
+  // Enrich chart data with cumulative average
+  const enrichedChartData = useMemo(() => {
+    const baseData = showDailyData ? dailyRatings : monthlyRatings;
+    
+    if (!baseData.length || !cumulativeAverageByDate.size) return baseData;
+    
+    // Get all dates from cumulativeAverageByDate sorted
+    const sortedDates = Array.from(cumulativeAverageByDate.keys()).sort();
+    
+    // For daily data, we can directly use the dateKey
+    if (showDailyData) {
+      return baseData.map(point => {
+        const dateKey = (point as any).dateKey;
+        if (!dateKey) return point;
+        
+        // Find the cumulative average for this date or the closest previous date
+        let cumulativeAvg: number | undefined;
+        for (let i = sortedDates.length - 1; i >= 0; i--) {
+          if (sortedDates[i] <= dateKey) {
+            cumulativeAvg = cumulativeAverageByDate.get(sortedDates[i]);
+            break;
+          }
+        }
+        
+        return { ...point, cumulativeAvg };
+      });
+    }
+    
+    // For monthly data, calculate the cumulative average at end of each month
+    return baseData.map(point => {
+      // Find the last day of this month in the cumulative data
+      const year = point.year;
+      const monthIndex = point.monthIndex;
+      const monthEndPrefix = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+      
+      // Find the latest date in this month
+      let cumulativeAvg: number | undefined;
+      for (let i = sortedDates.length - 1; i >= 0; i--) {
+        if (sortedDates[i].startsWith(monthEndPrefix)) {
+          cumulativeAvg = cumulativeAverageByDate.get(sortedDates[i]);
+          break;
+        }
+        // If we've passed this month, use the last available value before it
+        if (sortedDates[i] < monthEndPrefix) {
+          cumulativeAvg = cumulativeAverageByDate.get(sortedDates[i]);
+          break;
+        }
+      }
+      
+      return { ...point, cumulativeAvg };
+    });
+  }, [showDailyData, dailyRatings, monthlyRatings, cumulativeAverageByDate]);
 
   return (
     <div className="space-y-6">
@@ -213,7 +264,7 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
 
       {/* Évolution de la Note */}
       <RatingEvolutionChart 
-        data={chartData} 
+        data={enrichedChartData} 
         actions={actions}
         showActions={showActions}
         onToggleActions={() => setShowActions(!showActions)}
@@ -227,7 +278,6 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
         chartType={chartType}
         onChartTypeChange={setChartType}
         onAddAction={handleAddAction}
-        globalAverageRating={globalAverageRating}
       />
 
       {/* Action Form Dialog */}
