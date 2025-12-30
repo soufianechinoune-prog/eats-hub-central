@@ -47,6 +47,13 @@ export default function Reviews() {
     }
   }, [periodMode, dateRange, selectedYear, selectedMonth]);
 
+  // Date étendue pour le calcul de la moyenne glissante 90 jours
+  const extendedStartDate = useMemo(() => {
+    const extended = new Date(startDate);
+    extended.setDate(extended.getDate() - 89); // 89 jours avant = fenêtre de 90 jours incluant startDate
+    return extended;
+  }, [startDate]);
+
   const restaurantIds =
     selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
 
@@ -55,12 +62,18 @@ export default function Reviews() {
     isLoading: isLoadingCustomer,
   } = useCustomerReviews(restaurantIds, selectedPlatform, startDate, endDate);
 
+  // Avis étendus pour le calcul de la moyenne glissante 90 jours
+  const {
+    data: allReviewsForRolling,
+    isLoading: isLoadingExtended,
+  } = useCustomerReviews(restaurantIds, selectedPlatform, extendedStartDate, endDate);
+
   const {
     data: menuItemReviews,
     isLoading: isLoadingMenuItems,
   } = useMenuItemReviews(restaurantIds, selectedPlatform, startDate, endDate);
 
-  const isLoading = isLoadingCustomer || isLoadingMenuItems;
+  const isLoading = isLoadingCustomer || isLoadingMenuItems || isLoadingExtended;
 
   if (isLoading) {
     return (
@@ -92,7 +105,10 @@ export default function Reviews() {
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
-          <ReviewsOverview reviews={customerReviews || []} />
+          <ReviewsOverview 
+            reviews={customerReviews || []} 
+            allReviewsForRolling={allReviewsForRolling || []}
+          />
         </TabsContent>
 
         <TabsContent value="customers" className="mt-6">

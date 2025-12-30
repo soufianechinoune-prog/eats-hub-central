@@ -93,8 +93,15 @@ interface UseReviewsStatsOptions {
   selectedYear?: number;
 }
 
-export function useReviewsStats(reviews: CustomerReview[], options?: UseReviewsStatsOptions) {
+export function useReviewsStats(
+  reviews: CustomerReview[], 
+  options?: UseReviewsStatsOptions,
+  allReviewsForRolling?: CustomerReview[]
+) {
   const { periodMode = "year", selectedMonth, selectedYear } = options || {};
+  
+  // Use extended reviews for rolling calculation if provided
+  const reviewsForRolling = allReviewsForRolling || reviews;
 
   // Filter reviews based on selected period
   const filteredReviews = useMemo(() => {
@@ -345,12 +352,13 @@ export function useReviewsStats(reviews: CustomerReview[], options?: UseReviewsS
   }, [reviews]);
 
   // 90-day rolling average rating by date (for evolution curve)
-  // Returns a map of date -> rolling average of last 90 days up to that date
+  // Uses reviewsForRolling (extended dataset) if provided, to have access to 90 days before period start
+  // Returns a map of date -> rolling average of last 90 days up to that date (inclusive, so 90 days total)
   const rollingAverageByDate = useMemo(() => {
-    if (!reviews.length) return new Map<string, number>();
+    if (!reviewsForRolling.length) return new Map<string, number>();
     
-    const ROLLING_WINDOW_DAYS = 90;
-    const validReviews = reviews.filter(r => r.overall_rating !== null && r.review_date);
+    const ROLLING_WINDOW_DAYS = 89; // 89 days before + current day = 90 days total
+    const validReviews = reviewsForRolling.filter(r => r.overall_rating !== null && r.review_date);
     
     if (!validReviews.length) return new Map<string, number>();
     
@@ -369,7 +377,7 @@ export function useReviewsStats(reviews: CustomerReview[], options?: UseReviewsS
       windowStart.setDate(windowStart.getDate() - ROLLING_WINDOW_DAYS);
       windowStart.setHours(0, 0, 0, 0); // Start of day
       
-      // Filter reviews within the 90-day window
+      // Filter reviews within the 90-day window (J-89 to J inclusive = 90 days)
       const reviewsInWindow = validReviews.filter(r => {
         const reviewDate = new Date(r.review_date);
         return reviewDate >= windowStart && reviewDate <= currentDate;
@@ -383,7 +391,7 @@ export function useReviewsStats(reviews: CustomerReview[], options?: UseReviewsS
     });
     
     return result;
-  }, [reviews]);
+  }, [reviewsForRolling]);
 
   return {
     stats,
