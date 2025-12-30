@@ -6,6 +6,7 @@ import {
   Line,
   ComposedChart,
   Bar,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -142,33 +143,73 @@ export function RatingEvolutionChart({
     }
   };
 
-  // Calculate dynamic Y-axis domain based on data
+  // Calculate dynamic Y-axis domain based on cumulativeAvg for better visibility of small variations
   const { yMin, yMax, ticks } = useMemo(() => {
     if (!data.length) return { yMin: 0, yMax: 5, ticks: [0, 1, 2, 3, 4, 5] };
 
-    const ratings = data.map(d => d.rating).filter(r => r > 0);
+    // Prioritize cumulativeAvg values for scaling
+    const cumulativeValues = data
+      .map(d => (d as any).cumulativeAvg)
+      .filter((v): v is number => v !== null && v !== undefined && v > 0);
+    
+    const ratings = data.map(d => d.rating).filter((r): r is number => r !== null && r > 0);
     const previousRatings = data.map(d => d.previousRating).filter((r): r is number => r !== undefined && r > 0);
-    const allRatings = [...ratings, ...previousRatings];
+    
+    // If we have cumulative values, use them primarily for scaling
+    if (cumulativeValues.length > 0) {
+      const minAvg = Math.min(...cumulativeValues);
+      const maxAvg = Math.max(...cumulativeValues);
+      
+      // Also consider daily ratings for the range
+      const allValues = [...cumulativeValues, ...ratings, ...previousRatings];
+      const absoluteMin = Math.min(...allValues);
+      const absoluteMax = Math.max(...allValues);
+      
+      // Create a tighter scale around the average values with 0.3 margin
+      const calculatedMin = Math.max(0, Math.floor((Math.min(minAvg, absoluteMin) - 0.3) * 10) / 10);
+      const calculatedMax = Math.min(5, Math.ceil((Math.max(maxAvg, absoluteMax) + 0.3) * 10) / 10);
+      
+      // Generate ticks every 0.2 points for fine-grained visibility
+      const tickList: number[] = [];
+      for (let t = calculatedMin; t <= calculatedMax + 0.01; t += 0.2) {
+        tickList.push(Math.round(t * 10) / 10);
+      }
+      
+      return { yMin: calculatedMin, yMax: calculatedMax, ticks: tickList };
+    }
 
+    // Fallback to original logic if no cumulative values
+    const allRatings = [...ratings, ...previousRatings];
     if (!allRatings.length) return { yMin: 0, yMax: 5, ticks: [0, 1, 2, 3, 4, 5] };
 
     const minRating = Math.min(...allRatings);
     const maxRating = Math.max(...allRatings);
 
-    // Dynamic scaling based on rating range
     if (minRating >= 4 && maxRating <= 5) {
-      // High ratings: focus on 3.5-5 range
       return { yMin: 3.5, yMax: 5, ticks: [3.5, 4, 4.5, 5] };
     } else if (minRating >= 3.5 && maxRating <= 5) {
-      // Good ratings: focus on 3-5 range
       return { yMin: 3, yMax: 5, ticks: [3, 3.5, 4, 4.5, 5] };
     } else if (minRating >= 3 && maxRating <= 5) {
-      // Moderate ratings: 2.5-5 range
       return { yMin: 2.5, yMax: 5, ticks: [2.5, 3, 3.5, 4, 4.5, 5] };
     } else {
-      // Low ratings or wide range: show full scale
       return { yMin: 0, yMax: 5, ticks: [0, 1, 2, 3, 4, 5] };
     }
+  }, [data]);
+
+  // Calculate latest average and its variation for the header indicator
+  const { latestAvg, avgVariation } = useMemo(() => {
+    const dataWithAvg = data.filter(d => (d as any).cumulativeAvg !== null && (d as any).cumulativeAvg !== undefined);
+    if (dataWithAvg.length < 2) return { latestAvg: null, avgVariation: null };
+    
+    const latest = (dataWithAvg[dataWithAvg.length - 1] as any).cumulativeAvg;
+    // Compare with value from 7 days/points ago
+    const comparisonIndex = Math.max(0, dataWithAvg.length - 8);
+    const previous = (dataWithAvg[comparisonIndex] as any).cumulativeAvg;
+    
+    return {
+      latestAvg: latest,
+      avgVariation: previous ? latest - previous : null
+    };
   }, [data]);
 
   // Get actions by month for markers
@@ -307,14 +348,26 @@ export function RatingEvolutionChart({
               </TooltipProvider>
             </>
           )}
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-amber-500" />
-            {periodMode === "month" ? (
-              <span className="capitalize">{monthTitle}</span>
-            ) : (
-              "Évolution de la Note Moyenne"
+          <div className="flex items-center gap-4">
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-amber-500" />
+              {periodMode === "month" ? (
+                <span className="capitalize">{monthTitle}</span>
+              ) : (
+                "Évolution de la Note Moyenne"
+              )}
+            </CardTitle>
+            {latestAvg !== null && (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
+                <span className="text-lg font-bold text-primary">{latestAvg.toFixed(2)}</span>
+                {avgVariation !== null && (
+                  <span className={`text-sm font-medium ${avgVariation >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                    {avgVariation >= 0 ? "▲" : "▼"} {Math.abs(avgVariation).toFixed(2)}
+                  </span>
+                )}
+              </div>
             )}
-          </CardTitle>
+          </div>
           {periodMode === "month" && onNextMonth && (
             <TooltipProvider>
               <UITooltip>
@@ -434,12 +487,22 @@ export function RatingEvolutionChart({
                       name="Note du jour"
                     />
                     
-                    {/* Cumulative average line */}
+                    {/* Shaded area under cumulative average for better visibility */}
+                    <Area
+                      type="monotone"
+                      dataKey="cumulativeAvg"
+                      fill="hsl(var(--primary))"
+                      fillOpacity={0.15}
+                      stroke="none"
+                      connectNulls={true}
+                    />
+                    
+                    {/* Cumulative average line - thicker for visibility */}
                     <Line
                       type="monotone"
                       dataKey="cumulativeAvg"
                       stroke="hsl(var(--primary))"
-                      strokeWidth={2}
+                      strokeWidth={3}
                       dot={false}
                       connectNulls={true}
                       name="Moyenne globale"
@@ -507,12 +570,22 @@ export function RatingEvolutionChart({
                       <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                     )}
                     
-                    {/* Rolling 90-day average line overlay */}
+                    {/* Shaded area under rolling 90-day average */}
+                    <Area
+                      type="monotone"
+                      dataKey="cumulativeAvg"
+                      fill="hsl(var(--primary))"
+                      fillOpacity={0.15}
+                      stroke="none"
+                      connectNulls={true}
+                    />
+                    
+                    {/* Rolling 90-day average line overlay - thicker */}
                     <Line
                       type="monotone"
                       dataKey="cumulativeAvg"
                       stroke="hsl(var(--primary))"
-                      strokeWidth={2}
+                      strokeWidth={3}
                       dot={false}
                       connectNulls={true}
                       name="Moyenne globale"
