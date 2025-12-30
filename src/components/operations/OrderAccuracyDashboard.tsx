@@ -41,13 +41,14 @@ import { ErrorRateEvolutionChart } from "./ErrorRateEvolutionChart";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { checkRestaurantOpeningDate } from "@/lib/restaurantOpeningDates";
+import type { PeriodMode } from "@/contexts/AnalyticsContext";
 
 interface OrderAccuracyDashboardProps {
   selectedRestaurants: string[];
   selectedYear: number;
   selectedMonth: number | "all";
   restaurants: Array<{ id: string; name: string }>;
-  periodMode?: "year" | "month" | "range";
+  periodMode?: PeriodMode;
   dateRange?: { start: Date; end: Date };
 }
 

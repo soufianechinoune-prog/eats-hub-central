@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { differenceInDays, startOfMonth, endOfMonth } from "date-fns";
+import { differenceInDays, startOfMonth, endOfMonth, subWeeks, startOfWeek, endOfWeek, subDays } from "date-fns";
+import type { PeriodMode } from "@/contexts/AnalyticsContext";
 
 export type DataGranularity = "daily" | "weekly" | "monthly";
 
 interface UseDataGranularityParams {
-  periodMode: "year" | "month" | "range" | "custom";
+  periodMode: PeriodMode;
   selectedYear: number;
   selectedMonth?: number;
   dateRange?: { from?: Date; to?: Date };
@@ -32,7 +33,27 @@ export function useDataGranularity({
     let endDate: Date;
     let periodDays: number;
 
-    if ((periodMode === "custom" || periodMode === "range") && dateRange?.from && dateRange?.to) {
+    const today = new Date();
+
+    // Handle quick period modes
+    if (periodMode === "previous_week") {
+      const lastWeek = subWeeks(today, 1);
+      startDate = startOfWeek(lastWeek, { weekStartsOn: 1 });
+      endDate = endOfWeek(lastWeek, { weekStartsOn: 1 });
+      periodDays = 7;
+    } else if (periodMode === "7d") {
+      startDate = subDays(today, 6);
+      endDate = today;
+      periodDays = 7;
+    } else if (periodMode === "30d") {
+      startDate = subDays(today, 29);
+      endDate = today;
+      periodDays = 30;
+    } else if (periodMode === "current_month") {
+      startDate = startOfMonth(today);
+      endDate = endOfMonth(today);
+      periodDays = differenceInDays(endDate, startDate) + 1;
+    } else if ((periodMode === "range") && dateRange?.from && dateRange?.to) {
       // Custom date range
       startDate = dateRange.from;
       endDate = dateRange.to;

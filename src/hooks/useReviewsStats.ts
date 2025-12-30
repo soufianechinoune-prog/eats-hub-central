@@ -85,8 +85,10 @@ const TAG_LABELS: Record<string, string> = {
   "restaurant_missed_request": "Demande non respectée"
 };
 
+import type { PeriodMode } from "@/contexts/AnalyticsContext";
+
 interface UseReviewsStatsOptions {
-  periodMode?: "year" | "month" | "range";
+  periodMode?: PeriodMode;
   selectedMonth?: number;
   selectedYear?: number;
 }
