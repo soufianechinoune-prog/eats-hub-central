@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, Store, Calendar, X, ChevronLeft, ChevronRight, Star } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek, subWeeks, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,7 +71,13 @@ export function AnalyticsHeader() {
   const [restaurantOpen, setRestaurantOpen] = useState(false);
   const [periodOpen, setPeriodOpen] = useState(false);
   const [tempYear, setTempYear] = useState(selectedYear);
-  const [activeTab, setActiveTab] = useState<string>(periodMode);
+  
+  const activeTab = useMemo(() => {
+    if (["previous_week", "7d", "30d", "current_month"].includes(periodMode)) {
+      return "quick";
+    }
+    return periodMode;
+  }, [periodMode]);
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
@@ -141,15 +147,57 @@ export function AnalyticsHeader() {
     }
   };
 
-  const getPeriodDisplayText = () => {
-    if (periodMode === "month") {
-      return `${MONTHS_FULL[selectedMonth - 1]} ${selectedYear}`;
-    } else if (periodMode === "year") {
-      return `${selectedYear}`;
-    } else if (periodMode === "range" && dateRange?.from && dateRange?.to) {
-      return `${format(dateRange.from, "dd/MM/yyyy")} – ${format(dateRange.to, "dd/MM/yyyy")}`;
+  const handleQuickSelect = (mode: "previous_week" | "7d" | "30d" | "current_month") => {
+    const today = new Date();
+    let from: Date;
+    let to: Date;
+
+    switch (mode) {
+      case "previous_week":
+        const lastWeek = subWeeks(today, 1);
+        from = startOfWeek(lastWeek, { weekStartsOn: 1 });
+        to = endOfWeek(lastWeek, { weekStartsOn: 1 });
+        break;
+      case "7d":
+        from = subDays(today, 6);
+        to = today;
+        break;
+      case "30d":
+        from = subDays(today, 29);
+        to = today;
+        break;
+      case "current_month":
+        from = startOfMonth(today);
+        to = endOfMonth(today);
+        break;
     }
-    return "Sélectionner une période";
+    setPeriodMode(mode);
+    setDateRange({ from, to });
+    setPeriodOpen(false);
+  };
+
+  const getPeriodDisplayText = () => {
+    switch (periodMode) {
+      case "previous_week":
+        return "Semaine précédente";
+      case "7d":
+        return "7 derniers jours";
+      case "30d":
+        return "30 derniers jours";
+      case "current_month":
+        return "Mois en cours";
+      case "month":
+        return `${MONTHS_FULL[selectedMonth - 1]} ${selectedYear}`;
+      case "year":
+        return `${selectedYear}`;
+      case "range":
+        if (dateRange?.from && dateRange?.to) {
+          return `${format(dateRange.from, "dd/MM/yyyy")} – ${format(dateRange.to, "dd/MM/yyyy")}`;
+        }
+        return "Sélectionner une période";
+      default:
+        return "Sélectionner une période";
+    }
   };
 
   const handleResetPeriod = () => {
@@ -159,7 +207,12 @@ export function AnalyticsHeader() {
     setPeriodOpen(false);
   };
 
-  const showResetButton = periodMode === "month" || (periodMode === "range" && dateRange?.from);
+  const showResetButton = periodMode === "month" || 
+    periodMode === "previous_week" || 
+    periodMode === "7d" || 
+    periodMode === "30d" || 
+    periodMode === "current_month" || 
+    (periodMode === "range" && dateRange?.from);
 
   return (
     <div className="sticky top-0 z-40 backdrop-blur-xl bg-background/95 border-2 border-border/40 rounded-2xl p-6 shadow-lg space-y-4">
@@ -340,11 +393,17 @@ export function AnalyticsHeader() {
             >
               <Tabs 
                 value={activeTab} 
-                onValueChange={setActiveTab} 
+                defaultValue={activeTab}
                 className="w-full"
               >
                 <div className="border-b bg-muted/30">
                   <TabsList className="w-full h-12 bg-transparent p-0 rounded-none">
+                    <TabsTrigger 
+                      value="quick" 
+                      className="flex-1 h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium"
+                    >
+                      Rapide
+                    </TabsTrigger>
                     <TabsTrigger 
                       value="month" 
                       className="flex-1 h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium"
@@ -365,6 +424,59 @@ export function AnalyticsHeader() {
                     </TabsTrigger>
                   </TabsList>
                 </div>
+
+                <TabsContent value="quick" className="p-5 mt-0">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "h-11 text-sm font-medium rounded-lg transition-all",
+                        periodMode === "previous_week"
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground"
+                          : "hover:bg-muted hover:border-muted-foreground/30"
+                      )}
+                      onClick={() => handleQuickSelect("previous_week")}
+                    >
+                      Semaine précédente
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "h-11 text-sm font-medium rounded-lg transition-all",
+                        periodMode === "7d"
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground"
+                          : "hover:bg-muted hover:border-muted-foreground/30"
+                      )}
+                      onClick={() => handleQuickSelect("7d")}
+                    >
+                      7 derniers jours
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "h-11 text-sm font-medium rounded-lg transition-all",
+                        periodMode === "30d"
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground"
+                          : "hover:bg-muted hover:border-muted-foreground/30"
+                      )}
+                      onClick={() => handleQuickSelect("30d")}
+                    >
+                      30 derniers jours
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "h-11 text-sm font-medium rounded-lg transition-all",
+                        periodMode === "current_month"
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground"
+                          : "hover:bg-muted hover:border-muted-foreground/30"
+                      )}
+                      onClick={() => handleQuickSelect("current_month")}
+                    >
+                      Mois en cours
+                    </Button>
+                  </div>
+                </TabsContent>
 
                 <TabsContent value="month" className="p-5 mt-0">
                   <div className="flex items-center justify-center gap-6 mb-5">
