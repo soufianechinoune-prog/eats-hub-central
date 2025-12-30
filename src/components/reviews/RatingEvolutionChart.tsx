@@ -58,6 +58,7 @@ interface RatingEvolutionChartProps {
   chartType?: "line" | "bar";
   onChartTypeChange?: (type: "line" | "bar") => void;
   onAddAction?: (date: Date) => void;
+  globalAverageRating?: number;
 }
 
 export function RatingEvolutionChart({ 
@@ -74,7 +75,8 @@ export function RatingEvolutionChart({
   onNextMonth,
   chartType = "line",
   onChartTypeChange,
-  onAddAction
+  onAddAction,
+  globalAverageRating
 }: RatingEvolutionChartProps) {
 
   // State for context menu
@@ -433,6 +435,22 @@ export function RatingEvolutionChart({
                     {yMin <= 3.5 && yMax >= 3.5 && (
                       <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                     )}
+                    
+                    {/* Global average line */}
+                    {globalAverageRating && globalAverageRating >= yMin && globalAverageRating <= yMax && (
+                      <ReferenceLine 
+                        y={globalAverageRating} 
+                        stroke="hsl(var(--primary))" 
+                        strokeWidth={2}
+                        label={{ 
+                          value: `Moy: ${globalAverageRating.toFixed(2)}`,
+                          position: "right",
+                          fill: "hsl(var(--primary))",
+                          fontSize: 11,
+                          fontWeight: 600
+                        }}
+                      />
+                    )}
                   </LineChart>
                 ) : (
                   <BarChart 
@@ -482,6 +500,22 @@ export function RatingEvolutionChart({
                     {yMin <= 3.5 && yMax >= 3.5 && (
                       <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                     )}
+                    
+                    {/* Global average line */}
+                    {globalAverageRating && globalAverageRating >= yMin && globalAverageRating <= yMax && (
+                      <ReferenceLine 
+                        y={globalAverageRating} 
+                        stroke="hsl(var(--primary))" 
+                        strokeWidth={2}
+                        label={{ 
+                          value: `Moy: ${globalAverageRating.toFixed(2)}`,
+                          position: "right",
+                          fill: "hsl(var(--primary))",
+                          fontSize: 11,
+                          fontWeight: 600
+                        }}
+                      />
+                    )}
                   </BarChart>
                 )}
               </ResponsiveContainer>
@@ -503,7 +537,13 @@ export function RatingEvolutionChart({
         </ContextMenu>
 
         {/* Legend */}
-        <div className="flex justify-center gap-6 mt-4 text-xs">
+        <div className="flex flex-wrap justify-center gap-4 mt-4 text-xs">
+          {globalAverageRating && (
+            <div className="flex items-center gap-1">
+              <div className="w-6 h-0.5 bg-primary" />
+              <span className="text-muted-foreground">Moyenne globale ({globalAverageRating.toFixed(2)})</span>
+            </div>
+          )}
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/50" />
             <span className="text-muted-foreground">Excellent (≥4.5)</span>
