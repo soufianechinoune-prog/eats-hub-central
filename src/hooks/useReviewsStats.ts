@@ -336,11 +336,20 @@ export function useReviewsStats(reviews: CustomerReview[], options?: UseReviewsS
     return { positive, negative };
   }, [filteredReviews]);
 
+  // Global average rating (all reviews, not filtered by period)
+  const globalAverageRating = useMemo(() => {
+    if (!reviews.length) return 0;
+    const validReviews = reviews.filter(r => r.overall_rating !== null);
+    if (!validReviews.length) return 0;
+    return validReviews.reduce((sum, r) => sum + (r.overall_rating || 0), 0) / validReviews.length;
+  }, [reviews]);
+
   return {
     stats,
     monthlyRatings,
     ratingDistribution,
     dayStats,
-    tagStats
+    tagStats,
+    globalAverageRating,
   };
 }

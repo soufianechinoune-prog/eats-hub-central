@@ -29,7 +29,7 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
   const [actionDialogDate, setActionDialogDate] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange } = useAnalyticsContext();
-  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats } = useReviewsStats(reviews, {
+  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating } = useReviewsStats(reviews, {
     periodMode: periodMode as "year" | "month",
     selectedMonth,
     selectedYear
@@ -227,6 +227,7 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
         chartType={chartType}
         onChartTypeChange={setChartType}
         onAddAction={handleAddAction}
+        globalAverageRating={globalAverageRating}
       />
 
       {/* Action Form Dialog */}
