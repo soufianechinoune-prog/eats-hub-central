@@ -114,9 +114,15 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
 
   // Remove a restaurant from visible list (and deselect it)
   const removeVisibleRestaurant = (id: string) => {
-    setVisibleRestaurants(visibleRestaurants.filter(r => r !== id));
-    setSelectedRestaurants(selectedRestaurants.filter(r => r !== id));
+    setVisibleRestaurants(visibleRestaurants.filter((r) => r !== id));
+    setSelectedRestaurants(selectedRestaurants.filter((r) => r !== id));
   };
+
+  // Keep invariants between lists:
+  // - selectedRestaurants must always be a subset of visibleRestaurants
+  useEffect(() => {
+    setSelectedRestaurants((prev) => prev.filter((id) => visibleRestaurants.includes(id)));
+  }, [visibleRestaurants]);
 
   // Persist to localStorage whenever state changes (but not on initial mount)
   useEffect(() => {
@@ -124,7 +130,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       hasMounted.current = true;
       return;
     }
-    
+
     const state = {
       selectedRestaurants,
       visibleRestaurants,
@@ -142,7 +148,16 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     cachedStoredState = state;
-  }, [selectedRestaurants, visibleRestaurants, selectedPlatform, selectedYear, selectedMonth, periodMode, dateRange, comparisonMode]);
+  }, [
+    selectedRestaurants,
+    visibleRestaurants,
+    selectedPlatform,
+    selectedYear,
+    selectedMonth,
+    periodMode,
+    dateRange,
+    comparisonMode,
+  ]);
 
   const value = {
     selectedRestaurants,

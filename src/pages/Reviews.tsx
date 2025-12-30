@@ -20,20 +20,29 @@ export default function Reviews() {
 
   // Calculer les dates de filtrage selon le mode de période
   const { startDate, endDate } = useMemo(() => {
-    if (periodMode === "range" && dateRange?.from && dateRange?.to) {
-      return { startDate: dateRange.from, endDate: dateRange.to };
+    const usesContextRange =
+      (periodMode === "range" ||
+        periodMode === "previous_week" ||
+        periodMode === "7d" ||
+        periodMode === "30d" ||
+        periodMode === "current_month") &&
+      dateRange?.from &&
+      dateRange?.to;
+
+    if (usesContextRange) {
+      return { startDate: dateRange!.from!, endDate: dateRange!.to! };
     } else if (periodMode === "month") {
       const monthDate = new Date(selectedYear, selectedMonth - 1, 1);
-      return { 
-        startDate: startOfMonth(monthDate), 
-        endDate: endOfMonth(monthDate) 
+      return {
+        startDate: startOfMonth(monthDate),
+        endDate: endOfMonth(monthDate),
       };
     } else {
       // periodMode === "year" or default
       const yearDate = new Date(selectedYear, 0, 1);
-      return { 
-        startDate: startOfYear(yearDate), 
-        endDate: endOfYear(yearDate) 
+      return {
+        startDate: startOfYear(yearDate),
+        endDate: endOfYear(yearDate),
       };
     }
   }, [periodMode, dateRange, selectedYear, selectedMonth]);
