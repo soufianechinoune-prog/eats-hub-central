@@ -11,22 +11,28 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { format, getDaysInMonth } from "date-fns";
+import { format, getDaysInMonth, eachDayOfInterval, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 
 interface ReviewsOverviewProps {
   reviews: CustomerReview[];
 }
 
+// Quick period modes that should display daily data
+const DAILY_PERIOD_MODES = ["7d", "previous_week", "30d", "current_month", "range", "month"];
+
 export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
   const [showActions, setShowActions] = useState(true);
   const [chartType, setChartType] = useState<"line" | "bar">("line");
-  const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear } = useAnalyticsContext();
+  const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange } = useAnalyticsContext();
   const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats } = useReviewsStats(reviews, {
     periodMode: periodMode as "year" | "month",
     selectedMonth,
     selectedYear
   });
+
+  // Determine if we should show daily granularity
+  const showDailyData = DAILY_PERIOD_MODES.includes(periodMode);
 
   // Fetch actions for the selected restaurants
   const { data: actions = [] } = useQuery({
@@ -95,45 +101,88 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
     }
   };
 
-  // Daily ratings data for drill-down (when periodMode === "month")
+  // Daily ratings data for drill-down (when periodMode === "month" or quick period modes)
   const dailyRatings = useMemo(() => {
-    if (periodMode !== "month" || !selectedMonth || !selectedYear) return [];
+    // For month mode, use month-based logic
+    if (periodMode === "month" && selectedMonth && selectedYear) {
+      const daysInMonth = getDaysInMonth(new Date(selectedYear, selectedMonth - 1));
+      const dayMap = new Map<number, { total: number; count: number }>();
 
-    const daysInMonth = getDaysInMonth(new Date(selectedYear, selectedMonth - 1));
-    const dayMap = new Map<number, { total: number; count: number }>();
+      for (let i = 1; i <= daysInMonth; i++) {
+        dayMap.set(i, { total: 0, count: 0 });
+      }
 
-    // Initialize all days
-    for (let i = 1; i <= daysInMonth; i++) {
-      dayMap.set(i, { total: 0, count: 0 });
+      reviews.forEach(review => {
+        const date = new Date(review.review_date);
+        if (date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear) {
+          const day = date.getDate();
+          const existing = dayMap.get(day) || { total: 0, count: 0 };
+          dayMap.set(day, {
+            total: existing.total + (review.overall_rating || 0),
+            count: existing.count + 1
+          });
+        }
+      });
+
+      return Array.from(dayMap.entries())
+        .map(([day, data]) => ({
+          month: `${day}`,
+          rating: data.count > 0 ? data.total / data.count : null,
+          count: data.count,
+          monthIndex: selectedMonth - 1,
+          year: selectedYear
+        }))
+        .filter(d => d.count > 0)
+        .sort((a, b) => parseInt(a.month) - parseInt(b.month));
     }
 
-    // Aggregate reviews by day
-    reviews.forEach(review => {
-      const date = new Date(review.review_date);
-      if (date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear) {
-        const day = date.getDate();
-        const existing = dayMap.get(day) || { total: 0, count: 0 };
-        dayMap.set(day, {
-          total: existing.total + (review.overall_rating || 0),
-          count: existing.count + 1
-        });
-      }
-    });
+    // For quick period modes (7d, previous_week, 30d, current_month, range)
+    if (DAILY_PERIOD_MODES.includes(periodMode) && dateRange?.from && dateRange?.to) {
+      const days = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
+      const dayMap = new Map<string, { date: Date; total: number; count: number }>();
 
-    return Array.from(dayMap.entries())
-      .map(([day, data]) => ({
-        month: `${day}`,
-        rating: data.count > 0 ? data.total / data.count : null,
-        count: data.count,
-        monthIndex: selectedMonth - 1,
-        year: selectedYear
-      }))
-      .filter(d => d.count > 0)
-      .sort((a, b) => parseInt(a.month) - parseInt(b.month));
-  }, [reviews, periodMode, selectedMonth, selectedYear]);
+      // Initialize all days in the range
+      days.forEach(day => {
+        const key = format(day, "yyyy-MM-dd");
+        dayMap.set(key, { date: day, total: 0, count: 0 });
+      });
+
+      // Aggregate reviews by day
+      reviews.forEach(review => {
+        const reviewDate = new Date(review.review_date);
+        const key = format(reviewDate, "yyyy-MM-dd");
+        const existing = dayMap.get(key);
+        if (existing) {
+          dayMap.set(key, {
+            date: existing.date,
+            total: existing.total + (review.overall_rating || 0),
+            count: existing.count + 1
+          });
+        }
+      });
+
+      return Array.from(dayMap.entries())
+        .map(([key, data]) => ({
+          month: format(data.date, "d MMM", { locale: fr }),
+          rating: data.count > 0 ? data.total / data.count : null,
+          count: data.count,
+          monthIndex: data.date.getMonth(),
+          year: data.date.getFullYear()
+        }))
+        .filter(d => d.count > 0)
+        .sort((a, b) => {
+          // Sort by actual date order
+          const dateA = new Date(a.year, a.monthIndex, parseInt(a.month) || 1);
+          const dateB = new Date(b.year, b.monthIndex, parseInt(b.month) || 1);
+          return dateA.getTime() - dateB.getTime();
+        });
+    }
+
+    return [];
+  }, [reviews, periodMode, selectedMonth, selectedYear, dateRange]);
 
   // Chart data based on period mode
-  const chartData = periodMode === "month" ? dailyRatings : monthlyRatings;
+  const chartData = showDailyData ? dailyRatings : monthlyRatings;
 
   return (
     <div className="space-y-6">
