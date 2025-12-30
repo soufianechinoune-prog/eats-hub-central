@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, Store, Calendar, X, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { format, startOfWeek, endOfWeek, subWeeks, subDays, startOfMonth, endOfMonth } from "date-fns";
@@ -72,12 +72,18 @@ export function AnalyticsHeader() {
   const [periodOpen, setPeriodOpen] = useState(false);
   const [tempYear, setTempYear] = useState(selectedYear);
   
-  const activeTab = useMemo(() => {
+  const derivedTab = useMemo(() => {
     if (["previous_week", "7d", "30d", "current_month"].includes(periodMode)) {
       return "quick";
     }
     return periodMode;
   }, [periodMode]);
+
+  const [activeTab, setActiveTab] = useState<string>(derivedTab);
+
+  useEffect(() => {
+    if (periodOpen) setActiveTab(derivedTab);
+  }, [periodOpen, derivedTab]);
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
@@ -393,7 +399,7 @@ export function AnalyticsHeader() {
             >
               <Tabs 
                 value={activeTab} 
-                defaultValue={activeTab}
+                onValueChange={setActiveTab}
                 className="w-full"
               >
                 <div className="border-b bg-muted/30">
