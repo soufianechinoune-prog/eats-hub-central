@@ -98,6 +98,33 @@ export function AnalyticsHeader() {
     },
   });
 
+  // Clean up invalid restaurant IDs when restaurants are loaded
+  useEffect(() => {
+    if (restaurants && restaurants.length > 0) {
+      const validIds = new Set(restaurants.map(r => r.id));
+      
+      // Clean selectedRestaurants - remove IDs that don't exist in database
+      const validSelectedIds = selectedRestaurants.filter(id => validIds.has(id));
+      if (validSelectedIds.length !== selectedRestaurants.length) {
+        console.log("Cleaning invalid selectedRestaurants:", {
+          before: selectedRestaurants,
+          after: validSelectedIds
+        });
+        setSelectedRestaurants(validSelectedIds);
+      }
+      
+      // Clean visibleRestaurants - remove IDs that don't exist in database
+      const validVisibleIds = visibleRestaurants.filter(id => validIds.has(id));
+      if (validVisibleIds.length !== visibleRestaurants.length) {
+        console.log("Cleaning invalid visibleRestaurants:", {
+          before: visibleRestaurants,
+          after: validVisibleIds
+        });
+        setVisibleRestaurants(validVisibleIds);
+      }
+    }
+  }, [restaurants]);
+
   const pinnedRestaurants = useMemo(() => 
     restaurants?.filter(r => r.is_pinned) || []
   , [restaurants]);
