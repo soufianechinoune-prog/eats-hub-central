@@ -143,57 +143,35 @@ export function RatingEvolutionChart({
     }
   };
 
-  // Calculate dynamic Y-axis domain based on cumulativeAvg for better visibility of small variations
+  // Calculate Y-axis for daily ratings (left axis) - standard 0-5 scale
   const { yMin, yMax, ticks } = useMemo(() => {
-    if (!data.length) return { yMin: 0, yMax: 5, ticks: [0, 1, 2, 3, 4, 5] };
+    return { yMin: 0, yMax: 5, ticks: [0, 1, 2, 3, 4, 5] };
+  }, []);
 
-    // Prioritize cumulativeAvg values for scaling
+  // Calculate dedicated Y-axis for cumulative average (right axis) - tight scale for visibility
+  const { yMinCumulative, yMaxCumulative, ticksCumulative } = useMemo(() => {
     const cumulativeValues = data
       .map(d => (d as any).cumulativeAvg)
       .filter((v): v is number => v !== null && v !== undefined && v > 0);
     
-    const ratings = data.map(d => d.rating).filter((r): r is number => r !== null && r > 0);
-    const previousRatings = data.map(d => d.previousRating).filter((r): r is number => r !== undefined && r > 0);
+    if (!cumulativeValues.length) {
+      return { yMinCumulative: 0, yMaxCumulative: 5, ticksCumulative: [0, 1, 2, 3, 4, 5] };
+    }
     
-    // If we have cumulative values, use them primarily for scaling
-    if (cumulativeValues.length > 0) {
-      const minAvg = Math.min(...cumulativeValues);
-      const maxAvg = Math.max(...cumulativeValues);
-      
-      // Also consider daily ratings for the range
-      const allValues = [...cumulativeValues, ...ratings, ...previousRatings];
-      const absoluteMin = Math.min(...allValues);
-      const absoluteMax = Math.max(...allValues);
-      
-      // Create a tighter scale around the average values with 0.3 margin
-      const calculatedMin = Math.max(0, Math.floor((Math.min(minAvg, absoluteMin) - 0.3) * 10) / 10);
-      const calculatedMax = Math.min(5, Math.ceil((Math.max(maxAvg, absoluteMax) + 0.3) * 10) / 10);
-      
-      // Generate ticks every 0.2 points for fine-grained visibility
-      const tickList: number[] = [];
-      for (let t = calculatedMin; t <= calculatedMax + 0.01; t += 0.2) {
-        tickList.push(Math.round(t * 10) / 10);
-      }
-      
-      return { yMin: calculatedMin, yMax: calculatedMax, ticks: tickList };
+    const minAvg = Math.min(...cumulativeValues);
+    const maxAvg = Math.max(...cumulativeValues);
+    
+    // Create a very tight scale with 0.2 margin to emphasize small variations
+    const calculatedMin = Math.max(0, Math.floor((minAvg - 0.2) * 10) / 10);
+    const calculatedMax = Math.min(5, Math.ceil((maxAvg + 0.2) * 10) / 10);
+    
+    // Generate ticks every 0.1 points for fine-grained visibility of thresholds
+    const tickList: number[] = [];
+    for (let t = calculatedMin; t <= calculatedMax + 0.01; t += 0.1) {
+      tickList.push(Math.round(t * 100) / 100);
     }
-
-    // Fallback to original logic if no cumulative values
-    const allRatings = [...ratings, ...previousRatings];
-    if (!allRatings.length) return { yMin: 0, yMax: 5, ticks: [0, 1, 2, 3, 4, 5] };
-
-    const minRating = Math.min(...allRatings);
-    const maxRating = Math.max(...allRatings);
-
-    if (minRating >= 4 && maxRating <= 5) {
-      return { yMin: 3.5, yMax: 5, ticks: [3.5, 4, 4.5, 5] };
-    } else if (minRating >= 3.5 && maxRating <= 5) {
-      return { yMin: 3, yMax: 5, ticks: [3, 3.5, 4, 4.5, 5] };
-    } else if (minRating >= 3 && maxRating <= 5) {
-      return { yMin: 2.5, yMax: 5, ticks: [2.5, 3, 3.5, 4, 4.5, 5] };
-    } else {
-      return { yMin: 0, yMax: 5, ticks: [0, 1, 2, 3, 4, 5] };
-    }
+    
+    return { yMinCumulative: calculatedMin, yMaxCumulative: calculatedMax, ticksCumulative: tickList };
   }, [data]);
 
   // Calculate latest average and its variation for the header indicator
@@ -439,15 +417,15 @@ export function RatingEvolutionChart({
                 {chartType === "line" ? (
                   <LineChart 
                     data={data} 
-                    margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+                    margin={{ top: 20, right: 50, left: 0, bottom: 0 }}
                     onClick={handleChartClick}
                     onMouseMove={handleContextMenu}
                     style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
                   >
-                    {/* Performance zones - adjusted to dynamic scale */}
-                    {yMin <= 4.5 && <ReferenceArea y1={Math.max(4.5, yMin)} y2={yMax} fill="hsl(var(--chart-2))" fillOpacity={0.1} />}
-                    {yMin <= 3.5 && <ReferenceArea y1={Math.max(3.5, yMin)} y2={Math.min(4.5, yMax)} fill="hsl(45 93% 47%)" fillOpacity={0.05} />}
-                    {yMin < 3.5 && <ReferenceArea y1={yMin} y2={Math.min(3.5, yMax)} fill="hsl(0 84% 60%)" fillOpacity={0.05} />}
+                    {/* Performance zones on left axis */}
+                    <ReferenceArea yAxisId="left" y1={4.5} y2={5} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
+                    <ReferenceArea yAxisId="left" y1={3.5} y2={4.5} fill="hsl(45 93% 47%)" fillOpacity={0.05} />
+                    <ReferenceArea yAxisId="left" y1={0} y2={3.5} fill="hsl(0 84% 60%)" fillOpacity={0.05} />
 
                     <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                     <XAxis 
@@ -455,17 +433,33 @@ export function RatingEvolutionChart({
                       tick={{ fontSize: 11 }} 
                       stroke="hsl(var(--muted-foreground))"
                     />
+                    
+                    {/* Left Y-axis: Daily ratings (0-5 scale) */}
                     <YAxis 
+                      yAxisId="left"
                       domain={[yMin, yMax]} 
                       ticks={ticks}
                       tick={{ fontSize: 11 }}
                       stroke="hsl(var(--muted-foreground))"
+                      tickFormatter={(value) => value.toFixed(0)}
+                    />
+                    
+                    {/* Right Y-axis: Cumulative average (tight scale for visibility) */}
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      domain={[yMinCumulative, yMaxCumulative]} 
+                      ticks={ticksCumulative}
+                      tick={{ fontSize: 10, fill: "hsl(var(--primary))" }}
+                      stroke="hsl(var(--primary))"
                       tickFormatter={(value) => value.toFixed(1)}
                     />
+                    
                     <Tooltip content={<CustomTooltip />} />
                     
-                    {/* N-1 line */}
+                    {/* N-1 line on left axis */}
                     <Line
+                      yAxisId="left"
                       type="monotone"
                       dataKey="previousRating"
                       stroke="hsl(var(--muted-foreground))"
@@ -475,8 +469,9 @@ export function RatingEvolutionChart({
                       connectNulls
                     />
                     
-                    {/* Current line (daily rating) */}
+                    {/* Current line (daily rating) on left axis */}
                     <Line
+                      yAxisId="left"
                       type="monotone"
                       dataKey="rating"
                       stroke="hsl(45 93% 47%)"
@@ -487,8 +482,9 @@ export function RatingEvolutionChart({
                       name="Note du jour"
                     />
                     
-                    {/* Shaded area under cumulative average for better visibility */}
+                    {/* Shaded area under cumulative average on right axis */}
                     <Area
+                      yAxisId="right"
                       type="monotone"
                       dataKey="cumulativeAvg"
                       fill="hsl(var(--primary))"
@@ -497,8 +493,9 @@ export function RatingEvolutionChart({
                       connectNulls={true}
                     />
                     
-                    {/* Cumulative average line - thicker for visibility */}
+                    {/* Cumulative average line on right axis - thicker for visibility */}
                     <Line
+                      yAxisId="right"
                       type="monotone"
                       dataKey="cumulativeAvg"
                       stroke="hsl(var(--primary))"
@@ -508,26 +505,22 @@ export function RatingEvolutionChart({
                       name="Moyenne globale"
                     />
 
-                    {/* Reference lines - only show if in visible range */}
-                    {yMin <= 4.5 && yMax >= 4.5 && (
-                      <ReferenceLine y={4.5} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" strokeOpacity={0.5} />
-                    )}
-                    {yMin <= 3.5 && yMax >= 3.5 && (
-                      <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
-                    )}
+                    {/* Reference lines on left axis */}
+                    <ReferenceLine yAxisId="left" y={4.5} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    <ReferenceLine yAxisId="left" y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                   </LineChart>
                 ) : (
                   <ComposedChart 
                     data={data} 
-                    margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+                    margin={{ top: 20, right: 50, left: 0, bottom: 0 }}
                     onClick={handleChartClick}
                     onMouseMove={handleContextMenu}
                     style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
                   >
-                    {/* Performance zones - adjusted to dynamic scale */}
-                    {yMin <= 4.5 && <ReferenceArea y1={Math.max(4.5, yMin)} y2={yMax} fill="hsl(var(--chart-2))" fillOpacity={0.1} />}
-                    {yMin <= 3.5 && <ReferenceArea y1={Math.max(3.5, yMin)} y2={Math.min(4.5, yMax)} fill="hsl(45 93% 47%)" fillOpacity={0.05} />}
-                    {yMin < 3.5 && <ReferenceArea y1={yMin} y2={Math.min(3.5, yMax)} fill="hsl(0 84% 60%)" fillOpacity={0.05} />}
+                    {/* Performance zones on left axis */}
+                    <ReferenceArea yAxisId="left" y1={4.5} y2={5} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
+                    <ReferenceArea yAxisId="left" y1={3.5} y2={4.5} fill="hsl(45 93% 47%)" fillOpacity={0.05} />
+                    <ReferenceArea yAxisId="left" y1={0} y2={3.5} fill="hsl(0 84% 60%)" fillOpacity={0.05} />
 
                     <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                     <XAxis 
@@ -535,25 +528,42 @@ export function RatingEvolutionChart({
                       tick={{ fontSize: 11 }} 
                       stroke="hsl(var(--muted-foreground))"
                     />
+                    
+                    {/* Left Y-axis: Daily ratings (0-5 scale) */}
                     <YAxis 
+                      yAxisId="left"
                       domain={[yMin, yMax]} 
                       ticks={ticks}
                       tick={{ fontSize: 11 }}
                       stroke="hsl(var(--muted-foreground))"
+                      tickFormatter={(value) => value.toFixed(0)}
+                    />
+                    
+                    {/* Right Y-axis: Cumulative average (tight scale) */}
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      domain={[yMinCumulative, yMaxCumulative]} 
+                      ticks={ticksCumulative}
+                      tick={{ fontSize: 10, fill: "hsl(var(--primary))" }}
+                      stroke="hsl(var(--primary))"
                       tickFormatter={(value) => value.toFixed(1)}
                     />
+                    
                     <Tooltip content={<CustomTooltip />} />
                     
-                    {/* Previous period bars (ghost) */}
+                    {/* Previous period bars (ghost) on left axis */}
                     <Bar
+                      yAxisId="left"
                       dataKey="previousRating"
                       fill="hsl(var(--muted-foreground))"
                       fillOpacity={0.3}
                       radius={[4, 4, 0, 0]}
                     />
                     
-                    {/* Current period bars with dynamic colors */}
+                    {/* Current period bars with dynamic colors on left axis */}
                     <Bar
+                      yAxisId="left"
                       dataKey="rating"
                       radius={[4, 4, 0, 0]}
                     >
@@ -562,16 +572,13 @@ export function RatingEvolutionChart({
                       ))}
                     </Bar>
 
-                    {/* Reference lines */}
-                    {yMin <= 4.5 && yMax >= 4.5 && (
-                      <ReferenceLine y={4.5} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" strokeOpacity={0.5} />
-                    )}
-                    {yMin <= 3.5 && yMax >= 3.5 && (
-                      <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
-                    )}
+                    {/* Reference lines on left axis */}
+                    <ReferenceLine yAxisId="left" y={4.5} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    <ReferenceLine yAxisId="left" y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                     
-                    {/* Shaded area under rolling 90-day average */}
+                    {/* Shaded area under rolling 90-day average on right axis */}
                     <Area
+                      yAxisId="right"
                       type="monotone"
                       dataKey="cumulativeAvg"
                       fill="hsl(var(--primary))"
@@ -580,8 +587,9 @@ export function RatingEvolutionChart({
                       connectNulls={true}
                     />
                     
-                    {/* Rolling 90-day average line overlay - thicker */}
+                    {/* Rolling 90-day average line overlay on right axis */}
                     <Line
+                      yAxisId="right"
                       type="monotone"
                       dataKey="cumulativeAvg"
                       stroke="hsl(var(--primary))"
