@@ -540,6 +540,7 @@ export function RatingEvolutionChart({
                       ? Array.from(actionsByDay.keys()).map(day => (
                           <ReferenceLine 
                             key={`action-line-${day}`}
+                            yAxisId="left"
                             x={day} 
                             stroke="hsl(var(--primary))" 
                             strokeDasharray="4 4" 
@@ -549,6 +550,7 @@ export function RatingEvolutionChart({
                       : Array.from(actionsByMonth.keys()).map(month => (
                           <ReferenceLine 
                             key={`action-line-${month}`}
+                            yAxisId="left"
                             x={month} 
                             stroke="hsl(var(--primary))" 
                             strokeDasharray="4 4" 
@@ -629,6 +631,7 @@ export function RatingEvolutionChart({
                       ? Array.from(actionsByDay.keys()).map(day => (
                           <ReferenceLine 
                             key={`action-line-${day}`}
+                            yAxisId="left"
                             x={day} 
                             stroke="hsl(var(--primary))" 
                             strokeDasharray="4 4" 
@@ -638,6 +641,7 @@ export function RatingEvolutionChart({
                       : Array.from(actionsByMonth.keys()).map(month => (
                           <ReferenceLine 
                             key={`action-line-${month}`}
+                            yAxisId="left"
                             x={month} 
                             stroke="hsl(var(--primary))" 
                             strokeDasharray="4 4" 
