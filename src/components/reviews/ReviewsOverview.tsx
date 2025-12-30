@@ -29,7 +29,7 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
   const [actionDialogDate, setActionDialogDate] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange } = useAnalyticsContext();
-  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating, cumulativeAverageByDate } = useReviewsStats(reviews, {
+  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating, rollingAverageByDate } = useReviewsStats(reviews, {
     periodMode: periodMode as "year" | "month",
     selectedMonth,
     selectedYear
@@ -196,14 +196,14 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
     return [];
   }, [reviews, periodMode, selectedMonth, selectedYear, dateRange]);
 
-  // Enrich chart data with cumulative average
+  // Enrich chart data with 90-day rolling average
   const enrichedChartData = useMemo(() => {
     const baseData = showDailyData ? dailyRatings : monthlyRatings;
     
-    if (!baseData.length || !cumulativeAverageByDate.size) return baseData;
+    if (!baseData.length || !rollingAverageByDate.size) return baseData;
     
-    // Get all dates from cumulativeAverageByDate sorted
-    const sortedDates = Array.from(cumulativeAverageByDate.keys()).sort();
+    // Get all dates from rollingAverageByDate sorted
+    const sortedDates = Array.from(rollingAverageByDate.keys()).sort();
     
     // For daily data, we can directly use the dateKey
     if (showDailyData) {
@@ -211,11 +211,11 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
         const dateKey = (point as any).dateKey;
         if (!dateKey) return point;
         
-        // Find the cumulative average for this date or the closest previous date
+        // Find the rolling average for this date or the closest previous date
         let cumulativeAvg: number | undefined;
         for (let i = sortedDates.length - 1; i >= 0; i--) {
           if (sortedDates[i] <= dateKey) {
-            cumulativeAvg = cumulativeAverageByDate.get(sortedDates[i]);
+            cumulativeAvg = rollingAverageByDate.get(sortedDates[i]);
             break;
           }
         }
@@ -224,9 +224,9 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
       });
     }
     
-    // For monthly data, calculate the cumulative average at end of each month
+    // For monthly data, calculate the rolling average at end of each month
     return baseData.map(point => {
-      // Find the last day of this month in the cumulative data
+      // Find the last day of this month in the rolling data
       const year = point.year;
       const monthIndex = point.monthIndex;
       const monthEndPrefix = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
@@ -235,19 +235,19 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
       let cumulativeAvg: number | undefined;
       for (let i = sortedDates.length - 1; i >= 0; i--) {
         if (sortedDates[i].startsWith(monthEndPrefix)) {
-          cumulativeAvg = cumulativeAverageByDate.get(sortedDates[i]);
+          cumulativeAvg = rollingAverageByDate.get(sortedDates[i]);
           break;
         }
         // If we've passed this month, use the last available value before it
         if (sortedDates[i] < monthEndPrefix) {
-          cumulativeAvg = cumulativeAverageByDate.get(sortedDates[i]);
+          cumulativeAvg = rollingAverageByDate.get(sortedDates[i]);
           break;
         }
       }
       
       return { ...point, cumulativeAvg };
     });
-  }, [showDailyData, dailyRatings, monthlyRatings, cumulativeAverageByDate]);
+  }, [showDailyData, dailyRatings, monthlyRatings, rollingAverageByDate]);
 
   return (
     <div className="space-y-6">
