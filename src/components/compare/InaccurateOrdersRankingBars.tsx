@@ -51,10 +51,8 @@ export const InaccurateOrdersRankingBars = ({ stats }: InaccurateOrdersRankingBa
 
   const handleRestaurantClick = (restaurantId: string) => {
     toggleRestaurantSelection(restaurantId);
-    setPeriodMode("month");
-    setSelectedMonth(new Date().getMonth() + 1);
-    setSelectedYear(new Date().getFullYear());
-    navigate("/analytics/operations");
+    // Navigate to Operations Analytics with orderErrors tab, preserving current period context
+    navigate("/analytics/operations?tab=orderErrors");
   };
 
   if (sortedStats.length === 0) {

@@ -58,9 +58,16 @@ export function OperationsAnalytics() {
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [selectedDay, setSelectedDay] = useState<string | null>(null); // format "yyyy-MM-dd"
 
-  // Initialize from URL parameter "day" for drill-down navigation
+  // Initialize from URL parameters for drill-down navigation
   useEffect(() => {
     const dayParam = searchParams.get("day");
+    const tabParam = searchParams.get("tab");
+    
+    // Handle tab parameter for navigation from comparison pages
+    if (tabParam === "orderErrors" || tabParam === "availability" || tabParam === "waitTime") {
+      setActiveTab(tabParam);
+    }
+    
     if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
       setSelectedDay(dayParam);
       // Also set periodMode to month if coming from external navigation
@@ -69,7 +76,10 @@ export function OperationsAnalytics() {
         setPeriodMode("month");
         setSelectedMonth(targetMonth);
       }
-      // Clean URL after initialization
+    }
+    
+    // Clean URL after initialization
+    if (dayParam || tabParam) {
       setSearchParams({}, { replace: true });
     }
   }, []);
