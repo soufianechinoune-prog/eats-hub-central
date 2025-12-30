@@ -8,11 +8,12 @@ import { ReviewsHeatmap } from "./ReviewsHeatmap";
 import { RatingDistributionChart } from "./RatingDistributionChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { format, getDaysInMonth, eachDayOfInterval, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
+import { ActionFormDialog } from "@/components/actions/ActionFormDialog";
 
 interface ReviewsOverviewProps {
   reviews: CustomerReview[];
@@ -24,6 +25,9 @@ const DAILY_PERIOD_MODES = ["7d", "previous_week", "30d", "current_month", "rang
 export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
   const [showActions, setShowActions] = useState(true);
   const [chartType, setChartType] = useState<"line" | "bar">("line");
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [actionDialogDate, setActionDialogDate] = useState<Date | undefined>(undefined);
+  const queryClient = useQueryClient();
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange } = useAnalyticsContext();
   const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats } = useReviewsStats(reviews, {
     periodMode: periodMode as "year" | "month",
@@ -33,6 +37,16 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
 
   // Determine if we should show daily granularity
   const showDailyData = DAILY_PERIOD_MODES.includes(periodMode);
+
+  // Handle adding action from chart context menu
+  const handleAddAction = (date: Date) => {
+    setActionDialogDate(date);
+    setActionDialogOpen(true);
+  };
+
+  const handleActionSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['restaurant-actions-reviews'] });
+  };
 
   // Fetch actions for the selected restaurants
   const { data: actions = [] } = useQuery({
@@ -212,6 +226,16 @@ export function ReviewsOverview({ reviews }: ReviewsOverviewProps) {
         onNextMonth={handleNextMonth}
         chartType={chartType}
         onChartTypeChange={setChartType}
+        onAddAction={handleAddAction}
+      />
+
+      {/* Action Form Dialog */}
+      <ActionFormDialog
+        isOpen={actionDialogOpen}
+        onOpenChange={setActionDialogOpen}
+        initialDate={actionDialogDate}
+        initialRestaurantIds={selectedRestaurants}
+        onSuccess={handleActionSuccess}
       />
 
       {/* Distribution des Notes */}

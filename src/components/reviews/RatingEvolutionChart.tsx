@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, BarChart3, LineChart as LineChartIcon, Zap, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, BarChart3, LineChart as LineChartIcon, Zap, ArrowLeft, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -15,10 +15,16 @@ import {
   ReferenceArea,
   Cell
 } from "recharts";
-import { useMemo } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
 import { fr } from "date-fns/locale";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 interface MonthlyRating {
   month: string;
@@ -51,6 +57,7 @@ interface RatingEvolutionChartProps {
   onNextMonth?: () => void;
   chartType?: "line" | "bar";
   onChartTypeChange?: (type: "line" | "bar") => void;
+  onAddAction?: (date: Date) => void;
 }
 
 export function RatingEvolutionChart({ 
@@ -66,8 +73,13 @@ export function RatingEvolutionChart({
   onPrevMonth,
   onNextMonth,
   chartType = "line",
-  onChartTypeChange
+  onChartTypeChange,
+  onAddAction
 }: RatingEvolutionChartProps) {
+
+  // State for context menu
+  const [contextMenuDate, setContextMenuDate] = useState<Date | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
 
   // Format month title for drill-down header
   const monthTitle = useMemo(() => {
@@ -87,6 +99,46 @@ export function RatingEvolutionChart({
       if (payload.monthIndex !== undefined && payload.year !== undefined) {
         onDrillDown(payload.monthIndex + 1, payload.year);
       }
+    }
+  };
+
+  // Extract date from chart data point for context menu
+  const getDateFromPayload = (payload: any): Date | null => {
+    if (!payload) return null;
+    
+    // For daily data (has year and monthIndex with a day in month field)
+    if (payload.year !== undefined && payload.monthIndex !== undefined) {
+      // Check if month is a day number (for month drill-down view)
+      const dayNum = parseInt(payload.month);
+      if (!isNaN(dayNum) && selectedMonth && selectedYear) {
+        return new Date(selectedYear, selectedMonth - 1, dayNum);
+      }
+      // Try to parse "d MMM" format for quick period daily views
+      try {
+        const parsed = parse(payload.month, "d MMM", new Date(), { locale: fr });
+        if (!isNaN(parsed.getTime())) {
+          parsed.setFullYear(payload.year);
+          return parsed;
+        }
+      } catch {}
+      // For monthly view, return first day of month
+      return new Date(payload.year, payload.monthIndex, 1);
+    }
+    return null;
+  };
+
+  // Handle right-click to capture the clicked data point
+  const handleContextMenu = (e: any) => {
+    if (e && e.activePayload && e.activePayload[0]) {
+      const date = getDateFromPayload(e.activePayload[0].payload);
+      setContextMenuDate(date);
+    }
+  };
+
+  // Handle adding action from context menu
+  const handleAddAction = () => {
+    if (contextMenuDate && onAddAction) {
+      onAddAction(contextMenuDate);
     }
   };
 
@@ -320,114 +372,135 @@ export function RatingEvolutionChart({
         </div>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          {chartType === "line" ? (
-            <LineChart 
-              data={data} 
-              margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
-              onClick={handleChartClick}
-              style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
-            >
-              {/* Performance zones - adjusted to dynamic scale */}
-              {yMin <= 4.5 && <ReferenceArea y1={Math.max(4.5, yMin)} y2={yMax} fill="hsl(var(--chart-2))" fillOpacity={0.1} />}
-              {yMin <= 3.5 && <ReferenceArea y1={Math.max(3.5, yMin)} y2={Math.min(4.5, yMax)} fill="hsl(45 93% 47%)" fillOpacity={0.05} />}
-              {yMin < 3.5 && <ReferenceArea y1={yMin} y2={Math.min(3.5, yMax)} fill="hsl(0 84% 60%)" fillOpacity={0.05} />}
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div ref={chartRef}>
+              <ResponsiveContainer width="100%" height={300}>
+                {chartType === "line" ? (
+                  <LineChart 
+                    data={data} 
+                    margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+                    onClick={handleChartClick}
+                    onMouseMove={handleContextMenu}
+                    style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
+                  >
+                    {/* Performance zones - adjusted to dynamic scale */}
+                    {yMin <= 4.5 && <ReferenceArea y1={Math.max(4.5, yMin)} y2={yMax} fill="hsl(var(--chart-2))" fillOpacity={0.1} />}
+                    {yMin <= 3.5 && <ReferenceArea y1={Math.max(3.5, yMin)} y2={Math.min(4.5, yMax)} fill="hsl(45 93% 47%)" fillOpacity={0.05} />}
+                    {yMin < 3.5 && <ReferenceArea y1={yMin} y2={Math.min(3.5, yMax)} fill="hsl(0 84% 60%)" fillOpacity={0.05} />}
 
-              <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-              <XAxis 
-                dataKey="month" 
-                tick={{ fontSize: 11 }} 
-                stroke="hsl(var(--muted-foreground))"
-              />
-              <YAxis 
-                domain={[yMin, yMax]} 
-                ticks={ticks}
-                tick={{ fontSize: 11 }}
-                stroke="hsl(var(--muted-foreground))"
-                tickFormatter={(value) => value.toFixed(1)}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              
-              {/* N-1 line */}
-              <Line
-                type="monotone"
-                dataKey="previousRating"
-                stroke="hsl(var(--muted-foreground))"
-                strokeWidth={2}
-                strokeDasharray="5 5"
-                dot={false}
-                connectNulls
-              />
-              
-              {/* Current line */}
-              <Line
-                type="monotone"
-                dataKey="rating"
-                stroke="hsl(45 93% 47%)"
-                strokeWidth={3}
-                dot={<CustomDot />}
-                activeDot={{ r: 7, strokeWidth: 0 }}
-                connectNulls={true}
-              />
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                    <XAxis 
+                      dataKey="month" 
+                      tick={{ fontSize: 11 }} 
+                      stroke="hsl(var(--muted-foreground))"
+                    />
+                    <YAxis 
+                      domain={[yMin, yMax]} 
+                      ticks={ticks}
+                      tick={{ fontSize: 11 }}
+                      stroke="hsl(var(--muted-foreground))"
+                      tickFormatter={(value) => value.toFixed(1)}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    
+                    {/* N-1 line */}
+                    <Line
+                      type="monotone"
+                      dataKey="previousRating"
+                      stroke="hsl(var(--muted-foreground))"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      connectNulls
+                    />
+                    
+                    {/* Current line */}
+                    <Line
+                      type="monotone"
+                      dataKey="rating"
+                      stroke="hsl(45 93% 47%)"
+                      strokeWidth={3}
+                      dot={<CustomDot />}
+                      activeDot={{ r: 7, strokeWidth: 0 }}
+                      connectNulls={true}
+                    />
 
-              {/* Reference lines - only show if in visible range */}
-              {yMin <= 4.5 && yMax >= 4.5 && (
-                <ReferenceLine y={4.5} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" strokeOpacity={0.5} />
-              )}
-              {yMin <= 3.5 && yMax >= 3.5 && (
-                <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
-              )}
-            </LineChart>
-          ) : (
-            <BarChart 
-              data={data} 
-              margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
-              onClick={handleChartClick}
-              style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
-            >
-              <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-              <XAxis 
-                dataKey="month" 
-                tick={{ fontSize: 11 }} 
-                stroke="hsl(var(--muted-foreground))"
-              />
-              <YAxis 
-                domain={[yMin, yMax]} 
-                ticks={ticks}
-                tick={{ fontSize: 11 }}
-                stroke="hsl(var(--muted-foreground))"
-                tickFormatter={(value) => value.toFixed(1)}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              
-              {/* Previous period bars (ghost) */}
-              <Bar
-                dataKey="previousRating"
-                fill="hsl(var(--muted-foreground))"
-                fillOpacity={0.3}
-                radius={[4, 4, 0, 0]}
-              />
-              
-              {/* Current period bars with dynamic colors */}
-              <Bar
-                dataKey="rating"
-                radius={[4, 4, 0, 0]}
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={getBarColor(entry.rating)} />
-                ))}
-              </Bar>
+                    {/* Reference lines - only show if in visible range */}
+                    {yMin <= 4.5 && yMax >= 4.5 && (
+                      <ReferenceLine y={4.5} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    )}
+                    {yMin <= 3.5 && yMax >= 3.5 && (
+                      <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    )}
+                  </LineChart>
+                ) : (
+                  <BarChart 
+                    data={data} 
+                    margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+                    onClick={handleChartClick}
+                    onMouseMove={handleContextMenu}
+                    style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                    <XAxis 
+                      dataKey="month" 
+                      tick={{ fontSize: 11 }} 
+                      stroke="hsl(var(--muted-foreground))"
+                    />
+                    <YAxis 
+                      domain={[yMin, yMax]} 
+                      ticks={ticks}
+                      tick={{ fontSize: 11 }}
+                      stroke="hsl(var(--muted-foreground))"
+                      tickFormatter={(value) => value.toFixed(1)}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    
+                    {/* Previous period bars (ghost) */}
+                    <Bar
+                      dataKey="previousRating"
+                      fill="hsl(var(--muted-foreground))"
+                      fillOpacity={0.3}
+                      radius={[4, 4, 0, 0]}
+                    />
+                    
+                    {/* Current period bars with dynamic colors */}
+                    <Bar
+                      dataKey="rating"
+                      radius={[4, 4, 0, 0]}
+                    >
+                      {data.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={getBarColor(entry.rating)} />
+                      ))}
+                    </Bar>
 
-              {/* Reference lines */}
-              {yMin <= 4.5 && yMax >= 4.5 && (
-                <ReferenceLine y={4.5} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" strokeOpacity={0.5} />
-              )}
-              {yMin <= 3.5 && yMax >= 3.5 && (
-                <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
-              )}
-            </BarChart>
-          )}
-        </ResponsiveContainer>
+                    {/* Reference lines */}
+                    {yMin <= 4.5 && yMax >= 4.5 && (
+                      <ReferenceLine y={4.5} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    )}
+                    {yMin <= 3.5 && yMax >= 3.5 && (
+                      <ReferenceLine y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    )}
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent className="w-56">
+            {onAddAction && contextMenuDate && (
+              <ContextMenuItem onClick={handleAddAction} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Ajouter une action pour le {format(contextMenuDate, "d MMMM yyyy", { locale: fr })}
+              </ContextMenuItem>
+            )}
+            {(!onAddAction || !contextMenuDate) && (
+              <ContextMenuItem disabled className="text-muted-foreground">
+                Survolez un point pour ajouter une action
+              </ContextMenuItem>
+            )}
+          </ContextMenuContent>
+        </ContextMenu>
 
         {/* Legend */}
         <div className="flex justify-center gap-6 mt-4 text-xs">
