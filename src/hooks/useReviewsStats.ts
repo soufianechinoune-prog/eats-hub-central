@@ -344,30 +344,42 @@ export function useReviewsStats(reviews: CustomerReview[], options?: UseReviewsS
     return validReviews.reduce((sum, r) => sum + (r.overall_rating || 0), 0) / validReviews.length;
   }, [reviews]);
 
-  // Cumulative average rating by date (for evolution curve)
-  // Returns a map of date -> cumulative average up to that date
-  const cumulativeAverageByDate = useMemo(() => {
+  // 90-day rolling average rating by date (for evolution curve)
+  // Returns a map of date -> rolling average of last 90 days up to that date
+  const rollingAverageByDate = useMemo(() => {
     if (!reviews.length) return new Map<string, number>();
     
-    // Sort all reviews by date (chronological order)
-    const sortedReviews = [...reviews]
-      .filter(r => r.overall_rating !== null && r.review_date)
-      .sort((a, b) => new Date(a.review_date).getTime() - new Date(b.review_date).getTime());
+    const ROLLING_WINDOW_DAYS = 90;
+    const validReviews = reviews.filter(r => r.overall_rating !== null && r.review_date);
     
-    if (!sortedReviews.length) return new Map<string, number>();
+    if (!validReviews.length) return new Map<string, number>();
+    
+    // Get all unique dates where reviews exist, sorted chronologically
+    const allDates = [...new Set(validReviews.map(r => 
+      new Date(r.review_date).toISOString().split('T')[0]
+    ))].sort();
     
     const result = new Map<string, number>();
-    let runningSum = 0;
-    let runningCount = 0;
     
-    // Group reviews by date and calculate cumulative average
-    sortedReviews.forEach(review => {
-      runningSum += review.overall_rating || 0;
-      runningCount++;
+    allDates.forEach(dateStr => {
+      const currentDate = new Date(dateStr);
+      currentDate.setHours(23, 59, 59, 999); // End of day
       
-      // Store the cumulative average at end of this day
-      const dateKey = new Date(review.review_date).toISOString().split('T')[0];
-      result.set(dateKey, runningSum / runningCount);
+      const windowStart = new Date(currentDate);
+      windowStart.setDate(windowStart.getDate() - ROLLING_WINDOW_DAYS);
+      windowStart.setHours(0, 0, 0, 0); // Start of day
+      
+      // Filter reviews within the 90-day window
+      const reviewsInWindow = validReviews.filter(r => {
+        const reviewDate = new Date(r.review_date);
+        return reviewDate >= windowStart && reviewDate <= currentDate;
+      });
+      
+      if (reviewsInWindow.length > 0) {
+        const avg = reviewsInWindow.reduce((sum, r) => 
+          sum + (r.overall_rating || 0), 0) / reviewsInWindow.length;
+        result.set(dateStr, avg);
+      }
     });
     
     return result;
@@ -380,6 +392,6 @@ export function useReviewsStats(reviews: CustomerReview[], options?: UseReviewsS
     dayStats,
     tagStats,
     globalAverageRating,
-    cumulativeAverageByDate,
+    rollingAverageByDate,
   };
 }
