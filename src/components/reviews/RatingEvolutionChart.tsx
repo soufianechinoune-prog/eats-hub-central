@@ -219,6 +219,31 @@ export function RatingEvolutionChart({
     return map;
   }, [actions, periodMode, selectedMonth, selectedYear]);
 
+  // Get actions by day label for custom period (format "d MMM" like "16 nov.")
+  const actionsByDayLabel = useMemo(() => {
+    const map = new Map<string, Action[]>();
+    actions.forEach(action => {
+      const date = new Date(action.start_date);
+      // Format to match the chart data format "d MMM" (e.g., "16 nov.")
+      const dayLabel = format(date, "d MMM", { locale: fr });
+      const existing = map.get(dayLabel) || [];
+      map.set(dayLabel, [...existing, action]);
+    });
+    return map;
+  }, [actions]);
+
+  // Determine which actions map to use based on data format
+  const activeActionsMap = useMemo(() => {
+    if (periodMode === "month" && selectedMonth && selectedYear) {
+      return actionsByDay;
+    }
+    // Check if data is in daily format (contains day + short month like "16 nov.")
+    if (data.length > 0 && data[0].month && /^\d+\s+\w+\.?$/.test(data[0].month)) {
+      return actionsByDayLabel;
+    }
+    return actionsByMonth;
+  }, [periodMode, selectedMonth, selectedYear, data, actionsByDay, actionsByDayLabel, actionsByMonth]);
+
   // Get bar color based on rating value
   const getBarColor = (rating: number) => {
     if (rating >= 4.5) return "hsl(var(--chart-2))"; // emerald
@@ -231,10 +256,8 @@ export function RatingEvolutionChart({
       const current = payload.find((p: any) => p.dataKey === "rating");
       const previous = payload.find((p: any) => p.dataKey === "previousRating");
       const cumulative = payload.find((p: any) => p.dataKey === "cumulativeAvg");
-      // Use day-based lookup for month drill-down view, month-based for year view
-      const actionsForLabel = periodMode === "month" 
-        ? actionsByDay.get(label) || []
-        : actionsByMonth.get(label) || [];
+      // Use the appropriate actions map based on data format
+      const actionsForLabel = activeActionsMap.get(label) || [];
       const reviewCount = payload[0]?.payload?.count || 0;
 
       return (
@@ -296,10 +319,8 @@ export function RatingEvolutionChart({
   const CustomDot = (props: any) => {
     const { cx, cy, payload } = props;
     
-    // Use day-based lookup for month drill-down view, month-based for year view
-    const actionsForPoint = periodMode === "month" 
-      ? actionsByDay.get(payload.month) || []
-      : actionsByMonth.get(payload.month) || [];
+    // Use the appropriate actions map based on data format
+    const actionsForPoint = activeActionsMap.get(payload.month) || [];
     const hasActions = showActions && actionsForPoint.length > 0;
 
     return (
@@ -536,28 +557,16 @@ export function RatingEvolutionChart({
                     <ReferenceLine yAxisId="left" y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                     
                     {/* Vertical dashed lines for actions */}
-                    {showActions && (periodMode === "month" 
-                      ? Array.from(actionsByDay.keys()).map(day => (
-                          <ReferenceLine 
-                            key={`action-line-${day}`}
-                            yAxisId="left"
-                            x={day} 
-                            stroke="hsl(var(--primary))" 
-                            strokeDasharray="4 4" 
-                            strokeOpacity={0.6}
-                          />
-                        ))
-                      : Array.from(actionsByMonth.keys()).map(month => (
-                          <ReferenceLine 
-                            key={`action-line-${month}`}
-                            yAxisId="left"
-                            x={month} 
-                            stroke="hsl(var(--primary))" 
-                            strokeDasharray="4 4" 
-                            strokeOpacity={0.6}
-                          />
-                        ))
-                    )}
+                    {showActions && Array.from(activeActionsMap.keys()).map(key => (
+                      <ReferenceLine 
+                        key={`action-line-${key}`}
+                        yAxisId="left"
+                        x={key} 
+                        stroke="hsl(var(--primary))" 
+                        strokeDasharray="4 4" 
+                        strokeOpacity={0.6}
+                      />
+                    ))}
                   </LineChart>
                 ) : (
                   <ComposedChart 
@@ -627,28 +636,16 @@ export function RatingEvolutionChart({
                     <ReferenceLine yAxisId="left" y={3.5} stroke="hsl(45 93% 47%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                     
                     {/* Vertical dashed lines for actions */}
-                    {showActions && (periodMode === "month" 
-                      ? Array.from(actionsByDay.keys()).map(day => (
-                          <ReferenceLine 
-                            key={`action-line-${day}`}
-                            yAxisId="left"
-                            x={day} 
-                            stroke="hsl(var(--primary))" 
-                            strokeDasharray="4 4" 
-                            strokeOpacity={0.6}
-                          />
-                        ))
-                      : Array.from(actionsByMonth.keys()).map(month => (
-                          <ReferenceLine 
-                            key={`action-line-${month}`}
-                            yAxisId="left"
-                            x={month} 
-                            stroke="hsl(var(--primary))" 
-                            strokeDasharray="4 4" 
-                            strokeOpacity={0.6}
-                          />
-                        ))
-                    )}
+                    {showActions && Array.from(activeActionsMap.keys()).map(key => (
+                      <ReferenceLine 
+                        key={`action-line-${key}`}
+                        yAxisId="left"
+                        x={key} 
+                        stroke="hsl(var(--primary))" 
+                        strokeDasharray="4 4" 
+                        strokeOpacity={0.6}
+                      />
+                    ))}
                     
                     {/* Shaded area under rolling 90-day average on right axis */}
                     <Area
