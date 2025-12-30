@@ -133,12 +133,15 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       selectedMonth,
       periodMode,
       comparisonMode,
-      dateRange: dateRange ? {
-        from: dateRange.from?.toISOString(),
-        to: dateRange.to?.toISOString(),
-      } : undefined,
+      dateRange: dateRange
+        ? {
+            from: dateRange.from?.toISOString(),
+            to: dateRange.to?.toISOString(),
+          }
+        : undefined,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    cachedStoredState = state;
   }, [selectedRestaurants, visibleRestaurants, selectedPlatform, selectedYear, selectedMonth, periodMode, dateRange, comparisonMode]);
 
   const value = {
