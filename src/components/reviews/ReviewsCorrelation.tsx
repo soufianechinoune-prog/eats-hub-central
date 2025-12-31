@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { CorrelationKPI } from "./CorrelationKPI";
@@ -13,6 +13,7 @@ interface CustomerReview {
   review_date: string | null;
   overall_rating: number | null;
   restaurant_id: string;
+  platform?: string | null;
 }
 
 interface ReviewsCorrelationProps {
@@ -21,10 +22,43 @@ interface ReviewsCorrelationProps {
   endDate: Date;
 }
 
+const ROLLING_WINDOW_DAYS = 89;
+
 export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorrelationProps) {
   const { selectedRestaurants, selectedPlatform } = useAnalyticsContext();
 
   const restaurantIds = selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
+
+  // Extended start date to fetch reviews for 90-day rolling average
+  const extendedStartDate = useMemo(() => subDays(startDate, 90), [startDate]);
+
+  // Fetch all reviews for extended period (for 90-day rolling average calculation)
+  const { data: allReviewsForRolling, isLoading: isLoadingReviews } = useQuery({
+    queryKey: ["reviews-for-rolling", restaurantIds, selectedPlatform, extendedStartDate, endDate],
+    queryFn: async () => {
+      const startStr = format(extendedStartDate, "yyyy-MM-dd");
+      const endStr = format(endDate, "yyyy-MM-dd");
+
+      let query = supabase
+        .from("customer_reviews")
+        .select("id, review_date, overall_rating, restaurant_id, platform")
+        .gte("review_date", startStr)
+        .lte("review_date", endStr)
+        .not("overall_rating", "is", null);
+
+      if (restaurantIds && restaurantIds.length > 0) {
+        query = query.in("restaurant_id", restaurantIds);
+      }
+
+      if (selectedPlatform !== "global") {
+        query = query.eq("platform", selectedPlatform === "uber_eats" ? "uber_eats" : "deliveroo");
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   // Fetch sales data
   const { data: salesData, isLoading: isLoadingSales } = useQuery({
@@ -53,21 +87,46 @@ export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorre
     },
   });
 
+  // Calculate 90-day rolling average for each date
+  const rollingAverageByDate = useMemo(() => {
+    if (!allReviewsForRolling) return new Map<string, number>();
+
+    const result = new Map<string, number>();
+    const startStr = format(startDate, "yyyy-MM-dd");
+    const endStr = format(endDate, "yyyy-MM-dd");
+
+    // Get all dates in the period
+    const dates: string[] = [];
+    let current = new Date(startDate);
+    while (current <= endDate) {
+      dates.push(format(current, "yyyy-MM-dd"));
+      current.setDate(current.getDate() + 1);
+    }
+
+    // For each date, calculate the 90-day rolling average
+    dates.forEach((dateStr) => {
+      const dateObj = new Date(dateStr);
+      const windowStart = subDays(dateObj, ROLLING_WINDOW_DAYS);
+
+      // Get all reviews in the 90-day window before this date
+      const reviewsInWindow = allReviewsForRolling.filter((review) => {
+        if (!review.review_date || review.overall_rating === null) return false;
+        const reviewDate = new Date(review.review_date.split("T")[0]);
+        return reviewDate >= windowStart && reviewDate <= dateObj;
+      });
+
+      if (reviewsInWindow.length > 0) {
+        const sum = reviewsInWindow.reduce((acc, r) => acc + (r.overall_rating || 0), 0);
+        result.set(dateStr, sum / reviewsInWindow.length);
+      }
+    });
+
+    return result;
+  }, [allReviewsForRolling, startDate, endDate]);
+
   // Aggregate data by date
   const correlationData = useMemo(() => {
     if (!salesData) return [];
-
-    // Group reviews by date
-    const reviewsByDate = new Map<string, { sum: number; count: number }>();
-    reviews.forEach((review) => {
-      if (!review.review_date || review.overall_rating === null) return;
-      const date = review.review_date.split("T")[0];
-      const current = reviewsByDate.get(date) || { sum: 0, count: 0 };
-      reviewsByDate.set(date, {
-        sum: current.sum + review.overall_rating,
-        count: current.count + 1,
-      });
-    });
 
     // Group sales by date
     const salesByDate = new Map<string, { revenue: number; orders: number; avgBasket: number; count: number }>();
@@ -82,7 +141,7 @@ export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorre
       });
     });
 
-    // Combine data - only include dates that have both reviews and sales
+    // Combine data using 90-day rolling average
     const combined: {
       date: string;
       avgRating: number;
@@ -91,17 +150,17 @@ export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorre
       avgBasket: number;
     }[] = [];
 
-    // Get all unique dates from sales (more complete than reviews)
+    // Get all unique dates from sales
     const allDates = new Set([...salesByDate.keys()]);
 
     allDates.forEach((date) => {
-      const reviewData = reviewsByDate.get(date);
       const saleData = salesByDate.get(date);
+      const rollingAvg = rollingAverageByDate.get(date);
 
       if (saleData) {
         combined.push({
           date,
-          avgRating: reviewData ? reviewData.sum / reviewData.count : 0,
+          avgRating: rollingAvg || 0,
           revenue: saleData.revenue,
           orders: saleData.orders,
           avgBasket: saleData.count > 0 ? saleData.avgBasket / saleData.count : 0,
@@ -111,7 +170,7 @@ export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorre
 
     // Sort by date
     return combined.sort((a, b) => a.date.localeCompare(b.date));
-  }, [reviews, salesData]);
+  }, [salesData, rollingAverageByDate]);
 
   // Filter data that has both ratings and sales for correlation calculation
   const dataWithRatings = useMemo(() => {
@@ -135,7 +194,7 @@ export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorre
     date: format(new Date(d.date), "d MMM yyyy"),
   }));
 
-  if (isLoadingSales) {
+  if (isLoadingSales || isLoadingReviews) {
     return (
       <div className="flex items-center justify-center h-[300px]">
         <div className="text-center space-y-2">

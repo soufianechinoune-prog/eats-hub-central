@@ -71,7 +71,7 @@ export function CorrelationSummaryTable({ data }: CorrelationSummaryTableProps) 
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[100px]">Date</TableHead>
-                <TableHead className="text-center">Note moy.</TableHead>
+                <TableHead className="text-center">Moy. 90j</TableHead>
                 <TableHead className="text-right">CA (€)</TableHead>
                 <TableHead className="text-center">Évol.</TableHead>
                 <TableHead className="text-right">Commandes</TableHead>

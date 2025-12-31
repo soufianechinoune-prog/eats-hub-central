@@ -33,7 +33,7 @@ export function RatingRevenueChart({ data }: RatingRevenueChartProps) {
 
   const chartConfig = {
     avgRating: {
-      label: "Note moyenne",
+      label: "Moyenne 90 jours",
       color: "hsl(var(--primary))",
     },
     revenue: {
@@ -162,7 +162,7 @@ export function RatingRevenueChart({ data }: RatingRevenueChartProps) {
                 yAxisId="left"
                 type="monotone"
                 dataKey="avgRating"
-                name="Note moyenne"
+                name="Moyenne 90 jours"
                 stroke="hsl(var(--primary))"
                 strokeWidth={2}
                 dot={{ r: 3, fill: "hsl(var(--primary))" }}
