@@ -2695,6 +2695,7 @@ export type Database = {
         Returns: {
           delivery_promo_incl_vat: number
           item_promo_incl_vat: number
+          marketing_fee_adjustment: number
           month: number
           net_payout: number
           order_count: number

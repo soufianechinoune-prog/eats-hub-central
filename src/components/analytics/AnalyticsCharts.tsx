@@ -1270,6 +1270,7 @@ export function AnalyticsCharts({
       uberFee: number; 
       deliveryPromo: number;
       otherPayments: number;
+      marketingFee: number;
       netPayout: number; 
       orderCount: number;
       tips: number;
@@ -1282,6 +1283,7 @@ export function AnalyticsCharts({
       uberFee: number; 
       deliveryPromo: number;
       otherPayments: number;
+      marketingFee: number;
       netPayout: number; 
       orderCount: number;
     } } = {};
@@ -1290,7 +1292,7 @@ export function AnalyticsCharts({
       if (!monthlyData[item.month]) {
         monthlyData[item.month] = { 
           sales: 0, refund: 0, itemPromo: 0, uberFee: 0, 
-          deliveryPromo: 0, otherPayments: 0, netPayout: 0, orderCount: 0, tips: 0 
+          deliveryPromo: 0, otherPayments: 0, marketingFee: 0, netPayout: 0, orderCount: 0, tips: 0 
         };
       }
       monthlyData[item.month].sales += Number(item.sales_incl_vat) || 0;
@@ -1299,6 +1301,7 @@ export function AnalyticsCharts({
       monthlyData[item.month].uberFee += Number(item.uber_fee_incl_vat) || 0;
       monthlyData[item.month].deliveryPromo += Number(item.delivery_promo_incl_vat) || 0;
       monthlyData[item.month].otherPayments += Number(item.other_payments_incl_vat) || 0;
+      monthlyData[item.month].marketingFee += Number(item.marketing_fee_adjustment) || 0;
       monthlyData[item.month].netPayout += Number(item.net_payout) || 0;
       monthlyData[item.month].orderCount += Number(item.order_count) || 0;
       monthlyData[item.month].tips += Number(item.tips) || 0;
@@ -1307,8 +1310,8 @@ export function AnalyticsCharts({
     prevPayoutsData?.forEach((item: any) => {
       if (!prevMonthlyData[item.month]) {
         prevMonthlyData[item.month] = { 
-          sales: 0, refund: 0, itemPromo: 0, uberFee: 0, 
-          deliveryPromo: 0, otherPayments: 0, netPayout: 0, orderCount: 0 
+          sales: 0, refund: 0, itemPromo: 0, uberFee: 0,
+          deliveryPromo: 0, otherPayments: 0, marketingFee: 0, netPayout: 0, orderCount: 0 
         };
       }
       prevMonthlyData[item.month].sales += Number(item.sales_incl_vat) || 0;
@@ -1317,6 +1320,7 @@ export function AnalyticsCharts({
       prevMonthlyData[item.month].uberFee += Number(item.uber_fee_incl_vat) || 0;
       prevMonthlyData[item.month].deliveryPromo += Number(item.delivery_promo_incl_vat) || 0;
       prevMonthlyData[item.month].otherPayments += Number(item.other_payments_incl_vat) || 0;
+      prevMonthlyData[item.month].marketingFee += Number(item.marketing_fee_adjustment) || 0;
       prevMonthlyData[item.month].netPayout += Number(item.net_payout) || 0;
       prevMonthlyData[item.month].orderCount += Number(item.order_count) || 0;
     });
@@ -1335,9 +1339,9 @@ export function AnalyticsCharts({
         monthNum: i + 1,
         // Map to same structure as aggregatedFeesData for chart compatibility
         uber: data?.uberFee || 0,
-        marketing: 0, // Not available in payouts
+        marketing: Math.abs(data?.marketingFee || 0), // marketing_fee_adjustment
         offers: data?.itemPromo || 0,
-        ads: 0, // Not available in payouts
+        ads: Math.abs(data?.otherPayments || 0), // other_payments_incl_vat = Uber Ads/sponsoring
         net: data?.netPayout || 0,
         totalFees,
         prevNet: prevData?.netPayout || 0,
