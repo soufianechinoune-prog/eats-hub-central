@@ -10,11 +10,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   Area,
-  ScatterChart,
-  Scatter,
-  ZAxis,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,6 +18,7 @@ import { getWeatherEmoji, weatherCodeLabels } from "@/hooks/useWeatherData";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowUpDown, Thermometer, Droplets, TrendingUp, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface WeatherDataPoint {
   date: string;
@@ -37,10 +34,12 @@ interface WeatherOverlayChartProps {
 }
 
 type SortKey = "date" | "temperature" | "precipitation" | "revenue" | "orders";
+type ChartMode = "temperature" | "precipitation";
 
 export function WeatherOverlayChart({ data }: WeatherOverlayChartProps) {
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortAsc, setSortAsc] = useState(true);
+  const [chartMode, setChartMode] = useState<ChartMode>("temperature");
 
   const chartData = useMemo(() => {
     return data.map((d) => ({
@@ -116,37 +115,51 @@ export function WeatherOverlayChart({ data }: WeatherOverlayChartProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-sm font-medium">CA et météo sur la période</CardTitle>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-sm font-medium">CA et météo sur la période</CardTitle>
+          <ToggleGroup
+            type="single"
+            value={chartMode}
+            onValueChange={(value) => value && setChartMode(value as ChartMode)}
+            className="bg-muted rounded-lg p-1"
+          >
+            <ToggleGroupItem value="temperature" size="sm" className="gap-1.5 text-xs px-3">
+              <Thermometer className="h-3.5 w-3.5" />
+              Température
+            </ToggleGroupItem>
+            <ToggleGroupItem value="precipitation" size="sm" className="gap-1.5 text-xs px-3">
+              <Droplets className="h-3.5 w-3.5" />
+              Précipitations
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="charts" className="w-full">
           <TabsList className="mb-4">
-            <TabsTrigger value="charts">Graphiques</TabsTrigger>
+            <TabsTrigger value="charts">Graphique</TabsTrigger>
             <TabsTrigger value="table">Tableau détaillé</TabsTrigger>
           </TabsList>
 
           <TabsContent value="charts">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Temperature vs Revenue */}
-              <div className="h-[280px]">
-                <p className="text-xs text-muted-foreground mb-2 font-medium">Température vs CA</p>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <div className="h-[320px]">
+              <ResponsiveContainer width="100%" height="100%">
+                {chartMode === "temperature" ? (
+                  <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="dateLabel" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="revenue" orientation="left" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}k€`} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="temp" orientation="right" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}°`} tickLine={false} axisLine={false} />
+                    <XAxis dataKey="dateLabel" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="revenue" orientation="left" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}k€`} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="temp" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}°C`} tickLine={false} axisLine={false} />
                     <Tooltip
                       content={({ active, payload }) => {
                         if (!active || !payload || payload.length === 0) return null;
                         const d = payload[0]?.payload;
-                        const revenueDelta = d.revenue - averages.revenue;
-                        const deltaPercent = (revenueDelta / averages.revenue) * 100;
+                        const revenueDelta = ((d.revenue - averages.revenue) / averages.revenue) * 100;
                         return (
                           <div className="bg-background border rounded-lg p-3 shadow-lg text-sm">
                             <div className="flex items-center gap-2 font-medium mb-1">
-                              <span>{d.weatherEmoji}</span>
+                              <span className="text-lg">{d.weatherEmoji}</span>
                               <span>{d.dateLabel}</span>
                               <span className="text-muted-foreground">({d.dayOfWeek})</span>
                             </div>
@@ -160,43 +173,37 @@ export function WeatherOverlayChart({ data }: WeatherOverlayChartProps) {
                                 <span className="text-muted-foreground">CA:</span>
                                 <span className="font-medium">{d.revenue.toFixed(0)}€</span>
                               </div>
-                              <div className={`flex justify-between gap-4 text-xs ${deltaPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              <div className={`flex justify-between gap-4 text-xs ${revenueDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 <span>vs moyenne:</span>
-                                <span>{deltaPercent >= 0 ? '+' : ''}{deltaPercent.toFixed(0)}%</span>
+                                <span>{revenueDelta >= 0 ? '+' : ''}{revenueDelta.toFixed(0)}%</span>
                               </div>
                             </div>
                           </div>
                         );
                       }}
                     />
-                    <Bar yAxisId="revenue" dataKey="revenueK" name="CA" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} barSize={16} />
-                    <Line yAxisId="temp" type="monotone" dataKey="temperature" name="Temp." stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ r: 2 }} />
+                    <Bar yAxisId="revenue" dataKey="revenueK" name="CA (k€)" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={20} />
+                    <Line yAxisId="temp" type="monotone" dataKey="temperature" name="Température (°C)" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--destructive))" }} />
                   </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Precipitation vs Orders */}
-              <div className="h-[280px]">
-                <p className="text-xs text-muted-foreground mb-2 font-medium">Précipitations vs Commandes</p>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                ) : (
+                  <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="dateLabel" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="orders" orientation="left" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="precip" orientation="right" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}mm`} tickLine={false} axisLine={false} />
+                    <XAxis dataKey="dateLabel" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="orders" orientation="left" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="precip" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}mm`} tickLine={false} axisLine={false} domain={[0, 'auto']} />
                     <Tooltip
                       content={({ active, payload }) => {
                         if (!active || !payload || payload.length === 0) return null;
                         const d = payload[0]?.payload;
-                        const ordersDelta = d.orders - averages.orders;
-                        const deltaPercent = (ordersDelta / averages.orders) * 100;
+                        const ordersDelta = ((d.orders - averages.orders) / averages.orders) * 100;
                         return (
                           <div className="bg-background border rounded-lg p-3 shadow-lg text-sm">
                             <div className="flex items-center gap-2 font-medium mb-1">
-                              <span>{d.weatherEmoji}</span>
+                              <span className="text-lg">{d.weatherEmoji}</span>
                               <span>{d.dateLabel}</span>
                               <span className="text-muted-foreground">({d.dayOfWeek})</span>
                             </div>
+                            <div className="text-muted-foreground text-xs mb-2">{d.weatherLabel}</div>
                             <div className="space-y-1">
                               <div className="flex justify-between gap-4">
                                 <span className="text-muted-foreground">Précipitations:</span>
@@ -206,20 +213,20 @@ export function WeatherOverlayChart({ data }: WeatherOverlayChartProps) {
                                 <span className="text-muted-foreground">Commandes:</span>
                                 <span className="font-medium">{d.orders}</span>
                               </div>
-                              <div className={`flex justify-between gap-4 text-xs ${deltaPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              <div className={`flex justify-between gap-4 text-xs ${ordersDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 <span>vs moyenne:</span>
-                                <span>{deltaPercent >= 0 ? '+' : ''}{deltaPercent.toFixed(0)}%</span>
+                                <span>{ordersDelta >= 0 ? '+' : ''}{ordersDelta.toFixed(0)}%</span>
                               </div>
                             </div>
                           </div>
                         );
                       }}
                     />
-                    <Area yAxisId="precip" type="monotone" dataKey="precipitation" name="Pluie" fill="hsl(var(--primary) / 0.15)" stroke="hsl(var(--primary) / 0.4)" />
-                    <Line yAxisId="orders" type="monotone" dataKey="orders" name="Cmd" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ r: 2 }} />
+                    <Area yAxisId="precip" type="monotone" dataKey="precipitation" name="Précipitations (mm)" fill="hsl(var(--primary) / 0.2)" stroke="hsl(var(--primary) / 0.5)" strokeWidth={2} />
+                    <Line yAxisId="orders" type="monotone" dataKey="orders" name="Commandes" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--chart-2))" }} />
                   </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+                )}
+              </ResponsiveContainer>
             </div>
           </TabsContent>
 
