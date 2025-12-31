@@ -159,7 +159,7 @@ const Overview = () => {
         .range(0, 10000);
 
       if (salesError) console.error("Error fetching daily sales:", salesError);
-      console.log("Daily sales data:", dailySalesData?.length, "rows");
+      console.log("Daily sales data fetched:", dailySalesData?.length, "rows (limit 10000)");
 
       // Fetch payouts data for profitability calculation
       const { data: payoutsData, error: payoutsError } = await supabase
