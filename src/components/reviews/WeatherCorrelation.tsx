@@ -306,11 +306,15 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
           data={scatterTempRevenueData}
           valueLabel="CA (€)"
           valueFormatter={(v) => `${(v / 1000).toFixed(1)}k€`}
+          xLabel="Température (°C)"
+          title="Dispersion Température / CA"
         />
         <CorrelationScatterPlot
           data={scatterPrecipOrdersData}
           valueLabel="Commandes"
           valueFormatter={(v) => v.toString()}
+          xLabel="Précipitations (mm)"
+          title="Dispersion Précipitations / Commandes"
         />
       </div>
     </div>

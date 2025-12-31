@@ -23,12 +23,16 @@ interface CorrelationScatterPlotProps {
   data: DataPoint[];
   valueLabel: string;
   valueFormatter?: (v: number) => string;
+  xLabel?: string;
+  title?: string;
 }
 
 export function CorrelationScatterPlot({
   data,
   valueLabel,
   valueFormatter = (v) => v.toLocaleString("fr-FR"),
+  xLabel = "Moyenne 90 jours",
+  title,
 }: CorrelationScatterPlotProps) {
   const chartConfig = {
     scatter: {
@@ -55,13 +59,19 @@ export function CorrelationScatterPlot({
   }, [data]);
 
   const maxValue = Math.max(...data.map((d) => d.value));
+  const displayTitle = title || `Dispersion Notes / ${valueLabel}`;
+
+  // Determine X axis domain based on data
+  const xValues = data.map((d) => d.avgRating);
+  const minX = Math.floor(Math.min(...xValues));
+  const maxX = Math.ceil(Math.max(...xValues));
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-border/50">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold">
-            Dispersion Notes / {valueLabel}
+            {displayTitle}
           </CardTitle>
           <div className="text-sm text-muted-foreground">
             R² = <span className="font-mono font-medium text-foreground">{rSquared.toFixed(3)}</span>
@@ -76,12 +86,11 @@ export function CorrelationScatterPlot({
               <XAxis
                 type="number"
                 dataKey="avgRating"
-                name="Note"
-                domain={[1, 5]}
-                ticks={[1, 2, 3, 4, 5]}
+                name={xLabel}
+                domain={[minX, maxX]}
                 tick={{ fontSize: 11 }}
                 label={{
-                  value: "Moyenne 90 jours",
+                  value: xLabel,
                   position: "insideBottom",
                   offset: -5,
                   style: { fontSize: 11 },
@@ -135,7 +144,7 @@ export function CorrelationScatterPlot({
           </ResponsiveContainer>
         </ChartContainer>
         <p className="text-xs text-muted-foreground mt-2 text-center">
-          Ligne de tendance : {valueLabel} = {regression.slope.toFixed(0)} × Note {regression.intercept >= 0 ? "+" : ""} {regression.intercept.toFixed(0)}
+          Ligne de tendance : {valueLabel} = {regression.slope.toFixed(0)} × {xLabel} {regression.intercept >= 0 ? "+" : ""} {regression.intercept.toFixed(0)}
         </p>
       </CardContent>
     </Card>
