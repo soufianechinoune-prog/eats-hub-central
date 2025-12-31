@@ -253,6 +253,39 @@ export default function Analytics() {
   // Build filter for restaurants
   const restaurantFilter = selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
 
+  // Fetch payouts data from payouts table (aggregated by month)
+  const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
+    queryKey: ["analytics_payouts", restaurantFilter, selectedYear],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_monthly_payouts_summary', {
+        p_year: selectedYear,
+        p_restaurant_ids: restaurantFilter || null,
+      });
+      if (error) {
+        console.error("[Analytics] get_monthly_payouts_summary error:", error);
+        throw error;
+      }
+      console.log("[Analytics] Payouts data:", data?.length, "rows", data);
+      return data || [];
+    },
+  });
+
+  // Fetch previous year payouts for comparison
+  const { data: prevPayoutsData } = useQuery({
+    queryKey: ["analytics_payouts_prev", restaurantFilter, prevYear],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_monthly_payouts_summary', {
+        p_year: prevYear,
+        p_restaurant_ids: restaurantFilter || null,
+      });
+      if (error) {
+        console.error("[Analytics] get_monthly_payouts_summary (prev) error:", error);
+        throw error;
+      }
+      return data || [];
+    },
+  });
+
   // ========== HYBRID DATA SOURCE LOGIC ==========
   // 2025+ → daily_sales_uber table (official Uber "Sales Over Time" exports)
   // 2024 and before → orders table (parsed from detailed reports)
@@ -1127,6 +1160,8 @@ export default function Analytics() {
                   prevRevenueData={currentPrevRevenueData}
                   prevConversionData={currentPrevConversionData}
                   prevFeesData={currentPrevFeesData}
+                  payoutsData={payoutsData}
+                  prevPayoutsData={prevPayoutsData}
                   startMonth={effectiveStartMonth}
                   endMonth={effectiveEndMonth}
                   selectedYear={selectedYear}

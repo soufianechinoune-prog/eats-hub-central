@@ -211,6 +211,9 @@ interface AnalyticsChartsProps {
   prevRevenueData?: MonthlyRevenue[] | undefined;
   prevConversionData?: MonthlyConversion[] | undefined;
   prevFeesData?: MonthlyFees[] | undefined;
+  // Payouts data from payouts table
+  payoutsData?: any[];
+  prevPayoutsData?: any[];
   startMonth?: number;
   endMonth?: number;
   selectedYear: number;
@@ -486,6 +489,8 @@ export function AnalyticsCharts({
   prevRevenueData,
   prevConversionData,
   prevFeesData,
+  payoutsData,
+  prevPayoutsData,
   startMonth = 1,
   endMonth = 12,
   selectedYear,
@@ -1254,19 +1259,119 @@ export function AnalyticsCharts({
     })).filter(d => filterByRange(d.monthNum));
   }, [feesData, prevFeesData, startMonth, endMonth]);
 
-  // Profitability data
+  // Aggregate payouts data (from payouts table - Uber payout summaries)
+  const aggregatedPayoutsData = useMemo(() => {
+    if (!payoutsData || payoutsData.length === 0) return [];
+    
+    const monthlyData: { [key: number]: { 
+      sales: number; 
+      refund: number; 
+      itemPromo: number; 
+      uberFee: number; 
+      deliveryPromo: number;
+      otherPayments: number;
+      netPayout: number; 
+      orderCount: number;
+      tips: number;
+    } } = {};
+    
+    const prevMonthlyData: { [key: number]: { 
+      sales: number; 
+      refund: number; 
+      itemPromo: number; 
+      uberFee: number; 
+      deliveryPromo: number;
+      otherPayments: number;
+      netPayout: number; 
+      orderCount: number;
+    } } = {};
+    
+    payoutsData.forEach((item: any) => {
+      if (!monthlyData[item.month]) {
+        monthlyData[item.month] = { 
+          sales: 0, refund: 0, itemPromo: 0, uberFee: 0, 
+          deliveryPromo: 0, otherPayments: 0, netPayout: 0, orderCount: 0, tips: 0 
+        };
+      }
+      monthlyData[item.month].sales += Number(item.sales_incl_vat) || 0;
+      monthlyData[item.month].refund += Number(item.refund_incl_vat) || 0;
+      monthlyData[item.month].itemPromo += Number(item.item_promo_incl_vat) || 0;
+      monthlyData[item.month].uberFee += Number(item.uber_fee_incl_vat) || 0;
+      monthlyData[item.month].deliveryPromo += Number(item.delivery_promo_incl_vat) || 0;
+      monthlyData[item.month].otherPayments += Number(item.other_payments_incl_vat) || 0;
+      monthlyData[item.month].netPayout += Number(item.net_payout) || 0;
+      monthlyData[item.month].orderCount += Number(item.order_count) || 0;
+      monthlyData[item.month].tips += Number(item.tips) || 0;
+    });
+
+    prevPayoutsData?.forEach((item: any) => {
+      if (!prevMonthlyData[item.month]) {
+        prevMonthlyData[item.month] = { 
+          sales: 0, refund: 0, itemPromo: 0, uberFee: 0, 
+          deliveryPromo: 0, otherPayments: 0, netPayout: 0, orderCount: 0 
+        };
+      }
+      prevMonthlyData[item.month].sales += Number(item.sales_incl_vat) || 0;
+      prevMonthlyData[item.month].refund += Number(item.refund_incl_vat) || 0;
+      prevMonthlyData[item.month].itemPromo += Number(item.item_promo_incl_vat) || 0;
+      prevMonthlyData[item.month].uberFee += Number(item.uber_fee_incl_vat) || 0;
+      prevMonthlyData[item.month].deliveryPromo += Number(item.delivery_promo_incl_vat) || 0;
+      prevMonthlyData[item.month].otherPayments += Number(item.other_payments_incl_vat) || 0;
+      prevMonthlyData[item.month].netPayout += Number(item.net_payout) || 0;
+      prevMonthlyData[item.month].orderCount += Number(item.order_count) || 0;
+    });
+    
+    return Array.from({ length: 12 }, (_, i) => {
+      const data = monthlyData[i + 1];
+      const prevData = prevMonthlyData[i + 1];
+      const totalFees = (data?.uberFee || 0) + 
+                        (data?.itemPromo || 0) + 
+                        (data?.refund || 0);
+      const prevTotalFees = (prevData?.uberFee || 0) + 
+                            (prevData?.itemPromo || 0) + 
+                            (prevData?.refund || 0);
+      return {
+        month: MONTHS[i],
+        monthNum: i + 1,
+        // Map to same structure as aggregatedFeesData for chart compatibility
+        uber: data?.uberFee || 0,
+        marketing: 0, // Not available in payouts
+        offers: data?.itemPromo || 0,
+        ads: 0, // Not available in payouts
+        net: data?.netPayout || 0,
+        totalFees,
+        prevNet: prevData?.netPayout || 0,
+        prevTotalFees,
+        // Additional payouts-specific fields
+        sales: data?.sales || 0,
+        refund: data?.refund || 0,
+        orderCount: data?.orderCount || 0,
+        tips: data?.tips || 0,
+        prevSales: prevData?.sales || 0,
+      };
+    }).filter(d => filterByRange(d.monthNum) && (d.net !== 0 || d.sales !== 0));
+  }, [payoutsData, prevPayoutsData, startMonth, endMonth]);
+
+  // Use payouts data if available, otherwise fall back to fees data
+  const effectiveFeesData = aggregatedPayoutsData.length > 0 ? aggregatedPayoutsData : aggregatedFeesData;
+  const hasPayoutsData = aggregatedPayoutsData.length > 0;
+
+  // Profitability data - use payouts when available
   const profitabilityData = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => {
       const monthNum = i + 1;
-      const revenueMonth = aggregatedRevenueData.find(r => r.monthNum === monthNum);
-      const feesMonth = aggregatedFeesData.find(f => f.monthNum === monthNum);
       
-      const revenue = revenueMonth?.revenue || 0;
-      const netPayout = feesMonth?.net || 0;
+      // Use payouts data for revenue if available, otherwise use aggregatedRevenueData
+      const payoutsMonth = aggregatedPayoutsData.find(p => p.monthNum === monthNum);
+      const revenueMonth = aggregatedRevenueData.find(r => r.monthNum === monthNum);
+      
+      // Prefer payouts.sales over revenueData for consistency in Finances view
+      const revenue = payoutsMonth?.sales || revenueMonth?.revenue || 0;
+      const netPayout = payoutsMonth?.net || effectiveFeesData.find(f => f.monthNum === monthNum)?.net || 0;
       const profitability = revenue > 0 ? (netPayout / revenue) * 100 : 0;
 
-      const prevRevenue = revenueMonth?.prevRevenue || 0;
-      const prevNet = feesMonth?.prevNet || 0;
+      const prevRevenue = payoutsMonth?.prevSales || revenueMonth?.prevRevenue || 0;
+      const prevNet = payoutsMonth?.prevNet || effectiveFeesData.find(f => f.monthNum === monthNum)?.prevNet || 0;
       const prevProfitability = prevRevenue > 0 ? (prevNet / prevRevenue) * 100 : 0;
       
       return {
@@ -1278,7 +1383,7 @@ export function AnalyticsCharts({
         prevProfitability,
       };
     }).filter(d => filterByRange(d.monthNum));
-  }, [aggregatedRevenueData, aggregatedFeesData, startMonth, endMonth]);
+  }, [aggregatedRevenueData, effectiveFeesData, aggregatedPayoutsData, startMonth, endMonth]);
 
   // Determine if showing multi-restaurant view
   const isMultiRestaurant = selectedRestaurants.length === 0 || selectedRestaurants.length > 1;
@@ -1454,16 +1559,16 @@ export function AnalyticsCharts({
     const totalOrders = aggregatedRevenueData.reduce((sum, d) => sum + d.orders, 0);
     const totalVisits = aggregatedConversionData.reduce((sum, d) => sum + d.visits, 0);
     const totalConvOrders = aggregatedConversionData.reduce((sum, d) => sum + d.orders, 0);
-    const totalFees = aggregatedFeesData.reduce((sum, d) => sum + d.totalFees, 0);
-    const totalNet = aggregatedFeesData.reduce((sum, d) => sum + d.net, 0);
+    const totalFees = effectiveFeesData.reduce((sum, d) => sum + d.totalFees, 0);
+    const totalNet = effectiveFeesData.reduce((sum, d) => sum + d.net, 0);
     const profitability = totalRevenue > 0 ? (totalNet / totalRevenue) * 100 : 0;
 
     // Previous year totals
     const prevTotalRevenue = aggregatedRevenueData.reduce((sum, d) => sum + d.prevRevenue, 0);
     const prevTotalOrders = aggregatedRevenueData.reduce((sum, d) => sum + d.prevOrders, 0);
     const prevTotalVisits = aggregatedConversionData.reduce((sum, d) => sum + d.prevVisits, 0);
-    const prevTotalFees = aggregatedFeesData.reduce((sum, d) => sum + d.prevTotalFees, 0);
-    const prevTotalNet = aggregatedFeesData.reduce((sum, d) => sum + d.prevNet, 0);
+    const prevTotalFees = effectiveFeesData.reduce((sum, d) => sum + d.prevTotalFees, 0);
+    const prevTotalNet = effectiveFeesData.reduce((sum, d) => sum + d.prevNet, 0);
     const prevProfitability = prevTotalRevenue > 0 ? (prevTotalNet / prevTotalRevenue) * 100 : 0;
 
     return {
@@ -1483,15 +1588,16 @@ export function AnalyticsCharts({
       prevTotalFees,
       prevProfitability,
     };
-  }, [aggregatedRevenueData, aggregatedConversionData, aggregatedFeesData]);
+  }, [aggregatedRevenueData, aggregatedConversionData, effectiveFeesData]);
 
   const hasData = aggregatedRevenueData.some(d => d.revenue > 0) || 
                   aggregatedConversionData.some(d => d.visits > 0) || 
-                  aggregatedFeesData.some(d => d.totalFees > 0);
+                  effectiveFeesData.some(d => d.totalFees > 0) ||
+                  hasPayoutsData;
 
   const hasPrevData = showComparison && (
     aggregatedRevenueData.some(d => d.prevRevenue > 0) || 
-    aggregatedFeesData.some(d => d.prevTotalFees > 0)
+    effectiveFeesData.some(d => d.prevTotalFees > 0)
   );
 
   // Check if drill-down data has comparison data (for rolling period mode)
@@ -3030,7 +3136,7 @@ export function AnalyticsCharts({
           />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={aggregatedFeesData}>
+              <BarChart data={effectiveFeesData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis className="text-xs" />
@@ -3114,7 +3220,7 @@ export function AnalyticsCharts({
           />
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={aggregatedFeesData}>
+              <ComposedChart data={effectiveFeesData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis className="text-xs" />
