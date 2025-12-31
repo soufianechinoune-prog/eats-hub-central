@@ -149,12 +149,14 @@ const Overview = () => {
       }
 
       // 1. Fetch daily sales (CA et commandes) - use date field
+      // Note: Using range to avoid Supabase's default 1000 row limit for yearly data
       const { data: dailySalesData, error: salesError } = await supabase
         .from("daily_sales_uber")
         .select("restaurant_id, date, revenue_ttc, order_count, average_basket, platform")
         .gte("date", startDateStr)
         .lte("date", endDateStr)
-        .in("restaurant_id", restaurantIds);
+        .in("restaurant_id", restaurantIds)
+        .range(0, 10000);
 
       if (salesError) console.error("Error fetching daily sales:", salesError);
       console.log("Daily sales data:", dailySalesData?.length, "rows");
@@ -176,7 +178,8 @@ const Overview = () => {
         .select("restaurant_id, overall_rating, review_date, platform")
         .gte("review_date", startDate.toISOString())
         .lte("review_date", endDate.toISOString())
-        .in("restaurant_id", restaurantIds);
+        .in("restaurant_id", restaurantIds)
+        .range(0, 10000);
 
       if (reviewsError) console.error("Error fetching reviews:", reviewsError);
       console.log("Reviews data:", reviewsData?.length, "rows");
@@ -187,7 +190,8 @@ const Overview = () => {
         .select("restaurant_id, initial_prep_time_minutes, avoidable_wait_time_minutes, order_datetime, platform")
         .gte("order_datetime", startDate.toISOString())
         .lte("order_datetime", endDate.toISOString())
-        .in("restaurant_id", restaurantIds);
+        .in("restaurant_id", restaurantIds)
+        .range(0, 50000);
 
       if (historyError) console.error("Error fetching order history:", historyError);
       console.log("Order history data:", orderHistoryData?.length, "rows");
@@ -198,7 +202,8 @@ const Overview = () => {
         .select("restaurant_id, error_date, financial_impact")
         .gte("error_date", startDate.toISOString())
         .lte("error_date", endDate.toISOString())
-        .in("restaurant_id", restaurantIds);
+        .in("restaurant_id", restaurantIds)
+        .range(0, 10000);
 
       if (errorsError) console.error("Error fetching errors:", errorsError);
       console.log("Errors data:", errorsData?.length, "rows");
@@ -209,7 +214,8 @@ const Overview = () => {
         .select("*")
         .gte("date", startDateStr)
         .lte("date", endDateStr)
-        .in("restaurant_id", restaurantIds);
+        .in("restaurant_id", restaurantIds)
+        .range(0, 10000);
 
       if (accuracyError) console.error("Error fetching accuracy:", accuracyError);
       console.log("Accuracy data:", accuracyData?.length, "rows");
@@ -220,7 +226,8 @@ const Overview = () => {
         .select("restaurant_id, rating, thumb_up, thumb_down, item_title, platform")
         .gte("review_date", startDate.toISOString())
         .lte("review_date", endDate.toISOString())
-        .in("restaurant_id", restaurantIds);
+        .in("restaurant_id", restaurantIds)
+        .range(0, 50000);
 
       if (menuReviewsError) console.error("Error fetching menu reviews:", menuReviewsError);
       console.log("Menu reviews data:", menuReviewsData?.length, "rows");
@@ -231,7 +238,8 @@ const Overview = () => {
         .select("restaurant_id, hour_start, online_minutes, offline_minutes, platform")
         .gte("hour_start", startDate.toISOString())
         .lte("hour_start", endDate.toISOString())
-        .in("restaurant_id", restaurantIds);
+        .in("restaurant_id", restaurantIds)
+        .range(0, 50000);
 
       if (availabilityError) console.error("Error fetching availability:", availabilityError);
       console.log("Availability data:", availabilityData?.length, "rows");
@@ -242,7 +250,8 @@ const Overview = () => {
         .select("restaurant_id, visits, menu_views, add_to_cart, orders, date")
         .gte("date", startDateStr)
         .lte("date", endDateStr)
-        .in("restaurant_id", restaurantIds);
+        .in("restaurant_id", restaurantIds)
+        .range(0, 10000);
 
       if (conversionError) console.error("Error fetching conversion:", conversionError);
       console.log("Conversion data:", conversionData?.length, "rows");
