@@ -148,18 +148,45 @@ const Overview = () => {
         };
       }
 
-      // 1. Fetch daily sales (CA et commandes) - use date field
-      // Note: Using range to avoid Supabase's default 1000 row limit for yearly data
-      const { data: dailySalesData, error: salesError } = await supabase
-        .from("daily_sales_uber")
-        .select("restaurant_id, date, revenue_ttc, order_count, average_basket, platform")
-        .gte("date", startDateStr)
-        .lte("date", endDateStr)
-        .in("restaurant_id", restaurantIds)
-        .range(0, 10000);
+      // 1. Fetch daily sales (CA et commandes) - use deduplicated view to avoid duplicates
+      // Use pagination to bypass the 1000 row limit
+      let dailySalesData: Array<{
+        restaurant_id: string;
+        date: string;
+        revenue_ttc: number;
+        order_count: number;
+        average_basket: number;
+        platform: string;
+      }> = [];
+      let salesOffset = 0;
+      let salesHasMore = true;
+      const PAGE_SIZE = 1000;
 
-      if (salesError) console.error("Error fetching daily sales:", salesError);
-      console.log("Daily sales data fetched:", dailySalesData?.length, "rows (limit 10000)");
+      while (salesHasMore) {
+        const { data: salesPage, error: salesError } = await supabase
+          .from("daily_sales_uber_deduped")
+          .select("restaurant_id, date, revenue_ttc, order_count, average_basket, platform")
+          .gte("date", startDateStr)
+          .lte("date", endDateStr)
+          .in("restaurant_id", restaurantIds)
+          .order("date", { ascending: true })
+          .range(salesOffset, salesOffset + PAGE_SIZE - 1);
+
+        if (salesError) {
+          console.error("Error fetching daily sales:", salesError);
+          break;
+        }
+
+        if (salesPage && salesPage.length > 0) {
+          dailySalesData = [...dailySalesData, ...salesPage];
+          salesOffset += PAGE_SIZE;
+          salesHasMore = salesPage.length === PAGE_SIZE;
+        } else {
+          salesHasMore = false;
+        }
+      }
+
+      console.log("Daily sales data fetched (deduped + paginated):", dailySalesData.length, "rows");
 
       // Fetch payouts data for profitability calculation
       const { data: payoutsData, error: payoutsError } = await supabase

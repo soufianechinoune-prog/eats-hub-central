@@ -96,11 +96,12 @@ const InaccurateOrdersComparison = () => {
       if (!pinnedRestaurants?.length) return [];
       
       const { data, error } = await supabase
-        .from("daily_sales_uber")
+        .from("daily_sales_uber_deduped")
         .select("restaurant_id, date, order_count")
         .in("restaurant_id", pinnedRestaurants.map(r => r.id))
         .gte("date", format(dateRange.start, "yyyy-MM-dd"))
-        .lte("date", format(dateRange.end, "yyyy-MM-dd"));
+        .lte("date", format(dateRange.end, "yyyy-MM-dd"))
+        .order("date", { ascending: true });
       
       if (error) throw error;
       return data || [];
