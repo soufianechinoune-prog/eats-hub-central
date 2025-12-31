@@ -81,7 +81,7 @@ export function CorrelationScatterPlot({
                 ticks={[1, 2, 3, 4, 5]}
                 tick={{ fontSize: 11 }}
                 label={{
-                  value: "Note moyenne",
+                  value: "Moyenne 90 jours",
                   position: "insideBottom",
                   offset: -5,
                   style: { fontSize: 11 },
@@ -109,7 +109,7 @@ export function CorrelationScatterPlot({
                     <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-sm">
                       <p className="font-medium mb-1">{point.date}</p>
                       <div className="space-y-1 text-muted-foreground">
-                        <p>Note : <span className="text-foreground font-medium">{point.avgRating.toFixed(2)}</span></p>
+                        <p>Moy. 90j : <span className="text-foreground font-medium">{point.avgRating.toFixed(2)}</span></p>
                         <p>{valueLabel} : <span className="text-foreground font-medium">{valueFormatter(point.value)}</span></p>
                       </div>
                     </div>
