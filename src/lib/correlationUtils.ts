@@ -94,3 +94,75 @@ export function getCorrelationStrength(r: number): {
     };
   }
 }
+
+/**
+ * Get detailed explanation for correlation statistics
+ */
+export function getDetailedExplanation(r: number, rSquared: number, label: string): {
+  shortDescription: string;
+  whatItMeans: string;
+  interpretation: string;
+  actionAdvice: string;
+  rExplanation: string;
+} {
+  const percentage = Math.round(rSquared * 100);
+  const isPositive = r >= 0;
+  const absR = Math.abs(r);
+  
+  // Short description based on R² percentage
+  let shortDescription: string;
+  let whatItMeans: string;
+  let interpretation: string;
+  let actionAdvice: string;
+  
+  if (percentage < 10) {
+    shortDescription = `Seulement ${percentage}% des variations du ${label} sont liées aux notes.`;
+    whatItMeans = "Les notes clients n'ont quasiment aucun impact mesurable sur cette métrique. D'autres facteurs (météo, jour, promotions, saisonnalité) sont bien plus déterminants.";
+    interpretation = "La corrélation est trop faible pour tirer des conclusions. Les variations observées sont probablement dues au hasard ou à des facteurs externes.";
+    actionAdvice = "Concentrez vos efforts sur d'autres leviers d'amélioration (opérations, marketing, disponibilité) plutôt que sur les notes.";
+  } else if (percentage < 25) {
+    shortDescription = `${percentage}% des variations du ${label} peuvent être associées aux notes.`;
+    whatItMeans = "Il existe une légère relation entre les notes et cette métrique, mais elle reste faible. D'autres facteurs ont plus d'influence.";
+    interpretation = "Une tendance existe mais elle n'est pas assez forte pour être exploitable directement.";
+    actionAdvice = "Maintenez la qualité de service tout en explorant d'autres pistes d'amélioration.";
+  } else if (percentage < 50) {
+    shortDescription = `${percentage}% des variations du ${label} sont expliquées par les notes.`;
+    whatItMeans = "Les notes ont un impact modéré sur cette métrique. C'est un facteur à prendre en compte parmi d'autres.";
+    interpretation = "La relation est significative : améliorer les notes devrait avoir un effet positif mesurable.";
+    actionAdvice = "Investir dans l'amélioration des notes clients peut générer des résultats concrets sur cette métrique.";
+  } else if (percentage < 70) {
+    shortDescription = `${percentage}% des variations du ${label} sont liées aux notes - c'est significatif !`;
+    whatItMeans = "Les notes sont un facteur important de cette métrique. L'impact est clairement mesurable.";
+    interpretation = "La corrélation est forte : les notes influencent directement les performances.";
+    actionAdvice = "Priorisez les actions d'amélioration de la satisfaction client pour booster cette métrique.";
+  } else {
+    shortDescription = `${percentage}% des variations du ${label} dépendent des notes - corrélation très forte !`;
+    whatItMeans = "Les notes sont LE facteur déterminant de cette métrique. L'impact est majeur et direct.";
+    interpretation = "Corrélation exceptionnelle : les notes et les performances sont intimement liées.";
+    actionAdvice = "La satisfaction client doit être votre priorité absolue pour améliorer cette métrique.";
+  }
+  
+  // R explanation based on sign and strength
+  let rExplanation: string;
+  if (isPositive) {
+    if (absR >= 0.4) {
+      rExplanation = `Quand les notes montent, le ${label} a tendance à monter aussi (et inversement).`;
+    } else {
+      rExplanation = `Tendance légère : les notes et le ${label} évoluent dans le même sens.`;
+    }
+  } else {
+    if (absR >= 0.4) {
+      rExplanation = `Quand les notes montent, le ${label} a tendance à baisser (relation inverse). Cela peut s'expliquer par un effet de décalage temporel : les notes reflètent le passé tandis que les performances actuelles peuvent différer.`;
+    } else {
+      rExplanation = `Légère tendance inverse entre notes et ${label}. Probablement dû au hasard ou à un décalage temporel.`;
+    }
+  }
+  
+  return {
+    shortDescription,
+    whatItMeans,
+    interpretation,
+    actionAdvice,
+    rExplanation
+  };
+}
