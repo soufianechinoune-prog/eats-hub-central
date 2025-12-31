@@ -2643,7 +2643,29 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      daily_sales_uber_deduped: {
+        Row: {
+          average_basket: number | null
+          created_at: string | null
+          currency: string | null
+          date: string | null
+          id: string | null
+          order_count: number | null
+          period_type: string | null
+          platform: string | null
+          restaurant_id: string | null
+          revenue_ttc: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_sales_uber_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       get_daily_revenue_from_orders: {
