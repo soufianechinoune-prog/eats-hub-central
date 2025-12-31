@@ -179,10 +179,11 @@ Deno.serve(async (req) => {
 
     console.log('Found headers:', headers.slice(0, 10), '...');
 
-    // Map column indices
+    // Map column indices - trim headers to handle trailing spaces
     const columnIndices: Record<string, number> = {};
     headers.forEach((header, index) => {
-      const mappedField = COLUMN_MAPPING[header];
+      const cleanHeader = header.trim();
+      const mappedField = COLUMN_MAPPING[cleanHeader];
       if (mappedField) {
         // Handle duplicate "Id. du restaurant" - first one is often empty, second is UUID
         if (mappedField === 'uber_store_id' && columnIndices[mappedField] !== undefined) {
