@@ -2570,6 +2570,50 @@ export type Database = {
           },
         ]
       }
+      weather_data: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          precipitation_mm: number | null
+          restaurant_id: string
+          temperature_avg: number | null
+          temperature_max: number | null
+          temperature_min: number | null
+          weather_code: number | null
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          precipitation_mm?: number | null
+          restaurant_id: string
+          temperature_avg?: number | null
+          temperature_max?: number | null
+          temperature_min?: number | null
+          weather_code?: number | null
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          precipitation_mm?: number | null
+          restaurant_id?: string
+          temperature_avg?: number | null
+          temperature_max?: number | null
+          temperature_min?: number | null
+          weather_code?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weather_data_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_logs: {
         Row: {
           event_type: string

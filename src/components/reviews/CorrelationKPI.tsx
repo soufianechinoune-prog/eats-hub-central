@@ -7,9 +7,10 @@ interface CorrelationKPIProps {
   ratings: number[];
   values: number[];
   label: string;
+  xLabel?: string;
 }
 
-export function CorrelationKPI({ ratings, values, label }: CorrelationKPIProps) {
+export function CorrelationKPI({ ratings, values, label, xLabel = "Notes" }: CorrelationKPIProps) {
   const r = calculatePearsonCorrelation(ratings, values);
   const rSquared = r * r;
   const { label: strengthLabel, color, description } = getCorrelationStrength(r);
@@ -22,7 +23,7 @@ export function CorrelationKPI({ ratings, values, label }: CorrelationKPIProps) 
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Corrélation Notes / {label}
+            Corrélation {xLabel} / {label}
           </CardTitle>
           <Popover>
             <PopoverTrigger asChild>

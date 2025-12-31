@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.notify-tablet-pause]
 verify_jwt = false
+
+[functions.fetch-weather-data]
+verify_jwt = false

@@ -5,9 +5,10 @@ import { ReviewsOverview } from "@/components/reviews/ReviewsOverview";
 import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
 import { ReviewsMenuItems } from "@/components/reviews/ReviewsMenuItems";
 import { ReviewsCorrelation } from "@/components/reviews/ReviewsCorrelation";
+import { WeatherCorrelation } from "@/components/reviews/WeatherCorrelation";
 import { useCustomerReviews, useMenuItemReviews } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { Eye, Users, ChefHat, TrendingUp } from "lucide-react";
+import { Eye, Users, ChefHat, TrendingUp, Cloud } from "lucide-react";
 
 export default function Reviews() {
   const {
@@ -90,7 +91,7 @@ export default function Reviews() {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full max-w-lg grid-cols-4">
+        <TabsList className="grid w-full max-w-2xl grid-cols-5">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Eye className="h-4 w-4" />
             Aperçu
@@ -106,6 +107,10 @@ export default function Reviews() {
           <TabsTrigger value="correlation" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             Corrélation
+          </TabsTrigger>
+          <TabsTrigger value="weather" className="flex items-center gap-2">
+            <Cloud className="h-4 w-4" />
+            Météo
           </TabsTrigger>
         </TabsList>
 
@@ -127,6 +132,13 @@ export default function Reviews() {
         <TabsContent value="correlation" className="mt-6">
           <ReviewsCorrelation 
             reviews={customerReviews || []} 
+            startDate={startDate}
+            endDate={endDate}
+          />
+        </TabsContent>
+
+        <TabsContent value="weather" className="mt-6">
+          <WeatherCorrelation 
             startDate={startDate}
             endDate={endDate}
           />
