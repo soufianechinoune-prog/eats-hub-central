@@ -464,7 +464,7 @@ export function RatingEvolutionChart({
                 {chartType === "line" ? (
                   <LineChart 
                     data={data} 
-                    margin={{ top: 20, right: 50, left: 0, bottom: 0 }}
+                    margin={{ top: 30, right: 50, left: 0, bottom: 0 }}
                     onClick={handleChartClick}
                     onMouseMove={handleContextMenu}
                     style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
@@ -571,7 +571,7 @@ export function RatingEvolutionChart({
                 ) : (
                   <ComposedChart 
                     data={data} 
-                    margin={{ top: 20, right: 50, left: 0, bottom: 0 }}
+                    margin={{ top: 30, right: 50, left: 0, bottom: 0 }}
                     onClick={handleChartClick}
                     onMouseMove={handleContextMenu}
                     style={{ cursor: periodMode === "year" && onDrillDown ? "pointer" : "default" }}
