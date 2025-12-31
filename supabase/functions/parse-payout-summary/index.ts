@@ -131,6 +131,18 @@ function parseDate(dateStr: string): string | null {
   return null;
 }
 
+interface SkippedDetail {
+  rowIndex: number;
+  reason: string;
+  details?: string;
+}
+
+interface RestaurantStat {
+  id: string;
+  name: string;
+  orderCount: number;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -141,7 +153,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { csvContent, reportType } = await req.json();
+    const { csvContent, dryRun = false } = await req.json();
 
     if (!csvContent) {
       return new Response(
@@ -150,7 +162,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Parsing payout summary report...');
+    console.log(`Parsing payout summary report (dryRun: ${dryRun})...`);
     const rows = parseCSV(csvContent);
     
     if (rows.length < 2) {
@@ -210,10 +222,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const restaurantMap = new Map<string, string>();
+    const restaurantMap = new Map<string, { id: string; name: string }>();
     restaurants?.forEach(r => {
       if (r.uber_store_id) {
-        restaurantMap.set(r.uber_store_id, r.id);
+        restaurantMap.set(r.uber_store_id, { id: r.id, name: r.name });
       }
     });
 
@@ -221,12 +233,19 @@ Deno.serve(async (req) => {
 
     // Process data rows
     const dataRows = rows.slice(headerRowIndex + 1);
+    const skippedDetails: SkippedDetail[] = [];
+    const unknownStoreIds: Set<string> = new Set();
+    const restaurantStats = new Map<string, RestaurantStat>();
+    const payoutsToInsert: any[] = [];
+    let minDate: string | null = null;
+    let maxDate: string | null = null;
+
     const results = {
-      total: dataRows.length,
+      totalRows: dataRows.length,
       inserted: 0,
       updated: 0,
       skipped: 0,
-      errors: [] as { row: number; error: string }[],
+      errors: 0,
     };
 
     for (let i = 0; i < dataRows.length; i++) {
@@ -245,35 +264,60 @@ Deno.serve(async (req) => {
 
         if (!payoutReferenceId || !payoutDateStr) {
           results.skipped++;
+          skippedDetails.push({
+            rowIndex: rowNumber,
+            reason: 'missing_required_fields',
+            details: `Missing payout_reference_id or payout_date`
+          });
           continue;
         }
 
-        const restaurantId = restaurantMap.get(uberStoreId);
-        if (!restaurantId) {
-          results.errors.push({ 
-            row: rowNumber, 
-            error: `Restaurant not found for uber_store_id: ${uberStoreId}` 
-          });
+        const restaurant = restaurantMap.get(uberStoreId);
+        if (!restaurant) {
           results.skipped++;
+          unknownStoreIds.add(uberStoreId);
+          skippedDetails.push({
+            rowIndex: rowNumber,
+            reason: 'unknown_restaurant',
+            details: `uber_store_id: ${uberStoreId}`
+          });
           continue;
         }
 
         const payoutDate = parseDate(payoutDateStr);
         if (!payoutDate) {
-          results.errors.push({ 
-            row: rowNumber, 
-            error: `Invalid payout date: ${payoutDateStr}` 
-          });
           results.skipped++;
+          skippedDetails.push({
+            rowIndex: rowNumber,
+            reason: 'invalid_date',
+            details: `Invalid payout date: ${payoutDateStr}`
+          });
           continue;
         }
 
+        // Track date range
+        if (!minDate || payoutDate < minDate) minDate = payoutDate;
+        if (!maxDate || payoutDate > maxDate) maxDate = payoutDate;
+
+        // Track restaurant stats
+        const orderCount = parseInteger(getValue('order_count'));
+        if (restaurantStats.has(restaurant.id)) {
+          const stat = restaurantStats.get(restaurant.id)!;
+          stat.orderCount += orderCount;
+        } else {
+          restaurantStats.set(restaurant.id, {
+            id: restaurant.id,
+            name: restaurant.name,
+            orderCount: orderCount
+          });
+        }
+
         const payoutData = {
-          restaurant_id: restaurantId,
+          restaurant_id: restaurant.id,
           payout_reference_id: payoutReferenceId,
           payout_date: payoutDate,
           uber_store_id: uberStoreId,
-          order_count: parseInteger(getValue('order_count')),
+          order_count: orderCount,
           other_payments_count: parseInteger(getValue('other_payments_count')),
           sales_excl_vat: parseNumber(getValue('sales_excl_vat')),
           vat_1_sales: parseNumber(getValue('vat_1_sales')),
@@ -320,30 +364,69 @@ Deno.serve(async (req) => {
           net_payout: parseNumber(getValue('net_payout')),
         };
 
-        // Upsert payout
-        const { error: upsertError } = await supabase
-          .from('payouts')
-          .upsert(payoutData, { 
-            onConflict: 'restaurant_id,payout_reference_id',
-            ignoreDuplicates: false 
-          });
-
-        if (upsertError) {
-          console.error(`Error upserting payout row ${rowNumber}:`, upsertError);
-          results.errors.push({ row: rowNumber, error: upsertError.message });
-        } else {
+        if (dryRun) {
+          // Just accumulate for validation
+          payoutsToInsert.push(payoutData);
           results.inserted++;
+        } else {
+          // Upsert payout
+          const { error: upsertError } = await supabase
+            .from('payouts')
+            .upsert(payoutData, { 
+              onConflict: 'restaurant_id,payout_reference_id',
+              ignoreDuplicates: false 
+            });
+
+          if (upsertError) {
+            console.error(`Error upserting payout row ${rowNumber}:`, upsertError);
+            results.errors++;
+            skippedDetails.push({
+              rowIndex: rowNumber,
+              reason: 'database_error',
+              details: upsertError.message
+            });
+          } else {
+            results.inserted++;
+          }
         }
       } catch (err) {
         console.error(`Error processing row ${rowNumber}:`, err);
-        results.errors.push({ row: rowNumber, error: String(err) });
+        results.errors++;
+        skippedDetails.push({
+          rowIndex: rowNumber,
+          reason: 'processing_error',
+          details: String(err)
+        });
       }
     }
 
-    console.log('Import complete:', results);
+    console.log('Processing complete:', results);
+
+    // Build response in expected format
+    const response = {
+      success: true,
+      dryRun,
+      reportType: 'payout_summary',
+      stats: {
+        totalRows: results.totalRows,
+        inserted: results.inserted,
+        updated: results.updated,
+        skipped: results.skipped,
+        errors: results.errors,
+      },
+      validation: {
+        dateRange: {
+          start: minDate,
+          end: maxDate,
+        },
+        restaurants: Array.from(restaurantStats.values()),
+        unknownStoreIds: Array.from(unknownStoreIds),
+        skippedDetails,
+      },
+    };
 
     return new Response(
-      JSON.stringify({ success: true, results }),
+      JSON.stringify(response),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
