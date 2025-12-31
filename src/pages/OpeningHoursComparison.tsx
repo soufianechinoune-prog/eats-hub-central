@@ -124,11 +124,12 @@ const OpeningHoursComparison = () => {
       if (!pinnedRestaurants?.length) return [];
       
       const { data, error } = await supabase
-        .from("daily_sales_uber")
+        .from("daily_sales_uber_deduped")
         .select("restaurant_id, revenue_ttc, order_count, date")
         .in("restaurant_id", pinnedRestaurants.map(r => r.id))
         .gte("date", startDate)
-        .lte("date", endDate);
+        .lte("date", endDate)
+        .order("date", { ascending: true });
       
       if (error) throw error;
       

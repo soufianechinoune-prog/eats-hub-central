@@ -68,7 +68,7 @@ export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorre
       const endStr = format(endDate, "yyyy-MM-dd");
 
       let query = supabase
-        .from("daily_sales_uber")
+        .from("daily_sales_uber_deduped")
         .select("date, revenue_ttc, order_count, average_basket, restaurant_id, platform")
         .gte("date", startStr)
         .lte("date", endStr);
@@ -81,7 +81,7 @@ export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorre
         query = query.eq("platform", selectedPlatform === "uber_eats" ? "uber_eats" : "deliveroo");
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.order("date", { ascending: true });
       if (error) throw error;
       return data || [];
     },
