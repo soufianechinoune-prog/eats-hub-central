@@ -182,7 +182,7 @@ export function WeatherOverlayChart({ data }: WeatherOverlayChartProps) {
                         );
                       }}
                     />
-                    <Bar yAxisId="revenue" dataKey="revenueK" name="CA (k€)" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={20} />
+                    <Line yAxisId="revenue" type="monotone" dataKey="revenueK" name="CA (k€)" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4, fill: "hsl(var(--primary))" }} />
                     <Line yAxisId="temp" type="monotone" dataKey="temperature" name="Température (°C)" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--destructive))" }} />
                   </ComposedChart>
                 ) : (
@@ -223,7 +223,7 @@ export function WeatherOverlayChart({ data }: WeatherOverlayChartProps) {
                       }}
                     />
                     <Area yAxisId="precip" type="monotone" dataKey="precipitation" name="Précipitations (mm)" fill="hsl(var(--primary) / 0.2)" stroke="hsl(var(--primary) / 0.5)" strokeWidth={2} />
-                    <Bar yAxisId="revenue" dataKey="revenueK" name="CA (k€)" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} barSize={20} />
+                    <Line yAxisId="revenue" type="monotone" dataKey="revenueK" name="CA (k€)" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ r: 4, fill: "hsl(var(--chart-2))" }} />
                   </ComposedChart>
                 )}
               </ResponsiveContainer>
