@@ -13,8 +13,9 @@ interface CorrelationKPIProps {
 export function CorrelationKPI({ ratings, values, label, xLabel = "Notes" }: CorrelationKPIProps) {
   const r = calculatePearsonCorrelation(ratings, values);
   const rSquared = r * r;
-  const { label: strengthLabel, color, description } = getCorrelationStrength(r);
-  const explanation = getDetailedExplanation(r, rSquared, label);
+  const xLabelLower = xLabel.toLowerCase();
+  const { label: strengthLabel, color, description } = getCorrelationStrength(r, xLabelLower);
+  const explanation = getDetailedExplanation(r, rSquared, label, xLabelLower);
   
   const Icon = r > 0.2 ? TrendingUp : r < -0.2 ? TrendingDown : Minus;
   
