@@ -159,6 +159,17 @@ const Overview = () => {
       if (salesError) console.error("Error fetching daily sales:", salesError);
       console.log("Daily sales data:", dailySalesData?.length, "rows");
 
+      // Fetch payouts data for profitability calculation
+      const { data: payoutsData, error: payoutsError } = await supabase
+        .from("payouts")
+        .select("restaurant_id, payout_date, sales_incl_vat, net_payout, order_count")
+        .gte("payout_date", startDateStr)
+        .lte("payout_date", endDateStr)
+        .in("restaurant_id", restaurantIds);
+
+      if (payoutsError) console.error("Error fetching payouts:", payoutsError);
+      console.log("Payouts data:", payoutsData?.length, "rows");
+
       // 2. Fetch customer reviews - use review_date field
       const { data: reviewsData, error: reviewsError } = await supabase
         .from("customer_reviews")
@@ -273,12 +284,18 @@ const Overview = () => {
       const uberOfflineMinutes = uberAvailability.reduce((sum, a) => sum + Number(a.offline_minutes || 0), 0);
       const uberDowntimeHours = uberOfflineMinutes > 0 ? Math.round(uberOfflineMinutes / 6) / 10 : null;
 
+      // Calculate global profitability from payouts data
+      const totalPayoutSales = payoutsData?.reduce((sum, p) => sum + Number(p.sales_incl_vat || 0), 0) || 0;
+      const totalNetPayout = payoutsData?.reduce((sum, p) => sum + Number(p.net_payout || 0), 0) || 0;
+      const globalProfitability = totalPayoutSales > 0 ? (totalNetPayout / totalPayoutSales) * 100 : null;
+
       // Calculate per-restaurant metrics
       const restaurantMetrics = restaurants?.map(resto => {
         const restoSales = dailySalesData?.filter(d => d.restaurant_id === resto.id) || [];
         const restoReviews = reviewsData?.filter(r => r.restaurant_id === resto.id) || [];
         const restoHistory = orderHistoryData?.filter(h => h.restaurant_id === resto.id) || [];
         const restoErrors = errorsData?.filter(e => e.restaurant_id === resto.id) || [];
+        const restoPayouts = payoutsData?.filter(p => p.restaurant_id === resto.id) || [];
 
         const revenue = restoSales.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0);
         const orders = restoSales.reduce((sum, d) => sum + Number(d.order_count || 0), 0);
@@ -291,8 +308,10 @@ const Overview = () => {
           : 0;
         const restoErrorRate = orders > 0 ? (restoErrors.length / orders) * 100 : 0;
         
-        // For profitability, we'd need fees data - for now set to 0
-        const profitability = 0;
+        // Calculate profitability from payouts
+        const restoPayoutSales = restoPayouts.reduce((sum, p) => sum + Number(p.sales_incl_vat || 0), 0);
+        const restoNetPayout = restoPayouts.reduce((sum, p) => sum + Number(p.net_payout || 0), 0);
+        const profitability = restoPayoutSales > 0 ? (restoNetPayout / restoPayoutSales) * 100 : 0;
 
         return {
           id: resto.id,
@@ -370,7 +389,7 @@ const Overview = () => {
           prepTime: avgPrepTime != null ? Math.round(avgPrepTime) : null,
           errorRate: errorRate,
           incorrectOrderRate: incorrectOrderRate,
-          profitability: null, // Needs monthly_fees data
+          profitability: globalProfitability,
           downtime: downtimeHours,
           productApprovalRate: productApprovalRate,
         },
@@ -379,7 +398,7 @@ const Overview = () => {
           prepTime: uberPrepTime != null ? Math.round(uberPrepTime) : null,
           errorRate: uberOrders > 0 ? (errorsData?.length || 0) / uberOrders * 100 : null,
           incorrectOrderRate: incorrectOrderRate, // Données Uber uniquement pour l'instant
-          profitability: null,
+          profitability: globalProfitability, // Payouts are from Uber
           downtime: uberDowntimeHours,
         },
         deliveroo: {
