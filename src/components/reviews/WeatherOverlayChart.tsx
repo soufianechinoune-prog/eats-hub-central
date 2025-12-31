@@ -189,13 +189,13 @@ export function WeatherOverlayChart({ data }: WeatherOverlayChartProps) {
                   <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="dateLabel" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="orders" orientation="left" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="revenue" orientation="left" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}k€`} tickLine={false} axisLine={false} />
                     <YAxis yAxisId="precip" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}mm`} tickLine={false} axisLine={false} domain={[0, 'auto']} />
                     <Tooltip
                       content={({ active, payload }) => {
                         if (!active || !payload || payload.length === 0) return null;
                         const d = payload[0]?.payload;
-                        const ordersDelta = ((d.orders - averages.orders) / averages.orders) * 100;
+                        const revenueDelta = ((d.revenue - averages.revenue) / averages.revenue) * 100;
                         return (
                           <div className="bg-background border rounded-lg p-3 shadow-lg text-sm">
                             <div className="flex items-center gap-2 font-medium mb-1">
@@ -210,12 +210,12 @@ export function WeatherOverlayChart({ data }: WeatherOverlayChartProps) {
                                 <span className="font-medium">{d.precipitation.toFixed(1)}mm</span>
                               </div>
                               <div className="flex justify-between gap-4">
-                                <span className="text-muted-foreground">Commandes:</span>
-                                <span className="font-medium">{d.orders}</span>
+                                <span className="text-muted-foreground">CA:</span>
+                                <span className="font-medium">{d.revenue.toFixed(0)}€</span>
                               </div>
-                              <div className={`flex justify-between gap-4 text-xs ${ordersDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              <div className={`flex justify-between gap-4 text-xs ${revenueDelta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 <span>vs moyenne:</span>
-                                <span>{ordersDelta >= 0 ? '+' : ''}{ordersDelta.toFixed(0)}%</span>
+                                <span>{revenueDelta >= 0 ? '+' : ''}{revenueDelta.toFixed(0)}%</span>
                               </div>
                             </div>
                           </div>
@@ -223,7 +223,7 @@ export function WeatherOverlayChart({ data }: WeatherOverlayChartProps) {
                       }}
                     />
                     <Area yAxisId="precip" type="monotone" dataKey="precipitation" name="Précipitations (mm)" fill="hsl(var(--primary) / 0.2)" stroke="hsl(var(--primary) / 0.5)" strokeWidth={2} />
-                    <Line yAxisId="orders" type="monotone" dataKey="orders" name="Commandes" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--chart-2))" }} />
+                    <Bar yAxisId="revenue" dataKey="revenueK" name="CA (k€)" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} barSize={20} />
                   </ComposedChart>
                 )}
               </ResponsiveContainer>
