@@ -1,9 +1,9 @@
-import { useMemo, useEffect } from "react";
-import { format, subDays } from "date-fns";
+import { useMemo } from "react";
+import { format, getDay } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Cloud, Droplets, Thermometer, RefreshCw } from "lucide-react";
+import { Cloud, Droplets, Thermometer, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { useWeatherData, useSyncWeatherData, getWeatherEmoji, weatherCodeLabels } from "@/hooks/useWeatherData";
+import { useWeatherData, useSyncWeatherData } from "@/hooks/useWeatherData";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,8 @@ interface WeatherCorrelationProps {
   startDate: Date;
   endDate: Date;
 }
+
+const dayNames = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
 export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationProps) {
   const { selectedRestaurants, selectedPlatform } = useAnalyticsContext();
@@ -97,9 +99,9 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
     }
   };
 
-  // Combine weather and sales data
-  const correlationData = useMemo(() => {
-    if (!weatherData || !salesData) return [];
+  // Combine weather and sales data with day-of-week normalization
+  const { correlationData, normalizedData, dayOfWeekAverages } = useMemo(() => {
+    if (!weatherData || !salesData) return { correlationData: [], normalizedData: [], dayOfWeekAverages: new Map() };
 
     // Aggregate weather by date (average across restaurants)
     const weatherByDate = new Map<string, { tempAvg: number; precipitation: number; weatherCode: number; count: number }>();
@@ -123,9 +125,10 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
       });
     });
 
-    // Combine
+    // Combine raw data
     const combined: {
       date: string;
+      dayOfWeek: number;
       temperature: number;
       precipitation: number;
       weatherCode: number;
@@ -136,8 +139,10 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
     weatherByDate.forEach((weather, date) => {
       const sales = salesByDate.get(date);
       if (sales) {
+        const dateObj = new Date(date);
         combined.push({
           date,
+          dayOfWeek: getDay(dateObj),
           temperature: weather.count > 0 ? weather.tempAvg / weather.count : 0,
           precipitation: weather.precipitation / (weather.count || 1),
           weatherCode: weather.weatherCode,
@@ -147,34 +152,75 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
       }
     });
 
-    return combined.sort((a, b) => a.date.localeCompare(b.date));
+    const sortedCombined = combined.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Calculate day-of-week averages
+    const dayOfWeekAverages = new Map<number, { avgRevenue: number; avgOrders: number; count: number }>();
+    
+    for (let day = 0; day < 7; day++) {
+      const daysOfType = sortedCombined.filter(d => d.dayOfWeek === day);
+      if (daysOfType.length > 0) {
+        const avgRevenue = daysOfType.reduce((sum, d) => sum + d.revenue, 0) / daysOfType.length;
+        const avgOrders = daysOfType.reduce((sum, d) => sum + d.orders, 0) / daysOfType.length;
+        dayOfWeekAverages.set(day, { avgRevenue, avgOrders, count: daysOfType.length });
+      }
+    }
+
+    // Calculate normalized deviation data (percentage deviation from day-of-week average)
+    const normalizedData = sortedCombined.map(d => {
+      const dayAvg = dayOfWeekAverages.get(d.dayOfWeek);
+      if (!dayAvg || dayAvg.avgRevenue === 0 || dayAvg.avgOrders === 0) {
+        return {
+          ...d,
+          revenueDeviation: 0,
+          ordersDeviation: 0,
+        };
+      }
+      return {
+        ...d,
+        revenueDeviation: ((d.revenue - dayAvg.avgRevenue) / dayAvg.avgRevenue) * 100,
+        ordersDeviation: ((d.orders - dayAvg.avgOrders) / dayAvg.avgOrders) * 100,
+      };
+    });
+
+    return { correlationData: sortedCombined, normalizedData, dayOfWeekAverages };
   }, [weatherData, salesData]);
 
-  // Data for scatter plots
-  const temperatures = correlationData.map((d) => d.temperature);
-  const precipitations = correlationData.map((d) => d.precipitation);
-  const revenues = correlationData.map((d) => d.revenue);
-  const orders = correlationData.map((d) => d.orders);
-
-  const scatterTempRevenueData = correlationData.map((d) => ({
+  // Data for normalized scatter plots (deviation from day-of-week average vs weather)
+  const normalizedScatterTempRevenueData = normalizedData.map((d) => ({
     avgRating: d.temperature,
-    value: d.revenue,
-    date: format(new Date(d.date), "d MMM yyyy", { locale: fr }),
+    value: d.revenueDeviation,
+    date: `${dayNames[d.dayOfWeek]} ${format(new Date(d.date), "d MMM yyyy", { locale: fr })}`,
   }));
 
-  const scatterPrecipOrdersData = correlationData.map((d) => ({
+  const normalizedScatterPrecipOrdersData = normalizedData.map((d) => ({
     avgRating: d.precipitation,
-    value: d.orders,
-    date: format(new Date(d.date), "d MMM yyyy", { locale: fr }),
+    value: d.ordersDeviation,
+    date: `${dayNames[d.dayOfWeek]} ${format(new Date(d.date), "d MMM yyyy", { locale: fr })}`,
   }));
+
+  // Arrays for KPI calculation (normalized)
+  const temperatures = normalizedData.map((d) => d.temperature);
+  const precipitations = normalizedData.map((d) => d.precipitation);
+  const revenueDeviations = normalizedData.map((d) => d.revenueDeviation);
+  const ordersDeviations = normalizedData.map((d) => d.ordersDeviation);
 
   // Weather stats
   const weatherStats = useMemo(() => {
     if (correlationData.length === 0) return null;
 
-    const avgTemp = correlationData.reduce((sum, d) => sum + d.temperature, 0) / correlationData.length;
-    const totalPrecip = correlationData.reduce((sum, d) => sum + d.precipitation, 0);
-    const rainyDays = correlationData.filter((d) => d.precipitation > 1).length;
+    let sumTemp = 0;
+    let sumPrecip = 0;
+    let rainyDays = 0;
+    
+    for (const d of correlationData) {
+      sumTemp += d.temperature;
+      sumPrecip += d.precipitation;
+      if (d.precipitation > 1) rainyDays++;
+    }
+    
+    const avgTemp = sumTemp / correlationData.length;
+    const totalPrecip = sumPrecip;
 
     // Group by temperature ranges
     const coldDays = correlationData.filter((d) => d.temperature < 10);
@@ -224,10 +270,10 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
     );
   }
 
-  if (correlationData.length < 3) {
+  if (correlationData.length < 7) {
     return (
       <div className="flex flex-col items-center justify-center h-[300px] gap-4">
-        <p className="text-muted-foreground">Pas assez de données pour la corrélation (min. 3 jours)</p>
+        <p className="text-muted-foreground">Pas assez de données pour la corrélation normalisée (min. 7 jours)</p>
         <Button onClick={handleSyncWeather} disabled={syncWeather.isPending} variant="outline">
           <RefreshCw className={`h-4 w-4 mr-2 ${syncWeather.isPending ? "animate-spin" : ""}`} />
           Rafraîchir
@@ -239,8 +285,8 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
   return (
     <div className="space-y-6">
       {/* Weather Summary */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-4 flex-wrap">
           {weatherStats && (
             <>
               <Badge variant="secondary" className="gap-1">
@@ -260,14 +306,72 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
         </Button>
       </div>
 
-      {/* KPI Cards */}
+      {/* Explanation Card */}
+      <Card className="bg-primary/5 border-primary/20">
+        <CardContent className="py-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-full bg-primary/10">
+              <TrendingUp className="h-4 w-4 text-primary" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Analyse normalisée par jour de semaine</p>
+              <p className="text-xs text-muted-foreground">
+                Pour isoler l'impact réel de la météo, nous comparons chaque jour à sa moyenne habituelle 
+                (ex: dimanche vs moyenne des dimanches). Les graphiques montrent l'<strong>écart en %</strong> par rapport 
+                à cette normale, corrélé avec la température et les précipitations.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* KPI Cards - Using normalized deviations */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <CorrelationKPI ratings={temperatures} values={revenues} label="CA" xLabel="Température (°C)" />
-        <CorrelationKPI ratings={precipitations} values={orders} label="Commandes" xLabel="Précipitations (mm)" />
+        <CorrelationKPI 
+          ratings={temperatures} 
+          values={revenueDeviations} 
+          label="Écart CA %" 
+          xLabel="Température (°C)" 
+        />
+        <CorrelationKPI 
+          ratings={precipitations} 
+          values={ordersDeviations} 
+          label="Écart Cmd %" 
+          xLabel="Précipitations (mm)" 
+        />
       </div>
 
-      {/* Combined Chart */}
+      {/* Combined Chart (raw data for visualization) */}
       <WeatherOverlayChart data={correlationData} />
+
+      {/* Day-of-week averages */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">Moyennes par jour de semaine (base de normalisation)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-7 gap-2">
+            {[1, 2, 3, 4, 5, 6, 0].map((dayIndex) => {
+              const dayAvg = dayOfWeekAverages.get(dayIndex);
+              const dayName = dayNames[dayIndex].slice(0, 3);
+              return (
+                <div key={dayIndex} className="text-center p-2 rounded-lg bg-muted/50">
+                  <div className="text-xs font-medium text-muted-foreground mb-1">{dayName}</div>
+                  {dayAvg ? (
+                    <>
+                      <div className="text-sm font-semibold">{dayAvg.avgRevenue.toFixed(0)}€</div>
+                      <div className="text-xs text-muted-foreground">{dayAvg.avgOrders.toFixed(0)} cmd</div>
+                      <div className="text-xs text-muted-foreground/70">({dayAvg.count}j)</div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">-</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Temperature breakdown */}
       {weatherStats && (
@@ -300,21 +404,21 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
         </Card>
       )}
 
-      {/* Scatter Plots */}
+      {/* Scatter Plots - Normalized */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <CorrelationScatterPlot
-          data={scatterTempRevenueData}
-          valueLabel="CA (€)"
-          valueFormatter={(v) => `${(v / 1000).toFixed(1)}k€`}
+          data={normalizedScatterTempRevenueData}
+          valueLabel="Écart CA (%)"
+          valueFormatter={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
           xLabel="Température (°C)"
-          title="Dispersion Température / CA"
+          title="Température vs Écart CA (normalisé)"
         />
         <CorrelationScatterPlot
-          data={scatterPrecipOrdersData}
-          valueLabel="Commandes"
-          valueFormatter={(v) => v.toString()}
+          data={normalizedScatterPrecipOrdersData}
+          valueLabel="Écart Commandes (%)"
+          valueFormatter={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
           xLabel="Précipitations (mm)"
-          title="Dispersion Précipitations / Commandes"
+          title="Précipitations vs Écart Commandes (normalisé)"
         />
       </div>
     </div>
