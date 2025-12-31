@@ -4,9 +4,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReviewsOverview } from "@/components/reviews/ReviewsOverview";
 import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
 import { ReviewsMenuItems } from "@/components/reviews/ReviewsMenuItems";
+import { ReviewsCorrelation } from "@/components/reviews/ReviewsCorrelation";
 import { useCustomerReviews, useMenuItemReviews } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { Eye, Users, ChefHat } from "lucide-react";
+import { Eye, Users, ChefHat, TrendingUp } from "lucide-react";
 
 export default function Reviews() {
   const {
@@ -89,7 +90,7 @@ export default function Reviews() {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className="grid w-full max-w-lg grid-cols-4">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Eye className="h-4 w-4" />
             Aperçu
@@ -100,7 +101,11 @@ export default function Reviews() {
           </TabsTrigger>
           <TabsTrigger value="menu" className="flex items-center gap-2">
             <ChefHat className="h-4 w-4" />
-            Plats du Menu
+            Plats
+          </TabsTrigger>
+          <TabsTrigger value="correlation" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Corrélation
           </TabsTrigger>
         </TabsList>
 
@@ -117,6 +122,14 @@ export default function Reviews() {
 
         <TabsContent value="menu" className="mt-6">
           <ReviewsMenuItems reviews={menuItemReviews || []} />
+        </TabsContent>
+
+        <TabsContent value="correlation" className="mt-6">
+          <ReviewsCorrelation 
+            reviews={customerReviews || []} 
+            startDate={startDate}
+            endDate={endDate}
+          />
         </TabsContent>
       </Tabs>
     </div>
