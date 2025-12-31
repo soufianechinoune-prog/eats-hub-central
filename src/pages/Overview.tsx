@@ -1,12 +1,12 @@
 import { useState, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import type { DateRange } from "react-day-picker";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Star, Clock, TrendingDown, Percent, DollarSign, PauseCircle, Award, Euro, FileDown, FileSpreadsheet, ChevronRight, Users } from "lucide-react";
+import { Star, Clock, TrendingDown, Percent, DollarSign, PauseCircle, Award, Euro, FileDown, FileSpreadsheet, ChevronRight, Users, RefreshCw, Bug } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 
+// Build timestamp for cache verification
+const BUILD_TIMESTAMP = new Date().toISOString();
 // Formater les minutes en "X min Y s" (ex: 4.5 → "4 min 30 s")
 const formatMinutesToTime = (minutes: number | null | undefined): string | null => {
   if (minutes == null || isNaN(minutes)) return null;
@@ -41,8 +43,10 @@ const Overview = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [rankingTab, setRankingTab] = useState<"rating" | "revenue" | "profitability" | "conversion">("rating");
+  const [showDebug, setShowDebug] = useState(false);
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
   const { exportToPdf, exportToExcel, isExporting } = useOverviewExport();
 
   const isCustomPeriod = periodMode !== defaultPeriodMode;
@@ -145,6 +149,7 @@ const Overview = () => {
           topByRating: [], flopByRating: [], topByRevenue: [], flopByRevenue: [], topByProfitability: [], flopByProfitability: [],
           topByConversion: [], flopByConversion: [],
           topProducts: [], improvementProducts: [], totalRestaurants: 0, hasData: false,
+          debugInfo: { periodMode, startDateStr, endDateStr, pinnedRestaurants: 0, salesRowsTotal: 0, reviewsRowsTotal: 0, salesByRestaurant: [], reviewsByRestaurant: [], buildTimestamp: BUILD_TIMESTAMP },
         };
       }
 
@@ -169,7 +174,10 @@ const Overview = () => {
           .gte("date", startDateStr)
           .lte("date", endDateStr)
           .in("restaurant_id", restaurantIds)
+          // Deterministic multi-column sort to avoid pagination instability
           .order("date", { ascending: true })
+          .order("restaurant_id", { ascending: true })
+          .order("platform", { ascending: true })
           .range(salesOffset, salesOffset + PAGE_SIZE - 1);
 
         if (salesError) {
@@ -199,17 +207,44 @@ const Overview = () => {
       if (payoutsError) console.error("Error fetching payouts:", payoutsError);
       console.log("Payouts data:", payoutsData?.length, "rows");
 
-      // 2. Fetch customer reviews - use review_date field
-      const { data: reviewsData, error: reviewsError } = await supabase
-        .from("customer_reviews")
-        .select("restaurant_id, overall_rating, review_date, platform")
-        .gte("review_date", startDate.toISOString())
-        .lte("review_date", endDate.toISOString())
-        .in("restaurant_id", restaurantIds)
-        .range(0, 10000);
+      // 2. Fetch customer reviews - use review_date field with pagination
+      let reviewsData: Array<{
+        restaurant_id: string;
+        overall_rating: number | null;
+        review_date: string | null;
+        platform: string | null;
+      }> = [];
+      let reviewsOffset = 0;
+      let reviewsHasMore = true;
 
-      if (reviewsError) console.error("Error fetching reviews:", reviewsError);
-      console.log("Reviews data:", reviewsData?.length, "rows");
+      while (reviewsHasMore) {
+        const { data: reviewsPage, error: reviewsError } = await supabase
+          .from("customer_reviews")
+          .select("restaurant_id, overall_rating, review_date, platform")
+          .gte("review_date", startDateStr)
+          .lte("review_date", endDateStr)
+          .in("restaurant_id", restaurantIds)
+          // Deterministic multi-column sort for stable pagination
+          .order("review_date", { ascending: true })
+          .order("restaurant_id", { ascending: true })
+          .order("id", { ascending: true })
+          .range(reviewsOffset, reviewsOffset + PAGE_SIZE - 1);
+
+        if (reviewsError) {
+          console.error("Error fetching reviews:", reviewsError);
+          break;
+        }
+
+        if (reviewsPage && reviewsPage.length > 0) {
+          reviewsData = [...reviewsData, ...reviewsPage];
+          reviewsOffset += PAGE_SIZE;
+          reviewsHasMore = reviewsPage.length === PAGE_SIZE;
+        } else {
+          reviewsHasMore = false;
+        }
+      }
+
+      console.log("Reviews data (paginated):", reviewsData.length, "rows");
 
       // 3. Fetch order history for prep times - use order_datetime field
       const { data: orderHistoryData, error: historyError } = await supabase
@@ -335,34 +370,52 @@ const Overview = () => {
 
         const revenue = restoSales.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0);
         const orders = restoSales.reduce((sum, d) => sum + Number(d.order_count || 0), 0);
+        // Use null when no reviews exist (not 0, to avoid confusion)
         const rating = restoReviews.length > 0
           ? restoReviews.reduce((sum, r) => sum + Number(r.overall_rating || 0), 0) / restoReviews.length
-          : 0;
+          : null;
         const validPrep = restoHistory.filter(h => h.initial_prep_time_minutes != null);
         const prepTime = validPrep.length > 0
           ? validPrep.reduce((sum, h) => sum + Number(h.initial_prep_time_minutes || 0), 0) / validPrep.length
-          : 0;
-        const restoErrorRate = orders > 0 ? (restoErrors.length / orders) * 100 : 0;
+          : null;
+        const restoErrorRate = orders > 0 ? (restoErrors.length / orders) * 100 : null;
         
         // Calculate profitability from payouts
         const restoPayoutSales = restoPayouts.reduce((sum, p) => sum + Number(p.sales_incl_vat || 0), 0);
         const restoNetPayout = restoPayouts.reduce((sum, p) => sum + Number(p.net_payout || 0), 0);
-        const profitability = restoPayoutSales > 0 ? (restoNetPayout / restoPayoutSales) * 100 : 0;
+        const profitability = restoPayoutSales > 0 ? (restoNetPayout / restoPayoutSales) * 100 : null;
 
         return {
           id: resto.id,
           name: resto.name,
           city: resto.city,
-          rating: parseFloat(rating.toFixed(1)),
-          prepTime: Math.round(prepTime),
-          errorRate: parseFloat(restoErrorRate.toFixed(1)),
+          rating: rating != null ? parseFloat(rating.toFixed(1)) : null,
+          reviewCount: restoReviews.length,
+          prepTime: prepTime != null ? Math.round(prepTime) : null,
+          errorRate: restoErrorRate != null ? parseFloat(restoErrorRate.toFixed(1)) : null,
           profitability,
           revenue,
+          salesRows: restoSales.length,
         };
       }) || [];
 
-      // Sort and get top/flop by different metrics
-      const sortedByRating = [...restaurantMetrics].sort((a, b) => b.rating - a.rating);
+      // Debug info for troubleshooting
+      const debugInfo = {
+        periodMode,
+        startDateStr,
+        endDateStr,
+        pinnedRestaurants: restaurants?.length || 0,
+        salesRowsTotal: dailySalesData.length,
+        reviewsRowsTotal: reviewsData.length,
+        salesByRestaurant: restaurantMetrics.map(r => ({ name: r.name, rows: r.salesRows, revenue: r.revenue })),
+        reviewsByRestaurant: restaurantMetrics.map(r => ({ name: r.name, count: r.reviewCount, rating: r.rating })),
+        buildTimestamp: BUILD_TIMESTAMP,
+      };
+      console.log("Debug info:", debugInfo);
+
+      // Sort and get top/flop by different metrics (filter out null values for ratings)
+      const withRatings = restaurantMetrics.filter(r => r.rating != null);
+      const sortedByRating = [...withRatings].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
       const topByRating = sortedByRating.slice(0, 5);
       const flopByRating = sortedByRating.slice(-5).reverse();
 
@@ -370,7 +423,8 @@ const Overview = () => {
       const topByRevenue = sortedByRevenue.slice(0, 5);
       const flopByRevenue = sortedByRevenue.slice(-5).reverse();
 
-      const sortedByProfitability = [...restaurantMetrics].sort((a, b) => b.profitability - a.profitability);
+      const withProfitability = restaurantMetrics.filter(r => r.profitability != null);
+      const sortedByProfitability = [...withProfitability].sort((a, b) => (b.profitability ?? 0) - (a.profitability ?? 0));
       const topByProfitability = sortedByProfitability.slice(0, 5);
       const flopByProfitability = sortedByProfitability.slice(-5).reverse();
 
@@ -457,6 +511,7 @@ const Overview = () => {
         improvementProducts: [],
         totalRestaurants: restaurants?.length || 0,
         hasData: (dailySalesData?.length || 0) > 0 || (reviewsData?.length || 0) > 0,
+        debugInfo,
       };
 
       console.log("Returning data:", result);
@@ -547,6 +602,26 @@ const Overview = () => {
         </div>
         <div className="flex items-center gap-3">
           <Button
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["network-health"] });
+              window.location.reload();
+            }}
+            variant="outline"
+            size="icon"
+            title="Forcer le rafraîchissement"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={() => setShowDebug(!showDebug)}
+            variant="outline"
+            size="icon"
+            title="Toggle debug panel"
+            className={showDebug ? "bg-amber-500/20" : ""}
+          >
+            <Bug className="h-4 w-4" />
+          </Button>
+          <Button
             onClick={handleExportPdf}
             disabled={isExporting}
             variant="outline"
@@ -589,6 +664,68 @@ const Overview = () => {
         </div>
       ) : (
         <div ref={contentRef}>
+          {/* Debug Panel */}
+          {showDebug && networkData?.debugInfo && (
+            <Card className="mb-6 border-amber-500/50 bg-amber-500/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2 text-amber-600">
+                  <Bug className="h-4 w-4" />
+                  Debug Panel — Build: {networkData.debugInfo.buildTimestamp}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs font-mono space-y-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <span className="text-muted-foreground">Period:</span>{" "}
+                    <span className="font-bold">{networkData.debugInfo.periodMode}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Start:</span>{" "}
+                    <span className="font-bold">{networkData.debugInfo.startDateStr}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">End:</span>{" "}
+                    <span className="font-bold">{networkData.debugInfo.endDateStr}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Pinned:</span>{" "}
+                    <span className="font-bold">{networkData.debugInfo.pinnedRestaurants}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-muted-foreground">Sales rows total:</span>{" "}
+                    <span className="font-bold text-emerald-600">{networkData.debugInfo.salesRowsTotal}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Reviews rows total:</span>{" "}
+                    <span className="font-bold text-blue-600">{networkData.debugInfo.reviewsRowsTotal}</span>
+                  </div>
+                </div>
+                <div className="border-t border-border/50 pt-2">
+                  <div className="text-muted-foreground mb-1">Sales by restaurant:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {networkData.debugInfo.salesByRestaurant?.map((r: any) => (
+                      <Badge key={r.name} variant="outline" className="text-xs">
+                        {r.name}: {r.rows} rows / {r.revenue.toLocaleString('fr-FR')} €
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t border-border/50 pt-2">
+                  <div className="text-muted-foreground mb-1">Reviews by restaurant:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {networkData.debugInfo.reviewsByRestaurant?.map((r: any) => (
+                      <Badge key={r.name} variant="outline" className="text-xs">
+                        {r.name}: {r.count} avis / {r.rating ?? "—"}★
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* KPIs Globaux - Priority Section with Modern Design */}
           <div className="grid gap-8 lg:grid-cols-3">
             {/* Global Card */}
@@ -728,7 +865,7 @@ const Overview = () => {
                             <TableCell className="text-right">
                               <span className="flex items-center justify-end gap-2 font-bold text-lg">
                                 <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                                {resto.rating}
+                                {resto.rating ?? "—"}
                               </span>
                             </TableCell>
                           </TableRow>
@@ -775,7 +912,7 @@ const Overview = () => {
                             <TableCell className="text-right">
                               <span className="flex items-center justify-end gap-2 font-bold text-lg text-red-600">
                                 <Star className="h-4 w-4 fill-red-400/50 text-red-400/50" />
-                                {resto.rating}
+                                {resto.rating ?? "—"}
                               </span>
                             </TableCell>
                           </TableRow>
@@ -920,8 +1057,8 @@ const Overview = () => {
                             <TableCell className="font-semibold group-hover:text-emerald-600 transition-colors">{resto.name}</TableCell>
                             <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
                             <TableCell className="text-right">
-                              <span className={cn("font-bold text-lg", resto.profitability > 55 ? "text-emerald-600 dark:text-emerald-400" : resto.profitability > 45 ? "text-amber-600 dark:text-amber-400" : "text-red-600")}>
-                                {resto.profitability}%
+                              <span className={cn("font-bold text-lg", (resto.profitability ?? 0) > 55 ? "text-emerald-600 dark:text-emerald-400" : (resto.profitability ?? 0) > 45 ? "text-amber-600 dark:text-amber-400" : "text-red-600")}>
+                                {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
                               </span>
                             </TableCell>
                           </TableRow>
@@ -967,7 +1104,7 @@ const Overview = () => {
                             <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
                             <TableCell className="text-right">
                               <span className="font-bold text-lg text-red-600">
-                                {resto.profitability}%
+                                {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
                               </span>
                             </TableCell>
                           </TableRow>
