@@ -15,7 +15,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChartContainer } from "@/components/ui/chart";
-import { Euro, ShoppingCart } from "lucide-react";
+import { Euro, ShoppingCart, BarChart3, TrendingUp } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface DataPoint {
   date: string;
@@ -30,6 +31,7 @@ interface RatingRevenueChartProps {
 
 export function RatingRevenueChart({ data }: RatingRevenueChartProps) {
   const [metric, setMetric] = useState<"revenue" | "orders">("revenue");
+  const [chartType, setChartType] = useState<"bar" | "line">("bar");
 
   const chartConfig = {
     avgRating: {
@@ -62,25 +64,40 @@ export function RatingRevenueChart({ data }: RatingRevenueChartProps) {
         <CardTitle className="text-base font-semibold">
           Évolution Notes & Performances
         </CardTitle>
-        <div className="flex gap-1">
-          <Button
-            variant={metric === "revenue" ? "default" : "outline"}
+        <div className="flex items-center gap-3">
+          <ToggleGroup
+            type="single"
+            value={chartType}
+            onValueChange={(value) => value && setChartType(value as "bar" | "line")}
             size="sm"
-            onClick={() => setMetric("revenue")}
-            className="h-8 gap-1.5"
           >
-            <Euro className="h-3.5 w-3.5" />
-            CA
-          </Button>
-          <Button
-            variant={metric === "orders" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setMetric("orders")}
-            className="h-8 gap-1.5"
-          >
-            <ShoppingCart className="h-3.5 w-3.5" />
-            Commandes
-          </Button>
+            <ToggleGroupItem value="bar" aria-label="Barres" className="h-8 w-8 p-0">
+              <BarChart3 className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="line" aria-label="Courbes" className="h-8 w-8 p-0">
+              <TrendingUp className="h-4 w-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <div className="flex gap-1">
+            <Button
+              variant={metric === "revenue" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMetric("revenue")}
+              className="h-8 gap-1.5"
+            >
+              <Euro className="h-3.5 w-3.5" />
+              CA
+            </Button>
+            <Button
+              variant={metric === "orders" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMetric("orders")}
+              className="h-8 gap-1.5"
+            >
+              <ShoppingCart className="h-3.5 w-3.5" />
+              Commandes
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -150,14 +167,27 @@ export function RatingRevenueChart({ data }: RatingRevenueChartProps) {
                 }}
               />
               <Legend />
-              <Bar
-                yAxisId="right"
-                dataKey={metric}
-                name={metric === "revenue" ? "CA (€)" : "Commandes"}
-                fill={metric === "revenue" ? "hsl(var(--chart-2))" : "hsl(var(--chart-3))"}
-                opacity={0.4}
-                radius={[4, 4, 0, 0]}
-              />
+              {chartType === "bar" ? (
+                <Bar
+                  yAxisId="right"
+                  dataKey={metric}
+                  name={metric === "revenue" ? "CA (€)" : "Commandes"}
+                  fill={metric === "revenue" ? "hsl(var(--chart-2))" : "hsl(var(--chart-3))"}
+                  opacity={0.4}
+                  radius={[4, 4, 0, 0]}
+                />
+              ) : (
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey={metric}
+                  name={metric === "revenue" ? "CA (€)" : "Commandes"}
+                  stroke={metric === "revenue" ? "hsl(var(--chart-2))" : "hsl(var(--chart-3))"}
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: metric === "revenue" ? "hsl(var(--chart-2))" : "hsl(var(--chart-3))" }}
+                  activeDot={{ r: 5 }}
+                />
+              )}
               <Line
                 yAxisId="left"
                 type="monotone"
