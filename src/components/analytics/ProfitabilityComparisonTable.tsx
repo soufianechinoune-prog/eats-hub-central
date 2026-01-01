@@ -209,7 +209,7 @@ export function ProfitabilityComparisonTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[140px]">Restaurant</TableHead>
+                <TableHead className="min-w-[200px]">Restaurant</TableHead>
                 <TableHead className="text-right">CA TTC</TableHead>
                 <TableHead className="text-right">
                   <TooltipProvider>
@@ -245,7 +245,7 @@ export function ProfitabilityComparisonTable({
                       {index === comparisonData.length - 1 && comparisonData.length > 1 && (
                         <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">BAS</Badge>
                       )}
-                      <span className="font-medium truncate max-w-[120px]">{row.restaurantName}</span>
+                      <span className="font-medium">{row.restaurantName}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {row.orderCount} cmd • Ø {formatCurrency(row.avgBasket)}
