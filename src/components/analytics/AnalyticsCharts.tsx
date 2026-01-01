@@ -50,6 +50,8 @@ import { ConversionRankingByStage } from "./ConversionRankingByStage";
 import { ConversionScatterPlot } from "./ConversionScatterPlot";
 import { RevenuePerVisitKPI } from "./RevenuePerVisitKPI";
 import { SelectedRestaurantsRankingChart } from "./SelectedRestaurantsRankingChart";
+import { PayoutDetailSheet } from "./PayoutDetailSheet";
+import { ProfitabilityComparisonTable } from "./ProfitabilityComparisonTable";
 import {
   LineChart,
   Line,
@@ -564,6 +566,10 @@ export function AnalyticsCharts({
   const [hiddenRevenueBars, setHiddenRevenueBars] = useState<Set<string>>(new Set());
   const [hiddenNetPayoutBars, setHiddenNetPayoutBars] = useState<Set<string>>(new Set());
   const [hiddenProfitBars, setHiddenProfitBars] = useState<Set<string>>(new Set());
+  
+  // State for payout detail sheet
+  const [selectedPayoutDate, setSelectedPayoutDate] = useState<string | null>(null);
+  const [payoutDetailOpen, setPayoutDetailOpen] = useState(false);
 
   const createToggle = (setter: React.Dispatch<React.SetStateAction<Set<string>>>) => (dataKey: string) => {
     setter(prev => {
@@ -1428,6 +1434,22 @@ export function AnalyticsCharts({
       onDrillDownChange(monthNum);
     }
   };
+
+  // Handler for clicking on a bar in drill-down mode to open detail sheet
+  const handleDrillDownBarClick = (data: any) => {
+    if (!drillDownMonth) return;
+    const dateStr = data?.activePayload?.[0]?.payload?.date;
+    if (dateStr) {
+      setSelectedPayoutDate(dateStr);
+      setPayoutDetailOpen(true);
+    }
+  };
+  
+  // Get payouts for selected date
+  const selectedDatePayouts = useMemo(() => {
+    if (!selectedPayoutDate || !dailyPayoutsData) return [];
+    return dailyPayoutsData.filter((p: any) => p.payout_date === selectedPayoutDate);
+  }, [selectedPayoutDate, dailyPayoutsData]);
 
   // Profitability data - use payouts when available
   const profitabilityData = useMemo(() => {
@@ -3248,8 +3270,8 @@ export function AnalyticsCharts({
             <ResponsiveContainer width="100%" height="100%">
               <BarChart 
                 data={drillDownMonth ? drillDownFeesData : effectiveFeesData}
-                onClick={drillDownMonth ? undefined : handleFinancesBarClick}
-                style={{ cursor: drillDownMonth ? 'default' : 'pointer' }}
+                onClick={drillDownMonth ? handleDrillDownBarClick : handleFinancesBarClick}
+                style={{ cursor: 'pointer' }}
               >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey={drillDownMonth ? "label" : "month"} className="text-xs" />
@@ -3376,8 +3398,8 @@ export function AnalyticsCharts({
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart 
                 data={drillDownMonth ? drillDownFeesData : effectiveFeesData}
-                onClick={drillDownMonth ? undefined : handleFinancesBarClick}
-                style={{ cursor: drillDownMonth ? 'default' : 'pointer' }}
+                onClick={drillDownMonth ? handleDrillDownBarClick : handleFinancesBarClick}
+                style={{ cursor: 'pointer' }}
               >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey={drillDownMonth ? "label" : "month"} className="text-xs" />
@@ -3507,8 +3529,8 @@ export function AnalyticsCharts({
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart 
                 data={drillDownMonth ? drillDownProfitabilityData : profitabilityData}
-                onClick={drillDownMonth ? undefined : handleFinancesBarClick}
-                style={{ cursor: drillDownMonth ? 'default' : 'pointer' }}
+                onClick={drillDownMonth ? handleDrillDownBarClick : handleFinancesBarClick}
+                style={{ cursor: 'pointer' }}
               >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
@@ -3592,6 +3614,23 @@ export function AnalyticsCharts({
           </div>
         </CardContent>
       </Card>
+      )}
+      
+      {/* Payout Detail Sheet */}
+      <PayoutDetailSheet
+        open={payoutDetailOpen}
+        onOpenChange={setPayoutDetailOpen}
+        selectedDate={selectedPayoutDate}
+        payouts={selectedDatePayouts}
+        restaurants={restaurants}
+      />
+      
+      {/* Profitability Comparison Table - shown in drill-down mode */}
+      {showFinances && drillDownMonth && dailyPayoutsData && dailyPayoutsData.length > 1 && (
+        <ProfitabilityComparisonTable
+          payouts={dailyPayoutsData}
+          restaurants={restaurants}
+        />
       )}
     </div>
   );
