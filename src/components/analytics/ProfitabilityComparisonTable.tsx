@@ -34,6 +34,9 @@ interface PayoutData {
   sales_incl_vat: number;
   net_payout: number;
   uber_fee_after_promo_incl_vat: number;
+  uber_fee_before_promo_excl_vat?: number;
+  uber_fee_promo_excl_vat?: number;
+  vat_uber_fee?: number;
   item_promo_incl_vat: number;
   refund_incl_vat: number;
   other_payments_incl_vat: number;
@@ -41,9 +44,15 @@ interface PayoutData {
   order_count: number;
 }
 
+interface RestaurantData {
+  id: string;
+  name: string;
+  uber_commission_rate?: number | null;
+}
+
 interface ProfitabilityComparisonTableProps {
   payouts: PayoutData[];
-  restaurants: { id: string; name: string }[];
+  restaurants: RestaurantData[];
 }
 
 // Helper to format percentage
@@ -63,7 +72,13 @@ interface ComparisonRow {
   sales: number;
   netPayout: number;
   profitability: number;
-  uberFeeRate: number;
+  // Commission breakdown
+  uberFeeGross: number;      // Commission brute (avant promo)
+  uberFeeReduction: number;  // Réduction Uber
+  uberFeeNet: number;        // Commission nette (après promo)
+  uberFeeRate: number;       // Taux net en %
+  uberFeeGrossRate: number;  // Taux brut en %
+  contractRate: number | null; // Taux contractuel
   promoRate: number;
   refundRate: number;
   otherRate: number;
@@ -79,13 +94,23 @@ export function ProfitabilityComparisonTable({
   const getRestaurantName = (id: string) => {
     return restaurants.find(r => r.id === id)?.name || id.slice(0, 8);
   };
+
+  const getContractRate = (id: string) => {
+    return restaurants.find(r => r.id === id)?.uber_commission_rate ?? null;
+  };
   
   // Transform payouts into comparison rows
   const comparisonData = useMemo(() => {
     return payouts.map((payout): ComparisonRow => {
       const sales = Math.abs(Number(payout.sales_incl_vat) || 0);
       const netPayout = Number(payout.net_payout) || 0;
-      const uberFee = Math.abs(Number(payout.uber_fee_after_promo_incl_vat) || 0);
+      const uberFeeNet = Math.abs(Number(payout.uber_fee_after_promo_incl_vat) || 0);
+      const uberFeeGrossHT = Math.abs(Number(payout.uber_fee_before_promo_excl_vat) || 0);
+      const uberFeeReductionHT = Math.abs(Number(payout.uber_fee_promo_excl_vat) || 0);
+      const vatUberFee = Math.abs(Number(payout.vat_uber_fee) || 0);
+      // Calculer brut TTC = brut HT + TVA proportionnelle
+      const uberFeeGross = uberFeeGrossHT > 0 ? uberFeeGrossHT + (vatUberFee * (uberFeeGrossHT / (uberFeeGrossHT - uberFeeReductionHT || 1))) : uberFeeNet;
+      const uberFeeReduction = uberFeeReductionHT > 0 ? uberFeeReductionHT * 1.2 : 0; // Approximation TVA 20%
       const promos = Math.abs(Number(payout.item_promo_incl_vat) || 0);
       const refunds = Math.abs(Number(payout.refund_incl_vat) || 0);
       const other = Math.abs(Number(payout.other_payments_incl_vat) || 0);
@@ -99,7 +124,12 @@ export function ProfitabilityComparisonTable({
         sales,
         netPayout,
         profitability: sales > 0 ? (netPayout / sales) * 100 : 0,
-        uberFeeRate: sales > 0 ? (uberFee / sales) * 100 : 0,
+        uberFeeGross,
+        uberFeeReduction,
+        uberFeeNet,
+        uberFeeRate: sales > 0 ? (uberFeeNet / sales) * 100 : 0,
+        uberFeeGrossRate: sales > 0 ? (uberFeeGross / sales) * 100 : 0,
+        contractRate: getContractRate(payout.restaurant_id),
         promoRate: sales > 0 ? (promos / sales) * 100 : 0,
         refundRate: sales > 0 ? (refunds / sales) * 100 : 0,
         otherRate: sales > 0 ? (other / sales) * 100 : 0,
@@ -242,7 +272,27 @@ export function ProfitabilityComparisonTable({
                     </Tooltip>
                   </TooltipProvider>
                 </TableHead>
-                <TableHead className="text-right text-orange-600">Commission</TableHead>
+                <TableHead className="text-right text-orange-600">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                        Commission
+                        <HelpCircle className="h-3 w-3" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <div className="text-xs space-y-1">
+                          <p className="font-medium">Frais Uber après promotions (TTC)</p>
+                          <p className="text-muted-foreground">
+                            Comprend les frais de service Uber Eats après déduction des réductions de commission accordées par Uber.
+                          </p>
+                          <p className="text-muted-foreground mt-1">
+                            Cliquez sur une ligne pour voir la décomposition : commission brute → réductions → commission nette.
+                          </p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableHead>
                 <TableHead className="text-right text-pink-600">Promos</TableHead>
                 <TableHead className="text-right text-red-600">Remb.</TableHead>
                 <TableHead className="text-right">Versement</TableHead>
@@ -289,13 +339,71 @@ export function ProfitabilityComparisonTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {averages && (
-                      <ComparisonCell 
-                        value={row.uberFeeRate} 
-                        average={averages.uberFeeRate} 
-                        inverse 
-                      />
-                    )}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="cursor-help">
+                            {averages && (
+                              <ComparisonCell 
+                                value={row.uberFeeRate} 
+                                average={averages.uberFeeRate} 
+                                inverse 
+                              />
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs p-3">
+                          <div className="text-xs space-y-2">
+                            <p className="font-medium text-foreground">Décomposition Commission</p>
+                            <div className="space-y-1.5 text-muted-foreground">
+                              <div className="flex justify-between gap-4">
+                                <span>Commission brute</span>
+                                <span className="font-medium text-foreground tabular-nums">
+                                  {formatCurrency(row.uberFeeGross)} ({row.uberFeeGrossRate.toFixed(1)}%)
+                                </span>
+                              </div>
+                              {row.uberFeeReduction > 0 && (
+                                <div className="flex justify-between gap-4 text-green-600">
+                                  <span>Réduction Uber</span>
+                                  <span className="font-medium tabular-nums">
+                                    -{formatCurrency(row.uberFeeReduction)}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex justify-between gap-4 border-t border-border pt-1">
+                                <span className="font-medium text-foreground">Commission nette</span>
+                                <span className="font-medium text-orange-600 tabular-nums">
+                                  {formatCurrency(row.uberFeeNet)} ({row.uberFeeRate.toFixed(1)}%)
+                                </span>
+                              </div>
+                            </div>
+                            {row.contractRate !== null && (
+                              <div className="mt-2 pt-2 border-t border-border">
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-muted-foreground">Taux contractuel</span>
+                                  <span className="font-medium tabular-nums">{row.contractRate}%</span>
+                                </div>
+                                <div className="flex justify-between gap-4 mt-1">
+                                  <span className="text-muted-foreground">Taux réel observé</span>
+                                  <span className={cn(
+                                    "font-medium tabular-nums",
+                                    row.uberFeeRate < row.contractRate ? "text-green-600" : 
+                                    row.uberFeeRate > row.contractRate + 1 ? "text-red-600" : "text-foreground"
+                                  )}>
+                                    {row.uberFeeRate.toFixed(1)}%
+                                  </span>
+                                </div>
+                                {row.uberFeeRate < row.contractRate && (
+                                  <p className="text-green-600 mt-1 text-[10px]">
+                                    ✓ {(row.contractRate - row.uberFeeRate).toFixed(1)} pts sous le contrat
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                   <TableCell className="text-right">
                     {averages && (

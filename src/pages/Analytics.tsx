@@ -221,11 +221,11 @@ export default function Analytics() {
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
-    queryKey: ["restaurants_with_postal"],
+    queryKey: ["restaurants_with_commission"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, city, postal_code, is_pinned")
+        .select("id, name, city, postal_code, is_pinned, uber_commission_rate")
         .order("name");
       if (error) throw error;
       return data || [];
