@@ -2718,7 +2718,9 @@ export type Database = {
       get_monthly_payouts_detail: {
         Args: { p_month: number; p_restaurant_ids?: string[]; p_year: number }
         Returns: {
+          delivery_promo_excl_vat: number
           delivery_promo_incl_vat: number
+          item_promo_excl_vat: number
           item_promo_incl_vat: number
           marketing_fee_adjustment: number
           meal_voucher_amount: number
@@ -2726,6 +2728,8 @@ export type Database = {
           order_count: number
           other_payments_incl_vat: number
           payout_date: string
+          price_adjustment_excl_vat: number
+          price_adjustment_incl_vat: number
           refund_excl_vat: number
           refund_incl_vat: number
           restaurant_id: string
@@ -2736,6 +2740,7 @@ export type Database = {
           uber_fee_after_promo_incl_vat: number
           uber_fee_before_promo_excl_vat: number
           uber_fee_promo_excl_vat: number
+          vat_refund: number
           vat_uber_fee: number
         }[]
       }
