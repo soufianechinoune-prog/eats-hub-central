@@ -46,6 +46,7 @@ interface PayoutData {
   other_payments_incl_vat: number;
   marketing_fee_adjustment: number;
   order_count: number;
+  meal_voucher_amount?: number;
 }
 
 interface RestaurantData {
@@ -139,6 +140,10 @@ export function ProfitabilityComparisonTable({
       const baseHT = salesHT + refundHT; // Si refund est négatif, on le soustrait; si positif, on l'ajoute
       const uberFeeRateHT = baseHT > 0 ? (uberFeeHT / baseHT) * 100 : 0;
       
+      // Rentabilité = (Versement Uber + Titres restaurant) / CA TTC
+      const mealVoucher = Math.abs(Number(payout.meal_voucher_amount) || 0);
+      const totalToReceive = netPayout + mealVoucher;
+      
       return {
         label: payout.payout_date,
         date: payout.payout_date,
@@ -146,7 +151,7 @@ export function ProfitabilityComparisonTable({
         restaurantName: getRestaurantName(payout.restaurant_id),
         sales,
         netPayout,
-        profitability: sales > 0 ? (netPayout / sales) * 100 : 0,
+        profitability: sales > 0 ? (totalToReceive / sales) * 100 : 0,
         uberFeeGross,
         uberFeeReduction,
         uberFeeNet,
@@ -289,8 +294,8 @@ export function ProfitabilityComparisonTable({
                         Rentabilité
                         <HelpCircle className="h-3 w-3" />
                       </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="text-xs">Versement Net / CA TTC × 100</p>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-xs">Total à encaisser (Versement Uber + Titres restaurant) / CA TTC × 100</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
