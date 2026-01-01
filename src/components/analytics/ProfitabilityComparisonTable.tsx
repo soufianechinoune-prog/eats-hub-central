@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, getWeek, getYear, startOfWeek, endOfWeek } from "date-fns";
+import { format, getWeek, getMonth, getYear, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
@@ -112,7 +112,25 @@ interface WeekGroup {
   restaurants: ComparisonRow[];
 }
 
-type ViewMode = 'profitability' | 'week';
+interface MonthGroup {
+  monthKey: string;
+  monthLabel: string;
+  monthNumber: number;
+  year: number;
+  rows: ComparisonRow[];
+  totalSales: number;
+  totalPayout: number;
+  avgProfitability: number;
+  avgUberFeeRate: number;
+  avgPromoRate: number;
+  avgRefundRate: number;
+  totalUberFee: number;
+  totalPromo: number;
+  totalRefund: number;
+  totalOrders: number;
+}
+
+type ViewMode = 'profitability' | 'week' | 'month';
 
 export function ProfitabilityComparisonTable({ 
   payouts, 
@@ -234,6 +252,69 @@ export function ProfitabilityComparisonTable({
       }));
   }, [comparisonData]);
   
+  // Group by month for month view mode
+  const monthGroups = useMemo((): MonthGroup[] => {
+    const groups: Record<string, { rows: ComparisonRow[]; monthNumber: number; year: number }> = {};
+    
+    comparisonData.forEach(row => {
+      const payoutDate = new Date(row.date);
+      const monthNum = getMonth(payoutDate);
+      const yearNum = getYear(payoutDate);
+      const key = `${yearNum}-${monthNum}`;
+      
+      if (!groups[key]) {
+        groups[key] = {
+          rows: [],
+          monthNumber: monthNum,
+          year: yearNum,
+        };
+      }
+      groups[key].rows.push(row);
+    });
+    
+    return Object.entries(groups)
+      .map(([key, { rows, monthNumber, year }]) => {
+        const totalSales = rows.reduce((sum, r) => sum + r.sales, 0);
+        const totalPayout = rows.reduce((sum, r) => sum + r.netPayout, 0);
+        const totalUberFee = rows.reduce((sum, r) => sum + r.uberFeeNet, 0);
+        const totalPromo = rows.reduce((sum, r) => sum + r.promoAmount, 0);
+        const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
+        const totalOrders = rows.reduce((sum, r) => sum + r.orderCount, 0);
+        
+        // Calculate rates based on total sales
+        const avgUberFeeRate = totalSales > 0 ? (totalUberFee / totalSales) * 100 : 0;
+        const avgPromoRate = totalSales > 0 ? (totalPromo / totalSales) * 100 : 0;
+        const avgRefundRate = totalSales > 0 ? (totalRefund / totalSales) * 100 : 0;
+        const avgProfitability = totalSales > 0 ? (totalPayout / totalSales) * 100 : 0;
+        
+        // Create month label
+        const monthDate = new Date(year, monthNumber, 1);
+        const monthLabel = format(monthDate, "MMMM yyyy", { locale: fr });
+        
+        return {
+          monthKey: key,
+          monthLabel: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
+          monthNumber,
+          year,
+          rows: rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+          totalSales,
+          totalPayout,
+          avgProfitability,
+          avgUberFeeRate,
+          avgPromoRate,
+          avgRefundRate,
+          totalUberFee,
+          totalPromo,
+          totalRefund,
+          totalOrders,
+        };
+      })
+      .sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        return b.monthNumber - a.monthNumber;
+      });
+  }, [comparisonData]);
+  
   // Calculate averages for comparison
   const averages = useMemo(() => {
     if (comparisonData.length === 0) return null;
@@ -342,31 +423,36 @@ export function ProfitabilityComparisonTable({
             </Button>
             
             {/* Separator */}
-            {hasMultipleRestaurants && <div className="w-px bg-border mx-1" />}
+            <div className="w-px bg-border mx-1" />
             
-            {/* View mode toggle - only show if multiple restaurants */}
-            {hasMultipleRestaurants && (
-              <>
-                <Button
-                  variant={viewMode === 'profitability' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('profitability')}
-                  className="h-7 text-xs gap-1.5"
-                >
-                  <LayoutList className="h-3.5 w-3.5" />
-                  Par rentabilité
-                </Button>
-                <Button
-                  variant={viewMode === 'week' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('week')}
-                  className="h-7 text-xs gap-1.5"
-                >
-                  <Layers className="h-3.5 w-3.5" />
-                  Par semaine
-                </Button>
-              </>
-            )}
+            {/* View mode toggle - always show */}
+            <Button
+              variant={viewMode === 'profitability' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('profitability')}
+              className="h-7 text-xs gap-1.5"
+            >
+              <LayoutList className="h-3.5 w-3.5" />
+              Rentabilité
+            </Button>
+            <Button
+              variant={viewMode === 'week' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('week')}
+              className="h-7 text-xs gap-1.5"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Semaine
+            </Button>
+            <Button
+              variant={viewMode === 'month' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('month')}
+              className="h-7 text-xs gap-1.5"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              Mois
+            </Button>
           </div>
         </div>
         
@@ -437,7 +523,7 @@ export function ProfitabilityComparisonTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {viewMode === 'profitability' ? (
+              {viewMode === 'profitability' && (
                 // Standard profitability view
                 <>
                   {comparisonData.map((row, index) => (
@@ -522,7 +608,9 @@ export function ProfitabilityComparisonTable({
                     </TableRow>
                   )}
                 </>
-              ) : (
+              )}
+              
+              {viewMode === 'week' && (
                 // Week grouped view
                 <>
                   {weekGroups.map((group) => {
@@ -553,7 +641,7 @@ export function ProfitabilityComparisonTable({
                         {/* Restaurant rows within the week */}
                         {group.restaurants.map((row, idx) => (
                           <TableRow 
-                            key={`${group.weekKey}-${row.restaurantId}`}
+                            key={`${group.weekKey}-${row.restaurantId}-${row.date}`}
                             className={cn(
                               "cursor-pointer hover:bg-muted/50 transition-colors",
                               idx === 0 && hasGap && "bg-green-500/5 hover:bg-green-500/10",
@@ -565,7 +653,12 @@ export function ProfitabilityComparisonTable({
                               <div className="flex items-center gap-2">
                                 {idx === 0 && hasGap && <Badge variant="outline" className="text-green-600 border-green-600 text-[10px] px-1">+</Badge>}
                                 {idx === group.restaurants.length - 1 && hasGap && <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">−</Badge>}
-                                <span className="font-medium">{row.restaurantName}</span>
+                                <span className="font-medium">
+                                  {isSingleRestaurant 
+                                    ? format(new Date(row.date), "d MMMM", { locale: fr })
+                                    : row.restaurantName
+                                  }
+                                </span>
                               </div>
                               <div className="text-xs text-muted-foreground pl-0">
                                 {row.orderCount} cmd • Ø {formatCurrency(row.avgBasket)}
@@ -632,6 +725,89 @@ export function ProfitabilityComparisonTable({
                       </>
                     );
                   })}
+                </>
+              )}
+              
+              {viewMode === 'month' && (
+                // Month grouped view
+                <>
+                  {monthGroups.map((group, groupIndex) => (
+                    <TableRow 
+                      key={group.monthKey}
+                      className={cn(
+                        "hover:bg-muted/50 transition-colors",
+                        groupIndex === 0 && monthGroups.length > 1 && "bg-green-500/5 hover:bg-green-500/10",
+                        groupIndex === monthGroups.length - 1 && monthGroups.length > 1 && "bg-red-500/5 hover:bg-red-500/10"
+                      )}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {groupIndex === 0 && monthGroups.length > 1 && (
+                            <Badge variant="outline" className="text-green-600 border-green-600 text-[10px] px-1">TOP</Badge>
+                          )}
+                          {groupIndex === monthGroups.length - 1 && monthGroups.length > 1 && (
+                            <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">BAS</Badge>
+                          )}
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{group.monthLabel}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {group.rows.length} versement{group.rows.length > 1 ? 's' : ''} • {group.totalOrders} cmd • Ø {group.totalOrders > 0 ? formatCurrency(group.totalSales / group.totalOrders) : '0 €'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {formatCurrency(group.totalSales)}
+                      </TableCell>
+                      <TableCell className="text-right text-green-600">
+                        <span className="font-medium tabular-nums">{group.avgProfitability.toFixed(1)}%</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <ComparisonCell percentValue={group.avgUberFeeRate} amountValue={group.totalUberFee} isCommission />
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        <ComparisonCell percentValue={group.avgPromoRate} amountValue={group.totalPromo} />
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        <ComparisonCell percentValue={group.avgRefundRate} amountValue={group.totalRefund} />
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-green-600 tabular-nums">
+                        {formatCurrency(group.totalPayout)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  
+                  {/* Total row for months */}
+                  {monthGroups.length > 1 && (
+                    <TableRow className="bg-muted/50 font-medium">
+                      <TableCell colSpan={2} className="text-muted-foreground">
+                        Total
+                      </TableCell>
+                      <TableCell className="text-right text-green-600 tabular-nums">
+                        {averages?.profitability.toFixed(1)}%
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {displayMode === 'amount' 
+                          ? formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalUberFee, 0))
+                          : `${averages?.uberFeeRate.toFixed(1)}%`
+                        }
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {displayMode === 'amount' 
+                          ? formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalPromo, 0))
+                          : `${averages?.promoRate.toFixed(1)}%`
+                        }
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {displayMode === 'amount' 
+                          ? formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalRefund, 0))
+                          : `${averages?.refundRate.toFixed(1)}%`
+                        }
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-green-600 tabular-nums">
+                        {formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalPayout, 0))}
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </>
               )}
             </TableBody>
