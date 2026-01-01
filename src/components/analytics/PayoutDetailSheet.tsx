@@ -10,10 +10,12 @@ import {
   Percent, 
   AlertCircle,
   ArrowRight,
-  Minus
+  Minus,
+  CreditCard,
+  Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 interface PayoutData {
   payout_date: string;
   restaurant_id: string;
@@ -30,6 +32,7 @@ interface PayoutData {
   bag_fee?: number;
   packaging_fee?: number;
   tips?: number;
+  meal_voucher_amount?: number;
 }
 
 interface PayoutDetailSheetProps {
@@ -100,11 +103,17 @@ function WaterfallBreakdown({ payout }: { payout: PayoutData }) {
   const promos = Math.abs(Number(payout.item_promo_incl_vat) || 0);
   const refunds = Math.abs(Number(payout.refund_incl_vat) || 0);
   const otherPayments = Math.abs(Number(payout.other_payments_incl_vat) || 0);
-  const marketingAdj = Math.abs(Number(payout.marketing_fee_adjustment) || 0);
+  const marketingAdj = Number(payout.marketing_fee_adjustment) || 0;
+  const mealVoucher = Math.abs(Number(payout.meal_voucher_amount) || 0);
   const netPayout = Number(payout.net_payout) || 0;
   
-  const totalDeductions = uberFee + promos + refunds + otherPayments + marketingAdj;
+  // Calculate total deductions (excluding meal vouchers which are paid separately)
+  const totalDeductions = uberFee + promos + refunds + otherPayments + Math.abs(marketingAdj) + mealVoucher;
   const profitability = calcProfitability(netPayout, sales);
+  
+  // Total the restaurant will actually receive (Uber payout + meal vouchers)
+  const totalToReceive = netPayout + mealVoucher;
+  const totalReceiveRate = sales > 0 ? (totalToReceive / sales) * 100 : 0;
   
   return (
     <div className="space-y-1">
@@ -153,9 +162,37 @@ function WaterfallBreakdown({ payout }: { payout: PayoutData }) {
         {marketingAdj !== 0 && (
           <LineItem 
             label="Ajustement marketing" 
-            value={marketingAdj} 
-            isNegative={Number(payout.marketing_fee_adjustment) < 0}
+            value={Math.abs(marketingAdj)} 
+            isNegative={marketingAdj < 0}
           />
+        )}
+        {mealVoucher > 0 && (
+          <div className={cn(
+            "flex items-center justify-between py-2 px-3 rounded-lg transition-colors bg-blue-500/5"
+          )}>
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-3.5 w-3.5 text-blue-500" />
+              <span className="text-sm text-muted-foreground">Titres restaurant</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="h-3 w-3 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Ce montant sera versé directement par l'organisme de titres restaurant (Edenred, Swile, etc.), séparément du virement Uber.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600">
+                {((mealVoucher / sales) * 100).toFixed(1)}% du CA
+              </span>
+              <span className="font-medium text-red-600">
+                {formatCurrency(-mealVoucher)}
+              </span>
+            </div>
+          </div>
         )}
       </div>
       
@@ -169,7 +206,7 @@ function WaterfallBreakdown({ payout }: { payout: PayoutData }) {
       <div className="flex items-center justify-between py-3 px-3 bg-green-500/10 rounded-lg border border-green-500/30 mt-2">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-green-600" />
-          <span className="font-medium">Versement Net</span>
+          <span className="font-medium">Versement Uber</span>
         </div>
         <div className="text-right">
           <span className="font-bold text-lg text-green-600">{formatCurrency(netPayout)}</span>
@@ -179,10 +216,31 @@ function WaterfallBreakdown({ payout }: { payout: PayoutData }) {
             profitability >= 40 ? "bg-yellow-500/20 text-yellow-700" : 
             "bg-red-500/20 text-red-700"
           )}>
-            {profitability.toFixed(1)}% rentabilité
+            {profitability.toFixed(1)}% du CA
           </span>
         </div>
       </div>
+      
+      {/* Total to receive including meal vouchers */}
+      {mealVoucher > 0 && (
+        <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 mt-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-blue-500" />
+              <span className="text-sm font-medium">Total à encaisser</span>
+            </div>
+            <div className="text-right">
+              <span className="font-bold text-blue-600">{formatCurrency(totalToReceive)}</span>
+              <span className="text-xs ml-2 px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-700">
+                {totalReceiveRate.toFixed(1)}% du CA
+              </span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            = Versement Uber ({formatCurrency(netPayout)}) + Titres restaurant ({formatCurrency(mealVoucher)})
+          </p>
+        </div>
+      )}
     </div>
   );
 }
