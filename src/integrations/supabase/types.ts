@@ -2712,6 +2712,23 @@ export type Database = {
           revenue: number
         }[]
       }
+      get_monthly_payouts_detail: {
+        Args: { p_month: number; p_restaurant_ids?: string[]; p_year: number }
+        Returns: {
+          delivery_promo_incl_vat: number
+          item_promo_incl_vat: number
+          marketing_fee_adjustment: number
+          net_payout: number
+          order_count: number
+          other_payments_incl_vat: number
+          payout_date: string
+          refund_incl_vat: number
+          restaurant_id: string
+          sales_incl_vat: number
+          tips: number
+          uber_fee_after_promo_incl_vat: number
+        }[]
+      }
       get_monthly_payouts_summary: {
         Args: { p_restaurant_ids?: string[]; p_year: number }
         Returns: {

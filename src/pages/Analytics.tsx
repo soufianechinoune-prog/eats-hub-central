@@ -286,6 +286,26 @@ export default function Analytics() {
     },
   });
 
+  // Fetch detailed payouts data for drill-down (when a month is selected)
+  const { data: dailyPayoutsData } = useQuery({
+    queryKey: ["analytics_payouts_detail", restaurantFilter, selectedYear, drillDownMonth],
+    queryFn: async () => {
+      if (!drillDownMonth) return null;
+      const { data, error } = await supabase.rpc('get_monthly_payouts_detail', {
+        p_year: selectedYear,
+        p_month: drillDownMonth,
+        p_restaurant_ids: restaurantFilter || null,
+      });
+      if (error) {
+        console.error("[Analytics] get_monthly_payouts_detail error:", error);
+        throw error;
+      }
+      console.log("[Analytics] Daily payouts data for month", drillDownMonth, ":", data?.length, "rows");
+      return data || [];
+    },
+    enabled: !!drillDownMonth,
+  });
+
   // ========== HYBRID DATA SOURCE LOGIC ==========
   // 2025+ → daily_sales_uber table (official Uber "Sales Over Time" exports)
   // 2024 and before → orders table (parsed from detailed reports)
@@ -1162,6 +1182,7 @@ export default function Analytics() {
                   prevFeesData={currentPrevFeesData}
                   payoutsData={payoutsData}
                   prevPayoutsData={prevPayoutsData}
+                  dailyPayoutsData={dailyPayoutsData}
                   startMonth={effectiveStartMonth}
                   endMonth={effectiveEndMonth}
                   selectedYear={selectedYear}

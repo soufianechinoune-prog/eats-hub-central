@@ -214,6 +214,8 @@ interface AnalyticsChartsProps {
   // Payouts data from payouts table
   payoutsData?: any[];
   prevPayoutsData?: any[];
+  // Daily payouts data for drill-down
+  dailyPayoutsData?: any[];
   startMonth?: number;
   endMonth?: number;
   selectedYear: number;
@@ -491,6 +493,7 @@ export function AnalyticsCharts({
   prevFeesData,
   payoutsData,
   prevPayoutsData,
+  dailyPayoutsData,
   startMonth = 1,
   endMonth = 12,
   selectedYear,
@@ -1359,6 +1362,72 @@ export function AnalyticsCharts({
   // Use payouts data if available, otherwise fall back to fees data
   const effectiveFeesData = aggregatedPayoutsData.length > 0 ? aggregatedPayoutsData : aggregatedFeesData;
   const hasPayoutsData = aggregatedPayoutsData.length > 0;
+
+  // Drill-down data for finances: aggregate dailyPayoutsData by payout_date
+  const drillDownFeesData = useMemo(() => {
+    if (!drillDownMonth || !dailyPayoutsData || dailyPayoutsData.length === 0) return [];
+    
+    // Group by payout_date
+    const byDate: Record<string, {
+      sales: number;
+      uber: number;
+      marketing: number;
+      offers: number;
+      ads: number;
+      net: number;
+      totalFees: number;
+      orderCount: number;
+    }> = {};
+    
+    dailyPayoutsData.forEach((item: any) => {
+      const dateKey = item.payout_date;
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = { sales: 0, uber: 0, marketing: 0, offers: 0, ads: 0, net: 0, totalFees: 0, orderCount: 0 };
+      }
+      byDate[dateKey].sales += Number(item.sales_incl_vat) || 0;
+      byDate[dateKey].uber += Number(item.uber_fee_after_promo_incl_vat) || 0;
+      byDate[dateKey].marketing += Math.abs(Number(item.marketing_fee_adjustment) || 0);
+      byDate[dateKey].offers += Number(item.item_promo_incl_vat) || 0;
+      byDate[dateKey].ads += Math.abs(Number(item.other_payments_incl_vat) || 0);
+      byDate[dateKey].net += Number(item.net_payout) || 0;
+      byDate[dateKey].orderCount += Number(item.order_count) || 0;
+    });
+    
+    return Object.entries(byDate)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dateStr, data]) => {
+        const date = new Date(dateStr);
+        const totalFees = data.uber + data.offers + data.marketing + data.ads;
+        const profitability = data.sales > 0 ? (data.net / data.sales) * 100 : 0;
+        return {
+          date: dateStr,
+          label: format(date, 'd MMM', { locale: fr }),
+          ...data,
+          totalFees,
+          profitability,
+        };
+      });
+  }, [drillDownMonth, dailyPayoutsData]);
+
+  // Drill-down profitability data
+  const drillDownProfitabilityData = useMemo(() => {
+    return drillDownFeesData.map(d => ({
+      month: d.label,
+      date: d.date,
+      revenue: d.sales,
+      netPayout: d.net,
+      profitability: d.profitability,
+    }));
+  }, [drillDownFeesData]);
+
+  // Handler for clicking on a month bar in finances charts
+  const handleFinancesBarClick = (data: any) => {
+    if (drillDownMonth || !onDrillDownChange) return;
+    const monthNum = data?.activePayload?.[0]?.payload?.monthNum;
+    if (monthNum) {
+      onDrillDownChange(monthNum);
+    }
+  };
 
   // Profitability data - use payouts when available
   const profitabilityData = useMemo(() => {
@@ -3115,8 +3184,45 @@ export function AnalyticsCharts({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
-            <Euro className="h-5 w-5" />
-            Répartition des Frais
+            {drillDownMonth ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onDrillDownChange?.(null)}
+                  className="h-8 w-8 p-0 mr-1"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <Euro className="h-5 w-5" />
+                <span>Répartition des Frais — {MONTHS[drillDownMonth - 1]} {selectedYear}</span>
+                <div className="flex items-center gap-1 ml-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDrillDownChange?.(Math.max(1, drillDownMonth - 1))}
+                    disabled={drillDownMonth <= 1}
+                    className="h-7 w-7 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDrillDownChange?.(Math.min(12, drillDownMonth + 1))}
+                    disabled={drillDownMonth >= 12}
+                    className="h-7 w-7 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <Euro className="h-5 w-5" />
+                Répartition des Frais
+              </>
+            )}
           </CardTitle>
           <ChartActionToggle
             chartKey="fees"
@@ -3140,9 +3246,13 @@ export function AnalyticsCharts({
           />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={effectiveFeesData}>
+              <BarChart 
+                data={drillDownMonth ? drillDownFeesData : effectiveFeesData}
+                onClick={drillDownMonth ? undefined : handleFinancesBarClick}
+                style={{ cursor: drillDownMonth ? 'default' : 'pointer' }}
+              >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="month" className="text-xs" />
+                <XAxis dataKey={drillDownMonth ? "label" : "month"} className="text-xs" />
                 <YAxis className="text-xs" />
                 <Tooltip 
                   contentStyle={{ 
@@ -3152,8 +3262,8 @@ export function AnalyticsCharts({
                   }}
                   formatter={(value: number, name: string) => [value.toLocaleString('fr-FR') + ' €', name]}
                 />
-                {/* Period events as ReferenceArea */}
-                {shouldShowActionsForChart("fees") && periodEventsData.map(event => (
+                {/* Period events as ReferenceArea - only in year view */}
+                {!drillDownMonth && shouldShowActionsForChart("fees") && periodEventsData.map(event => (
                   <ReferenceArea
                     key={`period-fees-${event.id}`}
                     x1={event.x1}
@@ -3166,8 +3276,8 @@ export function AnalyticsCharts({
                     strokeDasharray="6 3"
                   />
                 ))}
-                {/* Action markers */}
-                {shouldShowActionsForChart("fees") && actionMonths.map(monthNum => {
+                {/* Action markers - only in year view */}
+                {!drillDownMonth && shouldShowActionsForChart("fees") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
                   const primaryAction = monthActions[0];
                   if (!primaryAction) return null;
@@ -3199,9 +3309,46 @@ export function AnalyticsCharts({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Versement Net vs Frais Totaux
-            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
+            {drillDownMonth ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onDrillDownChange?.(null)}
+                  className="h-8 w-8 p-0 mr-1"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <TrendingUp className="h-5 w-5" />
+                <span>Versement Net — {MONTHS[drillDownMonth - 1]} {selectedYear}</span>
+                <div className="flex items-center gap-1 ml-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDrillDownChange?.(Math.max(1, drillDownMonth - 1))}
+                    disabled={drillDownMonth <= 1}
+                    className="h-7 w-7 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDrillDownChange?.(Math.min(12, drillDownMonth + 1))}
+                    disabled={drillDownMonth >= 12}
+                    className="h-7 w-7 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <TrendingUp className="h-5 w-5" />
+                Versement Net vs Frais Totaux
+                {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
+              </>
+            )}
           </CardTitle>
           <ChartActionToggle
             chartKey="netPayout"
@@ -3213,7 +3360,10 @@ export function AnalyticsCharts({
         <CardContent>
           {/* Interactive Legend */}
           <InteractiveLegend
-            items={[
+            items={drillDownMonth ? [
+              { key: 'net', label: 'Versement Net', color: 'hsl(var(--primary))' },
+              { key: 'totalFees', label: 'Total Frais', color: 'hsl(var(--destructive))' },
+            ] : [
               { key: 'net', label: `Versement ${selectedYear}`, color: 'hsl(var(--primary))' },
               ...(hasPrevData ? [{ key: 'prevNet', label: `Versement ${prevYear}`, color: 'hsl(var(--muted-foreground))' }] : []),
               { key: 'totalFees', label: 'Total Frais', color: 'hsl(var(--destructive))' },
@@ -3224,9 +3374,13 @@ export function AnalyticsCharts({
           />
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={effectiveFeesData}>
+              <ComposedChart 
+                data={drillDownMonth ? drillDownFeesData : effectiveFeesData}
+                onClick={drillDownMonth ? undefined : handleFinancesBarClick}
+                style={{ cursor: drillDownMonth ? 'default' : 'pointer' }}
+              >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="month" className="text-xs" />
+                <XAxis dataKey={drillDownMonth ? "label" : "month"} className="text-xs" />
                 <YAxis className="text-xs" />
                 <Tooltip 
                   contentStyle={{ 
@@ -3236,8 +3390,8 @@ export function AnalyticsCharts({
                   }}
                   formatter={(value: number, name: string) => [value.toLocaleString('fr-FR') + ' €', name]}
                 />
-                {/* Period events as ReferenceArea */}
-                {shouldShowActionsForChart("netPayout") && periodEventsData.map(event => (
+                {/* Period events as ReferenceArea - only in year view */}
+                {!drillDownMonth && shouldShowActionsForChart("netPayout") && periodEventsData.map(event => (
                   <ReferenceArea
                     key={`period-net-${event.id}`}
                     x1={event.x1}
@@ -3250,8 +3404,8 @@ export function AnalyticsCharts({
                     strokeDasharray="6 3"
                   />
                 ))}
-                {/* Action markers */}
-                {shouldShowActionsForChart("netPayout") && actionMonths.map(monthNum => {
+                {/* Action markers - only in year view */}
+                {!drillDownMonth && shouldShowActionsForChart("netPayout") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
                   const primaryAction = monthActions[0];
                   if (!primaryAction) return null;
@@ -3267,8 +3421,8 @@ export function AnalyticsCharts({
                     />
                   );
                 })}
-                {!hiddenNetPayoutBars.has('net') && <Bar dataKey="net" name={`Versement ${selectedYear}`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
-                {hasPrevData && !hiddenNetPayoutBars.has('prevNet') && (
+                {!hiddenNetPayoutBars.has('net') && <Bar dataKey="net" name={drillDownMonth ? "Versement Net" : `Versement ${selectedYear}`} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
+                {!drillDownMonth && hasPrevData && !hiddenNetPayoutBars.has('prevNet') && (
                   <Bar dataKey="prevNet" name={`Versement ${prevYear}`} fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} opacity={0.4} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />
                 )}
                 {!hiddenNetPayoutBars.has('totalFees') && <Line type="monotone" dataKey="totalFees" name="Total Frais" stroke="hsl(var(--destructive))" strokeWidth={2} animationDuration={CHART_ANIMATION_DURATION} animationEasing={CHART_ANIMATION_EASING} />}
@@ -3284,9 +3438,46 @@ export function AnalyticsCharts({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center gap-2">
-            <Percent className="h-5 w-5" />
-            Taux de Rentabilité
-            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
+            {drillDownMonth ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onDrillDownChange?.(null)}
+                  className="h-8 w-8 p-0 mr-1"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <Percent className="h-5 w-5" />
+                <span>Taux de Rentabilité — {MONTHS[drillDownMonth - 1]} {selectedYear}</span>
+                <div className="flex items-center gap-1 ml-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDrillDownChange?.(Math.max(1, drillDownMonth - 1))}
+                    disabled={drillDownMonth <= 1}
+                    className="h-7 w-7 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDrillDownChange?.(Math.min(12, drillDownMonth + 1))}
+                    disabled={drillDownMonth >= 12}
+                    className="h-7 w-7 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <Percent className="h-5 w-5" />
+                Taux de Rentabilité
+                {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
+              </>
+            )}
           </CardTitle>
           <ChartActionToggle
             chartKey="profitability"
@@ -3298,7 +3489,11 @@ export function AnalyticsCharts({
         <CardContent>
           {/* Interactive Legend */}
           <InteractiveLegend
-            items={[
+            items={drillDownMonth ? [
+              { key: 'revenue', label: 'CA TTC', color: 'hsl(var(--muted))' },
+              { key: 'netPayout', label: 'Versement Net', color: 'hsl(var(--primary))' },
+              { key: 'profitability', label: 'Rentabilité', color: 'hsl(142.1 76.2% 36.3%)' },
+            ] : [
               { key: 'revenue', label: 'CA TTC', color: 'hsl(var(--muted))' },
               { key: 'netPayout', label: 'Versement Net', color: 'hsl(var(--primary))' },
               { key: 'profitability', label: `Rentabilité ${selectedYear}`, color: 'hsl(142.1 76.2% 36.3%)' },
@@ -3310,7 +3505,11 @@ export function AnalyticsCharts({
           />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={profitabilityData}>
+              <ComposedChart 
+                data={drillDownMonth ? drillDownProfitabilityData : profitabilityData}
+                onClick={drillDownMonth ? undefined : handleFinancesBarClick}
+                style={{ cursor: drillDownMonth ? 'default' : 'pointer' }}
+              >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis yAxisId="left" className="text-xs" />
@@ -3326,8 +3525,8 @@ export function AnalyticsCharts({
                     return [value.toLocaleString('fr-FR') + ' €', name];
                   }}
                 />
-                {/* Period events as ReferenceArea */}
-                {shouldShowActionsForChart("profitability") && periodEventsData.map(event => (
+                {/* Period events as ReferenceArea - only in year view */}
+                {!drillDownMonth && shouldShowActionsForChart("profitability") && periodEventsData.map(event => (
                   <ReferenceArea
                     key={`period-profit-${event.id}`}
                     x1={event.x1}
@@ -3341,8 +3540,8 @@ export function AnalyticsCharts({
                     strokeDasharray="6 3"
                   />
                 ))}
-                {/* Action markers */}
-                {shouldShowActionsForChart("profitability") && actionMonths.map(monthNum => {
+                {/* Action markers - only in year view */}
+                {!drillDownMonth && shouldShowActionsForChart("profitability") && actionMonths.map(monthNum => {
                   const monthActions = actionsByMonth[monthNum] || [];
                   const primaryAction = monthActions[0];
                   if (!primaryAction) return null;
@@ -3366,7 +3565,7 @@ export function AnalyticsCharts({
                     yAxisId="right" 
                     type="monotone" 
                     dataKey="profitability" 
-                    name={`Rentabilité ${selectedYear}`}
+                    name={drillDownMonth ? "Rentabilité" : `Rentabilité ${selectedYear}`}
                     stroke="hsl(142.1 76.2% 36.3%)" 
                     strokeWidth={3}
                     dot={{ fill: 'hsl(142.1 76.2% 36.3%)', strokeWidth: 2, r: 4 }}
@@ -3374,7 +3573,7 @@ export function AnalyticsCharts({
                     animationEasing={CHART_ANIMATION_EASING}
                   />
                 )}
-                {hasPrevData && !hiddenProfitBars.has('prevProfitability') && (
+                {!drillDownMonth && hasPrevData && !hiddenProfitBars.has('prevProfitability') && (
                   <Line 
                     yAxisId="right" 
                     type="monotone" 
