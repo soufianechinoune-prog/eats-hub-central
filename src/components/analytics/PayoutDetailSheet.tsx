@@ -539,7 +539,9 @@ export function PayoutDetailSheet({
   // Calculate totals and averages
   const totalSales = payouts.reduce((sum, p) => sum + Math.abs(Number(p.sales_incl_vat) || 0), 0);
   const totalNet = payouts.reduce((sum, p) => sum + (Number(p.net_payout) || 0), 0);
-  const avgProfitability = totalSales > 0 ? (totalNet / totalSales) * 100 : 0;
+  const totalMealVouchers = payouts.reduce((sum, p) => sum + Math.abs(Number(p.meal_voucher_amount) || 0), 0);
+  const totalToReceive = totalNet + totalMealVouchers;
+  const avgProfitability = totalSales > 0 ? (totalToReceive / totalSales) * 100 : 0;
   
   // Sort payouts by profitability for comparison
   const sortedPayouts = [...payouts].sort((a, b) => {
@@ -585,14 +587,10 @@ export function PayoutDetailSheet({
         </SheetHeader>
         
         {/* Summary KPIs */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="bg-muted/30 rounded-lg p-3 text-center">
             <p className="text-xs text-muted-foreground mb-1">CA Total</p>
             <p className="font-semibold">{formatCurrency(totalSales)}</p>
-          </div>
-          <div className="bg-green-500/10 rounded-lg p-3 text-center">
-            <p className="text-xs text-muted-foreground mb-1">Versement Net</p>
-            <p className="font-semibold text-green-600">{formatCurrency(totalNet)}</p>
           </div>
           <div className={cn(
             "rounded-lg p-3 text-center",
@@ -600,7 +598,7 @@ export function PayoutDetailSheet({
             avgProfitability >= 40 ? "bg-yellow-500/10" : 
             "bg-red-500/10"
           )}>
-            <p className="text-xs text-muted-foreground mb-1">Rentabilité Moy.</p>
+            <p className="text-xs text-muted-foreground mb-1">Taux d'encaissement</p>
             <p className={cn(
               "font-semibold",
               avgProfitability >= 50 ? "text-green-600" : 
@@ -609,6 +607,25 @@ export function PayoutDetailSheet({
             )}>
               {avgProfitability.toFixed(1)}%
             </p>
+          </div>
+        </div>
+        
+        {/* Detailed payout breakdown */}
+        <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-muted-foreground">Versement Uber</span>
+            <span className="font-medium text-green-600">{formatCurrency(totalNet)}</span>
+          </div>
+          {totalMealVouchers > 0 && (
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Titres restaurant</span>
+              <span className="font-medium text-blue-600">{formatCurrency(totalMealVouchers)}</span>
+            </div>
+          )}
+          <Separator className="my-2" />
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Total à encaisser</span>
+            <span className="font-bold text-green-700">{formatCurrency(totalToReceive)}</span>
           </div>
         </div>
 
