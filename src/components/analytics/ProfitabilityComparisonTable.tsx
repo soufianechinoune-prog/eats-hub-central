@@ -33,13 +33,16 @@ interface PayoutData {
   payout_date: string;
   restaurant_id: string;
   sales_incl_vat: number;
+  sales_excl_vat?: number;
   net_payout: number;
   uber_fee_after_promo_incl_vat: number;
+  uber_fee_after_promo_excl_vat?: number;
   uber_fee_before_promo_excl_vat?: number;
   uber_fee_promo_excl_vat?: number;
   vat_uber_fee?: number;
   item_promo_incl_vat: number;
   refund_incl_vat: number;
+  refund_excl_vat?: number;
   other_payments_incl_vat: number;
   marketing_fee_adjustment: number;
   order_count: number;
@@ -77,7 +80,7 @@ interface ComparisonRow {
   uberFeeGross: number;      // Commission brute (avant promo)
   uberFeeReduction: number;  // Réduction Uber
   uberFeeNet: number;        // Commission nette (après promo)
-  uberFeeRate: number;       // Taux net en %
+  uberFeeRate: number;       // Taux net en % (calculé sur base HT)
   uberFeeGrossRate: number;  // Taux brut en %
   contractRate: number | null; // Taux contractuel
   promoRate: number;
@@ -128,6 +131,14 @@ export function ProfitabilityComparisonTable({
       const other = Math.abs(Number(payout.other_payments_incl_vat) || 0);
       const orderCount = Number(payout.order_count) || 0;
       
+      // Calcul du taux de commission HT : Frais Uber HT / (Ventes HT - Remboursements HT)
+      // Note: refund_excl_vat est négatif quand c'est un remboursement, donc on l'additionne
+      const salesHT = Math.abs(Number(payout.sales_excl_vat) || 0);
+      const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0);
+      const refundHT = Number(payout.refund_excl_vat) || 0; // Garder le signe original
+      const baseHT = salesHT + refundHT; // Si refund est négatif, on le soustrait; si positif, on l'ajoute
+      const uberFeeRateHT = baseHT > 0 ? (uberFeeHT / baseHT) * 100 : 0;
+      
       return {
         label: payout.payout_date,
         date: payout.payout_date,
@@ -139,7 +150,7 @@ export function ProfitabilityComparisonTable({
         uberFeeGross,
         uberFeeReduction,
         uberFeeNet,
-        uberFeeRate: sales > 0 ? (uberFeeNet / sales) * 100 : 0,
+        uberFeeRate: uberFeeRateHT, // Utiliser le taux calculé sur base HT
         uberFeeGrossRate: sales > 0 ? (uberFeeGross / sales) * 100 : 0,
         contractRate: getContractRate(payout.restaurant_id),
         promoRate: sales > 0 ? (promos / sales) * 100 : 0,
