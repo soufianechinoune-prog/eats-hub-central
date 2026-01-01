@@ -28,7 +28,9 @@ import {
   HelpCircle,
   Calendar,
   LayoutList,
-  Layers
+  Layers,
+  Percent,
+  Euro
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -90,12 +92,17 @@ interface ComparisonRow {
   promoRate: number;
   refundRate: number;
   otherRate: number;
+  // Amounts for toggling display
+  promoAmount: number;
+  refundAmount: number;
   orderCount: number;
   avgBasket: number;
   weekNumber: number;
   year: number;
   weekLabel: string;
 }
+
+type DisplayMode = 'percent' | 'amount';
 
 interface WeekGroup {
   weekKey: string;
@@ -115,6 +122,7 @@ export function ProfitabilityComparisonTable({
   const [selectedPayouts, setSelectedPayouts] = useState<PayoutData[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('profitability');
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('percent');
   
   const getRestaurantName = (id: string) => {
     return restaurants.find(r => r.id === id)?.name || id.slice(0, 8);
@@ -144,8 +152,8 @@ export function ProfitabilityComparisonTable({
       // Calculer brut TTC = brut HT + TVA proportionnelle
       const uberFeeGross = uberFeeGrossHT > 0 ? uberFeeGrossHT + (vatUberFee * (uberFeeGrossHT / (uberFeeGrossHT - uberFeeReductionHT || 1))) : uberFeeNet;
       const uberFeeReduction = uberFeeReductionHT > 0 ? uberFeeReductionHT * 1.2 : 0; // Approximation TVA 20%
-      const promos = Math.abs(Number(payout.item_promo_incl_vat) || 0);
-      const refunds = Math.abs(Number(payout.refund_incl_vat) || 0);
+      const promoAmount = Math.abs(Number(payout.item_promo_incl_vat) || 0);
+      const refundAmount = Math.abs(Number(payout.refund_incl_vat) || 0);
       const other = Math.abs(Number(payout.other_payments_incl_vat) || 0);
       const orderCount = Number(payout.order_count) || 0;
       
@@ -182,9 +190,11 @@ export function ProfitabilityComparisonTable({
         uberFeeRate: uberFeeRateHT,
         uberFeeGrossRate: sales > 0 ? (uberFeeGross / sales) * 100 : 0,
         contractRate: getContractRate(payout.restaurant_id),
-        promoRate: sales > 0 ? (promos / sales) * 100 : 0,
-        refundRate: sales > 0 ? (refunds / sales) * 100 : 0,
+        promoRate: sales > 0 ? (promoAmount / sales) * 100 : 0,
+        refundRate: sales > 0 ? (refundAmount / sales) * 100 : 0,
         otherRate: sales > 0 ? (other / sales) * 100 : 0,
+        promoAmount,
+        refundAmount,
         orderCount,
         avgBasket: orderCount > 0 ? sales / orderCount : 0,
         weekNumber: weekNum,
@@ -236,12 +246,20 @@ export function ProfitabilityComparisonTable({
     const avgOtherRate = comparisonData.reduce((sum, d) => sum + d.otherRate, 0) / comparisonData.length;
     const avgProfitability = totalSales > 0 ? (totalNet / totalSales) * 100 : 0;
     
+    // Average amounts
+    const avgUberFeeAmount = comparisonData.reduce((sum, d) => sum + d.uberFeeNet, 0) / comparisonData.length;
+    const avgPromoAmount = comparisonData.reduce((sum, d) => sum + d.promoAmount, 0) / comparisonData.length;
+    const avgRefundAmount = comparisonData.reduce((sum, d) => sum + d.refundAmount, 0) / comparisonData.length;
+    
     return {
       profitability: avgProfitability,
       uberFeeRate: avgUberRate,
       promoRate: avgPromoRate,
       refundRate: avgRefundRate,
       otherRate: avgOtherRate,
+      uberFeeAmount: avgUberFeeAmount,
+      promoAmount: avgPromoAmount,
+      refundAmount: avgRefundAmount,
     };
   }, [comparisonData]);
   
@@ -256,17 +274,26 @@ export function ProfitabilityComparisonTable({
   const worst = comparisonData[comparisonData.length - 1];
   const profitabilityGap = best.profitability - worst.profitability;
   
-  // Simple cell component without arrows - just values
+  // Simple cell component - displays percent or amount
   const ComparisonCell = ({ 
-    value, 
-    suffix = '%'
+    percentValue, 
+    amountValue,
+    isCommission = false
   }: { 
-    value: number; 
-    suffix?: string;
+    percentValue: number; 
+    amountValue: number;
+    isCommission?: boolean;
   }) => {
+    if (displayMode === 'amount') {
+      return (
+        <span className="font-medium tabular-nums">
+          {formatCurrency(amountValue)}
+        </span>
+      );
+    }
     return (
       <span className="font-medium tabular-nums">
-        {value.toFixed(1)}{suffix}
+        {percentValue.toFixed(1)}%
       </span>
     );
   };
@@ -295,29 +322,52 @@ export function ProfitabilityComparisonTable({
             </TooltipProvider>
           </CardTitle>
           
-          {/* View mode toggle - only show if multiple restaurants */}
-          {hasMultipleRestaurants && (
-            <div className="flex gap-1">
-              <Button
-                variant={viewMode === 'profitability' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('profitability')}
-                className="h-7 text-xs gap-1.5"
-              >
-                <LayoutList className="h-3.5 w-3.5" />
-                Par rentabilité
-              </Button>
-              <Button
-                variant={viewMode === 'week' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('week')}
-                className="h-7 text-xs gap-1.5"
-              >
-                <Layers className="h-3.5 w-3.5" />
-                Par semaine
-              </Button>
-            </div>
-          )}
+          <div className="flex gap-1">
+            {/* Display mode toggle for Commission/Promos/Remb */}
+            <Button
+              variant={displayMode === 'percent' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDisplayMode('percent')}
+              className="h-7 text-xs gap-1.5"
+            >
+              <Percent className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant={displayMode === 'amount' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDisplayMode('amount')}
+              className="h-7 text-xs gap-1.5"
+            >
+              <Euro className="h-3.5 w-3.5" />
+            </Button>
+            
+            {/* Separator */}
+            {hasMultipleRestaurants && <div className="w-px bg-border mx-1" />}
+            
+            {/* View mode toggle - only show if multiple restaurants */}
+            {hasMultipleRestaurants && (
+              <>
+                <Button
+                  variant={viewMode === 'profitability' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('profitability')}
+                  className="h-7 text-xs gap-1.5"
+                >
+                  <LayoutList className="h-3.5 w-3.5" />
+                  Par rentabilité
+                </Button>
+                <Button
+                  variant={viewMode === 'week' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('week')}
+                  className="h-7 text-xs gap-1.5"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  Par semaine
+                </Button>
+              </>
+            )}
+          </div>
         </div>
         
         {/* Gap indicator - only in profitability mode */}
@@ -424,16 +474,16 @@ export function ProfitabilityComparisonTable({
                         {formatCurrency(row.sales)}
                       </TableCell>
                       <TableCell className="text-right text-green-600">
-                        <ComparisonCell value={row.profitability} />
+                        <span className="font-medium tabular-nums">{row.profitability.toFixed(1)}%</span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <ComparisonCell value={row.uberFeeRate} />
+                        <ComparisonCell percentValue={row.uberFeeRate} amountValue={row.uberFeeNet} isCommission />
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        <ComparisonCell value={row.promoRate} />
+                        <ComparisonCell percentValue={row.promoRate} amountValue={row.promoAmount} />
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        <ComparisonCell value={row.refundRate} />
+                        <ComparisonCell percentValue={row.refundRate} amountValue={row.refundAmount} />
                       </TableCell>
                       <TableCell className="text-right font-semibold text-green-600 tabular-nums">
                         {formatCurrency(row.netPayout)}
@@ -451,13 +501,22 @@ export function ProfitabilityComparisonTable({
                         {averages.profitability.toFixed(1)}%
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {averages.uberFeeRate.toFixed(1)}%
+                        {displayMode === 'amount' 
+                          ? formatCurrency(averages.uberFeeAmount)
+                          : `${averages.uberFeeRate.toFixed(1)}%`
+                        }
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {averages.promoRate.toFixed(1)}%
+                        {displayMode === 'amount' 
+                          ? formatCurrency(averages.promoAmount)
+                          : `${averages.promoRate.toFixed(1)}%`
+                        }
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {averages.refundRate.toFixed(1)}%
+                        {displayMode === 'amount' 
+                          ? formatCurrency(averages.refundAmount)
+                          : `${averages.refundRate.toFixed(1)}%`
+                        }
                       </TableCell>
                       <TableCell></TableCell>
                     </TableRow>
@@ -516,16 +575,16 @@ export function ProfitabilityComparisonTable({
                               {formatCurrency(row.sales)}
                             </TableCell>
                             <TableCell className="text-right text-green-600">
-                              <ComparisonCell value={row.profitability} />
+                              <span className="font-medium tabular-nums">{row.profitability.toFixed(1)}%</span>
                             </TableCell>
                             <TableCell className="text-right">
-                              <ComparisonCell value={row.uberFeeRate} />
+                              <ComparisonCell percentValue={row.uberFeeRate} amountValue={row.uberFeeNet} isCommission />
                             </TableCell>
                             <TableCell className="text-right text-muted-foreground">
-                              <ComparisonCell value={row.promoRate} />
+                              <ComparisonCell percentValue={row.promoRate} amountValue={row.promoAmount} />
                             </TableCell>
                             <TableCell className="text-right text-muted-foreground">
-                              <ComparisonCell value={row.refundRate} />
+                              <ComparisonCell percentValue={row.refundRate} amountValue={row.refundAmount} />
                             </TableCell>
                             <TableCell className="text-right font-semibold text-green-600 tabular-nums">
                               {formatCurrency(row.netPayout)}
@@ -548,13 +607,22 @@ export function ProfitabilityComparisonTable({
                               </span>
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
-                              {(bestInGroup.uberFeeRate - worstInGroup.uberFeeRate).toFixed(1)} pts
+                              {displayMode === 'amount' 
+                                ? `${(bestInGroup.uberFeeNet - worstInGroup.uberFeeNet) >= 0 ? '+' : ''}${formatCurrency(bestInGroup.uberFeeNet - worstInGroup.uberFeeNet)}`
+                                : `${(bestInGroup.uberFeeRate - worstInGroup.uberFeeRate).toFixed(1)} pts`
+                              }
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
-                              {(bestInGroup.promoRate - worstInGroup.promoRate).toFixed(1)} pts
+                              {displayMode === 'amount' 
+                                ? `${(bestInGroup.promoAmount - worstInGroup.promoAmount) >= 0 ? '+' : ''}${formatCurrency(bestInGroup.promoAmount - worstInGroup.promoAmount)}`
+                                : `${(bestInGroup.promoRate - worstInGroup.promoRate).toFixed(1)} pts`
+                              }
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
-                              {(bestInGroup.refundRate - worstInGroup.refundRate).toFixed(1)} pts
+                              {displayMode === 'amount' 
+                                ? `${(bestInGroup.refundAmount - worstInGroup.refundAmount) >= 0 ? '+' : ''}${formatCurrency(bestInGroup.refundAmount - worstInGroup.refundAmount)}`
+                                : `${(bestInGroup.refundRate - worstInGroup.refundRate).toFixed(1)} pts`
+                              }
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
                               {payoutGap >= 0 ? '+' : ''}{formatCurrency(payoutGap)}
