@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PayoutDetailSheet } from "./PayoutDetailSheet";
 import { Badge } from "@/components/ui/badge";
 import { 
   Table, 
@@ -90,6 +91,9 @@ export function ProfitabilityComparisonTable({
   payouts, 
   restaurants 
 }: ProfitabilityComparisonTableProps) {
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedPayouts, setSelectedPayouts] = useState<PayoutData[]>([]);
+  const [sheetOpen, setSheetOpen] = useState(false);
   
   const getRestaurantName = (id: string) => {
     return restaurants.find(r => r.id === id)?.name || id.slice(0, 8);
@@ -97,6 +101,14 @@ export function ProfitabilityComparisonTable({
 
   const getContractRate = (id: string) => {
     return restaurants.find(r => r.id === id)?.uber_commission_rate ?? null;
+  };
+  
+  // Handle row click to open detail sheet
+  const handleRowClick = (row: ComparisonRow) => {
+    const matchingPayouts = payouts.filter(p => p.payout_date === row.date);
+    setSelectedDate(row.date);
+    setSelectedPayouts(matchingPayouts);
+    setSheetOpen(true);
   };
   
   // Transform payouts into comparison rows
@@ -303,9 +315,11 @@ export function ProfitabilityComparisonTable({
                 <TableRow 
                   key={`${row.restaurantId}-${row.date}`}
                   className={cn(
-                    index === 0 && "bg-green-500/5",
-                    index === comparisonData.length - 1 && comparisonData.length > 1 && "bg-red-500/5"
+                    "cursor-pointer hover:bg-muted/50 transition-colors",
+                    index === 0 && "bg-green-500/5 hover:bg-green-500/10",
+                    index === comparisonData.length - 1 && comparisonData.length > 1 && "bg-red-500/5 hover:bg-red-500/10"
                   )}
+                  onClick={() => handleRowClick(row)}
                 >
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -468,6 +482,15 @@ export function ProfitabilityComparisonTable({
           </div>
         </div>
       </CardContent>
+      
+      {/* Detail Sheet */}
+      <PayoutDetailSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        selectedDate={selectedDate}
+        payouts={selectedPayouts}
+        restaurants={restaurants}
+      />
     </Card>
   );
 }
