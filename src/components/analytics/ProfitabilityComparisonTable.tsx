@@ -158,22 +158,24 @@ export function ProfitabilityComparisonTable({
     const isBad = inverse ? diff > 0.5 : diff < -0.5;
     
     return (
-      <div className="flex items-center gap-1">
-        <span className={cn(
-          "font-medium",
-          isGood && "text-green-600",
-          isBad && "text-red-600"
-        )}>
-          {value.toFixed(1)}{suffix}
-        </span>
-        {Math.abs(diff) > 0.5 && (
+      <div className="w-full flex justify-end">
+        <div className="flex items-center gap-1">
           <span className={cn(
-            "text-xs",
-            isGood ? "text-green-600" : "text-red-600"
+            "font-medium tabular-nums",
+            isGood && "text-green-600",
+            isBad && "text-red-600"
           )}>
-            {isGood ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            {value.toFixed(1)}{suffix}
           </span>
-        )}
+          {Math.abs(diff) > 0.5 && (
+            <span className={cn(
+              "text-xs",
+              isGood ? "text-green-600" : "text-red-600"
+            )}>
+              {isGood ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            </span>
+          )}
+        </div>
       </div>
     );
   };
@@ -275,7 +277,7 @@ export function ProfitabilityComparisonTable({
                       {isSingleRestaurant ? " • " : ""}{row.orderCount} cmd • Ø {formatCurrency(row.avgBasket)}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-medium">
+                  <TableCell className="text-right font-medium tabular-nums">
                     {formatCurrency(row.sales)}
                   </TableCell>
                   <TableCell className="text-right">
@@ -313,7 +315,7 @@ export function ProfitabilityComparisonTable({
                       />
                     )}
                   </TableCell>
-                  <TableCell className="text-right font-semibold text-green-600">
+                  <TableCell className="text-right font-semibold text-green-600 tabular-nums">
                     {formatCurrency(row.netPayout)}
                   </TableCell>
                 </TableRow>
@@ -325,16 +327,16 @@ export function ProfitabilityComparisonTable({
                   <TableCell colSpan={2} className="text-muted-foreground">
                     Moyenne
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right tabular-nums">
                     {averages.profitability.toFixed(1)}%
                   </TableCell>
-                  <TableCell className="text-right text-orange-600">
+                  <TableCell className="text-right text-orange-600 tabular-nums">
                     {averages.uberFeeRate.toFixed(1)}%
                   </TableCell>
-                  <TableCell className="text-right text-pink-600">
+                  <TableCell className="text-right text-pink-600 tabular-nums">
                     {averages.promoRate.toFixed(1)}%
                   </TableCell>
-                  <TableCell className="text-right text-red-600">
+                  <TableCell className="text-right text-red-600 tabular-nums">
                     {averages.refundRate.toFixed(1)}%
                   </TableCell>
                   <TableCell></TableCell>
