@@ -286,24 +286,52 @@ export default function Analytics() {
     },
   });
 
-  // Fetch detailed payouts data for drill-down (when a month is selected)
+  // Fetch detailed payouts data - always fetch for the full year in finances mode
   const { data: dailyPayoutsData } = useQuery({
-    queryKey: ["analytics_payouts_detail", restaurantFilter, selectedYear, drillDownMonth],
+    queryKey: ["analytics_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
     queryFn: async () => {
-      if (!drillDownMonth) return null;
-      const { data, error } = await supabase.rpc('get_monthly_payouts_detail', {
-        p_year: selectedYear,
-        p_month: drillDownMonth,
-        p_restaurant_ids: restaurantFilter || null,
-      });
-      if (error) {
-        console.error("[Analytics] get_monthly_payouts_detail error:", error);
-        throw error;
+      // If we have a specific month, fetch just that month
+      if (drillDownMonth) {
+        const { data, error } = await supabase.rpc('get_monthly_payouts_detail', {
+          p_year: selectedYear,
+          p_month: drillDownMonth,
+          p_restaurant_ids: restaurantFilter || null,
+        });
+        if (error) {
+          console.error("[Analytics] get_monthly_payouts_detail error:", error);
+          throw error;
+        }
+        console.log("[Analytics] Daily payouts data for month", drillDownMonth, ":", data?.length, "rows");
+        return data || [];
       }
-      console.log("[Analytics] Daily payouts data for month", drillDownMonth, ":", data?.length, "rows");
-      return data || [];
+      
+      // In finances mode without drill-down, fetch all payouts for the year
+      if (viewMode === "finances") {
+        let query = supabase
+          .from('payouts')
+          .select('*')
+          .gte('payout_date', `${selectedYear}-01-01`)
+          .lte('payout_date', `${selectedYear}-12-31`)
+          .order('payout_date', { ascending: false });
+        
+        // Filter by restaurants if specified
+        if (restaurantFilter && restaurantFilter.length > 0) {
+          query = query.in('restaurant_id', restaurantFilter);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) {
+          console.error("[Analytics] payouts fetch error:", error);
+          throw error;
+        }
+        console.log("[Analytics] Full year payouts data:", data?.length, "rows");
+        return data || [];
+      }
+      
+      return null;
     },
-    enabled: !!drillDownMonth,
+    enabled: !!drillDownMonth || viewMode === "finances",
   });
 
   // ========== HYBRID DATA SOURCE LOGIC ==========
