@@ -258,6 +258,9 @@ function WaterfallBreakdown({ payout, detailedView }: { payout: PayoutData; deta
   const totalDeductions = uberFeeTTC + promosTTC + refundsTTC + otherPayments + Math.abs(marketingAdj) + mealVoucher + priceAdjTTC;
   const profitability = calcProfitability(netPayout, mealVoucher, sales);
   
+  // Net payout rate (Uber payout only, without meal vouchers)
+  const netPayoutRate = sales > 0 ? (netPayout / sales) * 100 : 0;
+  
   // Total to receive including meal vouchers
   const totalToReceive = netPayout + mealVoucher;
   const totalReceiveRate = sales > 0 ? (totalToReceive / sales) * 100 : 0;
@@ -418,11 +421,11 @@ function WaterfallBreakdown({ payout, detailedView }: { payout: PayoutData; deta
           <span className="font-bold text-lg text-green-600">{formatCurrency(netPayout)}</span>
           <span className={cn(
             "text-xs ml-2 px-2 py-0.5 rounded-full",
-            profitability >= 50 ? "bg-green-500/20 text-green-700" : 
-            profitability >= 40 ? "bg-yellow-500/20 text-yellow-700" : 
+            netPayoutRate >= 50 ? "bg-green-500/20 text-green-700" : 
+            netPayoutRate >= 40 ? "bg-yellow-500/20 text-yellow-700" : 
             "bg-red-500/20 text-red-700"
           )}>
-            {profitability.toFixed(1)}% du CA
+            {netPayoutRate.toFixed(1)}% du CA
           </span>
         </div>
       </div>
