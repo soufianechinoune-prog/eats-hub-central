@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, getWeek, getYear, startOfWeek, endOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { 
   Table, 
   TableBody, 
@@ -25,7 +26,9 @@ import {
   AlertCircle,
   ArrowUpDown,
   HelpCircle,
-  Calendar
+  Calendar,
+  LayoutList,
+  Layers
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -89,7 +92,20 @@ interface ComparisonRow {
   otherRate: number;
   orderCount: number;
   avgBasket: number;
+  weekNumber: number;
+  year: number;
+  weekLabel: string;
 }
+
+interface WeekGroup {
+  weekKey: string;
+  weekLabel: string;
+  weekNumber: number;
+  year: number;
+  restaurants: ComparisonRow[];
+}
+
+type ViewMode = 'profitability' | 'week';
 
 export function ProfitabilityComparisonTable({ 
   payouts, 
@@ -98,6 +114,7 @@ export function ProfitabilityComparisonTable({
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedPayouts, setSelectedPayouts] = useState<PayoutData[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('profitability');
   
   const getRestaurantName = (id: string) => {
     return restaurants.find(r => r.id === id)?.name || id.slice(0, 8);
@@ -133,16 +150,23 @@ export function ProfitabilityComparisonTable({
       const orderCount = Number(payout.order_count) || 0;
       
       // Calcul du taux de commission HT : Frais Uber HT / (Ventes HT - Remboursements HT)
-      // Note: refund_excl_vat est négatif quand c'est un remboursement, donc on l'additionne
       const salesHT = Math.abs(Number(payout.sales_excl_vat) || 0);
       const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0);
-      const refundHT = Number(payout.refund_excl_vat) || 0; // Garder le signe original
-      const baseHT = salesHT + refundHT; // Si refund est négatif, on le soustrait; si positif, on l'ajoute
+      const refundHT = Number(payout.refund_excl_vat) || 0;
+      const baseHT = salesHT + refundHT;
       const uberFeeRateHT = baseHT > 0 ? (uberFeeHT / baseHT) * 100 : 0;
       
       // Rentabilité = (Versement Uber + Titres restaurant) / CA TTC
       const mealVoucher = Math.abs(Number(payout.meal_voucher_amount) || 0);
       const totalToReceive = netPayout + mealVoucher;
+      
+      // Week calculation
+      const payoutDate = new Date(payout.payout_date);
+      const weekNum = getWeek(payoutDate, { weekStartsOn: 1 });
+      const yearNum = getYear(payoutDate);
+      const weekStart = startOfWeek(payoutDate, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(payoutDate, { weekStartsOn: 1 });
+      const weekLabelStr = `Sem. ${weekNum} (${format(weekStart, "d", { locale: fr })}-${format(weekEnd, "d MMM", { locale: fr })})`;
       
       return {
         label: payout.payout_date,
@@ -155,7 +179,7 @@ export function ProfitabilityComparisonTable({
         uberFeeGross,
         uberFeeReduction,
         uberFeeNet,
-        uberFeeRate: uberFeeRateHT, // Utiliser le taux calculé sur base HT
+        uberFeeRate: uberFeeRateHT,
         uberFeeGrossRate: sales > 0 ? (uberFeeGross / sales) * 100 : 0,
         contractRate: getContractRate(payout.restaurant_id),
         promoRate: sales > 0 ? (promos / sales) * 100 : 0,
@@ -163,9 +187,42 @@ export function ProfitabilityComparisonTable({
         otherRate: sales > 0 ? (other / sales) * 100 : 0,
         orderCount,
         avgBasket: orderCount > 0 ? sales / orderCount : 0,
+        weekNumber: weekNum,
+        year: yearNum,
+        weekLabel: weekLabelStr,
       };
     }).sort((a, b) => b.profitability - a.profitability);
   }, [payouts, restaurants]);
+  
+  // Group by week for week view mode
+  const weekGroups = useMemo((): WeekGroup[] => {
+    const groups: Record<string, WeekGroup> = {};
+    
+    comparisonData.forEach(row => {
+      const key = `${row.year}-${row.weekNumber}`;
+      if (!groups[key]) {
+        groups[key] = {
+          weekKey: key,
+          weekLabel: row.weekLabel,
+          weekNumber: row.weekNumber,
+          year: row.year,
+          restaurants: [],
+        };
+      }
+      groups[key].restaurants.push(row);
+    });
+    
+    // Sort groups by year desc then week desc, and restaurants by profitability
+    return Object.values(groups)
+      .sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        return b.weekNumber - a.weekNumber;
+      })
+      .map(group => ({
+        ...group,
+        restaurants: group.restaurants.sort((a, b) => b.profitability - a.profitability),
+      }));
+  }, [comparisonData]);
   
   // Calculate averages for comparison
   const averages = useMemo(() => {
@@ -214,29 +271,57 @@ export function ProfitabilityComparisonTable({
     );
   };
   
+  // Check if we have multiple restaurants (needed for week view)
+  const hasMultipleRestaurants = uniqueRestaurants.size > 1;
+  
   return (
     <Card className="mt-4">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ArrowUpDown className="h-4 w-4" />
-          Comparatif de Rentabilité
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-sm">
-                <p className="text-xs">
-                  Ce tableau compare les versements pour comprendre les écarts de rentabilité. 
-                  Les indicateurs verts/rouges montrent les performances par rapport à la moyenne.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </CardTitle>
+        <div className="flex items-center justify-between gap-4">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ArrowUpDown className="h-4 w-4" />
+            Comparatif de Rentabilité
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-sm">
+                  <p className="text-xs">
+                    Ce tableau compare les versements pour comprendre les écarts de rentabilité.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </CardTitle>
+          
+          {/* View mode toggle - only show if multiple restaurants */}
+          {hasMultipleRestaurants && (
+            <div className="flex gap-1">
+              <Button
+                variant={viewMode === 'profitability' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('profitability')}
+                className="h-7 text-xs gap-1.5"
+              >
+                <LayoutList className="h-3.5 w-3.5" />
+                Par rentabilité
+              </Button>
+              <Button
+                variant={viewMode === 'week' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('week')}
+                className="h-7 text-xs gap-1.5"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Par semaine
+              </Button>
+            </div>
+          )}
+        </div>
         
-        {/* Gap indicator */}
-        {profitabilityGap > 2 && (
+        {/* Gap indicator - only in profitability mode */}
+        {viewMode === 'profitability' && profitabilityGap > 2 && (
           <div className="flex items-center gap-2 mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
             <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
             <p className="text-xs text-muted-foreground">
@@ -261,7 +346,9 @@ export function ProfitabilityComparisonTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[200px]">{isSingleRestaurant ? "Versement" : "Restaurant"}</TableHead>
+                <TableHead className="min-w-[200px]">
+                  {viewMode === 'week' ? 'Semaine / Restaurant' : (isSingleRestaurant ? "Versement" : "Restaurant")}
+                </TableHead>
                 <TableHead className="text-right">CA TTC</TableHead>
                 <TableHead className="text-right">
                   <TooltipProvider>
@@ -287,10 +374,7 @@ export function ProfitabilityComparisonTable({
                         <div className="text-xs space-y-1">
                           <p className="font-medium">Frais Uber après promotions (TTC)</p>
                           <p className="text-muted-foreground">
-                            Comprend les frais de service Uber Eats après déduction des réductions de commission accordées par Uber.
-                          </p>
-                          <p className="text-muted-foreground mt-1">
-                            Cliquez sur une ligne pour voir la décomposition : commission brute → réductions → commission nette.
+                            Cliquez sur une ligne pour voir la décomposition.
                           </p>
                         </div>
                       </TooltipContent>
@@ -303,126 +387,184 @@ export function ProfitabilityComparisonTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {comparisonData.map((row, index) => (
-                <TableRow 
-                  key={`${row.restaurantId}-${row.date}`}
-                  className={cn(
-                    "cursor-pointer hover:bg-muted/50 transition-colors",
-                    index === 0 && "bg-green-500/5 hover:bg-green-500/10",
-                    index === comparisonData.length - 1 && comparisonData.length > 1 && "bg-red-500/5 hover:bg-red-500/10"
-                  )}
-                  onClick={() => handleRowClick(row)}
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {index === 0 && <Badge variant="outline" className="text-green-600 border-green-600 text-[10px] px-1">TOP</Badge>}
-                      {index === comparisonData.length - 1 && comparisonData.length > 1 && (
-                        <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">BAS</Badge>
+              {viewMode === 'profitability' ? (
+                // Standard profitability view
+                <>
+                  {comparisonData.map((row, index) => (
+                    <TableRow 
+                      key={`${row.restaurantId}-${row.date}`}
+                      className={cn(
+                        "cursor-pointer hover:bg-muted/50 transition-colors",
+                        index === 0 && "bg-green-500/5 hover:bg-green-500/10",
+                        index === comparisonData.length - 1 && comparisonData.length > 1 && "bg-red-500/5 hover:bg-red-500/10"
                       )}
-                      {isSingleRestaurant ? (
+                      onClick={() => handleRowClick(row)}
+                    >
+                      <TableCell>
                         <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{format(new Date(row.date), "d MMMM yyyy", { locale: fr })}</span>
-                        </div>
-                      ) : (
-                        <span className="font-medium">{row.restaurantName}</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {isSingleRestaurant ? row.restaurantName : null}
-                      {isSingleRestaurant ? " • " : ""}{row.orderCount} cmd • Ø {formatCurrency(row.avgBasket)}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {formatCurrency(row.sales)}
-                  </TableCell>
-                  <TableCell className="text-right text-green-600">
-                    <ComparisonCell value={row.profitability} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="cursor-help">
-                            <ComparisonCell value={row.uberFeeRate} />
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs p-3">
-                          <div className="text-xs space-y-2">
-                            <p className="font-medium text-foreground">Décomposition Commission</p>
-                            <div className="space-y-1.5 text-muted-foreground">
-                              <div className="flex justify-between gap-4">
-                                <span>Commission brute</span>
-                                <span className="font-medium text-foreground tabular-nums">
-                                  {formatCurrency(row.uberFeeGross)} ({row.uberFeeGrossRate.toFixed(1)}%)
-                                </span>
-                              </div>
-                              {row.uberFeeReduction > 0 && (
-                                <div className="flex justify-between gap-4 text-green-600">
-                                  <span>Réduction Uber</span>
-                                  <span className="font-medium tabular-nums">
-                                    -{formatCurrency(row.uberFeeReduction)}
-                                  </span>
-                                </div>
-                              )}
-                              <div className="flex justify-between gap-4 border-t border-border pt-1">
-                                <span className="font-medium text-foreground">Commission nette</span>
-                                <span className="font-medium text-foreground tabular-nums">
-                                  {formatCurrency(row.uberFeeNet)} ({row.uberFeeRate.toFixed(1)}%)
-                                </span>
-                              </div>
+                          {index === 0 && <Badge variant="outline" className="text-green-600 border-green-600 text-[10px] px-1">TOP</Badge>}
+                          {index === comparisonData.length - 1 && comparisonData.length > 1 && (
+                            <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">BAS</Badge>
+                          )}
+                          {isSingleRestaurant ? (
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">{format(new Date(row.date), "d MMMM yyyy", { locale: fr })}</span>
                             </div>
-                            {row.contractRate !== null && (
-                              <div className="mt-2 pt-2 border-t border-border">
-                                <div className="flex justify-between gap-4">
-                                  <span className="text-muted-foreground">Taux contractuel</span>
-                                  <span className="font-medium tabular-nums">{row.contractRate}%</span>
-                                </div>
-                                <div className="flex justify-between gap-4 mt-1">
-                                  <span className="text-muted-foreground">Taux réel observé</span>
-                                  <span className="font-medium text-foreground tabular-nums">
-                                    {row.uberFeeRate.toFixed(1)}%
-                                  </span>
-                                </div>
-                              </div>
+                          ) : (
+                            <span className="font-medium">{row.restaurantName}</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {isSingleRestaurant ? row.restaurantName : null}
+                          {isSingleRestaurant ? " • " : ""}{row.orderCount} cmd • Ø {formatCurrency(row.avgBasket)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {formatCurrency(row.sales)}
+                      </TableCell>
+                      <TableCell className="text-right text-green-600">
+                        <ComparisonCell value={row.profitability} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <ComparisonCell value={row.uberFeeRate} />
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        <ComparisonCell value={row.promoRate} />
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        <ComparisonCell value={row.refundRate} />
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-green-600 tabular-nums">
+                        {formatCurrency(row.netPayout)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  
+                  {/* Average row */}
+                  {averages && comparisonData.length > 1 && (
+                    <TableRow className="bg-muted/50 font-medium">
+                      <TableCell colSpan={2} className="text-muted-foreground">
+                        Moyenne
+                      </TableCell>
+                      <TableCell className="text-right text-green-600 tabular-nums">
+                        {averages.profitability.toFixed(1)}%
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {averages.uberFeeRate.toFixed(1)}%
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {averages.promoRate.toFixed(1)}%
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {averages.refundRate.toFixed(1)}%
+                      </TableCell>
+                      <TableCell></TableCell>
+                    </TableRow>
+                  )}
+                </>
+              ) : (
+                // Week grouped view
+                <>
+                  {weekGroups.map((group) => {
+                    const bestInGroup = group.restaurants[0];
+                    const worstInGroup = group.restaurants[group.restaurants.length - 1];
+                    const hasGap = group.restaurants.length > 1;
+                    const profitGap = hasGap ? bestInGroup.profitability - worstInGroup.profitability : 0;
+                    const salesGap = hasGap ? bestInGroup.sales - worstInGroup.sales : 0;
+                    const payoutGap = hasGap ? bestInGroup.netPayout - worstInGroup.netPayout : 0;
+                    
+                    return (
+                      <>
+                        {/* Week header row */}
+                        <TableRow key={group.weekKey} className="bg-muted/30 hover:bg-muted/40">
+                          <TableCell colSpan={7} className="py-2">
+                            <div className="flex items-center gap-2 font-medium">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              {group.weekLabel}
+                              {hasGap && profitGap > 1 && (
+                                <Badge variant="outline" className="text-xs text-muted-foreground font-normal ml-2">
+                                  Écart {profitGap.toFixed(1)} pts
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        
+                        {/* Restaurant rows within the week */}
+                        {group.restaurants.map((row, idx) => (
+                          <TableRow 
+                            key={`${group.weekKey}-${row.restaurantId}`}
+                            className={cn(
+                              "cursor-pointer hover:bg-muted/50 transition-colors",
+                              idx === 0 && hasGap && "bg-green-500/5 hover:bg-green-500/10",
+                              idx === group.restaurants.length - 1 && hasGap && "bg-red-500/5 hover:bg-red-500/10"
                             )}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    <ComparisonCell value={row.promoRate} />
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    <ComparisonCell value={row.refundRate} />
-                  </TableCell>
-                  <TableCell className="text-right font-semibold text-green-600 tabular-nums">
-                    {formatCurrency(row.netPayout)}
-                  </TableCell>
-                </TableRow>
-              ))}
-              
-              {/* Average row */}
-              {averages && comparisonData.length > 1 && (
-                <TableRow className="bg-muted/50 font-medium">
-                  <TableCell colSpan={2} className="text-muted-foreground">
-                    Moyenne
-                  </TableCell>
-                  <TableCell className="text-right text-green-600 tabular-nums">
-                    {averages.profitability.toFixed(1)}%
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {averages.uberFeeRate.toFixed(1)}%
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground tabular-nums">
-                    {averages.promoRate.toFixed(1)}%
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground tabular-nums">
-                    {averages.refundRate.toFixed(1)}%
-                  </TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
+                            onClick={() => handleRowClick(row)}
+                          >
+                            <TableCell className="pl-8">
+                              <div className="flex items-center gap-2">
+                                {idx === 0 && hasGap && <Badge variant="outline" className="text-green-600 border-green-600 text-[10px] px-1">+</Badge>}
+                                {idx === group.restaurants.length - 1 && hasGap && <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">−</Badge>}
+                                <span className="font-medium">{row.restaurantName}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground pl-0">
+                                {row.orderCount} cmd • Ø {formatCurrency(row.avgBasket)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-medium tabular-nums">
+                              {formatCurrency(row.sales)}
+                            </TableCell>
+                            <TableCell className="text-right text-green-600">
+                              <ComparisonCell value={row.profitability} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <ComparisonCell value={row.uberFeeRate} />
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              <ComparisonCell value={row.promoRate} />
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              <ComparisonCell value={row.refundRate} />
+                            </TableCell>
+                            <TableCell className="text-right font-semibold text-green-600 tabular-nums">
+                              {formatCurrency(row.netPayout)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        
+                        {/* Gap row for the week */}
+                        {hasGap && (
+                          <TableRow className="bg-muted/10 text-xs border-b-2">
+                            <TableCell className="pl-8 py-1.5 italic text-muted-foreground">
+                              Écart
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {salesGap >= 0 ? '+' : ''}{formatCurrency(salesGap)}
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums font-medium">
+                              <span className={profitGap >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                {profitGap >= 0 ? '+' : ''}{profitGap.toFixed(1)} pts
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {(bestInGroup.uberFeeRate - worstInGroup.uberFeeRate).toFixed(1)} pts
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {(bestInGroup.promoRate - worstInGroup.promoRate).toFixed(1)} pts
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {(bestInGroup.refundRate - worstInGroup.refundRate).toFixed(1)} pts
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {payoutGap >= 0 ? '+' : ''}{formatCurrency(payoutGap)}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
+                    );
+                  })}
+                </>
               )}
             </TableBody>
           </Table>
