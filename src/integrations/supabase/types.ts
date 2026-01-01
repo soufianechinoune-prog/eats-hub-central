@@ -2730,6 +2730,9 @@ export type Database = {
           sales_incl_vat: number
           tips: number
           uber_fee_after_promo_incl_vat: number
+          uber_fee_before_promo_excl_vat: number
+          uber_fee_promo_excl_vat: number
+          vat_uber_fee: number
         }[]
       }
       get_monthly_payouts_summary: {
