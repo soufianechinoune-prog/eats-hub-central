@@ -2726,10 +2726,13 @@ export type Database = {
           order_count: number
           other_payments_incl_vat: number
           payout_date: string
+          refund_excl_vat: number
           refund_incl_vat: number
           restaurant_id: string
+          sales_excl_vat: number
           sales_incl_vat: number
           tips: number
+          uber_fee_after_promo_excl_vat: number
           uber_fee_after_promo_incl_vat: number
           uber_fee_before_promo_excl_vat: number
           uber_fee_promo_excl_vat: number
