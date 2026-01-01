@@ -66,10 +66,11 @@ const formatCurrency = (value: number) => {
   return `${value < 0 ? '-' : ''}${absValue.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 };
 
-// Helper to calculate profitability
-const calcProfitability = (netPayout: number, sales: number) => {
+// Helper to calculate profitability (including meal vouchers)
+const calcProfitability = (netPayout: number, mealVoucher: number, sales: number) => {
   if (sales === 0) return 0;
-  return (netPayout / sales) * 100;
+  const totalToReceive = netPayout + mealVoucher;
+  return (totalToReceive / sales) * 100;
 };
 
 // Detailed breakdown item with HT + TVA sub-lines
@@ -255,7 +256,7 @@ function WaterfallBreakdown({ payout, detailedView }: { payout: PayoutData; deta
   
   // Calculate total deductions
   const totalDeductions = uberFeeTTC + promosTTC + refundsTTC + otherPayments + Math.abs(marketingAdj) + mealVoucher + priceAdjTTC;
-  const profitability = calcProfitability(netPayout, sales);
+  const profitability = calcProfitability(netPayout, mealVoucher, sales);
   
   // Total to receive including meal vouchers
   const totalToReceive = netPayout + mealVoucher;
@@ -464,7 +465,8 @@ function PayoutCard({
 }) {
   const sales = Math.abs(Number(payout.sales_incl_vat) || 0);
   const netPayout = Number(payout.net_payout) || 0;
-  const profitability = calcProfitability(netPayout, sales);
+  const mealVoucher = Math.abs(Number(payout.meal_voucher_amount) || 0);
+  const profitability = calcProfitability(netPayout, mealVoucher, sales);
   const orderCount = Number(payout.order_count) || 0;
   const avgBasket = orderCount > 0 ? sales / orderCount : 0;
   
@@ -538,8 +540,8 @@ export function PayoutDetailSheet({
   
   // Sort payouts by profitability for comparison
   const sortedPayouts = [...payouts].sort((a, b) => {
-    const profA = calcProfitability(Number(a.net_payout) || 0, Math.abs(Number(a.sales_incl_vat) || 0));
-    const profB = calcProfitability(Number(b.net_payout) || 0, Math.abs(Number(b.sales_incl_vat) || 0));
+    const profA = calcProfitability(Number(a.net_payout) || 0, Math.abs(Number(a.meal_voucher_amount) || 0), Math.abs(Number(a.sales_incl_vat) || 0));
+    const profB = calcProfitability(Number(b.net_payout) || 0, Math.abs(Number(b.meal_voucher_amount) || 0), Math.abs(Number(b.sales_incl_vat) || 0));
     return profB - profA;
   });
   
@@ -650,8 +652,8 @@ export function PayoutDetailSheet({
               {(() => {
                 const best = sortedPayouts[0];
                 const worst = sortedPayouts[sortedPayouts.length - 1];
-                const bestProf = calcProfitability(Number(best.net_payout) || 0, Math.abs(Number(best.sales_incl_vat) || 0));
-                const worstProf = calcProfitability(Number(worst.net_payout) || 0, Math.abs(Number(worst.sales_incl_vat) || 0));
+                const bestProf = calcProfitability(Number(best.net_payout) || 0, Math.abs(Number(best.meal_voucher_amount) || 0), Math.abs(Number(best.sales_incl_vat) || 0));
+                const worstProf = calcProfitability(Number(worst.net_payout) || 0, Math.abs(Number(worst.meal_voucher_amount) || 0), Math.abs(Number(worst.sales_incl_vat) || 0));
                 const diff = bestProf - worstProf;
                 
                 // Use HT values for commission rate comparison if available
