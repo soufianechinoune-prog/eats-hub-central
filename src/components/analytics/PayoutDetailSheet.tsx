@@ -79,23 +79,32 @@ function DetailedBreakdownItem({
   amountHT,
   vatAmount,
   sales,
+  salesHT,
   isExpanded,
   onToggle,
   icon,
-  iconColor = "text-muted-foreground"
+  iconColor = "text-muted-foreground",
+  showCommissionRate = false
 }: {
   label: string;
   totalTTC: number;
   amountHT: number;
   vatAmount: number;
   sales: number;
+  salesHT?: number;
   isExpanded: boolean;
   onToggle: () => void;
   icon?: React.ReactNode;
   iconColor?: string;
+  showCommissionRate?: boolean;
 }) {
   const percentage = sales > 0 ? (Math.abs(totalTTC) / sales) * 100 : 0;
   const hasDetail = amountHT !== 0 || vatAmount !== 0;
+  
+  // Calculate commission rate HT for display next to Montant HT
+  const commissionRateHT = showCommissionRate && salesHT && salesHT > 0 
+    ? (Math.abs(amountHT) / salesHT) * 100 
+    : 0;
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
@@ -125,16 +134,16 @@ function DetailedBreakdownItem({
         <CollapsibleContent>
           <div className="ml-8 pl-3 border-l-2 border-muted space-y-1 py-1">
             <div className="flex items-center justify-between text-xs py-1">
-              <span className="text-muted-foreground">Montant HT</span>
+              <span className="text-muted-foreground">
+                Montant HT {showCommissionRate && commissionRateHT > 0 && (
+                  <span className="text-amber-600 font-medium">({commissionRateHT.toFixed(2)}%)</span>
+                )}
+              </span>
               <span className="text-red-600">{formatCurrency(-Math.abs(amountHT))}</span>
             </div>
             <div className="flex items-center justify-between text-xs py-1">
               <span className="text-muted-foreground">TVA (20%)</span>
               <span className="text-red-600">{formatCurrency(-Math.abs(vatAmount))}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs py-1 font-medium border-t border-muted pt-2">
-              <span className="text-muted-foreground">Sous-total TTC</span>
-              <span className="text-red-600">{formatCurrency(-Math.abs(totalTTC))}</span>
             </div>
           </div>
         </CollapsibleContent>
@@ -278,8 +287,10 @@ function WaterfallBreakdown({ payout, detailedView }: { payout: PayoutData; deta
             amountHT={uberFeeHT}
             vatAmount={vatUberFee}
             sales={sales}
+            salesHT={baseHT}
             isExpanded={expandedItems['uber'] ?? true}
             onToggle={() => toggleItem('uber')}
+            showCommissionRate={true}
           />
         ) : (
           <SimpleLineItem 
@@ -288,18 +299,6 @@ function WaterfallBreakdown({ payout, detailedView }: { payout: PayoutData; deta
             isNegative 
             percentage={(uberFeeTTC / sales) * 100}
           />
-        )}
-
-        {/* Taux de commission réel (HT) */}
-        {detailedView && commissionRateHT > 0 && (
-          <div className="flex items-center justify-between py-1.5 px-3 bg-amber-500/5 rounded-lg ml-2">
-            <span className="text-xs text-amber-700 dark:text-amber-400">
-              → Taux de commission réel (HT)
-            </span>
-            <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-              {commissionRateHT.toFixed(2)}%
-            </span>
-          </div>
         )}
 
         {/* Promotions articles - avec détail HT/TVA */}
