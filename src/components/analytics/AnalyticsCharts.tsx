@@ -3625,8 +3625,8 @@ export function AnalyticsCharts({
         restaurants={restaurants}
       />
       
-      {/* Profitability Comparison Table - shown in drill-down mode */}
-      {showFinances && drillDownMonth && dailyPayoutsData && dailyPayoutsData.length > 1 && (
+      {/* Profitability Comparison Table - shown when we have payouts data */}
+      {showFinances && dailyPayoutsData && dailyPayoutsData.length > 1 && (
         <ProfitabilityComparisonTable
           payouts={dailyPayoutsData}
           restaurants={restaurants}
