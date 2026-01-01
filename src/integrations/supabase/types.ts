@@ -2395,6 +2395,7 @@ export type Database = {
           street: string | null
           tablet_email: string | null
           tablet_password: string | null
+          uber_commission_rate: number | null
           uber_store_id: string | null
         }
         Insert: {
@@ -2429,6 +2430,7 @@ export type Database = {
           street?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
+          uber_commission_rate?: number | null
           uber_store_id?: string | null
         }
         Update: {
@@ -2463,6 +2465,7 @@ export type Database = {
           street?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
+          uber_commission_rate?: number | null
           uber_store_id?: string | null
         }
         Relationships: [
