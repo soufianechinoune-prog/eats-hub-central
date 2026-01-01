@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -21,7 +23,8 @@ import {
   Minus,
   AlertCircle,
   ArrowUpDown,
-  HelpCircle
+  HelpCircle,
+  Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -129,6 +132,10 @@ export function ProfitabilityComparisonTable({
   
   if (comparisonData.length === 0) return null;
   
+  // Check if we have multiple different restaurants or just one
+  const uniqueRestaurants = new Set(comparisonData.map(d => d.restaurantId));
+  const isSingleRestaurant = uniqueRestaurants.size === 1;
+  
   // Find the best and worst performers
   const best = comparisonData[0];
   const worst = comparisonData[comparisonData.length - 1];
@@ -198,8 +205,17 @@ export function ProfitabilityComparisonTable({
             <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
             <p className="text-xs text-muted-foreground">
               <span className="font-medium text-foreground">{profitabilityGap.toFixed(1)} pts d'écart</span> entre 
-              <span className="text-green-600"> {best.restaurantName}</span> ({best.profitability.toFixed(1)}%) et 
-              <span className="text-red-600"> {worst.restaurantName}</span> ({worst.profitability.toFixed(1)}%)
+              {isSingleRestaurant ? (
+                <>
+                  <span className="text-green-600"> {format(new Date(best.date), "d MMM", { locale: fr })}</span> ({best.profitability.toFixed(1)}%) et 
+                  <span className="text-red-600"> {format(new Date(worst.date), "d MMM", { locale: fr })}</span> ({worst.profitability.toFixed(1)}%)
+                </>
+              ) : (
+                <>
+                  <span className="text-green-600"> {best.restaurantName}</span> ({best.profitability.toFixed(1)}%) et 
+                  <span className="text-red-600"> {worst.restaurantName}</span> ({worst.profitability.toFixed(1)}%)
+                </>
+              )}
             </p>
           </div>
         )}
@@ -209,7 +225,7 @@ export function ProfitabilityComparisonTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[200px]">Restaurant</TableHead>
+                <TableHead className="min-w-[200px]">{isSingleRestaurant ? "Versement" : "Restaurant"}</TableHead>
                 <TableHead className="text-right">CA TTC</TableHead>
                 <TableHead className="text-right">
                   <TooltipProvider>
@@ -245,10 +261,18 @@ export function ProfitabilityComparisonTable({
                       {index === comparisonData.length - 1 && comparisonData.length > 1 && (
                         <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">BAS</Badge>
                       )}
-                      <span className="font-medium">{row.restaurantName}</span>
+                      {isSingleRestaurant ? (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{format(new Date(row.date), "d MMMM yyyy", { locale: fr })}</span>
+                        </div>
+                      ) : (
+                        <span className="font-medium">{row.restaurantName}</span>
+                      )}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {row.orderCount} cmd • Ø {formatCurrency(row.avgBasket)}
+                      {isSingleRestaurant ? row.restaurantName : null}
+                      {isSingleRestaurant ? " • " : ""}{row.orderCount} cmd • Ø {formatCurrency(row.avgBasket)}
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-medium">
