@@ -30,7 +30,9 @@ import {
   LayoutList,
   Layers,
   Percent,
-  Euro
+  Euro,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -132,6 +134,9 @@ interface MonthGroup {
 
 type ViewMode = 'profitability' | 'week' | 'month';
 
+type SortColumn = 'date' | 'sales' | 'profitability' | 'commission' | 'promo' | 'refund' | 'payout';
+type SortDirection = 'asc' | 'desc';
+
 export function ProfitabilityComparisonTable({ 
   payouts, 
   restaurants 
@@ -141,6 +146,18 @@ export function ProfitabilityComparisonTable({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('profitability');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('percent');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('profitability');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  
+  // Handle sort column click
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
   
   const getRestaurantName = (id: string) => {
     return restaurants.find(r => r.id === id)?.name || id.slice(0, 8);
@@ -160,7 +177,7 @@ export function ProfitabilityComparisonTable({
   
   // Transform payouts into comparison rows
   const comparisonData = useMemo(() => {
-    return payouts.map((payout): ComparisonRow => {
+    const rows = payouts.map((payout): ComparisonRow => {
       const sales = Math.abs(Number(payout.sales_incl_vat) || 0);
       const netPayout = Number(payout.net_payout) || 0;
       const uberFeeNet = Math.abs(Number(payout.uber_fee_after_promo_incl_vat) || 0);
@@ -219,8 +236,39 @@ export function ProfitabilityComparisonTable({
         year: yearNum,
         weekLabel: weekLabelStr,
       };
-    }).sort((a, b) => b.profitability - a.profitability);
-  }, [payouts, restaurants]);
+    });
+    
+    // Apply sorting
+    return rows.sort((a, b) => {
+      let comparison = 0;
+      switch (sortColumn) {
+        case 'date':
+          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+          break;
+        case 'sales':
+          comparison = a.sales - b.sales;
+          break;
+        case 'profitability':
+          comparison = a.profitability - b.profitability;
+          break;
+        case 'commission':
+          comparison = a.uberFeeRate - b.uberFeeRate;
+          break;
+        case 'promo':
+          comparison = a.promoRate - b.promoRate;
+          break;
+        case 'refund':
+          comparison = a.refundRate - b.refundRate;
+          break;
+        case 'payout':
+          comparison = a.netPayout - b.netPayout;
+          break;
+        default:
+          comparison = a.profitability - b.profitability;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [payouts, restaurants, sortColumn, sortDirection]);
   
   // Group by week for week view mode
   const weekGroups = useMemo((): WeekGroup[] => {
@@ -482,16 +530,46 @@ export function ProfitabilityComparisonTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[200px]">
-                  {viewMode === 'week' ? 'Semaine / Restaurant' : (isSingleRestaurant ? "Versement" : "Restaurant")}
+                <TableHead 
+                  className="min-w-[200px] cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('date')}
+                >
+                  <div className="flex items-center gap-1">
+                    {viewMode === 'week' ? 'Semaine / Restaurant' : (isSingleRestaurant ? "Versement" : "Restaurant")}
+                    {sortColumn === 'date' ? (
+                      sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    )}
+                  </div>
                 </TableHead>
-                <TableHead className="text-right">CA TTC</TableHead>
-                <TableHead className="text-right">
+                <TableHead 
+                  className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('sales')}
+                >
+                  <div className="flex items-center gap-1 justify-end">
+                    CA TTC
+                    {sortColumn === 'sales' ? (
+                      sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('profitability')}
+                >
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger className="flex items-center gap-1 ml-auto">
                         Rentabilité
                         <HelpCircle className="h-3 w-3" />
+                        {sortColumn === 'profitability' ? (
+                          sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                        )}
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p className="text-xs">Total à encaisser (Versement Uber + Titres restaurant) / CA TTC × 100</p>
@@ -499,12 +577,20 @@ export function ProfitabilityComparisonTable({
                     </Tooltip>
                   </TooltipProvider>
                 </TableHead>
-                <TableHead className="text-right text-orange-600">
+                <TableHead 
+                  className="text-right text-orange-600 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('commission')}
+                >
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger className="flex items-center gap-1 ml-auto">
                         Commission
                         <HelpCircle className="h-3 w-3" />
+                        {sortColumn === 'commission' ? (
+                          sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                        )}
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <div className="text-xs space-y-1">
@@ -517,9 +603,45 @@ export function ProfitabilityComparisonTable({
                     </Tooltip>
                   </TooltipProvider>
                 </TableHead>
-                <TableHead className="text-right">Promos</TableHead>
-                <TableHead className="text-right">Remb.</TableHead>
-                <TableHead className="text-right text-green-600">Versement</TableHead>
+                <TableHead 
+                  className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('promo')}
+                >
+                  <div className="flex items-center gap-1 justify-end">
+                    Promos
+                    {sortColumn === 'promo' ? (
+                      sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('refund')}
+                >
+                  <div className="flex items-center gap-1 justify-end">
+                    Remb.
+                    {sortColumn === 'refund' ? (
+                      sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-right text-green-600 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('payout')}
+                >
+                  <div className="flex items-center gap-1 justify-end">
+                    Versement
+                    {sortColumn === 'payout' ? (
+                      sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    )}
+                  </div>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
