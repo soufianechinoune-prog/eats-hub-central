@@ -645,21 +645,24 @@ export function ProfitabilityComparisonTable({
                     )}
                   </div>
                 </TableHead>
-                <TableHead className="text-right text-muted-foreground">
-                  Titre Resto
-                </TableHead>
                 <TableHead 
                   className="text-right text-green-600 cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => handleSort('payout')}
                 >
                   <div className="flex items-center gap-1 justify-end">
-                    Versement Total
+                    Versement Uber
                     {sortColumn === 'payout' ? (
                       sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
                       <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
                     )}
                   </div>
+                </TableHead>
+                <TableHead className="text-right text-muted-foreground">
+                  Titre Resto
+                </TableHead>
+                <TableHead className="text-right text-green-600 font-semibold">
+                  Versement Total
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -712,6 +715,9 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-muted-foreground">
                         <ComparisonCell percentValue={row.refundRate} amountValue={row.refundAmount} />
                       </TableCell>
+                      <TableCell className="text-right font-medium text-green-600 tabular-nums">
+                        {formatCurrency(row.netPayout)}
+                      </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {row.mealVoucher > 0 ? formatCurrency(row.mealVoucher) : '-'}
                       </TableCell>
@@ -748,6 +754,9 @@ export function ProfitabilityComparisonTable({
                           : `${averages.refundRate.toFixed(1)}%`
                         }
                       </TableCell>
+                      <TableCell className="text-right text-green-600 tabular-nums">
+                        {formatCurrency(comparisonData.reduce((sum, d) => sum + d.netPayout, 0) / comparisonData.length)}
+                      </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {averages.mealVoucherAmount > 0 ? formatCurrency(averages.mealVoucherAmount) : '-'}
                       </TableCell>
@@ -774,7 +783,7 @@ export function ProfitabilityComparisonTable({
                       <>
                         {/* Week header row */}
                         <TableRow key={group.weekKey} className="bg-muted/30 hover:bg-muted/40">
-                          <TableCell colSpan={9} className="py-2">
+                          <TableCell colSpan={10} className="py-2">
                             <div className="flex items-center gap-2 font-medium">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
                               {group.weekLabel}
@@ -828,6 +837,9 @@ export function ProfitabilityComparisonTable({
                             <TableCell className="text-right text-muted-foreground">
                               <ComparisonCell percentValue={row.refundRate} amountValue={row.refundAmount} />
                             </TableCell>
+                            <TableCell className="text-right font-medium text-green-600 tabular-nums">
+                              {formatCurrency(row.netPayout)}
+                            </TableCell>
                             <TableCell className="text-right text-muted-foreground tabular-nums">
                               {row.mealVoucher > 0 ? formatCurrency(row.mealVoucher) : '-'}
                             </TableCell>
@@ -868,6 +880,9 @@ export function ProfitabilityComparisonTable({
                                 ? `${(bestInGroup.refundAmount - worstInGroup.refundAmount) >= 0 ? '+' : ''}${formatCurrency(bestInGroup.refundAmount - worstInGroup.refundAmount)}`
                                 : `${(bestInGroup.refundRate - worstInGroup.refundRate).toFixed(1)} pts`
                               }
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {(bestInGroup.netPayout - worstInGroup.netPayout) >= 0 ? '+' : ''}{formatCurrency(bestInGroup.netPayout - worstInGroup.netPayout)}
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
                               -
@@ -925,6 +940,9 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-muted-foreground">
                         <ComparisonCell percentValue={group.avgRefundRate} amountValue={group.totalRefund} />
                       </TableCell>
+                      <TableCell className="text-right font-medium text-green-600 tabular-nums">
+                        {formatCurrency(group.totalPayout)}
+                      </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {group.totalMealVoucher > 0 ? formatCurrency(group.totalMealVoucher) : '-'}
                       </TableCell>
@@ -960,6 +978,9 @@ export function ProfitabilityComparisonTable({
                           ? formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalRefund, 0))
                           : `${averages?.refundRate.toFixed(1)}%`
                         }
+                      </TableCell>
+                      <TableCell className="text-right text-green-600 tabular-nums">
+                        {formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalPayout, 0))}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalMealVoucher, 0))}
