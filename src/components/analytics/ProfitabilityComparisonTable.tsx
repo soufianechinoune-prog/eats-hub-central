@@ -83,6 +83,8 @@ interface ComparisonRow {
   restaurantName: string;
   sales: number;
   netPayout: number;
+  mealVoucher: number;       // Versement Titre Restaurant
+  totalPayout: number;       // Versement Total (net + mealVoucher)
   profitability: number;
   // Commission breakdown
   uberFeeGross: number;      // Commission brute (avant promo)
@@ -122,6 +124,8 @@ interface MonthGroup {
   rows: ComparisonRow[];
   totalSales: number;
   totalPayout: number;
+  totalMealVoucher: number;
+  totalPayoutWithVoucher: number;
   avgProfitability: number;
   avgUberFeeRate: number;
   avgPromoRate: number;
@@ -218,6 +222,8 @@ export function ProfitabilityComparisonTable({
         restaurantName: getRestaurantName(payout.restaurant_id),
         sales,
         netPayout,
+        mealVoucher,
+        totalPayout: totalToReceive,
         profitability: sales > 0 ? (totalToReceive / sales) * 100 : 0,
         uberFeeGross,
         uberFeeReduction,
@@ -261,7 +267,7 @@ export function ProfitabilityComparisonTable({
           comparison = a.refundRate - b.refundRate;
           break;
         case 'payout':
-          comparison = a.netPayout - b.netPayout;
+          comparison = a.totalPayout - b.totalPayout;
           break;
         default:
           comparison = a.profitability - b.profitability;
@@ -324,6 +330,8 @@ export function ProfitabilityComparisonTable({
       .map(([key, { rows, monthNumber, year }]) => {
         const totalSales = rows.reduce((sum, r) => sum + r.sales, 0);
         const totalPayout = rows.reduce((sum, r) => sum + r.netPayout, 0);
+        const totalMealVoucher = rows.reduce((sum, r) => sum + r.mealVoucher, 0);
+        const totalPayoutWithVoucher = rows.reduce((sum, r) => sum + r.totalPayout, 0);
         const totalUberFee = rows.reduce((sum, r) => sum + r.uberFeeNet, 0);
         const totalPromo = rows.reduce((sum, r) => sum + r.promoAmount, 0);
         const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
@@ -333,7 +341,7 @@ export function ProfitabilityComparisonTable({
         const avgUberFeeRate = totalSales > 0 ? (totalUberFee / totalSales) * 100 : 0;
         const avgPromoRate = totalSales > 0 ? (totalPromo / totalSales) * 100 : 0;
         const avgRefundRate = totalSales > 0 ? (totalRefund / totalSales) * 100 : 0;
-        const avgProfitability = totalSales > 0 ? (totalPayout / totalSales) * 100 : 0;
+        const avgProfitability = totalSales > 0 ? (totalPayoutWithVoucher / totalSales) * 100 : 0;
         
         // Create month label
         const monthDate = new Date(year, monthNumber, 1);
@@ -347,6 +355,8 @@ export function ProfitabilityComparisonTable({
           rows: rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
           totalSales,
           totalPayout,
+          totalMealVoucher,
+          totalPayoutWithVoucher,
           avgProfitability,
           avgUberFeeRate,
           avgPromoRate,
@@ -369,16 +379,20 @@ export function ProfitabilityComparisonTable({
     
     const totalSales = comparisonData.reduce((sum, d) => sum + d.sales, 0);
     const totalNet = comparisonData.reduce((sum, d) => sum + d.netPayout, 0);
+    const totalMealVoucher = comparisonData.reduce((sum, d) => sum + d.mealVoucher, 0);
+    const totalPayout = comparisonData.reduce((sum, d) => sum + d.totalPayout, 0);
     const avgUberRate = comparisonData.reduce((sum, d) => sum + d.uberFeeRate, 0) / comparisonData.length;
     const avgPromoRate = comparisonData.reduce((sum, d) => sum + d.promoRate, 0) / comparisonData.length;
     const avgRefundRate = comparisonData.reduce((sum, d) => sum + d.refundRate, 0) / comparisonData.length;
     const avgOtherRate = comparisonData.reduce((sum, d) => sum + d.otherRate, 0) / comparisonData.length;
-    const avgProfitability = totalSales > 0 ? (totalNet / totalSales) * 100 : 0;
+    const avgProfitability = totalSales > 0 ? (totalPayout / totalSales) * 100 : 0;
     
     // Average amounts
     const avgUberFeeAmount = comparisonData.reduce((sum, d) => sum + d.uberFeeNet, 0) / comparisonData.length;
     const avgPromoAmount = comparisonData.reduce((sum, d) => sum + d.promoAmount, 0) / comparisonData.length;
     const avgRefundAmount = comparisonData.reduce((sum, d) => sum + d.refundAmount, 0) / comparisonData.length;
+    const avgMealVoucherAmount = totalMealVoucher / comparisonData.length;
+    const avgTotalPayoutAmount = totalPayout / comparisonData.length;
     
     return {
       profitability: avgProfitability,
@@ -389,6 +403,8 @@ export function ProfitabilityComparisonTable({
       uberFeeAmount: avgUberFeeAmount,
       promoAmount: avgPromoAmount,
       refundAmount: avgRefundAmount,
+      mealVoucherAmount: avgMealVoucherAmount,
+      totalPayoutAmount: avgTotalPayoutAmount,
     };
   }, [comparisonData]);
   
@@ -629,12 +645,15 @@ export function ProfitabilityComparisonTable({
                     )}
                   </div>
                 </TableHead>
+                <TableHead className="text-right text-muted-foreground">
+                  Titre Resto
+                </TableHead>
                 <TableHead 
                   className="text-right text-green-600 cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => handleSort('payout')}
                 >
                   <div className="flex items-center gap-1 justify-end">
-                    Versement
+                    Versement Total
                     {sortColumn === 'payout' ? (
                       sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
@@ -693,8 +712,11 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-muted-foreground">
                         <ComparisonCell percentValue={row.refundRate} amountValue={row.refundAmount} />
                       </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {row.mealVoucher > 0 ? formatCurrency(row.mealVoucher) : '-'}
+                      </TableCell>
                       <TableCell className="text-right font-semibold text-green-600 tabular-nums">
-                        {formatCurrency(row.netPayout)}
+                        {formatCurrency(row.totalPayout)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -726,7 +748,12 @@ export function ProfitabilityComparisonTable({
                           : `${averages.refundRate.toFixed(1)}%`
                         }
                       </TableCell>
-                      <TableCell></TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {averages.mealVoucherAmount > 0 ? formatCurrency(averages.mealVoucherAmount) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right text-green-600 tabular-nums">
+                        {formatCurrency(averages.totalPayoutAmount)}
+                      </TableCell>
                     </TableRow>
                   )}
                 </>
@@ -741,13 +768,13 @@ export function ProfitabilityComparisonTable({
                     const hasGap = group.restaurants.length > 1;
                     const profitGap = hasGap ? bestInGroup.profitability - worstInGroup.profitability : 0;
                     const salesGap = hasGap ? bestInGroup.sales - worstInGroup.sales : 0;
-                    const payoutGap = hasGap ? bestInGroup.netPayout - worstInGroup.netPayout : 0;
+                    const payoutGap = hasGap ? bestInGroup.totalPayout - worstInGroup.totalPayout : 0;
                     
                     return (
                       <>
                         {/* Week header row */}
                         <TableRow key={group.weekKey} className="bg-muted/30 hover:bg-muted/40">
-                          <TableCell colSpan={7} className="py-2">
+                          <TableCell colSpan={9} className="py-2">
                             <div className="flex items-center gap-2 font-medium">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
                               {group.weekLabel}
@@ -801,8 +828,11 @@ export function ProfitabilityComparisonTable({
                             <TableCell className="text-right text-muted-foreground">
                               <ComparisonCell percentValue={row.refundRate} amountValue={row.refundAmount} />
                             </TableCell>
+                            <TableCell className="text-right text-muted-foreground tabular-nums">
+                              {row.mealVoucher > 0 ? formatCurrency(row.mealVoucher) : '-'}
+                            </TableCell>
                             <TableCell className="text-right font-semibold text-green-600 tabular-nums">
-                              {formatCurrency(row.netPayout)}
+                              {formatCurrency(row.totalPayout)}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -838,6 +868,9 @@ export function ProfitabilityComparisonTable({
                                 ? `${(bestInGroup.refundAmount - worstInGroup.refundAmount) >= 0 ? '+' : ''}${formatCurrency(bestInGroup.refundAmount - worstInGroup.refundAmount)}`
                                 : `${(bestInGroup.refundRate - worstInGroup.refundRate).toFixed(1)} pts`
                               }
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              -
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
                               {payoutGap >= 0 ? '+' : ''}{formatCurrency(payoutGap)}
@@ -892,8 +925,11 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-muted-foreground">
                         <ComparisonCell percentValue={group.avgRefundRate} amountValue={group.totalRefund} />
                       </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {group.totalMealVoucher > 0 ? formatCurrency(group.totalMealVoucher) : '-'}
+                      </TableCell>
                       <TableCell className="text-right font-semibold text-green-600 tabular-nums">
-                        {formatCurrency(group.totalPayout)}
+                        {formatCurrency(group.totalPayoutWithVoucher)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -925,8 +961,11 @@ export function ProfitabilityComparisonTable({
                           : `${averages?.refundRate.toFixed(1)}%`
                         }
                       </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalMealVoucher, 0))}
+                      </TableCell>
                       <TableCell className="text-right font-semibold text-green-600 tabular-nums">
-                        {formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalPayout, 0))}
+                        {formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalPayoutWithVoucher, 0))}
                       </TableCell>
                     </TableRow>
                   )}
