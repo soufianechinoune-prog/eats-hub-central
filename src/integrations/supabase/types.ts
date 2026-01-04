@@ -1465,6 +1465,7 @@ export type Database = {
           requested_count: number | null
           requested_quantity: number | null
           requested_weight: number | null
+          restaurant_id: string | null
           sales_excl_vat: number | null
           sales_incl_vat: number | null
           sold_by_unit: string | null
@@ -1507,6 +1508,7 @@ export type Database = {
           requested_count?: number | null
           requested_quantity?: number | null
           requested_weight?: number | null
+          restaurant_id?: string | null
           sales_excl_vat?: number | null
           sales_incl_vat?: number | null
           sold_by_unit?: string | null
@@ -1549,6 +1551,7 @@ export type Database = {
           requested_count?: number | null
           requested_quantity?: number | null
           requested_weight?: number | null
+          restaurant_id?: string | null
           sales_excl_vat?: number | null
           sales_incl_vat?: number | null
           sold_by_unit?: string | null
