@@ -3,6 +3,7 @@ import { format, getWeek, getMonth, getYear, startOfWeek, endOfWeek, startOfMont
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
+import { DailyFinancesSheet } from "./DailyFinancesSheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -32,7 +33,8 @@ import {
   Percent,
   Euro,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  ZoomIn
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -153,6 +155,15 @@ export function ProfitabilityComparisonTable({
   const [sortColumn, setSortColumn] = useState<SortColumn>('profitability');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
+  // Daily drill-down sheet state
+  const [dailySheetOpen, setDailySheetOpen] = useState(false);
+  const [dailySheetPeriod, setDailySheetPeriod] = useState<{
+    startDate: Date;
+    endDate: Date;
+    label: string;
+    restaurantIds: string[];
+  } | null>(null);
+  
   // Handle sort column click
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -177,6 +188,46 @@ export function ProfitabilityComparisonTable({
     setSelectedDate(row.date);
     setSelectedPayouts(matchingPayouts);
     setSheetOpen(true);
+  };
+  
+  // Handle week drill-down to show daily view
+  const handleWeekDrillDown = (group: WeekGroup) => {
+    const weekDate = new Date(group.year, 0, 1);
+    // Find the first day of this week
+    const firstRowDate = group.restaurants[0]?.date;
+    if (firstRowDate) {
+      const baseDate = new Date(firstRowDate);
+      const weekStart = startOfWeek(baseDate, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(baseDate, { weekStartsOn: 1 });
+      
+      // Get unique restaurant IDs from this week
+      const restaurantIds = [...new Set(group.restaurants.map(r => r.restaurantId))];
+      
+      setDailySheetPeriod({
+        startDate: weekStart,
+        endDate: weekEnd,
+        label: group.weekLabel,
+        restaurantIds,
+      });
+      setDailySheetOpen(true);
+    }
+  };
+  
+  // Handle month drill-down to show daily view
+  const handleMonthDrillDown = (group: MonthGroup) => {
+    const monthStart = startOfMonth(new Date(group.year, group.monthNumber, 1));
+    const monthEnd = endOfMonth(new Date(group.year, group.monthNumber, 1));
+    
+    // Get unique restaurant IDs from this month
+    const restaurantIds = [...new Set(group.rows.map(r => r.restaurantId))];
+    
+    setDailySheetPeriod({
+      startDate: monthStart,
+      endDate: monthEnd,
+      label: group.monthLabel,
+      restaurantIds,
+    });
+    setDailySheetOpen(true);
   };
   
   // Transform payouts into comparison rows
@@ -783,7 +834,7 @@ export function ProfitabilityComparisonTable({
                       <>
                         {/* Week header row */}
                         <TableRow key={group.weekKey} className="bg-muted/30 hover:bg-muted/40">
-                          <TableCell colSpan={10} className="py-2">
+                          <TableCell colSpan={9} className="py-2">
                             <div className="flex items-center gap-2 font-medium">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
                               {group.weekLabel}
@@ -793,6 +844,17 @@ export function ProfitabilityComparisonTable({
                                 </Badge>
                               )}
                             </div>
+                          </TableCell>
+                          <TableCell className="text-right py-2">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-7 gap-1 text-xs"
+                              onClick={() => handleWeekDrillDown(group)}
+                            >
+                              <ZoomIn className="h-3.5 w-3.5" />
+                              Détail
+                            </Button>
                           </TableCell>
                         </TableRow>
                         
@@ -920,6 +982,15 @@ export function ProfitabilityComparisonTable({
                           )}
                           <Calendar className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">{group.monthLabel}</span>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 gap-1 text-xs ml-auto"
+                            onClick={() => handleMonthDrillDown(group)}
+                          >
+                            <ZoomIn className="h-3 w-3" />
+                            Détail
+                          </Button>
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {group.rows.length} versement{group.rows.length > 1 ? 's' : ''} • {group.totalOrders} cmd • Ø {group.totalOrders > 0 ? formatCurrency(group.totalSales / group.totalOrders) : '0 €'}
@@ -1005,6 +1076,18 @@ export function ProfitabilityComparisonTable({
         payouts={selectedPayouts}
         restaurants={restaurants}
       />
+      
+      {/* Daily Finances Drill-down Sheet */}
+      {dailySheetPeriod && (
+        <DailyFinancesSheet
+          open={dailySheetOpen}
+          onOpenChange={setDailySheetOpen}
+          restaurantIds={dailySheetPeriod.restaurantIds}
+          startDate={dailySheetPeriod.startDate}
+          endDate={dailySheetPeriod.endDate}
+          periodLabel={dailySheetPeriod.label}
+        />
+      )}
     </Card>
   );
 }
