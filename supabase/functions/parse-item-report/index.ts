@@ -315,11 +315,11 @@ serve(async (req) => {
 
     console.log(`Fetching orders in ${flowIdChunks.length} chunks of max ${CHUNK_SIZE}...`);
 
-    let allExistingOrders: { id: string; uber_flow_id: string; uber_order_id: string }[] = [];
+    let allExistingOrders: { id: string; uber_flow_id: string; uber_order_id: string; restaurant_id: string }[] = [];
     for (const chunk of flowIdChunks) {
       const { data: chunkOrders, error: chunkError } = await supabase
         .from('orders')
-        .select('id, uber_flow_id, uber_order_id')
+        .select('id, uber_flow_id, uber_order_id, restaurant_id')
         .in('uber_flow_id', chunk);
       
       if (chunkError) {
@@ -335,15 +335,17 @@ serve(async (req) => {
     console.log(`Found ${allExistingOrders.length} matching orders from chunks`);
     const existingOrders = allExistingOrders;
 
-    // Create mapping from uber_flow_id to order_id
+    // Create mapping from uber_flow_id to order_id and restaurant_id
     const flowIdToOrderId: Record<string, string> = {};
     const orderIdToUberOrderId: Record<string, string> = {};
+    const flowIdToRestaurantId: Record<string, string> = {};
     
     if (existingOrders) {
       existingOrders.forEach(order => {
         if (order.uber_flow_id) {
           flowIdToOrderId[order.uber_flow_id] = order.id;
           orderIdToUberOrderId[order.uber_flow_id] = order.uber_order_id;
+          flowIdToRestaurantId[order.uber_flow_id] = order.restaurant_id;
         }
       });
     }
@@ -440,9 +442,11 @@ serve(async (req) => {
           continue;
         }
 
-        // Prepare the record for upsert
+        // Prepare the record for upsert with restaurant_id
+        const restaurantId = flowIdToRestaurantId[item.uber_flow_id];
         const record = {
           order_id: orderId,
+          restaurant_id: restaurantId,
           ...item,
         };
 
