@@ -88,6 +88,17 @@ interface ValidationData {
   skippedDetails: SkipInfo[];
 }
 
+interface OrphanInfo {
+  count: number;
+  missingFlowIds: string[];
+  totalMissingFlowIds: number;
+  dateRange: {
+    start: string | null;
+    end: string | null;
+  };
+  recommendation: string;
+}
+
 interface ImportResult {
   success: boolean;
   reportType: string;
@@ -100,6 +111,7 @@ interface ImportResult {
     errors: number;
   };
   validation?: ValidationData;
+  orphanInfo?: OrphanInfo;
   errorDetails: string[];
 }
 
@@ -1328,6 +1340,59 @@ export default function ReportImport() {
                     </div>
                   )}
 
+                  {/* Orphan items warning for item-level imports */}
+                  {validationResult.orphanInfo && validationResult.orphanInfo.count > 0 && (
+                    <Alert variant="destructive" className="border-amber-500 bg-amber-500/10">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertTitle className="text-amber-700">
+                        {validationResult.orphanInfo.count} articles orphelins détectés
+                      </AlertTitle>
+                      <AlertDescription className="space-y-3">
+                        <p className="text-sm">
+                          Ces articles ne peuvent pas être importés car leurs commandes parentes n'existent pas dans la base de données.
+                        </p>
+                        
+                        {validationResult.orphanInfo.dateRange.start && validationResult.orphanInfo.dateRange.end && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Calendar className="h-4 w-4" />
+                            <span className="font-medium">
+                              Période concernée : {formatDate(validationResult.orphanInfo.dateRange.start)} → {formatDate(validationResult.orphanInfo.dateRange.end)}
+                            </span>
+                          </div>
+                        )}
+                        
+                        <div className="p-3 bg-background rounded-lg border border-amber-300">
+                          <p className="text-sm font-medium text-foreground mb-2">
+                            💡 Action requise :
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {validationResult.orphanInfo.recommendation}
+                          </p>
+                        </div>
+
+                        {validationResult.orphanInfo.missingFlowIds.length > 0 && (
+                          <div className="pt-2">
+                            <p className="text-xs text-muted-foreground mb-1">
+                              Exemples de flow_id manquants ({validationResult.orphanInfo.totalMissingFlowIds} au total) :
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {validationResult.orphanInfo.missingFlowIds.slice(0, 5).map((id) => (
+                                <Badge key={id} variant="outline" className="font-mono text-xs">
+                                  {id.substring(0, 8)}...
+                                </Badge>
+                              ))}
+                              {validationResult.orphanInfo.totalMissingFlowIds > 5 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{validationResult.orphanInfo.totalMissingFlowIds - 5} autres
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button variant="outline" onClick={resetImport}>
                       Annuler
@@ -1397,6 +1462,39 @@ export default function ReportImport() {
                     <p className="text-sm text-muted-foreground">Erreurs</p>
                   </div>
                 </div>
+
+                {/* Orphan items warning in complete step */}
+                {importResult.orphanInfo && importResult.orphanInfo.count > 0 && (
+                  <Alert variant="destructive" className="border-amber-500 bg-amber-500/10">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertTitle className="text-amber-700">
+                      {importResult.orphanInfo.count} articles non importés (orphelins)
+                    </AlertTitle>
+                    <AlertDescription className="space-y-3">
+                      <p className="text-sm">
+                        Ces articles n'ont pas pu être importés car leurs commandes parentes n'existent pas dans la base.
+                      </p>
+                      
+                      {importResult.orphanInfo.dateRange.start && importResult.orphanInfo.dateRange.end && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4" />
+                          <span className="font-medium">
+                            Période concernée : {formatDate(importResult.orphanInfo.dateRange.start)} → {formatDate(importResult.orphanInfo.dateRange.end)}
+                          </span>
+                        </div>
+                      )}
+                      
+                      <div className="p-3 bg-background rounded-lg border border-amber-300">
+                        <p className="text-sm font-medium text-foreground mb-2">
+                          💡 Pour importer ces articles :
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {importResult.orphanInfo.recommendation}
+                        </p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {importResult.errorDetails && importResult.errorDetails.length > 0 && (
                   <Alert variant="destructive">

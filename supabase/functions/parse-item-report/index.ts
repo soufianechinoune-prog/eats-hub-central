@@ -302,6 +302,16 @@ serve(async (req) => {
 
     console.log(`Found ${itemsToUpsert.length} items to process, ${skippedRows} summary rows skipped`);
 
+    // Extract order dates from items for better error messages
+    const orderDates: string[] = [];
+    const orderDateIdx = columnIndices['order_date'];
+    if (orderDateIdx !== undefined) {
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
+        const dateStr = rows[i][orderDateIdx]?.trim();
+        if (dateStr) orderDates.push(dateStr);
+      }
+    }
+
     // Get unique uber_flow_ids to fetch order_ids
     const uniqueFlowIds = [...new Set(itemsToUpsert.map(item => item.uber_flow_id).filter(Boolean))];
     console.log(`Looking up ${uniqueFlowIds.length} unique flow IDs...`);
@@ -352,6 +362,39 @@ serve(async (req) => {
 
     console.log(`Found ${Object.keys(flowIdToOrderId).length} matching orders`);
 
+    // Collect orphan flow IDs for detailed error reporting
+    const orphanFlowIds: string[] = [];
+    const foundFlowIds = new Set(Object.keys(flowIdToOrderId));
+    
+    for (const flowId of uniqueFlowIds) {
+      if (!foundFlowIds.has(flowId)) {
+        orphanFlowIds.push(flowId);
+      }
+    }
+
+    // Parse date range from order dates
+    let dateRangeStart: string | null = null;
+    let dateRangeEnd: string | null = null;
+    
+    if (orderDates.length > 0) {
+      const parsedDates = orderDates
+        .map(d => {
+          // Parse DD/MM/YYYY format
+          const match = d.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+          if (match) {
+            return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+          }
+          return null;
+        })
+        .filter(Boolean)
+        .sort();
+      
+      if (parsedDates.length > 0) {
+        dateRangeStart = parsedDates[0]!;
+        dateRangeEnd = parsedDates[parsedDates.length - 1]!;
+      }
+    }
+
     // For dry run, simulate what would happen
     if (dryRun) {
       let wouldInsert = 0;
@@ -401,6 +444,18 @@ serve(async (req) => {
         }
       }
 
+      // Build detailed orphan info for UI
+      const orphanInfo = orphanCount > 0 ? {
+        count: orphanCount,
+        missingFlowIds: orphanFlowIds.slice(0, 10),
+        totalMissingFlowIds: orphanFlowIds.length,
+        dateRange: {
+          start: dateRangeStart,
+          end: dateRangeEnd,
+        },
+        recommendation: "Importez d'abord le fichier 'Récapitulatif de paiement' (niveau commande) pour la même période avant d'importer ce fichier articles.",
+      } : null;
+
       const result = {
         success: true,
         reportType: "payment_item_level",
@@ -413,7 +468,10 @@ serve(async (req) => {
           orphaned: orphanCount,
           errors: 0,
         },
-        message: `Validation: ${wouldInsert} articles à insérer, ${wouldUpdate} à mettre à jour, ${orphanCount} orphelins (commande non trouvée)`
+        orphanInfo,
+        message: orphanCount > 0 
+          ? `⚠️ ${orphanCount} articles orphelins détectés - commandes parentes introuvables (période: ${dateRangeStart || '?'} → ${dateRangeEnd || '?'}). Importez d'abord le Récapitulatif de paiement.`
+          : `Validation: ${wouldInsert} articles à insérer, ${wouldUpdate} à mettre à jour`
       };
 
       console.log('Dry run result:', result);
@@ -487,6 +545,18 @@ serve(async (req) => {
       }
     }
 
+    // Build detailed orphan info for UI (also for real import)
+    const orphanInfo = orphanCount > 0 ? {
+      count: orphanCount,
+      missingFlowIds: orphanFlowIds.slice(0, 10),
+      totalMissingFlowIds: orphanFlowIds.length,
+      dateRange: {
+        start: dateRangeStart,
+        end: dateRangeEnd,
+      },
+      recommendation: "Importez d'abord le fichier 'Récapitulatif de paiement' (niveau commande) pour la même période avant d'importer ce fichier articles.",
+    } : null;
+
     const result = {
       success: true,
       reportType: "payment_item_level",
@@ -499,8 +569,11 @@ serve(async (req) => {
         orphaned: orphanCount,
         errors: errorCount,
       },
+      orphanInfo,
       errors: errors.slice(0, 10),
-      message: `Import terminé: ${insertedCount} articles insérés, ${updatedCount} mis à jour, ${orphanCount} orphelins (commande non trouvée), ${errorCount} erreurs`
+      message: orphanCount > 0 
+        ? `⚠️ Import partiel: ${insertedCount} articles insérés, ${updatedCount} mis à jour, ${orphanCount} orphelins (commandes parentes introuvables pour la période ${dateRangeStart || '?'} → ${dateRangeEnd || '?'})`
+        : `Import terminé: ${insertedCount} articles insérés, ${updatedCount} mis à jour, ${errorCount} erreurs`
     };
 
     console.log('Import result:', result);
