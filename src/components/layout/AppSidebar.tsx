@@ -24,6 +24,7 @@ import {
   Star,
   FileUp,
   ClipboardCheck,
+  ShoppingBag,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 const analyticsSubItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Revenus & Ventes", url: "/analytics/revenue", icon: Euro },
+  { title: "Ventes Articles", url: "/item-sales", icon: ShoppingBag },
   { title: "Conversion", url: "/analytics/conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics/finances", icon: Wallet },
   { title: "Opérations", url: "/analytics/operations", icon: Settings2 },
@@ -153,7 +155,8 @@ export function AppSidebar() {
   const isAnalyticsActive = () => {
     return location.pathname === "/" || 
            location.pathname.startsWith("/analytics") ||
-           location.pathname === "/classements";
+           location.pathname === "/classements" ||
+           location.pathname === "/item-sales";
   };
   
   const getActiveAnalyticsSubItem = (url: string) => {
@@ -162,6 +165,9 @@ export function AppSidebar() {
     }
     if (url === "/classements") {
       return location.pathname === "/classements";
+    }
+    if (url === "/item-sales") {
+      return location.pathname === "/item-sales";
     }
     // Path-based analytics routes (e.g., /analytics/revenue)
     if (url.startsWith("/analytics/") && !url.startsWith("/analytics/ranking")) {
