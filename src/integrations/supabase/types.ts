@@ -933,6 +933,7 @@ export type Database = {
         Row: {
           batch_id: string | null
           campaign_id: string | null
+          channel: string | null
           created_at: string
           delivered_at: string | null
           direction: string
@@ -957,6 +958,7 @@ export type Database = {
         Insert: {
           batch_id?: string | null
           campaign_id?: string | null
+          channel?: string | null
           created_at?: string
           delivered_at?: string | null
           direction?: string
@@ -981,6 +983,7 @@ export type Database = {
         Update: {
           batch_id?: string | null
           campaign_id?: string | null
+          channel?: string | null
           created_at?: string
           delivered_at?: string | null
           direction?: string
@@ -2385,6 +2388,7 @@ export type Database = {
           longitude: number | null
           manager_first_name: string | null
           manager_last_name: string | null
+          manager_telegram: string | null
           manager_whatsapp: string | null
           name: string
           phone: string | null
@@ -2420,6 +2424,7 @@ export type Database = {
           longitude?: number | null
           manager_first_name?: string | null
           manager_last_name?: string | null
+          manager_telegram?: string | null
           manager_whatsapp?: string | null
           name: string
           phone?: string | null
@@ -2455,6 +2460,7 @@ export type Database = {
           longitude?: number | null
           manager_first_name?: string | null
           manager_last_name?: string | null
+          manager_telegram?: string | null
           manager_whatsapp?: string | null
           name?: string
           phone?: string | null
@@ -2480,6 +2486,7 @@ export type Database = {
       }
       scheduled_messages: {
         Row: {
+          channel: string | null
           created_at: string
           error_message: string | null
           failed_count: number | null
@@ -2496,6 +2503,7 @@ export type Database = {
           subject: string | null
         }
         Insert: {
+          channel?: string | null
           created_at?: string
           error_message?: string | null
           failed_count?: number | null
@@ -2512,6 +2520,7 @@ export type Database = {
           subject?: string | null
         }
         Update: {
+          channel?: string | null
           created_at?: string
           error_message?: string | null
           failed_count?: number | null
