@@ -37,6 +37,7 @@ import RatingsComparison from "./pages/RatingsComparison";
 import OpeningHoursComparison from "./pages/OpeningHoursComparison";
 import PrepTimeComparison from "./pages/PrepTimeComparison";
 import InaccurateOrdersComparison from "./pages/InaccurateOrdersComparison";
+import ItemSales from "./pages/ItemSales";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 
 const queryClient = new QueryClient({
@@ -274,6 +275,7 @@ const App = () => {
                   </AppLayout>
                 }
               />
+              <Route path="/item-sales" element={<ItemSales />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
