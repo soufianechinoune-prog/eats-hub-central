@@ -28,6 +28,9 @@ import {
   TrendingUp,
   TrendingDown,
   Loader2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinancesDrilldown } from "@/hooks/useFinancesDrilldown";
@@ -71,6 +74,12 @@ export function OrdersAnalysisSection({
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(
     selectedRestaurants.length === 1 ? selectedRestaurants[0] : null
   );
+  
+  // Sorting state
+  type SortField = 'date' | 'orders' | 'sales' | 'profitability' | 'commission' | 'promos' | 'refunds' | 'payout';
+  type SortDirection = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   
   // Payout detail sheet state
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -127,6 +136,64 @@ export function OrdersAnalysisSection({
     return restaurants.find(r => r.id === id)?.name || id.slice(0, 8);
   };
   
+  // Toggle sort
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'date' ? 'asc' : 'desc');
+    }
+  };
+  
+  // Render sort icon
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-3 w-3 ml-1" /> 
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
+  
+  // Sort daily data
+  const sortedDailyData = useMemo(() => {
+    if (!dailyData?.length) return [];
+    
+    return [...dailyData].sort((a, b) => {
+      let comparison = 0;
+      const profitA = a.sales_incl_vat > 0 ? (a.net_payout / a.sales_incl_vat) * 100 : 0;
+      const profitB = b.sales_incl_vat > 0 ? (b.net_payout / b.sales_incl_vat) * 100 : 0;
+      
+      switch (sortField) {
+        case 'date':
+          comparison = a.date.localeCompare(b.date);
+          break;
+        case 'orders':
+          comparison = a.order_count - b.order_count;
+          break;
+        case 'sales':
+          comparison = a.sales_incl_vat - b.sales_incl_vat;
+          break;
+        case 'profitability':
+          comparison = profitA - profitB;
+          break;
+        case 'commission':
+          comparison = a.uber_fee_incl_vat - b.uber_fee_incl_vat;
+          break;
+        case 'promos':
+          comparison = a.promo_incl_vat - b.promo_incl_vat;
+          break;
+        case 'refunds':
+          comparison = a.refund_incl_vat - b.refund_incl_vat;
+          break;
+        case 'payout':
+          comparison = a.net_payout - b.net_payout;
+          break;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [dailyData, sortField, sortDirection]);
+  
   // Calculate totals
   const dailyTotals = useMemo(() => {
     if (!dailyData?.length) return null;
@@ -135,6 +202,8 @@ export function OrdersAnalysisSection({
       sales: dailyData.reduce((sum, d) => sum + d.sales_incl_vat, 0),
       refunds: dailyData.reduce((sum, d) => sum + d.refund_incl_vat, 0),
       netPayout: dailyData.reduce((sum, d) => sum + d.net_payout, 0),
+      commission: dailyData.reduce((sum, d) => sum + d.uber_fee_incl_vat, 0),
+      promos: dailyData.reduce((sum, d) => sum + d.promo_incl_vat, 0),
     };
   }, [dailyData]);
   
@@ -229,23 +298,88 @@ export function OrdersAnalysisSection({
             <>
               {/* Daily Tab */}
               <TabsContent value="daily" className="mt-0">
-                {dailyData && dailyData.length > 0 ? (
+                {sortedDailyData && sortedDailyData.length > 0 ? (
                   <div className="rounded-md border overflow-hidden">
                     <div className="max-h-[500px] overflow-y-auto">
                       <Table>
                         <TableHeader className="sticky top-0 bg-background z-10">
                           <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead className="text-right">Commandes</TableHead>
-                            <TableHead className="text-right">CA TTC</TableHead>
-                            <TableHead className="text-right">Panier Ø</TableHead>
-                            <TableHead className="text-right">Remb.</TableHead>
-                            <TableHead className="text-right">Versement</TableHead>
-                            <TableHead className="text-right">Rentab.</TableHead>
+                            <TableHead 
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleSort('date')}
+                            >
+                              <div className="flex items-center">
+                                Date
+                                <SortIcon field="date" />
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="text-right cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleSort('orders')}
+                            >
+                              <div className="flex items-center justify-end">
+                                Cmd
+                                <SortIcon field="orders" />
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="text-right cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleSort('sales')}
+                            >
+                              <div className="flex items-center justify-end">
+                                CA TTC
+                                <SortIcon field="sales" />
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="text-right cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleSort('profitability')}
+                            >
+                              <div className="flex items-center justify-end">
+                                Rentab.
+                                <SortIcon field="profitability" />
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="text-right cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleSort('commission')}
+                            >
+                              <div className="flex items-center justify-end">
+                                Commission
+                                <SortIcon field="commission" />
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="text-right cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleSort('promos')}
+                            >
+                              <div className="flex items-center justify-end">
+                                Promos
+                                <SortIcon field="promos" />
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="text-right cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleSort('refunds')}
+                            >
+                              <div className="flex items-center justify-end">
+                                Remb.
+                                <SortIcon field="refunds" />
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="text-right cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleSort('payout')}
+                            >
+                              <div className="flex items-center justify-end">
+                                Versement
+                                <SortIcon field="payout" />
+                              </div>
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {dailyData.map((day) => {
+                          {sortedDailyData.map((day) => {
                             const profitability = day.sales_incl_vat > 0 
                               ? (day.net_payout / day.sales_incl_vat) * 100 
                               : 0;
@@ -268,17 +402,20 @@ export function OrdersAnalysisSection({
                                 <TableCell className="text-right tabular-nums font-medium">
                                   {formatCurrency(day.sales_incl_vat)}
                                 </TableCell>
-                                <TableCell className="text-right tabular-nums text-muted-foreground">
-                                  {formatCurrency(day.avg_basket)}
+                                <TableCell className={cn("text-right tabular-nums font-medium", getProfitabilityColor(profitability))}>
+                                  {formatPercent(profitability)}
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums text-orange-600">
+                                  {day.uber_fee_incl_vat > 0 ? `-${formatCurrency(day.uber_fee_incl_vat)}` : '-'}
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums text-purple-600">
+                                  {day.promo_incl_vat > 0 ? `-${formatCurrency(day.promo_incl_vat)}` : '-'}
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums text-red-600">
                                   {day.refund_incl_vat > 0 ? `-${formatCurrency(day.refund_incl_vat)}` : '-'}
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums text-green-600 font-medium">
                                   {formatCurrency(day.net_payout)}
-                                </TableCell>
-                                <TableCell className={cn("text-right tabular-nums font-medium", getProfitabilityColor(profitability))}>
-                                  {formatPercent(profitability)}
                                 </TableCell>
                               </TableRow>
                             );
@@ -294,20 +431,23 @@ export function OrdersAnalysisSection({
                               <TableCell className="text-right tabular-nums">
                                 {formatCurrency(dailyTotals.sales)}
                               </TableCell>
-                              <TableCell className="text-right tabular-nums text-muted-foreground">
-                                {formatCurrency(dailyTotals.orders > 0 ? dailyTotals.sales / dailyTotals.orders : 0)}
+                              <TableCell className={cn(
+                                "text-right tabular-nums",
+                                getProfitabilityColor((dailyTotals.netPayout / dailyTotals.sales) * 100)
+                              )}>
+                                {formatPercent((dailyTotals.netPayout / dailyTotals.sales) * 100)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-orange-600">
+                                {dailyTotals.commission > 0 ? `-${formatCurrency(dailyTotals.commission)}` : '-'}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-purple-600">
+                                {dailyTotals.promos > 0 ? `-${formatCurrency(dailyTotals.promos)}` : '-'}
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-red-600">
                                 {dailyTotals.refunds > 0 ? `-${formatCurrency(dailyTotals.refunds)}` : '-'}
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-green-600">
                                 {formatCurrency(dailyTotals.netPayout)}
-                              </TableCell>
-                              <TableCell className={cn(
-                                "text-right tabular-nums",
-                                getProfitabilityColor((dailyTotals.netPayout / dailyTotals.sales) * 100)
-                              )}>
-                                {formatPercent((dailyTotals.netPayout / dailyTotals.sales) * 100)}
                               </TableCell>
                             </TableRow>
                           )}
