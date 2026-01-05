@@ -244,9 +244,9 @@ function ProductRow({
   // Create a map for quick lookup
   const priceMap = new Map(product.prices.map(p => [p.restaurantId, p]));
 
-  // Find the reference price (most common or first)
-  const avgPrices = product.prices.map(p => p.averagePrice);
-  const referencePrice = avgPrices.length > 0 ? Math.min(...avgPrices) : 0;
+  // Find the reference price (minimum base price across all restaurants)
+  const basePrices = product.prices.map(p => p.basePrice);
+  const referencePrice = basePrices.length > 0 ? Math.min(...basePrices) : 0;
 
   return (
     <TableRow className="hover:bg-muted/30">
@@ -272,18 +272,18 @@ function ProductRow({
           );
         }
 
-        const isDifferent = Math.abs(priceData.averagePrice - referencePrice) > 0.01;
-        const isHigher = priceData.averagePrice > referencePrice;
+        const isDifferent = Math.abs(priceData.basePrice - referencePrice) > 0.01;
+        const isHigher = priceData.basePrice > referencePrice;
 
         return (
           <TableCell key={restaurant.id} className="text-center">
             <div className="flex flex-col items-center">
               <span className={`font-mono text-sm ${isDifferent ? (isHigher ? "text-amber-600" : "text-emerald-600") : ""}`}>
-                {formatPrice(priceData.averagePrice)}
+                {formatPrice(priceData.basePrice)}
               </span>
               {isDifferent && (
                 <span className={`text-xs ${isHigher ? "text-amber-500" : "text-emerald-500"}`}>
-                  {isHigher ? "+" : ""}{((priceData.averagePrice - referencePrice) / referencePrice * 100).toFixed(1)}%
+                  {isHigher ? "+" : ""}{((priceData.basePrice - referencePrice) / referencePrice * 100).toFixed(1)}%
                 </span>
               )}
             </div>
