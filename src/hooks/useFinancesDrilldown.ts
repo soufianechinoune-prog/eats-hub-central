@@ -211,14 +211,45 @@ export function useFinancesDrilldown({
       let orderIdsFromItemSearch: string[] | null = null;
       
       if (orderSearchQuery) {
-        // First, search in order_items for matching item titles
-        const { data: matchingItems } = await supabase
-          .from("order_items")
-          .select("order_id")
-          .ilike("item_title", `%${orderSearchQuery}%`);
+        // First, get order IDs in the date range to limit the item search scope
+        let orderIdsInRange: string[] = [];
+        let orderQuery = supabase
+          .from("orders")
+          .select("id")
+          .gte("order_datetime", `${startStr}T00:00:00`)
+          .lte("order_datetime", `${endStr}T23:59:59`);
         
-        if (matchingItems && matchingItems.length > 0) {
-          orderIdsFromItemSearch = [...new Set(matchingItems.map(i => i.order_id))];
+        if (restaurantIds && restaurantIds.length > 0) {
+          orderQuery = orderQuery.in("restaurant_id", restaurantIds);
+        }
+        
+        const { data: ordersInRange } = await orderQuery;
+        if (ordersInRange) {
+          orderIdsInRange = ordersInRange.map(o => o.id);
+        }
+        
+        // Only search items within those orders (much faster)
+        if (orderIdsInRange.length > 0) {
+          // Search in batches to avoid query size limits
+          const BATCH_SIZE = 500;
+          const matchingOrderIds: Set<string> = new Set();
+          
+          for (let i = 0; i < orderIdsInRange.length; i += BATCH_SIZE) {
+            const batchIds = orderIdsInRange.slice(i, i + BATCH_SIZE);
+            const { data: matchingItems } = await supabase
+              .from("order_items")
+              .select("order_id")
+              .in("order_id", batchIds)
+              .ilike("item_title", `%${orderSearchQuery}%`);
+            
+            if (matchingItems) {
+              matchingItems.forEach(item => matchingOrderIds.add(item.order_id));
+            }
+          }
+          
+          if (matchingOrderIds.size > 0) {
+            orderIdsFromItemSearch = [...matchingOrderIds];
+          }
         }
       }
 
