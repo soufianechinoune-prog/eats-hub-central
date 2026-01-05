@@ -7,7 +7,7 @@ interface OrderItemsDropdownProps {
 }
 
 const formatCurrency = (value: number) => {
-  return value.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
+  return value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 };
 
 export function OrderItemsDropdown({ orderId }: OrderItemsDropdownProps) {
