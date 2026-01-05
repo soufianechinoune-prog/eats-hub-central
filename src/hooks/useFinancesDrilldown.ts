@@ -64,55 +64,86 @@ export function useFinancesDrilldown({
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
 
-  // Fetch orders data for daily/hourly breakdown - include financial fields
+  // Fetch orders data for daily/hourly breakdown - include financial fields with pagination
   const { data: ordersData, isLoading: loadingOrders } = useQuery({
     queryKey: ["finances-drilldown-orders", restaurantIds, startStr, endStr, granularity],
     queryFn: async () => {
-      let query = supabase
-        .from("orders")
-        .select("order_datetime, sales_incl_vat, refund_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, net_payout, restaurant_id")
-        .gte("order_datetime", `${startStr}T00:00:00`)
-        .lte("order_datetime", `${endStr}T23:59:59`);
+      const PAGE_SIZE = 1000;
+      const allOrders: any[] = [];
+      let from = 0;
+      let hasMore = true;
 
-      if (restaurantIds && restaurantIds.length > 0) {
-        query = query.in("restaurant_id", restaurantIds);
+      while (hasMore) {
+        let query = supabase
+          .from("orders")
+          .select("order_datetime, sales_incl_vat, refund_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, net_payout, restaurant_id")
+          .gte("order_datetime", `${startStr}T00:00:00`)
+          .lte("order_datetime", `${endStr}T23:59:59`)
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (restaurantIds && restaurantIds.length > 0) {
+          query = query.in("restaurant_id", restaurantIds);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        if (data) {
+          allOrders.push(...data);
+          hasMore = data.length === PAGE_SIZE;
+          from += PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+      return allOrders;
     },
     enabled: enabled && (granularity === "daily" || granularity === "hourly"),
   });
 
-  // Fetch order items for product breakdown
+  // Fetch order items for product breakdown with pagination
   const { data: itemsData, isLoading: loadingItems } = useQuery({
     queryKey: ["finances-drilldown-items", restaurantIds, startStr, endStr],
     queryFn: async () => {
-      // First get orders in date range
-      let ordersQuery = supabase
-        .from("orders")
-        .select("id")
-        .gte("order_datetime", `${startStr}T00:00:00`)
-        .lte("order_datetime", `${endStr}T23:59:59`);
+      const PAGE_SIZE = 1000;
+      const allOrderIds: string[] = [];
+      let from = 0;
+      let hasMore = true;
 
-      if (restaurantIds && restaurantIds.length > 0) {
-        ordersQuery = ordersQuery.in("restaurant_id", restaurantIds);
+      // First get ALL orders in date range with pagination
+      while (hasMore) {
+        let ordersQuery = supabase
+          .from("orders")
+          .select("id")
+          .gte("order_datetime", `${startStr}T00:00:00`)
+          .lte("order_datetime", `${endStr}T23:59:59`)
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (restaurantIds && restaurantIds.length > 0) {
+          ordersQuery = ordersQuery.in("restaurant_id", restaurantIds);
+        }
+
+        const { data: ordersInRange, error: ordersError } = await ordersQuery;
+        if (ordersError) throw ordersError;
+
+        if (ordersInRange) {
+          allOrderIds.push(...ordersInRange.map(o => o.id));
+          hasMore = ordersInRange.length === PAGE_SIZE;
+          from += PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
       }
 
-      const { data: ordersInRange, error: ordersError } = await ordersQuery;
-      if (ordersError) throw ordersError;
+      if (!allOrderIds.length) return [];
 
-      if (!ordersInRange?.length) return [];
-
-      const orderIds = ordersInRange.map(o => o.id);
-
-      // Fetch items in batches if needed
+      // Fetch items in batches
       const BATCH_SIZE = 500;
       const allItems: any[] = [];
 
-      for (let i = 0; i < orderIds.length; i += BATCH_SIZE) {
-        const batchIds = orderIds.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < allOrderIds.length; i += BATCH_SIZE) {
+        const batchIds = allOrderIds.slice(i, i + BATCH_SIZE);
         const { data: items, error: itemsError } = await supabase
           .from("order_items")
           .select("item_id, item_title, category, quantity, sales_incl_vat, refund_incl_vat, item_promo_incl_vat, order_id")
