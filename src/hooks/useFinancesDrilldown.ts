@@ -70,8 +70,8 @@ interface UseFinancesDrilldownParams {
   endDate: Date;
   granularity: DrilldownGranularity;
   enabled?: boolean;
-  page?: number;
-  pageSize?: number;
+  orderSearchQuery?: string;
+  orderLimit?: number;
 }
 
 export function useFinancesDrilldown({
@@ -80,8 +80,8 @@ export function useFinancesDrilldown({
   endDate,
   granularity,
   enabled = true,
-  page = 1,
-  pageSize = 50,
+  orderSearchQuery = "",
+  orderLimit = 50,
 }: UseFinancesDrilldownParams) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
@@ -180,9 +180,9 @@ export function useFinancesDrilldown({
     enabled: enabled && granularity === "product",
   });
 
-  // Fetch individual orders for order breakdown with pagination
+  // Fetch individual orders for order breakdown with infinite scroll
   const { data: individualOrdersData, isLoading: loadingIndividualOrders } = useQuery({
-    queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, page, pageSize],
+    queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, orderSearchQuery, orderLimit],
     queryFn: async () => {
       // First get total count
       let countQuery = supabase
@@ -195,10 +195,14 @@ export function useFinancesDrilldown({
         countQuery = countQuery.in("restaurant_id", restaurantIds);
       }
 
+      // Add search filter to count query
+      if (orderSearchQuery) {
+        countQuery = countQuery.ilike("uber_order_id", `%${orderSearchQuery}%`);
+      }
+
       const { count } = await countQuery;
 
-      // Fetch paginated orders
-      const from = (page - 1) * pageSize;
+      // Fetch orders up to the limit (for infinite scroll accumulation)
       let query = supabase
         .from("orders")
         .select(`
@@ -215,10 +219,15 @@ export function useFinancesDrilldown({
         .gte("order_datetime", `${startStr}T00:00:00`)
         .lte("order_datetime", `${endStr}T23:59:59`)
         .order("order_datetime", { ascending: false })
-        .range(from, from + pageSize - 1);
+        .range(0, orderLimit - 1);
 
       if (restaurantIds && restaurantIds.length > 0) {
         query = query.in("restaurant_id", restaurantIds);
+      }
+
+      // Add search filter
+      if (orderSearchQuery) {
+        query = query.ilike("uber_order_id", `%${orderSearchQuery}%`);
       }
 
       const { data, error } = await query;
@@ -227,7 +236,7 @@ export function useFinancesDrilldown({
       return {
         orders: data || [],
         totalCount: count || 0,
-        totalPages: Math.ceil((count || 0) / pageSize),
+        hasMore: (data?.length || 0) < (count || 0),
       };
     },
     enabled: enabled && granularity === "order",
@@ -471,8 +480,7 @@ export function useFinancesDrilldown({
     orderData,
     orderPagination: individualOrdersData ? {
       totalCount: individualOrdersData.totalCount,
-      totalPages: individualOrdersData.totalPages,
-      currentPage: page,
+      hasMore: individualOrdersData.hasMore,
     } : null,
     summary,
     isLoading: loadingOrders || loadingItems || loadingIndividualOrders,
