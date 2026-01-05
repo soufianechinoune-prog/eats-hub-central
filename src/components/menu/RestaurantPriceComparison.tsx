@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { useRestaurantPrices, ProductPriceAnalysis } from "@/hooks/useRestaurantPrices";
+import { useMenuCatalogPrices, CatalogItem } from "@/hooks/useMenuCatalogPrices";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -15,7 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, AlertTriangle, CheckCircle2, Package, TrendingUp, Store } from "lucide-react";
+import { Search, AlertTriangle, CheckCircle2, Package, TrendingUp, UtensilsCrossed } from "lucide-react";
+import { DeliverooIcon, UberEatsIcon } from "@/components/icons/PlatformIcons";
 
 const CATEGORIES_ORDER = [
   "Menu Enfant",
@@ -42,75 +42,54 @@ const CATEGORIES_ORDER = [
 ];
 
 export function RestaurantPriceComparison() {
-  const { visibleRestaurants } = useAnalyticsContext();
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyDiscrepancies, setShowOnlyDiscrepancies] = useState(false);
 
-  // visibleRestaurants is already an array of IDs (strings)
-  const { loading, products, restaurants, stats, error } = useRestaurantPrices(visibleRestaurants);
+  const { loading, items, stats, error } = useMenuCatalogPrices();
 
   // Filter products based on search and discrepancy filter
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = searchQuery === "" || 
-      product.itemTitle.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDiscrepancy = !showOnlyDiscrepancies || product.hasDiscrepancy;
+  const filteredItems = items.filter((item) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDiscrepancy = !showOnlyDiscrepancies || item.hasDiscrepancy;
     return matchesSearch && matchesDiscrepancy;
   });
 
-  // Group products by category
+  // Group products by category in the exact order
   const groupedProducts = useMemo(() => {
-    const groups: Record<string, ProductPriceAnalysis[]> = {};
-    const uncategorized: ProductPriceAnalysis[] = [];
+    const groups: Record<string, CatalogItem[]> = {};
 
-    for (const product of filteredProducts) {
-      if (product.category && CATEGORIES_ORDER.includes(product.category)) {
-        if (!groups[product.category]) {
-          groups[product.category] = [];
+    for (const item of filteredItems) {
+      const category = CATEGORIES_ORDER.includes(item.category)
+        ? item.category
+        : null;
+      if (category) {
+        if (!groups[category]) {
+          groups[category] = [];
         }
-        groups[product.category].push(product);
-      } else {
-        uncategorized.push(product);
+        groups[category].push(item);
       }
     }
 
     // Build ordered result
-    const result: { category: string; products: ProductPriceAnalysis[] }[] = [];
+    const result: { category: string; products: CatalogItem[] }[] = [];
     for (const category of CATEGORIES_ORDER) {
       if (groups[category] && groups[category].length > 0) {
         result.push({ category, products: groups[category] });
       }
     }
-    if (uncategorized.length > 0) {
-      result.push({ category: "Autre", products: uncategorized });
-    }
 
     return result;
-  }, [filteredProducts]);
+  }, [filteredItems]);
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (price: number | null) => {
+    if (price == null) return "-";
     return new Intl.NumberFormat("fr-FR", {
       style: "currency",
       currency: "EUR",
     }).format(price);
   };
-
-  const getShortName = (name: string) => {
-    // Extract short name for table headers
-    const parts = name.split(" ");
-    if (parts.length >= 2) {
-      return parts.slice(-1)[0]; // Get last word (usually city or identifier)
-    }
-    return name.slice(0, 10);
-  };
-
-  if (visibleRestaurants.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
-        <Store className="h-12 w-12 mb-4 opacity-50" />
-        <p>Épinglez des restaurants pour comparer leurs prix</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -123,11 +102,11 @@ export function RestaurantPriceComparison() {
         <Card className="border-0 bg-gradient-to-br from-rose-500/10 via-pink-500/5 to-transparent backdrop-blur-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Store className="h-5 w-5 text-rose-500" />
-              Comparaison des Prix par Restaurant
+              <UtensilsCrossed className="h-5 w-5 text-rose-500" />
+              Comparaison des Prix Catalogue
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Analysez les écarts de prix entre vos restaurants à partir des commandes sans promotion
+              Comparez les prix entre Uber Eats et Deliveroo pour chaque produit du catalogue
             </p>
           </CardHeader>
         </Card>
@@ -148,7 +127,7 @@ export function RestaurantPriceComparison() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.totalProducts}</p>
-                <p className="text-sm text-muted-foreground">Produits analysés</p>
+                <p className="text-sm text-muted-foreground">Produits au catalogue</p>
               </div>
             </div>
           </CardContent>
@@ -210,11 +189,6 @@ export function RestaurantPriceComparison() {
             Afficher uniquement les écarts
           </Label>
         </div>
-
-        <Badge variant="outline" className="px-3 py-2 bg-white/60 dark:bg-white/5 backdrop-blur-xl border-white/20">
-          <Store className="h-3.5 w-3.5 mr-1.5" />
-          {visibleRestaurants.length} restaurants épinglés
-        </Badge>
       </motion.div>
 
       {/* Error state */}
@@ -245,55 +219,51 @@ export function RestaurantPriceComparison() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[250px]">Produit</TableHead>
-                    {restaurants.map((restaurant) => (
-                      <TableHead key={restaurant.id} className="text-center min-w-[100px]">
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs font-medium">{getShortName(restaurant.name)}</span>
-                        </div>
-                      </TableHead>
-                    ))}
+                    <TableHead className="w-[300px]">Produit</TableHead>
+                    <TableHead className="text-center min-w-[120px]">
+                      <div className="flex items-center justify-center gap-2">
+                        <UberEatsIcon className="h-4 w-4" />
+                        <span>Uber Eats</span>
+                      </div>
+                    </TableHead>
+                    <TableHead className="text-center min-w-[120px]">
+                      <div className="flex items-center justify-center gap-2">
+                        <DeliverooIcon className="h-4 w-4" />
+                        <span>Deliveroo</span>
+                      </div>
+                    </TableHead>
                     <TableHead className="text-center">Écart</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {groupedProducts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={restaurants.length + 2} className="text-center py-12 text-muted-foreground">
-                        {searchQuery || showOnlyDiscrepancies 
+                      <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                        {searchQuery || showOnlyDiscrepancies
                           ? "Aucun produit ne correspond aux critères"
-                          : "Aucune donnée disponible. Importez des commandes pour analyser les prix."
-                        }
+                          : "Aucun produit actif dans le catalogue"}
                       </TableCell>
                     </TableRow>
                   ) : (
                     groupedProducts.map((group) => (
                       <>
                         {/* Category header row */}
-                        <TableRow 
-                          key={`cat-${group.category}`} 
+                        <TableRow
+                          key={`cat-${group.category}`}
                           className="bg-primary/10 dark:bg-primary/20 hover:bg-primary/10 dark:hover:bg-primary/20 border-l-4 border-l-primary"
                         >
-                          <TableCell 
-                            colSpan={restaurants.length + 2} 
-                            className="font-bold text-sm py-3"
-                          >
+                          <TableCell colSpan={4} className="font-bold text-sm py-3">
                             <div className="flex items-center gap-2">
                               <span className="text-primary">{group.category}</span>
                               <Badge className="bg-primary/20 text-primary border-0 text-xs font-medium">
-                                {group.products.length} produit{group.products.length > 1 ? 's' : ''}
+                                {group.products.length} produit{group.products.length > 1 ? "s" : ""}
                               </Badge>
                             </div>
                           </TableCell>
                         </TableRow>
                         {/* Products in this category */}
-                        {group.products.map((product) => (
-                          <ProductRow 
-                            key={product.itemTitle} 
-                            product={product} 
-                            restaurants={restaurants}
-                            formatPrice={formatPrice}
-                          />
+                        {group.products.map((item) => (
+                          <ProductRow key={item.id} item={item} formatPrice={formatPrice} />
                         ))}
                       </>
                     ))
@@ -308,65 +278,54 @@ export function RestaurantPriceComparison() {
   );
 }
 
-function ProductRow({ 
-  product, 
-  restaurants, 
-  formatPrice 
-}: { 
-  product: ProductPriceAnalysis;
-  restaurants: { id: string; name: string }[];
-  formatPrice: (price: number) => string;
+function ProductRow({
+  item,
+  formatPrice,
+}: {
+  item: CatalogItem;
+  formatPrice: (price: number | null) => string;
 }) {
-  // Create a map for quick lookup
-  const priceMap = new Map(product.prices.map(p => [p.restaurantId, p]));
+  const { priceUber, priceDeliveroo } = item;
 
-  // Find the reference price (minimum base price across all restaurants)
-  const basePrices = product.prices.map(p => p.basePrice);
-  const referencePrice = basePrices.length > 0 ? Math.min(...basePrices) : 0;
+  // Determine which is higher
+  let uberClass = "";
+  let deliverooClass = "";
+
+  if (priceUber != null && priceDeliveroo != null && priceUber > 0 && priceDeliveroo > 0) {
+    if (priceUber > priceDeliveroo) {
+      uberClass = "text-amber-600";
+      deliverooClass = "text-emerald-600";
+    } else if (priceDeliveroo > priceUber) {
+      uberClass = "text-emerald-600";
+      deliverooClass = "text-amber-600";
+    }
+  }
 
   return (
     <TableRow className="hover:bg-muted/30">
       <TableCell className="font-medium">
-        <span className="truncate max-w-[250px] block" title={product.itemTitle}>
-          {product.itemTitle}
+        <span className="truncate max-w-[300px] block" title={item.name}>
+          {item.name}
         </span>
       </TableCell>
-      
-      {restaurants.map((restaurant) => {
-        const priceData = priceMap.get(restaurant.id);
-        
-        if (!priceData) {
-          return (
-            <TableCell key={restaurant.id} className="text-center">
-              <span className="text-muted-foreground text-sm">-</span>
-            </TableCell>
-          );
-        }
-
-        const isDifferent = Math.abs(priceData.basePrice - referencePrice) > 0.01;
-        const isHigher = priceData.basePrice > referencePrice;
-
-        return (
-          <TableCell key={restaurant.id} className="text-center">
-            <div className="flex flex-col items-center">
-              <span className={`font-mono text-sm ${isDifferent ? (isHigher ? "text-amber-600" : "text-emerald-600") : ""}`}>
-                {formatPrice(priceData.basePrice)}
-              </span>
-              {isDifferent && (
-                <span className={`text-xs ${isHigher ? "text-amber-500" : "text-emerald-500"}`}>
-                  {isHigher ? "+" : ""}{((priceData.basePrice - referencePrice) / referencePrice * 100).toFixed(1)}%
-                </span>
-              )}
-            </div>
-          </TableCell>
-        );
-      })}
 
       <TableCell className="text-center">
-        {product.hasDiscrepancy ? (
+        <span className={`font-mono text-sm ${uberClass}`}>
+          {formatPrice(priceUber)}
+        </span>
+      </TableCell>
+
+      <TableCell className="text-center">
+        <span className={`font-mono text-sm ${deliverooClass}`}>
+          {formatPrice(priceDeliveroo)}
+        </span>
+      </TableCell>
+
+      <TableCell className="text-center">
+        {item.hasDiscrepancy ? (
           <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
             <AlertTriangle className="h-3 w-3 mr-1" />
-            +{product.maxDifferencePercent}%
+            {item.differencePercent}%
           </Badge>
         ) : (
           <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
