@@ -31,10 +31,14 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ChevronRight,
+  ChevronLeft,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useFinancesDrilldown } from "@/hooks/useFinancesDrilldown";
+import { useFinancesDrilldown, type DrilldownGranularity } from "@/hooks/useFinancesDrilldown";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
+import { OrderItemsDropdown } from "./OrderItemsDropdown";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -70,10 +74,17 @@ export function OrdersAnalysisSection({
   startDate,
   endDate,
 }: OrdersAnalysisSectionProps) {
-  const [activeTab, setActiveTab] = useState<'daily' | 'hourly' | 'product'>('daily');
+  const [activeTab, setActiveTab] = useState<DrilldownGranularity>('daily');
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(
     selectedRestaurants.length === 1 ? selectedRestaurants[0] : null
   );
+  
+  // Pagination state for order tab
+  const [orderPage, setOrderPage] = useState(1);
+  const ORDER_PAGE_SIZE = 50;
+  
+  // Expanded orders state for dropdown
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   
   // Sorting state
   type SortField = 'date' | 'orders' | 'sales' | 'profitability' | 'commission' | 'promos' | 'refunds' | 'payout' | 'mealVoucher' | 'totalPayout';
@@ -96,7 +107,9 @@ export function OrdersAnalysisSection({
   const { 
     dailyData, 
     hourlyData, 
-    productData, 
+    productData,
+    orderData,
+    orderPagination,
     isLoading 
   } = useFinancesDrilldown({
     restaurantIds: queryRestaurantIds,
@@ -104,7 +117,26 @@ export function OrdersAnalysisSection({
     endDate,
     granularity: activeTab,
     enabled: true,
+    page: orderPage,
+    pageSize: ORDER_PAGE_SIZE,
   });
+  
+  // Toggle expanded order
+  const toggleOrder = (orderId: string) => {
+    setExpandedOrders(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  };
+  
+  // Reset pagination when changing filters
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as DrilldownGranularity);
+    setOrderPage(1);
+    setExpandedOrders(new Set());
+  };
   
   // Fetch payout detail when a date is selected
   const { data: payoutDetail } = useQuery({
@@ -282,8 +314,8 @@ export function OrdersAnalysisSection({
       </CardHeader>
       
       <CardContent>
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <TabsList className="grid w-full grid-cols-4 mb-4">
             <TabsTrigger value="daily" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               Par Jour
@@ -295,6 +327,10 @@ export function OrdersAnalysisSection({
             <TabsTrigger value="product" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               Par Produit
+            </TabsTrigger>
+            <TabsTrigger value="order" className="flex items-center gap-2">
+              <Receipt className="h-4 w-4" />
+              Par Commande
             </TabsTrigger>
           </TabsList>
           
@@ -676,6 +712,132 @@ export function OrdersAnalysisSection({
                         </TableBody>
                       </Table>
                     </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    Aucune donnée disponible pour cette période
+                  </div>
+                )}
+              </TabsContent>
+              
+              {/* Order Tab */}
+              <TabsContent value="order" className="mt-0">
+                {orderData && orderData.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="rounded-md border overflow-hidden">
+                      <div className="max-h-[500px] overflow-y-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background z-10">
+                            <TableRow>
+                              <TableHead className="w-8"></TableHead>
+                              <TableHead>N° Commande</TableHead>
+                              <TableHead>Date/Heure</TableHead>
+                              <TableHead className="text-right">CA TTC</TableHead>
+                              <TableHead className="text-right">Rentab.</TableHead>
+                              <TableHead className="text-right">Commission</TableHead>
+                              <TableHead className="text-right">Promos</TableHead>
+                              <TableHead className="text-right">Remb.</TableHead>
+                              <TableHead className="text-right">Vers. Uber</TableHead>
+                              <TableHead className="text-right">Titre Resto</TableHead>
+                              <TableHead className="text-right">Vers. Total</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {orderData.map((order) => (
+                              <>
+                                <TableRow 
+                                  key={order.id}
+                                  className="cursor-pointer hover:bg-muted/50"
+                                  onClick={() => toggleOrder(order.id)}
+                                >
+                                  <TableCell className="w-8">
+                                    <ChevronRight className={cn(
+                                      "h-4 w-4 transition-transform",
+                                      expandedOrders.has(order.id) && "rotate-90"
+                                    )} />
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs">
+                                    #{order.uber_order_id?.slice(-8) || order.id.slice(0, 8)}
+                                  </TableCell>
+                                  <TableCell className="text-sm">
+                                    {order.order_datetime 
+                                      ? format(new Date(order.order_datetime), "dd/MM HH:mm", { locale: fr })
+                                      : '-'
+                                    }
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums font-medium">
+                                    {formatCurrency(order.sales_incl_vat)}
+                                  </TableCell>
+                                  <TableCell className={cn(
+                                    "text-right tabular-nums font-medium",
+                                    getProfitabilityColor(order.profitability)
+                                  )}>
+                                    {formatPercent(order.profitability)}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-orange-600">
+                                    {order.uber_fee_incl_vat > 0 ? `-${formatCurrency(order.uber_fee_incl_vat)}` : '-'}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-purple-600">
+                                    {order.promo_incl_vat > 0 ? `-${formatCurrency(order.promo_incl_vat)}` : '-'}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-red-600">
+                                    {order.refund_incl_vat > 0 ? `-${formatCurrency(order.refund_incl_vat)}` : '-'}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-green-600">
+                                    {formatCurrency(order.net_payout)}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-blue-600">
+                                    {order.meal_voucher_amount > 0 ? formatCurrency(order.meal_voucher_amount) : '-'}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-green-700 font-bold">
+                                    {formatCurrency(order.total_payout)}
+                                  </TableCell>
+                                </TableRow>
+                                
+                                {/* Expanded row with items */}
+                                {expandedOrders.has(order.id) && (
+                                  <TableRow key={`${order.id}-items`} className="bg-muted/30">
+                                    <TableCell colSpan={11} className="p-0">
+                                      <OrderItemsDropdown orderId={order.id} />
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                    
+                    {/* Pagination */}
+                    {orderPagination && orderPagination.totalPages > 1 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">
+                          Page {orderPagination.currentPage} sur {orderPagination.totalPages} 
+                          {' '}({orderPagination.totalCount.toLocaleString('fr-FR')} commandes)
+                        </span>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setOrderPage(p => p - 1)} 
+                            disabled={orderPage === 1}
+                          >
+                            <ChevronLeft className="h-4 w-4 mr-1" />
+                            Précédent
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setOrderPage(p => p + 1)}
+                            disabled={orderPage >= orderPagination.totalPages}
+                          >
+                            Suivant
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12 text-muted-foreground">

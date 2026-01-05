@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { format, startOfWeek, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
 
-export type DrilldownGranularity = "daily" | "hourly" | "product";
+export type DrilldownGranularity = "daily" | "hourly" | "product" | "order";
 
 interface DailyFinanceData {
   date: string;
@@ -50,12 +50,28 @@ interface ProductFinanceData {
   promo_incl_vat: number;
 }
 
+export interface OrderFinanceData {
+  id: string;
+  uber_order_id: string;
+  order_datetime: string;
+  sales_incl_vat: number;
+  uber_fee_incl_vat: number;
+  promo_incl_vat: number;
+  refund_incl_vat: number;
+  net_payout: number;
+  meal_voucher_amount: number;
+  total_payout: number;
+  profitability: number;
+}
+
 interface UseFinancesDrilldownParams {
   restaurantIds?: string[];
   startDate: Date;
   endDate: Date;
   granularity: DrilldownGranularity;
   enabled?: boolean;
+  page?: number;
+  pageSize?: number;
 }
 
 export function useFinancesDrilldown({
@@ -64,6 +80,8 @@ export function useFinancesDrilldown({
   endDate,
   granularity,
   enabled = true,
+  page = 1,
+  pageSize = 50,
 }: UseFinancesDrilldownParams) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
@@ -160,6 +178,59 @@ export function useFinancesDrilldown({
       return allItems;
     },
     enabled: enabled && granularity === "product",
+  });
+
+  // Fetch individual orders for order breakdown with pagination
+  const { data: individualOrdersData, isLoading: loadingIndividualOrders } = useQuery({
+    queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, page, pageSize],
+    queryFn: async () => {
+      // First get total count
+      let countQuery = supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .gte("order_datetime", `${startStr}T00:00:00`)
+        .lte("order_datetime", `${endStr}T23:59:59`);
+
+      if (restaurantIds && restaurantIds.length > 0) {
+        countQuery = countQuery.in("restaurant_id", restaurantIds);
+      }
+
+      const { count } = await countQuery;
+
+      // Fetch paginated orders
+      const from = (page - 1) * pageSize;
+      let query = supabase
+        .from("orders")
+        .select(`
+          id,
+          uber_order_id,
+          order_datetime,
+          sales_incl_vat,
+          uber_fee_after_promo_incl_vat,
+          item_promo_incl_vat,
+          refund_incl_vat,
+          net_payout,
+          meal_voucher_amount
+        `)
+        .gte("order_datetime", `${startStr}T00:00:00`)
+        .lte("order_datetime", `${endStr}T23:59:59`)
+        .order("order_datetime", { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (restaurantIds && restaurantIds.length > 0) {
+        query = query.in("restaurant_id", restaurantIds);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return {
+        orders: data || [],
+        totalCount: count || 0,
+        totalPages: Math.ceil((count || 0) / pageSize),
+      };
+    },
+    enabled: enabled && granularity === "order",
   });
 
   // Process daily data with additional financial columns
@@ -363,11 +434,47 @@ export function useFinancesDrilldown({
     return null;
   }, [granularity, dailyData, hourlyData, productData]);
 
+  // Process order data
+  const orderData = useMemo((): OrderFinanceData[] => {
+    if (granularity !== "order" || !individualOrdersData?.orders?.length) return [];
+
+    return individualOrdersData.orders.map(order => {
+      const salesInclVat = Math.abs(Number(order.sales_incl_vat) || 0);
+      const uberFeeInclVat = Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
+      const promoInclVat = Math.abs(Number(order.item_promo_incl_vat) || 0);
+      const refundInclVat = Math.abs(Number(order.refund_incl_vat) || 0);
+      const netPayout = Number(order.net_payout) || 0;
+      const mealVoucherAmount = Number(order.meal_voucher_amount) || 0;
+      const totalPayout = netPayout + mealVoucherAmount;
+      const profitability = salesInclVat > 0 ? (netPayout / salesInclVat) * 100 : 0;
+
+      return {
+        id: order.id,
+        uber_order_id: order.uber_order_id,
+        order_datetime: order.order_datetime,
+        sales_incl_vat: salesInclVat,
+        uber_fee_incl_vat: uberFeeInclVat,
+        promo_incl_vat: promoInclVat,
+        refund_incl_vat: refundInclVat,
+        net_payout: netPayout,
+        meal_voucher_amount: mealVoucherAmount,
+        total_payout: totalPayout,
+        profitability,
+      };
+    });
+  }, [individualOrdersData, granularity]);
+
   return {
     dailyData,
     hourlyData,
     productData,
+    orderData,
+    orderPagination: individualOrdersData ? {
+      totalCount: individualOrdersData.totalCount,
+      totalPages: individualOrdersData.totalPages,
+      currentPage: page,
+    } : null,
     summary,
-    isLoading: loadingOrders || loadingItems,
+    isLoading: loadingOrders || loadingItems || loadingIndividualOrders,
   };
 }
