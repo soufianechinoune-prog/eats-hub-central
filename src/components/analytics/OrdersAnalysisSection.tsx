@@ -58,6 +58,10 @@ const formatCurrency = (value: number) => {
   return value.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
 };
 
+const formatCurrencyPrecise = (value: number) => {
+  return value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+};
+
 const formatPercent = (value: number) => {
   return value.toFixed(1) + '%';
 };
@@ -766,7 +770,7 @@ export function OrdersAnalysisSection({
                                     }
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums font-medium">
-                                    {formatCurrency(order.sales_incl_vat)}
+                                    {formatCurrencyPrecise(order.sales_incl_vat)}
                                   </TableCell>
                                   <TableCell className={cn(
                                     "text-right tabular-nums font-medium",
@@ -775,22 +779,22 @@ export function OrdersAnalysisSection({
                                     {formatPercent(order.profitability)}
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums text-orange-600">
-                                    {order.uber_fee_incl_vat > 0 ? `-${formatCurrency(order.uber_fee_incl_vat)}` : '-'}
+                                    {order.uber_fee_incl_vat > 0 ? `-${formatCurrencyPrecise(order.uber_fee_incl_vat)}` : '-'}
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums text-purple-600">
-                                    {order.promo_incl_vat > 0 ? `-${formatCurrency(order.promo_incl_vat)}` : '-'}
+                                    {order.promo_incl_vat > 0 ? `-${formatCurrencyPrecise(order.promo_incl_vat)}` : '-'}
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums text-red-600">
-                                    {order.refund_incl_vat > 0 ? `-${formatCurrency(order.refund_incl_vat)}` : '-'}
+                                    {order.refund_incl_vat > 0 ? `-${formatCurrencyPrecise(order.refund_incl_vat)}` : '-'}
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums text-green-600">
-                                    {formatCurrency(order.net_payout)}
+                                    {formatCurrencyPrecise(order.net_payout)}
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums text-blue-600">
-                                    {order.meal_voucher_amount > 0 ? formatCurrency(order.meal_voucher_amount) : '-'}
+                                    {order.meal_voucher_amount > 0 ? formatCurrencyPrecise(order.meal_voucher_amount) : '-'}
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums text-green-700 font-bold">
-                                    {formatCurrency(order.total_payout)}
+                                    {formatCurrencyPrecise(order.total_payout)}
                                   </TableCell>
                                 </TableRow>
                                 
