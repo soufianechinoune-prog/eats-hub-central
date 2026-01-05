@@ -17,6 +17,8 @@ interface DailyFinanceData {
   uber_fee_incl_vat: number;
   promo_incl_vat: number;
   net_payout: number;
+  meal_voucher_amount: number;
+  total_payout: number;
 }
 
 interface HourlyFinanceData {
@@ -30,6 +32,8 @@ interface HourlyFinanceData {
   uber_fee_incl_vat: number;
   promo_incl_vat: number;
   net_payout: number;
+  meal_voucher_amount: number;
+  total_payout: number;
 }
 
 interface ProductFinanceData {
@@ -76,7 +80,7 @@ export function useFinancesDrilldown({
       while (hasMore) {
         let query = supabase
           .from("orders")
-          .select("order_datetime, sales_incl_vat, refund_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, net_payout, restaurant_id")
+          .select("order_datetime, sales_incl_vat, refund_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, net_payout, meal_voucher_amount, restaurant_id")
           .gte("order_datetime", `${startStr}T00:00:00`)
           .lte("order_datetime", `${endStr}T23:59:59`)
           .range(from, from + PAGE_SIZE - 1);
@@ -169,6 +173,7 @@ export function useFinancesDrilldown({
       uberFee: number;
       promo: number;
       netPayout: number;
+      mealVoucher: number;
     }> = {};
 
     ordersData.forEach(order => {
@@ -176,7 +181,7 @@ export function useFinancesDrilldown({
       const date = order.order_datetime.split("T")[0];
       
       if (!byDate[date]) {
-        byDate[date] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0 };
+        byDate[date] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 };
       }
       
       byDate[date].sales += Math.abs(Number(order.sales_incl_vat) || 0);
@@ -184,6 +189,7 @@ export function useFinancesDrilldown({
       byDate[date].uberFee += Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
       byDate[date].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
       byDate[date].netPayout += Number(order.net_payout) || 0;
+      byDate[date].mealVoucher += Number(order.meal_voucher_amount) || 0;
       byDate[date].count += 1;
     });
 
@@ -198,6 +204,8 @@ export function useFinancesDrilldown({
         uber_fee_incl_vat: stats.uberFee,
         promo_incl_vat: stats.promo,
         net_payout: stats.netPayout,
+        meal_voucher_amount: stats.mealVoucher,
+        total_payout: stats.netPayout + stats.mealVoucher,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [ordersData, granularity]);
@@ -213,11 +221,12 @@ export function useFinancesDrilldown({
       uberFee: number;
       promo: number;
       netPayout: number;
+      mealVoucher: number;
     }> = {};
 
     // Initialize all hours
     for (let h = 0; h < 24; h++) {
-      byHour[h] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0 };
+      byHour[h] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 };
     }
 
     ordersData.forEach(order => {
@@ -229,6 +238,7 @@ export function useFinancesDrilldown({
       byHour[hour].uberFee += Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
       byHour[hour].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
       byHour[hour].netPayout += Number(order.net_payout) || 0;
+      byHour[hour].mealVoucher += Number(order.meal_voucher_amount) || 0;
       byHour[hour].count += 1;
     });
 
@@ -243,6 +253,8 @@ export function useFinancesDrilldown({
         uber_fee_incl_vat: stats.uberFee,
         promo_incl_vat: stats.promo,
         net_payout: stats.netPayout,
+        meal_voucher_amount: stats.mealVoucher,
+        total_payout: stats.netPayout + stats.mealVoucher,
       }))
       .filter(h => h.order_count > 0) // Only show hours with orders
       .sort((a, b) => a.hour - b.hour);

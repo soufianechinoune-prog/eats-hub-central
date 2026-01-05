@@ -76,7 +76,7 @@ export function OrdersAnalysisSection({
   );
   
   // Sorting state
-  type SortField = 'date' | 'orders' | 'sales' | 'profitability' | 'commission' | 'promos' | 'refunds' | 'payout';
+  type SortField = 'date' | 'orders' | 'sales' | 'profitability' | 'commission' | 'promos' | 'refunds' | 'payout' | 'mealVoucher' | 'totalPayout';
   type SortDirection = 'asc' | 'desc';
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -188,6 +188,12 @@ export function OrdersAnalysisSection({
         case 'payout':
           comparison = a.net_payout - b.net_payout;
           break;
+        case 'mealVoucher':
+          comparison = a.meal_voucher_amount - b.meal_voucher_amount;
+          break;
+        case 'totalPayout':
+          comparison = a.total_payout - b.total_payout;
+          break;
       }
       
       return sortDirection === 'asc' ? comparison : -comparison;
@@ -204,6 +210,8 @@ export function OrdersAnalysisSection({
       netPayout: dailyData.reduce((sum, d) => sum + d.net_payout, 0),
       commission: dailyData.reduce((sum, d) => sum + d.uber_fee_incl_vat, 0),
       promos: dailyData.reduce((sum, d) => sum + d.promo_incl_vat, 0),
+      mealVoucher: dailyData.reduce((sum, d) => sum + d.meal_voucher_amount, 0),
+      totalPayout: dailyData.reduce((sum, d) => sum + d.total_payout, 0),
     };
   }, [dailyData]);
   
@@ -372,8 +380,26 @@ export function OrdersAnalysisSection({
                               onClick={() => handleSort('payout')}
                             >
                               <div className="flex items-center justify-end">
-                                Versement
+                                Vers. Uber
                                 <SortIcon field="payout" />
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="text-right cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleSort('mealVoucher')}
+                            >
+                              <div className="flex items-center justify-end">
+                                Titre Resto
+                                <SortIcon field="mealVoucher" />
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="text-right cursor-pointer hover:bg-muted/50"
+                              onClick={() => handleSort('totalPayout')}
+                            >
+                              <div className="flex items-center justify-end">
+                                Vers. Total
+                                <SortIcon field="totalPayout" />
                               </div>
                             </TableHead>
                           </TableRow>
@@ -414,8 +440,14 @@ export function OrdersAnalysisSection({
                                 <TableCell className="text-right tabular-nums text-red-600">
                                   {day.refund_incl_vat > 0 ? `-${formatCurrency(day.refund_incl_vat)}` : '-'}
                                 </TableCell>
-                                <TableCell className="text-right tabular-nums text-green-600 font-medium">
+                                <TableCell className="text-right tabular-nums text-green-600">
                                   {formatCurrency(day.net_payout)}
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums text-blue-600">
+                                  {day.meal_voucher_amount > 0 ? formatCurrency(day.meal_voucher_amount) : '-'}
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums text-green-700 font-bold">
+                                  {formatCurrency(day.total_payout)}
                                 </TableCell>
                               </TableRow>
                             );
@@ -448,6 +480,12 @@ export function OrdersAnalysisSection({
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-green-600">
                                 {formatCurrency(dailyTotals.netPayout)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-blue-600">
+                                {dailyTotals.mealVoucher > 0 ? formatCurrency(dailyTotals.mealVoucher) : '-'}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-green-700 font-bold">
+                                {formatCurrency(dailyTotals.totalPayout)}
                               </TableCell>
                             </TableRow>
                           )}
