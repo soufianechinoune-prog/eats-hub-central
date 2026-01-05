@@ -233,10 +233,26 @@ export function useFinancesDrilldown({
       const { data, error } = await query;
       if (error) throw error;
 
+      // Fetch order IDs that have items
+      const orderIds = data?.map(o => o.id) || [];
+      let orderIdsWithItems: string[] = [];
+      
+      if (orderIds.length > 0) {
+        const { data: itemsData } = await supabase
+          .from("order_items")
+          .select("order_id")
+          .in("order_id", orderIds);
+        
+        if (itemsData) {
+          orderIdsWithItems = [...new Set(itemsData.map(i => i.order_id))];
+        }
+      }
+
       return {
         orders: data || [],
         totalCount: count || 0,
         hasMore: (data?.length || 0) < (count || 0),
+        orderIdsWithItems,
       };
     },
     enabled: enabled && granularity === "order",
@@ -482,6 +498,7 @@ export function useFinancesDrilldown({
       totalCount: individualOrdersData.totalCount,
       hasMore: individualOrdersData.hasMore,
     } : null,
+    orderIdsWithItems: individualOrdersData?.orderIdsWithItems || [],
     summary,
     isLoading: loadingOrders || loadingItems || loadingIndividualOrders,
   };
