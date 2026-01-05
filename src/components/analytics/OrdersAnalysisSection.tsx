@@ -87,7 +87,7 @@ export function OrdersAnalysisSection({
   // Infinite scroll state for order tab
   const ORDER_PAGE_SIZE = 50;
   const [orderLimit, setOrderLimit] = useState(ORDER_PAGE_SIZE);
-  const [orderSearchQuery, setOrderSearchQuery] = useState("");
+  const [orderSearchQuery, setOrderSearchQuery] = useState(""); // Searches by order ID and item title
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
@@ -798,7 +798,7 @@ export function OrdersAnalysisSection({
                   <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Rechercher par n° commande..."
+                      placeholder="Rechercher par n° commande ou article..."
                       value={orderSearchQuery}
                       onChange={(e) => setOrderSearchQuery(e.target.value)}
                       className="pl-9"
