@@ -304,9 +304,16 @@ function ProductRow({
   return (
     <TableRow className="hover:bg-muted/30">
       <TableCell className="font-medium">
-        <span className="truncate max-w-[300px] block" title={item.name}>
-          {item.name}
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="truncate max-w-[300px] block" title={item.name}>
+            {item.name}
+          </span>
+          {item.description && (
+            <span className="text-xs text-muted-foreground line-clamp-2">
+              {item.description}
+            </span>
+          )}
+        </div>
       </TableCell>
 
       <TableCell className="text-center">
