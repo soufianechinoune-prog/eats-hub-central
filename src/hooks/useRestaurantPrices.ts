@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface RestaurantPrice {
   restaurantId: string;
   restaurantName: string;
+  basePrice: number;
   averagePrice: number;
   orderCount: number;
   lastSeen: string;
@@ -57,14 +58,16 @@ export function useRestaurantPrices(restaurantIds: string[]) {
           .from("order_items")
           .select(`
             item_title,
-            unit_price,
+            sales_incl_vat,
+            quantity,
             restaurant_id,
             created_at
           `)
           .in("restaurant_id", restaurantIds)
           .or("item_promo_incl_vat.is.null,item_promo_incl_vat.eq.0")
-          .not("unit_price", "is", null)
-          .gt("unit_price", 0);
+          .eq("quantity", 1)
+          .not("sales_incl_vat", "is", null)
+          .gt("sales_incl_vat", 0);
 
         if (itemsError) throw itemsError;
 
@@ -75,7 +78,7 @@ export function useRestaurantPrices(restaurantIds: string[]) {
         }>> = {};
 
         for (const item of itemsData || []) {
-          if (!item.item_title || !item.restaurant_id || !item.unit_price) continue;
+          if (!item.item_title || !item.restaurant_id || !item.sales_incl_vat) continue;
 
           const normalizedTitle = item.item_title.trim();
           
@@ -90,7 +93,7 @@ export function useRestaurantPrices(restaurantIds: string[]) {
             };
           }
           
-          priceMap[normalizedTitle][item.restaurant_id].prices.push(Number(item.unit_price));
+          priceMap[normalizedTitle][item.restaurant_id].prices.push(Number(item.sales_incl_vat));
           
           // Update lastSeen if this is more recent
           if (item.created_at > priceMap[normalizedTitle][item.restaurant_id].lastSeen) {
@@ -113,6 +116,7 @@ export function useRestaurantPrices(restaurantIds: string[]) {
             prices.push({
               restaurantId,
               restaurantName: restaurantMap.get(restaurantId) || "Unknown",
+              basePrice: Math.round(minPrice * 100) / 100,
               averagePrice: Math.round(avgPrice * 100) / 100,
               orderCount: data.prices.length,
               lastSeen: data.lastSeen,
@@ -121,14 +125,14 @@ export function useRestaurantPrices(restaurantIds: string[]) {
             });
           }
 
-          // Calculate discrepancy
+          // Calculate discrepancy based on base prices (min price = price without options)
           if (prices.length > 0) {
-            const avgPrices = prices.map(p => p.averagePrice);
-            const minAvg = Math.min(...avgPrices);
-            const maxAvg = Math.max(...avgPrices);
-            const maxDifference = Math.round((maxAvg - minAvg) * 100) / 100;
-            const maxDifferencePercent = minAvg > 0 
-              ? Math.round(((maxAvg - minAvg) / minAvg) * 100 * 10) / 10
+            const basePrices = prices.map(p => p.basePrice);
+            const minBase = Math.min(...basePrices);
+            const maxBase = Math.max(...basePrices);
+            const maxDifference = Math.round((maxBase - minBase) * 100) / 100;
+            const maxDifferencePercent = minBase > 0 
+              ? Math.round(((maxBase - minBase) / minBase) * 100 * 10) / 10
               : 0;
 
             productAnalysis.push({
