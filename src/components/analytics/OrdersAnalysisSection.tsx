@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { 
   Table, 
   TableBody, 
@@ -32,8 +33,8 @@ import {
   ArrowUp,
   ArrowDown,
   ChevronRight,
-  ChevronLeft,
   Receipt,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinancesDrilldown, type DrilldownGranularity } from "@/hooks/useFinancesDrilldown";
@@ -83,9 +84,12 @@ export function OrdersAnalysisSection({
     selectedRestaurants.length === 1 ? selectedRestaurants[0] : null
   );
   
-  // Pagination state for order tab
-  const [orderPage, setOrderPage] = useState(1);
+  // Infinite scroll state for order tab
   const ORDER_PAGE_SIZE = 50;
+  const [orderLimit, setOrderLimit] = useState(ORDER_PAGE_SIZE);
+  const [orderSearchQuery, setOrderSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const loadMoreRef = useRef<HTMLDivElement>(null);
   
   // Expanded orders state for dropdown
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
@@ -99,6 +103,15 @@ export function OrdersAnalysisSection({
   // Payout detail sheet state
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(orderSearchQuery);
+      setOrderLimit(ORDER_PAGE_SIZE); // Reset limit when search changes
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [orderSearchQuery]);
   
   // Determine which restaurant IDs to query
   const queryRestaurantIds = useMemo(() => {
@@ -121,9 +134,33 @@ export function OrdersAnalysisSection({
     endDate,
     granularity: activeTab,
     enabled: true,
-    page: orderPage,
-    pageSize: ORDER_PAGE_SIZE,
+    orderSearchQuery: debouncedSearch,
+    orderLimit,
   });
+  
+  // Infinite scroll observer
+  const loadMore = useCallback(() => {
+    if (orderPagination?.hasMore && !isLoading) {
+      setOrderLimit(prev => prev + ORDER_PAGE_SIZE);
+    }
+  }, [orderPagination?.hasMore, isLoading]);
+  
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+    
+    return () => observer.disconnect();
+  }, [loadMore]);
   
   // Toggle expanded order
   const toggleOrder = (orderId: string) => {
@@ -135,10 +172,12 @@ export function OrdersAnalysisSection({
     });
   };
   
-  // Reset pagination when changing filters
+  // Reset state when changing tabs
   const handleTabChange = (value: string) => {
     setActiveTab(value as DrilldownGranularity);
-    setOrderPage(1);
+    setOrderLimit(ORDER_PAGE_SIZE);
+    setOrderSearchQuery("");
+    setDebouncedSearch("");
     setExpandedOrders(new Set());
   };
   
@@ -726,6 +765,24 @@ export function OrdersAnalysisSection({
               
               {/* Order Tab */}
               <TabsContent value="order" className="mt-0">
+                {/* Search field */}
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Rechercher par n° commande..."
+                      value={orderSearchQuery}
+                      onChange={(e) => setOrderSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  {orderPagination && (
+                    <span className="text-sm text-muted-foreground">
+                      {orderData.length.toLocaleString('fr-FR')} / {orderPagination.totalCount.toLocaleString('fr-FR')} commandes
+                    </span>
+                  )}
+                </div>
+                
                 {orderData && orderData.length > 0 ? (
                   <div className="space-y-4">
                     <div className="rounded-md border overflow-hidden">
@@ -810,44 +867,29 @@ export function OrdersAnalysisSection({
                             ))}
                           </TableBody>
                         </Table>
-                      </div>
-                    </div>
-                    
-                    {/* Pagination */}
-                    {orderPagination && orderPagination.totalPages > 1 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          Page {orderPagination.currentPage} sur {orderPagination.totalPages} 
-                          {' '}({orderPagination.totalCount.toLocaleString('fr-FR')} commandes)
-                        </span>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => setOrderPage(p => p - 1)} 
-                            disabled={orderPage === 1}
-                          >
-                            <ChevronLeft className="h-4 w-4 mr-1" />
-                            Précédent
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => setOrderPage(p => p + 1)}
-                            disabled={orderPage >= orderPagination.totalPages}
-                          >
-                            Suivant
-                            <ChevronRight className="h-4 w-4 ml-1" />
-                          </Button>
+                        
+                        {/* Infinite scroll loader */}
+                        <div ref={loadMoreRef} className="py-4 flex justify-center">
+                          {isLoading && orderData.length > 0 && (
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          )}
+                          {!orderPagination?.hasMore && orderData.length > 0 && (
+                            <span className="text-muted-foreground text-sm">
+                              Toutes les commandes sont affichées
+                            </span>
+                          )}
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
-                ) : (
+                ) : !isLoading ? (
                   <div className="text-center py-12 text-muted-foreground">
-                    Aucune donnée disponible pour cette période
+                    {debouncedSearch 
+                      ? `Aucune commande trouvée pour "${debouncedSearch}"`
+                      : "Aucune donnée disponible pour cette période"
+                    }
                   </div>
-                )}
+                ) : null}
               </TabsContent>
             </>
           )}
