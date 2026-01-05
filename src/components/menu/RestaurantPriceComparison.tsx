@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useRestaurantPrices, ProductPriceAnalysis } from "@/hooks/useRestaurantPrices";
@@ -17,6 +17,30 @@ import {
 } from "@/components/ui/table";
 import { Search, AlertTriangle, CheckCircle2, Package, TrendingUp, Store } from "lucide-react";
 
+const CATEGORIES_ORDER = [
+  "Menu Enfant",
+  "Menus Raclettes",
+  "Sandwichs Raclettes",
+  "Menus Naans",
+  "Menus Burgers Naan",
+  "Menus Fried Chicken",
+  "Menus Wraps",
+  "Menus Burgers",
+  "Menus Xtra",
+  "Fried Chicken",
+  "Bowls",
+  "Burgers",
+  "Naans",
+  "Burgers Naan",
+  "Wraps",
+  "À partager",
+  "Desserts Glacés",
+  "Desserts",
+  "À la carte",
+  "Salades",
+  "Boissons",
+];
+
 export function RestaurantPriceComparison() {
   const { visibleRestaurants } = useAnalyticsContext();
   const [searchQuery, setSearchQuery] = useState("");
@@ -32,6 +56,36 @@ export function RestaurantPriceComparison() {
     const matchesDiscrepancy = !showOnlyDiscrepancies || product.hasDiscrepancy;
     return matchesSearch && matchesDiscrepancy;
   });
+
+  // Group products by category
+  const groupedProducts = useMemo(() => {
+    const groups: Record<string, ProductPriceAnalysis[]> = {};
+    const uncategorized: ProductPriceAnalysis[] = [];
+
+    for (const product of filteredProducts) {
+      if (product.category && CATEGORIES_ORDER.includes(product.category)) {
+        if (!groups[product.category]) {
+          groups[product.category] = [];
+        }
+        groups[product.category].push(product);
+      } else {
+        uncategorized.push(product);
+      }
+    }
+
+    // Build ordered result
+    const result: { category: string; products: ProductPriceAnalysis[] }[] = [];
+    for (const category of CATEGORIES_ORDER) {
+      if (groups[category] && groups[category].length > 0) {
+        result.push({ category, products: groups[category] });
+      }
+    }
+    if (uncategorized.length > 0) {
+      result.push({ category: "Autre", products: uncategorized });
+    }
+
+    return result;
+  }, [filteredProducts]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("fr-FR", {
@@ -203,7 +257,7 @@ export function RestaurantPriceComparison() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProducts.length === 0 ? (
+                  {groupedProducts.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={restaurants.length + 2} className="text-center py-12 text-muted-foreground">
                         {searchQuery || showOnlyDiscrepancies 
@@ -213,13 +267,30 @@ export function RestaurantPriceComparison() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredProducts.map((product) => (
-                      <ProductRow 
-                        key={product.itemTitle} 
-                        product={product} 
-                        restaurants={restaurants}
-                        formatPrice={formatPrice}
-                      />
+                    groupedProducts.map((group) => (
+                      <>
+                        {/* Category header row */}
+                        <TableRow key={`cat-${group.category}`} className="bg-muted/50 hover:bg-muted/50">
+                          <TableCell 
+                            colSpan={restaurants.length + 2} 
+                            className="font-semibold text-sm py-2"
+                          >
+                            {group.category}
+                            <Badge variant="secondary" className="ml-2 text-xs">
+                              {group.products.length}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                        {/* Products in this category */}
+                        {group.products.map((product) => (
+                          <ProductRow 
+                            key={product.itemTitle} 
+                            product={product} 
+                            restaurants={restaurants}
+                            formatPrice={formatPrice}
+                          />
+                        ))}
+                      </>
                     ))
                   )}
                 </TableBody>
@@ -251,14 +322,9 @@ function ProductRow({
   return (
     <TableRow className="hover:bg-muted/30">
       <TableCell className="font-medium">
-        <div className="flex items-center gap-2">
-          <span className="truncate max-w-[200px]" title={product.itemTitle}>
-            {product.itemTitle}
-          </span>
-          <Badge variant="outline" className="text-xs shrink-0">
-            {product.prices.reduce((sum, p) => sum + p.orderCount, 0)} cmd
-          </Badge>
-        </div>
+        <span className="truncate max-w-[250px] block" title={product.itemTitle}>
+          {product.itemTitle}
+        </span>
       </TableCell>
       
       {restaurants.map((restaurant) => {
