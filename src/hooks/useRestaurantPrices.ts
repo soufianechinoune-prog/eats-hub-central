@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeName, calculateSimilarity } from "@/lib/fuzzyMatch";
 
 export interface RestaurantPrice {
   restaurantId: string;
@@ -77,13 +78,41 @@ export function useRestaurantPrices(restaurantIds: string[]) {
           .from("menu_items")
           .select("name, category");
 
-        // Create a map of item name -> category
-        const categoryMap = new Map<string, string>();
-        for (const item of menuItemsData || []) {
-          if (item.name && item.category) {
-            categoryMap.set(item.name.trim().toLowerCase(), item.category);
+        // Create a list of menu items with normalized names for fuzzy matching
+        const menuItemsList = (menuItemsData || [])
+          .filter(item => item.name && item.category)
+          .map(item => ({
+            normalizedName: normalizeName(item.name),
+            originalName: item.name.trim(),
+            category: item.category,
+          }));
+
+        // Function to find category using fuzzy matching
+        const findCategory = (productName: string): string | null => {
+          const normalized = normalizeName(productName);
+          
+          // 1. Try exact match on normalized name
+          const exactMatch = menuItemsList.find(mi => mi.normalizedName === normalized);
+          if (exactMatch) return exactMatch.category;
+          
+          // 2. Try contains match (one contains the other)
+          const containsMatch = menuItemsList.find(mi => 
+            mi.normalizedName.includes(normalized) || normalized.includes(mi.normalizedName)
+          );
+          if (containsMatch) return containsMatch.category;
+          
+          // 3. Try fuzzy match with similarity score
+          let bestMatch: { item: typeof menuItemsList[0]; score: number } | null = null;
+          for (const item of menuItemsList) {
+            const score = calculateSimilarity(productName, item.originalName);
+            if (score >= 75 && (!bestMatch || score > bestMatch.score)) {
+              bestMatch = { item, score };
+            }
           }
-        }
+          if (bestMatch) return bestMatch.item.category;
+          
+          return null;
+        };
 
         // Group by item_title and restaurant_id
         const priceMap: Record<string, Record<string, {
@@ -149,8 +178,8 @@ export function useRestaurantPrices(restaurantIds: string[]) {
               ? Math.round(((maxBase - minBase) / minBase) * 100 * 10) / 10
               : 0;
 
-            // Get category from menu_items
-            const category = categoryMap.get(itemTitle.toLowerCase()) || null;
+            // Get category from menu_items using fuzzy matching
+            const category = findCategory(itemTitle);
 
             productAnalysis.push({
               itemTitle,
