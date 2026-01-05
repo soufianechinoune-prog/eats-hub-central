@@ -482,8 +482,10 @@ serve(async (req) => {
     }
 
     // Prepare all records with order_id (filter orphans)
-    const recordsToUpsert: any[] = [];
+    // Deduplicate by order_id + item_id to avoid "cannot affect row a second time" error
+    const recordsMap = new Map<string, any>();
     let orphanCount = 0;
+    let duplicateCount = 0;
     
     for (const item of itemsToUpsert) {
       const orderId = flowIdToOrderId[item.uber_flow_id];
@@ -494,14 +496,29 @@ serve(async (req) => {
       }
       
       const restaurantId = flowIdToRestaurantId[item.uber_flow_id];
-      recordsToUpsert.push({
-        order_id: orderId,
-        restaurant_id: restaurantId,
-        ...item,
-      });
+      const key = `${orderId}::${item.item_id}`;
+      
+      // Keep the last occurrence (or merge values if needed)
+      if (recordsMap.has(key)) {
+        duplicateCount++;
+        // Merge quantities and amounts for duplicate items
+        const existing = recordsMap.get(key);
+        existing.quantity = (existing.quantity || 0) + (item.quantity || 1);
+        existing.sales_incl_vat = (existing.sales_incl_vat || 0) + (item.sales_incl_vat || 0);
+        existing.sales_excl_vat = (existing.sales_excl_vat || 0) + (item.sales_excl_vat || 0);
+        existing.refund_incl_vat = (existing.refund_incl_vat || 0) + (item.refund_incl_vat || 0);
+        existing.total_price = (existing.total_price || 0) + (item.total_price || 0);
+      } else {
+        recordsMap.set(key, {
+          order_id: orderId,
+          restaurant_id: restaurantId,
+          ...item,
+        });
+      }
     }
 
-    console.log(`Prepared ${recordsToUpsert.length} records for batch upsert, ${orphanCount} orphans`);
+    const recordsToUpsert = Array.from(recordsMap.values());
+    console.log(`Prepared ${recordsToUpsert.length} unique records for batch upsert, ${orphanCount} orphans, ${duplicateCount} duplicates merged`);
 
     // Batch upsert by lots of 100
     const BATCH_SIZE = 100;
