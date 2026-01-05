@@ -64,6 +64,9 @@ export interface OrderFinanceData {
   profitability: number;
 }
 
+export type OrderSortField = "order_datetime" | "sales_incl_vat" | "profitability" | "uber_fee" | "promo" | "refund" | "net_payout" | "meal_voucher" | "total_payout";
+export type SortDirection = "asc" | "desc";
+
 interface UseFinancesDrilldownParams {
   restaurantIds?: string[];
   startDate: Date;
@@ -72,6 +75,8 @@ interface UseFinancesDrilldownParams {
   enabled?: boolean;
   orderSearchQuery?: string;
   orderLimit?: number;
+  orderSortField?: OrderSortField;
+  orderSortDirection?: SortDirection;
 }
 
 export function useFinancesDrilldown({
@@ -82,6 +87,8 @@ export function useFinancesDrilldown({
   enabled = true,
   orderSearchQuery = "",
   orderLimit = 50,
+  orderSortField = "order_datetime",
+  orderSortDirection = "desc",
 }: UseFinancesDrilldownParams) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
@@ -182,7 +189,7 @@ export function useFinancesDrilldown({
 
   // Fetch individual orders for order breakdown with infinite scroll
   const { data: individualOrdersData, isLoading: loadingIndividualOrders } = useQuery({
-    queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, orderSearchQuery, orderLimit],
+    queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection],
     queryFn: async () => {
       // First get total count
       let countQuery = supabase
@@ -202,6 +209,22 @@ export function useFinancesDrilldown({
 
       const { count } = await countQuery;
 
+      // Map sort field to actual database column
+      const sortColumnMap: Record<OrderSortField, string> = {
+        order_datetime: "order_datetime",
+        sales_incl_vat: "sales_incl_vat",
+        profitability: "sales_incl_vat", // Will be sorted client-side for calculated fields
+        uber_fee: "uber_fee_after_promo_incl_vat",
+        promo: "item_promo_incl_vat",
+        refund: "refund_incl_vat",
+        net_payout: "net_payout",
+        meal_voucher: "meal_voucher_amount",
+        total_payout: "net_payout", // Approximation, will refine client-side
+      };
+
+      const dbSortColumn = sortColumnMap[orderSortField];
+      const isAscending = orderSortDirection === "asc";
+
       // Fetch orders up to the limit (for infinite scroll accumulation)
       let query = supabase
         .from("orders")
@@ -218,7 +241,7 @@ export function useFinancesDrilldown({
         `)
         .gte("order_datetime", `${startStr}T00:00:00`)
         .lte("order_datetime", `${endStr}T23:59:59`)
-        .order("order_datetime", { ascending: false })
+        .order(dbSortColumn, { ascending: isAscending })
         .range(0, orderLimit - 1);
 
       if (restaurantIds && restaurantIds.length > 0) {

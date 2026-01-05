@@ -37,7 +37,7 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useFinancesDrilldown, type DrilldownGranularity } from "@/hooks/useFinancesDrilldown";
+import { useFinancesDrilldown, type DrilldownGranularity, type OrderSortField, type SortDirection as OrderSortDirection } from "@/hooks/useFinancesDrilldown";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
 import { OrderItemsDropdown } from "./OrderItemsDropdown";
 import { useQuery } from "@tanstack/react-query";
@@ -94,11 +94,15 @@ export function OrdersAnalysisSection({
   // Expanded orders state for dropdown
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   
-  // Sorting state
+  // Sorting state for daily/hourly tabs
   type SortField = 'date' | 'orders' | 'sales' | 'profitability' | 'commission' | 'promos' | 'refunds' | 'payout' | 'mealVoucher' | 'totalPayout';
   type SortDirection = 'asc' | 'desc';
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  
+  // Sorting state for order tab (server-side)
+  const [orderSortField, setOrderSortField] = useState<OrderSortField>('order_datetime');
+  const [orderSortDir, setOrderSortDir] = useState<OrderSortDirection>('desc');
   
   // Payout detail sheet state
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -137,7 +141,30 @@ export function OrdersAnalysisSection({
     enabled: true,
     orderSearchQuery: debouncedSearch,
     orderLimit,
+    orderSortField,
+    orderSortDirection: orderSortDir,
   });
+  
+  // Handle order sort toggle
+  const handleOrderSort = (field: OrderSortField) => {
+    if (orderSortField === field) {
+      setOrderSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setOrderSortField(field);
+      setOrderSortDir('desc');
+    }
+    setOrderLimit(ORDER_PAGE_SIZE); // Reset when sorting changes
+  };
+  
+  // Render sort icon for order columns
+  const renderOrderSortIcon = (field: OrderSortField) => {
+    if (orderSortField !== field) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    }
+    return orderSortDir === 'asc' 
+      ? <ArrowUp className="h-3 w-3 ml-1" />
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
   
   // Infinite scroll observer
   const loadMore = useCallback(() => {
@@ -793,15 +820,87 @@ export function OrdersAnalysisSection({
                             <TableRow>
                               <TableHead className="w-8"></TableHead>
                               <TableHead>N° Commande</TableHead>
-                              <TableHead>Date/Heure</TableHead>
-                              <TableHead className="text-right">CA TTC</TableHead>
-                              <TableHead className="text-right">Rentab.</TableHead>
-                              <TableHead className="text-right">Commission</TableHead>
-                              <TableHead className="text-right">Promos</TableHead>
-                              <TableHead className="text-right">Remb.</TableHead>
-                              <TableHead className="text-right">Vers. Uber</TableHead>
-                              <TableHead className="text-right">Titre Resto</TableHead>
-                              <TableHead className="text-right">Vers. Total</TableHead>
+                              <TableHead 
+                                className="cursor-pointer hover:bg-muted/50 select-none"
+                                onClick={() => handleOrderSort('order_datetime')}
+                              >
+                                <div className="flex items-center">
+                                  Date/Heure
+                                  {renderOrderSortIcon('order_datetime')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                                onClick={() => handleOrderSort('sales_incl_vat')}
+                              >
+                                <div className="flex items-center justify-end">
+                                  CA TTC
+                                  {renderOrderSortIcon('sales_incl_vat')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                                onClick={() => handleOrderSort('profitability')}
+                              >
+                                <div className="flex items-center justify-end">
+                                  Rentab.
+                                  {renderOrderSortIcon('profitability')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                                onClick={() => handleOrderSort('uber_fee')}
+                              >
+                                <div className="flex items-center justify-end">
+                                  Commission
+                                  {renderOrderSortIcon('uber_fee')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                                onClick={() => handleOrderSort('promo')}
+                              >
+                                <div className="flex items-center justify-end">
+                                  Promos
+                                  {renderOrderSortIcon('promo')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                                onClick={() => handleOrderSort('refund')}
+                              >
+                                <div className="flex items-center justify-end">
+                                  Remb.
+                                  {renderOrderSortIcon('refund')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                                onClick={() => handleOrderSort('net_payout')}
+                              >
+                                <div className="flex items-center justify-end">
+                                  Vers. Uber
+                                  {renderOrderSortIcon('net_payout')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                                onClick={() => handleOrderSort('meal_voucher')}
+                              >
+                                <div className="flex items-center justify-end">
+                                  Titre Resto
+                                  {renderOrderSortIcon('meal_voucher')}
+                                </div>
+                              </TableHead>
+                              <TableHead 
+                                className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                                onClick={() => handleOrderSort('total_payout')}
+                              >
+                                <div className="flex items-center justify-end">
+                                  Vers. Total
+                                  {renderOrderSortIcon('total_payout')}
+                                </div>
+                              </TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
