@@ -4,7 +4,6 @@ import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
 import { DailyFinancesSheet } from "./DailyFinancesSheet";
-import { RestaurantDrilldownRow } from "./RestaurantDrilldownRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -35,7 +34,6 @@ import {
   Euro,
   ChevronUp,
   ChevronDown,
-  ChevronRight,
   ZoomIn
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -166,20 +164,7 @@ export function ProfitabilityComparisonTable({
     restaurantIds: string[];
   } | null>(null);
   
-  // Accordion expanded state for week view
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   
-  const toggleRowExpanded = (key: string) => {
-    setExpandedRows(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  };
   
   // Handle sort column click
   const handleSort = (column: SortColumn) => {
@@ -881,78 +866,59 @@ export function ProfitabilityComparisonTable({
                           </TableCell>
                         </TableRow>
                         
-                        {/* Restaurant rows within the week - with accordion */}
+                        {/* Restaurant rows within the week - simple rows (no accordion) */}
                         {group.restaurants.map((row, idx) => {
                           const rowKey = `${group.weekKey}-${row.restaurantId}`;
-                          const isExpanded = expandedRows.has(rowKey);
                           
                           return (
-                            <>
-                              <TableRow 
-                                key={rowKey}
-                                className={cn(
-                                  "cursor-pointer hover:bg-muted/50 transition-colors",
-                                  idx === 0 && hasGap && "bg-green-500/5 hover:bg-green-500/10",
-                                  idx === group.restaurants.length - 1 && hasGap && "bg-red-500/5 hover:bg-red-500/10",
-                                  isExpanded && "border-b-0"
-                                )}
-                                onClick={() => toggleRowExpanded(rowKey)}
-                              >
-                                <TableCell className="pl-4">
-                                  <div className="flex items-center gap-2">
-                                    <ChevronRight className={cn(
-                                      "h-4 w-4 text-muted-foreground transition-transform",
-                                      isExpanded && "rotate-90"
-                                    )} />
-                                    {idx === 0 && hasGap && <Badge variant="outline" className="text-green-600 border-green-600 text-[10px] px-1">+</Badge>}
-                                    {idx === group.restaurants.length - 1 && hasGap && <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">−</Badge>}
-                                    <span className="font-medium">
-                                      {isSingleRestaurant 
-                                        ? format(new Date(row.date), "d MMMM", { locale: fr })
-                                        : row.restaurantName
-                                      }
-                                    </span>
-                                  </div>
-                                  <div className="text-xs text-muted-foreground pl-6">
-                                    {row.orderCount} cmd • Ø {formatCurrency(row.avgBasket)}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-right font-medium tabular-nums">
-                                  {formatCurrency(row.sales)}
-                                </TableCell>
-                                <TableCell className="text-right text-green-600">
-                                  <span className="font-medium tabular-nums">{row.profitability.toFixed(1)}%</span>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <ComparisonCell percentValue={row.uberFeeRate} amountValue={row.uberFeeNet} isCommission />
-                                </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
-                                  <ComparisonCell percentValue={row.promoRate} amountValue={row.promoAmount} />
-                                </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
-                                  <ComparisonCell percentValue={row.refundRate} amountValue={row.refundAmount} />
-                                </TableCell>
-                                <TableCell className="text-right font-medium text-green-600 tabular-nums">
-                                  {formatCurrency(row.netPayout)}
-                                </TableCell>
-                                <TableCell className="text-right text-muted-foreground tabular-nums">
-                                  {row.mealVoucher > 0 ? formatCurrency(row.mealVoucher) : '-'}
-                                </TableCell>
-                                <TableCell className="text-right font-semibold text-green-600 tabular-nums">
-                                  {formatCurrency(row.totalPayout)}
-                                </TableCell>
-                              </TableRow>
-                              
-                              {/* Expanded drill-down row */}
-                              {isExpanded && (
-                                <RestaurantDrilldownRow
-                                  restaurantId={row.restaurantId}
-                                  startDate={weekStart}
-                                  endDate={weekEnd}
-                                  colSpan={10}
-                                />
+                            <TableRow 
+                              key={rowKey}
+                              className={cn(
+                                "hover:bg-muted/50 transition-colors",
+                                idx === 0 && hasGap && "bg-green-500/5 hover:bg-green-500/10",
+                                idx === group.restaurants.length - 1 && hasGap && "bg-red-500/5 hover:bg-red-500/10",
                               )}
-                            </>
+                            >
+                              <TableCell className="pl-4">
+                                <div className="flex items-center gap-2">
+                                  {idx === 0 && hasGap && <Badge variant="outline" className="text-green-600 border-green-600 text-[10px] px-1">+</Badge>}
+                                  {idx === group.restaurants.length - 1 && hasGap && <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">−</Badge>}
+                                  <span className="font-medium">
+                                    {isSingleRestaurant 
+                                      ? format(new Date(row.date), "d MMMM", { locale: fr })
+                                      : row.restaurantName
+                                    }
+                                  </span>
+                                </div>
+                                <div className="text-xs text-muted-foreground pl-0">
+                                  {row.orderCount} cmd • Ø {formatCurrency(row.avgBasket)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-medium tabular-nums">
+                                {formatCurrency(row.sales)}
+                              </TableCell>
+                              <TableCell className="text-right text-green-600">
+                                <span className="font-medium tabular-nums">{row.profitability.toFixed(1)}%</span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <ComparisonCell percentValue={row.uberFeeRate} amountValue={row.uberFeeNet} isCommission />
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground">
+                                <ComparisonCell percentValue={row.promoRate} amountValue={row.promoAmount} />
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground">
+                                <ComparisonCell percentValue={row.refundRate} amountValue={row.refundAmount} />
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-green-600 tabular-nums">
+                                {formatCurrency(row.netPayout)}
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground tabular-nums">
+                                {row.mealVoucher > 0 ? formatCurrency(row.mealVoucher) : '-'}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold text-green-600 tabular-nums">
+                                {formatCurrency(row.totalPayout)}
+                              </TableCell>
+                            </TableRow>
                           );
                         })}
                         

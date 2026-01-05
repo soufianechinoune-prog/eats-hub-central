@@ -52,6 +52,7 @@ import { RevenuePerVisitKPI } from "./RevenuePerVisitKPI";
 import { SelectedRestaurantsRankingChart } from "./SelectedRestaurantsRankingChart";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
 import { ProfitabilityComparisonTable } from "./ProfitabilityComparisonTable";
+import { OrdersAnalysisSection } from "./OrdersAnalysisSection";
 import {
   LineChart,
   Line,
@@ -3215,6 +3216,24 @@ export function AnalyticsCharts({
         <ProfitabilityComparisonTable
           payouts={dailyPayoutsData}
           restaurants={restaurants}
+        />
+      )}
+      
+      {/* Orders Analysis Section - separate from payouts data */}
+      {showFinances && restaurants && restaurants.length > 0 && (
+        <OrdersAnalysisSection
+          restaurants={restaurants}
+          selectedRestaurants={selectedRestaurants || []}
+          startDate={(() => {
+            const year = selectedYear;
+            const month = drillDownMonth ?? startMonth ?? 1;
+            return new Date(year, month - 1, 1);
+          })()}
+          endDate={(() => {
+            const year = selectedYear;
+            const month = drillDownMonth ?? endMonth ?? 12;
+            return new Date(year, month, 0); // Last day of month
+          })()}
         />
       )}
     </div>
