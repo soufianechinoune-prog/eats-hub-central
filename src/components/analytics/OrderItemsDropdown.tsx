@@ -35,9 +35,14 @@ export function OrderItemsDropdown({ orderId }: OrderItemsDropdownProps) {
 
   if (!items?.length) {
     return (
-      <p className="text-muted-foreground italic py-2 pl-10 text-sm">
-        Pas de détail article disponible
-      </p>
+      <div className="py-2 pl-10 space-y-1">
+        <p className="text-muted-foreground italic text-sm">
+          Détail non importé
+        </p>
+        <p className="text-xs text-muted-foreground/70">
+          Disponible via le rapport "Historique des commandes" Uber Eats
+        </p>
+      </div>
     );
   }
 

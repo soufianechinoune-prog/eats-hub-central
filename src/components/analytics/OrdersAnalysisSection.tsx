@@ -127,6 +127,7 @@ export function OrdersAnalysisSection({
     productData,
     orderData,
     orderPagination,
+    orderIdsWithItems,
     isLoading 
   } = useFinancesDrilldown({
     restaurantIds: queryRestaurantIds,
@@ -814,7 +815,8 @@ export function OrdersAnalysisSection({
                                   <TableCell className="w-8">
                                     <ChevronRight className={cn(
                                       "h-4 w-4 transition-transform",
-                                      expandedOrders.has(order.id) && "rotate-90"
+                                      expandedOrders.has(order.id) && "rotate-90",
+                                      !orderIdsWithItems.includes(order.id) && "opacity-30"
                                     )} />
                                   </TableCell>
                                   <TableCell className="font-mono text-xs">
