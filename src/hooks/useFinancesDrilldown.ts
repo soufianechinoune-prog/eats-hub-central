@@ -191,7 +191,38 @@ export function useFinancesDrilldown({
   const { data: individualOrdersData, isLoading: loadingIndividualOrders } = useQuery({
     queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection],
     queryFn: async () => {
-      // First get total count
+      // Map sort field to actual database column
+      const sortColumnMap: Record<OrderSortField, string> = {
+        order_datetime: "order_datetime",
+        sales_incl_vat: "sales_incl_vat",
+        profitability: "sales_incl_vat",
+        uber_fee: "uber_fee_after_promo_incl_vat",
+        promo: "item_promo_incl_vat",
+        refund: "refund_incl_vat",
+        net_payout: "net_payout",
+        meal_voucher: "meal_voucher_amount",
+        total_payout: "net_payout",
+      };
+
+      const dbSortColumn = sortColumnMap[orderSortField];
+      const isAscending = orderSortDirection === "asc";
+
+      // Check if we need to search by item title
+      let orderIdsFromItemSearch: string[] | null = null;
+      
+      if (orderSearchQuery) {
+        // First, search in order_items for matching item titles
+        const { data: matchingItems } = await supabase
+          .from("order_items")
+          .select("order_id")
+          .ilike("item_title", `%${orderSearchQuery}%`);
+        
+        if (matchingItems && matchingItems.length > 0) {
+          orderIdsFromItemSearch = [...new Set(matchingItems.map(i => i.order_id))];
+        }
+      }
+
+      // Build the base query for counting
       let countQuery = supabase
         .from("orders")
         .select("id", { count: "exact", head: true })
@@ -202,30 +233,20 @@ export function useFinancesDrilldown({
         countQuery = countQuery.in("restaurant_id", restaurantIds);
       }
 
-      // Add search filter to count query
+      // Add search filter: search by uber_order_id OR by item title (via order IDs)
       if (orderSearchQuery) {
-        countQuery = countQuery.ilike("uber_order_id", `%${orderSearchQuery}%`);
+        if (orderIdsFromItemSearch && orderIdsFromItemSearch.length > 0) {
+          // Use OR filter: uber_order_id matches OR order is in the item search results
+          countQuery = countQuery.or(`uber_order_id.ilike.%${orderSearchQuery}%,id.in.(${orderIdsFromItemSearch.join(",")})`);
+        } else {
+          // Only search by uber_order_id
+          countQuery = countQuery.ilike("uber_order_id", `%${orderSearchQuery}%`);
+        }
       }
 
       const { count } = await countQuery;
 
-      // Map sort field to actual database column
-      const sortColumnMap: Record<OrderSortField, string> = {
-        order_datetime: "order_datetime",
-        sales_incl_vat: "sales_incl_vat",
-        profitability: "sales_incl_vat", // Will be sorted client-side for calculated fields
-        uber_fee: "uber_fee_after_promo_incl_vat",
-        promo: "item_promo_incl_vat",
-        refund: "refund_incl_vat",
-        net_payout: "net_payout",
-        meal_voucher: "meal_voucher_amount",
-        total_payout: "net_payout", // Approximation, will refine client-side
-      };
-
-      const dbSortColumn = sortColumnMap[orderSortField];
-      const isAscending = orderSortDirection === "asc";
-
-      // Fetch orders up to the limit (for infinite scroll accumulation)
+      // Fetch orders up to the limit
       let query = supabase
         .from("orders")
         .select(`
@@ -250,7 +271,11 @@ export function useFinancesDrilldown({
 
       // Add search filter
       if (orderSearchQuery) {
-        query = query.ilike("uber_order_id", `%${orderSearchQuery}%`);
+        if (orderIdsFromItemSearch && orderIdsFromItemSearch.length > 0) {
+          query = query.or(`uber_order_id.ilike.%${orderSearchQuery}%,id.in.(${orderIdsFromItemSearch.join(",")})`);
+        } else {
+          query = query.ilike("uber_order_id", `%${orderSearchQuery}%`);
+        }
       }
 
       const { data, error } = await query;
