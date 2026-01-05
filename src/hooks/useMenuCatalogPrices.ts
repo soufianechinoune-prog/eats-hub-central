@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface CatalogItem {
   id: string;
   name: string;
+  description: string;
   category: string;
   priceUber: number | null;
   priceDeliveroo: number | null;
@@ -30,7 +31,7 @@ export function useMenuCatalogPrices() {
       try {
         const { data, error: fetchError } = await supabase
           .from("menu_items")
-          .select("id, name, category, price_uber, price_deliveroo, is_active")
+          .select("id, name, description, category, price_uber, price_deliveroo, is_active")
           .eq("is_active", true)
           .order("name");
 
@@ -55,6 +56,7 @@ export function useMenuCatalogPrices() {
           return {
             id: item.id,
             name: item.name || "",
+            description: item.description || "",
             category: item.category || "",
             priceUber,
             priceDeliveroo,
