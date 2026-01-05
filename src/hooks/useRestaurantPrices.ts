@@ -14,6 +14,7 @@ export interface RestaurantPrice {
 
 export interface ProductPriceAnalysis {
   itemTitle: string;
+  category: string | null;
   prices: RestaurantPrice[];
   hasDiscrepancy: boolean;
   maxDifference: number;
@@ -70,6 +71,19 @@ export function useRestaurantPrices(restaurantIds: string[]) {
           .gt("sales_incl_vat", 0);
 
         if (itemsError) throw itemsError;
+
+        // Fetch menu items to get categories
+        const { data: menuItemsData } = await supabase
+          .from("menu_items")
+          .select("name, category");
+
+        // Create a map of item name -> category
+        const categoryMap = new Map<string, string>();
+        for (const item of menuItemsData || []) {
+          if (item.name && item.category) {
+            categoryMap.set(item.name.trim().toLowerCase(), item.category);
+          }
+        }
 
         // Group by item_title and restaurant_id
         const priceMap: Record<string, Record<string, {
@@ -135,8 +149,12 @@ export function useRestaurantPrices(restaurantIds: string[]) {
               ? Math.round(((maxBase - minBase) / minBase) * 100 * 10) / 10
               : 0;
 
+            // Get category from menu_items
+            const category = categoryMap.get(itemTitle.toLowerCase()) || null;
+
             productAnalysis.push({
               itemTitle,
+              category,
               prices,
               hasDiscrepancy: maxDifference > 0.01,
               maxDifference,
