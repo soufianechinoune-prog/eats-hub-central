@@ -79,6 +79,7 @@ import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
 import { ProductMatcher } from "@/components/menu/ProductMatcher";
 import { FoodCostManager } from "@/components/menu/FoodCostManager";
 import { OfferSimulator } from "@/components/menu/OfferSimulator";
+import { RestaurantPriceComparison } from "@/components/menu/RestaurantPriceComparison";
 import {
   DndContext,
   DragEndEvent,
@@ -436,12 +437,13 @@ export default function MenuItems() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "matcher" | "foodcost" | "simulator">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "matcher" | "foodcost" | "simulator" | "prices">("catalog");
   
   // Tab configuration with icons and colors
   const tabConfig = [
     { value: "catalog", label: "Catalogue", icon: Package, color: "text-emerald-500", bgActive: "bg-emerald-500/15", borderActive: "border-emerald-500/40" },
     { value: "comparison", label: "Comparaison", icon: ArrowRightLeft, color: "text-blue-500", bgActive: "bg-blue-500/15", borderActive: "border-blue-500/40" },
+    { value: "prices", label: "Prix Restaurants", icon: Euro, color: "text-rose-500", bgActive: "bg-rose-500/15", borderActive: "border-rose-500/40" },
     { value: "matcher", label: "Matcher", icon: Link2, color: "text-purple-500", bgActive: "bg-purple-500/15", borderActive: "border-purple-500/40" },
     { value: "foodcost", label: "Food Cost", icon: Calculator, color: "text-amber-500", bgActive: "bg-amber-500/15", borderActive: "border-amber-500/40" },
     { value: "simulator", label: "Simulateur", icon: TrendingUp, color: "text-orange-500", bgActive: "bg-orange-500/15", borderActive: "border-orange-500/40" },
@@ -966,6 +968,10 @@ export default function MenuItems() {
 
         <TabsContent value="simulator" className="mt-6">
           <OfferSimulator menuItems={menuItems} />
+        </TabsContent>
+
+        <TabsContent value="prices" className="mt-6">
+          <RestaurantPriceComparison />
         </TabsContent>
 
         <TabsContent value="catalog" className="mt-6 space-y-6">
