@@ -13,6 +13,10 @@ interface DailyFinanceData {
   refund_incl_vat: number;
   order_count: number;
   avg_basket: number;
+  // Additional financial fields
+  uber_fee_incl_vat: number;
+  promo_incl_vat: number;
+  net_payout: number;
 }
 
 interface HourlyFinanceData {
@@ -22,6 +26,10 @@ interface HourlyFinanceData {
   refund_incl_vat: number;
   order_count: number;
   avg_basket: number;
+  // Additional financial fields
+  uber_fee_incl_vat: number;
+  promo_incl_vat: number;
+  net_payout: number;
 }
 
 interface ProductFinanceData {
@@ -34,6 +42,8 @@ interface ProductFinanceData {
   order_count: number;
   avg_unit_price: number;
   refund_rate: number;
+  // Additional financial field
+  promo_incl_vat: number;
 }
 
 interface UseFinancesDrilldownParams {
@@ -54,13 +64,13 @@ export function useFinancesDrilldown({
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
 
-  // Fetch orders data for daily/hourly breakdown
+  // Fetch orders data for daily/hourly breakdown - include financial fields
   const { data: ordersData, isLoading: loadingOrders } = useQuery({
     queryKey: ["finances-drilldown-orders", restaurantIds, startStr, endStr, granularity],
     queryFn: async () => {
       let query = supabase
         .from("orders")
-        .select("order_datetime, sales_incl_vat, refund_incl_vat, restaurant_id")
+        .select("order_datetime, sales_incl_vat, refund_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, net_payout, restaurant_id")
         .gte("order_datetime", `${startStr}T00:00:00`)
         .lte("order_datetime", `${endStr}T23:59:59`);
 
@@ -105,7 +115,7 @@ export function useFinancesDrilldown({
         const batchIds = orderIds.slice(i, i + BATCH_SIZE);
         const { data: items, error: itemsError } = await supabase
           .from("order_items")
-          .select("item_id, item_title, category, quantity, sales_incl_vat, refund_incl_vat, order_id")
+          .select("item_id, item_title, category, quantity, sales_incl_vat, refund_incl_vat, item_promo_incl_vat, order_id")
           .in("order_id", batchIds);
 
         if (itemsError) throw itemsError;
@@ -117,22 +127,32 @@ export function useFinancesDrilldown({
     enabled: enabled && granularity === "product",
   });
 
-  // Process daily data
+  // Process daily data with additional financial columns
   const dailyData = useMemo((): DailyFinanceData[] => {
     if (granularity !== "daily" || !ordersData?.length) return [];
 
-    const byDate: Record<string, { sales: number; refund: number; count: number }> = {};
+    const byDate: Record<string, { 
+      sales: number; 
+      refund: number; 
+      count: number;
+      uberFee: number;
+      promo: number;
+      netPayout: number;
+    }> = {};
 
     ordersData.forEach(order => {
       if (!order.order_datetime) return;
       const date = order.order_datetime.split("T")[0];
       
       if (!byDate[date]) {
-        byDate[date] = { sales: 0, refund: 0, count: 0 };
+        byDate[date] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0 };
       }
       
       byDate[date].sales += Math.abs(Number(order.sales_incl_vat) || 0);
       byDate[date].refund += Math.abs(Number(order.refund_incl_vat) || 0);
+      byDate[date].uberFee += Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
+      byDate[date].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
+      byDate[date].netPayout += Number(order.net_payout) || 0;
       byDate[date].count += 1;
     });
 
@@ -144,19 +164,29 @@ export function useFinancesDrilldown({
         refund_incl_vat: stats.refund,
         order_count: stats.count,
         avg_basket: stats.count > 0 ? stats.sales / stats.count : 0,
+        uber_fee_incl_vat: stats.uberFee,
+        promo_incl_vat: stats.promo,
+        net_payout: stats.netPayout,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [ordersData, granularity]);
 
-  // Process hourly data
+  // Process hourly data with additional financial columns
   const hourlyData = useMemo((): HourlyFinanceData[] => {
     if (granularity !== "hourly" || !ordersData?.length) return [];
 
-    const byHour: Record<number, { sales: number; refund: number; count: number }> = {};
+    const byHour: Record<number, { 
+      sales: number; 
+      refund: number; 
+      count: number;
+      uberFee: number;
+      promo: number;
+      netPayout: number;
+    }> = {};
 
     // Initialize all hours
     for (let h = 0; h < 24; h++) {
-      byHour[h] = { sales: 0, refund: 0, count: 0 };
+      byHour[h] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0 };
     }
 
     ordersData.forEach(order => {
@@ -165,6 +195,9 @@ export function useFinancesDrilldown({
       
       byHour[hour].sales += Math.abs(Number(order.sales_incl_vat) || 0);
       byHour[hour].refund += Math.abs(Number(order.refund_incl_vat) || 0);
+      byHour[hour].uberFee += Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
+      byHour[hour].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
+      byHour[hour].netPayout += Number(order.net_payout) || 0;
       byHour[hour].count += 1;
     });
 
@@ -176,12 +209,15 @@ export function useFinancesDrilldown({
         refund_incl_vat: stats.refund,
         order_count: stats.count,
         avg_basket: stats.count > 0 ? stats.sales / stats.count : 0,
+        uber_fee_incl_vat: stats.uberFee,
+        promo_incl_vat: stats.promo,
+        net_payout: stats.netPayout,
       }))
       .filter(h => h.order_count > 0) // Only show hours with orders
       .sort((a, b) => a.hour - b.hour);
   }, [ordersData, granularity]);
 
-  // Process product data
+  // Process product data with promo field
   const productData = useMemo((): ProductFinanceData[] => {
     if (granularity !== "product" || !itemsData?.length) return [];
 
@@ -191,6 +227,7 @@ export function useFinancesDrilldown({
       quantity: number;
       sales: number;
       refund: number;
+      promo: number;
       orderIds: Set<string>;
     }> = {};
 
@@ -204,6 +241,7 @@ export function useFinancesDrilldown({
           quantity: 0,
           sales: 0,
           refund: 0,
+          promo: 0,
           orderIds: new Set(),
         };
       }
@@ -211,6 +249,7 @@ export function useFinancesDrilldown({
       byProduct[key].quantity += Number(item.quantity) || 1;
       byProduct[key].sales += Math.abs(Number(item.sales_incl_vat) || 0);
       byProduct[key].refund += Math.abs(Number(item.refund_incl_vat) || 0);
+      byProduct[key].promo += Math.abs(Number(item.item_promo_incl_vat) || 0);
       byProduct[key].orderIds.add(item.order_id);
     });
 
@@ -222,6 +261,7 @@ export function useFinancesDrilldown({
         quantity: stats.quantity,
         sales_incl_vat: stats.sales,
         refund_incl_vat: stats.refund,
+        promo_incl_vat: stats.promo,
         order_count: stats.orderIds.size,
         avg_unit_price: stats.quantity > 0 ? stats.sales / stats.quantity : 0,
         refund_rate: stats.sales > 0 ? (stats.refund / stats.sales) * 100 : 0,
