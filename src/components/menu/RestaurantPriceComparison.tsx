@@ -270,15 +270,20 @@ export function RestaurantPriceComparison() {
                     groupedProducts.map((group) => (
                       <>
                         {/* Category header row */}
-                        <TableRow key={`cat-${group.category}`} className="bg-muted/50 hover:bg-muted/50">
+                        <TableRow 
+                          key={`cat-${group.category}`} 
+                          className="bg-primary/10 dark:bg-primary/20 hover:bg-primary/10 dark:hover:bg-primary/20 border-l-4 border-l-primary"
+                        >
                           <TableCell 
                             colSpan={restaurants.length + 2} 
-                            className="font-semibold text-sm py-2"
+                            className="font-bold text-sm py-3"
                           >
-                            {group.category}
-                            <Badge variant="secondary" className="ml-2 text-xs">
-                              {group.products.length}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <span className="text-primary">{group.category}</span>
+                              <Badge className="bg-primary/20 text-primary border-0 text-xs font-medium">
+                                {group.products.length} produit{group.products.length > 1 ? 's' : ''}
+                              </Badge>
+                            </div>
                           </TableCell>
                         </TableRow>
                         {/* Products in this category */}
