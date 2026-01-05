@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { supabase } from "@/integrations/supabase/client";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useRestaurantPrices, ProductPriceAnalysis } from "@/hooks/useRestaurantPrices";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,47 +15,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Search, AlertTriangle, CheckCircle2, Package, TrendingUp, Store } from "lucide-react";
 
-interface Restaurant {
-  id: string;
-  name: string;
-}
-
 export function RestaurantPriceComparison() {
-  const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
-  const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
+  const { visibleRestaurants } = useAnalyticsContext();
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyDiscrepancies, setShowOnlyDiscrepancies] = useState(false);
-  const [loadingRestaurants, setLoadingRestaurants] = useState(true);
 
-  const { loading, products, restaurants, stats, error } = useRestaurantPrices(selectedRestaurantIds);
-
-  // Fetch all restaurants on mount
-  useEffect(() => {
-    const fetchRestaurants = async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name")
-        .order("name");
-
-      if (!error && data) {
-        setAllRestaurants(data);
-        // Select all by default
-        setSelectedRestaurantIds(data.map(r => r.id));
-      }
-      setLoadingRestaurants(false);
-    };
-
-    fetchRestaurants();
-  }, []);
+  // visibleRestaurants is already an array of IDs (strings)
+  const { loading, products, restaurants, stats, error } = useRestaurantPrices(visibleRestaurants);
 
   // Filter products based on search and discrepancy filter
   const filteredProducts = products.filter(product => {
@@ -81,10 +49,11 @@ export function RestaurantPriceComparison() {
     return name.slice(0, 10);
   };
 
-  if (loadingRestaurants) {
+  if (visibleRestaurants.length === 0) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+      <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
+        <Store className="h-12 w-12 mb-4 opacity-50" />
+        <p>Épinglez des restaurants pour comparer leurs prix</p>
       </div>
     );
   }
@@ -188,21 +157,10 @@ export function RestaurantPriceComparison() {
           </Label>
         </div>
 
-        <Select
-          value={selectedRestaurantIds.length === allRestaurants.length ? "all" : "custom"}
-          onValueChange={(value) => {
-            if (value === "all") {
-              setSelectedRestaurantIds(allRestaurants.map(r => r.id));
-            }
-          }}
-        >
-          <SelectTrigger className="w-[200px] bg-white/60 dark:bg-white/5 backdrop-blur-xl border-white/20">
-            <SelectValue placeholder="Restaurants" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les restaurants ({allRestaurants.length})</SelectItem>
-          </SelectContent>
-        </Select>
+        <Badge variant="outline" className="px-3 py-2 bg-white/60 dark:bg-white/5 backdrop-blur-xl border-white/20">
+          <Store className="h-3.5 w-3.5 mr-1.5" />
+          {visibleRestaurants.length} restaurants épinglés
+        </Badge>
       </motion.div>
 
       {/* Error state */}
