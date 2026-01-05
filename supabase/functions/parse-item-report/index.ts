@@ -481,67 +481,53 @@ serve(async (req) => {
       });
     }
 
-    // Process items in batches
+    // Prepare all records with order_id (filter orphans)
+    const recordsToUpsert: any[] = [];
+    let orphanCount = 0;
+    
+    for (const item of itemsToUpsert) {
+      const orderId = flowIdToOrderId[item.uber_flow_id];
+      
+      if (!orderId) {
+        orphanCount++;
+        continue;
+      }
+      
+      const restaurantId = flowIdToRestaurantId[item.uber_flow_id];
+      recordsToUpsert.push({
+        order_id: orderId,
+        restaurant_id: restaurantId,
+        ...item,
+      });
+    }
+
+    console.log(`Prepared ${recordsToUpsert.length} records for batch upsert, ${orphanCount} orphans`);
+
+    // Batch upsert by lots of 100
+    const BATCH_SIZE = 100;
     let insertedCount = 0;
     let updatedCount = 0;
     let errorCount = 0;
-    let orphanCount = 0;
-    const errors: { row: number; error: string }[] = [];
+    const errors: { batch: number; error: string }[] = [];
 
-    const batchSize = 100;
-    for (let i = 0; i < itemsToUpsert.length; i += batchSize) {
-      const batch = itemsToUpsert.slice(i, i + batchSize);
+    for (let i = 0; i < recordsToUpsert.length; i += BATCH_SIZE) {
+      const batch = recordsToUpsert.slice(i, i + BATCH_SIZE);
+      const batchIndex = Math.floor(i / BATCH_SIZE);
       
-      for (const item of batch) {
-        const orderId = flowIdToOrderId[item.uber_flow_id];
-        
-        if (!orderId) {
-          orphanCount++;
-          continue;
-        }
+      const { error: upsertError, count } = await supabase
+        .from('order_items')
+        .upsert(batch, { 
+          onConflict: 'order_id,item_id',
+          ignoreDuplicates: false 
+        });
 
-        // Prepare the record for upsert with restaurant_id
-        const restaurantId = flowIdToRestaurantId[item.uber_flow_id];
-        const record = {
-          order_id: orderId,
-          restaurant_id: restaurantId,
-          ...item,
-        };
-
-        // Check if item already exists
-        const { data: existingItem } = await supabase
-          .from('order_items')
-          .select('id')
-          .eq('order_id', orderId)
-          .eq('item_id', item.item_id)
-          .single();
-
-        if (existingItem) {
-          // Update existing
-          const { error: updateError } = await supabase
-            .from('order_items')
-            .update(record)
-            .eq('id', existingItem.id);
-
-          if (updateError) {
-            errorCount++;
-            errors.push({ row: i, error: updateError.message });
-          } else {
-            updatedCount++;
-          }
-        } else {
-          // Insert new
-          const { error: insertError } = await supabase
-            .from('order_items')
-            .insert(record);
-
-          if (insertError) {
-            errorCount++;
-            errors.push({ row: i, error: insertError.message });
-          } else {
-            insertedCount++;
-          }
-        }
+      if (upsertError) {
+        console.error(`Batch ${batchIndex} error:`, upsertError.message);
+        errorCount += batch.length;
+        errors.push({ batch: batchIndex, error: upsertError.message });
+      } else {
+        insertedCount += batch.length;
+        console.log(`Batch ${batchIndex}: ${batch.length} items upserted`);
       }
     }
 
