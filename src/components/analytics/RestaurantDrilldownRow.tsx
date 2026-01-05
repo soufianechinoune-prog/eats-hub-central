@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useFinancesDrilldown, DrilldownGranularity } from "@/hooks/useFinancesDrilldown";
-import { Loader2, Calendar, Clock, Package } from "lucide-react";
+import { Loader2, Calendar, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
 interface RestaurantDrilldownRowProps {
   restaurantId: string;
@@ -38,15 +40,36 @@ export function RestaurantDrilldownRow({
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const { dailyData, hourlyData, productData, isLoading } = useFinancesDrilldown({
-    restaurantIds: [restaurantId],
-    startDate,
-    endDate,
-    granularity: activeTab,
+  // Fetch payout data for the period (source of truth for the drill-down)
+  const startStr = startDate.toISOString().split("T")[0];
+  const endStr = endDate.toISOString().split("T")[0];
+  
+  const { data: payoutsForPeriod, isLoading: loadingPayouts } = useQuery({
+    queryKey: ["payouts-for-drilldown", restaurantId, startStr, endStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payouts")
+        .select("*")
+        .eq("restaurant_id", restaurantId)
+        .gte("payout_date", startStr)
+        .lte("payout_date", endStr)
+        .order("payout_date", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
     enabled: true,
   });
 
-  // Fetch payout data for selected date
+  // Use payouts for product breakdown hook (keep using orders table for product data only)
+  const { productData, isLoading: loadingProducts } = useFinancesDrilldown({
+    restaurantIds: [restaurantId],
+    startDate,
+    endDate,
+    granularity: "product",
+    enabled: activeTab === "product",
+  });
+
+  // Fetch payout data for selected date (for the detail sheet)
   const { data: payoutData } = useQuery({
     queryKey: ["payout-detail-drilldown", restaurantId, selectedDate],
     queryFn: async () => {
@@ -61,6 +84,23 @@ export function RestaurantDrilldownRow({
     },
     enabled: !!selectedDate && sheetOpen,
   });
+
+  // Transform payouts to daily data format
+  const dailyData = useMemo(() => {
+    if (!payoutsForPeriod?.length) return [];
+    return payoutsForPeriod.map(payout => ({
+      date: payout.payout_date,
+      label: format(new Date(payout.payout_date), "EEE dd MMM", { locale: fr }),
+      order_count: payout.order_count || 0,
+      sales_incl_vat: Math.abs(payout.sales_incl_vat || 0),
+      uber_fee_incl_vat: Math.abs(payout.uber_fee_after_promo_incl_vat || 0),
+      promo_incl_vat: Math.abs(payout.item_promo_incl_vat || 0),
+      refund_incl_vat: Math.abs(payout.refund_incl_vat || 0),
+      net_payout: payout.net_payout || 0,
+    }));
+  }, [payoutsForPeriod]);
+
+  const isLoading = loadingPayouts || (activeTab === "product" && loadingProducts);
 
   const handleDayClick = (date: string) => {
     setSelectedDate(date);
@@ -98,32 +138,15 @@ export function RestaurantDrilldownRow({
     { order_count: 0, sales_incl_vat: 0, uber_fee_incl_vat: 0, promo_incl_vat: 0, refund_incl_vat: 0, net_payout: 0 }
   );
 
-  // Calculate totals for hourly data
-  const hourlyTotals = hourlyData.reduce(
-    (acc, d) => ({
-      order_count: acc.order_count + d.order_count,
-      sales_incl_vat: acc.sales_incl_vat + d.sales_incl_vat,
-      uber_fee_incl_vat: acc.uber_fee_incl_vat + (d.uber_fee_incl_vat || 0),
-      promo_incl_vat: acc.promo_incl_vat + (d.promo_incl_vat || 0),
-      refund_incl_vat: acc.refund_incl_vat + d.refund_incl_vat,
-      net_payout: acc.net_payout + (d.net_payout || 0),
-    }),
-    { order_count: 0, sales_incl_vat: 0, uber_fee_incl_vat: 0, promo_incl_vat: 0, refund_incl_vat: 0, net_payout: 0 }
-  );
-
   return (
     <>
       <TableRow>
         <TableCell colSpan={colSpan} className="bg-muted/20 p-4">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as DrilldownGranularity)}>
-            <TabsList className="grid w-[300px] grid-cols-3 mb-4">
+            <TabsList className="grid w-[200px] grid-cols-2 mb-4">
               <TabsTrigger value="daily" className="gap-1.5 text-xs">
                 <Calendar className="h-3.5 w-3.5" />
                 Jour
-              </TabsTrigger>
-              <TabsTrigger value="hourly" className="gap-1.5 text-xs">
-                <Clock className="h-3.5 w-3.5" />
-                Heure
               </TabsTrigger>
               <TabsTrigger value="product" className="gap-1.5 text-xs">
                 <Package className="h-3.5 w-3.5" />
@@ -140,11 +163,11 @@ export function RestaurantDrilldownRow({
                         <TableHead className="text-xs">Date</TableHead>
                         <TableHead className="text-right text-xs">Cmd</TableHead>
                         <TableHead className="text-right text-xs">CA TTC</TableHead>
+                        <TableHead className="text-right text-xs">Rentab.</TableHead>
                         <TableHead className="text-right text-xs text-orange-600">Commission</TableHead>
                         <TableHead className="text-right text-xs">Promos</TableHead>
                         <TableHead className="text-right text-xs">Remb.</TableHead>
                         <TableHead className="text-right text-xs text-green-600">Versement</TableHead>
-                        <TableHead className="text-right text-xs">Rentab.</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -162,13 +185,13 @@ export function RestaurantDrilldownRow({
                             <TableCell className="text-xs font-medium">{day.label}</TableCell>
                             <TableCell className="text-right text-xs tabular-nums">{day.order_count}</TableCell>
                             <TableCell className="text-right text-xs tabular-nums font-medium">{formatCurrency(day.sales_incl_vat)}</TableCell>
+                            <TableCell className={cn("text-right text-xs tabular-nums font-medium", getProfitabilityColor(profitability))}>
+                              {formatPercent(profitability)}
+                            </TableCell>
                             <TableCell className="text-right text-xs tabular-nums text-orange-600">{formatCurrency(day.uber_fee_incl_vat || 0)}</TableCell>
                             <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(day.promo_incl_vat || 0)}</TableCell>
                             <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(day.refund_incl_vat)}</TableCell>
                             <TableCell className="text-right text-xs tabular-nums font-medium text-green-600">{formatCurrency(day.net_payout || 0)}</TableCell>
-                            <TableCell className={cn("text-right text-xs tabular-nums font-medium", getProfitabilityColor(profitability))}>
-                              {formatPercent(profitability)}
-                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -177,13 +200,13 @@ export function RestaurantDrilldownRow({
                         <TableCell className="text-xs">Total</TableCell>
                         <TableCell className="text-right text-xs tabular-nums">{dailyTotals.order_count}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums">{formatCurrency(dailyTotals.sales_incl_vat)}</TableCell>
+                        <TableCell className={cn("text-right text-xs tabular-nums font-medium", getProfitabilityColor(calcProfitability(dailyTotals.net_payout, dailyTotals.sales_incl_vat)))}>
+                          {formatPercent(calcProfitability(dailyTotals.net_payout, dailyTotals.sales_incl_vat))}
+                        </TableCell>
                         <TableCell className="text-right text-xs tabular-nums text-orange-600">{formatCurrency(dailyTotals.uber_fee_incl_vat)}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(dailyTotals.promo_incl_vat)}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(dailyTotals.refund_incl_vat)}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums text-green-600">{formatCurrency(dailyTotals.net_payout)}</TableCell>
-                        <TableCell className={cn("text-right text-xs tabular-nums font-medium", getProfitabilityColor(calcProfitability(dailyTotals.net_payout, dailyTotals.sales_incl_vat)))}>
-                          {formatPercent(calcProfitability(dailyTotals.net_payout, dailyTotals.sales_incl_vat))}
-                        </TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -195,62 +218,6 @@ export function RestaurantDrilldownRow({
               )}
             </TabsContent>
 
-            <TabsContent value="hourly" className="mt-0">
-              {hourlyData.length > 0 ? (
-                <div className="rounded-md border overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="text-xs">Heure</TableHead>
-                        <TableHead className="text-right text-xs">Cmd</TableHead>
-                        <TableHead className="text-right text-xs">CA TTC</TableHead>
-                        <TableHead className="text-right text-xs text-orange-600">Commission</TableHead>
-                        <TableHead className="text-right text-xs">Promos</TableHead>
-                        <TableHead className="text-right text-xs">Remb.</TableHead>
-                        <TableHead className="text-right text-xs text-green-600">Versement</TableHead>
-                        <TableHead className="text-right text-xs">Rentab.</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {hourlyData.map((hour, idx) => {
-                        const profitability = calcProfitability(hour.net_payout || 0, hour.sales_incl_vat);
-                        return (
-                          <TableRow key={hour.hour} className={cn(idx % 2 === 0 && "bg-muted/10")}>
-                            <TableCell className="text-xs font-medium">{hour.label}</TableCell>
-                            <TableCell className="text-right text-xs tabular-nums">{hour.order_count}</TableCell>
-                            <TableCell className="text-right text-xs tabular-nums font-medium">{formatCurrency(hour.sales_incl_vat)}</TableCell>
-                            <TableCell className="text-right text-xs tabular-nums text-orange-600">{formatCurrency(hour.uber_fee_incl_vat || 0)}</TableCell>
-                            <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(hour.promo_incl_vat || 0)}</TableCell>
-                            <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(hour.refund_incl_vat)}</TableCell>
-                            <TableCell className="text-right text-xs tabular-nums font-medium text-green-600">{formatCurrency(hour.net_payout || 0)}</TableCell>
-                            <TableCell className={cn("text-right text-xs tabular-nums font-medium", getProfitabilityColor(profitability))}>
-                              {formatPercent(profitability)}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      {/* Total row */}
-                      <TableRow className="bg-muted/50 font-medium">
-                        <TableCell className="text-xs">Total</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{hourlyTotals.order_count}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{formatCurrency(hourlyTotals.sales_incl_vat)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums text-orange-600">{formatCurrency(hourlyTotals.uber_fee_incl_vat)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(hourlyTotals.promo_incl_vat)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(hourlyTotals.refund_incl_vat)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums text-green-600">{formatCurrency(hourlyTotals.net_payout)}</TableCell>
-                        <TableCell className={cn("text-right text-xs tabular-nums font-medium", getProfitabilityColor(calcProfitability(hourlyTotals.net_payout, hourlyTotals.sales_incl_vat)))}>
-                          {formatPercent(calcProfitability(hourlyTotals.net_payout, hourlyTotals.sales_incl_vat))}
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground text-sm py-8">
-                  Aucune donnée horaire disponible
-                </div>
-              )}
-            </TabsContent>
 
             <TabsContent value="product" className="mt-0">
               {productData.length > 0 ? (
