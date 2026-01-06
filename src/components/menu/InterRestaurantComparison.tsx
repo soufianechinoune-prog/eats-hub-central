@@ -37,7 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Search, TrendingUp, Minus, MoreHorizontal, Pencil, Trash2, Link2, Plus, Check, Circle } from "lucide-react";
+import { Search, TrendingUp, Minus, MoreHorizontal, Pencil, Trash2, Link2, Plus, Check, Circle, AlertTriangle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -649,22 +649,47 @@ export function InterRestaurantComparison() {
                               );
                             })}
                             <TableCell className="text-center">
-                              {diff && diff.percent > 0 ? (
-                                <Badge
-                                  variant={diff.percent > 10 ? "destructive" : "secondary"}
-                                  className="gap-1"
-                                >
-                                  <TrendingUp className="h-3 w-3" />
-                                  +{diff.percent}%
-                                </Badge>
-                              ) : prices.length >= 2 ? (
-                                <Badge variant="outline" className="gap-1">
-                                  <Minus className="h-3 w-3" />
-                                  0%
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">-</span>
-                              )}
+                              {(() => {
+                                // Detect free vs paid issue
+                                const hasFreePrice = prices.some(p => p.price === 0);
+                                const hasPaidPrice = prices.some(p => p.price !== null && p.price > 0);
+                                const hasFreeVsPaidIssue = hasFreePrice && hasPaidPrice;
+
+                                if (hasFreeVsPaidIssue) {
+                                  return (
+                                    <Badge
+                                      variant="destructive"
+                                      className="gap-1"
+                                    >
+                                      <AlertTriangle className="h-3 w-3" />
+                                      Gratuit
+                                    </Badge>
+                                  );
+                                }
+
+                                if (diff && diff.percent > 0) {
+                                  return (
+                                    <Badge
+                                      variant={diff.percent > 10 ? "destructive" : "secondary"}
+                                      className="gap-1"
+                                    >
+                                      <TrendingUp className="h-3 w-3" />
+                                      +{diff.percent}%
+                                    </Badge>
+                                  );
+                                }
+
+                                if (prices.length >= 2) {
+                                  return (
+                                    <Badge variant="outline" className="gap-1">
+                                      <Minus className="h-3 w-3" />
+                                      0%
+                                    </Badge>
+                                  );
+                                }
+
+                                return <span className="text-muted-foreground text-sm">-</span>;
+                              })()}
                             </TableCell>
                             <TableCell>
                               <DropdownMenu>
