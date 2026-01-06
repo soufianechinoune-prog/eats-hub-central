@@ -92,7 +92,10 @@ export function InterRestaurantComparison() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null);
 
-  const { loading, items, restaurants, stats } = useRestaurantMenuPrices(selectedRestaurantIds);
+  const { loading, items, restaurants, stats } = useRestaurantMenuPrices(
+    selectedRestaurantIds,
+    refreshKey
+  );
 
   const filteredItems = useMemo(() => {
     let filtered = items;
@@ -301,16 +304,20 @@ export function InterRestaurantComparison() {
 
     try {
       // Delete prices first
-      await supabase
+      const { error: pricesDeleteError } = await supabase
         .from("restaurant_menu_prices")
         .delete()
         .eq("menu_item_id", deleteData.id);
 
+      if (pricesDeleteError) throw pricesDeleteError;
+
       // Deactivate item (soft delete)
-      await supabase
+      const { error: deactivateError } = await supabase
         .from("menu_items")
         .update({ is_active: false })
         .eq("id", deleteData.id);
+
+      if (deactivateError) throw deactivateError;
 
       toast.success("Produit supprimé");
       setDeleteOpen(false);
