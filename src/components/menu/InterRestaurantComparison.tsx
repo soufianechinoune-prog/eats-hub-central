@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,10 +12,36 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Search, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Search, TrendingUp, Minus, MoreHorizontal, Pencil, Trash2, Link2 } from "lucide-react";
 import { RestaurantSelector } from "./RestaurantSelector";
 import { useRestaurantMenuPrices, MenuItemComparison } from "@/hooks/useRestaurantMenuPrices";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 type Platform = "uber" | "deliveroo";
 
@@ -30,18 +57,46 @@ const CATEGORY_ORDER = [
   "Sauces",
 ];
 
+interface EditPriceData {
+  menuItemId: string;
+  menuItemName: string;
+  restaurantId: string;
+  restaurantName: string;
+  currentPrice: number | null;
+}
+
+interface MatchProductData {
+  menuItemId: string;
+  menuItemName: string;
+}
+
 export function InterRestaurantComparison() {
   const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
   const [platform, setPlatform] = useState<Platform>("uber");
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyDiscrepancies, setShowOnlyDiscrepancies] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Edit price state
+  const [editPriceOpen, setEditPriceOpen] = useState(false);
+  const [editPriceData, setEditPriceData] = useState<EditPriceData | null>(null);
+  const [editPriceValue, setEditPriceValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Match product state
+  const [matchOpen, setMatchOpen] = useState(false);
+  const [matchSource, setMatchSource] = useState<MatchProductData | null>(null);
+  const [matchTargetId, setMatchTargetId] = useState("");
+
+  // Delete product state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null);
 
   const { loading, items, restaurants, stats } = useRestaurantMenuPrices(selectedRestaurantIds);
 
   const filteredItems = useMemo(() => {
     let filtered = items;
 
-    // Filter by search
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -51,7 +106,6 @@ export function InterRestaurantComparison() {
       );
     }
 
-    // Filter by discrepancies
     if (showOnlyDiscrepancies) {
       filtered = filtered.filter((item) => {
         const diff = platform === "uber" ? item.uberDifference : item.deliverooDifference;
@@ -73,7 +127,6 @@ export function InterRestaurantComparison() {
       groups.get(category)!.push(item);
     });
 
-    // Sort by category order
     const sortedGroups = new Map<string, MenuItemComparison[]>();
     CATEGORY_ORDER.forEach((cat) => {
       if (groups.has(cat)) {
@@ -81,13 +134,17 @@ export function InterRestaurantComparison() {
         groups.delete(cat);
       }
     });
-    // Add remaining categories
     groups.forEach((items, cat) => {
       sortedGroups.set(cat, items);
     });
 
     return sortedGroups;
   }, [filteredItems]);
+
+  // All items for matching dropdown
+  const allMenuItems = useMemo(() => {
+    return items.map((i) => ({ id: i.menuItemId, name: i.menuItemName, category: i.category }));
+  }, [items]);
 
   const formatPrice = (price: number | null) => {
     if (price === null) return "-";
@@ -106,8 +163,168 @@ export function InterRestaurantComparison() {
     ? { withDiff: stats.productsWithUberDiff, avgDiff: stats.avgUberDiff }
     : { withDiff: stats.productsWithDeliverooDiff, avgDiff: stats.avgDeliverooDiff };
 
+  // ---- Edit price handlers ----
+  const openEditPrice = (
+    menuItemId: string,
+    menuItemName: string,
+    restaurantId: string,
+    restaurantName: string,
+    currentPrice: number | null
+  ) => {
+    setEditPriceData({ menuItemId, menuItemName, restaurantId, restaurantName, currentPrice });
+    setEditPriceValue(currentPrice !== null ? currentPrice.toString() : "");
+    setEditPriceOpen(true);
+  };
+
+  const handleSavePrice = async () => {
+    if (!editPriceData) return;
+    setSaving(true);
+
+    const priceField = platform === "uber" ? "price_uber" : "price_deliveroo";
+    const priceValue = editPriceValue ? parseFloat(editPriceValue) : null;
+
+    try {
+      // Check if record exists
+      const { data: existing } = await supabase
+        .from("restaurant_menu_prices")
+        .select("id")
+        .eq("menu_item_id", editPriceData.menuItemId)
+        .eq("restaurant_id", editPriceData.restaurantId)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from("restaurant_menu_prices")
+          .update({ [priceField]: priceValue })
+          .eq("id", existing.id);
+      } else {
+        await supabase.from("restaurant_menu_prices").insert({
+          menu_item_id: editPriceData.menuItemId,
+          restaurant_id: editPriceData.restaurantId,
+          [priceField]: priceValue,
+          is_available: true,
+        });
+      }
+
+      toast.success("Prix mis à jour");
+      setEditPriceOpen(false);
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la mise à jour");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ---- Match product handlers ----
+  const openMatchDialog = (menuItemId: string, menuItemName: string) => {
+    setMatchSource({ menuItemId, menuItemName });
+    setMatchTargetId("");
+    setMatchOpen(true);
+  };
+
+  const handleMatchProducts = async () => {
+    if (!matchSource || !matchTargetId) return;
+    setSaving(true);
+
+    try {
+      // Transfer all prices from source to target
+      const { data: sourcePrices } = await supabase
+        .from("restaurant_menu_prices")
+        .select("*")
+        .eq("menu_item_id", matchSource.menuItemId);
+
+      if (sourcePrices && sourcePrices.length > 0) {
+        for (const sp of sourcePrices) {
+          // Check if target already has a price for this restaurant
+          const { data: existing } = await supabase
+            .from("restaurant_menu_prices")
+            .select("id, price_uber, price_deliveroo")
+            .eq("menu_item_id", matchTargetId)
+            .eq("restaurant_id", sp.restaurant_id)
+            .maybeSingle();
+
+          if (existing) {
+            // Merge prices (keep existing if not null, otherwise use source)
+            await supabase
+              .from("restaurant_menu_prices")
+              .update({
+                price_uber: existing.price_uber ?? sp.price_uber,
+                price_deliveroo: existing.price_deliveroo ?? sp.price_deliveroo,
+              })
+              .eq("id", existing.id);
+          } else {
+            await supabase.from("restaurant_menu_prices").insert({
+              menu_item_id: matchTargetId,
+              restaurant_id: sp.restaurant_id,
+              price_uber: sp.price_uber,
+              price_deliveroo: sp.price_deliveroo,
+              is_available: sp.is_available,
+            });
+          }
+        }
+
+        // Delete source prices
+        await supabase
+          .from("restaurant_menu_prices")
+          .delete()
+          .eq("menu_item_id", matchSource.menuItemId);
+      }
+
+      // Deactivate source menu item
+      await supabase
+        .from("menu_items")
+        .update({ is_active: false })
+        .eq("id", matchSource.menuItemId);
+
+      toast.success("Produits fusionnés avec succès");
+      setMatchOpen(false);
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la fusion");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ---- Delete product handlers ----
+  const openDeleteDialog = (id: string, name: string) => {
+    setDeleteData({ id, name });
+    setDeleteOpen(true);
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!deleteData) return;
+    setSaving(true);
+
+    try {
+      // Delete prices first
+      await supabase
+        .from("restaurant_menu_prices")
+        .delete()
+        .eq("menu_item_id", deleteData.id);
+
+      // Deactivate item (soft delete)
+      await supabase
+        .from("menu_items")
+        .update({ is_active: false })
+        .eq("id", deleteData.id);
+
+      toast.success("Produit supprimé");
+      setDeleteOpen(false);
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la suppression");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" key={refreshKey}>
       {/* Platform Toggle */}
       <div className="flex items-center justify-between">
         <Tabs value={platform} onValueChange={(v) => setPlatform(v as Platform)}>
@@ -203,7 +420,8 @@ export function InterRestaurantComparison() {
                         {getShortRestaurantName(restaurant.name)}
                       </TableHead>
                     ))}
-                    <TableHead className="text-center w-[120px]">Écart</TableHead>
+                    <TableHead className="text-center w-[100px]">Écart</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -211,7 +429,7 @@ export function InterRestaurantComparison() {
                     <>
                       <TableRow key={`cat-${category}`} className="bg-muted/30">
                         <TableCell
-                          colSpan={selectedRestaurants.length + 2}
+                          colSpan={selectedRestaurants.length + 3}
                           className="font-semibold text-sm py-2"
                         >
                           {category}
@@ -222,7 +440,6 @@ export function InterRestaurantComparison() {
                           ? item.uberDifference
                           : item.deliverooDifference;
 
-                        // Find min/max prices for highlighting
                         const prices = item.restaurantPrices
                           .map((rp) => ({
                             id: rp.restaurantId,
@@ -238,7 +455,7 @@ export function InterRestaurantComparison() {
                           : null;
 
                         return (
-                          <TableRow key={item.menuItemId}>
+                          <TableRow key={item.menuItemId} className="group">
                             <TableCell className="font-medium">
                               {item.menuItemName}
                             </TableCell>
@@ -257,10 +474,19 @@ export function InterRestaurantComparison() {
                                 <TableCell
                                   key={restaurant.id}
                                   className={cn(
-                                    "text-center font-mono",
+                                    "text-center font-mono cursor-pointer hover:bg-muted/50 transition-colors",
                                     isMin && "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20",
                                     isMax && "text-red-600 bg-red-50 dark:bg-red-950/20"
                                   )}
+                                  onClick={() =>
+                                    openEditPrice(
+                                      item.menuItemId,
+                                      item.menuItemName,
+                                      restaurant.id,
+                                      restaurant.name,
+                                      price ?? null
+                                    )
+                                  }
                                 >
                                   {formatPrice(price ?? null)}
                                 </TableCell>
@@ -284,6 +510,38 @@ export function InterRestaurantComparison() {
                                 <span className="text-muted-foreground text-sm">-</span>
                               )}
                             </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      openMatchDialog(item.menuItemId, item.menuItemName)
+                                    }
+                                  >
+                                    <Link2 className="h-4 w-4 mr-2" />
+                                    Fusionner avec...
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      openDeleteDialog(item.menuItemId, item.menuItemName)
+                                    }
+                                    className="text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Supprimer
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -295,6 +553,98 @@ export function InterRestaurantComparison() {
           )}
         </>
       )}
+
+      {/* Edit Price Dialog */}
+      <Dialog open={editPriceOpen} onOpenChange={setEditPriceOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier le prix</DialogTitle>
+            <DialogDescription>
+              {editPriceData?.menuItemName} - {editPriceData?.restaurantName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium mb-2 block">
+              Prix {platform === "uber" ? "Uber Eats" : "Deliveroo"} (€)
+            </label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              value={editPriceValue}
+              onChange={(e) => setEditPriceValue(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPriceOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleSavePrice} disabled={saving}>
+              {saving ? "Enregistrement..." : "Enregistrer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Match Product Dialog */}
+      <Dialog open={matchOpen} onOpenChange={setMatchOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Fusionner avec un autre produit</DialogTitle>
+            <DialogDescription>
+              Fusionner "{matchSource?.menuItemName}" avec un autre produit. Les prix seront transférés
+              et le produit source sera désactivé.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium mb-2 block">
+              Produit cible
+            </label>
+            <select
+              className="w-full border rounded-md px-3 py-2 bg-background"
+              value={matchTargetId}
+              onChange={(e) => setMatchTargetId(e.target.value)}
+            >
+              <option value="">Sélectionner un produit...</option>
+              {allMenuItems
+                .filter((m) => m.id !== matchSource?.menuItemId)
+                .map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.category})
+                  </option>
+                ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMatchOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleMatchProducts} disabled={saving || !matchTargetId}>
+              {saving ? "Fusion..." : "Fusionner"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce produit ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Le produit "{deleteData?.name}" sera désactivé et ses prix supprimés.
+              Cette action peut être annulée depuis le catalogue.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteProduct} disabled={saving}>
+              {saving ? "Suppression..." : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
