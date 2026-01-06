@@ -37,7 +37,10 @@ export interface Restaurant {
   name: string;
 }
 
-export function useRestaurantMenuPrices(selectedRestaurantIds: string[]) {
+export function useRestaurantMenuPrices(
+  selectedRestaurantIds: string[],
+  refreshKey: number = 0
+) {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<MenuItemComparison[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -200,7 +203,7 @@ export function useRestaurantMenuPrices(selectedRestaurantIds: string[]) {
     };
 
     fetchPrices();
-  }, [selectedRestaurantIds]);
+  }, [selectedRestaurantIds, refreshKey]);
 
   const stats = useMemo(() => {
     const itemsWithUberDiff = items.filter((i) => i.uberDifference && i.uberDifference.percent > 0);

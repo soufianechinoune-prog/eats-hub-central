@@ -3,7 +3,7 @@ import { RestaurantMenuImportDialog } from "./RestaurantMenuImportDialog";
 import { useRestaurantMenuPrices } from "@/hooks/useRestaurantMenuPrices";
 
 export function RestaurantPriceComparison() {
-  const { restaurants } = useRestaurantMenuPrices([]);
+  const { restaurants } = useRestaurantMenuPrices([], 0);
 
   return (
     <div className="space-y-6">
