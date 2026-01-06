@@ -8,6 +8,8 @@ export interface RestaurantPrice {
   priceDeliveroo: number | null;
   descriptionOverride: string | null;
   isAvailable: boolean;
+  validated: boolean;
+  validatedAt: string | null;
 }
 
 export interface MenuItemWithPrices {
@@ -97,6 +99,8 @@ export function useRestaurantMenuPrices(
             price_deliveroo,
             description_override,
             is_available,
+            validated,
+            validated_at,
             restaurants!inner(id, name)
           `)
           .in("restaurant_id", selectedRestaurantIds);
@@ -129,6 +133,8 @@ export function useRestaurantMenuPrices(
             priceDeliveroo: rp.price_deliveroo,
             descriptionOverride: rp.description_override,
             isAvailable: rp.is_available,
+            validated: rp.validated ?? false,
+            validatedAt: rp.validated_at,
           });
         });
 
@@ -147,6 +153,8 @@ export function useRestaurantMenuPrices(
               priceDeliveroo: null,
               descriptionOverride: null,
               isAvailable: true,
+              validated: false,
+              validatedAt: null,
             };
           });
 

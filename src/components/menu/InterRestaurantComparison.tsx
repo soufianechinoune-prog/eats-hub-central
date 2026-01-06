@@ -37,7 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Search, TrendingUp, Minus, MoreHorizontal, Pencil, Trash2, Link2, Plus } from "lucide-react";
+import { Search, TrendingUp, Minus, MoreHorizontal, Pencil, Trash2, Link2, Plus, Check, Circle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -407,6 +407,48 @@ export function InterRestaurantComparison() {
     }
   };
 
+  // ---- Toggle validation handler ----
+  const handleToggleValidation = async (
+    menuItemId: string,
+    restaurantId: string,
+    validated: boolean
+  ) => {
+    try {
+      // Check if record exists
+      const { data: existing } = await supabase
+        .from("restaurant_menu_prices")
+        .select("id")
+        .eq("menu_item_id", menuItemId)
+        .eq("restaurant_id", restaurantId)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from("restaurant_menu_prices")
+          .update({
+            validated,
+            validated_at: validated ? new Date().toISOString() : null,
+          })
+          .eq("id", existing.id);
+      } else {
+        // Create record if it doesn't exist
+        await supabase.from("restaurant_menu_prices").insert({
+          menu_item_id: menuItemId,
+          restaurant_id: restaurantId,
+          validated,
+          validated_at: validated ? new Date().toISOString() : null,
+          is_available: true,
+        });
+      }
+
+      setRefreshKey((k) => k + 1);
+      toast.success(validated ? "Prix validé" : "Validation retirée");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de la validation");
+    }
+  };
+
   return (
     <div className="space-y-6" key={refreshKey}>
       {/* Platform Toggle */}
@@ -554,6 +596,7 @@ export function InterRestaurantComparison() {
                               const price = platform === "uber"
                                 ? rp?.priceUber
                                 : rp?.priceDeliveroo;
+                              const isValidated = rp?.validated ?? false;
 
                               const isMin = price !== null && price === minPrice && minPrice !== maxPrice;
                               const isMax = price !== null && price === maxPrice && minPrice !== maxPrice;
@@ -562,21 +605,46 @@ export function InterRestaurantComparison() {
                                 <TableCell
                                   key={restaurant.id}
                                   className={cn(
-                                    "text-center font-mono cursor-pointer hover:bg-muted/50 transition-colors",
+                                    "text-center font-mono relative group/cell",
                                     isMin && "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20",
                                     isMax && "text-red-600 bg-red-50 dark:bg-red-950/20"
                                   )}
-                                  onClick={() =>
-                                    openEditPrice(
-                                      item.menuItemId,
-                                      item.menuItemName,
-                                      restaurant.id,
-                                      restaurant.name,
-                                      price ?? null
-                                    )
-                                  }
                                 >
-                                  {formatPrice(price ?? null)}
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleValidation(
+                                          item.menuItemId,
+                                          restaurant.id,
+                                          !isValidated
+                                        );
+                                      }}
+                                      className={cn(
+                                        "h-4 w-4 rounded-full flex items-center justify-center transition-colors flex-shrink-0",
+                                        isValidated
+                                          ? "bg-emerald-500 text-white"
+                                          : "border border-muted-foreground/30 hover:border-emerald-500 text-transparent hover:text-emerald-500"
+                                      )}
+                                      title={isValidated ? "Prix validé" : "Cliquer pour valider"}
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </button>
+                                    <span
+                                      className="cursor-pointer hover:bg-muted/50 px-1 rounded transition-colors"
+                                      onClick={() =>
+                                        openEditPrice(
+                                          item.menuItemId,
+                                          item.menuItemName,
+                                          restaurant.id,
+                                          restaurant.name,
+                                          price ?? null
+                                        )
+                                      }
+                                    >
+                                      {formatPrice(price ?? null)}
+                                    </span>
+                                  </div>
                                 </TableCell>
                               );
                             })}
