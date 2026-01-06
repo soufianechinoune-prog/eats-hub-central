@@ -2324,6 +2324,57 @@ export type Database = {
           },
         ]
       }
+      restaurant_menu_prices: {
+        Row: {
+          created_at: string
+          description_override: string | null
+          id: string
+          is_available: boolean
+          menu_item_id: string
+          price_deliveroo: number | null
+          price_uber: number | null
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description_override?: string | null
+          id?: string
+          is_available?: boolean
+          menu_item_id: string
+          price_deliveroo?: number | null
+          price_uber?: number | null
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description_override?: string | null
+          id?: string
+          is_available?: boolean
+          menu_item_id?: string
+          price_deliveroo?: number | null
+          price_uber?: number | null
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_menu_prices_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_menu_prices_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_opening_hours: {
         Row: {
           created_at: string | null
