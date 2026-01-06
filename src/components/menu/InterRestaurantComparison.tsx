@@ -165,6 +165,7 @@ export function InterRestaurantComparison() {
 
   const formatPrice = (price: number | null) => {
     if (price === null) return "Manquant";
+    if (price === 0) return "Gratuit";
     return `${price.toFixed(2)} €`;
   };
 
