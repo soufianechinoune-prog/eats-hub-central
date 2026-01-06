@@ -37,7 +37,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Search, TrendingUp, Minus, MoreHorizontal, Pencil, Trash2, Link2 } from "lucide-react";
+import { Search, TrendingUp, Minus, MoreHorizontal, Pencil, Trash2, Link2, Plus } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { RestaurantSelector } from "./RestaurantSelector";
 import { useRestaurantMenuPrices, MenuItemComparison } from "@/hooks/useRestaurantMenuPrices";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,6 +99,12 @@ export function InterRestaurantComparison() {
   // Delete product state
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null);
+
+  // Add product state
+  const [addProductOpen, setAddProductOpen] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductCategory, setNewProductCategory] = useState("");
+  const [newProductPrices, setNewProductPrices] = useState<Record<string, string>>({});
 
   const { loading, items, restaurants, stats } = useRestaurantMenuPrices(
     selectedRestaurantIds,
@@ -298,6 +312,69 @@ export function InterRestaurantComparison() {
     setDeleteOpen(true);
   };
 
+  // ---- Add product handlers ----
+  const openAddProductDialog = () => {
+    setNewProductName("");
+    setNewProductCategory("");
+    // Initialize prices for selected restaurants
+    const initialPrices: Record<string, string> = {};
+    selectedRestaurantIds.forEach((id) => {
+      initialPrices[id] = "";
+    });
+    setNewProductPrices(initialPrices);
+    setAddProductOpen(true);
+  };
+
+  const handleAddProduct = async () => {
+    if (!newProductName.trim()) {
+      toast.error("Veuillez entrer un nom de produit");
+      return;
+    }
+    setSaving(true);
+
+    try {
+      // Create menu item
+      const { data: menuItem, error: menuError } = await supabase
+        .from("menu_items")
+        .insert({
+          name: newProductName.trim(),
+          category: newProductCategory || null,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (menuError) throw menuError;
+
+      // Create prices for each restaurant
+      const pricesToInsert = Object.entries(newProductPrices)
+        .filter(([_, price]) => price !== "")
+        .map(([restaurantId, price]) => ({
+          menu_item_id: menuItem.id,
+          restaurant_id: restaurantId,
+          [platform === "uber" ? "price_uber" : "price_deliveroo"]: parseFloat(price),
+          is_available: true,
+        }));
+
+      if (pricesToInsert.length > 0) {
+        const { error: pricesError } = await supabase
+          .from("restaurant_menu_prices")
+          .insert(pricesToInsert);
+
+        if (pricesError) throw pricesError;
+      }
+
+      toast.success("Produit ajouté avec succès");
+      setAddProductOpen(false);
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur lors de l'ajout du produit");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDeleteProduct = async () => {
     if (!deleteData) return;
     setSaving(true);
@@ -407,6 +484,10 @@ export function InterRestaurantComparison() {
               />
               Écarts uniquement
             </label>
+            <Button onClick={openAddProductDialog} size="sm" className="gap-2">
+              <Plus className="h-4 w-4" />
+              Ajouter un produit
+            </Button>
           </div>
 
           {/* Table */}
@@ -652,6 +733,81 @@ export function InterRestaurantComparison() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add Product Dialog */}
+      <Dialog open={addProductOpen} onOpenChange={setAddProductOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ajouter un produit</DialogTitle>
+            <DialogDescription>
+              Créez un nouveau produit et définissez ses prix par restaurant.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="productName">Nom du produit *</Label>
+              <Input
+                id="productName"
+                placeholder="Ex: Burger Classic"
+                value={newProductName}
+                onChange={(e) => setNewProductName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="productCategory">Catégorie</Label>
+              <Select value={newProductCategory} onValueChange={setNewProductCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une catégorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_ORDER.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedRestaurantIds.length > 0 && (
+              <div className="space-y-2">
+                <Label>Prix {platform === "uber" ? "Uber Eats" : "Deliveroo"} par restaurant</Label>
+                <div className="space-y-2">
+                  {selectedRestaurants.map((restaurant) => (
+                    <div key={restaurant.id} className="flex items-center gap-2">
+                      <span className="text-sm w-24 truncate">
+                        {getShortRestaurantName(restaurant.name)}
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={newProductPrices[restaurant.id] || ""}
+                        onChange={(e) =>
+                          setNewProductPrices((prev) => ({
+                            ...prev,
+                            [restaurant.id]: e.target.value,
+                          }))
+                        }
+                        className="flex-1"
+                      />
+                      <span className="text-sm text-muted-foreground">€</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddProductOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleAddProduct} disabled={saving || !newProductName.trim()}>
+              {saving ? "Ajout..." : "Ajouter"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
