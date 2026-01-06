@@ -2335,6 +2335,8 @@ export type Database = {
           price_uber: number | null
           restaurant_id: string
           updated_at: string
+          validated: boolean | null
+          validated_at: string | null
         }
         Insert: {
           created_at?: string
@@ -2346,6 +2348,8 @@ export type Database = {
           price_uber?: number | null
           restaurant_id: string
           updated_at?: string
+          validated?: boolean | null
+          validated_at?: string | null
         }
         Update: {
           created_at?: string
@@ -2357,6 +2361,8 @@ export type Database = {
           price_uber?: number | null
           restaurant_id?: string
           updated_at?: string
+          validated?: boolean | null
+          validated_at?: string | null
         }
         Relationships: [
           {
