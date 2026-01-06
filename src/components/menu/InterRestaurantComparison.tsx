@@ -37,7 +37,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Search, TrendingUp, Minus, MoreHorizontal, Pencil, Trash2, Link2 } from "lucide-react";
+import { Search, TrendingUp, Minus, MoreHorizontal, Pencil, Trash2, Link2, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { RestaurantSelector } from "./RestaurantSelector";
 import { useRestaurantMenuPrices, MenuItemComparison } from "@/hooks/useRestaurantMenuPrices";
 import { supabase } from "@/integrations/supabase/client";
@@ -92,6 +93,8 @@ export function InterRestaurantComparison() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null);
 
+  // Collapsible categories state
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const { loading, items, restaurants, stats } = useRestaurantMenuPrices(
     selectedRestaurantIds,
     refreshKey
@@ -165,6 +168,27 @@ export function InterRestaurantComparison() {
   const currentStats = platform === "uber"
     ? { withDiff: stats.productsWithUberDiff, avgDiff: stats.avgUberDiff }
     : { withDiff: stats.productsWithDeliverooDiff, avgDiff: stats.avgDeliverooDiff };
+
+  // Category toggle functions
+  const toggleCategory = (category: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  };
+
+  const expandAll = () => {
+    setExpandedCategories(new Set(Array.from(groupedItems.keys())));
+  };
+
+  const collapseAll = () => {
+    setExpandedCategories(new Set());
+  };
 
   // ---- Edit price handlers ----
   const openEditPrice = (
@@ -409,7 +433,17 @@ export function InterRestaurantComparison() {
             </label>
           </div>
 
-          {/* Table */}
+          {/* Expand/Collapse buttons */}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={expandAll}>
+              Tout déplier
+            </Button>
+            <Button variant="outline" size="sm" onClick={collapseAll}>
+              Tout replier
+            </Button>
+          </div>
+
+          {/* Categories List */}
           {loading ? (
             <div className="space-y-2">
               {[...Array(5)].map((_, i) => (
@@ -417,145 +451,162 @@ export function InterRestaurantComparison() {
               ))}
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="w-[250px]">Produit</TableHead>
-                    {selectedRestaurants.map((restaurant) => (
-                      <TableHead key={restaurant.id} className="text-center min-w-[100px]">
-                        {getShortRestaurantName(restaurant.name)}
-                      </TableHead>
-                    ))}
-                    <TableHead className="text-center w-[100px]">Écart</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Array.from(groupedItems.entries()).map(([category, categoryItems]) => (
-                    <>
-                      <TableRow key={`cat-${category}`} className="bg-muted/30">
-                        <TableCell
-                          colSpan={selectedRestaurants.length + 3}
-                          className="font-semibold text-sm py-2"
-                        >
-                          {category}
-                        </TableCell>
-                      </TableRow>
-                      {categoryItems.map((item) => {
-                        const diff = platform === "uber"
-                          ? item.uberDifference
-                          : item.deliverooDifference;
+            <div className="space-y-2">
+              {Array.from(groupedItems.entries()).map(([category, categoryItems]) => {
+                const isExpanded = expandedCategories.has(category);
+                return (
+                  <Collapsible
+                    key={category}
+                    open={isExpanded}
+                    onOpenChange={() => toggleCategory(category)}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <div className="flex items-center gap-3 py-3 px-4 bg-card hover:bg-muted/50 rounded-lg cursor-pointer transition-colors border">
+                        <ChevronRight
+                          className={cn(
+                            "h-4 w-4 text-muted-foreground transition-transform",
+                            isExpanded && "rotate-90"
+                          )}
+                        />
+                        <span className="font-semibold">{category}</span>
+                        <Badge variant="secondary" className="bg-primary/10 text-primary">
+                          {categoryItems.length} produits
+                        </Badge>
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="border rounded-lg overflow-hidden mt-2 ml-6">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead className="w-[250px]">Produit</TableHead>
+                              {selectedRestaurants.map((restaurant) => (
+                                <TableHead key={restaurant.id} className="text-center min-w-[100px]">
+                                  {getShortRestaurantName(restaurant.name)}
+                                </TableHead>
+                              ))}
+                              <TableHead className="text-center w-[100px]">Écart</TableHead>
+                              <TableHead className="w-[50px]"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {categoryItems.map((item) => {
+                              const diff = platform === "uber"
+                                ? item.uberDifference
+                                : item.deliverooDifference;
 
-                        const prices = item.restaurantPrices
-                          .map((rp) => ({
-                            id: rp.restaurantId,
-                            price: platform === "uber" ? rp.priceUber : rp.priceDeliveroo,
-                          }))
-                          .filter((p) => p.price !== null);
+                              const prices = item.restaurantPrices
+                                .map((rp) => ({
+                                  id: rp.restaurantId,
+                                  price: platform === "uber" ? rp.priceUber : rp.priceDeliveroo,
+                                }))
+                                .filter((p) => p.price !== null);
 
-                        const minPrice = prices.length > 0
-                          ? Math.min(...prices.map((p) => p.price!))
-                          : null;
-                        const maxPrice = prices.length > 0
-                          ? Math.max(...prices.map((p) => p.price!))
-                          : null;
-
-                        return (
-                          <TableRow key={item.menuItemId} className="group">
-                            <TableCell className="font-medium">
-                              {item.menuItemName}
-                            </TableCell>
-                            {selectedRestaurants.map((restaurant) => {
-                              const rp = item.restaurantPrices.find(
-                                (p) => p.restaurantId === restaurant.id
-                              );
-                              const price = platform === "uber"
-                                ? rp?.priceUber
-                                : rp?.priceDeliveroo;
-
-                              const isMin = price !== null && price === minPrice && minPrice !== maxPrice;
-                              const isMax = price !== null && price === maxPrice && minPrice !== maxPrice;
+                              const minPrice = prices.length > 0
+                                ? Math.min(...prices.map((p) => p.price!))
+                                : null;
+                              const maxPrice = prices.length > 0
+                                ? Math.max(...prices.map((p) => p.price!))
+                                : null;
 
                               return (
-                                <TableCell
-                                  key={restaurant.id}
-                                  className={cn(
-                                    "text-center font-mono cursor-pointer hover:bg-muted/50 transition-colors",
-                                    isMin && "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20",
-                                    isMax && "text-red-600 bg-red-50 dark:bg-red-950/20"
-                                  )}
-                                  onClick={() =>
-                                    openEditPrice(
-                                      item.menuItemId,
-                                      item.menuItemName,
-                                      restaurant.id,
-                                      restaurant.name,
-                                      price ?? null
-                                    )
-                                  }
-                                >
-                                  {formatPrice(price ?? null)}
-                                </TableCell>
+                                <TableRow key={item.menuItemId} className="group">
+                                  <TableCell className="font-medium">
+                                    {item.menuItemName}
+                                  </TableCell>
+                                  {selectedRestaurants.map((restaurant) => {
+                                    const rp = item.restaurantPrices.find(
+                                      (p) => p.restaurantId === restaurant.id
+                                    );
+                                    const price = platform === "uber"
+                                      ? rp?.priceUber
+                                      : rp?.priceDeliveroo;
+
+                                    const isMin = price !== null && price === minPrice && minPrice !== maxPrice;
+                                    const isMax = price !== null && price === maxPrice && minPrice !== maxPrice;
+
+                                    return (
+                                      <TableCell
+                                        key={restaurant.id}
+                                        className={cn(
+                                          "text-center font-mono cursor-pointer hover:bg-muted/50 transition-colors",
+                                          isMin && "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20",
+                                          isMax && "text-red-600 bg-red-50 dark:bg-red-950/20"
+                                        )}
+                                        onClick={() =>
+                                          openEditPrice(
+                                            item.menuItemId,
+                                            item.menuItemName,
+                                            restaurant.id,
+                                            restaurant.name,
+                                            price ?? null
+                                          )
+                                        }
+                                      >
+                                        {formatPrice(price ?? null)}
+                                      </TableCell>
+                                    );
+                                  })}
+                                  <TableCell className="text-center">
+                                    {diff && diff.percent > 0 ? (
+                                      <Badge
+                                        variant={diff.percent > 10 ? "destructive" : "secondary"}
+                                        className="gap-1"
+                                      >
+                                        <TrendingUp className="h-3 w-3" />
+                                        +{diff.percent}%
+                                      </Badge>
+                                    ) : prices.length >= 2 ? (
+                                      <Badge variant="outline" className="gap-1">
+                                        <Minus className="h-3 w-3" />
+                                        0%
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground text-sm">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            openMatchDialog(item.menuItemId, item.menuItemName)
+                                          }
+                                        >
+                                          <Link2 className="h-4 w-4 mr-2" />
+                                          Fusionner avec...
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            openDeleteDialog(item.menuItemId, item.menuItemName)
+                                          }
+                                          className="text-destructive"
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Supprimer
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </TableCell>
+                                </TableRow>
                               );
                             })}
-                            <TableCell className="text-center">
-                              {diff && diff.percent > 0 ? (
-                                <Badge
-                                  variant={diff.percent > 10 ? "destructive" : "secondary"}
-                                  className="gap-1"
-                                >
-                                  <TrendingUp className="h-3 w-3" />
-                                  +{diff.percent}%
-                                </Badge>
-                              ) : prices.length >= 2 ? (
-                                <Badge variant="outline" className="gap-1">
-                                  <Minus className="h-3 w-3" />
-                                  0%
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      openMatchDialog(item.menuItemId, item.menuItemName)
-                                    }
-                                  >
-                                    <Link2 className="h-4 w-4 mr-2" />
-                                    Fusionner avec...
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      openDeleteDialog(item.menuItemId, item.menuItemName)
-                                    }
-                                    className="text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Supprimer
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </>
-                  ))}
-                </TableBody>
-              </Table>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })}
             </div>
           )}
         </>
