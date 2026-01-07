@@ -80,6 +80,9 @@ import { ProductMatcher } from "@/components/menu/ProductMatcher";
 import { FoodCostManager } from "@/components/menu/FoodCostManager";
 import { OfferSimulator } from "@/components/menu/OfferSimulator";
 import { RestaurantPriceComparison } from "@/components/menu/RestaurantPriceComparison";
+
+// State for restaurant price comparison (lifted to persist across tabs)
+
 import {
   DndContext,
   DragEndEvent,
@@ -436,6 +439,9 @@ export default function MenuItems() {
   
   // Tab state
   const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "matcher" | "foodcost" | "simulator" | "prices">("catalog");
+  
+  // Restaurant price comparison state (persisted across tabs)
+  const [priceComparisonRestaurantIds, setPriceComparisonRestaurantIds] = useState<string[]>([]);
   
   // Tab configuration with icons and colors
   const tabConfig = [
@@ -969,7 +975,10 @@ export default function MenuItems() {
         </TabsContent>
 
         <TabsContent value="prices" className="mt-6">
-          <RestaurantPriceComparison />
+          <RestaurantPriceComparison 
+            selectedRestaurantIds={priceComparisonRestaurantIds}
+            onSelectedRestaurantIdsChange={setPriceComparisonRestaurantIds}
+          />
         </TabsContent>
 
         <TabsContent value="catalog" className="mt-6 space-y-6">

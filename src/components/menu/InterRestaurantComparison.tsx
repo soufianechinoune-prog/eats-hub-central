@@ -81,8 +81,15 @@ interface MatchProductData {
   menuItemName: string;
 }
 
-export function InterRestaurantComparison() {
-  const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
+interface InterRestaurantComparisonProps {
+  selectedRestaurantIds: string[];
+  onSelectedRestaurantIdsChange: (ids: string[]) => void;
+}
+
+export function InterRestaurantComparison({
+  selectedRestaurantIds,
+  onSelectedRestaurantIdsChange,
+}: InterRestaurantComparisonProps) {
   const [platform, setPlatform] = useState<Platform>("uber");
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyDiscrepancies, setShowOnlyDiscrepancies] = useState(false);
@@ -543,7 +550,7 @@ export function InterRestaurantComparison() {
         <RestaurantSelector
           restaurants={restaurants}
           selectedIds={selectedRestaurantIds}
-          onSelectionChange={setSelectedRestaurantIds}
+          onSelectionChange={onSelectedRestaurantIdsChange}
           maxSelection={6}
         />
       </div>

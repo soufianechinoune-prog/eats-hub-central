@@ -2,7 +2,15 @@ import { InterRestaurantComparison } from "./InterRestaurantComparison";
 import { RestaurantMenuImportDialog } from "./RestaurantMenuImportDialog";
 import { useRestaurantMenuPrices } from "@/hooks/useRestaurantMenuPrices";
 
-export function RestaurantPriceComparison() {
+interface RestaurantPriceComparisonProps {
+  selectedRestaurantIds: string[];
+  onSelectedRestaurantIdsChange: (ids: string[]) => void;
+}
+
+export function RestaurantPriceComparison({
+  selectedRestaurantIds,
+  onSelectedRestaurantIdsChange,
+}: RestaurantPriceComparisonProps) {
   const { restaurants } = useRestaurantMenuPrices([], 0);
 
   return (
@@ -19,7 +27,10 @@ export function RestaurantPriceComparison() {
       </div>
 
       {/* Inter-Restaurant Comparison */}
-      <InterRestaurantComparison />
+      <InterRestaurantComparison
+        selectedRestaurantIds={selectedRestaurantIds}
+        onSelectedRestaurantIdsChange={onSelectedRestaurantIdsChange}
+      />
     </div>
   );
 }
