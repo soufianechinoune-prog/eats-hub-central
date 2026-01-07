@@ -657,7 +657,9 @@ export function InterRestaurantComparison({
                         {getShortRestaurantName(restaurant.name)}
                       </TableHead>
                     ))}
-                    <TableHead className="text-center w-[100px] font-semibold">Écart</TableHead>
+                    {selectedRestaurants.length === 2 && (
+                      <TableHead className="text-center w-[120px] font-semibold">Écart</TableHead>
+                    )}
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -666,7 +668,7 @@ export function InterRestaurantComparison({
                     <>
                       <TableRow key={`cat-${category}`} className="bg-muted/20 hover:bg-muted/20">
                         <TableCell
-                          colSpan={selectedRestaurants.length + 3}
+                          colSpan={selectedRestaurants.length + (selectedRestaurants.length === 2 ? 3 : 2)}
                           className="font-bold text-sm py-2.5 text-foreground/80"
                         >
                           {category}
@@ -755,49 +757,61 @@ export function InterRestaurantComparison({
                                 </TableCell>
                               );
                             })}
-                            <TableCell className="text-center">
-                              {(() => {
-                                // Detect free vs paid issue
-                                const hasFreePrice = prices.some(p => p.price === 0);
-                                const hasPaidPrice = prices.some(p => p.price !== null && p.price > 0);
-                                const hasFreeVsPaidIssue = hasFreePrice && hasPaidPrice;
+                            {selectedRestaurants.length === 2 && (
+                              <TableCell className="text-center">
+                                {(() => {
+                                  // Detect free vs paid issue
+                                  const hasFreePrice = prices.some(p => p.price === 0);
+                                  const hasPaidPrice = prices.some(p => p.price !== null && p.price > 0);
+                                  const hasFreeVsPaidIssue = hasFreePrice && hasPaidPrice;
 
-                                if (hasFreeVsPaidIssue) {
-                                  return (
-                                    <Badge
-                                      variant="destructive"
-                                      className="gap-1"
-                                    >
-                                      <AlertTriangle className="h-3 w-3" />
-                                      Gratuit
-                                    </Badge>
-                                  );
-                                }
+                                  // Calculate monetary difference for 2 restaurants
+                                  const monetaryDiff = minPrice !== null && maxPrice !== null
+                                    ? maxPrice - minPrice
+                                    : null;
 
-                                if (diff && diff.percent > 0) {
-                                  return (
-                                    <Badge
-                                      variant={diff.percent > 10 ? "destructive" : "secondary"}
-                                      className="gap-1"
-                                    >
-                                      <TrendingUp className="h-3 w-3" />
-                                      +{diff.percent}%
-                                    </Badge>
-                                  );
-                                }
+                                  if (hasFreeVsPaidIssue) {
+                                    return (
+                                      <Badge
+                                        variant="destructive"
+                                        className="gap-1"
+                                      >
+                                        <AlertTriangle className="h-3 w-3" />
+                                        Gratuit
+                                      </Badge>
+                                    );
+                                  }
 
-                                if (prices.length >= 2) {
-                                  return (
-                                    <Badge variant="outline" className="gap-1">
-                                      <Minus className="h-3 w-3" />
-                                      0%
-                                    </Badge>
-                                  );
-                                }
+                                  if (diff && diff.percent > 0 && monetaryDiff !== null) {
+                                    return (
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        <Badge
+                                          variant={diff.percent > 10 ? "destructive" : "secondary"}
+                                          className="gap-1"
+                                        >
+                                          <TrendingUp className="h-3 w-3" />
+                                          +{diff.percent}%
+                                        </Badge>
+                                        <span className="text-xs text-muted-foreground">
+                                          +{monetaryDiff.toFixed(2)} €
+                                        </span>
+                                      </div>
+                                    );
+                                  }
 
-                                return <span className="text-muted-foreground text-sm">-</span>;
-                              })()}
-                            </TableCell>
+                                  if (prices.length >= 2) {
+                                    return (
+                                      <Badge variant="outline" className="gap-1">
+                                        <Minus className="h-3 w-3" />
+                                        0%
+                                      </Badge>
+                                    );
+                                  }
+
+                                  return <span className="text-muted-foreground text-sm">-</span>;
+                                })()}
+                              </TableCell>
+                            )}
                             <TableCell>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
