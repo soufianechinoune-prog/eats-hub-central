@@ -77,84 +77,235 @@ export function useMenuComparisonExport() {
     contentRef: HTMLElement | null,
     data: ExportData
   ) => {
-    if (!contentRef) return;
-
     setIsExporting(true);
 
     try {
-      const canvas = await html2canvas(contentRef, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-      
       const pdf = new jsPDF({
-        orientation: "portrait",
+        orientation: "landscape",
         unit: "mm",
         format: "a4",
       });
 
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 15;
+      const margin = 12;
+      const showDiff = data.restaurants.length === 2;
 
-      // Header
-      pdf.setFillColor(16, 185, 129);
-      pdf.rect(0, 0, pageWidth, 25, "F");
+      // Helper to parse price
+      const parsePrice = (priceStr: string): number | null => {
+        if (!priceStr) return null;
+        const lower = priceStr.toLowerCase().trim();
+        if (lower === "-" || lower === "manquant" || lower.includes("manquant")) {
+          return null;
+        }
+        const cleaned = priceStr.replace(/€/g, "").replace(/\s/g, "").replace(",", ".").trim();
+        const parsed = parseFloat(cleaned);
+        return isNaN(parsed) ? null : parsed;
+      };
 
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(18);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Comparaison des prix", margin, 12);
+      // Column configuration
+      const colWidths = showDiff
+        ? [90, 50, 35, 35, 25, 25] // Produit, Catégorie, Prix1, Prix2, Écart%, Écart€
+        : [120, 60, 40, 40]; // Produit, Catégorie, Prix1, Prix2
+      const headers = showDiff
+        ? ["Produit", "Catégorie", data.restaurants[0], data.restaurants[1], "Écart %", "Écart €"]
+        : ["Produit", "Catégorie", ...data.restaurants];
 
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      pdf.text(`Plateforme: ${data.platform}`, margin, 19);
+      const rowHeight = 6;
+      const headerHeight = 8;
+      const tableStartX = margin;
+      let currentY = 0;
+      let currentPage = 1;
 
-      // Meta info
-      pdf.setFillColor(249, 250, 251);
-      pdf.rect(0, 25, pageWidth, 12, "F");
-      
-      pdf.setTextColor(107, 114, 128);
-      pdf.setFontSize(9);
-      pdf.text(`Restaurants: ${data.restaurants.join(", ")}`, margin, 32);
-      
-      const dateStr = new Date().toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+      const drawHeader = () => {
+        // Green header bar
+        pdf.setFillColor(16, 185, 129);
+        pdf.rect(0, 0, pageWidth, 18, "F");
+
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Comparaison des prix", margin, 8);
+
+        pdf.setFontSize(9);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(`Plateforme: ${data.platform}`, margin, 14);
+
+        // Meta info bar
+        pdf.setFillColor(249, 250, 251);
+        pdf.rect(0, 18, pageWidth, 10, "F");
+        
+        pdf.setTextColor(107, 114, 128);
+        pdf.setFontSize(8);
+        pdf.text(`Restaurants: ${data.restaurants.join(", ")}`, margin, 24);
+        
+        const dateStr = new Date().toLocaleDateString("fr-FR", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        pdf.text(`Généré le ${dateStr}`, pageWidth - margin - pdf.getTextWidth(`Généré le ${dateStr}`), 24);
+
+        // Stats
+        pdf.setFontSize(8);
+        pdf.setTextColor(75, 85, 99);
+        const statsText = `${data.stats.totalProducts} produits | ${data.stats.productsWithDiff} avec écarts | Écart moyen: ${data.stats.avgDiff.toFixed(1)}%`;
+        pdf.text(statsText, margin, 32);
+
+        return 36;
+      };
+
+      const drawTableHeader = (y: number) => {
+        // Table header background
+        pdf.setFillColor(30, 58, 95);
+        pdf.rect(tableStartX, y, colWidths.reduce((a, b) => a + b, 0), headerHeight, "F");
+
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(9);
+        pdf.setFont("helvetica", "bold");
+
+        let x = tableStartX + 2;
+        headers.forEach((header, i) => {
+          const align = i >= 2 ? "right" : "left";
+          if (align === "right") {
+            pdf.text(header, x + colWidths[i] - 4, y + 5.5, { align: "right" });
+          } else {
+            pdf.text(header, x, y + 5.5);
+          }
+          x += colWidths[i];
+        });
+
+        return y + headerHeight;
+      };
+
+      const drawFooter = (pageNum: number, totalPages: number) => {
+        pdf.setDrawColor(229, 231, 235);
+        pdf.line(margin, pageHeight - 8, pageWidth - margin, pageHeight - 8);
+        
+        pdf.setFontSize(7);
+        pdf.setTextColor(156, 163, 175);
+        pdf.text("CS Delivery - Comparaison des prix", margin, pageHeight - 4);
+        pdf.text(`Page ${pageNum}/${totalPages}`, pageWidth - margin - 15, pageHeight - 4);
+      };
+
+      // Calculate total pages needed
+      const rowsPerPage = Math.floor((pageHeight - 36 - headerHeight - 15) / rowHeight);
+      const totalPages = Math.ceil(data.rows.length / rowsPerPage);
+
+      // Draw first page header
+      currentY = drawHeader();
+      currentY = drawTableHeader(currentY);
+
+      // Draw rows
+      data.rows.forEach((row, idx) => {
+        // Check if we need a new page
+        if (currentY + rowHeight > pageHeight - 12) {
+          drawFooter(currentPage, totalPages);
+          pdf.addPage();
+          currentPage++;
+          currentY = drawHeader();
+          currentY = drawTableHeader(currentY);
+        }
+
+        const parsedPrices = row.prices.map(p => parsePrice(p.price));
+        const price1 = parsedPrices[0];
+        const price2 = parsedPrices[1];
+        const bothValid = price1 !== null && price2 !== null;
+
+        // Alternate row background
+        if (idx % 2 === 0) {
+          pdf.setFillColor(249, 250, 251);
+          pdf.rect(tableStartX, currentY, colWidths.reduce((a, b) => a + b, 0), rowHeight, "F");
+        }
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+
+        let x = tableStartX + 2;
+
+        // Product name (truncate if too long)
+        pdf.setTextColor(31, 41, 55);
+        let productName = row.product;
+        while (pdf.getTextWidth(productName) > colWidths[0] - 6 && productName.length > 3) {
+          productName = productName.slice(0, -1);
+        }
+        if (productName !== row.product) productName += "...";
+        pdf.text(productName, x, currentY + 4);
+        x += colWidths[0];
+
+        // Category
+        pdf.setTextColor(107, 114, 128);
+        let category = row.category;
+        while (pdf.getTextWidth(category) > colWidths[1] - 6 && category.length > 3) {
+          category = category.slice(0, -1);
+        }
+        if (category !== row.category) category += "...";
+        pdf.text(category, x, currentY + 4);
+        x += colWidths[1];
+
+        // Price 1
+        if (price1 !== null) {
+          if (bothValid && price1 > price2!) {
+            pdf.setFillColor(220, 252, 231);
+            pdf.rect(x - 2, currentY, colWidths[2], rowHeight, "F");
+          }
+          pdf.setTextColor(31, 41, 55);
+          pdf.text(`${price1.toFixed(2)} €`, x + colWidths[2] - 4, currentY + 4, { align: "right" });
+        } else {
+          pdf.setTextColor(156, 163, 175);
+          pdf.setFont("helvetica", "italic");
+          pdf.text("Manquant", x + colWidths[2] - 4, currentY + 4, { align: "right" });
+          pdf.setFont("helvetica", "normal");
+        }
+        x += colWidths[2];
+
+        // Price 2
+        if (price2 !== null) {
+          if (bothValid && price2 > price1!) {
+            pdf.setFillColor(220, 252, 231);
+            pdf.rect(x - 2, currentY, colWidths[3], rowHeight, "F");
+          }
+          pdf.setTextColor(31, 41, 55);
+          pdf.text(`${price2.toFixed(2)} €`, x + colWidths[3] - 4, currentY + 4, { align: "right" });
+        } else {
+          pdf.setTextColor(156, 163, 175);
+          pdf.setFont("helvetica", "italic");
+          pdf.text("Manquant", x + colWidths[3] - 4, currentY + 4, { align: "right" });
+          pdf.setFont("helvetica", "normal");
+        }
+        x += colWidths[3];
+
+        // Écart % and Écart € (only if showing diff and both prices valid)
+        if (showDiff) {
+          if (bothValid) {
+            const diffPercent = ((price2! - price1!) / price1!) * 100;
+            const diffEuro = price2! - price1!;
+
+            // Color based on diff
+            if (diffPercent > 0) {
+              pdf.setTextColor(239, 68, 68); // Red
+            } else if (diffPercent < 0) {
+              pdf.setTextColor(34, 197, 94); // Green
+            } else {
+              pdf.setTextColor(107, 114, 128);
+            }
+
+            pdf.text(`${diffPercent >= 0 ? "+" : ""}${diffPercent.toFixed(1)}%`, x + colWidths[4] - 4, currentY + 4, { align: "right" });
+            x += colWidths[4];
+
+            pdf.text(`${diffEuro >= 0 ? "+" : ""}${diffEuro.toFixed(2)} €`, x + colWidths[5] - 4, currentY + 4, { align: "right" });
+          } else {
+            x += colWidths[4] + colWidths[5];
+          }
+        }
+
+        currentY += rowHeight;
       });
-      pdf.text(`Généré le ${dateStr}`, pageWidth - margin - pdf.getTextWidth(`Généré le ${dateStr}`), 32);
 
-      // Content
-      const contentY = 42;
-      const contentWidth = pageWidth - margin * 2;
-      const contentHeight = pageHeight - contentY - margin;
-      
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(contentWidth / imgWidth, contentHeight / imgHeight);
-      const scaledWidth = imgWidth * ratio;
-      const scaledHeight = imgHeight * ratio;
-
-      const xOffset = margin + (contentWidth - scaledWidth) / 2;
-      
-      pdf.addImage(imgData, "PNG", xOffset, contentY, scaledWidth, scaledHeight);
-
-      // Footer
-      pdf.setDrawColor(229, 231, 235);
-      pdf.line(margin, pageHeight - 8, pageWidth - margin, pageHeight - 8);
-      
-      pdf.setFontSize(8);
-      pdf.setTextColor(156, 163, 175);
-      pdf.text("CS Delivery - Comparaison des prix", margin, pageHeight - 4);
-      pdf.text("Page 1/1", pageWidth - margin - pdf.getTextWidth("Page 1/1"), pageHeight - 4);
+      // Draw footer on last page
+      drawFooter(currentPage, totalPages);
 
       pdf.save(`comparaison_prix_${data.platform}_${new Date().toISOString().split("T")[0]}.pdf`);
     } catch (error) {
