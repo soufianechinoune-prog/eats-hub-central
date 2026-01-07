@@ -95,6 +95,7 @@ export function InterRestaurantComparison({
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyDiscrepancies, setShowOnlyDiscrepancies] = useState(false);
   const [showOnlyTvaDiscrepancies, setShowOnlyTvaDiscrepancies] = useState(false);
+  const [showTvaColumn, setShowTvaColumn] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -680,6 +681,19 @@ export function InterRestaurantComparison({
                 Écarts TVA
               </label>
             </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="show-tva"
+                checked={showTvaColumn}
+                onCheckedChange={(checked) => setShowTvaColumn(checked === true)}
+              />
+              <label
+                htmlFor="show-tva"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                Afficher TVA
+              </label>
+            </div>
             <Button onClick={openAddProductDialog} size="sm" className="gap-2 ml-auto">
               <Plus className="h-4 w-4" />
               Ajouter un produit
@@ -822,7 +836,7 @@ export function InterRestaurantComparison({
                                         {formatPrice(price ?? null)}
                                       </span>
                                     </div>
-                                    {tva !== null && tva !== undefined && (
+                                    {showTvaColumn && tva !== null && tva !== undefined && (
                                       <span className={cn(
                                         "text-[10px] leading-tight",
                                         hasTvaIssue ? "text-orange-600 font-semibold" : "text-muted-foreground"
