@@ -91,12 +91,16 @@ export function useMenuComparisonExport() {
       const margin = 12;
       const showDiff = data.restaurants.length === 2;
 
-      // Helper to parse price
+      // Helper to parse price - treats "Gratuit" as 0
       const parsePrice = (priceStr: string): number | null => {
         if (!priceStr) return null;
         const lower = priceStr.toLowerCase().trim();
         if (lower === "-" || lower === "manquant" || lower.includes("manquant")) {
           return null;
+        }
+        // Handle "Gratuit" as 0
+        if (lower === "gratuit" || lower.includes("gratuit")) {
+          return 0;
         }
         const cleaned = priceStr.replace(/€/g, "").replace(/\s/g, "").replace(",", ".").trim();
         const parsed = parseFloat(cleaned);
@@ -325,12 +329,16 @@ export function useMenuComparisonExport() {
       const title = `Comparatif ${data.restaurants.join(" - ")} (${data.platform})`;
       const dateStr = new Date().toLocaleString("fr-FR");
 
-      // Helper to parse price
+      // Helper to parse price - treats "Gratuit" as 0
       const parsePrice = (priceStr: string): number | null => {
         if (!priceStr) return null;
         const lower = priceStr.toLowerCase().trim();
         if (lower === "-" || lower === "manquant" || lower.includes("manquant")) {
           return null;
+        }
+        // Handle "Gratuit" as 0
+        if (lower === "gratuit" || lower.includes("gratuit")) {
+          return 0;
         }
         const cleaned = priceStr.replace(/€/g, "").replace(/\s/g, "").replace(",", ".").trim();
         const parsed = parseFloat(cleaned);
