@@ -144,21 +144,68 @@ export function useMenuComparisonExport() {
       // Headers
       const showDiff = data.restaurants.length === 2;
       const headers = ["Produit", "Catégorie", ...data.restaurants];
-      if (showDiff) headers.push("Écart");
+      if (showDiff) {
+        headers.push("Écart %");
+        headers.push("Écart €");
+      }
       sheetData.push(headers);
 
-      // Data rows
+      // Data rows - add placeholder for formulas
+      const headerRowIndex = sheetData.length; // 0-indexed row where headers are (will be row 6 in Excel, 1-indexed)
+      
       data.rows.forEach((row) => {
-        const rowData: (string | number)[] = [
+        const rowData: (string | number | null)[] = [
           row.product,
           row.category,
-          ...row.prices.map(p => p.price),
+          // Parse prices as numbers for formulas to work
+          ...row.prices.map(p => {
+            const parsed = parseFloat(p.price.replace(",", ".").replace("€", "").trim());
+            return isNaN(parsed) ? p.price : parsed;
+          }),
         ];
-        if (showDiff) rowData.push(row.difference);
+        if (showDiff) {
+          rowData.push(null); // Placeholder for % formula
+          rowData.push(null); // Placeholder for € formula
+        }
         sheetData.push(rowData);
       });
 
       const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+      // Add formulas for differences if 2 restaurants
+      if (showDiff) {
+        const priceCol1 = "C"; // First restaurant price column
+        const priceCol2 = "D"; // Second restaurant price column
+        const pctCol = "E";    // Écart % column
+        const euroCol = "F";   // Écart € column
+        
+        // Data starts after header row (headerRowIndex is 0-indexed, Excel is 1-indexed)
+        const dataStartRow = headerRowIndex + 2; // +1 for 0-to-1 index, +1 because header is at headerRowIndex+1
+        
+        data.rows.forEach((_, idx) => {
+          const excelRow = dataStartRow + idx;
+          
+          // Écart % formula: (D-C)/C formatted as percentage
+          const pctCellRef = `${pctCol}${excelRow}`;
+          sheet[pctCellRef] = {
+            t: "n",
+            f: `IF(${priceCol1}${excelRow}=0,0,(${priceCol2}${excelRow}-${priceCol1}${excelRow})/${priceCol1}${excelRow})`,
+            z: "0.0%"
+          };
+          
+          // Écart € formula: D-C
+          const euroCellRef = `${euroCol}${excelRow}`;
+          sheet[euroCellRef] = {
+            t: "n",
+            f: `${priceCol2}${excelRow}-${priceCol1}${excelRow}`,
+            z: '#,##0.00" €"'
+          };
+        });
+        
+        // Update the range to include formula columns
+        const lastRow = headerRowIndex + 1 + data.rows.length;
+        sheet["!ref"] = `A1:F${lastRow}`;
+      }
 
       // Set column widths
       const colWidths = [
@@ -166,7 +213,10 @@ export function useMenuComparisonExport() {
         { wch: 18 }, // Catégorie
         ...data.restaurants.map(() => ({ wch: 14 })), // Price columns
       ];
-      if (showDiff) colWidths.push({ wch: 12 }); // Écart
+      if (showDiff) {
+        colWidths.push({ wch: 10 }); // Écart %
+        colWidths.push({ wch: 10 }); // Écart €
+      }
       sheet["!cols"] = colWidths;
 
       // Apply styles via cell formatting
