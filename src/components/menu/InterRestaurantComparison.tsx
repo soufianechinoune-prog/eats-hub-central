@@ -74,6 +74,7 @@ interface EditPriceData {
   restaurantId: string;
   restaurantName: string;
   currentPrice: number | null;
+  currentTva: number | null;
 }
 
 interface MatchProductData {
@@ -93,6 +94,7 @@ export function InterRestaurantComparison({
   const [platform, setPlatform] = useState<Platform>("uber");
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyDiscrepancies, setShowOnlyDiscrepancies] = useState(false);
+  const [showOnlyTvaDiscrepancies, setShowOnlyTvaDiscrepancies] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -103,6 +105,7 @@ export function InterRestaurantComparison({
   const [editPriceOpen, setEditPriceOpen] = useState(false);
   const [editPriceData, setEditPriceData] = useState<EditPriceData | null>(null);
   const [editPriceValue, setEditPriceValue] = useState("");
+  const [editTvaValue, setEditTvaValue] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Match product state
@@ -144,8 +147,15 @@ export function InterRestaurantComparison({
       });
     }
 
+    if (showOnlyTvaDiscrepancies) {
+      filtered = filtered.filter((item) => {
+        const tvaDiff = platform === "uber" ? item.uberTvaDifference : item.deliverooTvaDifference;
+        return tvaDiff?.hasDifference;
+      });
+    }
+
     return filtered;
-  }, [items, searchQuery, showOnlyDiscrepancies, platform]);
+  }, [items, searchQuery, showOnlyDiscrepancies, showOnlyTvaDiscrepancies, platform]);
 
   const groupedItems = useMemo(() => {
     const groups = new Map<string, MenuItemComparison[]>();
@@ -192,8 +202,13 @@ export function InterRestaurantComparison({
   );
 
   const currentStats = platform === "uber"
-    ? { withDiff: stats.productsWithUberDiff, avgDiff: stats.avgUberDiff }
-    : { withDiff: stats.productsWithDeliverooDiff, avgDiff: stats.avgDeliverooDiff };
+    ? { withDiff: stats.productsWithUberDiff, avgDiff: stats.avgUberDiff, withTvaDiff: stats.productsWithUberTvaDiff }
+    : { withDiff: stats.productsWithDeliverooDiff, avgDiff: stats.avgDeliverooDiff, withTvaDiff: stats.productsWithDeliverooTvaDiff };
+
+  const formatTva = (tva: number | null | undefined) => {
+    if (tva === null || tva === undefined) return null;
+    return `${tva}%`;
+  };
 
   // Build export data
   const buildExportData = () => {
@@ -240,10 +255,12 @@ export function InterRestaurantComparison({
     menuItemName: string,
     restaurantId: string,
     restaurantName: string,
-    currentPrice: number | null
+    currentPrice: number | null,
+    currentTva: number | null
   ) => {
-    setEditPriceData({ menuItemId, menuItemName, restaurantId, restaurantName, currentPrice });
+    setEditPriceData({ menuItemId, menuItemName, restaurantId, restaurantName, currentPrice, currentTva });
     setEditPriceValue(currentPrice !== null ? currentPrice.toString() : "");
+    setEditTvaValue(currentTva !== null ? currentTva.toString() : "");
     setEditPriceOpen(true);
   };
 
@@ -252,7 +269,9 @@ export function InterRestaurantComparison({
     setSaving(true);
 
     const priceField = platform === "uber" ? "price_uber" : "price_deliveroo";
+    const tvaField = platform === "uber" ? "tva_uber" : "tva_deliveroo";
     const priceValue = editPriceValue ? parseFloat(editPriceValue) : null;
+    const tvaValue = editTvaValue ? parseFloat(editTvaValue) : null;
 
     try {
       // Check if record exists
@@ -266,18 +285,19 @@ export function InterRestaurantComparison({
       if (existing) {
         await supabase
           .from("restaurant_menu_prices")
-          .update({ [priceField]: priceValue })
+          .update({ [priceField]: priceValue, [tvaField]: tvaValue })
           .eq("id", existing.id);
       } else {
         await supabase.from("restaurant_menu_prices").insert({
           menu_item_id: editPriceData.menuItemId,
           restaurant_id: editPriceData.restaurantId,
           [priceField]: priceValue,
+          [tvaField]: tvaValue,
           is_available: true,
         });
       }
 
-      toast.success("Prix mis à jour");
+      toast.success("Prix et TVA mis à jour");
       setEditPriceOpen(false);
       setRefreshKey((k) => k + 1);
     } catch (err) {
@@ -563,7 +583,7 @@ export function InterRestaurantComparison({
       ) : (
         <>
           {/* Modern KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="overflow-hidden border-0 shadow-sm bg-gradient-to-br from-background to-muted/30">
               <CardContent className="p-5">
                 <div className="flex items-center gap-3">
@@ -585,8 +605,22 @@ export function InterRestaurantComparison({
                     <AlertCircle className="h-5 w-5 text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground font-medium">Avec écarts</p>
+                    <p className="text-sm text-muted-foreground font-medium">Écarts prix</p>
                     <p className="text-2xl font-bold tracking-tight text-amber-600">{currentStats.withDiff}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden border-0 shadow-sm bg-gradient-to-br from-background to-orange-50/30 dark:to-orange-950/10">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground font-medium">Écarts TVA</p>
+                    <p className="text-2xl font-bold tracking-tight text-orange-600">{currentStats.withTvaDiff}</p>
                   </div>
                 </div>
               </CardContent>
@@ -630,7 +664,20 @@ export function InterRestaurantComparison({
                 htmlFor="discrepancies"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
-                Écarts uniquement
+                Écarts prix
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="tva-discrepancies"
+                checked={showOnlyTvaDiscrepancies}
+                onCheckedChange={(checked) => setShowOnlyTvaDiscrepancies(checked === true)}
+              />
+              <label
+                htmlFor="tva-discrepancies"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-orange-600"
+              >
+                Écarts TVA
               </label>
             </div>
             <Button onClick={openAddProductDialog} size="sm" className="gap-2 ml-auto">
@@ -678,6 +725,9 @@ export function InterRestaurantComparison({
                         const diff = platform === "uber"
                           ? item.uberDifference
                           : item.deliverooDifference;
+                        const tvaDiff = platform === "uber"
+                          ? item.uberTvaDifference
+                          : item.deliverooTvaDifference;
 
                         const prices = item.restaurantPrices
                           .map((rp) => ({
@@ -696,7 +746,17 @@ export function InterRestaurantComparison({
                         return (
                           <TableRow key={item.menuItemId} className="group transition-colors hover:bg-muted/40">
                             <TableCell className="font-medium text-foreground/90">
-                              {item.menuItemName}
+                              <div className="flex items-center gap-2">
+                                {item.menuItemName}
+                                {tvaDiff?.hasDifference && (
+                                  <span 
+                                    className="inline-flex items-center gap-0.5 text-orange-600"
+                                    title={`TVA différente: ${tvaDiff.min}% (${tvaDiff.minRestaurant}) vs ${tvaDiff.max}% (${tvaDiff.maxRestaurant})`}
+                                  >
+                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             {selectedRestaurants.map((restaurant) => {
                               const rp = item.restaurantPrices.find(
@@ -705,10 +765,16 @@ export function InterRestaurantComparison({
                               const price = platform === "uber"
                                 ? rp?.priceUber
                                 : rp?.priceDeliveroo;
+                              const tva = platform === "uber"
+                                ? rp?.tvaUber
+                                : rp?.tvaDeliveroo;
                               const isValidated = rp?.validated ?? false;
 
                               const isMin = price !== null && price === minPrice && minPrice !== maxPrice;
                               const isMax = price !== null && price === maxPrice && minPrice !== maxPrice;
+                              
+                              // Check if this restaurant's TVA differs from others
+                              const hasTvaIssue = tvaDiff?.hasDifference && tva !== null;
 
                               return (
                                 <TableCell
@@ -719,40 +785,51 @@ export function InterRestaurantComparison({
                                     isMax && "text-red-600 bg-red-50 dark:bg-red-950/20"
                                   )}
                                 >
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleToggleValidation(
-                                          item.menuItemId,
-                                          restaurant.id,
-                                          !isValidated
-                                        );
-                                      }}
-                                      className={cn(
-                                        "h-4 w-4 rounded-full flex items-center justify-center transition-colors flex-shrink-0",
-                                        isValidated
-                                          ? "bg-emerald-500 text-white"
-                                          : "border border-muted-foreground/30 hover:border-emerald-500 text-transparent hover:text-emerald-500"
-                                      )}
-                                      title={isValidated ? "Prix validé" : "Cliquer pour valider"}
-                                    >
-                                      <Check className="h-3 w-3" />
-                                    </button>
-                                    <span
-                                      className="cursor-pointer hover:bg-muted/50 px-1 rounded transition-colors"
-                                      onClick={() =>
-                                        openEditPrice(
-                                          item.menuItemId,
-                                          item.menuItemName,
-                                          restaurant.id,
-                                          restaurant.name,
-                                          price ?? null
-                                        )
-                                      }
-                                    >
-                                      {formatPrice(price ?? null)}
-                                    </span>
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleToggleValidation(
+                                            item.menuItemId,
+                                            restaurant.id,
+                                            !isValidated
+                                          );
+                                        }}
+                                        className={cn(
+                                          "h-4 w-4 rounded-full flex items-center justify-center transition-colors flex-shrink-0",
+                                          isValidated
+                                            ? "bg-emerald-500 text-white"
+                                            : "border border-muted-foreground/30 hover:border-emerald-500 text-transparent hover:text-emerald-500"
+                                        )}
+                                        title={isValidated ? "Prix validé" : "Cliquer pour valider"}
+                                      >
+                                        <Check className="h-3 w-3" />
+                                      </button>
+                                      <span
+                                        className="cursor-pointer hover:bg-muted/50 px-1 rounded transition-colors"
+                                        onClick={() =>
+                                          openEditPrice(
+                                            item.menuItemId,
+                                            item.menuItemName,
+                                            restaurant.id,
+                                            restaurant.name,
+                                            price ?? null,
+                                            tva ?? null
+                                          )
+                                        }
+                                      >
+                                        {formatPrice(price ?? null)}
+                                      </span>
+                                    </div>
+                                    {tva !== null && tva !== undefined && (
+                                      <span className={cn(
+                                        "text-[10px] leading-tight",
+                                        hasTvaIssue ? "text-orange-600 font-semibold" : "text-muted-foreground"
+                                      )}>
+                                        TVA {tva}%
+                                      </span>
+                                    )}
                                   </div>
                                 </TableCell>
                               );
@@ -865,18 +942,35 @@ export function InterRestaurantComparison({
               {editPriceData?.menuItemName} - {editPriceData?.restaurantName}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <label className="text-sm font-medium mb-2 block">
-              Prix {platform === "uber" ? "Uber Eats" : "Deliveroo"} (€)
-            </label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
-              value={editPriceValue}
-              onChange={(e) => setEditPriceValue(e.target.value)}
-            />
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Prix {platform === "uber" ? "Uber Eats" : "Deliveroo"} (€)
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={editPriceValue}
+                onChange={(e) => setEditPriceValue(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                TVA (%)
+              </label>
+              <Input
+                type="number"
+                step="0.5"
+                min="0"
+                max="100"
+                placeholder="10"
+                value={editTvaValue}
+                onChange={(e) => setEditTvaValue(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Taux courants : 5.5%, 10%, 20%</p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditPriceOpen(false)}>

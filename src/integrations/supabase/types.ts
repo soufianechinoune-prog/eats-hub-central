@@ -2334,6 +2334,8 @@ export type Database = {
           price_deliveroo: number | null
           price_uber: number | null
           restaurant_id: string
+          tva_deliveroo: number | null
+          tva_uber: number | null
           updated_at: string
           validated: boolean | null
           validated_at: string | null
@@ -2347,6 +2349,8 @@ export type Database = {
           price_deliveroo?: number | null
           price_uber?: number | null
           restaurant_id: string
+          tva_deliveroo?: number | null
+          tva_uber?: number | null
           updated_at?: string
           validated?: boolean | null
           validated_at?: string | null
@@ -2360,6 +2364,8 @@ export type Database = {
           price_deliveroo?: number | null
           price_uber?: number | null
           restaurant_id?: string
+          tva_deliveroo?: number | null
+          tva_uber?: number | null
           updated_at?: string
           validated?: boolean | null
           validated_at?: string | null

@@ -6,10 +6,20 @@ export interface RestaurantPrice {
   restaurantName: string;
   priceUber: number | null;
   priceDeliveroo: number | null;
+  tvaUber: number | null;
+  tvaDeliveroo: number | null;
   descriptionOverride: string | null;
   isAvailable: boolean;
   validated: boolean;
   validatedAt: string | null;
+}
+
+export interface TvaDifference {
+  min: number;
+  max: number;
+  minRestaurant: string;
+  maxRestaurant: string;
+  hasDifference: boolean;
 }
 
 export interface MenuItemWithPrices {
@@ -32,6 +42,8 @@ export interface PriceDifference {
 export interface MenuItemComparison extends MenuItemWithPrices {
   uberDifference: PriceDifference | null;
   deliverooDifference: PriceDifference | null;
+  uberTvaDifference: TvaDifference | null;
+  deliverooTvaDifference: TvaDifference | null;
 }
 
 export interface Restaurant {
@@ -97,6 +109,8 @@ export function useRestaurantMenuPrices(
             menu_item_id,
             price_uber,
             price_deliveroo,
+            tva_uber,
+            tva_deliveroo,
             description_override,
             is_available,
             validated,
@@ -131,6 +145,8 @@ export function useRestaurantMenuPrices(
             restaurantName: rp.restaurants?.name || restaurantNameMap.get(rp.restaurant_id) || "Unknown",
             priceUber: rp.price_uber,
             priceDeliveroo: rp.price_deliveroo,
+            tvaUber: rp.tva_uber,
+            tvaDeliveroo: rp.tva_deliveroo,
             descriptionOverride: rp.description_override,
             isAvailable: rp.is_available,
             validated: rp.validated ?? false,
@@ -151,6 +167,8 @@ export function useRestaurantMenuPrices(
               restaurantName: restaurantNameMap.get(restId) || "Unknown",
               priceUber: null,
               priceDeliveroo: null,
+              tvaUber: null,
+              tvaDeliveroo: null,
               descriptionOverride: null,
               isAvailable: true,
               validated: false,
@@ -158,7 +176,7 @@ export function useRestaurantMenuPrices(
             };
           });
 
-          // Calculate differences
+          // Calculate price differences
           const uberPrices = fullPricesList
             .filter((p) => p.priceUber !== null)
             .map((p) => ({ price: p.priceUber!, name: p.restaurantName }));
@@ -166,6 +184,15 @@ export function useRestaurantMenuPrices(
           const deliverooPrices = fullPricesList
             .filter((p) => p.priceDeliveroo !== null)
             .map((p) => ({ price: p.priceDeliveroo!, name: p.restaurantName }));
+
+          // Calculate TVA differences
+          const uberTvas = fullPricesList
+            .filter((p) => p.tvaUber !== null)
+            .map((p) => ({ tva: p.tvaUber!, name: p.restaurantName }));
+          
+          const deliverooTvas = fullPricesList
+            .filter((p) => p.tvaDeliveroo !== null)
+            .map((p) => ({ tva: p.tvaDeliveroo!, name: p.restaurantName }));
 
           const calculateDifference = (
             prices: { price: number; name: string }[]
@@ -184,6 +211,22 @@ export function useRestaurantMenuPrices(
             };
           };
 
+          const calculateTvaDifference = (
+            tvas: { tva: number; name: string }[]
+          ): TvaDifference | null => {
+            if (tvas.length < 2) return null;
+            const sorted = [...tvas].sort((a, b) => a.tva - b.tva);
+            const min = sorted[0];
+            const max = sorted[sorted.length - 1];
+            return {
+              min: min.tva,
+              max: max.tva,
+              minRestaurant: min.name,
+              maxRestaurant: max.name,
+              hasDifference: min.tva !== max.tva,
+            };
+          };
+
           return {
             menuItemId: item.id,
             menuItemName: item.name,
@@ -193,6 +236,8 @@ export function useRestaurantMenuPrices(
             restaurantPrices: fullPricesList,
             uberDifference: calculateDifference(uberPrices),
             deliverooDifference: calculateDifference(deliverooPrices),
+            uberTvaDifference: calculateTvaDifference(uberTvas),
+            deliverooTvaDifference: calculateTvaDifference(deliverooTvas),
           };
         });
 
@@ -216,6 +261,8 @@ export function useRestaurantMenuPrices(
   const stats = useMemo(() => {
     const itemsWithUberDiff = items.filter((i) => i.uberDifference && i.uberDifference.percent > 0);
     const itemsWithDeliverooDiff = items.filter((i) => i.deliverooDifference && i.deliverooDifference.percent > 0);
+    const itemsWithUberTvaDiff = items.filter((i) => i.uberTvaDifference?.hasDifference);
+    const itemsWithDeliverooTvaDiff = items.filter((i) => i.deliverooTvaDifference?.hasDifference);
 
     const avgUberDiff = itemsWithUberDiff.length > 0
       ? Math.round(itemsWithUberDiff.reduce((acc, i) => acc + (i.uberDifference?.percent || 0), 0) / itemsWithUberDiff.length)
@@ -229,6 +276,8 @@ export function useRestaurantMenuPrices(
       totalProducts: items.length,
       productsWithUberDiff: itemsWithUberDiff.length,
       productsWithDeliverooDiff: itemsWithDeliverooDiff.length,
+      productsWithUberTvaDiff: itemsWithUberTvaDiff.length,
+      productsWithDeliverooTvaDiff: itemsWithDeliverooTvaDiff.length,
       avgUberDiff,
       avgDeliverooDiff,
     };
