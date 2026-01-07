@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { subWeeks, startOfWeek, endOfWeek } from "date-fns";
+import { subWeeks, startOfWeek, endOfWeek, format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import type { DateRange } from "react-day-picker";
@@ -106,9 +106,10 @@ const Overview = () => {
 
   const { startDate, endDate } = getDateRangeFromPeriod();
 
-  // Format dates for queries
-  const startDateStr = startDate.toISOString().split('T')[0];
-  const endDateStr = endDate.toISOString().split('T')[0];
+  // Format dates for queries (use local calendar date, not UTC date)
+  // Using toISOString() can shift the day in France/Europe timezones and create an extra day.
+  const startDateStr = format(startDate, "yyyy-MM-dd");
+  const endDateStr = format(endDate, "yyyy-MM-dd");
 
   // Fetch network health data
   const { data: networkData, isLoading, error } = useQuery({
