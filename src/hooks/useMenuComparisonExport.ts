@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import * as XLSX from "xlsx";
+import XLSX from "xlsx-js-style";
 
 interface PriceRow {
   product: string;
@@ -20,6 +20,55 @@ interface ExportData {
     avgDiff: number;
   };
 }
+
+// Style constants
+const HEADER_STYLE = {
+  fill: { fgColor: { rgb: "1E3A5F" } },
+  font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+  alignment: { horizontal: "center", vertical: "center" },
+  border: {
+    bottom: { style: "thin", color: { rgb: "000000" } },
+  },
+};
+
+const TITLE_STYLE = {
+  font: { bold: true, sz: 14, color: { rgb: "1E3A5F" } },
+  alignment: { horizontal: "left" },
+};
+
+const DATE_STYLE = {
+  font: { italic: true, sz: 10, color: { rgb: "666666" } },
+};
+
+const STATS_STYLE = {
+  font: { sz: 10, color: { rgb: "333333" } },
+  fill: { fgColor: { rgb: "F3F4F6" } },
+};
+
+const CELL_STYLE = {
+  alignment: { horizontal: "left", vertical: "center" },
+  border: {
+    bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+  },
+};
+
+const PRICE_CELL_STYLE = {
+  alignment: { horizontal: "right", vertical: "center" },
+  border: {
+    bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+  },
+};
+
+const HIGHER_PRICE_STYLE = {
+  ...PRICE_CELL_STYLE,
+  fill: { fgColor: { rgb: "DCFCE7" } }, // Light green
+};
+
+const MANQUANT_STYLE = {
+  ...CELL_STYLE,
+  font: { italic: true, color: { rgb: "9CA3AF" } },
+  alignment: { horizontal: "center", vertical: "center" },
+};
 
 export function useMenuComparisonExport() {
   const [isExporting, setIsExporting] = useState(false);
@@ -125,134 +174,182 @@ export function useMenuComparisonExport() {
       const title = `Comparatif ${data.restaurants.join(" - ")} (${data.platform})`;
       const dateStr = new Date().toLocaleString("fr-FR");
 
-      // Build all data in one sheet
-      const sheetData: (string | number)[][] = [];
-      
-      // Title row
-      sheetData.push([title]);
-      sheetData.push([`Généré le ${dateStr}`]);
-      sheetData.push([]);
-      
-      // Stats row
-      sheetData.push([
-        `${data.stats.totalProducts} produits`,
-        `${data.stats.productsWithDiff} avec écarts`,
-        `Écart moyen: ${data.stats.avgDiff}%`
-      ]);
-      sheetData.push([]);
+      // Helper to parse price
+      const parsePrice = (priceStr: string): number | null => {
+        if (!priceStr) return null;
+        const lower = priceStr.toLowerCase().trim();
+        if (lower === "-" || lower === "manquant" || lower.includes("manquant")) {
+          return null;
+        }
+        const cleaned = priceStr.replace(/€/g, "").replace(/\s/g, "").replace(",", ".").trim();
+        const parsed = parseFloat(cleaned);
+        return isNaN(parsed) ? null : parsed;
+      };
 
-      // Headers
+      // Build sheet data
       const showDiff = data.restaurants.length === 2;
-      const headers = ["Produit", "Catégorie", ...data.restaurants];
+      const headers: string[] = ["Produit", "Catégorie", ...data.restaurants];
       if (showDiff) {
         headers.push("Écart %");
         headers.push("Écart €");
       }
-      sheetData.push(headers);
 
-      // Helper to parse price
-      const parsePrice = (priceStr: string): number | null => {
-        if (!priceStr || priceStr.toLowerCase().includes("manquant") || priceStr === "-") {
-          return null;
-        }
-        const parsed = parseFloat(priceStr.replace(",", ".").replace("€", "").replace(/\s/g, "").trim());
-        return isNaN(parsed) ? null : parsed;
-      };
-
-      // Track which rows have valid prices for formulas
-      const rowsWithValidPrices: boolean[] = [];
-
-      // Data rows
-      const headerRowIndex = sheetData.length;
+      // Create worksheet with AOA
+      const aoa: (string | number | null)[][] = [];
       
+      // Row 1: Title
+      aoa.push([title, ...Array(headers.length - 1).fill(null)]);
+      // Row 2: Date
+      aoa.push([`Généré le ${dateStr}`, ...Array(headers.length - 1).fill(null)]);
+      // Row 3: Empty
+      aoa.push(Array(headers.length).fill(null));
+      // Row 4: Stats
+      aoa.push([
+        `${data.stats.totalProducts} produits`,
+        `${data.stats.productsWithDiff} avec écarts`,
+        `Écart moyen: ${data.stats.avgDiff}%`,
+        ...Array(Math.max(0, headers.length - 3)).fill(null)
+      ]);
+      // Row 5: Empty
+      aoa.push(Array(headers.length).fill(null));
+      // Row 6: Headers
+      aoa.push(headers);
+
+      // Track price data for styling
+      const rowPriceData: { price1: number | null; price2: number | null }[] = [];
+
+      // Data rows (starting row 7)
       data.rows.forEach((row) => {
         const parsedPrices = row.prices.map(p => parsePrice(p.price));
-        const allPricesValid = showDiff && parsedPrices.every(p => p !== null);
-        rowsWithValidPrices.push(allPricesValid);
+        const price1 = parsedPrices[0] ?? null;
+        const price2 = parsedPrices[1] ?? null;
+        rowPriceData.push({ price1, price2 });
 
         const rowData: (string | number | null)[] = [
           row.product,
           row.category,
-          // Use parsed numbers for valid prices, "Manquant" for missing
-          ...parsedPrices.map(p => p !== null ? p : "Manquant"),
+          price1 !== null ? price1 : "Manquant",
+          price2 !== null ? price2 : "Manquant",
         ];
+        
         if (showDiff) {
-          rowData.push(null); // Placeholder for % formula
-          rowData.push(null); // Placeholder for € formula
+          rowData.push(null);
+          rowData.push(null);
         }
-        sheetData.push(rowData);
+        aoa.push(rowData);
       });
 
-      const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+      const sheet = XLSX.utils.aoa_to_sheet(aoa);
 
-      // Format price columns with € and add formulas for differences
-      if (showDiff) {
-        const priceCol1 = "C";
-        const priceCol2 = "D";
-        const pctCol = "E";
-        const euroCol = "F";
-        
-        const dataStartRow = headerRowIndex + 2;
-        
-        data.rows.forEach((_, idx) => {
-          const excelRow = dataStartRow + idx;
-          const hasValidPrices = rowsWithValidPrices[idx];
-          
-          // Format price cells with €
-          const cell1Ref = `${priceCol1}${excelRow}`;
-          const cell2Ref = `${priceCol2}${excelRow}`;
-          
-          if (sheet[cell1Ref] && typeof sheet[cell1Ref].v === "number") {
-            sheet[cell1Ref].z = '#,##0.00" €"';
+      // Apply styles
+      const dataStartRow = 7;
+
+      // Style title (A1)
+      if (sheet["A1"]) sheet["A1"].s = TITLE_STYLE;
+      // Style date (A2)
+      if (sheet["A2"]) sheet["A2"].s = DATE_STYLE;
+      // Style stats row (row 4)
+      ["A4", "B4", "C4"].forEach(ref => {
+        if (sheet[ref]) sheet[ref].s = STATS_STYLE;
+      });
+
+      // Style headers (row 6)
+      headers.forEach((_, colIdx) => {
+        const colLetter = XLSX.utils.encode_col(colIdx);
+        const ref = `${colLetter}6`;
+        if (sheet[ref]) {
+          sheet[ref].s = HEADER_STYLE;
+        }
+      });
+
+      // Style data rows and add formulas
+      data.rows.forEach((_, idx) => {
+        const excelRow = dataStartRow + idx;
+        const { price1, price2 } = rowPriceData[idx];
+        const bothValid = price1 !== null && price2 !== null;
+
+        // Column A (Product)
+        const cellA = `A${excelRow}`;
+        if (sheet[cellA]) sheet[cellA].s = CELL_STYLE;
+
+        // Column B (Category)
+        const cellB = `B${excelRow}`;
+        if (sheet[cellB]) sheet[cellB].s = CELL_STYLE;
+
+        // Column C (Price 1)
+        const cellC = `C${excelRow}`;
+        if (sheet[cellC]) {
+          if (price1 === null) {
+            sheet[cellC].s = MANQUANT_STYLE;
+          } else {
+            sheet[cellC].z = '#,##0.00" €"';
+            // Highlight if higher than price2
+            if (bothValid && price1 > price2) {
+              sheet[cellC].s = HIGHER_PRICE_STYLE;
+            } else {
+              sheet[cellC].s = PRICE_CELL_STYLE;
+            }
           }
-          if (sheet[cell2Ref] && typeof sheet[cell2Ref].v === "number") {
-            sheet[cell2Ref].z = '#,##0.00" €"';
+        }
+
+        // Column D (Price 2)
+        const cellD = `D${excelRow}`;
+        if (sheet[cellD]) {
+          if (price2 === null) {
+            sheet[cellD].s = MANQUANT_STYLE;
+          } else {
+            sheet[cellD].z = '#,##0.00" €"';
+            // Highlight if higher than price1
+            if (bothValid && price2 > price1) {
+              sheet[cellD].s = HIGHER_PRICE_STYLE;
+            } else {
+              sheet[cellD].s = PRICE_CELL_STYLE;
+            }
           }
-          
-          // Only add formulas if both prices are valid numbers
-          if (hasValidPrices) {
-            sheet[`${pctCol}${excelRow}`] = {
-              t: "n",
-              f: `IF(${priceCol1}${excelRow}=0,0,(${priceCol2}${excelRow}-${priceCol1}${excelRow})/${priceCol1}${excelRow})`,
-              z: "0.0%"
-            };
-            
-            sheet[`${euroCol}${excelRow}`] = {
-              t: "n",
-              f: `${priceCol2}${excelRow}-${priceCol1}${excelRow}`,
-              z: '#,##0.00" €"'
-            };
-          }
-          // If not valid, leave cells empty (no formula = no #VALEUR! error)
-        });
-        
-        const lastRow = headerRowIndex + 1 + data.rows.length;
-        sheet["!ref"] = `A1:F${lastRow}`;
-      }
+        }
+
+        // Add formulas only if both prices valid
+        if (showDiff && bothValid) {
+          // Écart % (Column E)
+          sheet[`E${excelRow}`] = {
+            t: "n",
+            f: `IF(C${excelRow}=0,0,(D${excelRow}-C${excelRow})/C${excelRow})`,
+            z: "0.0%",
+            s: PRICE_CELL_STYLE,
+          };
+
+          // Écart € (Column F)
+          sheet[`F${excelRow}`] = {
+            t: "n",
+            f: `D${excelRow}-C${excelRow}`,
+            z: '#,##0.00" €"',
+            s: PRICE_CELL_STYLE,
+          };
+        }
+      });
 
       // Set column widths
-      const colWidths = [
-        { wch: 35 }, // Produit
+      sheet["!cols"] = [
+        { wch: 42 }, // Produit
         { wch: 18 }, // Catégorie
-        ...data.restaurants.map(() => ({ wch: 14 })), // Price columns
+        { wch: 14 }, // Price 1
+        { wch: 14 }, // Price 2
+        ...(showDiff ? [{ wch: 10 }, { wch: 10 }] : []),
       ];
-      if (showDiff) {
-        colWidths.push({ wch: 10 }); // Écart %
-        colWidths.push({ wch: 10 }); // Écart €
-      }
-      sheet["!cols"] = colWidths;
 
-      // Apply styles via cell formatting
-      // Title cell merge (row 1)
-      const totalCols = headers.length;
+      // Merge cells for title and date
       sheet["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } }, // Title
-        { s: { r: 1, c: 0 }, e: { r: 1, c: totalCols - 1 } }, // Date
+        { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
       ];
+
+      // Update range
+      const lastRow = dataStartRow - 1 + data.rows.length;
+      sheet["!ref"] = `A1:${XLSX.utils.encode_col(headers.length - 1)}${lastRow}`;
 
       XLSX.utils.book_append_sheet(workbook, sheet, "Comparatif");
 
-      const filename = `comparatif_${data.restaurants.join("_").toLowerCase()}_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const filename = `comparatif_${data.restaurants.join("_").toLowerCase().replace(/\s/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(workbook, filename);
     } catch (error) {
       console.error("Error exporting Excel:", error);
