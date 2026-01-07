@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { subWeeks, startOfWeek, endOfWeek } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import type { DateRange } from "react-day-picker";
@@ -66,20 +67,10 @@ const Overview = () => {
     
     switch (periodMode) {
       case "previous_week":
-        // Find last Sunday (end of previous week)
-        const dayOfWeek = now.getDay(); // 0 = Sunday
-        const daysSinceSunday = dayOfWeek === 0 ? 7 : dayOfWeek;
-        const lastSunday = new Date(now);
-        lastSunday.setDate(now.getDate() - daysSinceSunday);
-        lastSunday.setHours(23, 59, 59, 999);
-        
-        // Find the Monday of that week (6 days before Sunday)
-        const lastMonday = new Date(lastSunday);
-        lastMonday.setDate(lastSunday.getDate() - 6);
-        lastMonday.setHours(0, 0, 0, 0);
-        
-        start = lastMonday;
-        end = lastSunday;
+        // Use date-fns for consistent week calculation (Monday to Sunday)
+        const lastWeek = subWeeks(now, 1);
+        start = startOfWeek(lastWeek, { weekStartsOn: 1 }); // Monday
+        end = endOfWeek(lastWeek, { weekStartsOn: 1 });     // Sunday
         break;
       case "7d":
         start.setDate(now.getDate() - 7);
