@@ -150,18 +150,31 @@ export function useMenuComparisonExport() {
       }
       sheetData.push(headers);
 
-      // Data rows - add placeholder for formulas
-      const headerRowIndex = sheetData.length; // 0-indexed row where headers are (will be row 6 in Excel, 1-indexed)
+      // Helper to parse price
+      const parsePrice = (priceStr: string): number | null => {
+        if (!priceStr || priceStr.toLowerCase().includes("manquant") || priceStr === "-") {
+          return null;
+        }
+        const parsed = parseFloat(priceStr.replace(",", ".").replace("€", "").replace(/\s/g, "").trim());
+        return isNaN(parsed) ? null : parsed;
+      };
+
+      // Track which rows have valid prices for formulas
+      const rowsWithValidPrices: boolean[] = [];
+
+      // Data rows
+      const headerRowIndex = sheetData.length;
       
       data.rows.forEach((row) => {
+        const parsedPrices = row.prices.map(p => parsePrice(p.price));
+        const allPricesValid = showDiff && parsedPrices.every(p => p !== null);
+        rowsWithValidPrices.push(allPricesValid);
+
         const rowData: (string | number | null)[] = [
           row.product,
           row.category,
-          // Parse prices as numbers for formulas to work
-          ...row.prices.map(p => {
-            const parsed = parseFloat(p.price.replace(",", ".").replace("€", "").trim());
-            return isNaN(parsed) ? p.price : parsed;
-          }),
+          // Use parsed numbers for valid prices, "Manquant" for missing
+          ...parsedPrices.map(p => p !== null ? p : "Manquant"),
         ];
         if (showDiff) {
           rowData.push(null); // Placeholder for % formula
@@ -172,37 +185,47 @@ export function useMenuComparisonExport() {
 
       const sheet = XLSX.utils.aoa_to_sheet(sheetData);
 
-      // Add formulas for differences if 2 restaurants
+      // Format price columns with € and add formulas for differences
       if (showDiff) {
-        const priceCol1 = "C"; // First restaurant price column
-        const priceCol2 = "D"; // Second restaurant price column
-        const pctCol = "E";    // Écart % column
-        const euroCol = "F";   // Écart € column
+        const priceCol1 = "C";
+        const priceCol2 = "D";
+        const pctCol = "E";
+        const euroCol = "F";
         
-        // Data starts after header row (headerRowIndex is 0-indexed, Excel is 1-indexed)
-        const dataStartRow = headerRowIndex + 2; // +1 for 0-to-1 index, +1 because header is at headerRowIndex+1
+        const dataStartRow = headerRowIndex + 2;
         
         data.rows.forEach((_, idx) => {
           const excelRow = dataStartRow + idx;
+          const hasValidPrices = rowsWithValidPrices[idx];
           
-          // Écart % formula: (D-C)/C formatted as percentage
-          const pctCellRef = `${pctCol}${excelRow}`;
-          sheet[pctCellRef] = {
-            t: "n",
-            f: `IF(${priceCol1}${excelRow}=0,0,(${priceCol2}${excelRow}-${priceCol1}${excelRow})/${priceCol1}${excelRow})`,
-            z: "0.0%"
-          };
+          // Format price cells with €
+          const cell1Ref = `${priceCol1}${excelRow}`;
+          const cell2Ref = `${priceCol2}${excelRow}`;
           
-          // Écart € formula: D-C
-          const euroCellRef = `${euroCol}${excelRow}`;
-          sheet[euroCellRef] = {
-            t: "n",
-            f: `${priceCol2}${excelRow}-${priceCol1}${excelRow}`,
-            z: '#,##0.00" €"'
-          };
+          if (sheet[cell1Ref] && typeof sheet[cell1Ref].v === "number") {
+            sheet[cell1Ref].z = '#,##0.00" €"';
+          }
+          if (sheet[cell2Ref] && typeof sheet[cell2Ref].v === "number") {
+            sheet[cell2Ref].z = '#,##0.00" €"';
+          }
+          
+          // Only add formulas if both prices are valid numbers
+          if (hasValidPrices) {
+            sheet[`${pctCol}${excelRow}`] = {
+              t: "n",
+              f: `IF(${priceCol1}${excelRow}=0,0,(${priceCol2}${excelRow}-${priceCol1}${excelRow})/${priceCol1}${excelRow})`,
+              z: "0.0%"
+            };
+            
+            sheet[`${euroCol}${excelRow}`] = {
+              t: "n",
+              f: `${priceCol2}${excelRow}-${priceCol1}${excelRow}`,
+              z: '#,##0.00" €"'
+            };
+          }
+          // If not valid, leave cells empty (no formula = no #VALEUR! error)
         });
         
-        // Update the range to include formula columns
         const lastRow = headerRowIndex + 1 + data.rows.length;
         sheet["!ref"] = `A1:F${lastRow}`;
       }
