@@ -121,34 +121,66 @@ export function useMenuComparisonExport() {
     try {
       const workbook = XLSX.utils.book_new();
 
-      // Summary Sheet
-      const summaryData = [
-        ["Comparaison des prix - " + data.platform],
-        ["Généré le", new Date().toLocaleString("fr-FR")],
-        [],
-        ["Statistiques"],
-        ["Total produits", data.stats.totalProducts],
-        ["Produits avec écarts", data.stats.productsWithDiff],
-        ["Écart moyen", `${data.stats.avgDiff}%`],
-        [],
-        ["Restaurants comparés"],
-        ...data.restaurants.map(r => [r])
-      ];
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(workbook, summarySheet, "Résumé");
+      // Build title
+      const title = `Comparatif ${data.restaurants.join(" - ")} (${data.platform})`;
+      const dateStr = new Date().toLocaleString("fr-FR");
 
-      // Prices Sheet
-      const headers = ["Produit", "Catégorie", ...data.restaurants, "Écart"];
-      const priceRows = data.rows.map((row) => [
-        row.product,
-        row.category,
-        ...row.prices.map(p => p.price),
-        row.difference,
+      // Build all data in one sheet
+      const sheetData: (string | number)[][] = [];
+      
+      // Title row
+      sheetData.push([title]);
+      sheetData.push([`Généré le ${dateStr}`]);
+      sheetData.push([]);
+      
+      // Stats row
+      sheetData.push([
+        `${data.stats.totalProducts} produits`,
+        `${data.stats.productsWithDiff} avec écarts`,
+        `Écart moyen: ${data.stats.avgDiff}%`
       ]);
-      const pricesSheet = XLSX.utils.aoa_to_sheet([headers, ...priceRows]);
-      XLSX.utils.book_append_sheet(workbook, pricesSheet, "Détail des prix");
+      sheetData.push([]);
 
-      XLSX.writeFile(workbook, `comparaison_prix_${data.platform}_${new Date().toISOString().split("T")[0]}.xlsx`);
+      // Headers
+      const showDiff = data.restaurants.length === 2;
+      const headers = ["Produit", "Catégorie", ...data.restaurants];
+      if (showDiff) headers.push("Écart");
+      sheetData.push(headers);
+
+      // Data rows
+      data.rows.forEach((row) => {
+        const rowData: (string | number)[] = [
+          row.product,
+          row.category,
+          ...row.prices.map(p => p.price),
+        ];
+        if (showDiff) rowData.push(row.difference);
+        sheetData.push(rowData);
+      });
+
+      const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 35 }, // Produit
+        { wch: 18 }, // Catégorie
+        ...data.restaurants.map(() => ({ wch: 14 })), // Price columns
+      ];
+      if (showDiff) colWidths.push({ wch: 12 }); // Écart
+      sheet["!cols"] = colWidths;
+
+      // Apply styles via cell formatting
+      // Title cell merge (row 1)
+      const totalCols = headers.length;
+      sheet["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } }, // Title
+        { s: { r: 1, c: 0 }, e: { r: 1, c: totalCols - 1 } }, // Date
+      ];
+
+      XLSX.utils.book_append_sheet(workbook, sheet, "Comparatif");
+
+      const filename = `comparatif_${data.restaurants.join("_").toLowerCase()}_${new Date().toISOString().split("T")[0]}.xlsx`;
+      XLSX.writeFile(workbook, filename);
     } catch (error) {
       console.error("Error exporting Excel:", error);
     } finally {
