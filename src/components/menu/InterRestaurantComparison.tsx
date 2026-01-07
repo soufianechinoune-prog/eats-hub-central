@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -37,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Search, TrendingUp, Minus, MoreHorizontal, Pencil, Trash2, Link2, Plus, Check, Circle, AlertTriangle } from "lucide-react";
+import { Search, TrendingUp, Minus, MoreHorizontal, Trash2, Link2, Plus, Check, AlertTriangle, Download, FileSpreadsheet, FileText, Package, AlertCircle, Percent } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -50,6 +51,8 @@ import { RestaurantSelector } from "./RestaurantSelector";
 import { useRestaurantMenuPrices, MenuItemComparison } from "@/hooks/useRestaurantMenuPrices";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useMenuComparisonExport } from "@/hooks/useMenuComparisonExport";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Platform = "uber" | "deliveroo";
 
@@ -84,6 +87,10 @@ export function InterRestaurantComparison() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnlyDiscrepancies, setShowOnlyDiscrepancies] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  // Export hook
+  const { exportToPdf, exportToExcel, isExporting } = useMenuComparisonExport();
 
   // Edit price state
   const [editPriceOpen, setEditPriceOpen] = useState(false);
@@ -180,6 +187,45 @@ export function InterRestaurantComparison() {
   const currentStats = platform === "uber"
     ? { withDiff: stats.productsWithUberDiff, avgDiff: stats.avgUberDiff }
     : { withDiff: stats.productsWithDeliverooDiff, avgDiff: stats.avgDeliverooDiff };
+
+  // Build export data
+  const buildExportData = () => {
+    const rows = filteredItems.map((item) => {
+      const diff = platform === "uber" ? item.uberDifference : item.deliverooDifference;
+      return {
+        product: item.menuItemName,
+        category: item.category,
+        prices: selectedRestaurants.map((r) => {
+          const rp = item.restaurantPrices.find((p) => p.restaurantId === r.id);
+          const price = platform === "uber" ? rp?.priceUber : rp?.priceDeliveroo;
+          return {
+            restaurant: getShortRestaurantName(r.name),
+            price: formatPrice(price ?? null),
+          };
+        }),
+        difference: diff ? `+${diff.percent}%` : "0%",
+      };
+    });
+
+    return {
+      platform: platform === "uber" ? "Uber Eats" : "Deliveroo",
+      restaurants: selectedRestaurants.map((r) => getShortRestaurantName(r.name)),
+      rows,
+      stats: {
+        totalProducts: stats.totalProducts,
+        productsWithDiff: currentStats.withDiff,
+        avgDiff: currentStats.avgDiff,
+      },
+    };
+  };
+
+  const handleExportPdf = () => {
+    exportToPdf(tableRef.current, buildExportData());
+  };
+
+  const handleExportExcel = () => {
+    exportToExcel(buildExportData());
+  };
 
   // ---- Edit price handlers ----
   const openEditPrice = (
@@ -452,25 +498,46 @@ export function InterRestaurantComparison() {
 
   return (
     <div className="space-y-6" key={refreshKey}>
-      {/* Platform Toggle */}
+      {/* Header with Platform Toggle and Export */}
       <div className="flex items-center justify-between">
         <Tabs value={platform} onValueChange={(v) => setPlatform(v as Platform)}>
-          <TabsList>
-            <TabsTrigger value="uber" className="gap-2">
+          <TabsList className="bg-muted/50 p-1">
+            <TabsTrigger value="uber" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <img src="/src/assets/uber-eats-logo.png" alt="Uber Eats" className="h-4 w-4" />
               Uber Eats
             </TabsTrigger>
-            <TabsTrigger value="deliveroo" className="gap-2">
+            <TabsTrigger value="deliveroo" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <img src="/src/assets/deliveroo-logo.png" alt="Deliveroo" className="h-4 w-4" />
               Deliveroo
             </TabsTrigger>
           </TabsList>
         </Tabs>
+        
+        {selectedRestaurantIds.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2" disabled={isExporting}>
+                <Download className="h-4 w-4" />
+                Exporter
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel} className="gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                Exporter en Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdf} className="gap-2">
+                <FileText className="h-4 w-4 text-red-600" />
+                Exporter en PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {/* Restaurant Selector */}
       <div className="max-w-xl">
-        <label className="text-sm font-medium mb-2 block">
+        <label className="text-sm font-medium mb-2 block text-muted-foreground">
           Restaurants à comparer (max. 6)
         </label>
         <RestaurantSelector
@@ -482,52 +549,84 @@ export function InterRestaurantComparison() {
       </div>
 
       {selectedRestaurantIds.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          Sélectionnez au moins un restaurant pour voir les prix
+        <div className="text-center py-16 text-muted-foreground">
+          <Package className="h-12 w-12 mx-auto mb-4 opacity-30" />
+          <p>Sélectionnez au moins un restaurant pour voir les prix</p>
         </div>
       ) : (
         <>
-          {/* KPIs */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-card border rounded-lg p-4">
-              <div className="text-sm text-muted-foreground">Produits</div>
-              <div className="text-2xl font-bold">{stats.totalProducts}</div>
-            </div>
-            <div className="bg-card border rounded-lg p-4">
-              <div className="text-sm text-muted-foreground">Avec écarts</div>
-              <div className="text-2xl font-bold text-amber-600">
-                {currentStats.withDiff}
-              </div>
-            </div>
-            <div className="bg-card border rounded-lg p-4">
-              <div className="text-sm text-muted-foreground">Écart moyen</div>
-              <div className="text-2xl font-bold">
-                {currentStats.avgDiff > 0 ? `+${currentStats.avgDiff}%` : "0%"}
-              </div>
-            </div>
+          {/* Modern KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="overflow-hidden border-0 shadow-sm bg-gradient-to-br from-background to-muted/30">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Package className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground font-medium">Produits</p>
+                    <p className="text-2xl font-bold tracking-tight">{stats.totalProducts}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="overflow-hidden border-0 shadow-sm bg-gradient-to-br from-background to-amber-50/30 dark:to-amber-950/10">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                    <AlertCircle className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground font-medium">Avec écarts</p>
+                    <p className="text-2xl font-bold tracking-tight text-amber-600">{currentStats.withDiff}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="overflow-hidden border-0 shadow-sm bg-gradient-to-br from-background to-muted/30">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                    <Percent className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground font-medium">Écart moyen</p>
+                    <p className="text-2xl font-bold tracking-tight">
+                      {currentStats.avgDiff > 0 ? `+${currentStats.avgDiff}%` : "0%"}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Rechercher un produit..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-10 bg-background"
               />
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="discrepancies"
                 checked={showOnlyDiscrepancies}
-                onChange={(e) => setShowOnlyDiscrepancies(e.target.checked)}
-                className="rounded border-input"
+                onCheckedChange={(checked) => setShowOnlyDiscrepancies(checked === true)}
               />
-              Écarts uniquement
-            </label>
-            <Button onClick={openAddProductDialog} size="sm" className="gap-2">
+              <label
+                htmlFor="discrepancies"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                Écarts uniquement
+              </label>
+            </div>
+            <Button onClick={openAddProductDialog} size="sm" className="gap-2 ml-auto">
               <Plus className="h-4 w-4" />
               Ajouter un produit
             </Button>
@@ -541,27 +640,27 @@ export function InterRestaurantComparison() {
               ))}
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
+            <div ref={tableRef} className="border rounded-xl overflow-hidden shadow-sm bg-background">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="w-[250px]">Produit</TableHead>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableHead className="w-[250px] font-semibold">Produit</TableHead>
                     {selectedRestaurants.map((restaurant) => (
-                      <TableHead key={restaurant.id} className="text-center min-w-[100px]">
+                      <TableHead key={restaurant.id} className="text-center min-w-[120px] font-semibold">
                         {getShortRestaurantName(restaurant.name)}
                       </TableHead>
                     ))}
-                    <TableHead className="text-center w-[100px]">Écart</TableHead>
+                    <TableHead className="text-center w-[100px] font-semibold">Écart</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {Array.from(groupedItems.entries()).map(([category, categoryItems]) => (
                     <>
-                      <TableRow key={`cat-${category}`} className="bg-muted/30">
+                      <TableRow key={`cat-${category}`} className="bg-muted/20 hover:bg-muted/20">
                         <TableCell
                           colSpan={selectedRestaurants.length + 3}
-                          className="font-semibold text-sm py-2"
+                          className="font-bold text-sm py-2.5 text-foreground/80"
                         >
                           {category}
                         </TableCell>
@@ -586,8 +685,8 @@ export function InterRestaurantComparison() {
                           : null;
 
                         return (
-                          <TableRow key={item.menuItemId} className="group">
-                            <TableCell className="font-medium">
+                          <TableRow key={item.menuItemId} className="group transition-colors hover:bg-muted/40">
+                            <TableCell className="font-medium text-foreground/90">
                               {item.menuItemName}
                             </TableCell>
                             {selectedRestaurants.map((restaurant) => {
