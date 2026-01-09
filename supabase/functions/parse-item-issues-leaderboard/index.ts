@@ -191,8 +191,34 @@ serve(async (req) => {
     const restaurantsData: RestaurantData[] = [];
     const unknownStoreIds: string[] = [];
 
-    if (storeIdsFound.size > 0) {
-      // Multi-restaurant file: group by store_id
+    // If a specific restaurantId is provided, use it for ALL items (ignore store_id from CSV)
+    if (restaurantId) {
+      const { data: restaurant } = await supabase
+        .from("restaurants")
+        .select("id, name")
+        .eq("id", restaurantId)
+        .single();
+
+      if (restaurant) {
+        restaurantsData.push({ id: restaurant.id, name: restaurant.name, items: parsedItems });
+        console.log(`[parse-item-issues-leaderboard] Using selected restaurant: ${restaurant.name} for all ${parsedItems.length} items`);
+        // Still track unknown store_ids for informational purposes
+        for (const storeId of storeIdsFound) {
+          if (!restaurantsByStoreId.has(storeId)) {
+            unknownStoreIds.push(storeId);
+          }
+        }
+      } else {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Restaurant with ID ${restaurantId} not found`,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+    } else if (storeIdsFound.size > 0) {
+      // No restaurantId provided: Multi-restaurant file, group by store_id
       const itemsByStoreId = new Map<string, ParsedItem[]>();
       for (const item of parsedItems) {
         const key = item.store_id || "unknown";
@@ -204,37 +230,15 @@ serve(async (req) => {
 
       for (const [storeId, items] of itemsByStoreId) {
         if (storeId === "unknown") {
-          // Items without store_id - use provided restaurantId if available
-          if (restaurantId) {
-            const { data: rest } = await supabase
-              .from("restaurants")
-              .select("id, name")
-              .eq("id", restaurantId)
-              .single();
-            if (rest) {
-              restaurantsData.push({ id: rest.id, name: rest.name, items });
-            }
-          }
-        } else {
-          const restaurant = restaurantsByStoreId.get(storeId);
-          if (restaurant) {
-            restaurantsData.push({ id: restaurant.id, name: restaurant.name, items });
-          } else {
-            unknownStoreIds.push(storeId);
-            console.warn(`[parse-item-issues-leaderboard] Unknown store_id: ${storeId} (${items.length} items)`);
-          }
+          continue; // Skip items without store_id in multi-restaurant mode
         }
-      }
-    } else if (restaurantId) {
-      // Single restaurant file: use provided restaurantId
-      const { data: restaurant } = await supabase
-        .from("restaurants")
-        .select("id, name")
-        .eq("id", restaurantId)
-        .single();
-
-      if (restaurant) {
-        restaurantsData.push({ id: restaurant.id, name: restaurant.name, items: parsedItems });
+        const restaurant = restaurantsByStoreId.get(storeId);
+        if (restaurant) {
+          restaurantsData.push({ id: restaurant.id, name: restaurant.name, items });
+        } else {
+          unknownStoreIds.push(storeId);
+          console.warn(`[parse-item-issues-leaderboard] Unknown store_id: ${storeId} (${items.length} items)`);
+        }
       }
     }
 
@@ -242,7 +246,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "No restaurants found. Please select a restaurant or ensure the store_ids match configured restaurants.",
+          error: "Aucun restaurant trouvé. Veuillez sélectionner un restaurant ou vérifier que les store_ids correspondent aux restaurants configurés.",
           unknownStoreIds: Array.from(storeIdsFound),
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
