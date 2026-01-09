@@ -577,6 +577,7 @@ export default function ReportImport() {
         csvContent,
         reportType,
         dryRun: true,
+        fileName: file?.name,
       };
 
       // Add restaurantId for specific report types
