@@ -1807,24 +1807,6 @@ export function AnalyticsCharts({
     <div className="space-y-6">
       {/* Actions are now filtered by ActionFilterPopover in parent */}
 
-      {/* Selected Restaurants Ranking Evolution Chart - Conversion */}
-      {showConversion && selectedRestaurants.length > 0 && (
-        <SelectedRestaurantsRankingChart
-          restaurants={restaurants}
-          selectedRestaurants={selectedRestaurants}
-          timeSeriesData={conversionByRestaurantTimeSeries}
-          metricLabel="de la conversion"
-          formatValue={formatPercent}
-          granularity={granularity}
-          startDate={chartDateRange.startDate}
-          endDate={chartDateRange.endDate}
-          onMonthClick={(monthKey) => {
-            const month = parseInt(monthKey.split('-')[1], 10);
-            onDrillDownChange?.(month);
-          }}
-          isClickable={granularity === "monthly" && !!onDrillDownChange}
-        />
-      )}
 
       {/* Revenue Chart with N-1 comparison */}
       {showRevenue && (
