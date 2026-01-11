@@ -255,14 +255,38 @@ serve(async (req) => {
 
     console.log(`[parse-item-issues-leaderboard] Processing ${restaurantsData.length} restaurants`);
 
+    // Calculate insert/update stats by checking existing records
+    let toInsert = 0;
+    let toUpdate = 0;
+
+    for (const restData of restaurantsData) {
+      // Fetch existing records for this restaurant and date range
+      const { data: existingRecords } = await supabase
+        .from("product_issues_ranking")
+        .select("item_title")
+        .eq("restaurant_id", restData.id)
+        .eq("date_range_start", dateRangeStart)
+        .eq("date_range_end", dateRangeEnd);
+
+      const existingTitles = new Set(existingRecords?.map(r => r.item_title) || []);
+
+      for (const item of restData.items) {
+        if (existingTitles.has(item.item_title)) {
+          toUpdate++;
+        } else {
+          toInsert++;
+        }
+      }
+    }
+
     const result = {
       success: true,
       reportType: "item_issues_leaderboard",
       dryRun,
       stats: {
         totalRows: parsedItems.length,
-        inserted: 0,
-        updated: 0,
+        inserted: toInsert,
+        updated: toUpdate,
         skipped: skippedDetails.length,
         errors: 0,
       },
