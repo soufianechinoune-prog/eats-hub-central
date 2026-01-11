@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { cn } from "@/lib/utils";
 import { RatingsHeatmapGrid } from "@/components/compare/RatingsHeatmapGrid";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import {
   BarChart,
   Bar,
@@ -40,6 +41,13 @@ const RatingsComparison = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPeriod = (searchParams.get('period') as PeriodType) || 'month';
   const [period, setPeriod] = useState<PeriodType>(initialPeriod);
+
+  const { 
+    setSelectedRestaurants, 
+    setVisibleRestaurants,
+    setPeriodMode, 
+    setDateRange: setContextDateRange 
+  } = useAnalyticsContext();
 
   // Sync period changes with URL
   const handlePeriodChange = (newPeriod: PeriodType) => {
@@ -238,6 +246,20 @@ const RatingsComparison = () => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
   }, [dateRange]);
 
+  // Navigate to reviews page with restaurant and period pre-selected
+  const handleNavigateToReviews = (restaurantId: string) => {
+    // Update context with the selected restaurant
+    setVisibleRestaurants([restaurantId]);
+    setSelectedRestaurants([restaurantId]);
+    
+    // Set period mode to range and apply the current date range
+    setPeriodMode("range");
+    setContextDateRange({ from: dateRange.start, to: dateRange.end });
+    
+    // Navigate to the reviews page
+    navigate("/analytics/reviews");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-6 space-y-6">
@@ -370,7 +392,7 @@ const RatingsComparison = () => {
                         <TableRow 
                           key={resto.id} 
                           className="cursor-pointer hover:bg-muted/50 transition-all duration-300 border-border/30 group"
-                          onClick={() => navigate(`/restaurants/${resto.id}`)}
+                          onClick={() => handleNavigateToReviews(resto.id)}
                         >
                           <TableCell className="font-bold">
                             <Badge 
