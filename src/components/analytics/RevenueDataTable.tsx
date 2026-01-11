@@ -64,30 +64,24 @@ function SortableHeader({ label, field, currentSort, currentDirection, onSort }:
 }
 
 export function RevenueDataTable({ data, showComparison = true, selectedYear, comparisonMode = "yearOverYear" }: RevenueDataTableProps) {
+  // Get analytics context for restaurant export - must be called first unconditionally
+  const analyticsContext = useAnalyticsContext();
+  
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  
   const prevYear = selectedYear - 1;
   const currentLabel = comparisonMode === "rollingPeriod" ? "Actuel" : String(selectedYear);
   const prevLabel = comparisonMode === "rollingPeriod" ? "Préc." : String(prevYear);
 
-  // Get analytics context for restaurant export
-  const {
-    selectedRestaurants,
-    selectedPlatform,
-    periodMode,
-    selectedMonth,
-    dateRange,
-    comparisonMode: ctxComparisonMode,
-  } = useAnalyticsContext();
-
   const { exportToExcel: exportByRestaurant, isLoading: isExportLoading } = useRestaurantConsolidatedExport({
-    restaurantIds: selectedRestaurants,
-    platform: selectedPlatform,
-    periodMode,
+    restaurantIds: analyticsContext.selectedRestaurants,
+    platform: analyticsContext.selectedPlatform,
+    periodMode: analyticsContext.periodMode,
     selectedYear,
-    selectedMonth,
-    dateRange,
-    comparisonMode: ctxComparisonMode,
+    selectedMonth: analyticsContext.selectedMonth,
+    dateRange: analyticsContext.dateRange,
+    comparisonMode: analyticsContext.comparisonMode,
   });
 
   const enrichedData = useMemo(() => data.map(row => ({
@@ -155,7 +149,7 @@ export function RevenueDataTable({ data, showComparison = true, selectedYear, co
             variant="outline" 
             size="sm" 
             onClick={exportByRestaurant} 
-            disabled={isExportLoading || selectedRestaurants.length === 0}
+            disabled={isExportLoading || analyticsContext.selectedRestaurants.length === 0}
             className="gap-2"
           >
             <FileSpreadsheet className="h-4 w-4" />
