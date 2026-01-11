@@ -9,6 +9,8 @@ import { WeatherCorrelation } from "@/components/reviews/WeatherCorrelation";
 import { useCustomerReviews, useMenuItemReviews } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Eye, Users, ChefHat, TrendingUp, Cloud } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Reviews() {
   const {
@@ -58,6 +60,26 @@ export default function Reviews() {
 
   const restaurantIds =
     selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
+
+  // Fetch restaurants data
+  const { data: restaurantsData } = useQuery({
+    queryKey: ["restaurants-for-reviews"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name, city")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Filter restaurants based on selection
+  const filteredRestaurants = useMemo(() => {
+    if (!restaurantsData) return [];
+    if (!restaurantIds || restaurantIds.length === 0) return restaurantsData;
+    return restaurantsData.filter((r) => restaurantIds.includes(r.id));
+  }, [restaurantsData, restaurantIds]);
 
   const {
     data: customerReviews,
@@ -126,7 +148,7 @@ export default function Reviews() {
         </TabsContent>
 
         <TabsContent value="menu" className="mt-6">
-          <ReviewsMenuItems reviews={menuItemReviews || []} />
+          <ReviewsMenuItems reviews={menuItemReviews || []} restaurants={filteredRestaurants} />
         </TabsContent>
 
         <TabsContent value="correlation" className="mt-6">
