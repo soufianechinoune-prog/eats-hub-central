@@ -256,6 +256,21 @@ const RatingsComparison = () => {
     setPeriodMode("range");
     setContextDateRange({ from: dateRange.start, to: dateRange.end });
     
+    // Force localStorage update immediately before navigation
+    const currentState = localStorage.getItem("analytics-context");
+    const state = currentState ? JSON.parse(currentState) : {};
+    const updatedState = {
+      ...state,
+      selectedRestaurants: [restaurantId],
+      visibleRestaurants: [restaurantId],
+      periodMode: "range",
+      dateRange: {
+        from: dateRange.start.toISOString(),
+        to: dateRange.end.toISOString(),
+      },
+    };
+    localStorage.setItem("analytics-context", JSON.stringify(updatedState));
+    
     // Navigate to the reviews page
     navigate("/analytics/reviews");
   };
