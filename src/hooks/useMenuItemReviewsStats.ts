@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { MenuItemReview } from "@/hooks/useReviews";
+import { normalizeName } from "@/lib/fuzzyMatch";
 
 // Tags produits Uber Eats avec traductions françaises
 export const ITEM_POSITIVE_TAGS = [
@@ -147,12 +148,13 @@ export function useMenuItemReviewsStats(reviews: MenuItemReview[]) {
     };
   }, [reviews]);
 
-  // Top/Flop produits
+  // Top/Flop produits - groupés par nom normalisé pour éviter les doublons
   const productStats = useMemo(() => {
-    const byProduct: Record<string, ProductStats> = {};
+    const byProduct: Record<string, ProductStats & { titleCounts: Record<string, number> }> = {};
     
     reviews.forEach(review => {
-      const key = review.item_id || review.item_title;
+      // Utiliser le nom normalisé comme clé pour regrouper les produits similaires
+      const key = normalizeName(review.item_title);
       if (!byProduct[key]) {
         byProduct[key] = {
           itemTitle: review.item_title,
@@ -162,9 +164,12 @@ export function useMenuItemReviewsStats(reviews: MenuItemReview[]) {
           thumbsUp: 0,
           thumbsDown: 0,
           averageRating: 0,
-          approvalRate: 0
+          approvalRate: 0,
+          titleCounts: {}
         };
       }
+      // Compter les occurrences de chaque titre pour garder le plus fréquent
+      byProduct[key].titleCounts[review.item_title] = (byProduct[key].titleCounts[review.item_title] || 0) + 1;
       byProduct[key].totalRating += review.rating;
       byProduct[key].count += 1;
       byProduct[key].thumbsUp += review.thumb_up || 0;
@@ -174,8 +179,16 @@ export function useMenuItemReviewsStats(reviews: MenuItemReview[]) {
     return Object.values(byProduct)
       .map(p => {
         const total = p.thumbsUp + p.thumbsDown;
+        // Utiliser le titre le plus fréquent pour l'affichage
+        const mostFrequentTitle = Object.entries(p.titleCounts)
+          .sort((a, b) => b[1] - a[1])[0]?.[0] || p.itemTitle;
         return {
-          ...p,
+          itemTitle: mostFrequentTitle,
+          itemId: p.itemId,
+          totalRating: p.totalRating,
+          count: p.count,
+          thumbsUp: p.thumbsUp,
+          thumbsDown: p.thumbsDown,
           averageRating: p.count > 0 ? p.totalRating / p.count : 0,
           approvalRate: total > 0 ? (p.thumbsUp / total) * 100 : 0
         };
