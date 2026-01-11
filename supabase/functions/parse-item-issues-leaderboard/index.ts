@@ -342,10 +342,23 @@ serve(async (req) => {
         date_range_end: dateRangeEnd,
       }));
 
+      // Deduplicate records by item_title (keep record with highest volume)
+      const uniqueRecords = Array.from(
+        records.reduce((map, record) => {
+          const existing = map.get(record.item_title);
+          if (!existing || record.volume >= existing.volume) {
+            map.set(record.item_title, record);
+          }
+          return map;
+        }, new Map<string, typeof records[0]>())
+      ).map(([_, record]) => record);
+
+      console.log(`[parse-item-issues-leaderboard] ${restData.name}: ${records.length} records -> ${uniqueRecords.length} after deduplication`);
+
       // Insert in batches of 100
       const batchSize = 100;
-      for (let i = 0; i < records.length; i += batchSize) {
-        const batch = records.slice(i, i + batchSize);
+      for (let i = 0; i < uniqueRecords.length; i += batchSize) {
+        const batch = uniqueRecords.slice(i, i + batchSize);
         
         const { error: upsertError, data: upsertData } = await supabase
           .from("product_issues_ranking")
