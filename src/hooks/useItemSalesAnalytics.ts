@@ -41,33 +41,54 @@ export function useItemSalesAnalytics(
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
 
-  // Fetch aggregated item sales
+  // Fetch aggregated item sales - filter by order_datetime from orders table
   const { data: itemSales, isLoading: loadingSales } = useQuery({
     queryKey: ["item_sales_analytics", restaurantIds, startStr, endStr],
     queryFn: async () => {
-      let query = supabase
-        .from("order_items")
-        .select(`
-          item_id,
-          item_title,
-          category,
-          quantity,
-          unit_price,
-          sales_incl_vat,
-          refund_incl_vat,
-          item_promo_incl_vat,
-          order_id
-        `)
-        .gte("created_at", startStr)
-        .lte("created_at", endStr + "T23:59:59");
+      // First get order_ids from orders within the date range
+      let ordersQuery = supabase
+        .from("orders")
+        .select("id")
+        .gte("order_datetime", startStr)
+        .lte("order_datetime", endStr + "T23:59:59");
 
       if (restaurantIds && restaurantIds.length > 0) {
-        query = query.in("restaurant_id", restaurantIds);
+        ordersQuery = ordersQuery.in("restaurant_id", restaurantIds);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+      const { data: orders, error: ordersError } = await ordersQuery;
+      if (ordersError) throw ordersError;
+      
+      if (!orders || orders.length === 0) return [];
+
+      const orderIds = orders.map(o => o.id);
+      
+      // Fetch items for those orders (batch in chunks to avoid query limits)
+      const chunkSize = 500;
+      const allItems: any[] = [];
+      
+      for (let i = 0; i < orderIds.length; i += chunkSize) {
+        const chunk = orderIds.slice(i, i + chunkSize);
+        const { data: items, error: itemsError } = await supabase
+          .from("order_items")
+          .select(`
+            item_id,
+            item_title,
+            category,
+            quantity,
+            unit_price,
+            sales_incl_vat,
+            refund_incl_vat,
+            item_promo_incl_vat,
+            order_id
+          `)
+          .in("order_id", chunk);
+
+        if (itemsError) throw itemsError;
+        if (items) allItems.push(...items);
+      }
+
+      return allItems;
     },
   });
 
@@ -144,35 +165,58 @@ export function useItemSalesAnalytics(
       .sort((a, b) => b.refund_rate - a.refund_rate);
   }, [aggregatedSales]);
 
-  // Monthly evolution for top products
+  // Monthly evolution for top products - filter by order_datetime
   const { data: monthlyEvolution, isLoading: loadingEvolution } = useQuery({
     queryKey: ["item_sales_evolution", restaurantIds, startStr, endStr],
     queryFn: async () => {
-      let query = supabase
-        .from("order_items")
-        .select(`
-          item_id,
-          item_title,
-          quantity,
-          sales_incl_vat,
-          created_at
-        `)
-        .gte("created_at", startStr)
-        .lte("created_at", endStr + "T23:59:59")
-        .order("created_at");
+      // Get orders with their dates
+      let ordersQuery = supabase
+        .from("orders")
+        .select("id, order_datetime")
+        .gte("order_datetime", startStr)
+        .lte("order_datetime", endStr + "T23:59:59");
 
       if (restaurantIds && restaurantIds.length > 0) {
-        query = query.in("restaurant_id", restaurantIds);
+        ordersQuery = ordersQuery.in("restaurant_id", restaurantIds);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const { data: orders, error: ordersError } = await ordersQuery;
+      if (ordersError) throw ordersError;
+      
+      if (!orders || orders.length === 0) return [];
 
-      // Group by month and item
+      const orderIds = orders.map(o => o.id);
+      const orderDateMap = new Map(orders.map(o => [o.id, o.order_datetime]));
+      
+      // Fetch items in chunks
+      const chunkSize = 500;
+      const allItems: any[] = [];
+      
+      for (let i = 0; i < orderIds.length; i += chunkSize) {
+        const chunk = orderIds.slice(i, i + chunkSize);
+        const { data: items, error: itemsError } = await supabase
+          .from("order_items")
+          .select(`
+            item_id,
+            item_title,
+            quantity,
+            sales_incl_vat,
+            order_id
+          `)
+          .in("order_id", chunk);
+
+        if (itemsError) throw itemsError;
+        if (items) allItems.push(...items);
+      }
+
+      // Group by month (based on order_datetime) and item
       const monthlyMap = new Map<string, ItemSalesEvolution>();
       
-      (data || []).forEach((item) => {
-        const month = format(new Date(item.created_at), "yyyy-MM");
+      allItems.forEach((item) => {
+        const orderDate = orderDateMap.get(item.order_id);
+        if (!orderDate) return;
+        
+        const month = format(new Date(orderDate), "yyyy-MM");
         const key = `${month}-${item.item_id || item.item_title}`;
         
         if (!monthlyMap.has(key)) {
