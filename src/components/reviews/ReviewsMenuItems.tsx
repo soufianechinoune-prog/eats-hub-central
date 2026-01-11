@@ -16,15 +16,23 @@ import { ApprovalRateChart } from "./ApprovalRateChart";
 import { ThumbsDistributionChart } from "./ThumbsDistributionChart";
 import { TopFlopProductsChart } from "./TopFlopProductsChart";
 import { ProductsHeatmap } from "./ProductsHeatmap";
+import { RestaurantSatisfactionRanking } from "./RestaurantSatisfactionRanking";
+
+interface Restaurant {
+  id: string;
+  name: string;
+  city: string;
+}
 
 interface ReviewsMenuItemsProps {
   reviews: MenuItemReview[];
+  restaurants?: Restaurant[];
 }
 
 type SortField = "rank" | "name" | "rate" | "count" | "up" | "down";
 type SortDirection = "asc" | "desc";
 
-export function ReviewsMenuItems({ reviews }: ReviewsMenuItemsProps) {
+export function ReviewsMenuItems({ reviews, restaurants = [] }: ReviewsMenuItemsProps) {
   const [sortField, setSortField] = useState<SortField>("count");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -176,7 +184,15 @@ export function ReviewsMenuItems({ reviews }: ReviewsMenuItemsProps) {
       {/* Ligne 5: Heatmap par jour */}
       <ProductsHeatmap data={dayOfWeekStats} />
 
-      {/* Ligne 6: Tableau classement */}
+      {/* Ligne 6: Classement des établissements par satisfaction */}
+      {restaurants.length > 1 && (
+        <RestaurantSatisfactionRanking 
+          reviews={reviews} 
+          restaurants={restaurants} 
+        />
+      )}
+
+      {/* Ligne 7: Tableau classement */}
       <Card className="backdrop-blur-xl bg-card/70 border-2 shadow-lg">
         <CardHeader>
           <CardTitle>Classement Complet des Plats</CardTitle>
