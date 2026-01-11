@@ -66,7 +66,6 @@ import {
   X,
   Upload,
   ArrowRightLeft,
-  Link2,
   LayoutList,
   LayoutGrid,
   Kanban,
@@ -76,7 +75,7 @@ import { CsvImportDialog } from "@/components/menu/CsvImportDialog";
 import { MenuItemChangeConfirmDialog } from "@/components/menu/MenuItemChangeConfirmDialog";
 import { CatalogComparison } from "@/components/menu/CatalogComparison";
 import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
-import { ProductMatcher } from "@/components/menu/ProductMatcher";
+
 import { FoodCostManager } from "@/components/menu/FoodCostManager";
 import { OfferSimulator } from "@/components/menu/OfferSimulator";
 import { RestaurantPriceComparison } from "@/components/menu/RestaurantPriceComparison";
@@ -438,7 +437,7 @@ export default function MenuItems() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "matcher" | "foodcost" | "simulator" | "prices">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "foodcost" | "simulator" | "prices">("catalog");
   
   // Restaurant price comparison state (persisted across tabs)
   const [priceComparisonRestaurantIds, setPriceComparisonRestaurantIds] = useState<string[]>([]);
@@ -448,7 +447,6 @@ export default function MenuItems() {
     { value: "catalog", label: "Catalogue", icon: Package, color: "text-emerald-500", bgActive: "bg-emerald-500/15", borderActive: "border-emerald-500/40" },
     { value: "comparison", label: "Comparaison", icon: ArrowRightLeft, color: "text-blue-500", bgActive: "bg-blue-500/15", borderActive: "border-blue-500/40" },
     { value: "prices", label: "Prix Restaurants", icon: Euro, color: "text-rose-500", bgActive: "bg-rose-500/15", borderActive: "border-rose-500/40" },
-    { value: "matcher", label: "Matcher", icon: Link2, color: "text-purple-500", bgActive: "bg-purple-500/15", borderActive: "border-purple-500/40" },
     { value: "foodcost", label: "Food Cost", icon: Calculator, color: "text-amber-500", bgActive: "bg-amber-500/15", borderActive: "border-amber-500/40" },
     { value: "simulator", label: "Simulateur", icon: TrendingUp, color: "text-orange-500", bgActive: "bg-orange-500/15", borderActive: "border-orange-500/40" },
   ] as const;
@@ -936,7 +934,7 @@ export default function MenuItems() {
       </motion.div>
 
       {/* Tabs for Catalog / Comparison */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "matcher" | "foodcost" | "simulator")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "foodcost" | "simulator" | "prices")}>
         <TabsList className="h-auto p-1.5 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/40 shadow-lg rounded-xl gap-1">
           {tabConfig.map((tab) => {
             const Icon = tab.icon;
@@ -962,9 +960,6 @@ export default function MenuItems() {
           <CatalogComparison menuItems={menuItems} onRefresh={fetchMenuItems} />
         </TabsContent>
 
-        <TabsContent value="matcher" className="mt-6">
-          <ProductMatcher menuItems={menuItems} onRefresh={fetchMenuItems} />
-        </TabsContent>
 
         <TabsContent value="foodcost" className="mt-6">
           <FoodCostManager menuItems={menuItems} onRefresh={fetchMenuItems} />
