@@ -16,6 +16,7 @@ interface RestaurantStat {
 
 interface InaccurateOrdersRankingBarsProps {
   stats: RestaurantStat[];
+  dateRange: { start: Date; end: Date };
 }
 
 const getMedal = (index: number): string => {
@@ -41,17 +42,34 @@ const getStatusLabel = (errorRate: number): { text: string; color: string } => {
   return { text: "Critique", color: "text-red-500" };
 };
 
-export const InaccurateOrdersRankingBars = ({ stats }: InaccurateOrdersRankingBarsProps) => {
+export const InaccurateOrdersRankingBars = ({ stats, dateRange }: InaccurateOrdersRankingBarsProps) => {
   const navigate = useNavigate();
-  const { toggleRestaurantSelection, setSelectedMonth, setSelectedYear, setPeriodMode } = useAnalyticsContext();
+  const { toggleRestaurantSelection, setPeriodMode, setDateRange: setContextDateRange } = useAnalyticsContext();
   
   // Sort by error rate (lowest first = best)
   const sortedStats = [...stats].sort((a, b) => a.errorRate - b.errorRate);
   const maxErrorRate = Math.max(...sortedStats.map(s => s.errorRate), 1);
 
   const handleRestaurantClick = (restaurantId: string) => {
+    // Update context
     toggleRestaurantSelection(restaurantId);
-    // Navigate to Operations Analytics with orderErrors tab, preserving current period context
+    setPeriodMode("range");
+    setContextDateRange({ from: dateRange.start, to: dateRange.end });
+    
+    // Force localStorage update immediately before navigation
+    const currentState = localStorage.getItem("analytics-context");
+    const state = currentState ? JSON.parse(currentState) : {};
+    const updatedState = {
+      ...state,
+      periodMode: "range",
+      dateRange: {
+        from: dateRange.start.toISOString(),
+        to: dateRange.end.toISOString(),
+      },
+    };
+    localStorage.setItem("analytics-context", JSON.stringify(updatedState));
+    
+    // Navigate to Operations Analytics with orderErrors tab
     navigate("/analytics/operations?tab=orderErrors");
   };
 

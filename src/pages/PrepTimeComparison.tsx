@@ -201,7 +201,7 @@ const PrepTimeComparison = () => {
                 <CardTitle className="text-lg">Classement par rapidité</CardTitle>
               </CardHeader>
               <CardContent>
-                <PrepTimeRankingBars stats={restaurantStats} />
+                <PrepTimeRankingBars stats={restaurantStats} dateRange={dateRange} />
               </CardContent>
             </Card>
 
