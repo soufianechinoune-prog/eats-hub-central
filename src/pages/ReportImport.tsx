@@ -1276,13 +1276,24 @@ export default function ReportImport() {
 
                   {/* Unknown store IDs warning */}
                   {validationResult.validation?.unknownStoreIds && validationResult.validation.unknownStoreIds.length > 0 && (
-                    <Alert variant="destructive">
+                    <Alert variant={selectedRestaurantId ? "default" : "destructive"}>
                       <AlertTriangle className="h-4 w-4" />
-                      <AlertTitle>Restaurants non configurés</AlertTitle>
+                      <AlertTitle>
+                        {selectedRestaurantId ? "Store ID non reconnu (non bloquant)" : "Restaurants non configurés"}
+                      </AlertTitle>
                       <AlertDescription>
                         <p className="mb-2">
-                          {validationResult.validation.unknownStoreIds.length} uber_store_id(s) non trouvé(s) dans la base :
+                          {validationResult.validation.unknownStoreIds.length} store_id(s) trouvé(s) dans le fichier mais non configuré(s) :
                         </p>
+                        {selectedRestaurantId ? (
+                          <p className="mb-2 text-sm text-muted-foreground">
+                            Comme vous avez sélectionné un restaurant manuellement, l’import associera quand même toutes les lignes à ce restaurant.
+                          </p>
+                        ) : (
+                          <p className="mb-2 text-sm text-muted-foreground">
+                            Si le fichier contient plusieurs restaurants, ceux dont le store_id n’est pas configuré risquent d’être ignorés.
+                          </p>
+                        )}
                         <div className="flex flex-wrap gap-2">
                           {validationResult.validation.unknownStoreIds.slice(0, 10).map((id) => (
                             <Badge key={id} variant="outline" className="font-mono text-xs">
