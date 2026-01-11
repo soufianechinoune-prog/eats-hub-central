@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import type { DateRange } from "react-day-picker";
 import { supabase } from "@/integrations/supabase/client";
+import { useAnalyticsContext, PeriodMode } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,44 @@ const Overview = () => {
   const contentRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { exportToPdf, exportToExcel, isExporting } = useOverviewExport();
+  
+  // Analytics context for navigation to Finances
+  const {
+    setSelectedRestaurants,
+    setVisibleRestaurants,
+    setPeriodMode: setAnalyticsPeriodMode,
+    setSelectedYear: setAnalyticsYear,
+    setSelectedMonth: setAnalyticsMonth,
+    setDateRange: setAnalyticsDateRange,
+  } = useAnalyticsContext();
+
+  // Navigate to Finances & Frais with restaurant and period pre-selected
+  const navigateToFinances = (restaurantId: string) => {
+    // Select only this restaurant
+    setSelectedRestaurants([restaurantId]);
+    setVisibleRestaurants([restaurantId]);
+    
+    // Map Overview periodMode to Analytics periodMode
+    const analyticsMode: PeriodMode = 
+      periodMode === "previous_week" ? "previous_week" :
+      periodMode === "7d" ? "7d" :
+      periodMode === "30d" ? "30d" :
+      periodMode === "current_month" ? "current_month" :
+      periodMode === "year" ? "year" :
+      periodMode === "custom_month" ? "month" :
+      periodMode === "custom_range" ? "range" : "previous_week";
+    
+    setAnalyticsPeriodMode(analyticsMode);
+    setAnalyticsYear(selectedYear);
+    setAnalyticsMonth(selectedMonth);
+    
+    if (dateRange) {
+      setAnalyticsDateRange(dateRange);
+    }
+    
+    // Navigate to Finances tab
+    navigate("/analytics/finances");
+  };
 
   const isCustomPeriod = periodMode !== defaultPeriodMode;
 
@@ -1039,7 +1078,7 @@ const Overview = () => {
                           <TableRow 
                             key={resto.id} 
                             className="cursor-pointer hover:bg-emerald-500/5 transition-all duration-300 border-border/30 group"
-                            onClick={() => navigate(`/restaurants/${resto.id}`)}
+                            onClick={() => navigateToFinances(resto.id)}
                           >
                             <TableCell className="font-bold">
                               <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-base h-8 w-8 flex items-center justify-center rounded-lg">
@@ -1085,7 +1124,7 @@ const Overview = () => {
                           <TableRow 
                             key={resto.id} 
                             className="cursor-pointer hover:bg-red-500/5 transition-all duration-300 border-border/30 group"
-                            onClick={() => navigate(`/restaurants/${resto.id}`)}
+                            onClick={() => navigateToFinances(resto.id)}
                           >
                             <TableCell className="font-bold">
                               <Badge variant="secondary" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 text-base h-8 w-8 flex items-center justify-center rounded-lg">
