@@ -342,139 +342,131 @@ export function useRestaurantConsolidatedExport({
     });
   }, [restaurants, currentPayouts, currentOrders, prevPayouts, prevOrders, platform]);
 
+  // Generate period label for display and filename
+  const getPeriodInfo = useCallback(() => {
+    let label = "";
+    let filenamePart = "";
+    
+    switch (periodMode) {
+      case "year":
+        label = `Année ${selectedYear}`;
+        filenamePart = `${selectedYear}`;
+        break;
+      case "month":
+        label = format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM yyyy", { locale: fr });
+        filenamePart = format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM_yyyy", { locale: fr });
+        break;
+      case "range":
+        if (dateRange?.from && dateRange?.to) {
+          label = `${format(dateRange.from, "dd/MM/yyyy")} - ${format(dateRange.to, "dd/MM/yyyy")}`;
+          filenamePart = `${format(dateRange.from, "dd-MM-yyyy")}_au_${format(dateRange.to, "dd-MM-yyyy")}`;
+        } else {
+          label = "Période personnalisée";
+          filenamePart = "periode_personnalisee";
+        }
+        break;
+      case "7d":
+        label = `7 derniers jours (${format(currentStart, "dd/MM")} - ${format(currentEnd, "dd/MM/yyyy")})`;
+        filenamePart = `7j_${format(currentEnd, "dd-MM-yyyy")}`;
+        break;
+      case "30d":
+        label = `30 derniers jours (${format(currentStart, "dd/MM")} - ${format(currentEnd, "dd/MM/yyyy")})`;
+        filenamePart = `30j_${format(currentEnd, "dd-MM-yyyy")}`;
+        break;
+      case "current_month":
+        label = `Mois en cours (${format(currentStart, "dd/MM")} - ${format(currentEnd, "dd/MM/yyyy")})`;
+        filenamePart = `mois_en_cours_${format(currentEnd, "dd-MM-yyyy")}`;
+        break;
+      case "previous_week":
+        label = `Semaine dernière (${format(currentStart, "dd/MM")} - ${format(currentEnd, "dd/MM/yyyy")})`;
+        filenamePart = `semaine_${format(currentStart, "dd-MM-yyyy")}_au_${format(currentEnd, "dd-MM-yyyy")}`;
+        break;
+      default:
+        label = "";
+        filenamePart = "export";
+    }
+    
+    return { label, filenamePart };
+  }, [periodMode, selectedYear, selectedMonth, dateRange, currentStart, currentEnd]);
+
   // Export function
   const exportToExcel = useCallback(() => {
     if (consolidatedData.length === 0) return;
 
-    const calcVar = (curr: number, prev: number): string => {
-      if (prev === 0) return curr > 0 ? "+100%" : "--";
-      const variation = ((curr - prev) / prev) * 100;
-      return `${variation > 0 ? "+" : ""}${variation.toFixed(1)}%`;
-    };
+    const { label: periodLabel, filenamePart } = getPeriodInfo();
 
-    const periodLabel = (() => {
-      switch (periodMode) {
-        case "year":
-          return `Année ${selectedYear}`;
-        case "month":
-          return format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM yyyy", { locale: fr });
-        case "range":
-          if (dateRange?.from && dateRange?.to) {
-            return `${format(dateRange.from, "dd/MM/yyyy")} - ${format(dateRange.to, "dd/MM/yyyy")}`;
-          }
-          return "Période personnalisée";
-        case "7d":
-          return "7 derniers jours";
-        case "30d":
-          return "30 derniers jours";
-        case "current_month":
-          return "Mois en cours";
-        case "previous_week":
-          return "Semaine dernière";
-        default:
-          return "";
-      }
-    })();
-
-    const exportData = consolidatedData.map((d) => ({
-      Restaurant: d.restaurantName,
-      Plateforme: d.platform,
-      "CA TTC (€)": d.revenue.toFixed(2),
-      "CA N-1 (€)": d.prevRevenue.toFixed(2),
-      "Évol. CA": calcVar(d.revenue, d.prevRevenue),
-      Commandes: d.orders,
-      "Cmd N-1": d.prevOrders,
-      "Évol. Cmd": calcVar(d.orders, d.prevOrders),
-      "Panier Moy. (€)": d.avgBasket.toFixed(2),
-      "Panier N-1 (€)": d.prevAvgBasket.toFixed(2),
-      "Évol. Panier": calcVar(d.avgBasket, d.prevAvgBasket),
-      "Résultat Net (€)": d.netPayout.toFixed(2),
-      "Résultat N-1 (€)": d.prevNetPayout.toFixed(2),
-      "Évol. Résultat": calcVar(d.netPayout, d.prevNetPayout),
-      "Marge (%)": d.marginRate.toFixed(1),
-      "Titres-Restaurant (€)": d.mealVoucher.toFixed(2),
-      "% TR": d.mealVoucherRate.toFixed(1),
-      "Frais Uber (€)": d.uberFee.toFixed(2),
-      "Offres Articles (€)": d.itemPromo.toFixed(2),
-      "Remboursements (€)": d.refunds.toFixed(2),
-    }));
+    // Simplified export data with 7 columns as requested
+    const exportData = consolidatedData.map((d) => {
+      const netPayoutWithoutMealVoucher = d.netPayout - d.mealVoucher;
+      return {
+        "Restaurant": d.restaurantName,
+        "Chiffre d'affaires TTC": d.revenue.toFixed(2),
+        "Résultat Net TTC": d.netPayout.toFixed(2),
+        "Taux Marge Brut (%)": d.marginRate.toFixed(1),
+        "Résultat Net hors TR": netPayoutWithoutMealVoucher.toFixed(2),
+        "Titres-Restaurants": d.mealVoucher.toFixed(2),
+        "% Titres-Restaurants": d.mealVoucherRate.toFixed(1),
+        "Offres Articles": d.itemPromo.toFixed(2),
+      };
+    });
 
     // Add totals row
     const totals = consolidatedData.reduce(
       (acc, d) => ({
         revenue: acc.revenue + d.revenue,
-        prevRevenue: acc.prevRevenue + d.prevRevenue,
-        orders: acc.orders + d.orders,
-        prevOrders: acc.prevOrders + d.prevOrders,
         netPayout: acc.netPayout + d.netPayout,
-        prevNetPayout: acc.prevNetPayout + d.prevNetPayout,
         mealVoucher: acc.mealVoucher + d.mealVoucher,
-        uberFee: acc.uberFee + d.uberFee,
         itemPromo: acc.itemPromo + d.itemPromo,
-        refunds: acc.refunds + d.refunds,
       }),
-      { revenue: 0, prevRevenue: 0, orders: 0, prevOrders: 0, netPayout: 0, prevNetPayout: 0, mealVoucher: 0, uberFee: 0, itemPromo: 0, refunds: 0 }
+      { revenue: 0, netPayout: 0, mealVoucher: 0, itemPromo: 0 }
     );
 
-    const totalAvgBasket = totals.orders > 0 ? totals.revenue / totals.orders : 0;
-    const prevTotalAvgBasket = totals.prevOrders > 0 ? totals.prevRevenue / totals.prevOrders : 0;
     const totalMarginRate = totals.revenue > 0 ? (totals.netPayout / totals.revenue) * 100 : 0;
     const totalMealVoucherRate = totals.revenue > 0 ? (totals.mealVoucher / totals.revenue) * 100 : 0;
+    const totalNetWithoutMealVoucher = totals.netPayout - totals.mealVoucher;
 
     exportData.push({
-      Restaurant: `TOTAL (${consolidatedData.length} restaurants)`,
-      Plateforme: "",
-      "CA TTC (€)": totals.revenue.toFixed(2),
-      "CA N-1 (€)": totals.prevRevenue.toFixed(2),
-      "Évol. CA": calcVar(totals.revenue, totals.prevRevenue),
-      Commandes: totals.orders,
-      "Cmd N-1": totals.prevOrders,
-      "Évol. Cmd": calcVar(totals.orders, totals.prevOrders),
-      "Panier Moy. (€)": totalAvgBasket.toFixed(2),
-      "Panier N-1 (€)": prevTotalAvgBasket.toFixed(2),
-      "Évol. Panier": calcVar(totalAvgBasket, prevTotalAvgBasket),
-      "Résultat Net (€)": totals.netPayout.toFixed(2),
-      "Résultat N-1 (€)": totals.prevNetPayout.toFixed(2),
-      "Évol. Résultat": calcVar(totals.netPayout, totals.prevNetPayout),
-      "Marge (%)": totalMarginRate.toFixed(1),
-      "Titres-Restaurant (€)": totals.mealVoucher.toFixed(2),
-      "% TR": totalMealVoucherRate.toFixed(1),
-      "Frais Uber (€)": totals.uberFee.toFixed(2),
-      "Offres Articles (€)": totals.itemPromo.toFixed(2),
-      "Remboursements (€)": totals.refunds.toFixed(2),
+      "Restaurant": `TOTAL (${consolidatedData.length} restaurants)`,
+      "Chiffre d'affaires TTC": totals.revenue.toFixed(2),
+      "Résultat Net TTC": totals.netPayout.toFixed(2),
+      "Taux Marge Brut (%)": totalMarginRate.toFixed(1),
+      "Résultat Net hors TR": totalNetWithoutMealVoucher.toFixed(2),
+      "Titres-Restaurants": totals.mealVoucher.toFixed(2),
+      "% Titres-Restaurants": totalMealVoucherRate.toFixed(1),
+      "Offres Articles": totals.itemPromo.toFixed(2),
     });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    // Create worksheet with period header
+    const ws = XLSX.utils.aoa_to_sheet([
+      [`Période : ${periodLabel}`],
+      [], // Empty row for spacing
+    ]);
+
+    // Append the data below the header
+    XLSX.utils.sheet_add_json(ws, exportData, { origin: "A3" });
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Récapitulatif Restaurants");
 
     // Set column widths
     ws["!cols"] = [
       { wch: 35 }, // Restaurant
-      { wch: 12 }, // Plateforme
-      { wch: 12 }, // CA TTC
-      { wch: 12 }, // CA N-1
-      { wch: 10 }, // Évol. CA
-      { wch: 10 }, // Commandes
-      { wch: 10 }, // Cmd N-1
-      { wch: 10 }, // Évol. Cmd
-      { wch: 12 }, // Panier Moy
-      { wch: 12 }, // Panier N-1
-      { wch: 10 }, // Évol. Panier
-      { wch: 14 }, // Résultat Net
-      { wch: 14 }, // Résultat N-1
-      { wch: 12 }, // Évol. Résultat
-      { wch: 10 }, // Marge %
-      { wch: 16 }, // TR
-      { wch: 8 },  // % TR
-      { wch: 14 }, // Frais Uber
-      { wch: 16 }, // Offres
-      { wch: 16 }, // Remboursements
+      { wch: 20 }, // CA TTC
+      { wch: 18 }, // Résultat Net TTC
+      { wch: 18 }, // Taux Marge Brut
+      { wch: 20 }, // Résultat Net hors TR
+      { wch: 18 }, // Titres-Restaurants
+      { wch: 18 }, // % TR
+      { wch: 16 }, // Offres Articles
     ];
 
-    const fileName = `recap_restaurants_${format(currentStart, "yyyyMMdd")}_${format(currentEnd, "yyyyMMdd")}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-  }, [consolidatedData, periodMode, selectedYear, selectedMonth, dateRange, currentStart, currentEnd]);
+    // Merge cells for period header
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }];
+
+    // Generate filename with period
+    const filename = `Récapitulatif_Restaurants_${filenamePart}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  }, [consolidatedData, periodMode, selectedYear, selectedMonth, dateRange, currentStart, currentEnd, getPeriodInfo]);
 
   return {
     consolidatedData,
