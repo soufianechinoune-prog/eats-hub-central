@@ -13,6 +13,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { formatPhoneNumber } from "@/lib/utils";
 import OpeningHoursEditor from "@/components/restaurants/OpeningHoursEditor";
 import { OpeningHoursAnalytics } from "@/components/restaurants/OpeningHoursAnalytics";
+import { RestaurantDocuments } from "@/components/restaurants/RestaurantDocuments";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -485,6 +486,9 @@ const RestaurantDetail = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Documents */}
+      <RestaurantDocuments restaurantId={id!} />
 
       {/* Opening Hours Analytics */}
       <OpeningHoursAnalytics restaurantId={id!} restaurantName={restaurant.name} />

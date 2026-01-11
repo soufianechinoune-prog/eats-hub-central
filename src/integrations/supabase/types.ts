@@ -2324,6 +2324,53 @@ export type Database = {
           },
         ]
       }
+      restaurant_documents: {
+        Row: {
+          created_at: string
+          document_type: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          uploaded_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_type?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          notes?: string | null
+          restaurant_id: string
+          uploaded_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_type?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          notes?: string | null
+          restaurant_id?: string
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_documents_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_menu_prices: {
         Row: {
           created_at: string
