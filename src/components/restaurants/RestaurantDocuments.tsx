@@ -24,15 +24,22 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   FileText,
-  Upload,
   Trash2,
-  ExternalLink,
+  Eye,
+  Download,
   File,
   FileImage,
   Loader2,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -83,6 +90,11 @@ export function RestaurantDocuments({ restaurantId }: RestaurantDocumentsProps) 
   const [isUploading, setIsUploading] = useState(false);
   const [selectedDocType, setSelectedDocType] = useState<DocumentType>("kbis");
   const [notes, setNotes] = useState("");
+  const [previewDoc, setPreviewDoc] = useState<{
+    url: string;
+    fileName: string;
+    fileType: string;
+  } | null>(null);
 
   // Fetch documents
   const { data: documents = [], isLoading } = useQuery({
@@ -191,6 +203,38 @@ export function RestaurantDocuments({ restaurantId }: RestaurantDocumentsProps) 
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const handlePreview = (doc: { file_path: string; file_name: string; file_type: string }) => {
+    const url = getPublicUrl(doc.file_path);
+    setPreviewDoc({
+      url,
+      fileName: doc.file_name,
+      fileType: doc.file_type,
+    });
+  };
+
+  const handleDownload = async (filePath: string, fileName: string) => {
+    const url = getPublicUrl(filePath);
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error("Download error:", error);
+      toast({ title: "Erreur", description: "Impossible de télécharger le fichier", variant: "destructive" });
+    }
+  };
+
+  const isPreviewable = (fileType: string) => {
+    return fileType.startsWith("image/") || fileType === "application/pdf";
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center gap-2 pb-4">
@@ -292,13 +336,23 @@ export function RestaurantDocuments({ restaurantId }: RestaurantDocumentsProps) 
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {isPreviewable(doc.file_type) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePreview(doc)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Voir
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(getPublicUrl(doc.file_path), "_blank")}
+                    onClick={() => handleDownload(doc.file_path, doc.file_name)}
                   >
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    Voir
+                    <Download className="h-4 w-4 mr-1" />
+                    Télécharger
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -329,6 +383,41 @@ export function RestaurantDocuments({ restaurantId }: RestaurantDocumentsProps) 
             ))}
           </div>
         )}
+
+        {/* Preview Modal */}
+        <Dialog open={!!previewDoc} onOpenChange={() => setPreviewDoc(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-between">
+                <span className="truncate pr-4">{previewDoc?.fileName}</span>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto">
+              {previewDoc?.fileType.startsWith("image/") ? (
+                <img
+                  src={previewDoc.url}
+                  alt={previewDoc.fileName}
+                  className="w-full h-auto max-h-[70vh] object-contain"
+                />
+              ) : previewDoc?.fileType === "application/pdf" ? (
+                <iframe
+                  src={previewDoc.url}
+                  className="w-full h-[70vh]"
+                  title={previewDoc.fileName}
+                />
+              ) : null}
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => previewDoc && handleDownload(previewDoc.url, previewDoc.fileName)}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Télécharger
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
