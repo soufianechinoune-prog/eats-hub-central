@@ -201,27 +201,6 @@ const RestaurantDetail = () => {
     );
   }
 
-  const dataEntryLinks = [
-    {
-      title: "CA & Commandes",
-      description: "Saisir le chiffre d'affaires et nombre de commandes",
-      icon: TrendingUp,
-      href: `/data-entry?restaurant=${id}&tab=revenue`,
-    },
-    {
-      title: "Conversion",
-      description: "Saisir les métriques de conversion (visites, vues, paniers)",
-      icon: BarChart3,
-      href: `/data-entry?restaurant=${id}&tab=conversion`,
-    },
-    {
-      title: "Frais",
-      description: "Saisir les frais mensuels (commissions, marketing, offres)",
-      icon: Receipt,
-      href: `/data-entry?restaurant=${id}&tab=fees`,
-    },
-  ];
-
   const renderField = (label: string, field: string, type: string = "text", placeholder?: string) => {
     const value = isEditing ? formData[field] : (restaurant as Record<string, unknown>)[field];
     
@@ -349,33 +328,6 @@ const RestaurantDetail = () => {
             )}
           </div>
         </div>
-
-      {/* Quick Actions - Data Entry */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Saisie de données</CardTitle>
-          <CardDescription>Accédez rapidement aux formulaires de saisie pour ce restaurant</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {dataEntryLinks.map((link) => (
-              <Link
-                key={link.href}
-                to={link.href}
-                className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-              >
-                <div className="p-2 rounded-md bg-primary/10">
-                  <link.icon className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">{link.title}</p>
-                  <p className="text-sm text-muted-foreground">{link.description}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Restaurant Info Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
