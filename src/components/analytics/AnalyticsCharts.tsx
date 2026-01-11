@@ -224,6 +224,9 @@ interface AnalyticsChartsProps {
   startMonth?: number;
   endMonth?: number;
   selectedYear: number;
+  // Direct date range props for cross-year periods
+  startDate?: Date;
+  endDate?: Date;
   showComparison?: boolean;
   actions?: RestaurantAction[];
   chartActionsConfig?: ChartActionsConfig;
@@ -502,6 +505,8 @@ export function AnalyticsCharts({
   startMonth = 1,
   endMonth = 12,
   selectedYear,
+  startDate: propStartDate,
+  endDate: propEndDate,
   showComparison = true,
   actions,
   chartActionsConfig,
@@ -3244,12 +3249,12 @@ export function AnalyticsCharts({
         <OrdersAnalysisSection
           restaurants={restaurants}
           selectedRestaurants={selectedRestaurants || []}
-          startDate={(() => {
+          startDate={propStartDate || (() => {
             const year = selectedYear;
             const month = drillDownMonth ?? startMonth ?? 1;
             return new Date(year, month - 1, 1);
           })()}
-          endDate={(() => {
+          endDate={propEndDate || (() => {
             const year = selectedYear;
             const month = drillDownMonth ?? endMonth ?? 12;
             return new Date(year, month, 0); // Last day of month

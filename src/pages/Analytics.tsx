@@ -1214,6 +1214,8 @@ export default function Analytics() {
                   startMonth={effectiveStartMonth}
                   endMonth={effectiveEndMonth}
                   selectedYear={selectedYear}
+                  startDate={startDate}
+                  endDate={endDate}
                   actions={currentActions}
                   chartActionsConfig={chartActionsConfig}
                   onChartActionsConfigChange={handleChartActionsConfigChange}
