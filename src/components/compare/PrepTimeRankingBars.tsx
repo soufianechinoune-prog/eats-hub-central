@@ -14,6 +14,7 @@ interface RestaurantStat {
 
 interface PrepTimeRankingBarsProps {
   stats: RestaurantStat[];
+  dateRange: { start: Date; end: Date };
 }
 
 const formatMinutesToDisplay = (minutes: number): string => {
@@ -48,20 +49,35 @@ const getStatusLabel = (prepTime: number): { text: string; color: string } => {
   return { text: "Lent", color: "text-red-500" };
 };
 
-export const PrepTimeRankingBars = ({ stats }: PrepTimeRankingBarsProps) => {
+export const PrepTimeRankingBars = ({ stats, dateRange }: PrepTimeRankingBarsProps) => {
   const navigate = useNavigate();
-  const { toggleRestaurantSelection, setSelectedMonth, setSelectedYear, setPeriodMode } = useAnalyticsContext();
+  const { toggleRestaurantSelection, setPeriodMode, setDateRange: setContextDateRange } = useAnalyticsContext();
   
   // Sort by prep time (fastest first)
   const sortedStats = [...stats].sort((a, b) => a.avgPrepTime - b.avgPrepTime);
   const maxPrepTime = Math.max(...sortedStats.map(s => s.avgPrepTime), 1);
 
   const handleRestaurantClick = (restaurantId: string) => {
+    // Update context
     toggleRestaurantSelection(restaurantId);
-    setPeriodMode("month");
-    setSelectedMonth(new Date().getMonth() + 1);
-    setSelectedYear(new Date().getFullYear());
-    navigate("/analytics/operations");
+    setPeriodMode("range");
+    setContextDateRange({ from: dateRange.start, to: dateRange.end });
+    
+    // Force localStorage update immediately before navigation
+    const currentState = localStorage.getItem("analytics-context");
+    const state = currentState ? JSON.parse(currentState) : {};
+    const updatedState = {
+      ...state,
+      periodMode: "range",
+      dateRange: {
+        from: dateRange.start.toISOString(),
+        to: dateRange.end.toISOString(),
+      },
+    };
+    localStorage.setItem("analytics-context", JSON.stringify(updatedState));
+    
+    // Navigate with tab parameter for wait time
+    navigate("/analytics/operations?tab=waitTime");
   };
 
   if (sortedStats.length === 0) {

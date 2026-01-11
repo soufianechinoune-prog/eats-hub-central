@@ -294,7 +294,7 @@ const InaccurateOrdersComparison = () => {
                 <CardTitle className="text-lg">Classement par taux d'erreur</CardTitle>
               </CardHeader>
               <CardContent>
-                <InaccurateOrdersRankingBars stats={restaurantStats} />
+                <InaccurateOrdersRankingBars stats={restaurantStats} dateRange={dateRange} />
               </CardContent>
             </Card>
 
