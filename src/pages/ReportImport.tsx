@@ -391,7 +391,7 @@ export default function ReportImport() {
 
   const parsePreview = (content: string) => {
     const lines = content.split("\n").filter((line) => line.trim());
-    if (lines.length < 3) {
+    if (lines.length < 2) {
       toast({
         title: "Fichier invalide",
         description: "Le fichier CSV semble vide ou mal formaté",
