@@ -8,9 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowUpDown, ArrowUp, ArrowDown, Minus, Download } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Minus, Download, FileSpreadsheet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import { useRestaurantConsolidatedExport } from "@/hooks/useRestaurantConsolidatedExport";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 interface RevenueDataPoint {
   month: string;
@@ -67,6 +69,26 @@ export function RevenueDataTable({ data, showComparison = true, selectedYear, co
   const prevYear = selectedYear - 1;
   const currentLabel = comparisonMode === "rollingPeriod" ? "Actuel" : String(selectedYear);
   const prevLabel = comparisonMode === "rollingPeriod" ? "Préc." : String(prevYear);
+
+  // Get analytics context for restaurant export
+  const {
+    selectedRestaurants,
+    selectedPlatform,
+    periodMode,
+    selectedMonth,
+    dateRange,
+    comparisonMode: ctxComparisonMode,
+  } = useAnalyticsContext();
+
+  const { exportToExcel: exportByRestaurant, isLoading: isExportLoading } = useRestaurantConsolidatedExport({
+    restaurantIds: selectedRestaurants,
+    platform: selectedPlatform,
+    periodMode,
+    selectedYear,
+    selectedMonth,
+    dateRange,
+    comparisonMode: ctxComparisonMode,
+  });
 
   const enrichedData = useMemo(() => data.map(row => ({
     ...row,
@@ -128,7 +150,22 @@ export function RevenueDataTable({ data, showComparison = true, selectedYear, co
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{sortedData.length} période{sortedData.length > 1 ? "s" : ""}</p>
-        <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2"><Download className="h-4 w-4" />Export Excel</Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={exportByRestaurant} 
+            disabled={isExportLoading || selectedRestaurants.length === 0}
+            className="gap-2"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export par Restaurant
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2">
+            <Download className="h-4 w-4" />
+            Export Excel
+          </Button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <Table>
