@@ -33,7 +33,9 @@ import {
   ChevronRight,
   ArrowLeftRight,
   CalendarDays,
+  LayoutList,
 } from "lucide-react";
+import { RevenueDataTable } from "./RevenueDataTable";
 import { ConversionFunnelChart } from "./ConversionFunnelChart";
 import {
   useProcessedContextualEvents,
@@ -555,6 +557,9 @@ export function AnalyticsCharts({
   
   // Chart type toggle state (bar or line)
   const [revenueChartType, setRevenueChartType] = useState<'bar' | 'line'>('bar');
+  
+  // View mode toggle state (chart or table)
+  const [revenueViewMode, setRevenueViewMode] = useState<'chart' | 'table'>('chart');
   
   // Objectif de conversion configurable (persisté dans localStorage)
   const [conversionTarget, setConversionTarget] = useState<number>(() => {
@@ -1961,25 +1966,49 @@ export function AnalyticsCharts({
               );
             })()}
             
-            {/* Chart Type Toggle */}
+            {/* View Mode Toggle (Chart/Table) */}
             <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
               <Button 
-                variant={revenueChartType === 'bar' ? 'secondary' : 'ghost'} 
+                variant={revenueViewMode === 'chart' ? 'secondary' : 'ghost'} 
                 size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => setRevenueChartType('bar')}
+                className="h-7 px-2 gap-1"
+                onClick={() => setRevenueViewMode('chart')}
               >
                 <BarChart3 className="h-4 w-4" />
+                <span className="text-xs hidden sm:inline">Graphique</span>
               </Button>
               <Button 
-                variant={revenueChartType === 'line' ? 'secondary' : 'ghost'} 
+                variant={revenueViewMode === 'table' ? 'secondary' : 'ghost'} 
                 size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => setRevenueChartType('line')}
+                className="h-7 px-2 gap-1"
+                onClick={() => setRevenueViewMode('table')}
               >
-                <TrendingUp className="h-4 w-4" />
+                <LayoutList className="h-4 w-4" />
+                <span className="text-xs hidden sm:inline">Tableau</span>
               </Button>
             </div>
+            
+            {/* Chart Type Toggle (only visible in chart mode) */}
+            {revenueViewMode === 'chart' && (
+              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                <Button 
+                  variant={revenueChartType === 'bar' ? 'secondary' : 'ghost'} 
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => setRevenueChartType('bar')}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant={revenueChartType === 'line' ? 'secondary' : 'ghost'} 
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => setRevenueChartType('line')}
+                >
+                  <TrendingUp className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
             
             {/* Rolling Period Toggle - only for 2025+ with daily data */}
             {selectedYear >= 2025 && onComparisonModeChange && (
@@ -2025,23 +2054,15 @@ export function AnalyticsCharts({
           </div>
         </CardHeader>
         <CardContent>
-          {/* Interactive Legend */}
-          <InteractiveLegend
-            items={[
-              { key: 'revenue', label: `CA ${currentLabel}`, color: 'hsl(var(--primary))' },
-              ...((drillDownMonth ? hasDrillDownPrevData : hasPrevData) ? [{ key: 'prevRevenue', label: `CA ${prevLabel}`, color: 'hsl(var(--muted-foreground))' }] : []),
-            ]}
-            hiddenKeys={hiddenRevenueBars}
-            onToggle={toggleRevenueBar}
-            onReset={() => setHiddenRevenueBars(new Set())}
-          />
-          
-          {/* Drill-down hint */}
-          {!drillDownMonth && granularity === "monthly" && (
-            <p className="text-xs text-muted-foreground mb-2">
-              💡 Cliquez sur un mois pour voir le détail journalier
-            </p>
-          )}
+          {revenueViewMode === 'table' ? (
+            <RevenueDataTable 
+              data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}
+              showComparison={drillDownMonth ? hasDrillDownPrevData : hasPrevData}
+              selectedYear={selectedYear}
+              comparisonMode={comparisonMode}
+            />
+          ) : (
+            <>
               {/* Interactive Legend */}
               <InteractiveLegend
                 items={[
@@ -2475,6 +2496,8 @@ export function AnalyticsCharts({
               </motion.div>
             </AnimatePresence>
           </div>
+            </>
+          )}
         </CardContent>
       </Card>
       )}
