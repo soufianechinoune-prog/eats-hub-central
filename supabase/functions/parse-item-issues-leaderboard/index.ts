@@ -309,6 +309,10 @@ serve(async (req) => {
       });
     }
 
+    // Reset counters for actual import (they were pre-calculated for validation display)
+    result.stats.inserted = 0;
+    result.stats.updated = 0;
+
     // Process each restaurant
     for (const restData of restaurantsData) {
       console.log(`[parse-item-issues-leaderboard] Processing ${restData.name}: ${restData.items.length} items`);
