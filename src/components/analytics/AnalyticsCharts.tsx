@@ -1802,26 +1802,6 @@ export function AnalyticsCharts({
     <div className="space-y-6">
       {/* Actions are now filtered by ActionFilterPopover in parent */}
 
-      {/* Selected Restaurants Ranking Evolution Chart - Revenue */}
-      {showRevenue && selectedRestaurants.length > 0 && (
-        <SelectedRestaurantsRankingChart
-          restaurants={restaurants}
-          selectedRestaurants={selectedRestaurants}
-          timeSeriesData={revenueByRestaurantTimeSeries}
-          metricLabel="du CA"
-          formatValue={formatCurrency}
-          granularity={granularity}
-          startDate={chartDateRange.startDate}
-          endDate={chartDateRange.endDate}
-          onMonthClick={(monthKey) => {
-            // monthKey is "yyyy-MM" format, extract month number
-            const month = parseInt(monthKey.split('-')[1], 10);
-            onDrillDownChange?.(month);
-          }}
-          isClickable={granularity === "monthly" && !!onDrillDownChange}
-        />
-      )}
-
       {/* Selected Restaurants Ranking Evolution Chart - Conversion */}
       {showConversion && selectedRestaurants.length > 0 && (
         <SelectedRestaurantsRankingChart
