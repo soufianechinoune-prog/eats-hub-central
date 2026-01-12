@@ -44,9 +44,8 @@ interface MenuItem {
   id: string;
   name: string;
   category: string | null;
-  price_uber: number | null;
-  price_deliveroo: number | null;
   food_cost: number | null;
+  food_cost_combo?: number | null;
   is_active: boolean;
 }
 
@@ -132,11 +131,11 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
 
   // Handle inline edit save
   const saveEdit = async (itemId: string) => {
-    const newFoodCost = editValue ? parseFloat(editValue) : null;
+    const newValue = editValue ? parseFloat(editValue) : null;
     
     const { error } = await supabase
       .from("menu_items")
-      .update({ food_cost: newFoodCost })
+      .update({ food_cost: newValue })
       .eq("id", itemId);
 
     if (error) {
@@ -414,7 +413,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                               className="font-mono cursor-pointer hover:bg-primary/10 px-3 py-1 rounded transition-colors"
                             >
                               {hasFoodCost ? `${item.food_cost!.toFixed(2)}€` : (
-                                <span className="text-amber-500 italic">Cliquer pour saisir</span>
+                                <span className="text-muted-foreground italic text-xs">Cliquer</span>
                               )}
                             </button>
                           )}
@@ -474,7 +473,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
             </div>
             <div className="grid gap-2">
               <Label htmlFor="new-food-cost" className="flex items-center gap-1">
-                <Calculator className="h-4 w-4 text-primary" />
+                <Euro className="h-4 w-4 text-primary" />
                 Food Cost HT (€)
               </Label>
               <Input
@@ -484,7 +483,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                 min="0"
                 value={newProduct.food_cost}
                 onChange={(e) => setNewProduct({ ...newProduct, food_cost: e.target.value })}
-                placeholder="Coût matière hors taxes"
+                placeholder="Ex: 2.50"
               />
             </div>
           </div>
