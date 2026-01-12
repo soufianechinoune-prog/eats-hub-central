@@ -10,24 +10,45 @@ const corsHeaders = {
 function parseDate(dateStr: string): string | null {
   if (!dateStr || dateStr === "-" || dateStr === "Ongoing") return null;
   
-  // Format: "21 janv. 2025"
+  // Normalize: remove quotes, trim
+  const cleaned = dateStr.replace(/"/g, "").trim();
+  
+  // Extended month mapping with accent variants
   const frenchMonths: Record<string, string> = {
-    "janv.": "01", "févr.": "02", "mars": "03", "avr.": "04",
-    "mai": "05", "juin": "06", "juil.": "07", "août": "08",
-    "sept.": "09", "oct.": "10", "nov.": "11", "déc.": "12"
+    "janv.": "01", "janv": "01",
+    "fevr.": "02", "févr.": "02", "fevr": "02", "févr": "02",
+    "mars": "03",
+    "avr.": "04", "avr": "04",
+    "mai": "05",
+    "juin": "06",
+    "juil.": "07", "juil": "07",
+    "aout": "08", "août": "08",
+    "sept.": "09", "sept": "09",
+    "oct.": "10", "oct": "10",
+    "nov.": "11", "nov": "11",
+    "dec.": "12", "déc.": "12", "dec": "12", "déc": "12"
   };
   
-  const frenchMatch = dateStr.match(/(\d{1,2})\s+(\w+\.?)\s+(\d{4})/);
+  // Format: "21 janv. 2025" - use broader regex to capture accented chars
+  const frenchMatch = cleaned.match(/(\d{1,2})\s+([a-zA-ZÀ-ÿ]+\.?)\s+(\d{4})/);
   if (frenchMatch) {
     const [, day, month, year] = frenchMatch;
-    const monthNum = frenchMonths[month.toLowerCase()] || frenchMonths[month];
+    const monthLower = month.toLowerCase();
+    // Try direct match, then normalized (accent-free) match
+    const monthNormalized = monthLower
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, ""); // Remove accents
+    
+    const monthNum = frenchMonths[monthLower] || 
+                     frenchMonths[monthNormalized] ||
+                     frenchMonths[month];
     if (monthNum) {
       return `${year}-${monthNum}-${day.padStart(2, "0")}`;
     }
   }
   
   // Format: "27/04/2021"
-  const slashMatch = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  const slashMatch = cleaned.match(/(\d{2})\/(\d{2})\/(\d{4})/);
   if (slashMatch) {
     const [, day, month, year] = slashMatch;
     return `${year}-${month}-${day}`;
