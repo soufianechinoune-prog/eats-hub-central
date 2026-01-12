@@ -25,6 +25,7 @@ import {
   FileUp,
   ClipboardCheck,
   ShoppingBag,
+  Megaphone,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +114,11 @@ const analysisItems = [
     title: "Actions & Events",
     url: "/actions",
     icon: Zap,
+  },
+  {
+    title: "Marketing Analytics",
+    url: "/marketing-analytics",
+    icon: Megaphone,
   },
   {
     title: "Cartographie",
