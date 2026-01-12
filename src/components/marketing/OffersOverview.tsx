@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -25,6 +27,9 @@ import { Gift, Users, ShoppingCart, Percent, TrendingUp } from "lucide-react";
 import { OffersCampaign } from "@/hooks/useMarketingCampaigns";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 interface OffersOverviewProps {
   offers: OffersCampaign[];
@@ -47,6 +52,46 @@ const COLORS = [
 ];
 
 export function OffersOverview({ offers, stats }: OffersOverviewProps) {
+  const [editingFunding, setEditingFunding] = useState<string | null>(null);
+  const [fundingValue, setFundingValue] = useState<string>("");
+  const queryClient = useQueryClient();
+
+  const handleFundingUpdate = async (offerId: string, newValue: number) => {
+    try {
+      // Fetch current change_context
+      const { data: currentData, error: fetchError } = await supabase
+        .from("restaurant_actions")
+        .select("change_context")
+        .eq("id", offerId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const currentContext = typeof currentData?.change_context === 'object' && currentData?.change_context !== null
+        ? currentData.change_context
+        : {};
+      const updatedContext = {
+        ...(currentContext as Record<string, unknown>),
+        uber_funding_percent: newValue,
+      };
+
+      const { error } = await supabase
+        .from("restaurant_actions")
+        .update({ change_context: updatedContext })
+        .eq("id", offerId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["marketing-campaigns"] });
+      toast.success("Co-financement mis à jour");
+    } catch (error) {
+      console.error("Error updating funding:", error);
+      toast.error("Erreur lors de la mise à jour");
+    } finally {
+      setEditingFunding(null);
+    }
+  };
+
   const byTypeData = Object.entries(stats.byType).map(([type, data]) => ({
     name: type,
     ventes: data.sales,
@@ -280,12 +325,39 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
                   <TableCell className="text-right">{offer.new_customers}</TableCell>
                   <TableCell className="text-right">{offer.orders}</TableCell>
                   <TableCell className="text-right">
-                    {offer.uber_funding_percent > 0 ? (
-                      <span className="text-purple-600 font-medium">
-                        {offer.uber_funding_percent}%
-                      </span>
+                    {editingFunding === offer.id ? (
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        className="w-16 h-7 text-right text-sm"
+                        value={fundingValue}
+                        onChange={(e) => setFundingValue(e.target.value)}
+                        onBlur={() => {
+                          const val = Math.min(100, Math.max(0, parseInt(fundingValue) || 0));
+                          handleFundingUpdate(offer.id, val);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const val = Math.min(100, Math.max(0, parseInt(fundingValue) || 0));
+                            handleFundingUpdate(offer.id, val);
+                          } else if (e.key === "Escape") {
+                            setEditingFunding(null);
+                          }
+                        }}
+                        autoFocus
+                      />
                     ) : (
-                      "-"
+                      <Badge
+                        variant="outline"
+                        className="cursor-pointer hover:bg-purple-500/10 hover:border-purple-500/30 transition-colors"
+                        onClick={() => {
+                          setEditingFunding(offer.id);
+                          setFundingValue((offer.uber_funding_percent || 0).toString());
+                        }}
+                      >
+                        {offer.uber_funding_percent || 0}%
+                      </Badge>
                     )}
                   </TableCell>
                   <TableCell>{getStatusBadge(offer.change_context?.status || "")}</TableCell>
