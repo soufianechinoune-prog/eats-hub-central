@@ -180,6 +180,11 @@ export function SaveAsActionDialog({
         discount_percent: simulationData.discountPercent,
         min_spend: simulationData.minSpend,
         max_discount_value: simulationData.maxDiscountValue,
+        // Store BOGO items for edit dialog compatibility
+        bogo_purchased_item: simulationData.productId,
+        bogo_free_item: simulationData.freeProductId || simulationData.productId,
+        product_name: simulationData.productName,
+        free_product_name: simulationData.freeProductName,
       };
 
       // Get target item IDs

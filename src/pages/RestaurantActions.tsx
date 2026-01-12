@@ -78,6 +78,8 @@ import {
   Globe,
   Layers,
   Moon,
+  Calculator,
+  TrendingUp,
 } from "lucide-react";
 import { ActionsCalendar } from "@/components/actions/ActionsCalendar";
 import { UberEatsIcon, DeliverooIcon, UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
@@ -302,6 +304,8 @@ export default function RestaurantActions() {
   // BOGO (1 acheté = 1 offert) specific state
   const [bogoPurchasedItem, setBogoPurchasedItem] = useState<string>("");
   const [bogoFreeItem, setBogoFreeItem] = useState<string>("");
+  // Simulation context for actions created from simulator
+  const [simulationContext, setSimulationContext] = useState<any>(null);
   // Restaurant search with filters
   const [restaurantSearch, setRestaurantSearch] = useState("");
   const [isRestaurantPopoverOpen, setIsRestaurantPopoverOpen] = useState(false);
@@ -450,6 +454,7 @@ export default function RestaurantActions() {
     setProductSearch("");
     setBogoPurchasedItem("");
     setBogoFreeItem("");
+    setSimulationContext(null);
     setRestaurantFilterType("all");
     setSelectedDepartment("");
     setSelectedManager("");
@@ -498,9 +503,18 @@ export default function RestaurantActions() {
       setProductScope(action.target_item_ids && action.target_item_ids.length > 0 ? "specific" : "all");
     }
     setProductSearch("");
-    // BOGO specific
-    setBogoPurchasedItem(changeContext?.bogo_purchased_item || "");
-    setBogoFreeItem(changeContext?.bogo_free_item || "");
+    // BOGO specific - check if it's from simulator and use target_item_ids as fallback
+    const isFromSimulator = !!changeContext?.simulation_type;
+    if (isFromSimulator && action.target_item_ids?.length >= 1) {
+      // For simulator-created actions, get items from target_item_ids
+      setBogoPurchasedItem(changeContext?.bogo_purchased_item || action.target_item_ids[0] || "");
+      setBogoFreeItem(changeContext?.bogo_free_item || action.target_item_ids[1] || action.target_item_ids[0] || "");
+    } else {
+      setBogoPurchasedItem(changeContext?.bogo_purchased_item || "");
+      setBogoFreeItem(changeContext?.bogo_free_item || "");
+    }
+    // Store simulation context for display
+    setSimulationContext(isFromSimulator ? changeContext : null);
     setRestaurantFilterType("all");
     setSelectedDepartment("");
     setSelectedManager("");
@@ -2056,6 +2070,91 @@ export default function RestaurantActions() {
           </DialogHeader>
           
           <div className="px-8 py-6 space-y-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+            {/* Simulation Context Display - Only show when editing a simulator-created action */}
+            {simulationContext && (
+              <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/5 border border-amber-200/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 rounded-lg bg-amber-500/20">
+                    <Calculator className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <p className="text-sm font-semibold text-amber-800">
+                    Action créée depuis le simulateur
+                  </p>
+                  <Badge variant="outline" className="ml-auto text-xs bg-amber-100/50 border-amber-300 text-amber-700">
+                    {simulationContext.simulation_type === "bogo" ? "BOGO" : 
+                     simulationContext.simulation_type === "cross_product" ? "Cross-produit" :
+                     simulationContext.simulation_type === "percent_discount" ? "Réduction %" : 
+                     simulationContext.simulation_type}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  {simulationContext.commission && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground text-xs">Commission</span>
+                      <span className="font-medium">{simulationContext.commission}%</span>
+                    </div>
+                  )}
+                  {simulationContext.offer_fee !== undefined && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground text-xs">Frais offre</span>
+                      <span className="font-medium">{simulationContext.offer_fee}€</span>
+                    </div>
+                  )}
+                  {simulationContext.platform_funding > 0 && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground text-xs">Financement plateforme</span>
+                      <span className="font-medium text-emerald-600">
+                        {simulationContext.platform_funding}{simulationContext.funding_type === "percent" ? "%" : "€"}
+                      </span>
+                    </div>
+                  )}
+                  {simulationContext.net_margin !== undefined && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground text-xs">Marge nette simulée</span>
+                      <span className={cn("font-medium", simulationContext.net_margin >= 0 ? "text-emerald-600" : "text-red-600")}>
+                        {simulationContext.net_margin?.toFixed(2)}€
+                      </span>
+                    </div>
+                  )}
+                  {simulationContext.breakeven_percent && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground text-xs">Seuil rentabilité</span>
+                      <span className="font-medium">+{simulationContext.breakeven_percent.toFixed(0)}%</span>
+                    </div>
+                  )}
+                  {simulationContext.estimated_increase && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground text-xs flex items-center gap-1">
+                        <TrendingUp className="h-3 w-3" />
+                        Estimation Uber
+                      </span>
+                      <span className="font-medium text-primary">+{simulationContext.estimated_increase}%</span>
+                    </div>
+                  )}
+                  {simulationContext.discount_percent && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground text-xs">Réduction</span>
+                      <span className="font-medium">{simulationContext.discount_percent}%</span>
+                    </div>
+                  )}
+                  {simulationContext.min_spend && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground text-xs">Min. commande</span>
+                      <span className="font-medium">{simulationContext.min_spend}€</span>
+                    </div>
+                  )}
+                </div>
+                {(simulationContext.product_name || simulationContext.free_product_name) && (
+                  <div className="mt-3 pt-3 border-t border-amber-200/50 text-sm">
+                    <span className="text-muted-foreground">Produits : </span>
+                    <span className="font-medium">{simulationContext.product_name}</span>
+                    {simulationContext.free_product_name && (
+                      <span className="text-muted-foreground"> + <span className="font-medium text-emerald-600">{simulationContext.free_product_name}</span> offert</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {/* Platform Selection - Visual Toggle Buttons */}
             <div className="space-y-3">
               <Label className="text-sm font-medium flex items-center gap-2">
