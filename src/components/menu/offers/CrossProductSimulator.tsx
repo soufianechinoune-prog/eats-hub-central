@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { 
   Calculator, 
   TrendingDown,
@@ -56,11 +57,14 @@ import {
   ChevronDown,
   BookOpen,
   Percent,
+  CalendarPlus,
+  Wallet,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeName } from "@/lib/fuzzyMatch";
+import { SaveAsActionDialog } from "./SaveAsActionDialog";
 
 export type Platform = "uber" | "deliveroo";
 
@@ -107,6 +111,13 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
   const [freeProductId, setFreeProductId] = useState<string>("");
   const [offerFee, setOfferFee] = useState<number>(config.defaultOfferFee);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("");
+  
+  // Platform funding
+  const [platformFunding, setPlatformFunding] = useState<string>("");
+  const [fundingType, setFundingType] = useState<"percent" | "euro">("percent");
+  
+  // Save as action dialog
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
   
   // Sales data from order_items
   const [salesData, setSalesData] = useState<Record<string, number>>({});
@@ -242,16 +253,18 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
     const freeFoodCost = freeProduct.food_cost;
     const commissionRate = commission / 100;
 
+    // Calculate platform contribution
+    const fundingValue = parseFloat(platformFunding) || 0;
+    const platformContribution = fundingType === "percent" 
+      ? (freeFoodCost * fundingValue / 100) 
+      : fundingValue;
+
     // Without offer: selling paid product alone
     const netMarginWithoutOffer = paidPrice - (paidPrice * commissionRate) - paidFoodCost;
     const marginPercentWithoutOffer = (netMarginWithoutOffer / paidPrice) * 100;
 
-    // With cross-product offer: customer pays for A, gets B free
-    // Revenue: paidPrice
-    // Commission: paidPrice * commission
-    // Food cost: paidFoodCost + freeFoodCost (both products)
-    // Offer fee: offerFee
-    const netMarginWithOffer = paidPrice - (paidPrice * commissionRate) - paidFoodCost - freeFoodCost - offerFee;
+    // With cross-product offer WITH platform funding
+    const netMarginWithOffer = paidPrice - (paidPrice * commissionRate) - paidFoodCost - freeFoodCost - offerFee + platformContribution;
     const marginPercentWithOffer = (netMarginWithOffer / paidPrice) * 100;
 
     // Breakeven calculation
@@ -276,8 +289,9 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
       isProfitable,
       isBreakeven,
       isLoss: netMarginWithOffer < 0,
+      platformContribution,
     };
-  }, [paidProduct, freeProduct, commission, offerFee, uberEstimatedIncrease, isUber]);
+  }, [paidProduct, freeProduct, commission, offerFee, uberEstimatedIncrease, isUber, platformFunding, fundingType]);
 
   // Calculate stats for scoring
   const maxSales = useMemo(() => {

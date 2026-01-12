@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { 
   Calculator, 
   TrendingDown,
@@ -66,10 +67,13 @@ import {
   Sparkles,
   Check,
   X,
+  CalendarPlus,
+  Wallet,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeName } from "@/lib/fuzzyMatch";
+import { SaveAsActionDialog, SimulationData } from "./SaveAsActionDialog";
 
 export type Platform = "uber" | "deliveroo";
 
@@ -115,6 +119,13 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
   const [offerFee, setOfferFee] = useState<number>(config.defaultOfferFee);
   const [uberEstimatedIncrease, setUberEstimatedIncrease] = useState<string>("");
   const [showCalculationDetails, setShowCalculationDetails] = useState<boolean>(false);
+  
+  // Platform funding (Uber/Deliveroo financing part of the free product)
+  const [platformFunding, setPlatformFunding] = useState<string>("");
+  const [fundingType, setFundingType] = useState<"percent" | "euro">("percent");
+  
+  // Save as action dialog
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
   
   // Sales data from order_items
   const [salesData, setSalesData] = useState<Record<string, number>>({});
@@ -249,10 +260,17 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
     const foodCost = selectedProduct.food_cost;
     const commissionRate = commission / 100;
 
+    // Calculate platform contribution (funding)
+    const fundingValue = parseFloat(platformFunding) || 0;
+    const platformContribution = fundingType === "percent" 
+      ? (foodCost * fundingValue / 100) 
+      : fundingValue;
+
     const netMarginPerUnit = price - (price * commissionRate) - foodCost;
     const marginPercentWithoutOffer = (netMarginPerUnit / price) * 100;
 
-    const netMarginBogo = price - (price * commissionRate) - offerFee - (foodCost * 2);
+    // BOGO margin WITH platform funding
+    const netMarginBogo = price - (price * commissionRate) - offerFee - (foodCost * 2) + platformContribution;
     const marginPercentWithOffer = (netMarginBogo / price) * 100;
 
     const breakevenMultiplier = netMarginBogo > 0 ? netMarginPerUnit / netMarginBogo : null;
@@ -275,8 +293,9 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
       isProfitable,
       isBreakeven,
       isLoss: netMarginBogo < 0,
+      platformContribution,
     };
-  }, [selectedProduct, commission, offerFee, uberEstimatedIncrease, isUber]);
+  }, [selectedProduct, commission, offerFee, uberEstimatedIncrease, isUber, platformFunding, fundingType]);
 
   const allProductsAnalysis = useMemo(() => {
     const commissionRate = commission / 100;
@@ -450,6 +469,7 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
   };
 
   return (
+    <>
     <div className="space-y-6">
       {/* Header with Back Button */}
       <motion.div
@@ -618,6 +638,59 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
                 </div>
               </div>
 
+              {/* Platform Funding */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-emerald-500" />
+                  Financement {config.name}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[250px]">
+                        <p>Part du produit offert financée par {config.name}. Visible dans la configuration de l'offre sur le tableau de bord partenaire.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={platformFunding}
+                      onChange={(e) => setPlatformFunding(e.target.value)}
+                      className="bg-white/60 dark:bg-white/5 border-emerald-500/30 pr-8"
+                    />
+                    {fundingType === "percent" ? (
+                      <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Euro className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                  <ToggleGroup 
+                    type="single" 
+                    value={fundingType} 
+                    onValueChange={(v) => v && setFundingType(v as "percent" | "euro")}
+                    className="border rounded-md"
+                  >
+                    <ToggleGroupItem value="percent" aria-label="Pourcentage" className="px-3">
+                      <Percent className="h-4 w-4" />
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="euro" aria-label="Euro" className="px-3">
+                      <Euro className="h-4 w-4" />
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+                {platformFunding && parseFloat(platformFunding) > 0 && simulation && (
+                  <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-500/10 px-3 py-1.5 rounded-lg">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    +{simulation.platformContribution?.toFixed(2)}€ de contribution plateforme
+                  </div>
+                )}
+              </div>
+
               {/* Estimation */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
@@ -662,7 +735,7 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
                     >
                       <recommendation.icon className={`h-6 w-6 ${recommendation.color}`} />
                     </motion.div>
-                    <div>
+                    <div className="flex-1">
                       <h3 className={`font-bold text-lg ${recommendation.color}`}>
                         {recommendation.title}
                       </h3>
@@ -671,6 +744,19 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
                       </p>
                     </div>
                   </div>
+                  {/* Save as Action Button */}
+                  {simulation && selectedProduct && (
+                    <div className="mt-4 pt-4 border-t border-border/50">
+                      <Button 
+                        onClick={() => setShowSaveDialog(true)} 
+                        variant="outline"
+                        className="w-full gap-2"
+                      >
+                        <CalendarPlus className="h-4 w-4" />
+                        Ajouter comme action
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -1635,5 +1721,27 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
         </Card>
       </motion.div>
     </div>
+
+      {/* Save as Action Dialog */}
+      {selectedProduct && simulation && (
+        <SaveAsActionDialog
+          open={showSaveDialog}
+          onOpenChange={setShowSaveDialog}
+          simulationData={{
+            offerType: "bogo",
+            platform,
+            productName: selectedProduct.name,
+            productId: selectedProduct.id,
+            commission,
+            offerFee,
+            platformFunding: parseFloat(platformFunding) || 0,
+            fundingType,
+            estimatedIncrease: parseFloat(uberEstimatedIncrease) || null,
+            netMarginWithOffer: simulation.netMarginBogo,
+            breakevenPercent: simulation.breakevenIncreasePercent,
+          }}
+        />
+      )}
+    </>
   );
 }
