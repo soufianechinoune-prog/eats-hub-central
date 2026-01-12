@@ -91,8 +91,8 @@ export function SaveAsActionDialog({
         
         if (error) throw error;
         setRestaurants(data || []);
-        // Select all by default
-        setSelectedRestaurantIds((data || []).map(r => r.id));
+        // Select only pinned restaurants by default
+        setSelectedRestaurantIds((data || []).filter(r => r.is_pinned).map(r => r.id));
       } catch (error) {
         console.error("Error fetching restaurants:", error);
       } finally {
