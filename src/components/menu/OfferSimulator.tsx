@@ -24,7 +24,7 @@ interface OfferSimulatorProps {
 
 // Default commission values per platform
 const DEFAULT_COMMISSIONS = {
-  uber: 30,
+  uber: 27,
   deliveroo: 25,
 };
 
