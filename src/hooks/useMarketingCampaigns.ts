@@ -13,8 +13,9 @@ export interface MarketingCampaign {
   category_id?: string;
   target_item_ids?: string[];
   change_context?: {
-    campaign_type?: "offers" | "ads";
+    campaign_type?: "offer" | "ads";
     offer_type?: string;
+    sales_eur?: number;
     audience?: string;
     generated_sales?: number;
     new_customers?: number;
@@ -85,7 +86,7 @@ export const useMarketingCampaigns = (restaurantIds?: string[]) => {
           change_context,
           restaurant:restaurants(name)
         `)
-        .or('category_id.eq.marketing,category_id.eq.ads')
+        .or('category.eq.promotions,category.eq.ads')
         .order("start_date", { ascending: false });
 
       if (restaurantIds && restaurantIds.length > 0) {
@@ -100,12 +101,12 @@ export const useMarketingCampaigns = (restaurantIds?: string[]) => {
 
       // Separate offers and ads
       const offers: OffersCampaign[] = campaigns
-        .filter((c) => c.change_context?.campaign_type === "offers")
+        .filter((c) => c.change_context?.campaign_type === "offer" || !c.change_context?.campaign_type)
         .map((c) => ({
           ...c,
           offer_type: c.change_context?.offer_type || "",
           audience: c.change_context?.audience || "",
-          generated_sales: c.change_context?.generated_sales || 0,
+          generated_sales: c.change_context?.generated_sales || c.change_context?.sales_eur || 0,
           new_customers: c.change_context?.new_customers || 0,
           orders: c.change_context?.orders || 0,
           uber_funding_percent: c.change_context?.uber_funding_percent || 0,
@@ -118,7 +119,7 @@ export const useMarketingCampaigns = (restaurantIds?: string[]) => {
           ...c,
           campaign_uuid: c.change_context?.campaign_uuid || "",
           budget: c.change_context?.budget || 0,
-          generated_sales: c.change_context?.generated_sales || 0,
+          generated_sales: c.change_context?.generated_sales || c.change_context?.sales_eur || 0,
           ad_spend: c.change_context?.ad_spend || 0,
           roas: c.change_context?.roas || 0,
           cost_per_click: c.change_context?.cost_per_click || 0,
