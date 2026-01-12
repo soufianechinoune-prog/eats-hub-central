@@ -389,6 +389,73 @@ export default function ReportImport() {
     reader.readAsText(selectedFile);
   };
 
+  // Auto-detect report type based on CSV headers
+  const detectReportType = (headerLine: string): string | null => {
+    // Marketing campaigns - Offers
+    if (headerLine.includes("Type d'offre") && headerLine.includes("Audience")) {
+      return "marketing_campaigns";
+    }
+    // Marketing campaigns - Ads
+    if (headerLine.includes("Nom de la campagne") && headerLine.includes("Impressions")) {
+      return "marketing_campaigns";
+    }
+    // Sales Over Time
+    if (headerLine.includes("Période") && headerLine.includes("Ventes")) {
+      return "sales_over_time";
+    }
+    // Reviews Order Level
+    if ((headerLine.includes("Note du restaurant") || headerLine.includes("restaurant rating")) && 
+        (headerLine.includes("UUID de la commande") || headerLine.includes("Order UUID"))) {
+      return "reviews_order";
+    }
+    // Reviews Item Level
+    if ((headerLine.includes("Note de l'article") || headerLine.includes("Item rating")) && 
+        (headerLine.includes("Titre de l'article") || headerLine.includes("Item title"))) {
+      return "reviews_item";
+    }
+    // Downtime Report
+    if (headerLine.includes("Ouverture du restaurant à") && headerLine.includes("Disponibilité du menu")) {
+      return "downtime_report";
+    }
+    // Order History
+    if ((headerLine.includes("Id. de la commande") || headerLine.includes("Id de la commande")) && 
+        (headerLine.includes("Temps d'attente du coursier") || headerLine.includes("Heure de la commande"))) {
+      return "order_history";
+    }
+    // Inaccurate Orders (detail)
+    if ((headerLine.includes("Problème avec la commande") || headerLine.includes("Articles incorrects")) &&
+        headerLine.includes("Client remboursé")) {
+      return "inaccurate_orders";
+    }
+    // Item Issues Leaderboard
+    if (headerLine.includes("Articles incorrects") && headerLine.includes("Nombre") &&
+        headerLine.includes("Problème avec le plat")) {
+      return "item_issues_leaderboard";
+    }
+    // Order Accuracy Summary
+    if ((headerLine.includes("Jour") || headerLine.includes("Mois")) && 
+        (headerLine.includes("Commandes incorrectes") || headerLine.includes("Articles manquants"))) {
+      return "order_accuracy_summary";
+    }
+    // Conversion Funnel
+    if ((headerLine.includes("Utilisateurs ayant visité") || headerLine.includes("Utilisateurs ayant visite")) &&
+        (headerLine.includes("menu a été consulté") || headerLine.includes("menu consulté") || headerLine.includes("Plat ajouté"))) {
+      return "conversion_funnel";
+    }
+    // Payout Summary
+    if (headerLine.includes("Identifiant de versement") || headerLine.includes("Date de versement")) {
+      return "payout_summary";
+    }
+    // Payment reports (default fallback for order/item level)
+    if (headerLine.includes("Id. de la commande") || headerLine.includes("Id. du flux")) {
+      if (headerLine.includes("Titre de l'article") || headerLine.includes("Item title")) {
+        return "payment_item_level";
+      }
+      return "payment_order_level";
+    }
+    return null;
+  };
+
   const parsePreview = (content: string) => {
     const lines = content.split("\n").filter((line) => line.trim());
     if (lines.length < 2) {
@@ -475,6 +542,11 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
+      // Check for payout summary headers
+      if (lines[i].includes("Identifiant de versement") || lines[i].includes("Date de versement")) {
+        headerRowIndex = i;
+        break;
+      }
     }
 
     if (headerRowIndex === -1) {
@@ -489,6 +561,17 @@ export default function ReportImport() {
     const headerLine = lines[headerRowIndex];
     const parsedHeaders = parseCSVLine(headerLine);
     setHeaders(parsedHeaders.slice(0, 15));
+
+    // Auto-detect report type from headers
+    const detectedType = detectReportType(headerLine);
+    if (detectedType && detectedType !== reportType) {
+      setReportType(detectedType);
+      const typeLabel = REPORT_TYPES.find(t => t.value === detectedType)?.label || detectedType;
+      toast({
+        title: "Type de rapport détecté",
+        description: `Type automatiquement défini sur "${typeLabel}"`,
+      });
+    }
 
     const dataLines = lines.slice(headerRowIndex + 1, headerRowIndex + 51);
     const rows: ParsedRow[] = [];
