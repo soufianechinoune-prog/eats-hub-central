@@ -424,6 +424,7 @@ export default function MenuItems() {
   const { toast } = useToast();
   const { detectChanges, trackChange } = useMenuItemTracking();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [menuItemsWithRestaurantPrices, setMenuItemsWithRestaurantPrices] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
@@ -483,6 +484,7 @@ export default function MenuItems() {
 
   useEffect(() => {
     fetchMenuItems();
+    fetchMenuItemsWithRestaurantPrices();
   }, []);
 
   const fetchMenuItems = async () => {
@@ -504,6 +506,20 @@ export default function MenuItems() {
     }
     setLoading(false);
   };
+
+  const fetchMenuItemsWithRestaurantPrices = async () => {
+    const { data, error } = await supabase
+      .from("restaurant_menu_prices")
+      .select("menu_item_id");
+
+    if (!error && data) {
+      const uniqueIds = new Set(data.map(item => item.menu_item_id));
+      setMenuItemsWithRestaurantPrices(uniqueIds);
+    }
+  };
+
+  // Filter menu items that have restaurant prices (for Food Cost tab)
+  const menuItemsForFoodCost = menuItems.filter(item => menuItemsWithRestaurantPrices.has(item.id));
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -965,7 +981,7 @@ export default function MenuItems() {
 
 
         <TabsContent value="foodcost" className="mt-6">
-          <FoodCostManager menuItems={menuItems} onRefresh={fetchMenuItems} />
+          <FoodCostManager menuItems={menuItemsForFoodCost} onRefresh={fetchMenuItems} />
         </TabsContent>
 
         <TabsContent value="simulator" className="mt-6">
