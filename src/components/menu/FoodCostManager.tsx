@@ -35,15 +35,10 @@ import {
   Calculator, 
   AlertTriangle, 
   CheckCircle2,
-  TrendingUp,
   Plus,
   Package,
   Euro,
-  BarChart3,
 } from "lucide-react";
-import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
-import { PriceDecompositionMini } from "./PriceDecompositionBar";
-import { PriceDecompositionDetail } from "./PriceDecompositionDetail";
 
 interface MenuItem {
   id: string;
@@ -93,13 +88,9 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<MenuItem | null>(null);
-  const [isDecompositionOpen, setIsDecompositionOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({
     name: "",
     category: "",
-    price_uber: "",
-    price_deliveroo: "",
     food_cost: "",
   });
 
@@ -119,43 +110,19 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
     const withFoodCost = menuItems.filter(item => item.food_cost !== null && item.food_cost > 0);
     const withoutFoodCost = menuItems.filter(item => item.food_cost === null || item.food_cost === 0);
     
-    // Calculate average margin (using Uber price as reference)
-    const marginsUber = menuItems
-      .filter(item => item.price_uber && item.food_cost && item.food_cost > 0)
-      .map(item => ((item.price_uber! - item.food_cost!) / item.price_uber!) * 100);
-    
-    const avgMarginUber = marginsUber.length > 0 
-      ? marginsUber.reduce((a, b) => a + b, 0) / marginsUber.length 
+    // Calculate average food cost
+    const avgFoodCost = withFoodCost.length > 0 
+      ? withFoodCost.reduce((sum, item) => sum + (item.food_cost || 0), 0) / withFoodCost.length 
       : null;
 
     return {
       total: menuItems.length,
       withFoodCost: withFoodCost.length,
       withoutFoodCost: withoutFoodCost.length,
-      avgMarginUber,
+      avgFoodCost,
       completionRate: menuItems.length > 0 ? (withFoodCost.length / menuItems.length) * 100 : 0,
     };
   }, [menuItems]);
-
-  // Calculate margin
-  const calculateMargin = (price: number | null, foodCost: number | null): number | null => {
-    if (!price || !foodCost || foodCost <= 0) return null;
-    return ((price - foodCost) / price) * 100;
-  };
-
-  // Get margin badge color
-  const getMarginBadgeClass = (margin: number | null): string => {
-    if (margin === null) return "bg-muted text-muted-foreground";
-    if (margin >= 70) return "bg-emerald-500 text-white";
-    if (margin >= 50) return "bg-amber-500 text-white";
-    return "bg-red-500 text-white";
-  };
-
-  // Format price
-  const formatPrice = (price: number | null): string => {
-    if (price === null) return "-";
-    return `${price.toFixed(2)}€`;
-  };
 
   // Handle inline edit start
   const startEditing = (item: MenuItem) => {
@@ -213,8 +180,6 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
       .insert({
         name: newProduct.name.trim(),
         category: newProduct.category || null,
-        price_uber: newProduct.price_uber ? parseFloat(newProduct.price_uber) : null,
-        price_deliveroo: newProduct.price_deliveroo ? parseFloat(newProduct.price_deliveroo) : null,
         food_cost: newProduct.food_cost ? parseFloat(newProduct.food_cost) : null,
         is_active: true,
       });
@@ -230,7 +195,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
         title: "Succès",
         description: "Produit ajouté avec succès",
       });
-      setNewProduct({ name: "", category: "", price_uber: "", price_deliveroo: "", food_cost: "" });
+      setNewProduct({ name: "", category: "", food_cost: "" });
       setIsAddDialogOpen(false);
       onRefresh();
     }
@@ -242,7 +207,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -299,34 +264,6 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-          whileHover={{ y: -4, scale: 1.02 }}
-        >
-          <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/15 via-blue-500/5 to-transparent" />
-            <div className="absolute inset-0 border border-white/40 rounded-lg" />
-            <CardContent className="pt-6 relative">
-              <div className="flex items-center gap-4">
-                <motion.div 
-                  className="p-3 bg-blue-500/15 backdrop-blur-sm rounded-xl shadow-lg"
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                >
-                  <TrendingUp className="h-6 w-6 text-blue-500" />
-                </motion.div>
-                <div>
-                  <p className="text-2xl font-bold tracking-tight">
-                    {stats.avgMarginUber !== null ? `${stats.avgMarginUber.toFixed(1)}%` : "-"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Marge moy. Uber</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.25, type: "spring", stiffness: 200 }}
           whileHover={{ y: -4, scale: 1.02 }}
         >
           <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]">
@@ -422,37 +359,15 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                     <TableHead className="font-semibold">Produit</TableHead>
                     <TableHead className="font-semibold">Catégorie</TableHead>
                     <TableHead className="font-semibold text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <UberEatsIcon className="h-4 w-4" />
-                        <span className="text-orange-600">Prix Uber</span>
-                      </div>
-                    </TableHead>
-                    <TableHead className="font-semibold text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <DeliverooIcon className="h-4 w-4" />
-                        <span className="text-teal-600">Prix Deliveroo</span>
-                      </div>
-                    </TableHead>
-                    <TableHead className="font-semibold text-center">
                       <div className="flex items-center justify-center gap-1">
                         <Euro className="h-4 w-4 text-primary" />
                         Food Cost HT
-                      </div>
-                    </TableHead>
-                    <TableHead className="font-semibold text-center">Marge Uber</TableHead>
-                    <TableHead className="font-semibold text-center">Marge Deliveroo</TableHead>
-                    <TableHead className="font-semibold text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <BarChart3 className="h-4 w-4 text-primary" />
-                        Décomposition
                       </div>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredItems.map((item, index) => {
-                    const marginUber = calculateMargin(item.price_uber, item.food_cost);
-                    const marginDeliveroo = calculateMargin(item.price_deliveroo, item.food_cost);
                     const hasFoodCost = item.food_cost !== null && item.food_cost > 0;
 
                     return (
@@ -480,12 +395,6 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-center font-mono">
-                          {formatPrice(item.price_uber)}
-                        </TableCell>
-                        <TableCell className="text-center font-mono">
-                          {formatPrice(item.price_deliveroo)}
-                        </TableCell>
                         <TableCell className="text-center">
                           {editingId === item.id ? (
                             <Input
@@ -509,41 +418,6 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                               )}
                             </button>
                           )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge className={getMarginBadgeClass(marginUber)}>
-                            {marginUber !== null ? `${marginUber.toFixed(1)}%` : "-"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge className={getMarginBadgeClass(marginDeliveroo)}>
-                            {marginDeliveroo !== null ? `${marginDeliveroo.toFixed(1)}%` : "-"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <button
-                            onClick={() => {
-                              setSelectedProduct(item);
-                              setIsDecompositionOpen(true);
-                            }}
-                            className="cursor-pointer hover:scale-105 transition-transform"
-                          >
-                            {item.price_uber ? (
-                              <PriceDecompositionMini
-                                priceTTC={item.price_uber}
-                                foodCostHT={item.food_cost}
-                                platform="uber"
-                              />
-                            ) : item.price_deliveroo ? (
-                              <PriceDecompositionMini
-                                priceTTC={item.price_deliveroo}
-                                foodCostHT={item.food_cost}
-                                platform="deliveroo"
-                              />
-                            ) : (
-                              <span className="text-muted-foreground text-xs">-</span>
-                            )}
-                          </button>
                         </TableCell>
                       </motion.tr>
                     );
@@ -598,38 +472,6 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="new-price-uber" className="flex items-center gap-1">
-                  <UberEatsIcon className="h-4 w-4" />
-                  Prix Uber (€)
-                </Label>
-                <Input
-                  id="new-price-uber"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newProduct.price_uber}
-                  onChange={(e) => setNewProduct({ ...newProduct, price_uber: e.target.value })}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="new-price-deliveroo" className="flex items-center gap-1">
-                  <DeliverooIcon className="h-4 w-4" />
-                  Prix Deliveroo (€)
-                </Label>
-                <Input
-                  id="new-price-deliveroo"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newProduct.price_deliveroo}
-                  onChange={(e) => setNewProduct({ ...newProduct, price_deliveroo: e.target.value })}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
             <div className="grid gap-2">
               <Label htmlFor="new-food-cost" className="flex items-center gap-1">
                 <Calculator className="h-4 w-4 text-primary" />
@@ -656,15 +498,6 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Price Decomposition Detail Dialog */}
-      {selectedProduct && (
-        <PriceDecompositionDetail
-          open={isDecompositionOpen}
-          onOpenChange={setIsDecompositionOpen}
-          product={selectedProduct}
-        />
-      )}
     </div>
   );
 }
