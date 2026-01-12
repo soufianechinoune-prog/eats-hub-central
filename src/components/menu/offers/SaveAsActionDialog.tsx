@@ -49,6 +49,7 @@ export interface SimulationData {
 interface Restaurant {
   id: string;
   name: string;
+  is_pinned: boolean;
 }
 
 interface SaveAsActionDialogProps {
@@ -84,7 +85,8 @@ export function SaveAsActionDialog({
       try {
         const { data, error } = await supabase
           .from("restaurants")
-          .select("id, name")
+          .select("id, name, is_pinned")
+          .order("is_pinned", { ascending: false })
           .order("name");
         
         if (error) throw error;
