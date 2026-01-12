@@ -17,7 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, CalendarPlus, Store, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { CalendarIcon, CalendarPlus, Store, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -74,6 +75,7 @@ export function SaveAsActionDialog({
   const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [restaurantSearch, setRestaurantSearch] = useState("");
 
   // Fetch restaurants
   useEffect(() => {
@@ -110,12 +112,25 @@ export function SaveAsActionDialog({
   };
 
   const toggleAll = () => {
-    if (selectedRestaurantIds.length === restaurants.length) {
-      setSelectedRestaurantIds([]);
+    const filtered = filteredRestaurants;
+    const allFilteredSelected = filtered.every(r => selectedRestaurantIds.includes(r.id));
+    
+    if (allFilteredSelected) {
+      // Deselect all filtered restaurants
+      setSelectedRestaurantIds(prev => prev.filter(id => !filtered.find(r => r.id === id)));
     } else {
-      setSelectedRestaurantIds(restaurants.map(r => r.id));
+      // Select all filtered restaurants
+      setSelectedRestaurantIds(prev => {
+        const newIds = filtered.map(r => r.id);
+        return [...new Set([...prev, ...newIds])];
+      });
     }
   };
+
+  // Filter restaurants based on search
+  const filteredRestaurants = restaurants.filter(restaurant =>
+    restaurant.name.toLowerCase().includes(restaurantSearch.toLowerCase())
+  );
 
   const handleSave = async () => {
     if (!startDate) {
@@ -309,9 +324,23 @@ export function SaveAsActionDialog({
                 Restaurants concernés
               </Label>
               <Button variant="ghost" size="sm" onClick={toggleAll}>
-                {selectedRestaurantIds.length === restaurants.length ? "Tout désélectionner" : "Tout sélectionner"}
+                {filteredRestaurants.every(r => selectedRestaurantIds.includes(r.id)) 
+                  ? "Tout désélectionner" 
+                  : "Tout sélectionner"}
               </Button>
             </div>
+            
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher un restaurant..."
+                value={restaurantSearch}
+                onChange={(e) => setRestaurantSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            
             {isLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -319,26 +348,32 @@ export function SaveAsActionDialog({
             ) : (
               <ScrollArea className="h-[120px] rounded-md border p-2">
                 <div className="space-y-2">
-                  {restaurants.map((restaurant) => (
-                    <div key={restaurant.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={restaurant.id}
-                        checked={selectedRestaurantIds.includes(restaurant.id)}
-                        onCheckedChange={() => toggleRestaurant(restaurant.id)}
-                      />
-                      <label
-                        htmlFor={restaurant.id}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {restaurant.name}
-                      </label>
-                    </div>
-                  ))}
+                  {filteredRestaurants.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      Aucun restaurant trouvé
+                    </p>
+                  ) : (
+                    filteredRestaurants.map((restaurant) => (
+                      <div key={restaurant.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={restaurant.id}
+                          checked={selectedRestaurantIds.includes(restaurant.id)}
+                          onCheckedChange={() => toggleRestaurant(restaurant.id)}
+                        />
+                        <label
+                          htmlFor={restaurant.id}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {restaurant.name}
+                        </label>
+                      </div>
+                    ))
+                  )}
                 </div>
               </ScrollArea>
             )}
             <p className="text-xs text-muted-foreground">
-              {selectedRestaurantIds.length} restaurant(s) sélectionné(s)
+              {selectedRestaurantIds.length} restaurant(s) sélectionné(s) sur {restaurants.length}
             </p>
           </div>
 
