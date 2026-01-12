@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -38,7 +38,11 @@ import {
   Plus,
   Package,
   Euro,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
+import jsPDF from "jspdf";
+import * as XLSX from "xlsx";
 
 interface MenuItem {
   id: string;
@@ -203,6 +207,133 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
   // Get unique categories from items
   const existingCategories = [...new Set(menuItems.map(item => item.category).filter(Boolean))] as string[];
 
+  // Export to Excel
+  const exportToExcel = useCallback(() => {
+    const data = filteredItems.map(item => ({
+      "Produit": item.name,
+      "Catégorie": item.category || "-",
+      "Food Cost HT (€)": item.food_cost !== null ? item.food_cost.toFixed(2) : "Non renseigné",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    
+    // Set column widths
+    worksheet["!cols"] = [
+      { wch: 40 },
+      { wch: 25 },
+      { wch: 18 },
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Food Cost");
+    XLSX.writeFile(workbook, `food_cost_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: "Export réussi",
+      description: "Le fichier Excel a été téléchargé",
+    });
+  }, [filteredItems, toast]);
+
+  // Export to PDF
+  const exportToPdf = useCallback(() => {
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 15;
+    let yPos = 20;
+
+    // Header
+    pdf.setFillColor(99, 102, 241);
+    pdf.rect(0, 0, pageWidth, 25, "F");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(16);
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Catalogue Food Cost", margin, 16);
+
+    // Meta info
+    pdf.setFillColor(249, 250, 251);
+    pdf.rect(0, 25, pageWidth, 12, "F");
+    pdf.setTextColor(107, 114, 128);
+    pdf.setFontSize(9);
+    pdf.setFont("helvetica", "normal");
+    const dateStr = new Date().toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+    pdf.text(`Généré le ${dateStr}`, margin, 32);
+    pdf.text(`${filteredItems.length} produits`, pageWidth - margin - 30, 32);
+
+    yPos = 45;
+
+    // Stats
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "bold");
+    pdf.text(`Avec Food Cost: ${stats.withFoodCost}`, margin, yPos);
+    pdf.text(`À compléter: ${stats.withoutFoodCost}`, margin + 50, yPos);
+    pdf.text(`Complétion: ${stats.completionRate.toFixed(0)}%`, margin + 100, yPos);
+
+    yPos += 12;
+
+    // Table header
+    pdf.setFillColor(243, 244, 246);
+    pdf.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+    pdf.setFontSize(9);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(55, 65, 81);
+    pdf.text("Produit", margin + 3, yPos + 5.5);
+    pdf.text("Catégorie", margin + 90, yPos + 5.5);
+    pdf.text("Food Cost HT", margin + 145, yPos + 5.5);
+
+    yPos += 10;
+
+    // Table rows
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+
+    filteredItems.forEach((item, index) => {
+      if (yPos > 270) {
+        pdf.addPage();
+        yPos = 20;
+      }
+
+      // Alternating row background
+      if (index % 2 === 0) {
+        pdf.setFillColor(249, 250, 251);
+        pdf.rect(margin, yPos - 3, pageWidth - margin * 2, 7, "F");
+      }
+
+      pdf.setTextColor(0, 0, 0);
+      const name = item.name.length > 45 ? item.name.substring(0, 42) + "..." : item.name;
+      pdf.text(name, margin + 3, yPos + 2);
+      
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(item.category || "-", margin + 90, yPos + 2);
+      
+      if (item.food_cost !== null && item.food_cost > 0) {
+        pdf.setTextColor(16, 185, 129);
+        pdf.text(`${item.food_cost.toFixed(2)}€`, margin + 145, yPos + 2);
+      } else {
+        pdf.setTextColor(245, 158, 11);
+        pdf.text("À compléter", margin + 145, yPos + 2);
+      }
+
+      yPos += 7;
+    });
+
+    pdf.save(`food_cost_${new Date().toISOString().split('T')[0]}.pdf`);
+    
+    toast({
+      title: "Export réussi",
+      description: "Le fichier PDF a été téléchargé",
+    });
+  }, [filteredItems, stats, toast]);
+
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
@@ -322,15 +453,35 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                   </SelectContent>
                 </Select>
               </div>
-              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+              <div className="flex gap-2">
                 <Button 
-                  onClick={() => setIsAddDialogOpen(true)} 
-                  className="gap-2 bg-gradient-to-r from-primary via-primary to-primary/90 shadow-lg hover:shadow-xl"
+                  variant="outline" 
+                  size="sm"
+                  onClick={exportToExcel}
+                  className="gap-2"
                 >
-                  <Plus className="h-4 w-4" />
-                  Ajouter un produit
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Excel
                 </Button>
-              </motion.div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={exportToPdf}
+                  className="gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  PDF
+                </Button>
+                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                  <Button 
+                    onClick={() => setIsAddDialogOpen(true)} 
+                    className="gap-2 bg-gradient-to-r from-primary via-primary to-primary/90 shadow-lg hover:shadow-xl"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ajouter un produit
+                  </Button>
+                </motion.div>
+              </div>
             </div>
           </CardContent>
         </Card>
