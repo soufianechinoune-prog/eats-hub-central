@@ -841,7 +841,6 @@ export type Database = {
           description_deliveroo: string | null
           description_uber: string | null
           food_cost: number | null
-          food_cost_combo: number | null
           id: string
           is_active: boolean | null
           name: string
@@ -858,7 +857,6 @@ export type Database = {
           description_deliveroo?: string | null
           description_uber?: string | null
           food_cost?: number | null
-          food_cost_combo?: number | null
           id?: string
           is_active?: boolean | null
           name: string
@@ -875,7 +873,6 @@ export type Database = {
           description_deliveroo?: string | null
           description_uber?: string | null
           food_cost?: number | null
-          food_cost_combo?: number | null
           id?: string
           is_active?: boolean | null
           name?: string
