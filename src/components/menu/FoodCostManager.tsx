@@ -44,9 +44,8 @@ interface MenuItem {
   id: string;
   name: string;
   category: string | null;
-  price_uber: number | null;
-  price_deliveroo: number | null;
   food_cost: number | null;
+  food_cost_combo: number | null;
   is_active: boolean;
 }
 
@@ -86,12 +85,14 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<"solo" | "combo" | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({
     name: "",
     category: "",
     food_cost: "",
+    food_cost_combo: "",
   });
 
   // Filter items
@@ -125,18 +126,23 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
   }, [menuItems]);
 
   // Handle inline edit start
-  const startEditing = (item: MenuItem) => {
+  const startEditing = (item: MenuItem, field: "solo" | "combo") => {
     setEditingId(item.id);
-    setEditValue(item.food_cost?.toString() || "");
+    setEditingField(field);
+    setEditValue(field === "solo" 
+      ? (item.food_cost?.toString() || "") 
+      : (item.food_cost_combo?.toString() || "")
+    );
   };
 
   // Handle inline edit save
   const saveEdit = async (itemId: string) => {
-    const newFoodCost = editValue ? parseFloat(editValue) : null;
+    const newValue = editValue ? parseFloat(editValue) : null;
+    const updateField = editingField === "solo" ? "food_cost" : "food_cost_combo";
     
     const { error } = await supabase
       .from("menu_items")
-      .update({ food_cost: newFoodCost })
+      .update({ [updateField]: newValue })
       .eq("id", itemId);
 
     if (error) {
@@ -153,6 +159,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
       onRefresh();
     }
     setEditingId(null);
+    setEditingField(null);
   };
 
   // Handle key press in edit input
@@ -181,6 +188,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
         name: newProduct.name.trim(),
         category: newProduct.category || null,
         food_cost: newProduct.food_cost ? parseFloat(newProduct.food_cost) : null,
+        food_cost_combo: newProduct.food_cost_combo ? parseFloat(newProduct.food_cost_combo) : null,
         is_active: true,
       });
 
@@ -195,7 +203,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
         title: "Succès",
         description: "Produit ajouté avec succès",
       });
-      setNewProduct({ name: "", category: "", food_cost: "" });
+      setNewProduct({ name: "", category: "", food_cost: "", food_cost_combo: "" });
       setIsAddDialogOpen(false);
       onRefresh();
     }
@@ -359,16 +367,30 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                     <TableHead className="font-semibold">Produit</TableHead>
                     <TableHead className="font-semibold">Catégorie</TableHead>
                     <TableHead className="font-semibold text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Euro className="h-4 w-4 text-primary" />
-                        Food Cost HT
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className="flex items-center gap-1">
+                          <Euro className="h-4 w-4 text-primary" />
+                          Food Cost Solo
+                        </div>
+                        <span className="text-[10px] font-normal text-muted-foreground">Avec emballage</span>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className="flex items-center gap-1">
+                          <Euro className="h-4 w-4 text-amber-500" />
+                          Food Cost Combo
+                        </div>
+                        <span className="text-[10px] font-normal text-muted-foreground">Sans emballage additionnel</span>
                       </div>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredItems.map((item, index) => {
-                    const hasFoodCost = item.food_cost !== null && item.food_cost > 0;
+                    const hasFoodCostSolo = item.food_cost !== null && item.food_cost > 0;
+                    const hasFoodCostCombo = item.food_cost_combo !== null && item.food_cost_combo > 0;
+                    const hasAnyFoodCost = hasFoodCostSolo || hasFoodCostCombo;
 
                     return (
                       <motion.tr
@@ -376,11 +398,11 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.02 }}
-                        className={`group hover:bg-primary/5 transition-colors ${!hasFoodCost ? "bg-amber-50/50 dark:bg-amber-900/10" : ""}`}
+                        className={`group hover:bg-primary/5 transition-colors ${!hasAnyFoodCost ? "bg-amber-50/50 dark:bg-amber-900/10" : ""}`}
                       >
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
-                            {!hasFoodCost && (
+                            {!hasAnyFoodCost && (
                               <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                             )}
                             {item.name}
@@ -396,7 +418,7 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                           )}
                         </TableCell>
                         <TableCell className="text-center">
-                          {editingId === item.id ? (
+                          {editingId === item.id && editingField === "solo" ? (
                             <Input
                               type="number"
                               step="0.01"
@@ -410,11 +432,35 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                             />
                           ) : (
                             <button
-                              onClick={() => startEditing(item)}
+                              onClick={() => startEditing(item, "solo")}
                               className="font-mono cursor-pointer hover:bg-primary/10 px-3 py-1 rounded transition-colors"
                             >
-                              {hasFoodCost ? `${item.food_cost!.toFixed(2)}€` : (
-                                <span className="text-amber-500 italic">Cliquer pour saisir</span>
+                              {hasFoodCostSolo ? `${item.food_cost!.toFixed(2)}€` : (
+                                <span className="text-muted-foreground italic text-xs">Cliquer</span>
+                              )}
+                            </button>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {editingId === item.id && editingField === "combo" ? (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={() => saveEdit(item.id)}
+                              onKeyDown={(e) => handleKeyPress(e, item.id)}
+                              className="w-24 h-8 text-center mx-auto"
+                              autoFocus
+                            />
+                          ) : (
+                            <button
+                              onClick={() => startEditing(item, "combo")}
+                              className="font-mono cursor-pointer hover:bg-amber-500/10 px-3 py-1 rounded transition-colors"
+                            >
+                              {hasFoodCostCombo ? `${item.food_cost_combo!.toFixed(2)}€` : (
+                                <span className="text-muted-foreground italic text-xs">Cliquer</span>
                               )}
                             </button>
                           )}
@@ -472,20 +518,37 @@ export function FoodCostManager({ menuItems, onRefresh }: FoodCostManagerProps) 
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="new-food-cost" className="flex items-center gap-1">
-                <Calculator className="h-4 w-4 text-primary" />
-                Food Cost HT (€)
-              </Label>
-              <Input
-                id="new-food-cost"
-                type="number"
-                step="0.01"
-                min="0"
-                value={newProduct.food_cost}
-                onChange={(e) => setNewProduct({ ...newProduct, food_cost: e.target.value })}
-                placeholder="Coût matière hors taxes"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="new-food-cost" className="flex items-center gap-1">
+                  <Euro className="h-4 w-4 text-primary" />
+                  Food Cost Solo (€)
+                </Label>
+                <Input
+                  id="new-food-cost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newProduct.food_cost}
+                  onChange={(e) => setNewProduct({ ...newProduct, food_cost: e.target.value })}
+                  placeholder="Avec emballage"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="new-food-cost-combo" className="flex items-center gap-1">
+                  <Euro className="h-4 w-4 text-amber-500" />
+                  Food Cost Combo (€)
+                </Label>
+                <Input
+                  id="new-food-cost-combo"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newProduct.food_cost_combo}
+                  onChange={(e) => setNewProduct({ ...newProduct, food_cost_combo: e.target.value })}
+                  placeholder="Sans emballage"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>

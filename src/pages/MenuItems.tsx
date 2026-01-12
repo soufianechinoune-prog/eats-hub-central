@@ -110,6 +110,7 @@ interface MenuItem {
   price_uber: number | null;
   price_deliveroo: number | null;
   food_cost: number | null;
+  food_cost_combo: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
