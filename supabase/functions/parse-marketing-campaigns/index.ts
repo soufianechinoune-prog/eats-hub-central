@@ -338,17 +338,72 @@ serve(async (req) => {
     }
 
     let inserted = 0;
+    let updated = 0;
 
-    // Only insert if not dryRun
+    // Only insert/update if not dryRun
     if (!dryRun && actions.length > 0) {
-      const { error: insertError } = await supabase
-        .from("restaurant_actions")
-        .insert(actions);
-
-      if (insertError) {
-        throw new Error(`Insert error: ${insertError.message}`);
+      // Group actions by uber_campaign_id for upsert logic
+      for (const action of actions) {
+        const campaignId = action.change_context?.uber_campaign_id;
+        
+        if (campaignId) {
+          // Check if campaign already exists
+          const { data: existing } = await supabase
+            .from("restaurant_actions")
+            .select("id, change_context")
+            .filter("change_context->>'uber_campaign_id'", "eq", campaignId)
+            .maybeSingle();
+          
+          if (existing) {
+            // Update existing campaign with new data (merge change_context)
+            const existingContext = typeof existing.change_context === 'object' && existing.change_context !== null
+              ? existing.change_context
+              : {};
+            const mergedContext = {
+              ...(existingContext as Record<string, unknown>),
+              ...(action.change_context as Record<string, unknown>),
+            };
+            
+            const { error: updateError } = await supabase
+              .from("restaurant_actions")
+              .update({
+                title: action.title,
+                start_date: action.start_date,
+                end_date: action.end_date,
+                change_context: mergedContext
+              })
+              .eq("id", existing.id);
+            
+            if (updateError) {
+              console.error(`Update error for campaign ${campaignId}:`, updateError.message);
+            } else {
+              updated++;
+            }
+          } else {
+            // Insert new campaign
+            const { error: insertError } = await supabase
+              .from("restaurant_actions")
+              .insert(action);
+            
+            if (insertError) {
+              console.error(`Insert error for campaign ${campaignId}:`, insertError.message);
+            } else {
+              inserted++;
+            }
+          }
+        } else {
+          // No campaign ID, just insert
+          const { error: insertError } = await supabase
+            .from("restaurant_actions")
+            .insert(action);
+          
+          if (insertError) {
+            console.error(`Insert error:`, insertError.message);
+          } else {
+            inserted++;
+          }
+        }
       }
-      inserted = actions.length;
     }
 
     // Build response in ImportResult format
@@ -359,7 +414,7 @@ serve(async (req) => {
       stats: {
         totalRows: rows.length - 1,
         inserted: dryRun ? actions.length : inserted,
-        updated: 0,
+        updated: dryRun ? 0 : updated,
         skipped,
         errors: errors.length
       },
