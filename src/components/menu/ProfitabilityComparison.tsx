@@ -48,6 +48,7 @@ import * as XLSX from "xlsx-js-style";
 interface Restaurant {
   id: string;
   name: string;
+  is_pinned?: boolean;
 }
 
 type SortField = "name" | "category" | "foodCost" | "avgMargin" | "spread";
@@ -73,18 +74,27 @@ export function ProfitabilityComparison() {
     async function fetchRestaurants() {
       const { data } = await supabase
         .from("restaurants")
-        .select("id, name")
+        .select("id, name, is_pinned")
         .order("name");
       if (data) {
         setAllRestaurants(data);
-        // Auto-select first 3 restaurants
-        if (data.length > 0 && selectedRestaurantIds.length === 0) {
-          setSelectedRestaurantIds(data.slice(0, 3).map((r) => r.id));
-        }
       }
     }
     fetchRestaurants();
   }, []);
+
+  // Auto-select pinned restaurants by default
+  useEffect(() => {
+    if (allRestaurants.length > 0 && selectedRestaurantIds.length === 0) {
+      const pinnedRestaurants = allRestaurants.filter((r) => r.is_pinned);
+      if (pinnedRestaurants.length > 0) {
+        setSelectedRestaurantIds(pinnedRestaurants.map((r) => r.id));
+      } else {
+        // Fallback: first 3 restaurants if none are pinned
+        setSelectedRestaurantIds(allRestaurants.slice(0, 3).map((r) => r.id));
+      }
+    }
+  }, [allRestaurants]);
 
   // Get unique categories
   const categories = useMemo(() => {
