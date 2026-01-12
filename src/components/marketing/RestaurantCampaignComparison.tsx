@@ -44,8 +44,8 @@ export function RestaurantCampaignComparison({ offers }: RestaurantCampaignCompa
     }> = {};
 
     offers.forEach((offer) => {
-      const restaurantId = offer.restaurant_id;
-      const restaurantName = offer.restaurant?.name || "Inconnu";
+      const restaurantId = offer.restaurant_id || offer.restaurant_ids?.[0] || "unknown";
+      const restaurantName = offer.restaurant_names?.[0] || "Inconnu";
       
       if (!byRestaurant[restaurantId]) {
         byRestaurant[restaurantId] = { 
