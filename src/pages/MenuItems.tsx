@@ -49,7 +49,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  Plus, 
+  BarChart3,
+  Plus,
   Pencil, 
   Trash2, 
   UtensilsCrossed, 
@@ -79,6 +80,7 @@ import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
 import { FoodCostManager } from "@/components/menu/FoodCostManager";
 import { OfferSimulator } from "@/components/menu/OfferSimulator";
 import { RestaurantPriceComparison } from "@/components/menu/RestaurantPriceComparison";
+import { ProfitabilityComparison } from "@/components/menu/ProfitabilityComparison";
 
 // State for restaurant price comparison (lifted to persist across tabs)
 
@@ -437,7 +439,7 @@ export default function MenuItems() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "foodcost" | "simulator" | "prices">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "foodcost" | "simulator" | "prices" | "profitability">("catalog");
   
   // Restaurant price comparison state (persisted across tabs)
   const [priceComparisonRestaurantIds, setPriceComparisonRestaurantIds] = useState<string[]>([]);
@@ -447,6 +449,7 @@ export default function MenuItems() {
     { value: "catalog", label: "Catalogue", icon: Package, color: "text-emerald-500", bgActive: "bg-emerald-500/15", borderActive: "border-emerald-500/40" },
     { value: "comparison", label: "Comparaison", icon: ArrowRightLeft, color: "text-blue-500", bgActive: "bg-blue-500/15", borderActive: "border-blue-500/40" },
     { value: "prices", label: "Prix Restaurants", icon: Euro, color: "text-rose-500", bgActive: "bg-rose-500/15", borderActive: "border-rose-500/40" },
+    { value: "profitability", label: "Rentabilité", icon: BarChart3, color: "text-violet-500", bgActive: "bg-violet-500/15", borderActive: "border-violet-500/40" },
     { value: "foodcost", label: "Food Cost", icon: Calculator, color: "text-amber-500", bgActive: "bg-amber-500/15", borderActive: "border-amber-500/40" },
     { value: "simulator", label: "Simulateur", icon: TrendingUp, color: "text-orange-500", bgActive: "bg-orange-500/15", borderActive: "border-orange-500/40" },
   ] as const;
@@ -934,7 +937,7 @@ export default function MenuItems() {
       </motion.div>
 
       {/* Tabs for Catalog / Comparison */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "foodcost" | "simulator" | "prices")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "foodcost" | "simulator" | "prices" | "profitability")}>
         <TabsList className="h-auto p-1.5 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/40 shadow-lg rounded-xl gap-1">
           {tabConfig.map((tab) => {
             const Icon = tab.icon;
@@ -974,6 +977,10 @@ export default function MenuItems() {
             selectedRestaurantIds={priceComparisonRestaurantIds}
             onSelectedRestaurantIdsChange={setPriceComparisonRestaurantIds}
           />
+        </TabsContent>
+
+        <TabsContent value="profitability" className="mt-6">
+          <ProfitabilityComparison />
         </TabsContent>
 
         <TabsContent value="catalog" className="mt-6 space-y-6">
