@@ -7,10 +7,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Gift, Megaphone, TrendingUp, AlertCircle, Upload } from "lucide-react";
+import { Gift, Megaphone, TrendingUp, AlertCircle, Upload, BarChart3, Package, Store } from "lucide-react";
 import { useMarketingCampaigns } from "@/hooks/useMarketingCampaigns";
 import { OffersOverview } from "@/components/marketing/OffersOverview";
 import { AdsOverview } from "@/components/marketing/AdsOverview";
+import { OfferPerformanceAnalysis } from "@/components/marketing/OfferPerformanceAnalysis";
+import { ProductPerformanceAnalysis } from "@/components/marketing/ProductPerformanceAnalysis";
+import { RestaurantCampaignComparison } from "@/components/marketing/RestaurantCampaignComparison";
 import { Link } from "react-router-dom";
 
 export default function MarketingAnalytics() {
@@ -150,13 +153,25 @@ export default function MarketingAnalytics() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-              <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsList className="grid w-full max-w-4xl grid-cols-5">
                 <TabsTrigger value="offers" className="flex items-center gap-2">
                   <Gift className="h-4 w-4" />
                   Offres
                   <Badge variant="secondary" className="ml-1">
                     {campaignData?.offers?.length || 0}
                   </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="performance" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Analyse
+                </TabsTrigger>
+                <TabsTrigger value="products" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Produits
+                </TabsTrigger>
+                <TabsTrigger value="restaurants" className="flex items-center gap-2">
+                  <Store className="h-4 w-4" />
+                  Restaurants
                 </TabsTrigger>
                 <TabsTrigger value="ads" className="flex items-center gap-2">
                   <Megaphone className="h-4 w-4" />
@@ -179,6 +194,18 @@ export default function MarketingAnalytics() {
                     byType: {},
                   }}
                 />
+              </TabsContent>
+
+              <TabsContent value="performance">
+                <OfferPerformanceAnalysis offers={campaignData?.offers || []} />
+              </TabsContent>
+
+              <TabsContent value="products">
+                <ProductPerformanceAnalysis offers={campaignData?.offers || []} />
+              </TabsContent>
+
+              <TabsContent value="restaurants">
+                <RestaurantCampaignComparison offers={campaignData?.offers || []} />
               </TabsContent>
 
               <TabsContent value="ads">
