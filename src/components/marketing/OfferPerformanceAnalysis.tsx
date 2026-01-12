@@ -9,6 +9,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -30,10 +37,14 @@ import {
   ShoppingBag,
   Users,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Filter,
+  Calendar
 } from "lucide-react";
 import { OffersCampaign } from "@/hooks/useMarketingCampaigns";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { format, differenceInDays, parseISO } from "date-fns";
+import { fr } from "date-fns/locale";
 
 interface OfferPerformanceAnalysisProps {
   offers: OffersCampaign[];
@@ -48,8 +59,42 @@ const COLORS = [
 ];
 
 export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisProps) {
+  const [selectedOfferType, setSelectedOfferType] = useState<string>("all");
+  
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(value);
+
+  // Get unique offer types for dropdown
+  const offerTypes = useMemo(() => {
+    const types = new Set(offers.map(o => o.offer_type || "Autre"));
+    return Array.from(types).sort();
+  }, [offers]);
+
+  // Filter offers based on selected type
+  const filteredOffers = useMemo(() => {
+    if (selectedOfferType === "all") return [];
+    return offers
+      .filter(o => (o.offer_type || "Autre") === selectedOfferType)
+      .map(offer => {
+        const avgBasket = offer.orders > 0 ? offer.generated_sales / offer.orders : 0;
+        const duration = offer.start_date && offer.end_date 
+          ? differenceInDays(parseISO(offer.end_date), parseISO(offer.start_date)) + 1
+          : null;
+        return { ...offer, avgBasket, duration };
+      })
+      .sort((a, b) => b.generated_sales - a.generated_sales);
+  }, [offers, selectedOfferType]);
+
+  // Summary stats for filtered offers
+  const filteredStats = useMemo(() => {
+    if (filteredOffers.length === 0) return null;
+    return {
+      count: filteredOffers.length,
+      totalSales: filteredOffers.reduce((sum, o) => sum + o.generated_sales, 0),
+      totalOrders: filteredOffers.reduce((sum, o) => sum + o.orders, 0),
+      totalNewCustomers: filteredOffers.reduce((sum, o) => sum + o.new_customers, 0),
+    };
+  }, [filteredOffers]);
 
   // Calculate enriched metrics for each offer
   const enrichedOffers = useMemo(() => {
@@ -262,6 +307,120 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      {/* Drill-down by Offer Type */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5 text-primary" />
+            Détail par type d'offre
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Select value={selectedOfferType} onValueChange={setSelectedOfferType}>
+              <SelectTrigger className="w-[300px]">
+                <SelectValue placeholder="Sélectionner un type d'offre" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">-- Sélectionner un type --</SelectItem>
+                {offerTypes.map(type => (
+                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            {filteredStats && (
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span><strong>{filteredStats.count}</strong> campagnes</span>
+                <span>•</span>
+                <span className="text-emerald-600 font-medium">{formatCurrency(filteredStats.totalSales)}</span>
+                <span>•</span>
+                <span><strong>{filteredStats.totalNewCustomers}</strong> nouveaux clients</span>
+              </div>
+            )}
+          </div>
+
+          {selectedOfferType !== "all" && filteredOffers.length > 0 ? (
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Produit / Titre</TableHead>
+                    <TableHead>Restaurant</TableHead>
+                    <TableHead>Période</TableHead>
+                    <TableHead className="text-center">Durée</TableHead>
+                    <TableHead className="text-right">Ventes</TableHead>
+                    <TableHead className="text-right">Commandes</TableHead>
+                    <TableHead className="text-right">Nouveaux</TableHead>
+                    <TableHead className="text-right">Panier moy.</TableHead>
+                    <TableHead>Audience</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOffers.map((offer) => (
+                    <TableRow key={offer.id}>
+                      <TableCell className="font-medium max-w-[200px]">
+                        <p className="truncate">{offer.title || offer.items_affected || "N/A"}</p>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {offer.restaurant?.name || "—"}
+                      </TableCell>
+                      <TableCell>
+                        {offer.start_date && offer.end_date ? (
+                          <div className="flex items-center gap-1 text-xs">
+                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            <span>
+                              {format(parseISO(offer.start_date), "d MMM", { locale: fr })}
+                              {" → "}
+                              {format(parseISO(offer.end_date), "d MMM", { locale: fr })}
+                            </span>
+                          </div>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {offer.duration ? (
+                          <Badge variant="outline">{offer.duration}j</Badge>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-emerald-600">
+                        {formatCurrency(offer.generated_sales)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {offer.orders.toLocaleString("fr-FR")}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="text-blue-600 font-medium">
+                          {offer.new_customers.toLocaleString("fr-FR")}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(offer.avgBasket)}
+                      </TableCell>
+                      <TableCell>
+                        {offer.audience ? (
+                          <Badge variant="secondary" className="text-xs">
+                            {offer.audience}
+                          </Badge>
+                        ) : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : selectedOfferType === "all" ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Filter className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>Sélectionnez un type d'offre pour voir le détail des campagnes</p>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Aucune campagne trouvée pour ce type d'offre</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
