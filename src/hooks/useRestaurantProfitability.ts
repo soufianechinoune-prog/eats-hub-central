@@ -64,23 +64,33 @@ export function useRestaurantProfitability(
         if (restaurantsError) throw restaurantsError;
         setRestaurants(restaurantsData || []);
 
-        // Fetch menu items with food cost
-        const { data: menuItemsData, error: menuItemsError } = await supabase
-          .from("menu_items")
-          .select("id, name, category, food_cost")
-          .eq("is_active", true)
-          .order("category")
-          .order("name");
-
-        if (menuItemsError) throw menuItemsError;
-
-        // Fetch restaurant prices
+        // First: Fetch restaurant prices to get only products with prices
         const { data: pricesData, error: pricesError } = await supabase
           .from("restaurant_menu_prices")
           .select("menu_item_id, restaurant_id, price_uber, price_deliveroo")
           .in("restaurant_id", selectedRestaurantIds);
 
         if (pricesError) throw pricesError;
+
+        // Extract unique menu item IDs that have prices
+        const uniqueMenuItemIds = [...new Set(pricesData?.map(p => p.menu_item_id) || [])];
+
+        if (uniqueMenuItemIds.length === 0) {
+          setItems([]);
+          setLoading(false);
+          return;
+        }
+
+        // Then: Fetch only menu items that have restaurant prices
+        const { data: menuItemsData, error: menuItemsError } = await supabase
+          .from("menu_items")
+          .select("id, name, category, food_cost")
+          .in("id", uniqueMenuItemIds)
+          .eq("is_active", true)
+          .order("category")
+          .order("name");
+
+        if (menuItemsError) throw menuItemsError;
 
         // Build lookup map for prices
         const pricesMap = new Map<string, Map<string, { priceUber: number | null; priceDeliveroo: number | null }>>();
@@ -161,15 +171,7 @@ export function useRestaurantProfitability(
           };
         });
 
-        // Filter to only show items that have at least one price in selected restaurants
-        const filteredItems = profitabilityItems.filter((item) => 
-          item.restaurants.some((r) => 
-            (platform === "uber" && r.priceUber !== null) || 
-            (platform === "deliveroo" && r.priceDeliveroo !== null)
-          )
-        );
-
-        setItems(filteredItems);
+        setItems(profitabilityItems);
       } catch (err) {
         console.error("Error fetching profitability data:", err);
         setError(err instanceof Error ? err.message : "Erreur lors du chargement");
