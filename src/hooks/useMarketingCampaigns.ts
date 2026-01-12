@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface MarketingCampaign {
   id: string;
-  restaurant_id: string;
+  restaurant_id?: string;
+  restaurant_ids?: string[];
   action_type: string;
   title: string;
   description?: string;
@@ -35,9 +36,7 @@ export interface MarketingCampaign {
     conversion_rate?: number;
     average_basket?: number;
   };
-  restaurant?: {
-    name: string;
-  };
+  restaurant_names?: string[];
 }
 
 export interface OffersCampaign extends MarketingCampaign {
@@ -75,6 +74,7 @@ export const useMarketingCampaigns = (restaurantIds?: string[]) => {
         .select(`
           id,
           restaurant_id,
+          restaurant_ids,
           action_type,
           title,
           description,
@@ -82,21 +82,59 @@ export const useMarketingCampaigns = (restaurantIds?: string[]) => {
           end_date,
           category,
           target_item_ids,
-          change_context,
-          restaurant:restaurants(name)
+          change_context
         `)
         .or('category.eq.promotions,category.eq.ads')
         .order("start_date", { ascending: false });
 
       if (restaurantIds && restaurantIds.length > 0) {
-        query = query.in("restaurant_id", restaurantIds);
+        // Filter by restaurant_ids array or restaurant_id
+        query = query.or(
+          restaurantIds.map(id => `restaurant_ids.cs.{${id}}`).join(',') + 
+          ',' + 
+          restaurantIds.map(id => `restaurant_id.eq.${id}`).join(',')
+        );
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
 
-      const campaigns = (data || []) as unknown as MarketingCampaign[];
+      // Extract all unique restaurant IDs from both fields
+      const allRestaurantIds = new Set<string>();
+      (data || []).forEach((campaign: any) => {
+        if (campaign.restaurant_id) {
+          allRestaurantIds.add(campaign.restaurant_id);
+        }
+        if (campaign.restaurant_ids && Array.isArray(campaign.restaurant_ids)) {
+          campaign.restaurant_ids.forEach((id: string) => allRestaurantIds.add(id));
+        }
+      });
+
+      // Fetch restaurant names
+      let restaurantMap: Record<string, string> = {};
+      if (allRestaurantIds.size > 0) {
+        const { data: restaurants } = await supabase
+          .from("restaurants")
+          .select("id, name")
+          .in("id", Array.from(allRestaurantIds));
+        
+        if (restaurants) {
+          restaurantMap = Object.fromEntries(
+            restaurants.map((r) => [r.id, r.name])
+          );
+        }
+      }
+
+      // Map restaurant names to campaigns
+      const campaigns: MarketingCampaign[] = (data || []).map((campaign: any) => {
+        const ids = campaign.restaurant_ids || (campaign.restaurant_id ? [campaign.restaurant_id] : []);
+        const names = ids.map((id: string) => restaurantMap[id]).filter(Boolean);
+        return {
+          ...campaign,
+          restaurant_names: names,
+        };
+      });
 
       // Separate offers and ads
       const offers: OffersCampaign[] = campaigns

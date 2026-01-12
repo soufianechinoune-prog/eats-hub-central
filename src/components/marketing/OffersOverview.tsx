@@ -307,7 +307,14 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {offer.restaurant?.name || "N/A"}
+                    {offer.restaurant_names && offer.restaurant_names.length > 0
+                      ? offer.restaurant_names[0]
+                      : "N/A"}
+                    {offer.restaurant_names && offer.restaurant_names.length > 1 && (
+                      <Badge variant="secondary" className="ml-1 text-xs">
+                        +{offer.restaurant_names.length - 1}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {offer.start_date

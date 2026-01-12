@@ -410,7 +410,9 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                         <p className="truncate">{offer.title || offer.items_affected || "N/A"}</p>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {offer.restaurant?.name || "—"}
+                        {offer.restaurant_names && offer.restaurant_names.length > 0
+                          ? offer.restaurant_names[0]
+                          : "—"}
                       </TableCell>
                       <TableCell>
                         {offer.start_date && offer.end_date ? (
@@ -633,7 +635,7 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                         {offer.title || offer.items_affected || "N/A"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {offer.restaurant?.name}
+                        {offer.restaurant_names?.[0] || "—"}
                       </p>
                     </div>
                   </div>
@@ -675,7 +677,7 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                         {offer.title || offer.items_affected || "N/A"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {offer.restaurant?.name}
+                        {offer.restaurant_names?.[0] || "—"}
                       </p>
                     </div>
                   </div>

@@ -304,7 +304,9 @@ export function AdsOverview({ ads, stats }: AdsOverviewProps) {
                     {ad.title || ad.campaign_uuid?.slice(0, 8) || "N/A"}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {ad.restaurant?.name || "N/A"}
+                    {ad.restaurant_names && ad.restaurant_names.length > 0
+                      ? ad.restaurant_names[0]
+                      : "N/A"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {ad.start_date
