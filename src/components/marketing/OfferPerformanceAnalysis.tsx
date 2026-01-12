@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   BarChart,
   Bar,
@@ -39,12 +40,16 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Filter,
-  Calendar
+  Calendar,
+  Percent
 } from "lucide-react";
 import { OffersCampaign } from "@/hooks/useMarketingCampaigns";
 import { useMemo, useState } from "react";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 interface OfferPerformanceAnalysisProps {
   offers: OffersCampaign[];
@@ -60,9 +65,42 @@ const COLORS = [
 
 export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisProps) {
   const [selectedOfferType, setSelectedOfferType] = useState<string>("all");
+  const [editingFunding, setEditingFunding] = useState<string | null>(null);
+  const [fundingValue, setFundingValue] = useState<string>("");
+  const queryClient = useQueryClient();
   
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(value);
+
+  const handleFundingUpdate = async (offerId: string, newValue: number) => {
+    try {
+      // Get current change_context
+      const { data: current } = await supabase
+        .from("restaurant_actions")
+        .select("change_context")
+        .eq("id", offerId)
+        .single();
+      
+      const updatedContext = {
+        ...(current?.change_context as Record<string, unknown> || {}),
+        uber_funding_percent: newValue
+      };
+
+      const { error } = await supabase
+        .from("restaurant_actions")
+        .update({ change_context: updatedContext })
+        .eq("id", offerId);
+
+      if (error) throw error;
+
+      toast.success("Co-financement mis à jour");
+      queryClient.invalidateQueries({ queryKey: ["marketing-campaigns"] });
+    } catch (error) {
+      console.error("Error updating funding:", error);
+      toast.error("Erreur lors de la mise à jour");
+    }
+    setEditingFunding(null);
+  };
 
   // Get unique offer types for dropdown
   const offerTypes = useMemo(() => {
@@ -356,6 +394,12 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                     <TableHead className="text-right">Commandes</TableHead>
                     <TableHead className="text-right">Nouveaux</TableHead>
                     <TableHead className="text-right">Panier moy.</TableHead>
+                    <TableHead className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Percent className="h-3 w-3" />
+                        Co-fin. Uber
+                      </div>
+                    </TableHead>
                     <TableHead>Audience</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -398,6 +442,48 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {formatCurrency(offer.avgBasket)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {editingFunding === offer.id ? (
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            className="w-20 h-7 text-right"
+                            value={fundingValue}
+                            onChange={(e) => setFundingValue(e.target.value)}
+                            onBlur={() => {
+                              const val = parseFloat(fundingValue);
+                              if (!isNaN(val) && val >= 0 && val <= 100) {
+                                handleFundingUpdate(offer.id, val);
+                              } else {
+                                setEditingFunding(null);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const val = parseFloat(fundingValue);
+                                if (!isNaN(val) && val >= 0 && val <= 100) {
+                                  handleFundingUpdate(offer.id, val);
+                                }
+                              } else if (e.key === "Escape") {
+                                setEditingFunding(null);
+                              }
+                            }}
+                            autoFocus
+                          />
+                        ) : (
+                          <Badge 
+                            variant="outline" 
+                            className="cursor-pointer hover:bg-primary/10 transition-colors"
+                            onClick={() => {
+                              setEditingFunding(offer.id);
+                              setFundingValue(offer.uber_funding_percent?.toString() || "0");
+                            }}
+                          >
+                            {offer.uber_funding_percent || 0}%
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {offer.audience ? (
