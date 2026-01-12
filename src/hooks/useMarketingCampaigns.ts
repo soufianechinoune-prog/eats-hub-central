@@ -9,8 +9,7 @@ export interface MarketingCampaign {
   description?: string;
   start_date?: string;
   end_date?: string;
-  status?: string;
-  category_id?: string;
+  category?: string;
   target_item_ids?: string[];
   change_context?: {
     campaign_type?: "offer" | "ads";
@@ -22,6 +21,7 @@ export interface MarketingCampaign {
     orders?: number;
     uber_funding_percent?: number;
     items_affected?: string;
+    status?: string;
     // Ads specific
     campaign_uuid?: string;
     budget?: number;
@@ -80,8 +80,7 @@ export const useMarketingCampaigns = (restaurantIds?: string[]) => {
           description,
           start_date,
           end_date,
-          status,
-          category_id,
+          category,
           target_item_ids,
           change_context,
           restaurant:restaurants(name)

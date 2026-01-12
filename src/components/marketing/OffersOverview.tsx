@@ -288,7 +288,7 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
                       "-"
                     )}
                   </TableCell>
-                  <TableCell>{getStatusBadge(offer.status || "")}</TableCell>
+                  <TableCell>{getStatusBadge(offer.change_context?.status || "")}</TableCell>
                 </TableRow>
               ))}
               {offers.length === 0 && (

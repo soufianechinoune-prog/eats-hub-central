@@ -328,7 +328,7 @@ export function AdsOverview({ ads, stats }: AdsOverviewProps) {
                   <TableCell className="text-right">
                     {(ad.click_through_rate * 100).toFixed(2)}%
                   </TableCell>
-                  <TableCell>{getStatusBadge(ad.status || "")}</TableCell>
+                  <TableCell>{getStatusBadge(ad.change_context?.status || "")}</TableCell>
                 </TableRow>
               ))}
               {ads.length === 0 && (
