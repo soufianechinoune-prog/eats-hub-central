@@ -308,16 +308,16 @@ export function OffersOverview({ offers, stats, showProfitabilityKPIs = false }:
               </CardContent>
             </Card>
 
-            <Card className={`bg-gradient-to-br ${profitabilityStats.avgROI >= 0 ? 'from-blue-500/10 to-blue-500/5 border-blue-500/20' : 'from-red-500/10 to-red-500/5 border-red-500/20'}`}>
+            <Card className={`bg-gradient-to-br ${profitabilityStats.avgRoi >= 0 ? 'from-blue-500/10 to-blue-500/5 border-blue-500/20' : 'from-red-500/10 to-red-500/5 border-red-500/20'}`}>
               <CardContent className="pt-4">
                 <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${profitabilityStats.avgROI >= 0 ? 'bg-blue-500/20' : 'bg-red-500/20'}`}>
-                    <Target className={`h-5 w-5 ${profitabilityStats.avgROI >= 0 ? 'text-blue-600' : 'text-red-600'}`} />
+                  <div className={`p-2 rounded-lg ${profitabilityStats.avgRoi >= 0 ? 'bg-blue-500/20' : 'bg-red-500/20'}`}>
+                    <Target className={`h-5 w-5 ${profitabilityStats.avgRoi >= 0 ? 'text-blue-600' : 'text-red-600'}`} />
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">ROI moyen</p>
-                    <p className={`text-2xl font-bold ${profitabilityStats.avgROI >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
-                      {profitabilityStats.avgROI.toFixed(0)}%
+                    <p className={`text-2xl font-bold ${profitabilityStats.avgRoi >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                      {profitabilityStats.avgRoi.toFixed(0)}%
                     </p>
                   </div>
                 </div>
