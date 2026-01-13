@@ -472,6 +472,7 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                   <TableRow>
                     <TableHead className="min-w-[180px]">Produit / Titre</TableHead>
                     <TableHead>Restaurant</TableHead>
+                    <TableHead>Période</TableHead>
                     <TableHead className="text-right">CA</TableHead>
                     <TableHead className="text-right">Commission</TableHead>
                     <TableHead className="text-right">Promos</TableHead>
@@ -500,6 +501,17 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {offer.restaurant_names?.[0] || "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                          {offer.start_date && offer.end_date ? (
+                            <>
+                              {new Date(offer.start_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                              {' → '}
+                              {new Date(offer.end_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
+                            </>
+                          ) : offer.start_date ? (
+                            `Depuis ${new Date(offer.start_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}`
+                          ) : "—"}
                         </TableCell>
                         <TableCell className="text-right font-medium text-blue-600">
                           {formatCurrency(displaySales)}
