@@ -515,6 +515,7 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
         // Build request body based on report type
         let body: Record<string, any> = {
           csvContent: bulkFile.content,
+          fileName: bulkFile.file.name, // Required by some edge functions to extract date range
         };
         
         // Add restaurant if required
