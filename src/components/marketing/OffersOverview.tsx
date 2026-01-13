@@ -19,6 +19,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -31,15 +37,16 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { Gift, Users, ShoppingCart, Percent, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Filter, X } from "lucide-react";
+import { Gift, Users, ShoppingCart, Percent, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, PiggyBank, Calculator } from "lucide-react";
 import { OffersCampaign } from "@/hooks/useMarketingCampaigns";
+import { useOfferProfitability } from "@/hooks/useOfferProfitability";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-type SortField = "product" | "type" | "restaurant" | "date" | "sales" | "newCustomers" | "orders" | "funding" | "status";
+type SortField = "product" | "type" | "restaurant" | "date" | "sales" | "newCustomers" | "orders" | "funding" | "status" | "cost" | "margin" | "roi";
 type SortDirection = "asc" | "desc";
 
 interface OffersOverviewProps {
@@ -72,6 +79,9 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const queryClient = useQueryClient();
 
+  // Use profitability hook
+  const { offers: profitableOffers, stats: profitabilityStats } = useOfferProfitability(offers);
+
   // Extract unique values for filters
   const uniqueTypes = useMemo(() => {
     const types = new Set(offers.map(o => o.offer_type).filter(Boolean));
@@ -87,6 +97,13 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
     const statuses = new Set(offers.map(o => o.change_context?.status).filter(Boolean));
     return Array.from(statuses).sort();
   }, [offers]);
+
+  // Create a map for quick profitability lookup
+  const profitabilityMap = useMemo(() => {
+    const map = new Map<string, typeof profitableOffers[0]>();
+    profitableOffers.forEach(o => map.set(o.id, o));
+    return map;
+  }, [profitableOffers]);
 
   // Filter and sort offers
   const filteredAndSortedOffers = useMemo(() => {
@@ -106,6 +123,9 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
     // Apply sorting
     filtered.sort((a, b) => {
       let comparison = 0;
+      const profitA = profitabilityMap.get(a.id);
+      const profitB = profitabilityMap.get(b.id);
+      
       switch (sortField) {
         case "product":
           comparison = (a.items_affected || a.title || "").localeCompare(b.items_affected || b.title || "");
@@ -134,12 +154,21 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
         case "status":
           comparison = (a.change_context?.status || "").localeCompare(b.change_context?.status || "");
           break;
+        case "cost":
+          comparison = (profitA?.estimated_cost || 0) - (profitB?.estimated_cost || 0);
+          break;
+        case "margin":
+          comparison = (profitA?.net_margin || 0) - (profitB?.net_margin || 0);
+          break;
+        case "roi":
+          comparison = (profitA?.roi || 0) - (profitB?.roi || 0);
+          break;
       }
       return sortDirection === "asc" ? comparison : -comparison;
     });
 
     return filtered;
-  }, [offers, filterType, filterRestaurant, filterStatus, sortField, sortDirection]);
+  }, [offers, filterType, filterRestaurant, filterStatus, sortField, sortDirection, profitabilityMap]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -453,30 +482,29 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
                     Restaurant <SortIcon field="restaurant" />
                   </Button>
                 </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" className="h-8 px-2 -ml-2" onClick={() => handleSort("date")}>
-                    Période <SortIcon field="date" />
-                  </Button>
-                </TableHead>
-                <TableHead>Audience</TableHead>
                 <TableHead className="text-right">
                   <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("sales")}>
                     Ventes <SortIcon field="sales" />
                   </Button>
                 </TableHead>
                 <TableHead className="text-right">
-                  <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("newCustomers")}>
-                    Nouveaux <SortIcon field="newCustomers" />
+                  <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("cost")}>
+                    Coût <SortIcon field="cost" />
+                  </Button>
+                </TableHead>
+                <TableHead className="text-right">
+                  <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("margin")}>
+                    Marge <SortIcon field="margin" />
+                  </Button>
+                </TableHead>
+                <TableHead className="text-right">
+                  <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("roi")}>
+                    ROI <SortIcon field="roi" />
                   </Button>
                 </TableHead>
                 <TableHead className="text-right">
                   <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("orders")}>
-                    Commandes <SortIcon field="orders" />
-                  </Button>
-                </TableHead>
-                <TableHead className="text-right">
-                  <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("funding")}>
-                    Financement <SortIcon field="funding" />
+                    Cmd <SortIcon field="orders" />
                   </Button>
                 </TableHead>
                 <TableHead>
@@ -487,12 +515,23 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAndSortedOffers.slice(0, 50).map((offer) => (
+              {filteredAndSortedOffers.slice(0, 50).map((offer) => {
+                const profitData = profitabilityMap.get(offer.id);
+                return (
                 <TableRow key={offer.id}>
-                  <TableCell className="font-medium max-w-[200px]">
-                    <div className="truncate" title={offer.title || ""}>
-                      {offer.items_affected || offer.title || "N/A"}
-                    </div>
+                  <TableCell className="font-medium max-w-[180px]">
+                    <TooltipProvider>
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <div className="truncate cursor-default">
+                            {offer.items_affected || offer.title || "N/A"}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[300px]">
+                          <p>{offer.items_affected || offer.title || "N/A"}</p>
+                        </TooltipContent>
+                      </UITooltip>
+                    </TooltipProvider>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-xs">
@@ -500,72 +539,33 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {offer.restaurant_names && offer.restaurant_names.length > 0
-                      ? offer.restaurant_names[0]
-                      : "N/A"}
-                    {offer.restaurant_names && offer.restaurant_names.length > 1 && (
-                      <Badge variant="secondary" className="ml-1 text-xs">
-                        +{offer.restaurant_names.length - 1}
-                      </Badge>
-                    )}
+                    {offer.restaurant_names?.[0] || "N/A"}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {offer.start_date
-                      ? format(new Date(offer.start_date), "dd MMM", { locale: fr })
-                      : "N/A"}{" "}
-                    -{" "}
-                    {offer.end_date
-                      ? format(new Date(offer.end_date), "dd MMM yy", { locale: fr })
-                      : "en cours"}
-                  </TableCell>
-                  <TableCell className="text-sm">{offer.audience || "Tous"}</TableCell>
                   <TableCell className="text-right font-medium text-emerald-600">
                     {formatCurrency(offer.generated_sales)}
                   </TableCell>
-                  <TableCell className="text-right">{offer.new_customers}</TableCell>
-                  <TableCell className="text-right">{offer.orders}</TableCell>
-                  <TableCell className="text-right">
-                    {editingFunding === offer.id ? (
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        className="w-16 h-7 text-right text-sm"
-                        value={fundingValue}
-                        onChange={(e) => setFundingValue(e.target.value)}
-                        onBlur={() => {
-                          const val = Math.min(100, Math.max(0, parseInt(fundingValue) || 0));
-                          handleFundingUpdate(offer.id, val);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            const val = Math.min(100, Math.max(0, parseInt(fundingValue) || 0));
-                            handleFundingUpdate(offer.id, val);
-                          } else if (e.key === "Escape") {
-                            setEditingFunding(null);
-                          }
-                        }}
-                        autoFocus
-                      />
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="cursor-pointer hover:bg-purple-500/10 hover:border-purple-500/30 transition-colors"
-                        onClick={() => {
-                          setEditingFunding(offer.id);
-                          setFundingValue((offer.uber_funding_percent || 0).toString());
-                        }}
-                      >
-                        {offer.uber_funding_percent || 0}%
-                      </Badge>
-                    )}
+                  <TableCell className="text-right text-red-600">
+                    {formatCurrency(profitData?.estimated_cost || 0)}
                   </TableCell>
+                  <TableCell className={`text-right font-bold ${(profitData?.net_margin || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {formatCurrency(profitData?.net_margin || 0)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Badge variant="outline" className={
+                      (profitData?.roi || 0) >= 50 ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" :
+                      (profitData?.roi || 0) >= 0 ? "bg-yellow-500/10 text-yellow-700 border-yellow-500/30" :
+                      "bg-red-500/10 text-red-700 border-red-500/30"
+                    }>
+                      {(profitData?.roi || 0).toFixed(0)}%
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">{offer.orders}</TableCell>
                   <TableCell>{getStatusBadge(offer.change_context?.status || "")}</TableCell>
                 </TableRow>
-              ))}
+              );})}
               {filteredAndSortedOffers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     {hasActiveFilters ? "Aucune offre ne correspond aux filtres" : "Aucune offre promotionnelle importée"}
                   </TableCell>
                 </TableRow>

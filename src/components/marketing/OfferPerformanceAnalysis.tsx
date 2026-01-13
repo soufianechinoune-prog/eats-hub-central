@@ -28,7 +28,6 @@ import {
   Scatter,
   ZAxis,
   Cell,
-  Legend,
 } from "recharts";
 import { 
   TrendingUp, 
@@ -37,13 +36,18 @@ import {
   Award, 
   ShoppingBag,
   Users,
-  ArrowUpRight,
-  ArrowDownRight,
   Filter,
   Calendar,
-  Percent
+  Percent,
+  DollarSign,
+  Calculator,
+  PiggyBank,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { OffersCampaign } from "@/hooks/useMarketingCampaigns";
+import { useOfferProfitability, OfferProfitability } from "@/hooks/useOfferProfitability";
 import { useMemo, useState } from "react";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -63,18 +67,34 @@ const COLORS = [
   "hsl(var(--chart-5))",
 ];
 
+const PROFITABILITY_COLORS = {
+  excellent: "hsl(142, 76%, 36%)",
+  good: "hsl(142, 71%, 45%)",
+  neutral: "hsl(48, 96%, 53%)",
+  poor: "hsl(25, 95%, 53%)",
+  negative: "hsl(0, 84%, 60%)",
+};
+
 export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisProps) {
   const [selectedOfferType, setSelectedOfferType] = useState<string>("all");
   const [editingFunding, setEditingFunding] = useState<string | null>(null);
   const [fundingValue, setFundingValue] = useState<string>("");
   const queryClient = useQueryClient();
   
+  // Use the profitability hook
+  const { 
+    offers: profitableOffers, 
+    stats, 
+    topProfitable, 
+    bottomProfitable,
+    profitabilityByType 
+  } = useOfferProfitability(offers);
+  
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(value);
 
   const handleFundingUpdate = async (offerId: string, newValue: number) => {
     try {
-      // Get current change_context
       const { data: current } = await supabase
         .from("restaurant_actions")
         .select("change_context")
@@ -111,17 +131,10 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
   // Filter offers based on selected type
   const filteredOffers = useMemo(() => {
     if (selectedOfferType === "all") return [];
-    return offers
+    return profitableOffers
       .filter(o => (o.offer_type || "Autre") === selectedOfferType)
-      .map(offer => {
-        const avgBasket = offer.orders > 0 ? offer.generated_sales / offer.orders : 0;
-        const duration = offer.start_date && offer.end_date 
-          ? differenceInDays(parseISO(offer.end_date), parseISO(offer.start_date)) + 1
-          : null;
-        return { ...offer, avgBasket, duration };
-      })
-      .sort((a, b) => b.generated_sales - a.generated_sales);
-  }, [offers, selectedOfferType]);
+      .sort((a, b) => b.net_margin - a.net_margin);
+  }, [profitableOffers, selectedOfferType]);
 
   // Summary stats for filtered offers
   const filteredStats = useMemo(() => {
@@ -129,136 +142,58 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
     return {
       count: filteredOffers.length,
       totalSales: filteredOffers.reduce((sum, o) => sum + o.generated_sales, 0),
-      totalOrders: filteredOffers.reduce((sum, o) => sum + o.orders, 0),
-      totalNewCustomers: filteredOffers.reduce((sum, o) => sum + o.new_customers, 0),
+      totalMargin: filteredOffers.reduce((sum, o) => sum + o.net_margin, 0),
+      avgRoi: filteredOffers.length > 0 
+        ? filteredOffers.reduce((sum, o) => sum + o.roi, 0) / filteredOffers.length 
+        : 0,
     };
   }, [filteredOffers]);
 
-  // Calculate enriched metrics for each offer
-  const enrichedOffers = useMemo(() => {
-    return offers.map((offer) => {
-      const avgBasket = offer.orders > 0 ? offer.generated_sales / offer.orders : 0;
-      const salesPerNewCustomer = offer.new_customers > 0 ? offer.generated_sales / offer.new_customers : 0;
-      const newCustomerRate = offer.orders > 0 ? (offer.new_customers / offer.orders) * 100 : 0;
-      
-      return {
-        ...offer,
-        avgBasket,
-        salesPerNewCustomer,
-        newCustomerRate,
-      };
-    });
-  }, [offers]);
-
-  // Performance by offer type with calculated KPIs
-  const performanceByType = useMemo(() => {
-    const byType: Record<string, {
-      count: number;
-      sales: number;
-      orders: number;
-      newCustomers: number;
-      avgBasket: number;
-      salesPerNewCustomer: number;
-      newCustomerRate: number;
-    }> = {};
-
-    enrichedOffers.forEach((offer) => {
-      const type = offer.offer_type || "Autre";
-      if (!byType[type]) {
-        byType[type] = { count: 0, sales: 0, orders: 0, newCustomers: 0, avgBasket: 0, salesPerNewCustomer: 0, newCustomerRate: 0 };
-      }
-      byType[type].count++;
-      byType[type].sales += offer.generated_sales;
-      byType[type].orders += offer.orders;
-      byType[type].newCustomers += offer.new_customers;
-    });
-
-    // Calculate averages
-    Object.keys(byType).forEach((type) => {
-      const data = byType[type];
-      data.avgBasket = data.orders > 0 ? data.sales / data.orders : 0;
-      data.salesPerNewCustomer = data.newCustomers > 0 ? data.sales / data.newCustomers : 0;
-      data.newCustomerRate = data.orders > 0 ? (data.newCustomers / data.orders) * 100 : 0;
-    });
-
-    return Object.entries(byType).map(([type, data]) => ({
-      type,
-      ...data,
-    })).sort((a, b) => b.sales - a.sales);
-  }, [enrichedOffers]);
-
-  // Top 10 best performing campaigns by average basket
-  const topByAvgBasket = useMemo(() => {
-    return [...enrichedOffers]
-      .filter((o) => o.orders > 0)
-      .sort((a, b) => b.avgBasket - a.avgBasket)
-      .slice(0, 10);
-  }, [enrichedOffers]);
-
-  // Top 10 by new customers
-  const topByNewCustomers = useMemo(() => {
-    return [...enrichedOffers]
-      .sort((a, b) => b.new_customers - a.new_customers)
-      .slice(0, 10);
-  }, [enrichedOffers]);
-
-  // Scatter plot data: Orders vs New Customers
+  // Scatter plot data: Cost vs Net Margin
   const scatterData = useMemo(() => {
-    return enrichedOffers
-      .filter((o) => o.orders > 0)
+    return profitableOffers
+      .filter((o) => o.estimated_cost > 0)
       .map((o) => ({
-        x: o.orders,
-        y: o.new_customers,
-        z: o.generated_sales,
-        name: o.title || o.items_affected || "N/A",
-        type: o.offer_type || "Autre",
+        x: o.estimated_cost,
+        y: o.net_margin,
+        z: o.orders,
+        name: o.product || o.title || "N/A",
+        type: o.offer_type,
+        roi: o.roi,
+        profitability: o.profitability_level,
       }));
-  }, [enrichedOffers]);
+  }, [profitableOffers]);
 
-  // Global KPIs
-  const globalKpis = useMemo(() => {
-    const totalSales = enrichedOffers.reduce((sum, o) => sum + o.generated_sales, 0);
-    const totalOrders = enrichedOffers.reduce((sum, o) => sum + o.orders, 0);
-    const totalNewCustomers = enrichedOffers.reduce((sum, o) => sum + o.new_customers, 0);
-    
-    return {
-      avgBasketGlobal: totalOrders > 0 ? totalSales / totalOrders : 0,
-      salesPerNewCustomerGlobal: totalNewCustomers > 0 ? totalSales / totalNewCustomers : 0,
-      newCustomerRateGlobal: totalOrders > 0 ? (totalNewCustomers / totalOrders) * 100 : 0,
+  // Profitability badge
+  const getProfitabilityBadge = (offer: OfferProfitability) => {
+    const { profitability_level, roi } = offer;
+    const config = {
+      excellent: { label: "Excellent", className: "bg-emerald-500/20 text-emerald-700 border-emerald-500/30" },
+      good: { label: "Rentable", className: "bg-green-500/20 text-green-700 border-green-500/30" },
+      neutral: { label: "Neutre", className: "bg-yellow-500/20 text-yellow-700 border-yellow-500/30" },
+      poor: { label: "Faible", className: "bg-orange-500/20 text-orange-700 border-orange-500/30" },
+      negative: { label: "Déficitaire", className: "bg-red-500/20 text-red-700 border-red-500/30" },
     };
-  }, [enrichedOffers]);
+    const { label, className } = config[profitability_level];
+    return <Badge variant="outline" className={className}>{label}</Badge>;
+  };
 
   return (
     <div className="space-y-6">
-      {/* Calculated KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+      {/* Profitability KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/20">
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/20">
-                <ShoppingBag className="h-5 w-5 text-primary" />
+              <div className="p-2 rounded-lg bg-red-500/20">
+                <DollarSign className="h-5 w-5 text-red-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Panier moyen global</p>
-                <p className="text-2xl font-bold">{formatCurrency(globalKpis.avgBasketGlobal)}</p>
-                <p className="text-xs text-muted-foreground">par commande promo</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/20">
-                <Target className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">CA par nouveau client</p>
-                <p className="text-2xl font-bold text-blue-700">
-                  {formatCurrency(globalKpis.salesPerNewCustomerGlobal)}
+                <p className="text-sm text-muted-foreground">Coût total offres</p>
+                <p className="text-2xl font-bold text-red-700">
+                  {formatCurrency(stats.totalCost)}
                 </p>
-                <p className="text-xs text-muted-foreground">valeur d'acquisition</p>
+                <p className="text-xs text-muted-foreground">estimé</p>
               </div>
             </div>
           </CardContent>
@@ -268,26 +203,82 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-emerald-500/20">
-                <Users className="h-5 w-5 text-emerald-600" />
+                <PiggyBank className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Taux nouveaux clients</p>
-                <p className="text-2xl font-bold text-emerald-700">
-                  {globalKpis.newCustomerRateGlobal.toFixed(1)}%
+                <p className="text-sm text-muted-foreground">Marge nette</p>
+                <p className={`text-2xl font-bold ${stats.totalNetMargin >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  {formatCurrency(stats.totalNetMargin)}
                 </p>
-                <p className="text-xs text-muted-foreground">des commandes</p>
+                <p className="text-xs text-muted-foreground">après commissions</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/20">
+                <Calculator className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">ROI moyen</p>
+                <p className={`text-2xl font-bold ${stats.avgRoi >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                  {stats.avgRoi.toFixed(0)}%
+                </p>
+                <p className="text-xs text-muted-foreground">retour sur investissement</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/20">
+                <Users className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Coût acquisition</p>
+                <p className="text-2xl font-bold text-purple-700">
+                  {formatCurrency(stats.avgCostPerAcquisition)}
+                </p>
+                <p className="text-xs text-muted-foreground">par nouveau client</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Performance by Type Table */}
+      {/* Profitability summary */}
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="border-emerald-500/30 bg-emerald-500/5">
+          <CardContent className="pt-4 flex items-center gap-4">
+            <CheckCircle className="h-8 w-8 text-emerald-600" />
+            <div>
+              <p className="text-3xl font-bold text-emerald-700">{stats.profitableCount}</p>
+              <p className="text-sm text-muted-foreground">offres rentables</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-red-500/30 bg-red-500/5">
+          <CardContent className="pt-4 flex items-center gap-4">
+            <XCircle className="h-8 w-8 text-red-600" />
+            <div>
+              <p className="text-3xl font-bold text-red-700">{stats.unprofitableCount}</p>
+              <p className="text-sm text-muted-foreground">offres déficitaires</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Profitability by Type Table */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Award className="h-5 w-5 text-primary" />
-            Comparaison par type d'offre
+            Rentabilité par type d'offre
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -297,15 +288,13 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                 <TableHead>Type d'offre</TableHead>
                 <TableHead className="text-center">Campagnes</TableHead>
                 <TableHead className="text-right">Ventes</TableHead>
-                <TableHead className="text-right">Commandes</TableHead>
-                <TableHead className="text-right">Nouveaux clients</TableHead>
-                <TableHead className="text-right">Panier moyen</TableHead>
-                <TableHead className="text-right">CA/Nouveau client</TableHead>
-                <TableHead className="text-right">Taux acquisition</TableHead>
+                <TableHead className="text-right">Coût estimé</TableHead>
+                <TableHead className="text-right">Marge nette</TableHead>
+                <TableHead className="text-right">ROI moyen</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {performanceByType.map((item, idx) => (
+              {profitabilityByType.map((item, idx) => (
                 <TableRow key={item.type}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
@@ -320,25 +309,25 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                     <Badge variant="secondary">{item.count}</Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium text-emerald-600">
-                    {formatCurrency(item.sales)}
+                    {formatCurrency(item.totalSales)}
                   </TableCell>
-                  <TableCell className="text-right">{item.orders.toLocaleString("fr-FR")}</TableCell>
-                  <TableCell className="text-right">{item.newCustomers.toLocaleString("fr-FR")}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(item.avgBasket)}
+                  <TableCell className="text-right text-red-600">
+                    {formatCurrency(item.totalCost)}
                   </TableCell>
-                  <TableCell className="text-right text-blue-600">
-                    {formatCurrency(item.salesPerNewCustomer)}
+                  <TableCell className={`text-right font-medium ${item.totalMargin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {formatCurrency(item.totalMargin)}
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge 
                       variant="outline" 
-                      className={item.newCustomerRate > globalKpis.newCustomerRateGlobal 
+                      className={item.avgRoi >= 50 
                         ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" 
-                        : ""
+                        : item.avgRoi >= 0 
+                          ? "bg-yellow-500/10 text-yellow-700 border-yellow-500/30"
+                          : "bg-red-500/10 text-red-700 border-red-500/30"
                       }
                     >
-                      {item.newCustomerRate.toFixed(1)}%
+                      {item.avgRoi.toFixed(0)}%
                     </Badge>
                   </TableCell>
                 </TableRow>
@@ -353,7 +342,7 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5 text-primary" />
-            Détail par type d'offre
+            Détail rentabilité par type d'offre
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -374,125 +363,60 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span><strong>{filteredStats.count}</strong> campagnes</span>
                 <span>•</span>
-                <span className="text-emerald-600 font-medium">{formatCurrency(filteredStats.totalSales)}</span>
+                <span className={filteredStats.totalMargin >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
+                  Marge: {formatCurrency(filteredStats.totalMargin)}
+                </span>
                 <span>•</span>
-                <span><strong>{filteredStats.totalNewCustomers}</strong> nouveaux clients</span>
+                <span>ROI: <strong>{filteredStats.avgRoi.toFixed(0)}%</strong></span>
               </div>
             )}
           </div>
 
           {selectedOfferType !== "all" && filteredOffers.length > 0 ? (
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-lg overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Produit / Titre</TableHead>
+                    <TableHead className="min-w-[180px]">Produit / Titre</TableHead>
                     <TableHead>Restaurant</TableHead>
-                    <TableHead>Période</TableHead>
-                    <TableHead className="text-center">Durée</TableHead>
                     <TableHead className="text-right">Ventes</TableHead>
-                    <TableHead className="text-right">Commandes</TableHead>
-                    <TableHead className="text-right">Nouveaux</TableHead>
-                    <TableHead className="text-right">Panier moy.</TableHead>
-                    <TableHead className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Percent className="h-3 w-3" />
-                        Co-fin. Uber
-                      </div>
-                    </TableHead>
-                    <TableHead>Audience</TableHead>
+                    <TableHead className="text-right">Coût</TableHead>
+                    <TableHead className="text-right">Commission</TableHead>
+                    <TableHead className="text-right">Co-fin.</TableHead>
+                    <TableHead className="text-right">Marge</TableHead>
+                    <TableHead className="text-right">ROI</TableHead>
+                    <TableHead>Rentabilité</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredOffers.map((offer) => (
                     <TableRow key={offer.id}>
-                      <TableCell className="font-medium max-w-[200px]">
-                        <p className="truncate">{offer.title || offer.items_affected || "N/A"}</p>
+                      <TableCell className="font-medium">
+                        <p className="truncate max-w-[180px]">{offer.product || offer.title || "N/A"}</p>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {offer.restaurant_names && offer.restaurant_names.length > 0
-                          ? offer.restaurant_names[0]
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {offer.start_date && offer.end_date ? (
-                          <div className="flex items-center gap-1 text-xs">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
-                            <span>
-                              {format(parseISO(offer.start_date), "d MMM", { locale: fr })}
-                              {" → "}
-                              {format(parseISO(offer.end_date), "d MMM", { locale: fr })}
-                            </span>
-                          </div>
-                        ) : "—"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {offer.duration ? (
-                          <Badge variant="outline">{offer.duration}j</Badge>
-                        ) : "—"}
+                        {offer.restaurant_names?.[0] || "—"}
                       </TableCell>
                       <TableCell className="text-right font-medium text-emerald-600">
                         {formatCurrency(offer.generated_sales)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {offer.orders.toLocaleString("fr-FR")}
+                      <TableCell className="text-right text-red-600">
+                        {formatCurrency(offer.estimated_cost)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <span className="text-blue-600 font-medium">
-                          {offer.new_customers.toLocaleString("fr-FR")}
-                        </span>
+                      <TableCell className="text-right text-muted-foreground">
+                        {formatCurrency(offer.commission)}
+                      </TableCell>
+                      <TableCell className="text-right text-purple-600">
+                        +{formatCurrency(offer.uber_cofunding)}
+                      </TableCell>
+                      <TableCell className={`text-right font-bold ${offer.net_margin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {formatCurrency(offer.net_margin)}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {formatCurrency(offer.avgBasket)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {editingFunding === offer.id ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            className="w-20 h-7 text-right"
-                            value={fundingValue}
-                            onChange={(e) => setFundingValue(e.target.value)}
-                            onBlur={() => {
-                              const val = parseFloat(fundingValue);
-                              if (!isNaN(val) && val >= 0 && val <= 100) {
-                                handleFundingUpdate(offer.id, val);
-                              } else {
-                                setEditingFunding(null);
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                const val = parseFloat(fundingValue);
-                                if (!isNaN(val) && val >= 0 && val <= 100) {
-                                  handleFundingUpdate(offer.id, val);
-                                }
-                              } else if (e.key === "Escape") {
-                                setEditingFunding(null);
-                              }
-                            }}
-                            autoFocus
-                          />
-                        ) : (
-                          <Badge 
-                            variant="outline" 
-                            className="cursor-pointer hover:bg-primary/10 transition-colors"
-                            onClick={() => {
-                              setEditingFunding(offer.id);
-                              setFundingValue(offer.uber_funding_percent?.toString() || "0");
-                            }}
-                          >
-                            {offer.uber_funding_percent || 0}%
-                          </Badge>
-                        )}
+                        {offer.roi.toFixed(0)}%
                       </TableCell>
                       <TableCell>
-                        {offer.audience ? (
-                          <Badge variant="secondary" className="text-xs">
-                            {offer.audience}
-                          </Badge>
-                        ) : "—"}
+                        {getProfitabilityBadge(offer)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -502,7 +426,7 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
           ) : selectedOfferType === "all" ? (
             <div className="text-center py-8 text-muted-foreground">
               <Filter className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>Sélectionnez un type d'offre pour voir le détail des campagnes</p>
+              <p>Sélectionnez un type d'offre pour voir le détail de rentabilité</p>
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
@@ -514,12 +438,12 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
 
       {/* Charts Row */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Scatter Plot: Orders vs New Customers */}
+        {/* Scatter Plot: Cost vs Net Margin */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Commandes vs Nouveaux clients</CardTitle>
+            <CardTitle className="text-base">Coût vs Marge nette</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Taille des bulles = CA généré
+              Taille des bulles = Nombre de commandes
             </p>
           </CardHeader>
           <CardContent>
@@ -529,14 +453,16 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                 <XAxis 
                   type="number" 
                   dataKey="x" 
-                  name="Commandes" 
+                  name="Coût" 
                   className="text-xs"
+                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                 />
                 <YAxis 
                   type="number" 
                   dataKey="y" 
-                  name="Nouveaux clients" 
+                  name="Marge" 
                   className="text-xs"
+                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                 />
                 <ZAxis type="number" dataKey="z" range={[50, 400]} />
                 <Tooltip
@@ -548,9 +474,11 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                           <p className="font-medium text-sm mb-1">{data.name}</p>
                           <p className="text-xs text-muted-foreground">{data.type}</p>
                           <div className="mt-2 space-y-1 text-xs">
-                            <p>Commandes: {data.x}</p>
-                            <p>Nouveaux clients: {data.y}</p>
-                            <p>CA: {formatCurrency(data.z)}</p>
+                            <p>Coût: {formatCurrency(data.x)}</p>
+                            <p className={data.y >= 0 ? "text-emerald-600" : "text-red-600"}>
+                              Marge: {formatCurrency(data.y)}
+                            </p>
+                            <p>ROI: {data.roi.toFixed(0)}%</p>
                           </div>
                         </div>
                       );
@@ -562,7 +490,7 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                   {scatterData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={COLORS[index % COLORS.length]} 
+                      fill={PROFITABILITY_COLORS[entry.profitability as keyof typeof PROFITABILITY_COLORS]} 
                       fillOpacity={0.7}
                     />
                   ))}
@@ -572,16 +500,16 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
           </CardContent>
         </Card>
 
-        {/* Bar Chart: Average Basket by Type */}
+        {/* Bar Chart: ROI by Type */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Panier moyen par type d'offre</CardTitle>
+            <CardTitle className="text-base">ROI par type d'offre</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={performanceByType} layout="vertical">
+              <BarChart data={profitabilityByType} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis type="number" className="text-xs" />
+                <XAxis type="number" className="text-xs" tickFormatter={(v) => `${v}%`} />
                 <YAxis 
                   dataKey="type" 
                   type="category" 
@@ -590,7 +518,7 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                   tick={{ fontSize: 11 }}
                 />
                 <Tooltip
-                  formatter={(value: number) => formatCurrency(value)}
+                  formatter={(value: number) => `${value.toFixed(0)}%`}
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
                     border: "1px solid hsl(var(--border))",
@@ -598,10 +526,10 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                   }}
                 />
                 <Bar 
-                  dataKey="avgBasket" 
+                  dataKey="avgRoi" 
                   fill="hsl(var(--primary))" 
                   radius={[0, 4, 4, 0]}
-                  name="Panier moyen"
+                  name="ROI moyen"
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -611,86 +539,92 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
 
       {/* Rankings */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Top by Average Basket */}
+        {/* Top Profitable */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <TrendingUp className="h-4 w-4 text-emerald-600" />
-              Top 10 - Meilleur panier moyen
+              Top 5 - Plus rentables
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {topByAvgBasket.map((offer, idx) => (
+              {topProfitable.map((offer, idx) => (
                 <div 
                   key={offer.id} 
-                  className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
+                  className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold text-muted-foreground w-6">
                       #{idx + 1}
                     </span>
                     <div>
-                      <p className="text-sm font-medium truncate max-w-[200px]">
-                        {offer.title || offer.items_affected || "N/A"}
+                      <p className="text-sm font-medium truncate max-w-[180px]">
+                        {offer.product || offer.title || "N/A"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {offer.restaurant_names?.[0] || "—"}
+                        {offer.restaurant_names?.[0] || "—"} • {offer.offer_type}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-emerald-600">
-                      {formatCurrency(offer.avgBasket)}
+                      ROI {offer.roi.toFixed(0)}%
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {offer.orders} cmd
+                      Marge: {formatCurrency(offer.net_margin)}
                     </p>
                   </div>
                 </div>
               ))}
+              {topProfitable.length === 0 && (
+                <p className="text-center text-muted-foreground py-4">Aucune offre rentable</p>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Top by New Customers */}
+        {/* Bottom Profitable (to avoid) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="h-4 w-4 text-blue-600" />
-              Top 10 - Plus de nouveaux clients
+              <TrendingDown className="h-4 w-4 text-red-600" />
+              Bottom 5 - À éviter
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {topByNewCustomers.map((offer, idx) => (
+              {bottomProfitable.map((offer, idx) => (
                 <div 
                   key={offer.id} 
-                  className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
+                  className="flex items-center justify-between p-2 rounded-lg bg-red-500/5 border border-red-500/20"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold text-muted-foreground w-6">
                       #{idx + 1}
                     </span>
                     <div>
-                      <p className="text-sm font-medium truncate max-w-[200px]">
-                        {offer.title || offer.items_affected || "N/A"}
+                      <p className="text-sm font-medium truncate max-w-[180px]">
+                        {offer.product || offer.title || "N/A"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {offer.restaurant_names?.[0] || "—"}
+                        {offer.restaurant_names?.[0] || "—"} • {offer.offer_type}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-blue-600">
-                      {offer.new_customers} nouveaux
+                    <p className={`font-bold ${offer.roi < 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                      ROI {offer.roi.toFixed(0)}%
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatCurrency(offer.generated_sales)}
+                      Marge: {formatCurrency(offer.net_margin)}
                     </p>
                   </div>
                 </div>
               ))}
+              {bottomProfitable.length === 0 && (
+                <p className="text-center text-muted-foreground py-4">Aucune donnée</p>
+              )}
             </div>
           </CardContent>
         </Card>
