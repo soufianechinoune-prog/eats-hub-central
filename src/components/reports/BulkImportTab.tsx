@@ -1,0 +1,874 @@
+import { useState, useCallback } from "react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Trash2, Building2, Calendar, RefreshCw } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+
+// Report type definitions with labels
+const REPORT_TYPE_CONFIG: Record<string, { 
+  label: string; 
+  requiresRestaurant: boolean;
+  edgeFunctionName: string;
+}> = {
+  sales_over_time: { label: "Sales Over Time", requiresRestaurant: true, edgeFunctionName: "parse-sales-over-time" },
+  payment_order_level: { label: "Paiements (commandes)", requiresRestaurant: false, edgeFunctionName: "parse-payment-report" },
+  payment_item_level: { label: "Paiements (articles)", requiresRestaurant: false, edgeFunctionName: "parse-payment-report" },
+  payout_summary: { label: "Récapitulatif versements", requiresRestaurant: false, edgeFunctionName: "parse-payout-summary" },
+  marketing_campaigns: { label: "Campagnes Marketing", requiresRestaurant: true, edgeFunctionName: "parse-marketing-campaigns" },
+  conversion_funnel: { label: "Tunnel de conversion", requiresRestaurant: true, edgeFunctionName: "parse-conversion-report" },
+  reviews_order: { label: "Avis (commandes)", requiresRestaurant: false, edgeFunctionName: "parse-reviews-order" },
+  reviews_item: { label: "Avis (articles)", requiresRestaurant: false, edgeFunctionName: "parse-reviews-item" },
+  downtime_report: { label: "Temps d'inactivité", requiresRestaurant: false, edgeFunctionName: "parse-downtime-report" },
+  order_history: { label: "Historique commandes", requiresRestaurant: false, edgeFunctionName: "parse-order-history" },
+  inaccurate_orders: { label: "Commandes incorrectes", requiresRestaurant: false, edgeFunctionName: "parse-inaccurate-orders" },
+  order_accuracy_summary: { label: "Résumé erreurs", requiresRestaurant: true, edgeFunctionName: "parse-order-accuracy-summary" },
+  item_issues_leaderboard: { label: "Top articles problématiques", requiresRestaurant: true, edgeFunctionName: "parse-item-issues-leaderboard" },
+};
+
+interface BulkFile {
+  id: string;
+  file: File;
+  content: string;
+  detectedType: string | null;
+  selectedType: string;
+  dateRange: { start: string | null; end: string | null };
+  restaurantId: string;
+  autoDetectedRestaurant: string | null;
+  status: "pending" | "ready" | "processing" | "success" | "error" | "config-error";
+  error?: string;
+  result?: {
+    inserted: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+  };
+  selected: boolean;
+}
+
+interface BulkImportTabProps {
+  restaurants: Array<{ id: string; name: string; city?: string }>;
+}
+
+// Parse CSV line handling quoted values
+const parseCSVLine = (line: string): string[] => {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+};
+
+// Auto-detect report type based on CSV headers
+const detectReportType = (headerLine: string): string | null => {
+  // Marketing campaigns - Offers
+  if (headerLine.includes("Type d'offre") && headerLine.includes("Audience")) {
+    return "marketing_campaigns";
+  }
+  // Marketing campaigns - Ads
+  if (headerLine.includes("Nom de la campagne") && headerLine.includes("Impressions")) {
+    return "marketing_campaigns";
+  }
+  // Sales Over Time
+  if (headerLine.includes("Période") && headerLine.includes("Ventes")) {
+    return "sales_over_time";
+  }
+  // Reviews Order Level
+  if ((headerLine.includes("Note du restaurant") || headerLine.includes("restaurant rating")) && 
+      (headerLine.includes("UUID de la commande") || headerLine.includes("Order UUID"))) {
+    return "reviews_order";
+  }
+  // Reviews Item Level
+  if ((headerLine.includes("Note de l'article") || headerLine.includes("Item rating")) && 
+      (headerLine.includes("Titre de l'article") || headerLine.includes("Item title"))) {
+    return "reviews_item";
+  }
+  // Downtime Report
+  if (headerLine.includes("Ouverture du restaurant à") && headerLine.includes("Disponibilité du menu")) {
+    return "downtime_report";
+  }
+  // Order History
+  if ((headerLine.includes("Id. de la commande") || headerLine.includes("Id de la commande")) && 
+      (headerLine.includes("Temps d'attente du coursier") || headerLine.includes("Heure de la commande"))) {
+    return "order_history";
+  }
+  // Inaccurate Orders (detail)
+  if ((headerLine.includes("Problème avec la commande") || headerLine.includes("Articles incorrects")) &&
+      headerLine.includes("Client remboursé")) {
+    return "inaccurate_orders";
+  }
+  // Item Issues Leaderboard
+  if (headerLine.includes("Articles incorrects") && headerLine.includes("Nombre") &&
+      headerLine.includes("Problème avec le plat")) {
+    return "item_issues_leaderboard";
+  }
+  // Order Accuracy Summary
+  if ((headerLine.includes("Jour") || headerLine.includes("Mois")) && 
+      (headerLine.includes("Commandes incorrectes") || headerLine.includes("Articles manquants"))) {
+    return "order_accuracy_summary";
+  }
+  // Conversion Funnel
+  if ((headerLine.includes("Utilisateurs ayant visité") || headerLine.includes("Utilisateurs ayant visite")) &&
+      (headerLine.includes("menu a été consulté") || headerLine.includes("menu consulté") || headerLine.includes("Plat ajouté"))) {
+    return "conversion_funnel";
+  }
+  // Payout Summary
+  if (headerLine.includes("Identifiant de versement") || headerLine.includes("Date de versement")) {
+    return "payout_summary";
+  }
+  // Payment reports (default fallback for order/item level)
+  if (headerLine.includes("Id. de la commande") || headerLine.includes("Id. du flux")) {
+    if (headerLine.includes("Titre de l'article") || headerLine.includes("Item title")) {
+      return "payment_item_level";
+    }
+    return "payment_order_level";
+  }
+  return null;
+};
+
+// Extract date range from CSV content
+const extractDateRange = (content: string, reportType: string): { start: string | null; end: string | null } => {
+  const lines = content.split("\n").filter(l => l.trim());
+  
+  // For conversion funnel - look for specific date columns
+  if (reportType === "conversion_funnel") {
+    for (let i = 0; i < Math.min(10, lines.length); i++) {
+      if (lines[i].includes("Date de début") || lines[i].includes("Date de fin")) {
+        const headers = parseCSVLine(lines[i]);
+        const startDateIdx = headers.findIndex(h => h.toLowerCase().includes("date de début"));
+        const endDateIdx = headers.findIndex(h => h.toLowerCase().includes("date de fin"));
+        
+        for (let j = i + 1; j < lines.length; j++) {
+          const values = parseCSVLine(lines[j]);
+          if (values.some(v => v.includes("Cette période"))) {
+            const startStr = values[startDateIdx] || null;
+            const endStr = values[endDateIdx] || null;
+            
+            const parseDate = (str: string | null): string | null => {
+              if (!str) return null;
+              const match = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+              if (match) return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+              const isoMatch = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+              if (isoMatch) return str;
+              return null;
+            };
+            
+            return { start: parseDate(startStr), end: parseDate(endStr) };
+          }
+        }
+      }
+    }
+  }
+  
+  // Generic date extraction - look for date patterns in first rows
+  const datePattern = /(\d{4})-(\d{2})-(\d{2})|(\d{1,2})\/(\d{1,2})\/(\d{4})/g;
+  const dates: string[] = [];
+  
+  for (let i = 0; i < Math.min(50, lines.length); i++) {
+    const matches = lines[i].match(datePattern);
+    if (matches) {
+      matches.forEach(m => {
+        // Normalize to YYYY-MM-DD
+        const isoMatch = m.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (isoMatch) {
+          dates.push(m);
+        } else {
+          const frMatch = m.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+          if (frMatch) {
+            dates.push(`${frMatch[3]}-${frMatch[2].padStart(2, '0')}-${frMatch[1].padStart(2, '0')}`);
+          }
+        }
+      });
+    }
+  }
+  
+  if (dates.length > 0) {
+    dates.sort();
+    return { start: dates[0], end: dates[dates.length - 1] };
+  }
+  
+  return { start: null, end: null };
+};
+
+// Try to find restaurant from store_id in content
+const findRestaurantFromContent = (content: string, restaurants: Array<{ id: string; name: string; city?: string }>): string | null => {
+  const lines = content.split("\n").filter(l => l.trim());
+  if (lines.length < 2) return null;
+  
+  // Look for store_id column
+  const headerLine = lines[0];
+  const headers = parseCSVLine(headerLine);
+  const storeIdIndex = headers.findIndex(h => 
+    h.toLowerCase().includes("store id") || 
+    h.toLowerCase().includes("store_id") ||
+    h.toLowerCase().includes("id du restaurant")
+  );
+  
+  if (storeIdIndex >= 0 && lines.length > 1) {
+    const firstDataRow = parseCSVLine(lines[1]);
+    const storeId = firstDataRow[storeIdIndex]?.trim();
+    if (storeId) {
+      // Find matching restaurant
+      const found = restaurants.find(r => r.id === storeId);
+      if (found) return found.id;
+    }
+  }
+  
+  return null;
+};
+
+export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [files, setFiles] = useState<BulkFile[]>([]);
+  const [step, setStep] = useState<"upload" | "configure" | "importing" | "complete">("upload");
+  const [progress, setProgress] = useState(0);
+  const [selectAll, setSelectAll] = useState(true);
+  const [defaultRestaurantId, setDefaultRestaurantId] = useState<string>("");
+
+  const generateId = () => Math.random().toString(36).substring(2, 15);
+
+  const processFile = async (file: File): Promise<BulkFile> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        const lines = content.split("\n").filter(l => l.trim());
+        
+        // Find header row (skip metadata rows)
+        let headerLine = "";
+        for (let i = 0; i < Math.min(10, lines.length); i++) {
+          const line = lines[i];
+          // Skip lines that look like metadata
+          if (!line.startsWith("Téléchargé le") && 
+              !line.startsWith("Rapport :") &&
+              !line.includes("Légende du rapport") &&
+              line.includes(",")) {
+            headerLine = line;
+            break;
+          }
+        }
+        
+        const detectedType = detectReportType(headerLine);
+        const dateRange = extractDateRange(content, detectedType || "");
+        const autoRestaurant = findRestaurantFromContent(content, restaurants);
+        
+        const config = detectedType ? REPORT_TYPE_CONFIG[detectedType] : null;
+        const needsRestaurant = config?.requiresRestaurant ?? false;
+        const hasRestaurant = !!autoRestaurant;
+        
+        resolve({
+          id: generateId(),
+          file,
+          content,
+          detectedType,
+          selectedType: detectedType || "",
+          dateRange,
+          restaurantId: autoRestaurant || "",
+          autoDetectedRestaurant: autoRestaurant,
+          status: !detectedType ? "config-error" : 
+                  (needsRestaurant && !hasRestaurant) ? "config-error" : "ready",
+          error: !detectedType ? "Type non détecté" : 
+                 (needsRestaurant && !hasRestaurant) ? "Restaurant requis" : undefined,
+          selected: true,
+        });
+      };
+      reader.readAsText(file);
+    });
+  };
+
+  const handleFileDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const droppedFiles = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith(".csv"));
+    
+    if (droppedFiles.length === 0) {
+      toast({
+        title: "Aucun fichier CSV",
+        description: "Veuillez déposer des fichiers CSV uniquement",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const processedFiles = await Promise.all(droppedFiles.map(processFile));
+    setFiles(prev => [...prev, ...processedFiles]);
+    setStep("configure");
+  }, [restaurants, toast]);
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []).filter(f => f.name.endsWith(".csv"));
+    
+    if (selectedFiles.length === 0) return;
+    
+    const processedFiles = await Promise.all(selectedFiles.map(processFile));
+    setFiles(prev => [...prev, ...processedFiles]);
+    setStep("configure");
+  }, [restaurants]);
+
+  const updateFile = (id: string, updates: Partial<BulkFile>) => {
+    setFiles(prev => prev.map(f => {
+      if (f.id !== id) return f;
+      const updated = { ...f, ...updates };
+      
+      // Recalculate status
+      const config = updated.selectedType ? REPORT_TYPE_CONFIG[updated.selectedType] : null;
+      const needsRestaurant = config?.requiresRestaurant ?? false;
+      
+      if (!updated.selectedType) {
+        updated.status = "config-error";
+        updated.error = "Type requis";
+      } else if (needsRestaurant && !updated.restaurantId) {
+        updated.status = "config-error";
+        updated.error = "Restaurant requis";
+      } else {
+        updated.status = "ready";
+        updated.error = undefined;
+      }
+      
+      return updated;
+    }));
+  };
+
+  const removeFile = (id: string) => {
+    setFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  const applyRestaurantToAll = () => {
+    if (!defaultRestaurantId) return;
+    setFiles(prev => prev.map(f => {
+      const config = f.selectedType ? REPORT_TYPE_CONFIG[f.selectedType] : null;
+      const needsRestaurant = config?.requiresRestaurant ?? false;
+      
+      if (needsRestaurant && !f.restaurantId) {
+        return {
+          ...f,
+          restaurantId: defaultRestaurantId,
+          status: "ready" as const,
+          error: undefined,
+        };
+      }
+      return f;
+    }));
+  };
+
+  const toggleSelectAll = () => {
+    const newValue = !selectAll;
+    setSelectAll(newValue);
+    setFiles(prev => prev.map(f => ({ ...f, selected: newValue })));
+  };
+
+  const startImport = async () => {
+    const filesToImport = files.filter(f => f.selected && f.status === "ready");
+    
+    if (filesToImport.length === 0) {
+      toast({
+        title: "Aucun fichier prêt",
+        description: "Configurez les fichiers avant de lancer l'import",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setStep("importing");
+    setProgress(0);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < filesToImport.length; i++) {
+      const bulkFile = filesToImport[i];
+      const config = REPORT_TYPE_CONFIG[bulkFile.selectedType];
+      
+      // Update status to processing
+      setFiles(prev => prev.map(f => 
+        f.id === bulkFile.id ? { ...f, status: "processing" as const } : f
+      ));
+
+      try {
+        // Build request body based on report type
+        let body: Record<string, any> = {
+          csvContent: bulkFile.content,
+        };
+        
+        // Add restaurant if required
+        if (config.requiresRestaurant) {
+          body.restaurantId = bulkFile.restaurantId;
+        }
+        
+        // Special handling for payment reports
+        if (bulkFile.selectedType === "payment_order_level") {
+          body.level = "order";
+        } else if (bulkFile.selectedType === "payment_item_level") {
+          body.level = "item";
+        }
+
+        const { data, error } = await supabase.functions.invoke(config.edgeFunctionName, {
+          body,
+        });
+
+        if (error) throw error;
+
+        // Update file with success
+        setFiles(prev => prev.map(f => 
+          f.id === bulkFile.id ? {
+            ...f,
+            status: "success" as const,
+            result: {
+              inserted: data.stats?.inserted || 0,
+              updated: data.stats?.updated || 0,
+              skipped: data.stats?.skipped || 0,
+              errors: data.stats?.errors || 0,
+            },
+          } : f
+        ));
+
+        // Record in csv_imports
+        await supabase.from("csv_imports").insert({
+          file_name: bulkFile.file.name,
+          file_size: bulkFile.file.size,
+          report_type: bulkFile.selectedType,
+          total_rows: data.stats?.totalRows || 0,
+          inserted_count: data.stats?.inserted || 0,
+          updated_count: data.stats?.updated || 0,
+          skipped_count: data.stats?.skipped || 0,
+          error_count: data.stats?.errors || 0,
+          status: "completed",
+          date_range_start: bulkFile.dateRange.start,
+          date_range_end: bulkFile.dateRange.end,
+          restaurants_count: bulkFile.restaurantId ? 1 : (data.validation?.restaurants?.length || 0),
+          restaurant_ids: bulkFile.restaurantId ? [bulkFile.restaurantId] : (data.validation?.restaurants?.map((r: any) => r.id) || []),
+        });
+
+        successCount++;
+      } catch (error: any) {
+        console.error(`Error importing ${bulkFile.file.name}:`, error);
+        setFiles(prev => prev.map(f => 
+          f.id === bulkFile.id ? {
+            ...f,
+            status: "error" as const,
+            error: error.message || "Erreur d'import",
+          } : f
+        ));
+        errorCount++;
+      }
+
+      setProgress(((i + 1) / filesToImport.length) * 100);
+    }
+
+    // Invalidate queries
+    queryClient.invalidateQueries({ queryKey: ["csv-imports"] });
+    
+    setStep("complete");
+    
+    toast({
+      title: successCount === filesToImport.length ? "Import terminé" : "Import partiel",
+      description: `${successCount}/${filesToImport.length} fichiers importés avec succès`,
+      variant: errorCount > 0 ? "destructive" : "default",
+    });
+  };
+
+  const resetImport = () => {
+    setFiles([]);
+    setStep("upload");
+    setProgress(0);
+    setDefaultRestaurantId("");
+  };
+
+  const readyCount = files.filter(f => f.selected && f.status === "ready").length;
+  const errorCount = files.filter(f => f.status === "config-error").length;
+  const successCount = files.filter(f => f.status === "success").length;
+  const failedCount = files.filter(f => f.status === "error").length;
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "-";
+    try {
+      return format(new Date(dateStr), "dd MMM yyyy", { locale: fr });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getRestaurantName = (id: string) => {
+    const restaurant = restaurants.find(r => r.id === id);
+    return restaurant ? `${restaurant.name}${restaurant.city ? ` (${restaurant.city})` : ""}` : "";
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Upload Zone */}
+      {step === "upload" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Import groupé
+            </CardTitle>
+            <CardDescription>
+              Importez plusieurs fichiers CSV pour différents restaurants en une seule opération
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div
+              onDrop={handleFileDrop}
+              onDragOver={(e) => e.preventDefault()}
+              className="border-2 border-dashed rounded-xl p-12 text-center hover:border-primary/50 transition-colors cursor-pointer"
+            >
+              <input
+                type="file"
+                multiple
+                accept=".csv"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="bulk-file-input"
+              />
+              <label htmlFor="bulk-file-input" className="cursor-pointer">
+                <FileSpreadsheet className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-lg font-medium mb-2">
+                  Déposez vos fichiers CSV ici
+                </p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  ou cliquez pour sélectionner
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Tous types de rapports acceptés • Détection automatique du type et du restaurant
+                </p>
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Configuration Table */}
+      {(step === "configure" || step === "importing" || step === "complete") && files.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5" />
+                  {files.length} fichier{files.length > 1 ? "s" : ""} détecté{files.length > 1 ? "s" : ""}
+                </CardTitle>
+                <CardDescription>
+                  {step === "configure" && `${readyCount} prêt${readyCount > 1 ? "s" : ""} à importer${errorCount > 0 ? ` • ${errorCount} nécessite${errorCount > 1 ? "nt" : ""} configuration` : ""}`}
+                  {step === "importing" && "Import en cours..."}
+                  {step === "complete" && `${successCount} réussi${successCount > 1 ? "s" : ""}${failedCount > 0 ? ` • ${failedCount} échoué${failedCount > 1 ? "s" : ""}` : ""}`}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                {step === "configure" && (
+                  <>
+                    <Select value={defaultRestaurantId} onValueChange={setDefaultRestaurantId}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Appliquer resto à tous" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {restaurants.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="sm" onClick={applyRestaurantToAll} disabled={!defaultRestaurantId}>
+                      Appliquer
+                    </Button>
+                  </>
+                )}
+                {step === "configure" && (
+                  <Button variant="ghost" size="icon" onClick={() => document.getElementById("bulk-file-input-add")?.click()}>
+                    <Upload className="h-4 w-4" />
+                  </Button>
+                )}
+                <input
+                  type="file"
+                  multiple
+                  accept=".csv"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  id="bulk-file-input-add"
+                />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {step === "importing" && (
+              <div className="mb-4">
+                <Progress value={progress} className="h-2" />
+                <p className="text-sm text-muted-foreground mt-2 text-center">
+                  {Math.round(progress)}% - Import en cours...
+                </p>
+              </div>
+            )}
+            
+            <ScrollArea className="h-[400px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {step === "configure" && (
+                      <TableHead className="w-10">
+                        <Checkbox 
+                          checked={selectAll} 
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </TableHead>
+                    )}
+                    <TableHead>Fichier</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Période</TableHead>
+                    <TableHead>Restaurant</TableHead>
+                    <TableHead className="text-center">Statut</TableHead>
+                    {step === "complete" && (
+                      <TableHead className="text-center">Résultat</TableHead>
+                    )}
+                    {step === "configure" && (
+                      <TableHead className="w-10"></TableHead>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {files.map((bulkFile) => {
+                    const config = bulkFile.selectedType ? REPORT_TYPE_CONFIG[bulkFile.selectedType] : null;
+                    const needsRestaurant = config?.requiresRestaurant ?? false;
+                    
+                    return (
+                      <TableRow key={bulkFile.id} className={!bulkFile.selected ? "opacity-50" : ""}>
+                        {step === "configure" && (
+                          <TableCell>
+                            <Checkbox 
+                              checked={bulkFile.selected}
+                              onCheckedChange={(checked) => updateFile(bulkFile.id, { selected: !!checked })}
+                            />
+                          </TableCell>
+                        )}
+                        <TableCell>
+                          <div className="max-w-[180px]">
+                            <p className="font-medium truncate text-sm" title={bulkFile.file.name}>
+                              {bulkFile.file.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {(bulkFile.file.size / 1024).toFixed(1)} Ko
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {step === "configure" ? (
+                            <Select 
+                              value={bulkFile.selectedType} 
+                              onValueChange={(v) => updateFile(bulkFile.id, { selectedType: v })}
+                            >
+                              <SelectTrigger className="w-[160px] h-8 text-xs">
+                                <SelectValue placeholder="Sélectionner..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(REPORT_TYPE_CONFIG).map(([key, cfg]) => (
+                                  <SelectItem key={key} value={key} className="text-xs">
+                                    {cfg.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">
+                              {config?.label || bulkFile.selectedType}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {bulkFile.dateRange.start ? (
+                            <>
+                              {formatDate(bulkFile.dateRange.start)}
+                              {bulkFile.dateRange.end && bulkFile.dateRange.end !== bulkFile.dateRange.start && (
+                                <> → {formatDate(bulkFile.dateRange.end)}</>
+                              )}
+                            </>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {needsRestaurant ? (
+                            step === "configure" ? (
+                              <Select 
+                                value={bulkFile.restaurantId} 
+                                onValueChange={(v) => updateFile(bulkFile.id, { restaurantId: v })}
+                              >
+                                <SelectTrigger className={`w-[160px] h-8 text-xs ${!bulkFile.restaurantId ? "border-destructive" : ""}`}>
+                                  <SelectValue placeholder="Sélectionner..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {restaurants.map((r) => (
+                                    <SelectItem key={r.id} value={r.id} className="text-xs">
+                                      {r.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-xs">
+                                {getRestaurantName(bulkFile.restaurantId) || "-"}
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              {bulkFile.autoDetectedRestaurant ? (
+                                <span className="flex items-center gap-1">
+                                  <Building2 className="h-3 w-3" />
+                                  Auto
+                                </span>
+                              ) : (
+                                "N/A"
+                              )}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {bulkFile.status === "ready" && (
+                            <Badge variant="secondary" className="bg-blue-500/10 text-blue-600">
+                              Prêt
+                            </Badge>
+                          )}
+                          {bulkFile.status === "config-error" && (
+                            <Badge variant="secondary" className="bg-amber-500/10 text-amber-600">
+                              {bulkFile.error}
+                            </Badge>
+                          )}
+                          {bulkFile.status === "processing" && (
+                            <Badge variant="secondary" className="bg-primary/10 text-primary">
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Import...
+                            </Badge>
+                          )}
+                          {bulkFile.status === "success" && (
+                            <Badge variant="secondary" className="bg-green-500/10 text-green-600">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              OK
+                            </Badge>
+                          )}
+                          {bulkFile.status === "error" && (
+                            <Badge variant="destructive">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Erreur
+                            </Badge>
+                          )}
+                        </TableCell>
+                        {step === "complete" && (
+                          <TableCell className="text-center text-xs">
+                            {bulkFile.result ? (
+                              <span>
+                                +{bulkFile.result.inserted} / ~{bulkFile.result.updated}
+                              </span>
+                            ) : bulkFile.error ? (
+                              <span className="text-destructive">{bulkFile.error}</span>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                        )}
+                        {step === "configure" && (
+                          <TableCell>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => removeFile(bulkFile.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary after import */}
+      {step === "complete" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {failedCount === 0 ? (
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+              )}
+              {failedCount === 0 ? "Import terminé avec succès" : "Import terminé avec erreurs"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="p-4 bg-muted rounded-lg text-center">
+                <p className="text-2xl font-bold">{files.length}</p>
+                <p className="text-sm text-muted-foreground">Fichiers traités</p>
+              </div>
+              <div className="p-4 bg-green-500/10 rounded-lg text-center">
+                <p className="text-2xl font-bold text-green-600">{successCount}</p>
+                <p className="text-sm text-muted-foreground">Réussis</p>
+              </div>
+              <div className="p-4 bg-red-500/10 rounded-lg text-center">
+                <p className="text-2xl font-bold text-red-600">{failedCount}</p>
+                <p className="text-sm text-muted-foreground">Erreurs</p>
+              </div>
+              <div className="p-4 bg-blue-500/10 rounded-lg text-center">
+                <p className="text-2xl font-bold text-blue-600">
+                  {files.filter(f => f.status === "success").reduce((sum, f) => sum + (f.result?.inserted || 0), 0)}
+                </p>
+                <p className="text-sm text-muted-foreground">Lignes insérées</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={resetImport}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Nouvel import
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Action Buttons */}
+      {step === "configure" && (
+        <div className="flex justify-between items-center">
+          <Button variant="outline" onClick={resetImport}>
+            Annuler
+          </Button>
+          <Button 
+            onClick={startImport} 
+            disabled={readyCount === 0}
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Importer {readyCount} fichier{readyCount > 1 ? "s" : ""}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

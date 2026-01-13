@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle, Trash2 } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle, Trash2, Layers } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import ImportHistory from "@/components/reports/ImportHistory";
+import BulkImportTab from "@/components/reports/BulkImportTab";
 import { useQuery } from "@tanstack/react-query";
 
 // Report types organized by theme
@@ -928,6 +929,10 @@ export default function ReportImport() {
             <Upload className="h-4 w-4" />
             Importer
           </TabsTrigger>
+          <TabsTrigger value="bulk" className="gap-2">
+            <Layers className="h-4 w-4" />
+            Import groupé
+          </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
             <History className="h-4 w-4" />
             Historique
@@ -1811,6 +1816,10 @@ export default function ReportImport() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="bulk" className="mt-6">
+          <BulkImportTab restaurants={restaurants} />
         </TabsContent>
 
         <TabsContent value="history" className="mt-6">
