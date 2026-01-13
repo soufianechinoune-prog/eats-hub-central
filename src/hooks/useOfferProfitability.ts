@@ -299,8 +299,9 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
         : 0;
 
       // Get pre-aggregated financial data for this offer
+      // IMPORTANT: We use generated_sales from Uber as the primary revenue source
+      // The aggregated data is used ONLY for commission/promos/refunds estimation
       let hasRealData = false;
-      let realSales = 0;
       let realCommission = 0;
       let realPromos = 0;
       let realRefunds = 0;
@@ -312,7 +313,7 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
       if (aggregated && aggregated.orderCount > 0) {
         hasRealData = true;
         realOrdersCount = aggregated.orderCount;
-        realSales = aggregated.totalSales;
+        // NOTE: We do NOT use aggregated.totalSales - it's the total restaurant revenue, not offer-specific
         realCommission = aggregated.totalCommission;
         realPromos = aggregated.totalPromos;
         realRefunds = aggregated.totalRefunds;
@@ -320,8 +321,28 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
         realMealVoucher = aggregated.totalMealVoucher;
       }
 
-      const realTotalPayout = realPayout + realMealVoucher;
-      const realProfitability = realSales > 0 ? (realTotalPayout / realSales) * 100 : 0;
+      // Use the declared revenue from Uber (generated_sales) as the real sales figure
+      // This is the actual revenue attributed to the offer, not the restaurant's total
+      const declaredSales = offer.generated_sales || 0;
+      
+      // Estimate commission/promos proportionally if we have real data
+      // Since real data covers the whole restaurant, we estimate based on the ratio
+      let estimatedRealCommission = 0;
+      let estimatedRealPromos = 0;
+      
+      if (hasRealData && aggregated && aggregated.totalSales > 0) {
+        // Proportionate share of commission and promos based on declared sales vs total restaurant sales
+        const salesRatio = declaredSales / aggregated.totalSales;
+        estimatedRealCommission = realCommission * salesRatio;
+        estimatedRealPromos = realPromos * salesRatio;
+      } else {
+        // Fallback to estimated values
+        estimatedRealCommission = declaredSales * DEFAULT_COMMISSION_RATE;
+        estimatedRealPromos = 0;
+      }
+
+      const realTotalPayout = declaredSales - estimatedRealCommission - estimatedRealPromos;
+      const realProfitability = declaredSales > 0 ? (realTotalPayout / declaredSales) * 100 : 0;
 
       // Use real profitability level if we have real data, otherwise use ROI-based
       const profitabilityLevel = hasRealData 
@@ -353,17 +374,17 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
         roi,
         avg_basket: avgBasket,
         cost_per_acquisition: costPerAcquisition,
-        // Real values
-        has_real_data: hasRealData,
-        real_sales: realSales,
-        real_commission: realCommission,
-        real_promos: realPromos,
+        // Real values - using declared sales from Uber, not calculated from all orders
+        has_real_data: hasRealData || declaredSales > 0,
+        real_sales: declaredSales, // This is the key change: use declared, not calculated
+        real_commission: estimatedRealCommission,
+        real_promos: estimatedRealPromos,
         real_refunds: realRefunds,
         real_payout: realPayout,
         real_meal_voucher: realMealVoucher,
         real_total_payout: realTotalPayout,
         real_profitability: realProfitability,
-        real_orders_count: realOrdersCount,
+        real_orders_count: offer.orders || realOrdersCount, // Use declared orders count
         // Status
         is_profitable: isProfitable,
         profitability_level: profitabilityLevel,
