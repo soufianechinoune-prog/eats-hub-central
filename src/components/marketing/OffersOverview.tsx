@@ -53,7 +53,7 @@ import { DateRange } from "react-day-picker";
 
 type PeriodFilter = "all" | "week" | "month" | "quarter" | "year" | "custom";
 
-type SortField = "product" | "type" | "restaurant" | "date" | "sales" | "newCustomers" | "orders" | "funding" | "status" | "cost" | "margin" | "roi";
+type SortField = "product" | "type" | "restaurant" | "date" | "sales" | "newCustomers" | "orders" | "funding" | "status" | "cost" | "margin" | "roi" | "profitability" | "commission" | "payout";
 type SortDirection = "asc" | "desc";
 
 interface OffersOverviewProps {
@@ -212,6 +212,15 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
           break;
         case "roi":
           comparison = (profitA?.roi || 0) - (profitB?.roi || 0);
+          break;
+        case "profitability":
+          comparison = (profitA?.real_profitability || 0) - (profitB?.real_profitability || 0);
+          break;
+        case "commission":
+          comparison = (profitA?.real_commission || 0) - (profitB?.real_commission || 0);
+          break;
+        case "payout":
+          comparison = (profitA?.real_total_payout || 0) - (profitB?.real_total_payout || 0);
           break;
       }
       return sortDirection === "asc" ? comparison : -comparison;
@@ -579,10 +588,11 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
             </Select>
           </div>
 
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>
+                <TableHead className="min-w-[140px]">
                   <Button variant="ghost" size="sm" className="h-8 px-2 -ml-2" onClick={() => handleSort("product")}>
                     Produit/Offre <SortIcon field="product" />
                   </Button>
@@ -604,23 +614,34 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
                 </TableHead>
                 <TableHead className="text-right">
                   <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("sales")}>
-                    Ventes <SortIcon field="sales" />
+                    CA <SortIcon field="sales" />
+                  </Button>
+                </TableHead>
+                <TableHead className="text-right">
+                  <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("profitability")}>
+                    Rentab. <SortIcon field="profitability" />
+                  </Button>
+                </TableHead>
+                <TableHead className="text-right">
+                  <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("commission")}>
+                    Commission <SortIcon field="commission" />
                   </Button>
                 </TableHead>
                 <TableHead className="text-right">
                   <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("cost")}>
-                    Coût <SortIcon field="cost" />
+                    Promos <SortIcon field="cost" />
                   </Button>
                 </TableHead>
                 <TableHead className="text-right">
-                  <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("margin")}>
-                    Marge <SortIcon field="margin" />
+                  <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("payout")}>
+                    Vers. Uber <SortIcon field="payout" />
                   </Button>
                 </TableHead>
                 <TableHead className="text-right">
-                  <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("roi")}>
-                    ROI <SortIcon field="roi" />
-                  </Button>
+                  Titre Resto
+                </TableHead>
+                <TableHead className="text-right font-semibold">
+                  Vers. Total
                 </TableHead>
                 <TableHead className="text-right">
                   <Button variant="ghost" size="sm" className="h-8 px-2 -mr-2" onClick={() => handleSort("orders")}>
@@ -637,9 +658,20 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
             <TableBody>
               {filteredAndSortedOffers.slice(0, 50).map((offer) => {
                 const profitData = profitabilityMap.get(offer.id);
+                const hasRealData = profitData?.has_real_data || false;
+                
+                // Use real data if available, otherwise show estimated
+                const displaySales = hasRealData ? (profitData?.real_sales || 0) : offer.generated_sales;
+                const displayCommission = hasRealData ? (profitData?.real_commission || 0) : (profitData?.commission || 0);
+                const displayPromos = hasRealData ? (profitData?.real_promos || 0) : (profitData?.estimated_cost || 0);
+                const displayPayout = hasRealData ? (profitData?.real_payout || 0) : 0;
+                const displayMealVoucher = hasRealData ? (profitData?.real_meal_voucher || 0) : 0;
+                const displayTotalPayout = hasRealData ? (profitData?.real_total_payout || 0) : 0;
+                const displayProfitability = hasRealData ? (profitData?.real_profitability || 0) : 0;
+                
                 return (
                 <TableRow key={offer.id}>
-                  <TableCell className="font-medium max-w-[180px]">
+                  <TableCell className="font-medium max-w-[140px]">
                     <TooltipProvider>
                       <UITooltip>
                         <TooltipTrigger asChild>
@@ -654,7 +686,7 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
                     </TooltipProvider>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs whitespace-nowrap">
                       {offer.offer_type || "N/A"}
                     </Badge>
                   </TableCell>
@@ -664,37 +696,97 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
                   <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                     {formatPeriodDisplay(offer)}
                   </TableCell>
-                  <TableCell className="text-right font-medium text-emerald-600">
-                    {formatCurrency(offer.generated_sales)}
-                  </TableCell>
-                  <TableCell className="text-right text-red-600">
-                    {formatCurrency(profitData?.estimated_cost || 0)}
-                  </TableCell>
-                  <TableCell className={`text-right font-bold ${(profitData?.net_margin || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {formatCurrency(profitData?.net_margin || 0)}
+                  <TableCell className="text-right font-medium">
+                    <div className="flex flex-col items-end">
+                      <span className="text-foreground">{formatCurrency(displaySales)}</span>
+                      {hasRealData && displaySales !== offer.generated_sales && (
+                        <span className="text-xs text-muted-foreground">
+                          (offre: {formatCurrency(offer.generated_sales)})
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Badge variant="outline" className={
-                      (profitData?.roi || 0) >= 50 ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" :
-                      (profitData?.roi || 0) >= 0 ? "bg-yellow-500/10 text-yellow-700 border-yellow-500/30" :
-                      "bg-red-500/10 text-red-700 border-red-500/30"
-                    }>
-                      {(profitData?.roi || 0).toFixed(0)}%
-                    </Badge>
+                    {hasRealData ? (
+                      <Badge 
+                        variant="outline" 
+                        className={
+                          displayProfitability >= 55 
+                            ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" 
+                            : displayProfitability >= 45 
+                              ? "bg-yellow-500/10 text-yellow-700 border-yellow-500/30"
+                              : "bg-red-500/10 text-red-700 border-red-500/30"
+                        }
+                      >
+                        {displayProfitability.toFixed(0)}%
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
-                  <TableCell className="text-right">{offer.orders}</TableCell>
-                  <TableCell>{getStatusBadge(offer.change_context?.status || "")}</TableCell>
+                  <TableCell className="text-right text-red-600 text-sm">
+                    {hasRealData ? `-${formatCurrency(displayCommission)}` : "—"}
+                  </TableCell>
+                  <TableCell className="text-right text-purple-600 text-sm">
+                    {hasRealData ? (displayPromos > 0 ? `-${formatCurrency(displayPromos)}` : "—") : "—"}
+                  </TableCell>
+                  <TableCell className="text-right text-emerald-600 text-sm">
+                    {hasRealData ? formatCurrency(displayPayout) : "—"}
+                  </TableCell>
+                  <TableCell className="text-right text-cyan-600 text-sm">
+                    {hasRealData && displayMealVoucher > 0 ? formatCurrency(displayMealVoucher) : "—"}
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-foreground">
+                    {hasRealData ? formatCurrency(displayTotalPayout) : "—"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {hasRealData ? (
+                      <TooltipProvider>
+                        <UITooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-default">{profitData?.real_orders_count || 0}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Offre: {offer.orders} cmd</p>
+                            <p>Réel: {profitData?.real_orders_count || 0} cmd</p>
+                          </TooltipContent>
+                        </UITooltip>
+                      </TooltipProvider>
+                    ) : (
+                      offer.orders
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {getStatusBadge(offer.change_context?.status || "")}
+                      {!hasRealData && (
+                        <TooltipProvider>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 bg-orange-500/10 text-orange-600 border-orange-500/30">
+                                Est.
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Données estimées (pas de commandes trouvées)</p>
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               );})}
               {filteredAndSortedOffers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
                     {hasActiveFilters ? "Aucune offre ne correspond aux filtres" : "Aucune offre promotionnelle importée"}
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
