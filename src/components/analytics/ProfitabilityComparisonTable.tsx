@@ -249,11 +249,12 @@ export function ProfitabilityComparisonTable({
       const other = Math.abs(Number(payout.other_payments_incl_vat) || 0);
       const orderCount = Number(payout.order_count) || 0;
       
-      // Calcul du taux de commission contractuel (27%) :
-      // Taux = uber_fee_before_promo_excl_vat / sales_incl_vat * 100
-      // C'est le taux HT sur CA TTC = le vrai taux contractuel
-      const uberFeeHT = Math.abs(Number(payout.uber_fee_before_promo_excl_vat) || 0);
-      const uberFeeRateHT = sales > 0 ? (uberFeeHT / sales) * 100 : 0;
+      // Calcul du taux de commission contractuel (~27%) :
+      // Taux = |uber_fee_after_promo_excl_vat| / (sales_incl_vat - |item_promo_incl_vat|) * 100
+      // C'est le taux HT sur CA Net TTC (après promos) = le vrai taux contractuel
+      const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0);
+      const netSalesTTC = sales - promoAmount; // CA net après promos
+      const uberFeeRateHT = netSalesTTC > 0 ? (uberFeeHT / netSalesTTC) * 100 : 0;
       
       // Rentabilité = (Versement Uber + Titres restaurant) / CA TTC
       const mealVoucher = Math.abs(Number(payout.meal_voucher_amount) || 0);
@@ -386,14 +387,15 @@ export function ProfitabilityComparisonTable({
         const totalPayoutWithVoucher = rows.reduce((sum, r) => sum + r.totalPayout, 0);
         const totalUberFeeHT = rows.reduce((sum, r) => {
           const payoutData = payouts.find(p => p.payout_date === r.date && p.restaurant_id === r.restaurantId);
-          return sum + Math.abs(Number(payoutData?.uber_fee_before_promo_excl_vat) || 0);
+          return sum + Math.abs(Number(payoutData?.uber_fee_after_promo_excl_vat) || 0);
         }, 0);
         const totalPromo = rows.reduce((sum, r) => sum + r.promoAmount, 0);
         const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
         const totalOrders = rows.reduce((sum, r) => sum + r.orderCount, 0);
         
-        // Calculate rates based on total sales (taux contractuel = HT / TTC)
-        const avgUberFeeRate = totalSales > 0 ? (totalUberFeeHT / totalSales) * 100 : 0;
+        // Calculate rates based on net sales (CA - promos) for contractual rate
+        const netSales = totalSales - totalPromo;
+        const avgUberFeeRate = netSales > 0 ? (totalUberFeeHT / netSales) * 100 : 0;
         const avgPromoRate = totalSales > 0 ? (totalPromo / totalSales) * 100 : 0;
         const avgRefundRate = totalSales > 0 ? (totalRefund / totalSales) * 100 : 0;
         const avgProfitability = totalSales > 0 ? (totalPayoutWithVoucher / totalSales) * 100 : 0;
@@ -436,9 +438,11 @@ export function ProfitabilityComparisonTable({
     const totalNet = comparisonData.reduce((sum, d) => sum + d.netPayout, 0);
     const totalMealVoucher = comparisonData.reduce((sum, d) => sum + d.mealVoucher, 0);
     const totalPayout = comparisonData.reduce((sum, d) => sum + d.totalPayout, 0);
-    // Calcul du taux contractuel = uber_fee_HT / sales_TTC
-    const totalUberFeeHT = payouts.reduce((sum, p) => sum + Math.abs(Number(p.uber_fee_before_promo_excl_vat) || 0), 0);
-    const avgUberRate = totalSales > 0 ? (totalUberFeeHT / totalSales) * 100 : 0;
+    // Calcul du taux contractuel = uber_fee_HT / (CA - promos)
+    const totalUberFeeHT = payouts.reduce((sum, p) => sum + Math.abs(Number(p.uber_fee_after_promo_excl_vat) || 0), 0);
+    const totalPromoTTC = payouts.reduce((sum, p) => sum + Math.abs(Number(p.item_promo_incl_vat) || 0), 0);
+    const netSales = totalSales - totalPromoTTC;
+    const avgUberRate = netSales > 0 ? (totalUberFeeHT / netSales) * 100 : 0;
     const avgPromoRate = comparisonData.reduce((sum, d) => sum + d.promoRate, 0) / comparisonData.length;
     const avgRefundRate = comparisonData.reduce((sum, d) => sum + d.refundRate, 0) / comparisonData.length;
     const avgOtherRate = comparisonData.reduce((sum, d) => sum + d.otherRate, 0) / comparisonData.length;
