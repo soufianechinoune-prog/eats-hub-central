@@ -249,12 +249,10 @@ export function ProfitabilityComparisonTable({
       const other = Math.abs(Number(payout.other_payments_incl_vat) || 0);
       const orderCount = Number(payout.order_count) || 0;
       
-      // Calcul du taux de commission HT : Frais Uber HT / (Ventes HT - Remboursements HT)
-      const salesHT = Math.abs(Number(payout.sales_excl_vat) || 0);
-      const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0);
-      const refundHT = Number(payout.refund_excl_vat) || 0;
-      const baseHT = salesHT + refundHT;
-      const uberFeeRateHT = baseHT > 0 ? (uberFeeHT / baseHT) * 100 : 0;
+      // Calcul du taux de commission selon formule officielle Uber :
+      // Taux = uber_fee_after_promo_incl_vat / (sales_incl_vat - item_promo_incl_vat) * 100
+      const netSalesTTC = sales - promoAmount; // CA net après promos
+      const uberFeeRateHT = netSalesTTC > 0 ? (uberFeeNet / netSalesTTC) * 100 : 0;
       
       // Rentabilité = (Versement Uber + Titres restaurant) / CA TTC
       const mealVoucher = Math.abs(Number(payout.meal_voucher_amount) || 0);
@@ -390,8 +388,9 @@ export function ProfitabilityComparisonTable({
         const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
         const totalOrders = rows.reduce((sum, r) => sum + r.orderCount, 0);
         
-        // Calculate rates based on total sales
-        const avgUberFeeRate = totalSales > 0 ? (totalUberFee / totalSales) * 100 : 0;
+        // Calculate rates based on total sales (formule officielle Uber pour commission)
+        const netSalesForCommission = totalSales - totalPromo;
+        const avgUberFeeRate = netSalesForCommission > 0 ? (totalUberFee / netSalesForCommission) * 100 : 0;
         const avgPromoRate = totalSales > 0 ? (totalPromo / totalSales) * 100 : 0;
         const avgRefundRate = totalSales > 0 ? (totalRefund / totalSales) * 100 : 0;
         const avgProfitability = totalSales > 0 ? (totalPayoutWithVoucher / totalSales) * 100 : 0;
@@ -434,7 +433,11 @@ export function ProfitabilityComparisonTable({
     const totalNet = comparisonData.reduce((sum, d) => sum + d.netPayout, 0);
     const totalMealVoucher = comparisonData.reduce((sum, d) => sum + d.mealVoucher, 0);
     const totalPayout = comparisonData.reduce((sum, d) => sum + d.totalPayout, 0);
-    const avgUberRate = comparisonData.reduce((sum, d) => sum + d.uberFeeRate, 0) / comparisonData.length;
+    const totalPromoAmount = comparisonData.reduce((sum, d) => sum + d.promoAmount, 0);
+    const netSalesForCommission = totalSales - totalPromoAmount;
+    const avgUberRate = netSalesForCommission > 0 
+      ? (comparisonData.reduce((sum, d) => sum + d.uberFeeNet, 0) / netSalesForCommission) * 100 
+      : 0;
     const avgPromoRate = comparisonData.reduce((sum, d) => sum + d.promoRate, 0) / comparisonData.length;
     const avgRefundRate = comparisonData.reduce((sum, d) => sum + d.refundRate, 0) / comparisonData.length;
     const avgOtherRate = comparisonData.reduce((sum, d) => sum + d.otherRate, 0) / comparisonData.length;
