@@ -109,13 +109,9 @@ const detectReportTypeFromFilename = (filename: string): string | null => {
     return "sales_over_time";
   }
   
-  // Payment reports (common_template is typically payment)
-  if (name.includes("common_template") || name.includes("payment")) {
-    // Check if item level
-    if (name.includes("item") || name.includes("article")) {
-      return "payment_item_level";
-    }
-    return "payment_order_level";
+  // Payout summary - CHECK BEFORE payment reports (common_template can be payout too)
+  if (name.includes("payout") || name.includes("versement") || name.includes("payment_summary") || name.includes("payout_summary")) {
+    return "payout_summary";
   }
   
   // Marketing campaigns
@@ -159,11 +155,6 @@ const detectReportTypeFromFilename = (filename: string): string | null => {
     return "inaccurate_orders";
   }
   
-  // Payout summary
-  if (name.includes("payout") || name.includes("versement") || name.includes("payment_summary")) {
-    return "payout_summary";
-  }
-  
   // Item issues leaderboard
   if (name.includes("item_issues") || name.includes("item-issues") || 
       name.includes("articles_problematiques") || name.includes("problemes_articles")) {
@@ -176,12 +167,37 @@ const detectReportTypeFromFilename = (filename: string): string | null => {
     return "order_accuracy_summary";
   }
   
+  // Payment reports (common_template) - CHECK LAST as fallback
+  // Only match if NOT already matched as payout_summary
+  if (name.includes("common_template") || name.includes("payment")) {
+    // Check if item level
+    if (name.includes("item") || name.includes("article")) {
+      return "payment_item_level";
+    }
+    return "payment_order_level";
+  }
+  
   return null;
 };
 
 // Auto-detect report type based on CSV headers
 const detectReportTypeFromContent = (headerLine: string): string | null => {
   const lowerHeader = headerLine.toLowerCase();
+  
+  // Payout Summary - CHECK FIRST before payment_order_level!
+  // These are aggregated files with order count, no individual order IDs
+  if ((lowerHeader.includes("nombre de commandes") || lowerHeader.includes("order count")) &&
+      (lowerHeader.includes("montant total") || lowerHeader.includes("total amount") || lowerHeader.includes("order total"))) {
+    return "payout_summary";
+  }
+  // Alternative payout detection: payout ID or date du versement
+  if ((lowerHeader.includes("identifiant de versement") || lowerHeader.includes("payout id") ||
+       lowerHeader.includes("id. de référence du versement") || lowerHeader.includes("payout reference"))) {
+    return "payout_summary";
+  }
+  if ((lowerHeader.includes("date du versement") || lowerHeader.includes("date de versement") || lowerHeader.includes("payout date"))) {
+    return "payout_summary";
+  }
   
   // Marketing campaigns - Offers
   if ((lowerHeader.includes("type d'offre") || lowerHeader.includes("offer type")) && 
@@ -239,12 +255,7 @@ const detectReportTypeFromContent = (headerLine: string): string | null => {
       (lowerHeader.includes("menu a été consulté") || lowerHeader.includes("menu consulté") || lowerHeader.includes("plat ajouté") || lowerHeader.includes("item added"))) {
     return "conversion_funnel";
   }
-  // Payout Summary
-  if ((lowerHeader.includes("identifiant de versement") || lowerHeader.includes("payout id")) || 
-      (lowerHeader.includes("date de versement") || lowerHeader.includes("payout date"))) {
-    return "payout_summary";
-  }
-  // Payment reports (default fallback for order/item level)
+  // Payment reports (default fallback for order/item level) - CHECK LAST
   if ((lowerHeader.includes("id. de la commande") || lowerHeader.includes("id. du flux") || lowerHeader.includes("flow id"))) {
     if (lowerHeader.includes("titre de l'article") || lowerHeader.includes("item title")) {
       return "payment_item_level";
