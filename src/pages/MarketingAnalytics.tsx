@@ -11,7 +11,7 @@ import { Gift, Megaphone, TrendingUp, AlertCircle, Upload, BarChart3, Package, S
 import { useMarketingCampaigns } from "@/hooks/useMarketingCampaigns";
 import { OffersOverview } from "@/components/marketing/OffersOverview";
 import { AdsOverview } from "@/components/marketing/AdsOverview";
-import { OfferPerformanceAnalysis } from "@/components/marketing/OfferPerformanceAnalysis";
+
 import { ProductPerformanceAnalysis } from "@/components/marketing/ProductPerformanceAnalysis";
 import { RestaurantCampaignComparison } from "@/components/marketing/RestaurantCampaignComparison";
 import { Link } from "react-router-dom";
