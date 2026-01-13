@@ -50,6 +50,7 @@ import { OffersCampaign } from "@/hooks/useMarketingCampaigns";
 import { useOfferProfitability, OfferProfitability } from "@/hooks/useOfferProfitability";
 import { useMemo, useState } from "react";
 import { format, differenceInDays, parseISO } from "date-fns";
+import { OfferDetailSheet } from "./OfferDetailSheet";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -79,6 +80,7 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
   const [selectedOfferType, setSelectedOfferType] = useState<string>("all");
   const [editingFunding, setEditingFunding] = useState<string | null>(null);
   const [fundingValue, setFundingValue] = useState<string>("");
+  const [selectedOffer, setSelectedOffer] = useState<OfferProfitability | null>(null);
   const queryClient = useQueryClient();
   
   // Use the profitability hook
@@ -463,7 +465,11 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                 </TableHeader>
                 <TableBody>
                   {filteredOffers.map((offer) => (
-                    <TableRow key={offer.id}>
+                    <TableRow 
+                      key={offer.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setSelectedOffer(offer)}
+                    >
                       <TableCell className="font-medium">
                         <p className="truncate max-w-[180px]">{offer.product || offer.title || "N/A"}</p>
                       </TableCell>
@@ -702,6 +708,13 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
           </CardContent>
         </Card>
       </div>
+
+      {/* Offer Detail Sheet */}
+      <OfferDetailSheet
+        open={!!selectedOffer}
+        onOpenChange={(open) => !open && setSelectedOffer(null)}
+        offer={selectedOffer}
+      />
     </div>
   );
 }
