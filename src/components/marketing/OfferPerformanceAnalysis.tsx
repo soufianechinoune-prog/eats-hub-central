@@ -138,16 +138,26 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
       .sort((a, b) => b.net_margin - a.net_margin);
   }, [profitableOffers, selectedOfferType]);
 
-  // Summary stats for filtered offers
+  // Summary stats for filtered offers - prefer real data
   const filteredStats = useMemo(() => {
     if (filteredOffers.length === 0) return null;
+    const withRealData = filteredOffers.filter(o => o.has_real_data);
+    const useReal = withRealData.length > 0;
+    
+    const totalSales = useReal 
+      ? withRealData.reduce((sum, o) => sum + (o.real_sales || 0), 0)
+      : filteredOffers.reduce((sum, o) => sum + o.generated_sales, 0);
+    const totalPayout = useReal 
+      ? withRealData.reduce((sum, o) => sum + (o.real_total_payout || 0), 0)
+      : filteredOffers.reduce((sum, o) => sum + o.net_margin, 0);
+    const avgRentability = totalSales > 0 ? (totalPayout / totalSales) * 100 : 0;
+    
     return {
       count: filteredOffers.length,
-      totalSales: filteredOffers.reduce((sum, o) => sum + o.generated_sales, 0),
-      totalMargin: filteredOffers.reduce((sum, o) => sum + o.net_margin, 0),
-      avgRoi: filteredOffers.length > 0 
-        ? filteredOffers.reduce((sum, o) => sum + o.roi, 0) / filteredOffers.length 
-        : 0,
+      realCount: withRealData.length,
+      totalSales,
+      totalPayout,
+      avgRentability,
     };
   }, [filteredOffers]);
 
@@ -437,12 +447,20 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
             {filteredStats && (
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span><strong>{filteredStats.count}</strong> campagnes</span>
+                {filteredStats.realCount > 0 && (
+                  <>
+                    <span>•</span>
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30 text-xs">
+                      {filteredStats.realCount} avec données réelles
+                    </Badge>
+                  </>
+                )}
                 <span>•</span>
-                <span className={filteredStats.totalMargin >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
-                  Marge: {formatCurrency(filteredStats.totalMargin)}
+                <span className={filteredStats.totalPayout >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
+                  Versement: {formatCurrency(filteredStats.totalPayout)}
                 </span>
                 <span>•</span>
-                <span>ROI: <strong>{filteredStats.avgRoi.toFixed(0)}%</strong></span>
+                <span>Rentabilité: <strong className={filteredStats.avgRentability >= 50 ? 'text-emerald-600' : filteredStats.avgRentability >= 40 ? 'text-amber-600' : 'text-red-600'}>{filteredStats.avgRentability.toFixed(1)}%</strong></span>
               </div>
             )}
           </div>
@@ -454,51 +472,66 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                   <TableRow>
                     <TableHead className="min-w-[180px]">Produit / Titre</TableHead>
                     <TableHead>Restaurant</TableHead>
-                    <TableHead className="text-right">Ventes</TableHead>
-                    <TableHead className="text-right">Coût</TableHead>
+                    <TableHead className="text-right">CA</TableHead>
                     <TableHead className="text-right">Commission</TableHead>
-                    <TableHead className="text-right">Co-fin.</TableHead>
-                    <TableHead className="text-right">Marge</TableHead>
-                    <TableHead className="text-right">ROI</TableHead>
-                    <TableHead>Rentabilité</TableHead>
+                    <TableHead className="text-right">Promos</TableHead>
+                    <TableHead className="text-right">Versement Net</TableHead>
+                    <TableHead className="text-right">Rentabilité</TableHead>
+                    <TableHead>Source</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOffers.map((offer) => (
-                    <TableRow 
-                      key={offer.id}
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => setSelectedOffer(offer)}
-                    >
-                      <TableCell className="font-medium">
-                        <p className="truncate max-w-[180px]">{offer.product || offer.title || "N/A"}</p>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {offer.restaurant_names?.[0] || "—"}
-                      </TableCell>
-                      <TableCell className="text-right font-medium text-emerald-600">
-                        {formatCurrency(offer.generated_sales)}
-                      </TableCell>
-                      <TableCell className="text-right text-red-600">
-                        {formatCurrency(offer.estimated_cost)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {formatCurrency(offer.commission)}
-                      </TableCell>
-                      <TableCell className="text-right text-purple-600">
-                        +{formatCurrency(offer.uber_cofunding)}
-                      </TableCell>
-                      <TableCell className={`text-right font-bold ${offer.net_margin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {formatCurrency(offer.net_margin)}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {offer.roi.toFixed(0)}%
-                      </TableCell>
-                      <TableCell>
-                        {getProfitabilityBadge(offer)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredOffers.map((offer) => {
+                    const hasReal = offer.has_real_data;
+                    const displaySales = hasReal ? (offer.real_sales || 0) : offer.generated_sales;
+                    const displayCommission = hasReal ? (offer.real_commission || 0) : offer.commission;
+                    const displayPromos = hasReal ? (offer.real_promos || 0) : 0;
+                    const displayPayout = hasReal ? (offer.real_total_payout || 0) : offer.net_margin;
+                    const displayRentability = hasReal ? (offer.real_profitability || 0) : (offer.generated_sales > 0 ? (offer.net_margin / offer.generated_sales) * 100 : 0);
+                    
+                    return (
+                      <TableRow 
+                        key={offer.id}
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => setSelectedOffer(offer)}
+                      >
+                        <TableCell className="font-medium">
+                          <p className="truncate max-w-[180px]">{offer.product || offer.title || "N/A"}</p>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {offer.restaurant_names?.[0] || "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-blue-600">
+                          {formatCurrency(displaySales)}
+                        </TableCell>
+                        <TableCell className="text-right text-red-600">
+                          {formatCurrency(displayCommission)}
+                        </TableCell>
+                        <TableCell className="text-right text-purple-600">
+                          {displayPromos !== 0 ? formatCurrency(displayPromos) : "—"}
+                        </TableCell>
+                        <TableCell className={`text-right font-bold ${displayPayout >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {formatCurrency(displayPayout)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          <span className={displayRentability >= 50 ? 'text-emerald-600' : displayRentability >= 40 ? 'text-amber-600' : 'text-red-600'}>
+                            {displayRentability.toFixed(1)}%
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {hasReal ? (
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30 text-xs">
+                              Réel
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-muted text-muted-foreground border-muted text-xs">
+                              Estimé
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
