@@ -170,6 +170,7 @@ export type Database = {
       }
       csv_imports: {
         Row: {
+          bulk_import_id: string | null
           date_range_end: string | null
           date_range_start: string | null
           error_count: number | null
@@ -188,6 +189,7 @@ export type Database = {
           updated_count: number | null
         }
         Insert: {
+          bulk_import_id?: string | null
           date_range_end?: string | null
           date_range_start?: string | null
           error_count?: number | null
@@ -206,6 +208,7 @@ export type Database = {
           updated_count?: number | null
         }
         Update: {
+          bulk_import_id?: string | null
           date_range_end?: string | null
           date_range_start?: string | null
           error_count?: number | null
