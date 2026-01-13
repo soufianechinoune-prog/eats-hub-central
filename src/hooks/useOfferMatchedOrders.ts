@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { OfferProfitability } from "./useOfferProfitability";
-import { calculateSimilarity, containsSameKeywords, normalizeName } from "@/lib/fuzzyMatch";
+import { OfferProfitability } from "@/hooks/useOfferProfitability";
+import { normalizeName } from "@/lib/fuzzyMatch";
 
 export interface MatchedOrderItem {
   item_id: string;
@@ -16,102 +16,119 @@ export interface MatchedOrder {
   order_id: string;
   uber_order_id: string;
   order_datetime: string;
-  order_total: number;
+  sales_incl_vat: number;
   commission: number;
   promo_applied: number;
-  refunds: number;
+  refund: number;
   net_payout: number;
   items: MatchedOrderItem[];
   has_offer_product: boolean;
+  has_promo: boolean;
 }
 
 export interface OfferMatchedData {
   matched_orders: MatchedOrder[];
   matched_orders_count: number;
+  total_orders_in_period: number;
   matched_sales: number;
   matched_commission: number;
   matched_promos: number;
   matched_refunds: number;
   matched_payout: number;
-  has_matched_data: boolean;
   match_type: "product" | "promo" | "period" | "none";
   declared_vs_real_diff: number;
   declared_vs_real_percent: number;
 }
 
-// Check if an item title matches the offer products
+// Simplified product matching - much faster than full fuzzy match
 const isOfferProduct = (itemTitle: string, offerProducts: string[]): boolean => {
   const normalizedItem = normalizeName(itemTitle);
   
   for (const product of offerProducts) {
     const normalizedProduct = normalizeName(product);
+    if (!normalizedProduct) continue;
     
-    // Exact match
-    if (normalizedItem === normalizedProduct) return true;
+    // Simple contains check - fast and effective
+    if (normalizedItem.includes(normalizedProduct) || normalizedProduct.includes(normalizedItem)) {
+      return true;
+    }
     
-    // Contains match
-    if (normalizedItem.includes(normalizedProduct) || normalizedProduct.includes(normalizedItem)) return true;
+    // Check if main words match (first 2 significant words)
+    const itemWords = normalizedItem.split(" ").filter(w => w.length > 2).slice(0, 3);
+    const productWords = normalizedProduct.split(" ").filter(w => w.length > 2).slice(0, 3);
     
-    // Fuzzy match
-    const similarity = calculateSimilarity(itemTitle, product);
-    if (similarity >= 70) return true;
-    
-    // Keyword match
-    if (containsSameKeywords(itemTitle, product)) return true;
+    if (productWords.length > 0 && itemWords.length > 0) {
+      const matchCount = productWords.filter(pw => itemWords.some(iw => iw.includes(pw) || pw.includes(iw))).length;
+      if (matchCount >= Math.min(2, productWords.length)) {
+        return true;
+      }
+    }
   }
-  
   return false;
 };
 
-// Parse offer products from different possible fields
 const parseOfferProducts = (offer: OfferProfitability): string[] => {
   const products: string[] = [];
   
-  // From items_affected or product field
-  const source = offer.product || offer.title || "";
-  
-  // Split by comma or other delimiters
-  const parts = source.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
-  products.push(...parts);
-  
-  // Also try to extract from title if different
-  if (offer.title && offer.title !== offer.product) {
-    const titleParts = offer.title.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
-    products.push(...titleParts);
+  if (offer.product) {
+    products.push(...offer.product.split(/[,;]/).map(s => s.trim()).filter(Boolean));
+  }
+  if (offer.title && !products.length) {
+    const titleParts = offer.title.split(/[-–]/).map(s => s.trim()).filter(Boolean);
+    if (titleParts.length > 0) {
+      products.push(titleParts[0]);
+    }
   }
   
-  return [...new Set(products)]; // Remove duplicates
+  return products.filter(p => p.length > 2);
 };
 
+interface OrderWithItems {
+  id: string;
+  uber_order_id: string;
+  order_datetime: string;
+  sales_incl_vat: number | null;
+  uber_fee_after_promo_incl_vat: number | null;
+  item_promo_incl_vat: number | null;
+  refund_incl_vat: number | null;
+  net_payout: number | null;
+  order_items: {
+    item_id: string;
+    item_title: string;
+    quantity: number;
+    sales_incl_vat: number | null;
+    item_promo_incl_vat: number | null;
+  }[];
+}
+
 export const useOfferMatchedOrders = (offer: OfferProfitability | null) => {
-  const query = useQuery({
+  return useQuery({
     queryKey: ["offer-matched-orders", offer?.id],
     queryFn: async (): Promise<OfferMatchedData> => {
-      if (!offer || !offer.restaurant_ids?.length || !offer.start_date) {
+      if (!offer?.restaurant_ids?.length || !offer.start_date || !offer.end_date) {
         return {
           matched_orders: [],
           matched_orders_count: 0,
+          total_orders_in_period: 0,
           matched_sales: 0,
           matched_commission: 0,
           matched_promos: 0,
           matched_refunds: 0,
           matched_payout: 0,
-          has_matched_data: false,
           match_type: "none",
           declared_vs_real_diff: 0,
           declared_vs_real_percent: 0,
         };
       }
 
-      const startDate = offer.start_date;
-      const endDate = offer.end_date || new Date().toISOString().split('T')[0];
-      
-      // Add one day to end date to include it
-      const endDatePlusOne = new Date(endDate);
-      endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+      const startDate = new Date(offer.start_date);
+      const endDate = new Date(offer.end_date);
+      endDate.setDate(endDate.getDate() + 1);
 
-      // Fetch orders with their items
-      const { data: ordersData, error: ordersError } = await supabase
+      const offerProducts = parseOfferProducts(offer);
+
+      // Single query with nested relation - much faster!
+      const { data: ordersWithItems, error } = await supabase
         .from("orders")
         .select(`
           id,
@@ -121,141 +138,123 @@ export const useOfferMatchedOrders = (offer: OfferProfitability | null) => {
           uber_fee_after_promo_incl_vat,
           item_promo_incl_vat,
           refund_incl_vat,
-          net_payout
+          net_payout,
+          order_items (
+            item_id,
+            item_title,
+            quantity,
+            sales_incl_vat,
+            item_promo_incl_vat
+          )
         `)
         .in("restaurant_id", offer.restaurant_ids)
-        .gte("order_datetime", startDate)
-        .lt("order_datetime", endDatePlusOne.toISOString().split('T')[0])
-        .order("order_datetime", { ascending: false });
+        .gte("order_datetime", startDate.toISOString())
+        .lt("order_datetime", endDate.toISOString())
+        .order("order_datetime", { ascending: false })
+        .limit(150) as { data: OrderWithItems[] | null; error: unknown };
 
-      if (ordersError) throw ordersError;
-      if (!ordersData || ordersData.length === 0) {
+      if (error || !ordersWithItems) {
+        console.error("Error fetching orders with items:", error);
         return {
           matched_orders: [],
           matched_orders_count: 0,
+          total_orders_in_period: 0,
           matched_sales: 0,
           matched_commission: 0,
           matched_promos: 0,
           matched_refunds: 0,
           matched_payout: 0,
-          has_matched_data: false,
           match_type: "none",
           declared_vs_real_diff: 0,
           declared_vs_real_percent: 0,
         };
       }
 
-      // Fetch order items for these orders
-      const orderIds = ordersData.map(o => o.id);
-      const { data: itemsData, error: itemsError } = await supabase
-        .from("order_items")
-        .select(`
-          order_id,
-          item_id,
-          item_title,
-          quantity,
-          sales_incl_vat,
-          item_promo_incl_vat
-        `)
-        .in("order_id", orderIds);
+      // Get total count for the period (separate lightweight query)
+      const { count: totalCount } = await supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .in("restaurant_id", offer.restaurant_ids)
+        .gte("order_datetime", startDate.toISOString())
+        .lt("order_datetime", endDate.toISOString());
 
-      if (itemsError) throw itemsError;
+      // Process orders and match products
+      const matchedOrders: MatchedOrder[] = [];
+      let totalMatchedSales = 0;
+      let totalMatchedCommission = 0;
+      let totalMatchedPromos = 0;
+      let totalMatchedRefunds = 0;
+      let totalMatchedPayout = 0;
 
-      // Group items by order
-      const itemsByOrder = new Map<string, MatchedOrderItem[]>();
-      const offerProducts = parseOfferProducts(offer);
-      
-      (itemsData || []).forEach(item => {
-        const orderId = item.order_id;
-        if (!itemsByOrder.has(orderId)) {
-          itemsByOrder.set(orderId, []);
-        }
-        
-        const isMatch = isOfferProduct(item.item_title || "", offerProducts);
-        
-        itemsByOrder.get(orderId)!.push({
-          item_id: item.item_id || "",
-          item_title: item.item_title || "",
-          quantity: item.quantity || 0,
+      for (const order of ordersWithItems) {
+        const items: MatchedOrderItem[] = (order.order_items || []).map(item => ({
+          item_id: item.item_id,
+          item_title: item.item_title,
+          quantity: item.quantity,
           sales_incl_vat: item.sales_incl_vat || 0,
           item_promo_incl_vat: item.item_promo_incl_vat || 0,
-          is_offer_product: isMatch,
-        });
-      });
+          is_offer_product: offerProducts.length > 0 ? isOfferProduct(item.item_title, offerProducts) : false,
+        }));
 
-      // Build matched orders
-      const matchedOrders: MatchedOrder[] = [];
-      let productMatchCount = 0;
-      let promoMatchCount = 0;
-
-      ordersData.forEach(order => {
-        const items = itemsByOrder.get(order.id) || [];
         const hasOfferProduct = items.some(i => i.is_offer_product);
         const hasPromo = (order.item_promo_incl_vat || 0) < 0;
-        
-        if (hasOfferProduct) productMatchCount++;
-        if (hasPromo) promoMatchCount++;
 
-        matchedOrders.push({
-          order_id: order.id,
-          uber_order_id: order.uber_order_id || "",
-          order_datetime: order.order_datetime || "",
-          order_total: order.sales_incl_vat || 0,
-          commission: order.uber_fee_after_promo_incl_vat || 0,
-          promo_applied: order.item_promo_incl_vat || 0,
-          refunds: order.refund_incl_vat || 0,
-          net_payout: order.net_payout || 0,
-          items,
-          has_offer_product: hasOfferProduct,
-        });
-      });
+        // Only include if has offer product OR has promo in period
+        if (hasOfferProduct || hasPromo || offerProducts.length === 0) {
+          const matchedOrder: MatchedOrder = {
+            order_id: order.id,
+            uber_order_id: order.uber_order_id,
+            order_datetime: order.order_datetime,
+            sales_incl_vat: order.sales_incl_vat || 0,
+            commission: Math.abs(order.uber_fee_after_promo_incl_vat || 0),
+            promo_applied: order.item_promo_incl_vat || 0,
+            refund: order.refund_incl_vat || 0,
+            net_payout: order.net_payout || 0,
+            items,
+            has_offer_product: hasOfferProduct,
+            has_promo: hasPromo,
+          };
+
+          matchedOrders.push(matchedOrder);
+          totalMatchedSales += matchedOrder.sales_incl_vat;
+          totalMatchedCommission += matchedOrder.commission;
+          totalMatchedPromos += matchedOrder.promo_applied;
+          totalMatchedRefunds += matchedOrder.refund;
+          totalMatchedPayout += matchedOrder.net_payout;
+        }
+      }
 
       // Determine match type
-      let matchType: OfferMatchedData["match_type"] = "period";
-      if (productMatchCount > 0) {
+      const productMatchedOrders = matchedOrders.filter(o => o.has_offer_product);
+      const promoOrders = matchedOrders.filter(o => o.has_promo);
+
+      let matchType: "product" | "promo" | "period" | "none" = "period";
+      if (productMatchedOrders.length > 0) {
         matchType = "product";
-      } else if (promoMatchCount > 0) {
+      } else if (promoOrders.length > 0) {
         matchType = "promo";
       }
 
-      // Filter to orders that match by product if we have matches
-      const filteredOrders = matchType === "product" 
-        ? matchedOrders.filter(o => o.has_offer_product)
-        : matchType === "promo"
-        ? matchedOrders.filter(o => o.promo_applied < 0)
-        : matchedOrders;
-
-      // Calculate totals
-      const totals = filteredOrders.reduce((acc, order) => ({
-        sales: acc.sales + order.order_total,
-        commission: acc.commission + order.commission,
-        promos: acc.promos + Math.abs(order.promo_applied),
-        refunds: acc.refunds + Math.abs(order.refunds),
-        payout: acc.payout + order.net_payout,
-      }), { sales: 0, commission: 0, promos: 0, refunds: 0, payout: 0 });
-
       // Compare with declared sales
       const declaredSales = offer.generated_sales || 0;
-      const diff = declaredSales - totals.sales;
-      const diffPercent = declaredSales > 0 ? (diff / declaredSales) * 100 : 0;
+      const diff = declaredSales - totalMatchedSales;
+      const percent = declaredSales > 0 ? ((totalMatchedSales - declaredSales) / declaredSales) * 100 : 0;
 
       return {
-        matched_orders: filteredOrders.slice(0, 100), // Limit to 100 orders for performance
-        matched_orders_count: filteredOrders.length,
-        matched_sales: totals.sales,
-        matched_commission: totals.commission,
-        matched_promos: totals.promos,
-        matched_refunds: totals.refunds,
-        matched_payout: totals.payout,
-        has_matched_data: filteredOrders.length > 0,
+        matched_orders: matchedOrders.slice(0, 100), // Limit display to 100
+        matched_orders_count: matchedOrders.length,
+        total_orders_in_period: totalCount || ordersWithItems.length,
+        matched_sales: totalMatchedSales,
+        matched_commission: totalMatchedCommission,
+        matched_promos: totalMatchedPromos,
+        matched_refunds: totalMatchedRefunds,
+        matched_payout: totalMatchedPayout,
         match_type: matchType,
         declared_vs_real_diff: diff,
-        declared_vs_real_percent: diffPercent,
+        declared_vs_real_percent: percent,
       };
     },
     enabled: !!offer,
     staleTime: 5 * 60 * 1000,
   });
-
-  return query;
 };
