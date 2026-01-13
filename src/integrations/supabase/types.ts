@@ -2933,6 +2933,16 @@ export type Database = {
           weekday_orders: number
         }[]
       }
+      update_uber_commission_rates: {
+        Args: never
+        Returns: {
+          new_rate: number
+          old_rate: number
+          payout_count: number
+          restaurant_id: string
+          restaurant_name: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
