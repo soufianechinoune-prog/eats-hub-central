@@ -180,7 +180,80 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
 
   return (
     <div className="space-y-6">
-      {/* Profitability KPIs */}
+      {/* Real Financial KPIs - shown when we have real data */}
+      {stats.hasRealData && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-500/20">
+                  <DollarSign className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">CA réel (période offres)</p>
+                  <p className="text-2xl font-bold text-blue-700">
+                    {formatCurrency(stats.realTotalSales)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">pendant les offres</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/20">
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-red-500/20">
+                  <Calculator className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Commission réelle</p>
+                  <p className="text-2xl font-bold text-red-700">
+                    {formatCurrency(stats.realTotalCommission)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">frais Uber</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/20">
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/20">
+                  <PiggyBank className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Versement total</p>
+                  <p className="text-2xl font-bold text-emerald-700">
+                    {formatCurrency(stats.realTotalPayout + stats.realTotalMealVoucher)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Uber + Titres resto</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-amber-500/10 to-amber-500/5 border-amber-500/20">
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/20">
+                  <Target className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Rentabilité moyenne</p>
+                  <p className={`text-2xl font-bold ${stats.realTotalProfitability >= 50 ? 'text-emerald-700' : stats.realTotalProfitability >= 40 ? 'text-amber-700' : 'text-red-700'}`}>
+                    {stats.realTotalProfitability.toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-muted-foreground">versement / CA</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Estimated KPIs - always shown as secondary info */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/20">
           <CardContent className="pt-4">
@@ -206,7 +279,7 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                 <PiggyBank className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Marge nette</p>
+                <p className="text-sm text-muted-foreground">Marge nette estimée</p>
                 <p className={`text-2xl font-bold ${stats.totalNetMargin >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                   {formatCurrency(stats.totalNetMargin)}
                 </p>
