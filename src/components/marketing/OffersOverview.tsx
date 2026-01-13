@@ -37,7 +37,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { Gift, Users, ShoppingCart, Percent, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, PiggyBank, Calculator, Wallet, Target, TrendingDown, DollarSign, UserPlus } from "lucide-react";
+import { Gift, Users, ShoppingCart, Percent, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, PiggyBank, Calculator } from "lucide-react";
 import { OffersCampaign } from "@/hooks/useMarketingCampaigns";
 import { useOfferProfitability } from "@/hooks/useOfferProfitability";
 import { format } from "date-fns";
@@ -59,7 +59,6 @@ interface OffersOverviewProps {
     campaignCount: number;
     byType: Record<string, { count: number; sales: number; orders: number; newCustomers: number }>;
   };
-  showProfitabilityKPIs?: boolean;
 }
 
 const COLORS = [
@@ -70,7 +69,7 @@ const COLORS = [
   "hsl(var(--chart-5))",
 ];
 
-export function OffersOverview({ offers, stats, showProfitabilityKPIs = false }: OffersOverviewProps) {
+export function OffersOverview({ offers, stats }: OffersOverviewProps) {
   const [editingFunding, setEditingFunding] = useState<string | null>(null);
   const [fundingValue, setFundingValue] = useState<string>("");
   const [sortField, setSortField] = useState<SortField>("date");
@@ -263,113 +262,9 @@ export function OffersOverview({ offers, stats, showProfitabilityKPIs = false }:
     }
   };
 
-  const profitableCount = profitableOffers.filter(o => o.is_profitable).length;
-  const unprofitableCount = profitableOffers.filter(o => !o.is_profitable).length;
-
   return (
     <div className="space-y-6">
-      {/* Profitability KPIs - shown when requested */}
-      {showProfitabilityKPIs && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-primary" />
-            Analyse de rentabilité
-          </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/20">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-red-500/20">
-                    <Wallet className="h-5 w-5 text-red-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Coût total offres</p>
-                    <p className="text-2xl font-bold text-red-700">
-                      {formatCurrency(profitabilityStats.totalCost)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={`bg-gradient-to-br ${profitabilityStats.totalNetMargin >= 0 ? 'from-emerald-500/10 to-emerald-500/5 border-emerald-500/20' : 'from-red-500/10 to-red-500/5 border-red-500/20'}`}>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${profitabilityStats.totalNetMargin >= 0 ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
-                    <DollarSign className={`h-5 w-5 ${profitabilityStats.totalNetMargin >= 0 ? 'text-emerald-600' : 'text-red-600'}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Marge nette</p>
-                    <p className={`text-2xl font-bold ${profitabilityStats.totalNetMargin >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                      {formatCurrency(profitabilityStats.totalNetMargin)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={`bg-gradient-to-br ${profitabilityStats.avgRoi >= 0 ? 'from-blue-500/10 to-blue-500/5 border-blue-500/20' : 'from-red-500/10 to-red-500/5 border-red-500/20'}`}>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${profitabilityStats.avgRoi >= 0 ? 'bg-blue-500/20' : 'bg-red-500/20'}`}>
-                    <Target className={`h-5 w-5 ${profitabilityStats.avgRoi >= 0 ? 'text-blue-600' : 'text-red-600'}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">ROI moyen</p>
-                    <p className={`text-2xl font-bold ${profitabilityStats.avgRoi >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
-                      {profitabilityStats.avgRoi.toFixed(0)}%
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-500/20">
-                    <UserPlus className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Coût acquisition</p>
-                    <p className="text-2xl font-bold text-purple-700">
-                      {formatCurrency(profitabilityStats.avgCostPerAcquisition)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Profitability summary */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card className="border-emerald-500/30">
-              <CardContent className="py-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-emerald-600" />
-                  <span className="font-medium">Offres rentables</span>
-                </div>
-                <Badge className="bg-emerald-500/20 text-emerald-700 border-emerald-500/30 text-lg px-3">
-                  {profitableCount}
-                </Badge>
-              </CardContent>
-            </Card>
-            <Card className="border-red-500/30">
-              <CardContent className="py-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <TrendingDown className="h-5 w-5 text-red-600" />
-                  <span className="font-medium">Offres non rentables</span>
-                </div>
-                <Badge className="bg-red-500/20 text-red-700 border-red-500/30 text-lg px-3">
-                  {unprofitableCount}
-                </Badge>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {/* Performance KPIs */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/20">
           <CardContent className="pt-4">
