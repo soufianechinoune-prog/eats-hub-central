@@ -298,8 +298,10 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
             <TableBody>
               {offers.slice(0, 50).map((offer) => (
                 <TableRow key={offer.id}>
-                  <TableCell className="font-medium max-w-[200px] truncate">
-                    {offer.title || offer.items_affected || "N/A"}
+                  <TableCell className="font-medium max-w-[200px]">
+                    <div className="truncate" title={offer.title || ""}>
+                      {offer.items_affected || offer.title || "N/A"}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-xs">
