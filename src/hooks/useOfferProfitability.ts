@@ -67,15 +67,15 @@ export interface ProfitabilityStats {
   realTotalProfitability: number;
 }
 
-interface OrderFinancials {
-  restaurant_id: string;
-  order_date: string;
-  sales_incl_vat: number;
-  uber_fee_after_promo_incl_vat: number;
-  item_promo_incl_vat: number;
-  refund_incl_vat: number;
-  net_payout: number;
-  meal_voucher_amount: number;
+interface AggregatedFinancials {
+  offerId: string;
+  orderCount: number;
+  totalSales: number;
+  totalCommission: number;
+  totalPromos: number;
+  totalRefunds: number;
+  totalPayout: number;
+  totalMealVoucher: number;
 }
 
 // Calculate the offer cost based on offer type
@@ -186,61 +186,86 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
       }));
   }, [offers]);
 
-  // Fetch real order financials for all offers with dates and restaurants
-  const { data: ordersFinancials = [] } = useQuery({
-    queryKey: ["offer-orders-financials", offerParams],
-    queryFn: async () => {
+  // Fetch aggregated financials for each offer individually (avoids 1000 row limit)
+  const { data: aggregatedFinancials = [] } = useQuery({
+    queryKey: ["offer-aggregated-financials", offerParams],
+    queryFn: async (): Promise<AggregatedFinancials[]> => {
       if (offerParams.length === 0) return [];
 
-      // Get all unique restaurant IDs and date range
-      const allRestaurantIds = new Set<string>();
-      let minDate: string | null = null;
-      let maxDate: string | null = null;
+      // Process offers in batches to avoid too many parallel requests
+      const batchSize = 20;
+      const results: AggregatedFinancials[] = [];
 
-      offerParams.forEach(p => {
-        p.restaurant_ids.forEach(id => allRestaurantIds.add(id));
-        if (p.start_date && (!minDate || p.start_date < minDate)) minDate = p.start_date;
-        if (p.end_date && (!maxDate || p.end_date > maxDate)) maxDate = p.end_date;
-      });
+      for (let i = 0; i < offerParams.length; i += batchSize) {
+        const batch = offerParams.slice(i, i + batchSize);
+        
+        const batchResults = await Promise.all(
+          batch.map(async (offer) => {
+            if (!offer.restaurant_ids?.length || !offer.start_date) {
+              return {
+                offerId: offer.id,
+                orderCount: 0,
+                totalSales: 0,
+                totalCommission: 0,
+                totalPromos: 0,
+                totalRefunds: 0,
+                totalPayout: 0,
+                totalMealVoucher: 0,
+              };
+            }
 
-      if (allRestaurantIds.size === 0 || !minDate) return [];
+            const endDate = offer.end_date || new Date().toISOString().split('T')[0];
+            const endDatePlusOne = new Date(endDate);
+            endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
 
-      // Fetch all orders in the date range for these restaurants
-      let query = supabase
-        .from("orders")
-        .select(`
-          restaurant_id,
-          order_datetime,
-          sales_incl_vat,
-          uber_fee_after_promo_incl_vat,
-          item_promo_incl_vat,
-          refund_incl_vat,
-          net_payout,
-          meal_voucher_amount
-        `)
-        .in("restaurant_id", Array.from(allRestaurantIds))
-        .gte("order_datetime", minDate);
+            // Fetch orders for this specific offer and aggregate
+            const { data, error } = await supabase
+              .from("orders")
+              .select(`
+                sales_incl_vat,
+                uber_fee_after_promo_incl_vat,
+                item_promo_incl_vat,
+                refund_incl_vat,
+                net_payout,
+                meal_voucher_amount
+              `)
+              .in("restaurant_id", offer.restaurant_ids)
+              .gte("order_datetime", offer.start_date)
+              .lt("order_datetime", endDatePlusOne.toISOString().split('T')[0]);
 
-      if (maxDate) {
-        // Add one day to max date to include end_date
-        const maxDatePlusOne = new Date(maxDate);
-        maxDatePlusOne.setDate(maxDatePlusOne.getDate() + 1);
-        query = query.lt("order_datetime", maxDatePlusOne.toISOString().split('T')[0]);
+            if (error) {
+              console.error(`Error fetching financials for offer ${offer.id}:`, error);
+              return {
+                offerId: offer.id,
+                orderCount: 0,
+                totalSales: 0,
+                totalCommission: 0,
+                totalPromos: 0,
+                totalRefunds: 0,
+                totalPayout: 0,
+                totalMealVoucher: 0,
+              };
+            }
+
+            // Aggregate the results
+            const orders = data || [];
+            return {
+              offerId: offer.id,
+              orderCount: orders.length,
+              totalSales: orders.reduce((sum, o) => sum + (o.sales_incl_vat || 0), 0),
+              totalCommission: orders.reduce((sum, o) => sum + (o.uber_fee_after_promo_incl_vat || 0), 0),
+              totalPromos: orders.reduce((sum, o) => sum + (o.item_promo_incl_vat || 0), 0),
+              totalRefunds: orders.reduce((sum, o) => sum + (o.refund_incl_vat || 0), 0),
+              totalPayout: orders.reduce((sum, o) => sum + (o.net_payout || 0), 0),
+              totalMealVoucher: orders.reduce((sum, o) => sum + (o.meal_voucher_amount || 0), 0),
+            };
+          })
+        );
+        
+        results.push(...batchResults);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-
-      return (data || []).map(order => ({
-        restaurant_id: order.restaurant_id,
-        order_date: order.order_datetime?.split(' ')[0]?.split('T')[0] || '',
-        sales_incl_vat: order.sales_incl_vat || 0,
-        uber_fee_after_promo_incl_vat: order.uber_fee_after_promo_incl_vat || 0,
-        item_promo_incl_vat: order.item_promo_incl_vat || 0,
-        refund_incl_vat: order.refund_incl_vat || 0,
-        net_payout: order.net_payout || 0,
-        meal_voucher_amount: order.meal_voucher_amount || 0,
-      })) as OrderFinancials[];
+      return results;
     },
     staleTime: 5 * 60 * 1000,
     enabled: offerParams.length > 0,
@@ -273,7 +298,7 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
         ? (estimatedCost - uberCofunding) / offer.new_customers 
         : 0;
 
-      // Calculate real financial data if available
+      // Get pre-aggregated financial data for this offer
       let hasRealData = false;
       let realSales = 0;
       let realCommission = 0;
@@ -283,28 +308,16 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
       let realMealVoucher = 0;
       let realOrdersCount = 0;
 
-      if (offer.restaurant_ids?.length && (offer.start_date || offer.end_date)) {
-        const startDate = offer.start_date || '';
-        const endDate = offer.end_date || new Date().toISOString().split('T')[0];
-        
-        // Filter orders for this offer's restaurants and date range
-        const relevantOrders = ordersFinancials.filter(order => {
-          const inRestaurant = offer.restaurant_ids?.includes(order.restaurant_id);
-          const orderDate = order.order_date.substring(0, 10);
-          const inDateRange = orderDate >= startDate && orderDate <= endDate;
-          return inRestaurant && inDateRange;
-        });
-
-        if (relevantOrders.length > 0) {
-          hasRealData = true;
-          realOrdersCount = relevantOrders.length;
-          realSales = relevantOrders.reduce((sum, o) => sum + o.sales_incl_vat, 0);
-          realCommission = relevantOrders.reduce((sum, o) => sum + o.uber_fee_after_promo_incl_vat, 0);
-          realPromos = relevantOrders.reduce((sum, o) => sum + o.item_promo_incl_vat, 0);
-          realRefunds = relevantOrders.reduce((sum, o) => sum + o.refund_incl_vat, 0);
-          realPayout = relevantOrders.reduce((sum, o) => sum + o.net_payout, 0);
-          realMealVoucher = relevantOrders.reduce((sum, o) => sum + o.meal_voucher_amount, 0);
-        }
+      const aggregated = aggregatedFinancials.find(a => a.offerId === offer.id);
+      if (aggregated && aggregated.orderCount > 0) {
+        hasRealData = true;
+        realOrdersCount = aggregated.orderCount;
+        realSales = aggregated.totalSales;
+        realCommission = aggregated.totalCommission;
+        realPromos = aggregated.totalPromos;
+        realRefunds = aggregated.totalRefunds;
+        realPayout = aggregated.totalPayout;
+        realMealVoucher = aggregated.totalMealVoucher;
       }
 
       const realTotalPayout = realPayout + realMealVoucher;
@@ -356,7 +369,7 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
         profitability_level: profitabilityLevel,
       };
     });
-  }, [offers, menuItems, ordersFinancials]);
+  }, [offers, menuItems, aggregatedFinancials]);
 
   // Calculate aggregate stats
   const stats = useMemo<ProfitabilityStats>(() => {
