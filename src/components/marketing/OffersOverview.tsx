@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -25,6 +24,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -35,16 +40,18 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from "recharts";
-import { Gift, Users, ShoppingCart, Percent, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, PiggyBank, Calculator } from "lucide-react";
+import { Gift, Users, ShoppingCart, Percent, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, CalendarIcon } from "lucide-react";
 import { OffersCampaign } from "@/hooks/useMarketingCampaigns";
 import { useOfferProfitability } from "@/hooks/useOfferProfitability";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { DateRange } from "react-day-picker";
+
+type PeriodFilter = "all" | "week" | "month" | "quarter" | "year" | "custom";
 
 type SortField = "product" | "type" | "restaurant" | "date" | "sales" | "newCustomers" | "orders" | "funding" | "status" | "cost" | "margin" | "roi";
 type SortDirection = "asc" | "desc";
@@ -77,6 +84,8 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterRestaurant, setFilterRestaurant] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
   const queryClient = useQueryClient();
 
   // Use profitability hook
@@ -105,6 +114,28 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
     return map;
   }, [profitableOffers]);
 
+  // Get period date range
+  const getPeriodDateRange = (period: PeriodFilter): { start: Date; end: Date } | null => {
+    const now = new Date();
+    switch (period) {
+      case "week":
+        return { start: startOfWeek(now, { locale: fr }), end: endOfWeek(now, { locale: fr }) };
+      case "month":
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case "quarter":
+        return { start: startOfQuarter(now), end: endOfQuarter(now) };
+      case "year":
+        return { start: startOfYear(now), end: endOfYear(now) };
+      case "custom":
+        if (customDateRange?.from && customDateRange?.to) {
+          return { start: customDateRange.from, end: customDateRange.to };
+        }
+        return null;
+      default:
+        return null;
+    }
+  };
+
   // Filter and sort offers
   const filteredAndSortedOffers = useMemo(() => {
     let filtered = [...offers];
@@ -118,6 +149,25 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
     }
     if (filterStatus !== "all") {
       filtered = filtered.filter(o => o.change_context?.status === filterStatus);
+    }
+
+    // Apply date period filter
+    if (filterPeriod !== "all") {
+      const range = getPeriodDateRange(filterPeriod);
+      if (range) {
+        filtered = filtered.filter(o => {
+          const startDate = o.start_date ? new Date(o.start_date) : null;
+          const endDate = o.end_date ? new Date(o.end_date) : null;
+          
+          // Include offer if start_date OR end_date falls within period
+          const startInRange = startDate && isWithinInterval(startDate, { start: range.start, end: range.end });
+          const endInRange = endDate && isWithinInterval(endDate, { start: range.start, end: range.end });
+          // Also include if offer spans the entire period
+          const spansRange = startDate && endDate && startDate <= range.start && endDate >= range.end;
+          
+          return startInRange || endInRange || spansRange;
+        });
+      }
     }
 
     // Apply sorting
@@ -168,7 +218,7 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
     });
 
     return filtered;
-  }, [offers, filterType, filterRestaurant, filterStatus, sortField, sortDirection, profitabilityMap]);
+  }, [offers, filterType, filterRestaurant, filterStatus, filterPeriod, customDateRange, sortField, sortDirection, profitabilityMap]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -186,12 +236,38 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
       : <ArrowDown className="ml-1 h-3 w-3" />;
   };
 
-  const hasActiveFilters = filterType !== "all" || filterRestaurant !== "all" || filterStatus !== "all";
+  const hasActiveFilters = filterType !== "all" || filterRestaurant !== "all" || filterStatus !== "all" || filterPeriod !== "all";
 
   const clearFilters = () => {
     setFilterType("all");
     setFilterRestaurant("all");
     setFilterStatus("all");
+    setFilterPeriod("all");
+    setCustomDateRange(undefined);
+  };
+
+  const formatPeriodDisplay = (offer: OffersCampaign) => {
+    const startDate = offer.start_date ? new Date(offer.start_date) : null;
+    const endDate = offer.end_date ? new Date(offer.end_date) : null;
+    
+    if (startDate && endDate) {
+      const sameYear = startDate.getFullYear() === endDate.getFullYear();
+      return `${format(startDate, 'dd MMM', { locale: fr })} → ${format(endDate, sameYear ? 'dd MMM' : 'dd MMM yy', { locale: fr })}`;
+    }
+    if (startDate) {
+      return `Depuis ${format(startDate, 'dd MMM', { locale: fr })}`;
+    }
+    if (endDate) {
+      return `Jusqu'au ${format(endDate, 'dd MMM', { locale: fr })}`;
+    }
+    return "N/A";
+  };
+
+  const getCustomDateLabel = () => {
+    if (customDateRange?.from && customDateRange?.to) {
+      return `${format(customDateRange.from, 'dd MMM', { locale: fr })} → ${format(customDateRange.to, 'dd MMM', { locale: fr })}`;
+    }
+    return "Choisir dates";
   };
 
   const handleFundingUpdate = async (offerId: string, newValue: number) => {
@@ -427,8 +503,47 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
           {/* Filters */}
           <div className="flex flex-wrap gap-3 items-center p-3 bg-muted/30 rounded-lg">
             <Filter className="h-4 w-4 text-muted-foreground" />
+            
+            {/* Period filter */}
+            <Select value={filterPeriod} onValueChange={(v) => setFilterPeriod(v as PeriodFilter)}>
+              <SelectTrigger className="w-[160px] h-9">
+                <SelectValue placeholder="Période" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes périodes</SelectItem>
+                <SelectItem value="week">Cette semaine</SelectItem>
+                <SelectItem value="month">Ce mois</SelectItem>
+                <SelectItem value="quarter">Ce trimestre</SelectItem>
+                <SelectItem value="year">Cette année</SelectItem>
+                <SelectItem value="custom">Personnalisée</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Custom date range picker */}
+            {filterPeriod === "custom" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    {getCustomDateLabel()}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={customDateRange}
+                    onSelect={setCustomDateRange}
+                    numberOfMonths={2}
+                    locale={fr}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+
+            <div className="h-6 w-px bg-border" />
+
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[180px] h-9">
+              <SelectTrigger className="w-[160px] h-9">
                 <SelectValue placeholder="Type d'offre" />
               </SelectTrigger>
               <SelectContent>
@@ -440,11 +555,11 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
             </Select>
 
             <Select value={filterRestaurant} onValueChange={setFilterRestaurant}>
-              <SelectTrigger className="w-[200px] h-9">
+              <SelectTrigger className="w-[180px] h-9">
                 <SelectValue placeholder="Restaurant" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous les restaurants</SelectItem>
+                <SelectItem value="all">Tous restaurants</SelectItem>
                 {uniqueRestaurants.map(restaurant => (
                   <SelectItem key={restaurant} value={restaurant}>{restaurant}</SelectItem>
                 ))}
@@ -452,7 +567,7 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
             </Select>
 
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[150px] h-9">
+              <SelectTrigger className="w-[140px] h-9">
                 <SelectValue placeholder="Statut" />
               </SelectTrigger>
               <SelectContent>
@@ -480,6 +595,11 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
                 <TableHead>
                   <Button variant="ghost" size="sm" className="h-8 px-2 -ml-2" onClick={() => handleSort("restaurant")}>
                     Restaurant <SortIcon field="restaurant" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" className="h-8 px-2 -ml-2" onClick={() => handleSort("date")}>
+                    Période <SortIcon field="date" />
                   </Button>
                 </TableHead>
                 <TableHead className="text-right">
@@ -541,6 +661,9 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
                   <TableCell className="text-muted-foreground text-sm">
                     {offer.restaurant_names?.[0] || "N/A"}
                   </TableCell>
+                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                    {formatPeriodDisplay(offer)}
+                  </TableCell>
                   <TableCell className="text-right font-medium text-emerald-600">
                     {formatCurrency(offer.generated_sales)}
                   </TableCell>
@@ -565,7 +688,7 @@ export function OffersOverview({ offers, stats }: OffersOverviewProps) {
               );})}
               {filteredAndSortedOffers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     {hasActiveFilters ? "Aucune offre ne correspond aux filtres" : "Aucune offre promotionnelle importée"}
                   </TableCell>
                 </TableRow>
