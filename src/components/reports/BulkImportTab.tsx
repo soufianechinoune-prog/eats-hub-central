@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Trash2, Building2, Calendar, RefreshCw } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Trash2, Building2, Calendar, RefreshCw, ChevronRight, FileText } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,7 @@ interface BulkFile {
   file: File;
   content: string;
   detectedType: string | null;
+  detectionSource: "filename" | "content" | null;
   selectedType: string;
   dateRange: { start: string | null; end: string | null };
   restaurantId: string;
@@ -81,66 +82,153 @@ const parseCSVLine = (line: string): string[] => {
   return result;
 };
 
+// Detect report type from filename (very reliable for Uber files)
+const detectReportTypeFromFilename = (filename: string): string | null => {
+  const name = filename.toLowerCase();
+  
+  // Sales Over Time
+  if (name.includes("sales_over_time") || name.includes("sales-over-time") || name.includes("ventes_sur")) {
+    return "sales_over_time";
+  }
+  
+  // Payment reports (common_template is typically payment)
+  if (name.includes("common_template") || name.includes("payment")) {
+    // Check if item level
+    if (name.includes("item") || name.includes("article")) {
+      return "payment_item_level";
+    }
+    return "payment_order_level";
+  }
+  
+  // Marketing campaigns
+  if (name.includes("marketing") || name.includes("offers") || name.includes("ads") || 
+      name.includes("offres") || name.includes("campagnes")) {
+    return "marketing_campaigns";
+  }
+  
+  // Downtime report
+  if (name.includes("menu_downtime") || name.includes("downtime") || name.includes("inactivite") ||
+      name.includes("inactivité")) {
+    return "downtime_report";
+  }
+  
+  // Order history
+  if (name.includes("order_history") || name.includes("order-history") || 
+      name.includes("historique_commandes") || name.includes("historique-commandes")) {
+    return "order_history";
+  }
+  
+  // Conversion funnel
+  if (name.includes("user_conversion") || name.includes("conversion") || 
+      name.includes("entonnoir") || name.includes("tunnel")) {
+    return "conversion_funnel";
+  }
+  
+  // Reviews - item level (has sku in name)
+  if ((name.includes("restaurant_rating") || name.includes("rating") || name.includes("avis")) && 
+      (name.includes("sku") || name.includes("item") || name.includes("article"))) {
+    return "reviews_item";
+  }
+  
+  // Reviews - order level
+  if (name.includes("restaurant_rating") || name.includes("rating") || name.includes("avis")) {
+    return "reviews_order";
+  }
+  
+  // Inaccurate orders
+  if (name.includes("inaccurate_orders") || name.includes("inaccurate-orders") || 
+      name.includes("commandes_incorrectes") || name.includes("erreur_commandes")) {
+    return "inaccurate_orders";
+  }
+  
+  // Payout summary
+  if (name.includes("payout") || name.includes("versement") || name.includes("payment_summary")) {
+    return "payout_summary";
+  }
+  
+  // Item issues leaderboard
+  if (name.includes("item_issues") || name.includes("item-issues") || 
+      name.includes("articles_problematiques") || name.includes("problemes_articles")) {
+    return "item_issues_leaderboard";
+  }
+  
+  // Order accuracy summary
+  if (name.includes("order_accuracy") || name.includes("accuracy") || 
+      name.includes("precision_commandes") || name.includes("exactitude")) {
+    return "order_accuracy_summary";
+  }
+  
+  return null;
+};
+
 // Auto-detect report type based on CSV headers
-const detectReportType = (headerLine: string): string | null => {
+const detectReportTypeFromContent = (headerLine: string): string | null => {
+  const lowerHeader = headerLine.toLowerCase();
+  
   // Marketing campaigns - Offers
-  if (headerLine.includes("Type d'offre") && headerLine.includes("Audience")) {
+  if ((lowerHeader.includes("type d'offre") || lowerHeader.includes("offer type")) && 
+      (lowerHeader.includes("audience") || lowerHeader.includes("budget"))) {
     return "marketing_campaigns";
   }
   // Marketing campaigns - Ads
-  if (headerLine.includes("Nom de la campagne") && headerLine.includes("Impressions")) {
+  if ((lowerHeader.includes("nom de la campagne") || lowerHeader.includes("campaign name")) && 
+      (lowerHeader.includes("impressions") || lowerHeader.includes("clics") || lowerHeader.includes("clicks"))) {
     return "marketing_campaigns";
   }
   // Sales Over Time
-  if (headerLine.includes("Période") && headerLine.includes("Ventes")) {
+  if ((lowerHeader.includes("période") || lowerHeader.includes("period")) && 
+      (lowerHeader.includes("ventes") || lowerHeader.includes("sales"))) {
     return "sales_over_time";
   }
   // Reviews Order Level
-  if ((headerLine.includes("Note du restaurant") || headerLine.includes("restaurant rating")) && 
-      (headerLine.includes("UUID de la commande") || headerLine.includes("Order UUID"))) {
+  if ((lowerHeader.includes("note du restaurant") || lowerHeader.includes("restaurant rating")) && 
+      (lowerHeader.includes("uuid de la commande") || lowerHeader.includes("order uuid"))) {
     return "reviews_order";
   }
   // Reviews Item Level
-  if ((headerLine.includes("Note de l'article") || headerLine.includes("Item rating")) && 
-      (headerLine.includes("Titre de l'article") || headerLine.includes("Item title"))) {
+  if ((lowerHeader.includes("note de l'article") || lowerHeader.includes("item rating") || lowerHeader.includes("note article")) && 
+      (lowerHeader.includes("titre de l'article") || lowerHeader.includes("item title") || lowerHeader.includes("titre article"))) {
     return "reviews_item";
   }
   // Downtime Report
-  if (headerLine.includes("Ouverture du restaurant à") && headerLine.includes("Disponibilité du menu")) {
+  if ((lowerHeader.includes("ouverture du restaurant") || lowerHeader.includes("restaurant open")) && 
+      (lowerHeader.includes("disponibilité du menu") || lowerHeader.includes("menu availability"))) {
     return "downtime_report";
   }
   // Order History
-  if ((headerLine.includes("Id. de la commande") || headerLine.includes("Id de la commande")) && 
-      (headerLine.includes("Temps d'attente du coursier") || headerLine.includes("Heure de la commande"))) {
+  if ((lowerHeader.includes("id. de la commande") || lowerHeader.includes("id de la commande") || lowerHeader.includes("order id")) && 
+      (lowerHeader.includes("temps d'attente du coursier") || lowerHeader.includes("heure de la commande") || lowerHeader.includes("courier wait time"))) {
     return "order_history";
   }
   // Inaccurate Orders (detail)
-  if ((headerLine.includes("Problème avec la commande") || headerLine.includes("Articles incorrects")) &&
-      headerLine.includes("Client remboursé")) {
+  if ((lowerHeader.includes("problème avec la commande") || lowerHeader.includes("articles incorrects") || lowerHeader.includes("order issue")) &&
+      (lowerHeader.includes("client remboursé") || lowerHeader.includes("customer refund"))) {
     return "inaccurate_orders";
   }
   // Item Issues Leaderboard
-  if (headerLine.includes("Articles incorrects") && headerLine.includes("Nombre") &&
-      headerLine.includes("Problème avec le plat")) {
+  if ((lowerHeader.includes("articles incorrects") || lowerHeader.includes("incorrect items")) && 
+      lowerHeader.includes("nombre") &&
+      (lowerHeader.includes("problème avec le plat") || lowerHeader.includes("dish issue"))) {
     return "item_issues_leaderboard";
   }
   // Order Accuracy Summary
-  if ((headerLine.includes("Jour") || headerLine.includes("Mois")) && 
-      (headerLine.includes("Commandes incorrectes") || headerLine.includes("Articles manquants"))) {
+  if ((lowerHeader.includes("jour") || lowerHeader.includes("mois") || lowerHeader.includes("day") || lowerHeader.includes("month")) && 
+      (lowerHeader.includes("commandes incorrectes") || lowerHeader.includes("articles manquants") || lowerHeader.includes("inaccurate orders"))) {
     return "order_accuracy_summary";
   }
   // Conversion Funnel
-  if ((headerLine.includes("Utilisateurs ayant visité") || headerLine.includes("Utilisateurs ayant visite")) &&
-      (headerLine.includes("menu a été consulté") || headerLine.includes("menu consulté") || headerLine.includes("Plat ajouté"))) {
+  if ((lowerHeader.includes("utilisateurs ayant visité") || lowerHeader.includes("utilisateurs ayant visite") || lowerHeader.includes("users who visited")) &&
+      (lowerHeader.includes("menu a été consulté") || lowerHeader.includes("menu consulté") || lowerHeader.includes("plat ajouté") || lowerHeader.includes("item added"))) {
     return "conversion_funnel";
   }
   // Payout Summary
-  if (headerLine.includes("Identifiant de versement") || headerLine.includes("Date de versement")) {
+  if ((lowerHeader.includes("identifiant de versement") || lowerHeader.includes("payout id")) || 
+      (lowerHeader.includes("date de versement") || lowerHeader.includes("payout date"))) {
     return "payout_summary";
   }
   // Payment reports (default fallback for order/item level)
-  if (headerLine.includes("Id. de la commande") || headerLine.includes("Id. du flux")) {
-    if (headerLine.includes("Titre de l'article") || headerLine.includes("Item title")) {
+  if ((lowerHeader.includes("id. de la commande") || lowerHeader.includes("id. du flux") || lowerHeader.includes("flow id"))) {
+    if (lowerHeader.includes("titre de l'article") || lowerHeader.includes("item title")) {
       return "payment_item_level";
     }
     return "payment_order_level";
@@ -243,14 +331,20 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [files, setFiles] = useState<BulkFile[]>([]);
-  const [step, setStep] = useState<"upload" | "configure" | "importing" | "complete">("upload");
+  const [step, setStep] = useState<"select-restaurant" | "upload" | "configure" | "importing" | "complete">("select-restaurant");
   const [progress, setProgress] = useState(0);
   const [selectAll, setSelectAll] = useState(true);
   const [defaultRestaurantId, setDefaultRestaurantId] = useState<string>("");
+  const [preSelectedRestaurant, setPreSelectedRestaurant] = useState<string>("");
 
   const generateId = () => Math.random().toString(36).substring(2, 15);
 
-  const processFile = async (file: File): Promise<BulkFile> => {
+  const getSelectedRestaurantName = () => {
+    const restaurant = restaurants.find(r => r.id === preSelectedRestaurant);
+    return restaurant ? `${restaurant.name}${restaurant.city ? ` (${restaurant.city})` : ""}` : "";
+  };
+
+  const processFile = async (file: File, preRestaurantId: string): Promise<BulkFile> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -271,22 +365,33 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
           }
         }
         
-        const detectedType = detectReportType(headerLine);
+        // First try filename-based detection (most reliable)
+        const typeFromFilename = detectReportTypeFromFilename(file.name);
+        // Fallback to content-based detection
+        const typeFromContent = detectReportTypeFromContent(headerLine);
+        
+        const detectedType = typeFromFilename || typeFromContent;
+        const detectionSource: "filename" | "content" | null = typeFromFilename ? "filename" : (typeFromContent ? "content" : null);
+        
         const dateRange = extractDateRange(content, detectedType || "");
         const autoRestaurant = findRestaurantFromContent(content, restaurants);
         
         const config = detectedType ? REPORT_TYPE_CONFIG[detectedType] : null;
         const needsRestaurant = config?.requiresRestaurant ?? false;
-        const hasRestaurant = !!autoRestaurant;
+        
+        // Use pre-selected restaurant for types that require it, or auto-detected if available
+        const restaurantId = needsRestaurant ? (preRestaurantId || autoRestaurant || "") : (autoRestaurant || "");
+        const hasRestaurant = !!restaurantId;
         
         resolve({
           id: generateId(),
           file,
           content,
           detectedType,
+          detectionSource,
           selectedType: detectedType || "",
           dateRange,
-          restaurantId: autoRestaurant || "",
+          restaurantId,
           autoDetectedRestaurant: autoRestaurant,
           status: !detectedType ? "config-error" : 
                   (needsRestaurant && !hasRestaurant) ? "config-error" : "ready",
@@ -312,20 +417,20 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
       return;
     }
     
-    const processedFiles = await Promise.all(droppedFiles.map(processFile));
+    const processedFiles = await Promise.all(droppedFiles.map(f => processFile(f, preSelectedRestaurant)));
     setFiles(prev => [...prev, ...processedFiles]);
     setStep("configure");
-  }, [restaurants, toast]);
+  }, [restaurants, toast, preSelectedRestaurant]);
 
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []).filter(f => f.name.endsWith(".csv"));
     
     if (selectedFiles.length === 0) return;
     
-    const processedFiles = await Promise.all(selectedFiles.map(processFile));
+    const processedFiles = await Promise.all(selectedFiles.map(f => processFile(f, preSelectedRestaurant)));
     setFiles(prev => [...prev, ...processedFiles]);
     setStep("configure");
-  }, [restaurants]);
+  }, [restaurants, preSelectedRestaurant]);
 
   const updateFile = (id: string, updates: Partial<BulkFile>) => {
     setFiles(prev => prev.map(f => {
@@ -491,9 +596,15 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
 
   const resetImport = () => {
     setFiles([]);
-    setStep("upload");
+    setStep("select-restaurant");
     setProgress(0);
     setDefaultRestaurantId("");
+    setPreSelectedRestaurant("");
+  };
+
+  const goBackToRestaurantSelection = () => {
+    setFiles([]);
+    setStep("select-restaurant");
   };
 
   const readyCount = files.filter(f => f.selected && f.status === "ready").length;
@@ -517,17 +628,88 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Upload Zone */}
-      {step === "upload" && (
+      {/* Step 1: Restaurant Selection */}
+      {step === "select-restaurant" && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Import groupé
+              <Building2 className="h-5 w-5" />
+              Étape 1 : Sélectionnez le restaurant
             </CardTitle>
             <CardDescription>
-              Importez plusieurs fichiers CSV pour différents restaurants en une seule opération
+              Choisissez le restaurant pour lequel vous allez importer les fichiers.
+              Tous les fichiers ajoutés seront automatiquement associés à ce restaurant.
             </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="max-w-md">
+              <Select value={preSelectedRestaurant} onValueChange={setPreSelectedRestaurant}>
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="Choisir un restaurant..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {restaurants.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}{r.city ? ` (${r.city})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Button 
+                onClick={() => setStep("upload")} 
+                disabled={!preSelectedRestaurant}
+                className="gap-2"
+              >
+                Continuer
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              
+              <span className="text-sm text-muted-foreground">
+                ou
+              </span>
+              
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setPreSelectedRestaurant("");
+                  setStep("upload");
+                }}
+              >
+                Importer sans pré-sélection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 2: Upload Zone */}
+      {step === "upload" && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5" />
+                  Étape 2 : Ajoutez vos fichiers
+                </CardTitle>
+                <CardDescription>
+                  {preSelectedRestaurant ? (
+                    <span className="flex items-center gap-2 mt-1">
+                      <Building2 className="h-4 w-4" />
+                      Restaurant sélectionné : <strong>{getSelectedRestaurantName()}</strong>
+                    </span>
+                  ) : (
+                    "Importez plusieurs fichiers CSV - le restaurant sera assigné automatiquement ou manuellement"
+                  )}
+                </CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={goBackToRestaurantSelection}>
+                Changer de restaurant
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div
@@ -552,7 +734,7 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
                   ou cliquez pour sélectionner
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Tous types de rapports acceptés • Détection automatique du type et du restaurant
+                  Tous types de rapports acceptés • Détection automatique du type
                 </p>
               </label>
             </div>
@@ -568,7 +750,12 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <FileSpreadsheet className="h-5 w-5" />
-                  {files.length} fichier{files.length > 1 ? "s" : ""} détecté{files.length > 1 ? "s" : ""}
+                  {files.length} fichier{files.length > 1 ? "s" : ""} 
+                  {preSelectedRestaurant && (
+                    <span className="font-normal text-muted-foreground">
+                      pour {getSelectedRestaurantName()}
+                    </span>
+                  )}
                 </CardTitle>
                 <CardDescription>
                   {step === "configure" && `${readyCount} prêt${readyCount > 1 ? "s" : ""} à importer${errorCount > 0 ? ` • ${errorCount} nécessite${errorCount > 1 ? "nt" : ""} configuration` : ""}`}
@@ -674,21 +861,29 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
                         </TableCell>
                         <TableCell>
                           {step === "configure" ? (
-                            <Select 
-                              value={bulkFile.selectedType} 
-                              onValueChange={(v) => updateFile(bulkFile.id, { selectedType: v })}
-                            >
-                              <SelectTrigger className="w-[160px] h-8 text-xs">
-                                <SelectValue placeholder="Sélectionner..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Object.entries(REPORT_TYPE_CONFIG).map(([key, cfg]) => (
-                                  <SelectItem key={key} value={key} className="text-xs">
-                                    {cfg.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="space-y-1">
+                              <Select 
+                                value={bulkFile.selectedType} 
+                                onValueChange={(v) => updateFile(bulkFile.id, { selectedType: v })}
+                              >
+                                <SelectTrigger className="w-[160px] h-8 text-xs">
+                                  <SelectValue placeholder="Sélectionner..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Object.entries(REPORT_TYPE_CONFIG).map(([key, cfg]) => (
+                                    <SelectItem key={key} value={key} className="text-xs">
+                                      {cfg.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {bulkFile.detectionSource && (
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                  <FileText className="h-3 w-3" />
+                                  {bulkFile.detectionSource === "filename" ? "Détecté (fichier)" : "Détecté (contenu)"}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <Badge variant="outline" className="text-xs">
                               {config?.label || bulkFile.selectedType}
@@ -856,7 +1051,7 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
       {/* Action Buttons */}
       {step === "configure" && (
         <div className="flex justify-between items-center">
-          <Button variant="outline" onClick={resetImport}>
+          <Button variant="outline" onClick={goBackToRestaurantSelection}>
             Annuler
           </Button>
           <Button 
