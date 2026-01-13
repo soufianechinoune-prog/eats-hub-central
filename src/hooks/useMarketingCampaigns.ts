@@ -12,7 +12,7 @@ export interface MarketingCampaign {
   end_date?: string;
   category?: string;
   target_item_ids?: string[];
-  change_context?: {
+    change_context?: {
     campaign_type?: "offer" | "ads";
     offer_type?: string;
     sales_eur?: number;
@@ -22,6 +22,7 @@ export interface MarketingCampaign {
     orders?: number;
     uber_funding_percent?: number;
     items_affected?: string;
+    articles?: string[];
     status?: string;
     // Ads specific
     campaign_uuid?: string;
@@ -147,7 +148,8 @@ export const useMarketingCampaigns = (restaurantIds?: string[]) => {
           new_customers: c.change_context?.new_customers || 0,
           orders: c.change_context?.orders || 0,
           uber_funding_percent: c.change_context?.uber_funding_percent || 0,
-          items_affected: c.change_context?.items_affected || "",
+          items_affected: c.change_context?.items_affected || 
+            (c.change_context?.articles as string[] || []).join(", ") || "",
         }));
 
       const ads: AdsCampaign[] = campaigns
