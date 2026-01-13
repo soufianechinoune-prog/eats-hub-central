@@ -153,17 +153,13 @@ export default function MarketingAnalytics() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-              <TabsList className="grid w-full max-w-4xl grid-cols-5">
+              <TabsList className="grid w-full max-w-3xl grid-cols-4">
                 <TabsTrigger value="offers" className="flex items-center gap-2">
                   <Gift className="h-4 w-4" />
-                  Offres
+                  Offres & Analyse
                   <Badge variant="secondary" className="ml-1">
                     {campaignData?.offers?.length || 0}
                   </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="performance" className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  Analyse
                 </TabsTrigger>
                 <TabsTrigger value="products" className="flex items-center gap-2">
                   <Package className="h-4 w-4" />
@@ -193,11 +189,8 @@ export default function MarketingAnalytics() {
                     campaignCount: 0,
                     byType: {},
                   }}
+                  showProfitabilityKPIs={true}
                 />
-              </TabsContent>
-
-              <TabsContent value="performance">
-                <OfferPerformanceAnalysis offers={campaignData?.offers || []} />
               </TabsContent>
 
               <TabsContent value="products">
