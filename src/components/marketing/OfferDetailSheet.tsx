@@ -227,7 +227,7 @@ function OrderRow({ order, isFirst }: { order: MatchedOrder; isFirst: boolean })
           </div>
           <div className="flex items-center gap-4 flex-shrink-0">
             <div className="text-right">
-              <p className="font-medium text-sm">{formatCurrency(order.order_total)}</p>
+              <p className="font-medium text-sm">{formatCurrency(order.sales_incl_vat)}</p>
               <p className="text-xs text-green-600">{formatCurrency(order.net_payout)}</p>
             </div>
             {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -268,7 +268,7 @@ function OrderRow({ order, isFirst }: { order: MatchedOrder; isFirst: boolean })
           {/* Order summary */}
           <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-2 mt-2">
             <span>Commission: {formatCurrency(-Math.abs(order.commission))}</span>
-            {order.refunds > 0 && <span>Remb.: {formatCurrency(-Math.abs(order.refunds))}</span>}
+            {order.refund < 0 && <span>Remb.: {formatCurrency(order.refund)}</span>}
             <span className="font-medium text-foreground">Net: {formatCurrency(order.net_payout)}</span>
           </div>
         </div>
@@ -282,18 +282,19 @@ export function OfferDetailSheet({ open, onOpenChange, offer }: OfferDetailSheet
   
   if (!offer) return null;
 
-  const hasRealData = matchedData?.has_matched_data || offer.has_real_data;
+  const hasMatchedData = matchedData && matchedData.match_type !== "none" && matchedData.matched_orders_count > 0;
+  const hasRealData = hasMatchedData || offer.has_real_data;
   
   // Use matched data if available, otherwise fall back to offer data
-  const sales = matchedData?.has_matched_data ? matchedData.matched_sales : (offer.has_real_data ? (offer.real_sales || 0) : offer.generated_sales);
-  const orders = matchedData?.has_matched_data ? matchedData.matched_orders_count : (offer.has_real_data ? (offer.real_orders_count || offer.orders) : offer.orders);
+  const sales = hasMatchedData ? matchedData.matched_sales : (offer.has_real_data ? (offer.real_sales || 0) : offer.generated_sales);
+  const orders = hasMatchedData ? matchedData.matched_orders_count : (offer.has_real_data ? (offer.real_orders_count || offer.orders) : offer.orders);
   const avgBasket = orders > 0 ? sales / orders : 0;
   
   // Financial breakdown
-  const commission = matchedData?.has_matched_data ? matchedData.matched_commission : (offer.has_real_data ? (offer.real_commission || 0) : offer.commission);
-  const promos = matchedData?.has_matched_data ? matchedData.matched_promos : (offer.has_real_data ? (offer.real_promos || 0) : 0);
-  const refunds = matchedData?.has_matched_data ? matchedData.matched_refunds : (offer.has_real_data ? (offer.real_refunds || 0) : 0);
-  const payout = matchedData?.has_matched_data ? matchedData.matched_payout : (offer.has_real_data ? (offer.real_payout || 0) : (offer.generated_sales - offer.commission));
+  const commission = hasMatchedData ? matchedData.matched_commission : (offer.has_real_data ? (offer.real_commission || 0) : offer.commission);
+  const promos = hasMatchedData ? matchedData.matched_promos : (offer.has_real_data ? (offer.real_promos || 0) : 0);
+  const refunds = hasMatchedData ? matchedData.matched_refunds : (offer.has_real_data ? (offer.real_refunds || 0) : 0);
+  const payout = hasMatchedData ? matchedData.matched_payout : (offer.has_real_data ? (offer.real_payout || 0) : (offer.generated_sales - offer.commission));
   const mealVoucher = offer.has_real_data ? (offer.real_meal_voucher || 0) : 0;
   const totalPayout = payout + mealVoucher;
   const profitability = sales > 0 ? (totalPayout / sales) * 100 : 0;
@@ -369,7 +370,7 @@ export function OfferDetailSheet({ open, onOpenChange, offer }: OfferDetailSheet
         </div>
 
         {/* Comparison CA declared vs real */}
-        {matchedData?.has_matched_data && (
+        {hasMatchedData && matchedData && (
           <div className="bg-muted/30 rounded-lg p-3 mb-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Comparaison CA</span>
