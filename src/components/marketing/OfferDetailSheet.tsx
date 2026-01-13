@@ -1,6 +1,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { 
@@ -19,11 +20,18 @@ import {
   Gift,
   CheckCircle,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Package,
+  ChevronDown,
+  ChevronUp,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfferProfitability } from "@/hooks/useOfferProfitability";
+import { useOfferMatchedOrders, MatchedOrder } from "@/hooks/useOfferMatchedOrders";
+import { useState } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface OfferDetailSheetProps {
   open: boolean;
@@ -139,6 +147,24 @@ function getOfferTypeBadge(offerType: string) {
   return <Badge variant="secondary">{offerType}</Badge>;
 }
 
+// Match type badge
+function getMatchTypeBadge(matchType: "product" | "promo" | "period" | "none") {
+  const config = {
+    product: { label: "Matchées par produit", icon: CheckCircle, className: "bg-emerald-500/20 text-emerald-700 border-emerald-500/30" },
+    promo: { label: "Commandes avec promo", icon: Gift, className: "bg-purple-500/20 text-purple-700 border-purple-500/30" },
+    period: { label: "Période seule", icon: Calendar, className: "bg-orange-500/20 text-orange-700 border-orange-500/30" },
+    none: { label: "Pas de données", icon: XCircle, className: "bg-red-500/20 text-red-700 border-red-500/30" },
+  };
+  const { label, icon: Icon, className } = config[matchType];
+  
+  return (
+    <Badge className={className}>
+      <Icon className="h-3 w-3 mr-1" />
+      {label}
+    </Badge>
+  );
+}
+
 // Profitability badge
 function getProfitabilityBadge(level: OfferProfitability["profitability_level"], percentage?: number) {
   const config = {
@@ -161,24 +187,116 @@ function getProfitabilityBadge(level: OfferProfitability["profitability_level"],
   );
 }
 
+// Single order row component
+function OrderRow({ order, isFirst }: { order: MatchedOrder; isFirst: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const orderDate = order.order_datetime ? parseISO(order.order_datetime) : null;
+  
+  const offerProductItems = order.items.filter(i => i.is_offer_product);
+  const otherItems = order.items.filter(i => !i.is_offer_product);
+  
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger asChild>
+        <div className={cn(
+          "flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 transition-colors",
+          !isFirst && "border-t"
+        )}>
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex-shrink-0 text-xs text-muted-foreground w-16">
+              {orderDate && format(orderDate, "d MMM HH:mm", { locale: fr })}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                {offerProductItems.length > 0 && (
+                  <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 text-xs">
+                    {offerProductItems.map(i => `${i.item_title} x${i.quantity}`).join(", ").slice(0, 30)}
+                    {offerProductItems.map(i => `${i.item_title} x${i.quantity}`).join(", ").length > 30 && "..."}
+                  </Badge>
+                )}
+                {order.promo_applied < 0 && (
+                  <Badge variant="secondary" className="bg-purple-500/10 text-purple-700 text-xs">
+                    Promo: {formatCurrency(order.promo_applied)}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 truncate">
+                {order.items.length} article{order.items.length > 1 ? "s" : ""}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <div className="text-right">
+              <p className="font-medium text-sm">{formatCurrency(order.order_total)}</p>
+              <p className="text-xs text-green-600">{formatCurrency(order.net_payout)}</p>
+            </div>
+            {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </div>
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="px-3 pb-3 pl-[76px] space-y-2">
+          {/* Offer products first */}
+          {offerProductItems.map((item, idx) => (
+            <div key={idx} className="flex items-center justify-between text-sm bg-emerald-500/5 rounded px-2 py-1">
+              <div className="flex items-center gap-2">
+                <Package className="h-3 w-3 text-emerald-600" />
+                <span className="text-emerald-700">{item.item_title}</span>
+                <span className="text-xs text-muted-foreground">x{item.quantity}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {item.item_promo_incl_vat < 0 && (
+                  <span className="text-xs text-purple-600">{formatCurrency(item.item_promo_incl_vat)}</span>
+                )}
+                <span className="font-medium">{formatCurrency(item.sales_incl_vat)}</span>
+              </div>
+            </div>
+          ))}
+          {/* Other items */}
+          {otherItems.slice(0, 5).map((item, idx) => (
+            <div key={idx} className="flex items-center justify-between text-sm text-muted-foreground px-2 py-1">
+              <div className="flex items-center gap-2">
+                <span>{item.item_title}</span>
+                <span className="text-xs">x{item.quantity}</span>
+              </div>
+              <span>{formatCurrency(item.sales_incl_vat)}</span>
+            </div>
+          ))}
+          {otherItems.length > 5 && (
+            <p className="text-xs text-muted-foreground px-2">+ {otherItems.length - 5} autres articles</p>
+          )}
+          {/* Order summary */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-2 mt-2">
+            <span>Commission: {formatCurrency(-Math.abs(order.commission))}</span>
+            {order.refunds > 0 && <span>Remb.: {formatCurrency(-Math.abs(order.refunds))}</span>}
+            <span className="font-medium text-foreground">Net: {formatCurrency(order.net_payout)}</span>
+          </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function OfferDetailSheet({ open, onOpenChange, offer }: OfferDetailSheetProps) {
+  const { data: matchedData, isLoading: isLoadingOrders } = useOfferMatchedOrders(offer);
+  
   if (!offer) return null;
 
-  const hasRealData = offer.has_real_data;
+  const hasRealData = matchedData?.has_matched_data || offer.has_real_data;
   
-  // Sales and metrics
-  const sales = hasRealData ? (offer.real_sales || 0) : offer.generated_sales;
-  const orders = hasRealData ? (offer.real_orders_count || offer.orders) : offer.orders;
+  // Use matched data if available, otherwise fall back to offer data
+  const sales = matchedData?.has_matched_data ? matchedData.matched_sales : (offer.has_real_data ? (offer.real_sales || 0) : offer.generated_sales);
+  const orders = matchedData?.has_matched_data ? matchedData.matched_orders_count : (offer.has_real_data ? (offer.real_orders_count || offer.orders) : offer.orders);
   const avgBasket = orders > 0 ? sales / orders : 0;
   
-  // Financial breakdown (real or estimated)
-  const commission = hasRealData ? (offer.real_commission || 0) : offer.commission;
-  const promos = hasRealData ? (offer.real_promos || 0) : 0;
-  const refunds = hasRealData ? (offer.real_refunds || 0) : 0;
-  const payout = hasRealData ? (offer.real_payout || 0) : (offer.generated_sales - offer.commission);
-  const mealVoucher = hasRealData ? (offer.real_meal_voucher || 0) : 0;
-  const totalPayout = hasRealData ? (offer.real_total_payout || 0) : payout;
-  const profitability = hasRealData ? (offer.real_profitability || 0) : (sales > 0 ? (payout / sales) * 100 : 0);
+  // Financial breakdown
+  const commission = matchedData?.has_matched_data ? matchedData.matched_commission : (offer.has_real_data ? (offer.real_commission || 0) : offer.commission);
+  const promos = matchedData?.has_matched_data ? matchedData.matched_promos : (offer.has_real_data ? (offer.real_promos || 0) : 0);
+  const refunds = matchedData?.has_matched_data ? matchedData.matched_refunds : (offer.has_real_data ? (offer.real_refunds || 0) : 0);
+  const payout = matchedData?.has_matched_data ? matchedData.matched_payout : (offer.has_real_data ? (offer.real_payout || 0) : (offer.generated_sales - offer.commission));
+  const mealVoucher = offer.has_real_data ? (offer.real_meal_voucher || 0) : 0;
+  const totalPayout = payout + mealVoucher;
+  const profitability = sales > 0 ? (totalPayout / sales) * 100 : 0;
   
   // Calculate total deductions
   const totalDeductions = commission + promos + refunds + mealVoucher;
@@ -190,7 +308,7 @@ export function OfferDetailSheet({ open, onOpenChange, offer }: OfferDetailSheet
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader className="space-y-4">
           <div className="flex items-start justify-between">
             <div className="space-y-1">
@@ -199,17 +317,7 @@ export function OfferDetailSheet({ open, onOpenChange, offer }: OfferDetailSheet
               </SheetTitle>
               <div className="flex flex-wrap gap-2">
                 {getOfferTypeBadge(offer.offer_type)}
-                {hasRealData ? (
-                  <Badge className="bg-green-500/20 text-green-700 border-green-500/30">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Données réelles
-                  </Badge>
-                ) : (
-                  <Badge className="bg-orange-500/20 text-orange-700 border-orange-500/30">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    Estimations
-                  </Badge>
-                )}
+                {matchedData && getMatchTypeBadge(matchedData.match_type)}
               </div>
             </div>
           </div>
@@ -259,6 +367,28 @@ export function OfferDetailSheet({ open, onOpenChange, offer }: OfferDetailSheet
             icon={<Users className="h-4 w-4 text-green-500" />}
           />
         </div>
+
+        {/* Comparison CA declared vs real */}
+        {matchedData?.has_matched_data && (
+          <div className="bg-muted/30 rounded-lg p-3 mb-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Comparaison CA</span>
+              <Badge variant={Math.abs(matchedData.declared_vs_real_percent) < 5 ? "secondary" : "destructive"}>
+                {matchedData.declared_vs_real_percent > 0 ? "+" : ""}{matchedData.declared_vs_real_percent.toFixed(1)}%
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
+              <div>
+                <p className="text-muted-foreground">CA déclaré offre</p>
+                <p className="font-medium">{formatCurrency(offer.generated_sales)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">CA réel commandes</p>
+                <p className="font-medium">{formatCurrency(matchedData.matched_sales)}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Financial Waterfall */}
         <div className="space-y-1">
@@ -313,7 +443,7 @@ export function OfferDetailSheet({ open, onOpenChange, offer }: OfferDetailSheet
                 percentage={sales > 0 ? (mealVoucher / sales) * 100 : 0}
                 icon={<CreditCard className="h-3.5 w-3.5" />}
                 iconColor="text-blue-500"
-                tooltip="Ce montant sera versé directement par l'organisme de titres restaurant (Edenred, Swile, etc.), séparément du virement Uber."
+                tooltip="Ce montant sera versé directement par l'organisme de titres restaurant."
               />
             )}
           </div>
@@ -328,39 +458,54 @@ export function OfferDetailSheet({ open, onOpenChange, offer }: OfferDetailSheet
           <div className="flex items-center justify-between py-3 px-3 bg-green-500/10 rounded-lg border border-green-500/30 mt-2">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-green-600" />
-              <span className="font-medium">Versement Uber</span>
+              <span className="font-medium">Versement net</span>
             </div>
             <div className="text-right">
-              <span className="font-bold text-lg text-green-600">{formatCurrency(payout)}</span>
+              <span className="font-bold text-lg text-green-600">{formatCurrency(totalPayout)}</span>
               <span className={cn(
                 "text-xs ml-2 px-2 py-0.5 rounded-full",
-                payout / sales >= 0.5 ? "bg-green-500/20 text-green-700" : 
-                payout / sales >= 0.4 ? "bg-yellow-500/20 text-yellow-700" : 
+                profitability >= 50 ? "bg-green-500/20 text-green-700" : 
+                profitability >= 40 ? "bg-yellow-500/20 text-yellow-700" : 
                 "bg-red-500/20 text-red-700"
               )}>
-                {sales > 0 ? ((payout / sales) * 100).toFixed(1) : 0}% du CA
+                {profitability.toFixed(1)}% du CA
               </span>
             </div>
           </div>
+        </div>
+
+        <Separator className="my-6" />
+
+        {/* Matched Orders Section */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4" />
+              Commandes de l'offre
+            </h3>
+            {matchedData && (
+              <span className="text-sm text-muted-foreground">
+                {matchedData.matched_orders_count} commande{matchedData.matched_orders_count > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
           
-          {/* Total with meal vouchers */}
-          {mealVoucher > 0 && (
-            <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 mt-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm font-medium">Total à encaisser</span>
-                </div>
-                <div className="text-right">
-                  <span className="font-bold text-blue-600">{formatCurrency(totalPayout)}</span>
-                  <span className="text-xs ml-2 px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-700">
-                    {profitability.toFixed(1)}% du CA
-                  </span>
-                </div>
+          {isLoadingOrders ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : matchedData?.matched_orders && matchedData.matched_orders.length > 0 ? (
+            <ScrollArea className="h-[300px] border rounded-lg">
+              <div>
+                {matchedData.matched_orders.map((order, idx) => (
+                  <OrderRow key={order.order_id} order={order} isFirst={idx === 0} />
+                ))}
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                = Versement Uber ({formatCurrency(payout)}) + Titres restaurant ({formatCurrency(mealVoucher)})
-              </p>
+            </ScrollArea>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>Aucune commande trouvée pour cette période</p>
             </div>
           )}
         </div>
