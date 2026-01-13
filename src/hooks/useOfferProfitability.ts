@@ -233,7 +233,7 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
 
       return (data || []).map(order => ({
         restaurant_id: order.restaurant_id,
-        order_date: order.order_datetime?.split('T')[0] || '',
+        order_date: order.order_datetime?.split(' ')[0]?.split('T')[0] || '',
         sales_incl_vat: order.sales_incl_vat || 0,
         uber_fee_after_promo_incl_vat: order.uber_fee_after_promo_incl_vat || 0,
         item_promo_incl_vat: order.item_promo_incl_vat || 0,
@@ -290,7 +290,8 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
         // Filter orders for this offer's restaurants and date range
         const relevantOrders = ordersFinancials.filter(order => {
           const inRestaurant = offer.restaurant_ids?.includes(order.restaurant_id);
-          const inDateRange = order.order_date >= startDate && order.order_date <= endDate;
+          const orderDate = order.order_date.substring(0, 10);
+          const inDateRange = orderDate >= startDate && orderDate <= endDate;
           return inRestaurant && inDateRange;
         });
 
