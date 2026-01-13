@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle, Trash2 } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle, Trash2, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import ImportHistory from "@/components/reports/ImportHistory";
+import BatchRestaurantImport from "@/components/reports/BatchRestaurantImport";
 import { useQuery } from "@tanstack/react-query";
 
 // Report types organized by theme
@@ -138,7 +139,7 @@ interface BatchResult {
 export default function ReportImport() {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("import");
+  const [activeTab, setActiveTab] = useState("batch");
   const [file, setFile] = useState<File | null>(null);
   const [csvContent, setCsvContent] = useState<string>("");
   const [reportType, setReportType] = useState<string>("sales_over_time");
@@ -924,9 +925,13 @@ export default function ReportImport() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
+          <TabsTrigger value="batch" className="gap-2">
+            <Package className="h-4 w-4" />
+            Import par restaurant
+          </TabsTrigger>
           <TabsTrigger value="import" className="gap-2">
             <Upload className="h-4 w-4" />
-            Importer
+            Import fichier
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
             <History className="h-4 w-4" />
@@ -1811,6 +1816,10 @@ export default function ReportImport() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="batch" className="mt-6">
+          <BatchRestaurantImport onComplete={() => setActiveTab("history")} />
         </TabsContent>
 
         <TabsContent value="history" className="mt-6">
