@@ -184,20 +184,47 @@ Deno.serve(async (req) => {
 
     const rows = parseCSV(csvContent);
     
-    if (rows.length < 3) {
-      throw new Error('CSV has insufficient rows');
-    }
-
+    console.log('Total parsed rows:', rows.length);
+    
+    // Find header row - look for known column headers
     let headerRowIndex = -1;
-    for (let i = 0; i < Math.min(10, rows.length); i++) {
-      if (rows[i].some(cell => cell.includes('Id. de la commande') || cell.includes('Id. du flux'))) {
+    for (let i = 0; i < Math.min(20, rows.length); i++) {
+      const rowText = rows[i].join(' ');
+      if (rowText.includes('Id. de la commande') || rowText.includes('Id. du flux') || 
+          rowText.includes('Nom du restaurant') || rowText.includes('Date de la commande')) {
         headerRowIndex = i;
+        console.log('Found header at row', i, ':', rows[i].slice(0, 5).join(', '));
         break;
       }
     }
 
     if (headerRowIndex === -1) {
-      throw new Error('Could not find header row in CSV');
+      // Log first few rows for debugging
+      console.log('Could not find header. First 5 rows:', JSON.stringify(rows.slice(0, 5)));
+      throw new Error('Could not find header row in CSV. Expected columns like "Id. de la commande", "Nom du restaurant"');
+    }
+    
+    // Check if there are data rows after header
+    const dataRowCount = rows.length - headerRowIndex - 1;
+    if (dataRowCount < 1) {
+      console.log('No data rows after header at row', headerRowIndex);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          reportType,
+          stats: {
+            totalRows: 0,
+            insertedCount: 0,
+            updatedCount: 0,
+            skippedCount: 0,
+            errorCount: 0,
+          },
+          dateRange: { start: null, end: null },
+          restaurants: [],
+          message: 'Le fichier CSV est vide (pas de données après les en-têtes)',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const headers = rows[headerRowIndex];
