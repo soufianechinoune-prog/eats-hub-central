@@ -524,7 +524,11 @@ export function OfferPerformanceAnalysis({ offers }: OfferPerformanceAnalysisPro
                               Réel
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="bg-muted text-muted-foreground border-muted text-xs">
+                            <Badge 
+                              variant="outline" 
+                              className="bg-muted text-muted-foreground border-muted text-xs cursor-help"
+                              title={`Pas de commandes importées pour la période ${offer.start_date || 'N/A'} - ${offer.end_date || 'N/A'}`}
+                            >
                               Estimé
                             </Badge>
                           )}
