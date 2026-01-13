@@ -426,7 +426,7 @@ export function ProfitabilityComparisonTable({
         if (a.year !== b.year) return b.year - a.year;
         return b.monthNumber - a.monthNumber;
       });
-  }, [comparisonData]);
+  }, [comparisonData, payouts]);
   
   // Calculate averages for comparison
   const averages = useMemo(() => {
