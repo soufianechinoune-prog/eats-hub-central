@@ -3,10 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { CorrelationKPI } from "./CorrelationKPI";
+import { SimpleCorrelationGauge } from "./SimpleCorrelationGauge";
 import { RatingRevenueChart } from "./RatingRevenueChart";
-import { CorrelationScatterPlot } from "./CorrelationScatterPlot";
-import { CorrelationSummaryTable } from "./CorrelationSummaryTable";
 
 interface CustomerReview {
   id: string;
@@ -92,8 +90,6 @@ export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorre
     if (!allReviewsForRolling) return new Map<string, number>();
 
     const result = new Map<string, number>();
-    const startStr = format(startDate, "yyyy-MM-dd");
-    const endStr = format(endDate, "yyyy-MM-dd");
 
     // Get all dates in the period
     const dates: string[] = [];
@@ -181,19 +177,6 @@ export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorre
   const revenues = dataWithRatings.map((d) => d.revenue);
   const orders = dataWithRatings.map((d) => d.orders);
 
-  // Prepare scatter plot data
-  const scatterRevenueData = dataWithRatings.map((d) => ({
-    avgRating: d.avgRating,
-    value: d.revenue,
-    date: format(new Date(d.date), "d MMM yyyy"),
-  }));
-
-  const scatterOrdersData = dataWithRatings.map((d) => ({
-    avgRating: d.avgRating,
-    value: d.orders,
-    date: format(new Date(d.date), "d MMM yyyy"),
-  }));
-
   if (isLoadingSales || isLoadingReviews) {
     return (
       <div className="flex items-center justify-center h-[300px]">
@@ -222,31 +205,15 @@ export function ReviewsCorrelation({ reviews, startDate, endDate }: ReviewsCorre
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <CorrelationKPI ratings={ratings} values={revenues} label="CA" />
-        <CorrelationKPI ratings={ratings} values={orders} label="Commandes" />
-      </div>
+      {/* Simple Gauge with Clear Message */}
+      <SimpleCorrelationGauge 
+        ratings={ratings} 
+        revenues={revenues} 
+        orders={orders} 
+      />
 
-      {/* Combined Chart */}
+      {/* Combined Chart - kept for visual understanding */}
       <RatingRevenueChart data={correlationData} />
-
-      {/* Scatter Plots */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CorrelationScatterPlot
-          data={scatterRevenueData}
-          valueLabel="CA (€)"
-          valueFormatter={(v) => `${(v / 1000).toFixed(1)}k€`}
-        />
-        <CorrelationScatterPlot
-          data={scatterOrdersData}
-          valueLabel="Commandes"
-          valueFormatter={(v) => v.toString()}
-        />
-      </div>
-
-      {/* Summary Table */}
-      <CorrelationSummaryTable data={correlationData} />
     </div>
   );
 }
