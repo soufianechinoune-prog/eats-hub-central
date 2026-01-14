@@ -237,6 +237,7 @@ export type Database = {
           delivery_rating: number | null
           food_rating: number | null
           id: string
+          order_date: string | null
           order_id: string | null
           order_total: number | null
           overall_rating: number | null
@@ -256,6 +257,7 @@ export type Database = {
           delivery_rating?: number | null
           food_rating?: number | null
           id?: string
+          order_date?: string | null
           order_id?: string | null
           order_total?: number | null
           overall_rating?: number | null
@@ -275,6 +277,7 @@ export type Database = {
           delivery_rating?: number | null
           food_rating?: number | null
           id?: string
+          order_date?: string | null
           order_id?: string | null
           order_total?: number | null
           overall_rating?: number | null

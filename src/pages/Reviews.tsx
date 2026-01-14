@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReviewsOverview } from "@/components/reviews/ReviewsOverview";
@@ -8,11 +8,15 @@ import { ReviewsCorrelation } from "@/components/reviews/ReviewsCorrelation";
 import { WeatherCorrelation } from "@/components/reviews/WeatherCorrelation";
 import { useCustomerReviews, useMenuItemReviews } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { Eye, Users, ChefHat, TrendingUp, Cloud } from "lucide-react";
+import { Eye, Users, ChefHat, TrendingUp, Cloud, CalendarDays, MessageSquare } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { DateMode } from "@/hooks/useReviewsStats";
 
 export default function Reviews() {
+  const [dateMode, setDateMode] = useState<DateMode>("order");
+  
   const {
     selectedRestaurants,
     selectedPlatform,
@@ -112,6 +116,28 @@ export default function Reviews() {
 
   return (
     <div className="space-y-6">
+      {/* Toggle pour la date de référence */}
+      <div className="flex items-center justify-end">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Afficher par :</span>
+          <ToggleGroup 
+            type="single" 
+            value={dateMode} 
+            onValueChange={(value) => value && setDateMode(value as DateMode)}
+            className="bg-muted/50 rounded-lg p-1"
+          >
+            <ToggleGroupItem value="order" className="flex items-center gap-1.5 px-3 py-1.5 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Date commande
+            </ToggleGroupItem>
+            <ToggleGroupItem value="review" className="flex items-center gap-1.5 px-3 py-1.5 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
+              <MessageSquare className="h-3.5 w-3.5" />
+              Date avis
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+      </div>
+
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full max-w-2xl grid-cols-5">
           <TabsTrigger value="overview" className="flex items-center gap-2">
@@ -140,6 +166,7 @@ export default function Reviews() {
           <ReviewsOverview 
             reviews={customerReviews || []} 
             allReviewsForRolling={allReviewsForRolling || []}
+            dateMode={dateMode}
           />
         </TabsContent>
 

@@ -16,6 +16,7 @@ export interface CustomerReview {
   food_rating: number;
   delivery_rating: number;
   review_date: string;
+  order_date?: string;
   customer_name: string;
   customer_type: string;
   customer_comment: string | null;

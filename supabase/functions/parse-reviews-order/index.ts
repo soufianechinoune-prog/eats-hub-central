@@ -306,12 +306,15 @@ Deno.serve(async (req) => {
       }
       restaurantStats.get(restaurant.id)!.count++;
 
-      // Parse date - prefer rating date, fallback to order date
-      const dateStr = ratingDateStr || orderDateStr;
-      const reviewDate = parseDate(dateStr);
-      if (reviewDate) {
-        if (!dateStart || reviewDate < dateStart) dateStart = reviewDate;
-        if (!dateEnd || reviewDate > dateEnd) dateEnd = reviewDate;
+      // Parse both dates: review date (when rating was submitted) and order date (when order was placed)
+      const reviewDate = parseDate(ratingDateStr) || parseDate(orderDateStr);
+      const orderDate = parseDate(orderDateStr);
+      
+      // Track date range for validation
+      const dateForRange = orderDate || reviewDate;
+      if (dateForRange) {
+        if (!dateStart || dateForRange < dateStart) dateStart = dateForRange;
+        if (!dateEnd || dateForRange > dateEnd) dateEnd = dateForRange;
       }
 
       // Parse rating (1-5 scale) with validation
@@ -335,6 +338,7 @@ Deno.serve(async (req) => {
         uber_order_id: orderUuid || orderId,
         overall_rating: rating,
         review_date: reviewDate,
+        order_date: orderDate,
         tags: tags,
         customer_comment: commentStr || null,
         customer_name: eaterUuid ? `Client ${eaterUuid.substring(0, 8)}` : null,
