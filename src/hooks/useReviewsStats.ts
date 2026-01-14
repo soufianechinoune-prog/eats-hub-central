@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { CustomerReview } from "./useReviews";
+import { CustomerReview, DateMode } from "./useReviews";
 import { format, getDay } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -87,7 +87,7 @@ const TAG_LABELS: Record<string, string> = {
 
 import type { PeriodMode } from "@/contexts/AnalyticsContext";
 
-export type DateMode = "review" | "order";
+export type { DateMode };
 
 interface UseReviewsStatsOptions {
   periodMode?: PeriodMode;

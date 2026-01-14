@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+export type DateMode = "review" | "order";
+
 // Format date as YYYY-MM-DD without UTC conversion to avoid timezone issues
 function formatDateLocal(date: Date): string {
   const year = date.getFullYear();
@@ -48,11 +50,15 @@ async function fetchAllCustomerReviews(
   restaurantIds?: string[],
   platform?: string,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  dateMode: DateMode = "review"
 ): Promise<CustomerReview[]> {
   const allData: CustomerReview[] = [];
   let page = 0;
   let hasMore = true;
+
+  // Determine which column to filter on
+  const dateColumn = dateMode === "order" ? "order_date" : "review_date";
 
   while (hasMore) {
     let query = supabase
@@ -70,11 +76,11 @@ async function fetchAllCustomerReviews(
     }
 
     if (startDate) {
-      query = query.gte("review_date", formatDateLocal(startDate));
+      query = query.gte(dateColumn, formatDateLocal(startDate));
     }
 
     if (endDate) {
-      query = query.lte("review_date", formatDateLocal(endDate));
+      query = query.lte(dateColumn, formatDateLocal(endDate));
     }
 
     const { data, error } = await query;
@@ -154,11 +160,12 @@ export function useCustomerReviews(
   restaurantIds?: string[],
   platform?: string,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  dateMode: DateMode = "review"
 ) {
   return useQuery({
-    queryKey: ["customer_reviews", restaurantIds, platform, startDate, endDate],
-    queryFn: () => fetchAllCustomerReviews(restaurantIds, platform, startDate, endDate),
+    queryKey: ["customer_reviews", restaurantIds, platform, startDate, endDate, dateMode],
+    queryFn: () => fetchAllCustomerReviews(restaurantIds, platform, startDate, endDate, dateMode),
   });
 }
 

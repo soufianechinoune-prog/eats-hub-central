@@ -6,13 +6,12 @@ import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
 import { ReviewsMenuItems } from "@/components/reviews/ReviewsMenuItems";
 import { ReviewsCorrelation } from "@/components/reviews/ReviewsCorrelation";
 import { WeatherCorrelation } from "@/components/reviews/WeatherCorrelation";
-import { useCustomerReviews, useMenuItemReviews } from "@/hooks/useReviews";
+import { useCustomerReviews, useMenuItemReviews, DateMode } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Eye, Users, ChefHat, TrendingUp, Cloud, CalendarDays, MessageSquare } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { DateMode } from "@/hooks/useReviewsStats";
 
 export default function Reviews() {
   const [dateMode, setDateMode] = useState<DateMode>("order");
@@ -88,13 +87,13 @@ export default function Reviews() {
   const {
     data: customerReviews,
     isLoading: isLoadingCustomer,
-  } = useCustomerReviews(restaurantIds, selectedPlatform, startDate, endDate);
+  } = useCustomerReviews(restaurantIds, selectedPlatform, startDate, endDate, dateMode);
 
   // Avis étendus pour le calcul de la moyenne glissante 90 jours
   const {
     data: allReviewsForRolling,
     isLoading: isLoadingExtended,
-  } = useCustomerReviews(restaurantIds, selectedPlatform, extendedStartDate, endDate);
+  } = useCustomerReviews(restaurantIds, selectedPlatform, extendedStartDate, endDate, dateMode);
 
   const {
     data: menuItemReviews,
