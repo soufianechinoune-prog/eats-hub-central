@@ -157,16 +157,6 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
           }
         }
       });
-          const existing = dayMap.get(day);
-          if (existing) {
-            dayMap.set(day, {
-              ...existing,
-              total: existing.total + (review.overall_rating || 0),
-              count: existing.count + 1
-            });
-          }
-        }
-      });
 
       return Array.from(dayMap.entries())
         .map(([day, data]) => ({
