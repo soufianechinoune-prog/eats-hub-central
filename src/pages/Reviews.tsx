@@ -4,11 +4,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReviewsOverview } from "@/components/reviews/ReviewsOverview";
 import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
 import { ReviewsMenuItems } from "@/components/reviews/ReviewsMenuItems";
-import { ReviewsCorrelation } from "@/components/reviews/ReviewsCorrelation";
+
 import { WeatherCorrelation } from "@/components/reviews/WeatherCorrelation";
 import { useCustomerReviews, useMenuItemReviews, DateMode } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { Eye, Users, ChefHat, TrendingUp, Cloud, CalendarDays, MessageSquare } from "lucide-react";
+import { Eye, Users, ChefHat, Cloud, CalendarDays, MessageSquare } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -150,16 +150,6 @@ export default function Reviews() {
               Plats
             </TabsTrigger>
             <TabsTrigger 
-              value="correlation" 
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all
-                         data-[state=active]:bg-background data-[state=active]:text-foreground 
-                         data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50
-                         hover:text-foreground hover:bg-background/50"
-            >
-              <TrendingUp className="h-3.5 w-3.5" />
-              Corrélation
-            </TabsTrigger>
-            <TabsTrigger 
               value="weather" 
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all
                          data-[state=active]:bg-background data-[state=active]:text-foreground 
@@ -214,13 +204,6 @@ export default function Reviews() {
           <ReviewsMenuItems reviews={menuItemReviews || []} restaurants={filteredRestaurants} />
         </TabsContent>
 
-        <TabsContent value="correlation" className="mt-6">
-          <ReviewsCorrelation 
-            reviews={customerReviews || []} 
-            startDate={startDate}
-            endDate={endDate}
-          />
-        </TabsContent>
 
         <TabsContent value="weather" className="mt-6">
           <WeatherCorrelation 
