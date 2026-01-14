@@ -43,10 +43,11 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
   const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating, rollingAverageByDate } = useReviewsStats(
     reviews, 
     {
-      periodMode: periodMode as "year" | "month",
+      periodMode,
       selectedMonth,
       selectedYear,
-      dateMode
+      dateMode,
+      dateRange
     },
     allReviewsForRolling
   );
@@ -284,7 +285,7 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
         actions={actions}
         showActions={showActions}
         onToggleActions={() => setShowActions(!showActions)}
-        periodMode={periodMode as "year" | "month"}
+        periodMode={periodMode}
         selectedMonth={selectedMonth}
         selectedYear={selectedYear}
         onDrillDown={handleDrillDown}
@@ -294,6 +295,7 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
         chartType={chartType}
         onChartTypeChange={setChartType}
         onAddAction={handleAddAction}
+        previousPeriodAverage={stats.hasPreviousPeriodData ? stats.previousAverageRating : null}
       />
 
       {/* Action Form Dialog */}
