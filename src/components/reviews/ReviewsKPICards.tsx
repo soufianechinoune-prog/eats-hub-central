@@ -53,7 +53,7 @@ export function ReviewsKPICards({
             <div className="p-2 rounded-lg bg-amber-500/10 group-hover:bg-amber-500/20 transition-colors">
               <Star className="h-5 w-5 text-amber-400" />
             </div>
-            Note Globale
+            Note de la période
           </CardTitle>
         </CardHeader>
         <CardContent>
