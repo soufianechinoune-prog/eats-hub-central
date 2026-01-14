@@ -114,58 +114,89 @@ export default function Reviews() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Toggle pour la date de référence */}
-      <div className="flex items-center justify-end">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Afficher par :</span>
-      <ToggleGroup 
-        type="single" 
-        value={dateMode} 
-        onValueChange={(value) => value && setDateMode(value as DateMode)}
-        className="bg-muted rounded-lg p-1 border"
-      >
-        <ToggleGroupItem 
-          value="order" 
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=off]:text-muted-foreground data-[state=off]:hover:text-foreground transition-colors"
-        >
-          <CalendarDays className="h-3.5 w-3.5" />
-          Date commande
-        </ToggleGroupItem>
-        <ToggleGroupItem 
-          value="review" 
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=off]:text-muted-foreground data-[state=off]:hover:text-foreground transition-colors"
-        >
-          <MessageSquare className="h-3.5 w-3.5" />
-          Date avis
-        </ToggleGroupItem>
-      </ToggleGroup>
-        </div>
-      </div>
-
+    <div className="space-y-4">
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-5">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <Eye className="h-4 w-4" />
-            Aperçu
-          </TabsTrigger>
-          <TabsTrigger value="customers" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Clients
-          </TabsTrigger>
-          <TabsTrigger value="menu" className="flex items-center gap-2">
-            <ChefHat className="h-4 w-4" />
-            Plats
-          </TabsTrigger>
-          <TabsTrigger value="correlation" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Corrélation
-          </TabsTrigger>
-          <TabsTrigger value="weather" className="flex items-center gap-2">
-            <Cloud className="h-4 w-4" />
-            Météo
-          </TabsTrigger>
-        </TabsList>
+        {/* Tabs + Date Toggle sur la même ligne */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <TabsList className="inline-flex h-9 items-center gap-1 rounded-lg bg-muted/60 p-1 border border-border/40">
+            <TabsTrigger 
+              value="overview" 
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all
+                         data-[state=active]:bg-background data-[state=active]:text-foreground 
+                         data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50
+                         hover:text-foreground hover:bg-background/50"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              Aperçu
+            </TabsTrigger>
+            <TabsTrigger 
+              value="customers" 
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all
+                         data-[state=active]:bg-background data-[state=active]:text-foreground 
+                         data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50
+                         hover:text-foreground hover:bg-background/50"
+            >
+              <Users className="h-3.5 w-3.5" />
+              Clients
+            </TabsTrigger>
+            <TabsTrigger 
+              value="menu" 
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all
+                         data-[state=active]:bg-background data-[state=active]:text-foreground 
+                         data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50
+                         hover:text-foreground hover:bg-background/50"
+            >
+              <ChefHat className="h-3.5 w-3.5" />
+              Plats
+            </TabsTrigger>
+            <TabsTrigger 
+              value="correlation" 
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all
+                         data-[state=active]:bg-background data-[state=active]:text-foreground 
+                         data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50
+                         hover:text-foreground hover:bg-background/50"
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              Corrélation
+            </TabsTrigger>
+            <TabsTrigger 
+              value="weather" 
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all
+                         data-[state=active]:bg-background data-[state=active]:text-foreground 
+                         data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/50
+                         hover:text-foreground hover:bg-background/50"
+            >
+              <Cloud className="h-3.5 w-3.5" />
+              Météo
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Toggle Date intégré */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="text-xs">Par :</span>
+            <ToggleGroup 
+              type="single" 
+              value={dateMode} 
+              onValueChange={(value) => value && setDateMode(value as DateMode)}
+              className="bg-muted/60 rounded-md p-0.5 border border-border/40"
+            >
+              <ToggleGroupItem 
+                value="order" 
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm data-[state=off]:text-muted-foreground data-[state=off]:hover:text-foreground transition-all"
+              >
+                <CalendarDays className="h-3 w-3" />
+                Commande
+              </ToggleGroupItem>
+              <ToggleGroupItem 
+                value="review" 
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm data-[state=off]:text-muted-foreground data-[state=off]:hover:text-foreground transition-all"
+              >
+                <MessageSquare className="h-3 w-3" />
+                Avis
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </div>
 
         <TabsContent value="overview" className="mt-6">
           <ReviewsOverview 
