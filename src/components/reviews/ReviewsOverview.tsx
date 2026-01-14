@@ -1,5 +1,5 @@
 import { CustomerReview } from "@/hooks/useReviews";
-import { useReviewsStats } from "@/hooks/useReviewsStats";
+import { useReviewsStats, DateMode } from "@/hooks/useReviewsStats";
 import { ReviewsKPICards } from "./ReviewsKPICards";
 import { RatingEvolutionChart } from "./RatingEvolutionChart";
 
@@ -18,24 +18,35 @@ import { ActionFormDialog } from "@/components/actions/ActionFormDialog";
 interface ReviewsOverviewProps {
   reviews: CustomerReview[];
   allReviewsForRolling?: CustomerReview[];
+  dateMode?: DateMode;
 }
 
 // Quick period modes that should display daily data
 const DAILY_PERIOD_MODES = ["7d", "previous_week", "30d", "current_month", "range", "month"];
 
-export function ReviewsOverview({ reviews, allReviewsForRolling }: ReviewsOverviewProps) {
+export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "order" }: ReviewsOverviewProps) {
   const [showActions, setShowActions] = useState(true);
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionDialogDate, setActionDialogDate] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange } = useAnalyticsContext();
+  
+  // Helper function to get the appropriate date from a review
+  const getReviewDate = (review: CustomerReview): string => {
+    if (dateMode === "order" && review.order_date) {
+      return review.order_date;
+    }
+    return review.review_date;
+  };
+  
   const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating, rollingAverageByDate } = useReviewsStats(
     reviews, 
     {
       periodMode: periodMode as "year" | "month",
       selectedMonth,
-      selectedYear
+      selectedYear,
+      dateMode
     },
     allReviewsForRolling
   );
@@ -133,9 +144,19 @@ export function ReviewsOverview({ reviews, allReviewsForRolling }: ReviewsOvervi
       }
 
       reviews.forEach(review => {
-        const date = new Date(review.review_date);
+        const date = new Date(getReviewDate(review));
         if (date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear) {
           const day = date.getDate();
+          const existing = dayMap.get(day);
+          if (existing) {
+            dayMap.set(day, {
+              ...existing,
+              total: existing.total + (review.overall_rating || 0),
+              count: existing.count + 1
+            });
+          }
+        }
+      });
           const existing = dayMap.get(day);
           if (existing) {
             dayMap.set(day, {
@@ -173,8 +194,8 @@ export function ReviewsOverview({ reviews, allReviewsForRolling }: ReviewsOvervi
 
       // Aggregate reviews by day
       reviews.forEach(review => {
-        const reviewDate = new Date(review.review_date);
-        const key = format(reviewDate, "yyyy-MM-dd");
+        const reviewDateValue = new Date(getReviewDate(review));
+        const key = format(reviewDateValue, "yyyy-MM-dd");
         const existing = dayMap.get(key);
         if (existing) {
           dayMap.set(key, {
@@ -199,7 +220,7 @@ export function ReviewsOverview({ reviews, allReviewsForRolling }: ReviewsOvervi
     }
 
     return [];
-  }, [reviews, periodMode, selectedMonth, selectedYear, dateRange]);
+  }, [reviews, periodMode, selectedMonth, selectedYear, dateRange, dateMode]);
 
   // Enrich chart data with 90-day rolling average
   const enrichedChartData = useMemo(() => {

@@ -87,10 +87,21 @@ const TAG_LABELS: Record<string, string> = {
 
 import type { PeriodMode } from "@/contexts/AnalyticsContext";
 
+export type DateMode = "review" | "order";
+
 interface UseReviewsStatsOptions {
   periodMode?: PeriodMode;
   selectedMonth?: number;
   selectedYear?: number;
+  dateMode?: DateMode;
+}
+
+// Helper function to get the appropriate date based on dateMode
+function getReviewDate(review: CustomerReview, dateMode: DateMode): string {
+  if (dateMode === "order" && review.order_date) {
+    return review.order_date;
+  }
+  return review.review_date;
 }
 
 export function useReviewsStats(
@@ -98,7 +109,7 @@ export function useReviewsStats(
   options?: UseReviewsStatsOptions,
   allReviewsForRolling?: CustomerReview[]
 ) {
-  const { periodMode = "year", selectedMonth, selectedYear } = options || {};
+  const { periodMode = "year", selectedMonth, selectedYear, dateMode = "order" } = options || {};
   
   // Use extended reviews for rolling calculation if provided
   const reviewsForRolling = allReviewsForRolling || reviews;
@@ -109,20 +120,20 @@ export function useReviewsStats(
     
     if (periodMode === "month" && selectedMonth && selectedYear) {
       return reviews.filter(r => {
-        const date = new Date(r.review_date);
+        const date = new Date(getReviewDate(r, dateMode));
         return date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear;
       });
     }
     
     if (periodMode === "year" && selectedYear) {
       return reviews.filter(r => {
-        const date = new Date(r.review_date);
+        const date = new Date(getReviewDate(r, dateMode));
         return date.getFullYear() === selectedYear;
       });
     }
     
     return reviews;
-  }, [reviews, periodMode, selectedMonth, selectedYear]);
+  }, [reviews, periodMode, selectedMonth, selectedYear, dateMode]);
 
   // Stats now counts filtered reviews
   const stats = useMemo((): ReviewStats => {
@@ -151,13 +162,13 @@ export function useReviewsStats(
     if (periodMode === "month" && selectedMonth && selectedYear) {
       // Compare with same month last year
       previousReviews = reviews.filter(r => {
-        const date = new Date(r.review_date);
+        const date = new Date(getReviewDate(r, dateMode));
         return date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear - 1;
       });
     } else if (periodMode === "year" && selectedYear) {
       // Compare with previous year
       previousReviews = reviews.filter(r => {
-        const date = new Date(r.review_date);
+        const date = new Date(getReviewDate(r, dateMode));
         return date.getFullYear() === selectedYear - 1;
       });
     }
@@ -182,7 +193,7 @@ export function useReviewsStats(
         : 0,
       hasPreviousPeriodData
     };
-  }, [filteredReviews, reviews, periodMode, selectedMonth, selectedYear]);
+  }, [filteredReviews, reviews, periodMode, selectedMonth, selectedYear, dateMode]);
 
   const monthlyRatings = useMemo((): MonthlyRating[] => {
     const monthMap = new Map<string, { total: number; count: number; sortKey: number; monthIndex: number; year: number }>();
@@ -190,7 +201,7 @@ export function useReviewsStats(
     const targetYear = selectedYear || new Date().getFullYear();
 
     reviews.forEach(review => {
-      const date = new Date(review.review_date);
+      const date = new Date(getReviewDate(review, dateMode));
       const year = date.getFullYear();
       const month = date.getMonth();
       const isCurrentYear = year === targetYear;
@@ -234,7 +245,7 @@ export function useReviewsStats(
       })
       .sort((a, b) => a.sortKey - b.sortKey)
       .map(({ sortKey, ...rest }) => rest);
-  }, [reviews, selectedYear]);
+  }, [reviews, selectedYear, dateMode]);
 
   const ratingDistribution = useMemo((): RatingDistribution[] => {
     const targetYear = selectedYear || new Date().getFullYear();
@@ -257,7 +268,7 @@ export function useReviewsStats(
     // Previous period for comparison
     if (periodMode === "month" && selectedMonth && selectedYear) {
       reviews.filter(r => {
-        const date = new Date(r.review_date);
+        const date = new Date(getReviewDate(r, dateMode));
         return date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear - 1;
       }).forEach(review => {
         const rating = Math.round(review.overall_rating || 0);
@@ -267,7 +278,7 @@ export function useReviewsStats(
       });
     } else {
       reviews.filter(r => {
-        const date = new Date(r.review_date);
+        const date = new Date(getReviewDate(r, dateMode));
         return date.getFullYear() === targetYear - 1;
       }).forEach(review => {
         const rating = Math.round(review.overall_rating || 0);
@@ -282,14 +293,14 @@ export function useReviewsStats(
       count: distribution[rating].current,
       previousCount: distribution[rating].previous
     }));
-  }, [filteredReviews, reviews, periodMode, selectedMonth, selectedYear]);
+  }, [filteredReviews, reviews, periodMode, selectedMonth, selectedYear, dateMode]);
 
   const dayStats = useMemo((): DayStats[] => {
     const dayMap = new Map<number, { total: number; count: number }>();
     const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
     filteredReviews.forEach(review => {
-      const date = new Date(review.review_date);
+      const date = new Date(getReviewDate(review, dateMode));
       const dayIndex = getDay(date);
       const existing = dayMap.get(dayIndex) || { total: 0, count: 0 };
       dayMap.set(dayIndex, {
@@ -309,7 +320,7 @@ export function useReviewsStats(
         count: data.count
       };
     });
-  }, [filteredReviews]);
+  }, [filteredReviews, dateMode]);
 
   const tagStats = useMemo((): { positive: TagStats[]; negative: TagStats[] } => {
     const tagCount = new Map<string, number>();
@@ -358,13 +369,13 @@ export function useReviewsStats(
     if (!reviewsForRolling.length) return new Map<string, number>();
     
     const ROLLING_WINDOW_DAYS = 89; // 89 days before + current day = 90 days total
-    const validReviews = reviewsForRolling.filter(r => r.overall_rating !== null && r.review_date);
+    const validReviews = reviewsForRolling.filter(r => r.overall_rating !== null && getReviewDate(r, dateMode));
     
     if (!validReviews.length) return new Map<string, number>();
     
     // Get all unique dates where reviews exist, sorted chronologically
     const allDates = [...new Set(validReviews.map(r => 
-      new Date(r.review_date).toISOString().split('T')[0]
+      new Date(getReviewDate(r, dateMode)).toISOString().split('T')[0]
     ))].sort();
     
     const result = new Map<string, number>();
@@ -379,8 +390,8 @@ export function useReviewsStats(
       
       // Filter reviews within the 90-day window (J-89 to J inclusive = 90 days)
       const reviewsInWindow = validReviews.filter(r => {
-        const reviewDate = new Date(r.review_date);
-        return reviewDate >= windowStart && reviewDate <= currentDate;
+        const reviewDateValue = new Date(getReviewDate(r, dateMode));
+        return reviewDateValue >= windowStart && reviewDateValue <= currentDate;
       });
       
       if (reviewsInWindow.length > 0) {
@@ -391,7 +402,7 @@ export function useReviewsStats(
     });
     
     return result;
-  }, [reviewsForRolling]);
+  }, [reviewsForRolling, dateMode]);
 
   return {
     stats,
