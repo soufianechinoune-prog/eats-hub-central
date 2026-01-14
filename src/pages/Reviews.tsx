@@ -120,21 +120,27 @@ export default function Reviews() {
       <div className="flex items-center justify-end">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>Afficher par :</span>
-          <ToggleGroup 
-            type="single" 
-            value={dateMode} 
-            onValueChange={(value) => value && setDateMode(value as DateMode)}
-            className="bg-muted/50 rounded-lg p-1"
-          >
-            <ToggleGroupItem value="order" className="flex items-center gap-1.5 px-3 py-1.5 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
-              <CalendarDays className="h-3.5 w-3.5" />
-              Date commande
-            </ToggleGroupItem>
-            <ToggleGroupItem value="review" className="flex items-center gap-1.5 px-3 py-1.5 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
-              <MessageSquare className="h-3.5 w-3.5" />
-              Date avis
-            </ToggleGroupItem>
-          </ToggleGroup>
+      <ToggleGroup 
+        type="single" 
+        value={dateMode} 
+        onValueChange={(value) => value && setDateMode(value as DateMode)}
+        className="bg-muted rounded-lg p-1 border"
+      >
+        <ToggleGroupItem 
+          value="order" 
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=off]:text-muted-foreground data-[state=off]:hover:text-foreground transition-colors"
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          Date commande
+        </ToggleGroupItem>
+        <ToggleGroupItem 
+          value="review" 
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=off]:text-muted-foreground data-[state=off]:hover:text-foreground transition-colors"
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+          Date avis
+        </ToggleGroupItem>
+      </ToggleGroup>
         </div>
       </div>
 
