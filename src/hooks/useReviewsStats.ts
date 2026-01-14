@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { CustomerReview, DateMode } from "./useReviews";
-import { format, getDay } from "date-fns";
+import { format, getDay, subDays, subWeeks, subMonths, subYears, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
 
 interface ReviewStats {
   averageRating: number;
@@ -94,6 +95,7 @@ interface UseReviewsStatsOptions {
   selectedMonth?: number;
   selectedYear?: number;
   dateMode?: DateMode;
+  dateRange?: DateRange;
 }
 
 // Helper function to get the appropriate date based on dateMode
@@ -109,7 +111,7 @@ export function useReviewsStats(
   options?: UseReviewsStatsOptions,
   allReviewsForRolling?: CustomerReview[]
 ) {
-  const { periodMode = "year", selectedMonth, selectedYear, dateMode = "order" } = options || {};
+  const { periodMode = "year", selectedMonth, selectedYear, dateMode = "order", dateRange } = options || {};
   
   // Use extended reviews for rolling calculation if provided
   const reviewsForRolling = allReviewsForRolling || reviews;
@@ -159,11 +161,39 @@ export function useReviewsStats(
 
     // Previous period reviews for comparison
     let previousReviews: CustomerReview[] = [];
-    if (periodMode === "month" && selectedMonth && selectedYear) {
-      // Compare with same month last year
+    
+    if (periodMode === "7d" && dateRange?.from && dateRange?.to) {
+      // Compare with previous 7 days
+      const prevEnd = subDays(dateRange.from, 1);
+      const prevStart = subDays(prevEnd, 6);
       previousReviews = reviews.filter(r => {
         const date = new Date(getReviewDate(r, dateMode));
-        return date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear - 1;
+        return date >= prevStart && date <= prevEnd;
+      });
+    } else if (periodMode === "previous_week" && dateRange?.from && dateRange?.to) {
+      // Compare with week before previous week
+      const prevEnd = subDays(dateRange.from, 1);
+      const prevStart = subDays(prevEnd, 6);
+      previousReviews = reviews.filter(r => {
+        const date = new Date(getReviewDate(r, dateMode));
+        return date >= prevStart && date <= prevEnd;
+      });
+    } else if ((periodMode === "30d" || periodMode === "current_month") && dateRange?.from && dateRange?.to) {
+      // Compare with previous 30 days / previous month
+      const daysDiff = differenceInDays(dateRange.to, dateRange.from) + 1;
+      const prevEnd = subDays(dateRange.from, 1);
+      const prevStart = subDays(prevEnd, daysDiff - 1);
+      previousReviews = reviews.filter(r => {
+        const date = new Date(getReviewDate(r, dateMode));
+        return date >= prevStart && date <= prevEnd;
+      });
+    } else if (periodMode === "month" && selectedMonth && selectedYear) {
+      // Compare with previous month (not same month last year)
+      const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+      const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+      previousReviews = reviews.filter(r => {
+        const date = new Date(getReviewDate(r, dateMode));
+        return date.getMonth() + 1 === prevMonth && date.getFullYear() === prevYear;
       });
     } else if (periodMode === "year" && selectedYear) {
       // Compare with previous year
@@ -193,7 +223,7 @@ export function useReviewsStats(
         : 0,
       hasPreviousPeriodData
     };
-  }, [filteredReviews, reviews, periodMode, selectedMonth, selectedYear, dateMode]);
+  }, [filteredReviews, reviews, periodMode, selectedMonth, selectedYear, dateMode, dateRange]);
 
   const monthlyRatings = useMemo((): MonthlyRating[] => {
     const monthMap = new Map<string, { total: number; count: number; sortKey: number; monthIndex: number; year: number }>();

@@ -44,12 +44,14 @@ interface Action {
   category: string;
 }
 
+import type { PeriodMode } from "@/contexts/AnalyticsContext";
+
 interface RatingEvolutionChartProps {
   data: MonthlyRating[];
   actions?: Action[];
   showActions?: boolean;
   onToggleActions?: () => void;
-  periodMode?: "year" | "month";
+  periodMode?: PeriodMode;
   selectedMonth?: number;
   selectedYear?: number;
   onDrillDown?: (month: number, year: number) => void;
@@ -59,6 +61,8 @@ interface RatingEvolutionChartProps {
   chartType?: "line" | "bar";
   onChartTypeChange?: (type: "line" | "bar") => void;
   onAddAction?: (date: Date) => void;
+  /** Data from the previous period for N-1 comparison */
+  previousPeriodAverage?: number | null;
 }
 
 export function RatingEvolutionChart({ 
@@ -75,7 +79,8 @@ export function RatingEvolutionChart({
   onNextMonth,
   chartType = "line",
   onChartTypeChange,
-  onAddAction
+  onAddAction,
+  previousPeriodAverage
 }: RatingEvolutionChartProps) {
 
   // State for context menu
@@ -175,20 +180,49 @@ export function RatingEvolutionChart({
   }, [data]);
 
   // Calculate latest average and its variation for the header indicator
-  const { latestAvg, avgVariation } = useMemo(() => {
+  // Uses true N-1 comparison when previousPeriodAverage is provided
+  // Hides variation for custom range periods (when previousPeriodAverage is null)
+  const { latestAvg, avgVariation, variationLabel } = useMemo(() => {
     const dataWithAvg = data.filter(d => (d as any).cumulativeAvg !== null && (d as any).cumulativeAvg !== undefined);
-    if (dataWithAvg.length < 2) return { latestAvg: null, avgVariation: null };
+    if (dataWithAvg.length === 0) return { latestAvg: null, avgVariation: null, variationLabel: null };
     
     const latest = (dataWithAvg[dataWithAvg.length - 1] as any).cumulativeAvg;
-    // Compare with value from 7 days/points ago
-    const comparisonIndex = Math.max(0, dataWithAvg.length - 8);
-    const previous = (dataWithAvg[comparisonIndex] as any).cumulativeAvg;
     
+    // For custom range periods, don't show variation (previousPeriodAverage will be null)
+    if (periodMode === "range") {
+      return {
+        latestAvg: latest,
+        avgVariation: null, // Hide variation for custom periods
+        variationLabel: null
+      };
+    }
+    
+    // Use previousPeriodAverage for true N-1 comparison if provided
+    if (previousPeriodAverage !== null && previousPeriodAverage !== undefined) {
+      // Determine label based on periodMode
+      let label = "vs période préc.";
+      if (periodMode === "7d" || periodMode === "previous_week") {
+        label = "vs sem. préc.";
+      } else if (periodMode === "30d" || periodMode === "current_month" || periodMode === "month") {
+        label = "vs mois préc.";
+      } else if (periodMode === "year") {
+        label = "vs année préc.";
+      }
+      
+      return {
+        latestAvg: latest,
+        avgVariation: latest - previousPeriodAverage,
+        variationLabel: label
+      };
+    }
+    
+    // Fallback: no comparison available
     return {
       latestAvg: latest,
-      avgVariation: previous ? latest - previous : null
+      avgVariation: null,
+      variationLabel: null
     };
-  }, [data]);
+  }, [data, previousPeriodAverage, periodMode]);
 
   // Get actions by month for markers (year view)
   const actionsByMonth = useMemo(() => {
@@ -388,6 +422,7 @@ export function RatingEvolutionChart({
                 {avgVariation !== null && (
                   <span className={`text-sm font-medium ${avgVariation >= 0 ? "text-emerald-500" : "text-red-500"}`}>
                     {avgVariation >= 0 ? "▲" : "▼"} {Math.abs(avgVariation).toFixed(2)}
+                    {variationLabel && <span className="text-muted-foreground font-normal ml-1">({variationLabel})</span>}
                   </span>
                 )}
               </div>
