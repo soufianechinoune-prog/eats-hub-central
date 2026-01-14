@@ -166,7 +166,7 @@ export function useReviewsStats(
       // Compare with previous 7 days
       const prevEnd = subDays(dateRange.from, 1);
       const prevStart = subDays(prevEnd, 6);
-      previousReviews = reviews.filter(r => {
+      previousReviews = reviewsForRolling.filter(r => {
         const date = new Date(getReviewDate(r, dateMode));
         return date >= prevStart && date <= prevEnd;
       });
@@ -174,7 +174,7 @@ export function useReviewsStats(
       // Compare with week before previous week
       const prevEnd = subDays(dateRange.from, 1);
       const prevStart = subDays(prevEnd, 6);
-      previousReviews = reviews.filter(r => {
+      previousReviews = reviewsForRolling.filter(r => {
         const date = new Date(getReviewDate(r, dateMode));
         return date >= prevStart && date <= prevEnd;
       });
@@ -183,7 +183,7 @@ export function useReviewsStats(
       const daysDiff = differenceInDays(dateRange.to, dateRange.from) + 1;
       const prevEnd = subDays(dateRange.from, 1);
       const prevStart = subDays(prevEnd, daysDiff - 1);
-      previousReviews = reviews.filter(r => {
+      previousReviews = reviewsForRolling.filter(r => {
         const date = new Date(getReviewDate(r, dateMode));
         return date >= prevStart && date <= prevEnd;
       });
@@ -191,13 +191,13 @@ export function useReviewsStats(
       // Compare with previous month (not same month last year)
       const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
       const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
-      previousReviews = reviews.filter(r => {
+      previousReviews = reviewsForRolling.filter(r => {
         const date = new Date(getReviewDate(r, dateMode));
         return date.getMonth() + 1 === prevMonth && date.getFullYear() === prevYear;
       });
     } else if (periodMode === "year" && selectedYear) {
       // Compare with previous year
-      previousReviews = reviews.filter(r => {
+      previousReviews = reviewsForRolling.filter(r => {
         const date = new Date(getReviewDate(r, dateMode));
         return date.getFullYear() === selectedYear - 1;
       });
@@ -223,7 +223,7 @@ export function useReviewsStats(
         : 0,
       hasPreviousPeriodData
     };
-  }, [filteredReviews, reviews, periodMode, selectedMonth, selectedYear, dateMode, dateRange]);
+  }, [filteredReviews, reviewsForRolling, periodMode, selectedMonth, selectedYear, dateMode, dateRange]);
 
   const monthlyRatings = useMemo((): MonthlyRating[] => {
     const monthMap = new Map<string, { total: number; count: number; sortKey: number; monthIndex: number; year: number }>();
