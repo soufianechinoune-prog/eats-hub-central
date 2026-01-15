@@ -336,10 +336,18 @@ export function OperationsAnalytics() {
     };
   }, [hourlyEvolution, selectedDay]);
 
+  // Determine if we should use daily view (short periods or month)
+  const useDailyView = periodMode === "month" || 
+                       periodMode === "previous_week" || 
+                       periodMode === "7d" || 
+                       periodMode === "30d" || 
+                       periodMode === "current_month" || 
+                       periodMode === "range";
+
   // Select data based on period mode and selectedDay
   const chartData = selectedDay 
     ? hourlyEvolution 
-    : periodMode === "month" 
+    : useDailyView
       ? dailyEvolution 
       : monthlyEvolution;
 
@@ -353,8 +361,8 @@ export function OperationsAnalytics() {
         setPeriodMode("month");
         setSelectedMonth(payload.monthIndex);
         setSelectedDay(null);
-      } else if (periodMode === "month" && payload.date && !selectedDay) {
-        // Click on day -> drill down to hours
+      } else if (useDailyView && payload.date && !selectedDay) {
+        // Click on day -> drill down to hours (works for month and short periods)
         setSelectedDay(payload.date);
       }
     }
@@ -418,7 +426,7 @@ export function OperationsAnalytics() {
   // Check if clicking on chart should enable cursor pointer
   const isChartClickable = () => {
     if (selectedDay) return false; // In day view, no further drill-down
-    if (periodMode === "month") return true; // In month view, can drill down to day
+    if (useDailyView) return true; // In daily view (month or short periods), can drill down to day
     return true; // In year view, can drill down to month
   };
 
@@ -429,6 +437,12 @@ export function OperationsAnalytics() {
     }
     if (periodMode === "month") {
       return format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM yyyy", { locale: fr });
+    }
+    // Short period modes - show date range
+    if (periodMode === "previous_week" || periodMode === "7d" || periodMode === "30d" || periodMode === "current_month" || periodMode === "range") {
+      if (dateRange.start && dateRange.end) {
+        return `Du ${format(dateRange.start, "d MMM", { locale: fr })} au ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
+      }
     }
     return "Évolution du taux de disponibilité";
   };
