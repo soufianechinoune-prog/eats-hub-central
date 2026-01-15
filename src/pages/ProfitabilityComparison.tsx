@@ -83,9 +83,9 @@ const ProfitabilityComparison = () => {
     staleTime: 0, // Toujours refetch pour avoir les données fraîches
   });
 
-  // Fetch payouts data for the period
-  const { data: payoutsData, isLoading } = useQuery({
-    queryKey: ["profitability-comparison", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+  // Fetch payouts data for the period (for aggregated stats)
+  const { data: payoutsData } = useQuery({
+    queryKey: ["profitability-comparison-payouts", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
       
@@ -105,14 +105,37 @@ const ProfitabilityComparison = () => {
     enabled: !!pinnedRestaurants?.length,
   });
 
+  // Fetch daily orders data for detailed evolution chart
+  const { data: ordersData, isLoading } = useQuery({
+    queryKey: ["profitability-comparison-orders", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+    queryFn: async () => {
+      if (!pinnedRestaurants?.length) return [];
+      
+      const startStr = format(dateRange.start, "yyyy-MM-dd");
+      const endStr = format(dateRange.end, "yyyy-MM-dd");
+      
+      const { data, error } = await supabase
+        .from("orders")
+        .select("restaurant_id, order_datetime, sales_incl_vat, net_payout, meal_voucher_amount")
+        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
+        .gte("order_datetime", `${startStr}T00:00:00`)
+        .lte("order_datetime", `${endStr}T23:59:59`);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!pinnedRestaurants?.length,
+  });
+
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!payoutsData?.length || !pinnedRestaurants?.length) return [];
+    if (!pinnedRestaurants?.length) return [];
     
     const stats = pinnedRestaurants.map(restaurant => {
-      const restaurantPayouts = payoutsData.filter(d => d.restaurant_id === restaurant.id);
+      const restaurantPayouts = payoutsData?.filter(d => d.restaurant_id === restaurant.id) || [];
+      const restaurantOrders = ordersData?.filter(d => d.restaurant_id === restaurant.id) || [];
       
-      // Aggregate totals
+      // Aggregate totals from payouts (for accurate overall stats)
       const totalSales = restaurantPayouts.reduce((sum, p) => sum + Math.abs(Number(p.sales_incl_vat) || 0), 0);
       const totalNetPayout = restaurantPayouts.reduce((sum, p) => sum + Number(p.net_payout || 0), 0);
       const totalMealVoucher = restaurantPayouts.reduce((sum, p) => sum + Math.abs(Number(p.meal_voucher_amount) || 0), 0);
@@ -130,31 +153,31 @@ const ProfitabilityComparison = () => {
       const promoRate = totalSales > 0 ? (totalPromo / totalSales) * 100 : 0;
       const refundRate = totalSales > 0 ? (totalRefund / totalSales) * 100 : 0;
       
-      // Group by date for daily evolution
+      // Group orders by date for DAILY evolution (this gives us real daily data!)
       const dailyData: Record<string, { sales: number; payout: number; orders: number }> = {};
-      restaurantPayouts.forEach(p => {
-        if (p.payout_date) {
-          const date = p.payout_date;
+      restaurantOrders.forEach(order => {
+        if (order.order_datetime) {
+          const date = format(new Date(order.order_datetime), "yyyy-MM-dd");
           if (!dailyData[date]) {
             dailyData[date] = { sales: 0, payout: 0, orders: 0 };
           }
-          dailyData[date].sales += Math.abs(Number(p.sales_incl_vat) || 0);
-          dailyData[date].payout += Number(p.net_payout || 0) + Math.abs(Number(p.meal_voucher_amount) || 0);
-          dailyData[date].orders += Number(p.order_count || 0);
+          dailyData[date].sales += Math.abs(Number(order.sales_incl_vat) || 0);
+          dailyData[date].payout += Number(order.net_payout || 0) + Math.abs(Number(order.meal_voucher_amount) || 0);
+          dailyData[date].orders += 1;
         }
       });
 
-      // Group by day of week
+      // Group by day of week (from orders for accuracy)
       const weekdayData: Record<number, { sales: number; payout: number; count: number }> = {};
-      restaurantPayouts.forEach(p => {
-        if (p.payout_date) {
-          const date = new Date(p.payout_date);
+      restaurantOrders.forEach(order => {
+        if (order.order_datetime) {
+          const date = new Date(order.order_datetime);
           const weekday = date.getDay();
           if (!weekdayData[weekday]) {
             weekdayData[weekday] = { sales: 0, payout: 0, count: 0 };
           }
-          weekdayData[weekday].sales += Math.abs(Number(p.sales_incl_vat) || 0);
-          weekdayData[weekday].payout += Number(p.net_payout || 0) + Math.abs(Number(p.meal_voucher_amount) || 0);
+          weekdayData[weekday].sales += Math.abs(Number(order.sales_incl_vat) || 0);
+          weekdayData[weekday].payout += Number(order.net_payout || 0) + Math.abs(Number(order.meal_voucher_amount) || 0);
           weekdayData[weekday].count += 1;
         }
       });
@@ -179,7 +202,7 @@ const ProfitabilityComparison = () => {
     
     // Sort by profitability (highest first)
     return stats.sort((a, b) => b.profitability - a.profitability);
-  }, [payoutsData, pinnedRestaurants]);
+  }, [payoutsData, ordersData, pinnedRestaurants]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
