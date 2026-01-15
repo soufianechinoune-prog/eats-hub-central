@@ -68,13 +68,25 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange }: ProfitabilityE
   );
 
   const chartData = useMemo(() => {
-    const allDates = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
+    // Collecter toutes les dates uniques avec des données (les payouts sont hebdomadaires)
+    const allDatesSet = new Set<string>();
+    selectedStats.forEach(restaurant => {
+      Object.keys(restaurant.dailyData).forEach(date => {
+        allDatesSet.add(date);
+      });
+    });
     
-    return allDates.map(date => {
-      const dateStr = format(date, "yyyy-MM-dd");
+    // Filtrer par la plage de dates et trier
+    const startStr = format(dateRange.start, "yyyy-MM-dd");
+    const endStr = format(dateRange.end, "yyyy-MM-dd");
+    const sortedDates = Array.from(allDatesSet)
+      .filter(date => date >= startStr && date <= endStr)
+      .sort();
+    
+    return sortedDates.map(dateStr => {
       const dataPoint: Record<string, any> = {
         date: dateStr,
-        dateLabel: format(date, "d MMM", { locale: fr }),
+        dateLabel: format(parseISO(dateStr), "d MMM", { locale: fr }),
       };
       
       selectedStats.forEach(restaurant => {
