@@ -17,21 +17,34 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Mode de paiement': 'payment_method',
   'Canal de commande': 'order_channel',
   'Statut de l\'abonnement Uber du client': 'uber_one_status',
+  
+  // Ventes - ancien et nouveau format
   'Ventes (hors TVA)': 'sales_excl_vat',
   'TVA 1 sur les ventes': 'vat_1_sales',
   'TVA 2 sur les ventes': 'vat_2_sales',
   'TVA 3 sur les ventes': 'vat_3_sales',
-  'Ventes (TVA incluses)': 'sales_incl_vat',
+  'Ventes (TVA incluses)': 'sales_incl_vat', // Ancien format
+  'Ventes (TVA incluse)': 'sales_incl_vat', // Nouveau format 2025+
+  
+  // Remboursements - ancien et nouveau format
   'Remboursements (hors TVA)': 'refund_excl_vat',
+  'Ajustements liés à des erreurs de commande (hors TVA)': 'refund_excl_vat', // Nouveau format
   'TVA 1 sur les ajustements liés à des erreurs de commande': 'vat_1_refund',
   'TVA 2 sur les ajustements liés à des erreurs de commande': 'vat_2_refund',
   'TVA 3 sur les ajustements liés à des erreurs de commande': 'vat_3_refund',
-  'Remboursements (TVA incluse)': 'refund_incl_vat',
-  'Promotion sur les plats/articles (hors TVA)': 'item_promo_excl_vat',
+  'Remboursements (TVA incluse)': 'refund_incl_vat', // Ancien format
+  'Ajustements liés à des erreurs de commande (TVA incluse)': 'refund_incl_vat', // Nouveau format
+  'Order Error Adjustments (incl. VAT)': 'refund_incl_vat', // Format anglais
+  
+  // Promotions articles - ancien et nouveau format
+  'Promotion sur les plats/articles (hors TVA)': 'item_promo_excl_vat', // Ancien format
+  'Offres sur les articles (hors TVA)': 'item_promo_excl_vat', // Nouveau format
   'TVA 1 sur les offres sur les articles': 'vat_1_item_promo',
   'TVA 2 sur les offres sur les articles': 'vat_2_item_promo',
   'TVA 3 sur les offres sur les articles': 'vat_3_item_promo',
-  'Promotion sur les plats/articles (TVA incluse)': 'item_promo_incl_vat',
+  'Promotion sur les plats/articles (TVA incluse)': 'item_promo_incl_vat', // Ancien format
+  'Offres sur les articles (TVA incluse)': 'item_promo_incl_vat', // Nouveau format
+  
   'Ajustement des frais de marketing': 'marketing_fee_adjustment',
   'Titre-restaurant': 'meal_voucher_amount',
   'Fournisseur de titres-restaurant': 'meal_voucher_provider',
@@ -46,9 +59,15 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Frais de préparation et d\'emballage': 'packaging_fee',
   'TVA sur les frais pour Préparation et emballage': 'vat_packaging_fee',
   'Frais de sac de livraison': 'bag_fee',
+  
+  // Promotions livraison - ancien et nouveau format
   'Promotion sur la livraison (hors TVA)': 'delivery_promo_excl_vat',
+  'Offres de livraison (hors TVA)': 'delivery_promo_excl_vat', // Nouveau format
   'Taxe sur les promotions sur la livraison': 'vat_delivery_promo',
+  'TVA sur les offres de livraison': 'vat_delivery_promo', // Nouveau format
   'Promotion sur la livraison (TVA incluse)': 'delivery_promo_incl_vat',
+  'Offres de livraison (TVA incluse)': 'delivery_promo_incl_vat', // Nouveau format
+  
   'Total de la commande (TVA incluse)': 'order_total_incl_vat',
   'Lien vers la facture du commerçant pour le client': 'customer_invoice_url',
   'Coût de la livraison (hors TVA)': 'delivery_cost_excl_vat',
