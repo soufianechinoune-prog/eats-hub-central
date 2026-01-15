@@ -576,11 +576,30 @@ const Overview = () => {
     exportToPdf({
       title: "Vue d'ensemble",
       period: getPeriodLabel(),
+      totalRestaurants: networkData?.totalRestaurants || 0,
       globalMetrics: {
-        avgRating: networkData?.global.rating || 0,
-        avgPrepTime: networkData?.global.prepTime || 0,
-        avgErrorRate: networkData?.global.errorRate || 0,
-        avgProfitability: networkData?.global.profitability || 0,
+        rating: networkData?.global.rating ?? null,
+        prepTime: networkData?.global.prepTime ?? null,
+        errorRate: networkData?.global.errorRate ?? null,
+        incorrectOrderRate: networkData?.global.incorrectOrderRate ?? null,
+        profitability: networkData?.global.profitability ?? null,
+        downtime: networkData?.global.downtime ?? null,
+      },
+      uberMetrics: {
+        rating: networkData?.uber?.rating ?? null,
+        prepTime: networkData?.uber?.prepTime ?? null,
+        errorRate: networkData?.uber?.errorRate ?? null,
+        incorrectOrderRate: networkData?.uber?.incorrectOrderRate ?? null,
+        profitability: networkData?.uber?.profitability ?? null,
+        downtime: networkData?.uber?.downtime ?? null,
+      },
+      deliverooMetrics: {
+        rating: networkData?.deliveroo?.rating ?? null,
+        prepTime: networkData?.deliveroo?.prepTime ?? null,
+        errorRate: networkData?.deliveroo?.errorRate ?? null,
+        incorrectOrderRate: networkData?.deliveroo?.incorrectOrderRate ?? null,
+        profitability: networkData?.deliveroo?.profitability ?? null,
+        downtime: networkData?.deliveroo?.downtime ?? null,
       },
       rankings: {
         rating: {
