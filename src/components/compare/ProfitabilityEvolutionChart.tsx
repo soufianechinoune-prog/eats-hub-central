@@ -132,8 +132,21 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange }: ProfitabilityE
   };
 
   const getShortName = (name: string) => {
-    const parts = name.split(/[-–]/);
-    return parts[parts.length - 1]?.trim() || name;
+    // Si le nom contient "CHICKEN STREET", utiliser "CS" + ville
+    if (name.toUpperCase().includes("CHICKEN STREET")) {
+      const cityPart = name.replace(/chicken street\s*/i, "").trim();
+      // Formater la ville en Title Case
+      const formattedCity = cityPart
+        .toLowerCase()
+        .split(/[\s-]+/)
+        .filter(word => word.length > 0)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+      return `CS ${formattedCity}`;
+    }
+    
+    // Sinon, retourner le nom tel quel (tronqué si trop long)
+    return name.length > 20 ? name.substring(0, 17) + "..." : name;
   };
 
   if (!stats.length) {
