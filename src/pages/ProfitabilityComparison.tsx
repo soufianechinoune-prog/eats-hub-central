@@ -2,43 +2,71 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Calendar, Percent } from "lucide-react";
+import type { DateRange } from "react-day-picker";
+import { ArrowLeft, Percent } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { ProfitabilityRankingBars } from "@/components/compare/ProfitabilityRankingBars";
 import { ProfitabilityInsightsSection } from "@/components/compare/ProfitabilityInsightsSection";
 import { ProfitabilityHeatmapGrid } from "@/components/compare/ProfitabilityHeatmapGrid";
 import { ProfitabilityEvolutionChart } from "@/components/compare/ProfitabilityEvolutionChart";
 
-type PeriodType = "week" | "month" | "quarter";
-
 const ProfitabilityComparison = () => {
   const navigate = useNavigate();
-  const [period, setPeriod] = useState<PeriodType>("week");
+  
+  // Period state - same as Overview
+  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("previous_week");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
 
-  // Calculate date range based on period
+  // Calculate date range based on period mode
   const dateRange = useMemo(() => {
     const now = new Date();
-    switch (period) {
-      case "week": {
+    switch (periodMode) {
+      case "previous_week": {
         const lastWeekEnd = endOfWeek(subDays(now, 7), { weekStartsOn: 1 });
         const lastWeekStart = startOfWeek(subDays(now, 7), { weekStartsOn: 1 });
         return { start: lastWeekStart, end: lastWeekEnd };
       }
-      case "month": {
-        const lastMonth = subMonths(now, 1);
-        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      case "7d": {
+        return { start: subDays(now, 6), end: now };
       }
-      case "quarter": {
-        return { start: subMonths(now, 3), end: now };
+      case "30d": {
+        return { start: subDays(now, 29), end: now };
+      }
+      case "current_month": {
+        return { start: startOfMonth(now), end: now };
+      }
+      case "custom_month": {
+        const monthDate = new Date(selectedYear, selectedMonth - 1, 1);
+        return { start: startOfMonth(monthDate), end: endOfMonth(monthDate) };
+      }
+      case "year": {
+        const yearDate = new Date(selectedYear, 0, 1);
+        return { start: startOfYear(yearDate), end: endOfYear(yearDate) };
+      }
+      case "custom_range": {
+        if (customDateRange?.from && customDateRange?.to) {
+          return { start: customDateRange.from, end: customDateRange.to };
+        }
+        return { start: subDays(now, 7), end: now };
       }
       default:
         return { start: subDays(now, 7), end: now };
     }
-  }, [period]);
+  }, [periodMode, selectedYear, selectedMonth, customDateRange]);
+
+  // Derive period type for child components
+  const periodType = useMemo(() => {
+    const days = Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24));
+    if (days <= 7) return "week";
+    if (days <= 31) return "month";
+    return "quarter";
+  }, [dateRange]);
 
   // Fetch pinned restaurants
   const { data: pinnedRestaurants } = useQuery({
@@ -152,10 +180,6 @@ const ProfitabilityComparison = () => {
     return stats.sort((a, b) => b.profitability - a.profitability);
   }, [payoutsData, pinnedRestaurants]);
 
-  const periodLabel = useMemo(() => {
-    return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
-  }, [dateRange]);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-6 space-y-6">
@@ -181,22 +205,16 @@ const ProfitabilityComparison = () => {
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
-              <Calendar className="h-4 w-4" />
-              <span>{periodLabel}</span>
-            </div>
-            <Select value={period} onValueChange={(v) => setPeriod(v as PeriodType)}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="week">Semaine précédente</SelectItem>
-                <SelectItem value="month">Mois précédent</SelectItem>
-                <SelectItem value="quarter">3 derniers mois</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <OverviewPeriodSelector
+            periodMode={periodMode}
+            onPeriodModeChange={setPeriodMode}
+            selectedYear={selectedYear}
+            onYearChange={setSelectedYear}
+            selectedMonth={selectedMonth}
+            onMonthChange={setSelectedMonth}
+            dateRange={customDateRange}
+            onDateRangeChange={setCustomDateRange}
+          />
         </div>
 
         {isLoading ? (
@@ -206,7 +224,7 @@ const ProfitabilityComparison = () => {
         ) : (
           <div className="grid gap-6">
             {/* Insights Section */}
-            <ProfitabilityInsightsSection stats={restaurantStats} period={period} />
+            <ProfitabilityInsightsSection stats={restaurantStats} period={periodType} />
 
             {/* Ranking - Full Width */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
