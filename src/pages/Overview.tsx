@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { subWeeks, startOfWeek, endOfWeek, format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -8,7 +8,7 @@ import { useAnalyticsContext, PeriodMode } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Star, Clock, TrendingDown, Percent, DollarSign, PauseCircle, Award, Euro, FileDown, FileSpreadsheet, ChevronRight, Users, RefreshCw, Bug } from "lucide-react";
+import { Star, Clock, TrendingDown, Percent, DollarSign, PauseCircle, Award, Euro, FileDown, FileSpreadsheet, ChevronRight, Users, RefreshCw } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -45,9 +45,7 @@ const Overview = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [rankingTab, setRankingTab] = useState<"rating" | "revenue" | "profitability" | "conversion">("rating");
-  const [showDebug, setShowDebug] = useState(false);
   const navigate = useNavigate();
-  const contentRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { exportToPdf, exportToExcel, isExporting } = useOverviewExport();
   
@@ -575,11 +573,7 @@ const Overview = () => {
   };
 
   const handleExportPdf = () => {
-    const rankingType = rankingTab === "rating" ? "Note" : rankingTab === "revenue" ? "CA" : "Rentabilité";
-    const topRestaurants = rankingTab === "rating" ? networkData?.topByRating : rankingTab === "revenue" ? networkData?.topByRevenue : networkData?.topByProfitability;
-    const flopRestaurants = rankingTab === "rating" ? networkData?.flopByRating : rankingTab === "revenue" ? networkData?.flopByRevenue : networkData?.flopByProfitability;
-    
-    exportToPdf(contentRef.current, {
+    exportToPdf({
       title: "Vue d'ensemble",
       period: getPeriodLabel(),
       globalMetrics: {
@@ -588,9 +582,24 @@ const Overview = () => {
         avgErrorRate: networkData?.global.errorRate || 0,
         avgProfitability: networkData?.global.profitability || 0,
       },
-      topRestaurants: topRestaurants || [],
-      flopRestaurants: flopRestaurants || [],
-      rankingType,
+      rankings: {
+        rating: {
+          top: networkData?.topByRating || [],
+          flop: networkData?.flopByRating || [],
+        },
+        revenue: {
+          top: networkData?.topByRevenue || [],
+          flop: networkData?.flopByRevenue || [],
+        },
+        profitability: {
+          top: networkData?.topByProfitability || [],
+          flop: networkData?.flopByProfitability || [],
+        },
+        conversion: {
+          top: networkData?.topByConversion || [],
+          flop: networkData?.flopByConversion || [],
+        },
+      },
     });
   };
 
@@ -644,15 +653,6 @@ const Overview = () => {
             <RefreshCw className="h-4 w-4" />
           </Button>
           <Button
-            onClick={() => setShowDebug(!showDebug)}
-            variant="outline"
-            size="icon"
-            title="Toggle debug panel"
-            className={showDebug ? "bg-amber-500/20" : ""}
-          >
-            <Bug className="h-4 w-4" />
-          </Button>
-          <Button
             onClick={handleExportPdf}
             disabled={isExporting}
             variant="outline"
@@ -694,70 +694,7 @@ const Overview = () => {
           Erreur lors du chargement des données: {String(error)}
         </div>
       ) : (
-        <div ref={contentRef}>
-          {/* Debug Panel */}
-          {showDebug && networkData?.debugInfo && (
-            <Card className="mb-6 border-amber-500/50 bg-amber-500/5">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2 text-amber-600">
-                  <Bug className="h-4 w-4" />
-                  Debug Panel — Build: {networkData.debugInfo.buildTimestamp}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs font-mono space-y-2">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <span className="text-muted-foreground">Period:</span>{" "}
-                    <span className="font-bold">{networkData.debugInfo.periodMode}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Start:</span>{" "}
-                    <span className="font-bold">{networkData.debugInfo.startDateStr}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">End:</span>{" "}
-                    <span className="font-bold">{networkData.debugInfo.endDateStr}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Pinned:</span>{" "}
-                    <span className="font-bold">{networkData.debugInfo.pinnedRestaurants}</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-muted-foreground">Sales rows total:</span>{" "}
-                    <span className="font-bold text-emerald-600">{networkData.debugInfo.salesRowsTotal}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Reviews rows total:</span>{" "}
-                    <span className="font-bold text-blue-600">{networkData.debugInfo.reviewsRowsTotal}</span>
-                  </div>
-                </div>
-                <div className="border-t border-border/50 pt-2">
-                  <div className="text-muted-foreground mb-1">Sales by restaurant:</div>
-                  <div className="flex flex-wrap gap-2">
-                    {networkData.debugInfo.salesByRestaurant?.map((r: any) => (
-                      <Badge key={r.name} variant="outline" className="text-xs">
-                        {r.name}: {r.rows} rows / {r.revenue.toLocaleString('fr-FR')} €
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div className="border-t border-border/50 pt-2">
-                  <div className="text-muted-foreground mb-1">Reviews by restaurant:</div>
-                  <div className="flex flex-wrap gap-2">
-                    {networkData.debugInfo.reviewsByRestaurant?.map((r: any) => (
-                      <Badge key={r.name} variant="outline" className="text-xs">
-                        {r.name}: {r.count} avis / {r.rating ?? "—"}★
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* KPIs Globaux - Priority Section with Modern Design */}
+        <div>
           <div className="grid gap-8 lg:grid-cols-3">
             {/* Global Card */}
             <Card className="border-2 border-primary/30 shadow-2xl bg-gradient-to-br from-card via-card to-primary/5 backdrop-blur-xl hover:shadow-primary/20 transition-all duration-500 hover:scale-[1.02]">
