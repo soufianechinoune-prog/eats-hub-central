@@ -68,18 +68,19 @@ const ProfitabilityComparison = () => {
     return "quarter";
   }, [dateRange]);
 
-  // Fetch pinned restaurants
+  // Fetch pinned restaurants only
   const { data: pinnedRestaurants } = useQuery({
-    queryKey: ["pinned-restaurants"],
+    queryKey: ["pinned-restaurants-profitability"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, uber_commission_rate")
+        .select("id, name, uber_commission_rate, is_pinned")
         .eq("is_pinned", true)
         .order("name");
       if (error) throw error;
       return data || [];
     },
+    staleTime: 0, // Toujours refetch pour avoir les données fraîches
   });
 
   // Fetch payouts data for the period
