@@ -778,12 +778,29 @@ export function OrderAccuracyDashboard({
                     data={categoryData}
                     dataKey="count"
                     nameKey="name"
-                    cx="50%"
+                    cx="35%"
                     cy="50%"
-                    outerRadius={90}
-                    innerRadius={50}
-                    paddingAngle={2}
-                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    innerRadius={45}
+                    paddingAngle={3}
+                    label={({ cx, cy, midAngle, outerRadius, percent }) => {
+                      const RADIAN = Math.PI / 180;
+                      const radius = outerRadius + 25;
+                      const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                      const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                      return (
+                        <text
+                          x={x}
+                          y={y}
+                          fill="hsl(var(--foreground))"
+                          textAnchor={x > cx ? 'start' : 'end'}
+                          dominantBaseline="central"
+                          className="text-sm font-semibold"
+                        >
+                          {`${(percent * 100).toFixed(0)}%`}
+                        </text>
+                      );
+                    }}
                     labelLine={false}
                   >
                     {categoryData.map((entry, index) => (
@@ -800,8 +817,9 @@ export function OrderAccuracyDashboard({
                     layout="vertical" 
                     align="right" 
                     verticalAlign="middle"
+                    wrapperStyle={{ paddingLeft: 20 }}
                     formatter={(value, entry: any) => (
-                      <span className="text-xs">{value}</span>
+                      <span className="text-sm" style={{ color: entry.color }}>{value}</span>
                     )}
                   />
                 </PieChart>
