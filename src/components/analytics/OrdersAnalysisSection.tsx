@@ -514,7 +514,7 @@ export function OrdersAnalysisSection({
                         <TableBody>
                           {sortedDailyData.map((day) => {
                             const profitability = day.sales_incl_vat > 0 
-                              ? (day.net_payout / day.sales_incl_vat) * 100 
+                              ? (day.total_payout / day.sales_incl_vat) * 100 
                               : 0;
                             const isClickable = !!selectedRestaurantId;
                             

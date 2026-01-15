@@ -550,7 +550,7 @@ export function useFinancesDrilldown({
       const netPayout = Number(order.net_payout) || 0;
       const mealVoucherAmount = Number(order.meal_voucher_amount) || 0;
       const totalPayout = netPayout + mealVoucherAmount;
-      const profitability = salesInclVat > 0 ? (netPayout / salesInclVat) * 100 : 0;
+      const profitability = salesInclVat > 0 ? (totalPayout / salesInclVat) * 100 : 0;
 
       return {
         id: order.id,
