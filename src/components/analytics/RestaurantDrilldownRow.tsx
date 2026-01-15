@@ -67,9 +67,9 @@ export function RestaurantDrilldownRow({
     setSheetOpen(true);
   };
 
-  const calcProfitability = (netPayout: number, sales: number) => {
+  const calcProfitability = (totalPayout: number, sales: number) => {
     if (sales === 0) return 0;
-    return (netPayout / sales) * 100;
+    return (totalPayout / sales) * 100;
   };
 
   if (isLoading) {
@@ -93,9 +93,9 @@ export function RestaurantDrilldownRow({
       uber_fee_incl_vat: acc.uber_fee_incl_vat + (d.uber_fee_incl_vat || 0),
       promo_incl_vat: acc.promo_incl_vat + (d.promo_incl_vat || 0),
       refund_incl_vat: acc.refund_incl_vat + d.refund_incl_vat,
-      net_payout: acc.net_payout + (d.net_payout || 0),
+      total_payout: acc.total_payout + (d.total_payout || 0),
     }),
-    { order_count: 0, sales_incl_vat: 0, uber_fee_incl_vat: 0, promo_incl_vat: 0, refund_incl_vat: 0, net_payout: 0 }
+    { order_count: 0, sales_incl_vat: 0, uber_fee_incl_vat: 0, promo_incl_vat: 0, refund_incl_vat: 0, total_payout: 0 }
   );
 
   // Calculate totals for hourly data
@@ -106,9 +106,9 @@ export function RestaurantDrilldownRow({
       uber_fee_incl_vat: acc.uber_fee_incl_vat + (d.uber_fee_incl_vat || 0),
       promo_incl_vat: acc.promo_incl_vat + (d.promo_incl_vat || 0),
       refund_incl_vat: acc.refund_incl_vat + d.refund_incl_vat,
-      net_payout: acc.net_payout + (d.net_payout || 0),
+      total_payout: acc.total_payout + (d.total_payout || 0),
     }),
-    { order_count: 0, sales_incl_vat: 0, uber_fee_incl_vat: 0, promo_incl_vat: 0, refund_incl_vat: 0, net_payout: 0 }
+    { order_count: 0, sales_incl_vat: 0, uber_fee_incl_vat: 0, promo_incl_vat: 0, refund_incl_vat: 0, total_payout: 0 }
   );
 
   return (
@@ -149,7 +149,7 @@ export function RestaurantDrilldownRow({
                     </TableHeader>
                     <TableBody>
                       {dailyData.map((day, idx) => {
-                        const profitability = calcProfitability(day.net_payout || 0, day.sales_incl_vat);
+                        const profitability = calcProfitability(day.total_payout || 0, day.sales_incl_vat);
                         return (
                           <TableRow 
                             key={day.date} 
@@ -180,9 +180,9 @@ export function RestaurantDrilldownRow({
                         <TableCell className="text-right text-xs tabular-nums text-orange-600">{formatCurrency(dailyTotals.uber_fee_incl_vat)}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(dailyTotals.promo_incl_vat)}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(dailyTotals.refund_incl_vat)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums text-green-600">{formatCurrency(dailyTotals.net_payout)}</TableCell>
-                        <TableCell className={cn("text-right text-xs tabular-nums font-medium", getProfitabilityColor(calcProfitability(dailyTotals.net_payout, dailyTotals.sales_incl_vat)))}>
-                          {formatPercent(calcProfitability(dailyTotals.net_payout, dailyTotals.sales_incl_vat))}
+                        <TableCell className="text-right text-xs tabular-nums text-green-600">{formatCurrency(dailyTotals.total_payout)}</TableCell>
+                        <TableCell className={cn("text-right text-xs tabular-nums font-medium", getProfitabilityColor(calcProfitability(dailyTotals.total_payout, dailyTotals.sales_incl_vat)))}>
+                          {formatPercent(calcProfitability(dailyTotals.total_payout, dailyTotals.sales_incl_vat))}
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -237,9 +237,9 @@ export function RestaurantDrilldownRow({
                         <TableCell className="text-right text-xs tabular-nums text-orange-600">{formatCurrency(hourlyTotals.uber_fee_incl_vat)}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(hourlyTotals.promo_incl_vat)}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums text-muted-foreground">{formatCurrency(hourlyTotals.refund_incl_vat)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums text-green-600">{formatCurrency(hourlyTotals.net_payout)}</TableCell>
-                        <TableCell className={cn("text-right text-xs tabular-nums font-medium", getProfitabilityColor(calcProfitability(hourlyTotals.net_payout, hourlyTotals.sales_incl_vat)))}>
-                          {formatPercent(calcProfitability(hourlyTotals.net_payout, hourlyTotals.sales_incl_vat))}
+                        <TableCell className="text-right text-xs tabular-nums text-green-600">{formatCurrency(hourlyTotals.total_payout)}</TableCell>
+                        <TableCell className={cn("text-right text-xs tabular-nums font-medium", getProfitabilityColor(calcProfitability(hourlyTotals.total_payout, hourlyTotals.sales_incl_vat)))}>
+                          {formatPercent(calcProfitability(hourlyTotals.total_payout, hourlyTotals.sales_incl_vat))}
                         </TableCell>
                       </TableRow>
                     </TableBody>
