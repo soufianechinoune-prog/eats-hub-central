@@ -112,6 +112,23 @@ Focus sur l'optimisation du catalogue.`,
       { icon: 'Package', title: 'Catalogue', question: 'Quels produits devrais-je ajouter ou retirer ?' },
     ]
   },
+  '/compare/profitability': {
+    pageName: 'Profitability Comparison',
+    pageNameFr: 'Comparaison Rentabilité',
+    analysisPrompt: `Analyse la comparaison de rentabilité des restaurants. 
+Identifie:
+1. Les restaurants les plus et moins rentables
+2. Les facteurs expliquant les écarts (commissions, promos, remboursements)
+3. Les patterns par jour de la semaine
+4. Actions pour améliorer la rentabilité des moins performants
+
+Focus sur les leviers d'optimisation concrets.`,
+    suggestedQuestions: [
+      { icon: 'TrendingUp', title: 'Meilleurs', question: 'Quels restaurants sont les plus rentables ?' },
+      { icon: 'TrendingDown', title: 'À améliorer', question: 'Quels restaurants doivent améliorer leur rentabilité ?' },
+      { icon: 'Lightbulb', title: 'Optimisation', question: 'Comment améliorer la rentabilité globale ?' },
+    ]
+  },
 };
 
 export const usePageContext = (): PageContext => {
