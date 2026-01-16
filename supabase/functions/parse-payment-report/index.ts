@@ -92,6 +92,30 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Id. de référence du versement': 'payout_reference_id',
 };
 
+// Normalize headers to handle invisible characters (BOM, NBSP, Unicode variations)
+function normalizeHeader(h: string): string {
+  return h
+    // Remove BOM
+    .replace(/^\uFEFF/, '')
+    // Replace NBSP and exotic whitespaces with normal space
+    .replace(/[\u00A0\u2007\u202F\u2060\u200B\u200C\u200D\uFEFF]/g, ' ')
+    // Normalize Unicode (curved apostrophes, etc.)
+    .normalize('NFKC')
+    // Replace curved apostrophes with straight ones
+    .replace(/['']/g, "'")
+    .replace(/[""]/g, '"')
+    // Compress multiple spaces into one
+    .replace(/\s+/g, ' ')
+    // Trim
+    .trim();
+}
+
+// Pre-normalize all COLUMN_MAPPING keys for faster lookup
+const NORMALIZED_COLUMN_MAPPING: Record<string, string> = {};
+for (const [key, value] of Object.entries(COLUMN_MAPPING)) {
+  NORMALIZED_COLUMN_MAPPING[normalizeHeader(key)] = value;
+}
+
 function parseCSV(csvText: string): string[][] {
   const rows: string[][] = [];
   const lines = csvText.split('\n');
@@ -249,15 +273,36 @@ Deno.serve(async (req) => {
     const headers = rows[headerRowIndex];
     console.log('Found headers at row:', headerRowIndex, 'Columns:', headers.length);
 
+    // Build column indices with normalized header matching
     const columnIndices: Record<string, number> = {};
+    const recognizedColumns: { original: string; normalized: string; dbField: string }[] = [];
+    const unrecognizedColumns: string[] = [];
+    
     headers.forEach((header, index) => {
-      const cleanHeader = header.trim();
-      if (COLUMN_MAPPING[cleanHeader]) {
-        columnIndices[COLUMN_MAPPING[cleanHeader]] = index;
+      const normalizedHeader = normalizeHeader(header);
+      const dbField = NORMALIZED_COLUMN_MAPPING[normalizedHeader];
+      
+      if (dbField) {
+        columnIndices[dbField] = index;
+        recognizedColumns.push({ original: header, normalized: normalizedHeader, dbField });
+      } else if (normalizedHeader && normalizedHeader.length > 0) {
+        unrecognizedColumns.push(normalizedHeader);
       }
     });
 
+    // Check critical columns
+    const criticalColumnsFound = {
+      sales_incl_vat: 'sales_incl_vat' in columnIndices,
+      net_payout: 'net_payout' in columnIndices,
+      item_promo_incl_vat: 'item_promo_incl_vat' in columnIndices,
+      refund_incl_vat: 'refund_incl_vat' in columnIndices,
+    };
+
     console.log('Mapped columns:', Object.keys(columnIndices).length);
+    console.log('Critical columns found:', JSON.stringify(criticalColumnsFound));
+    if (!criticalColumnsFound.sales_incl_vat) {
+      console.warn('WARNING: sales_incl_vat column NOT FOUND! Unrecognized headers:', unrecognizedColumns.slice(0, 10));
+    }
 
     const { data: restaurants, error: restaurantError } = await supabase
       .from('restaurants')
@@ -597,6 +642,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Sample first order's critical values for debugging
+    const sampleOrder = deduplicatedOrders[0];
+    const sampleCriticalValues = sampleOrder ? {
+      sales_incl_vat: sampleOrder.sales_incl_vat,
+      net_payout: sampleOrder.net_payout,
+      item_promo_incl_vat: sampleOrder.item_promo_incl_vat,
+      refund_incl_vat: sampleOrder.refund_incl_vat,
+    } : null;
+
     const result = {
       success: true,
       reportType,
@@ -619,6 +673,12 @@ Deno.serve(async (req) => {
         restaurants: Array.from(restaurantStats.values()),
         unknownStoreIds: Array.from(unknownStoreIds),
         skippedDetails: skippedDetails,
+      },
+      diagnostics: {
+        criticalColumnsFound,
+        recognizedColumnsCount: recognizedColumns.length,
+        unrecognizedColumns: unrecognizedColumns.slice(0, 30),
+        sampleCriticalValues,
       },
       errorDetails: errors.slice(0, 10),
     };
