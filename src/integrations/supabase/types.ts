@@ -2936,6 +2936,20 @@ export type Database = {
           weekday_orders: number
         }[]
       }
+      get_profitability_daily: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          day: string
+          orders_count: number
+          payout: number
+          restaurant_id: string
+          sales: number
+        }[]
+      }
       update_uber_commission_rates: {
         Args: never
         Returns: {
