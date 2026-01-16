@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { format, eachDayOfInterval, subYears, subWeeks } from "date-fns";
+import { format, eachMonthOfInterval, startOfMonth, subYears, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import { 
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer 
 } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
 } from "@/components/ui/table";
 import { 
-  Percent, BarChart3, TrendingUp, LayoutList, ChartArea,
+  Percent, LayoutList, ChartArea,
   ArrowUp, ArrowDown, Minus, Download, ArrowLeftRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,7 +41,6 @@ interface ProfitabilityComparisonChartProps {
 }
 
 type ViewMode = "chart" | "table";
-type ChartType = "bar" | "line";
 
 // Calculate variation
 const calcVariation = (current: number, previous: number): number | null => {
@@ -76,57 +75,58 @@ export const ProfitabilityComparisonChart = ({
   onComparisonModeChange,
 }: ProfitabilityComparisonChartProps) => {
   const [viewMode, setViewMode] = useState<ViewMode>("chart");
-  const [chartType, setChartType] = useState<ChartType>("bar");
 
-  // Aggregate data by day
+  // Aggregate data by MONTH (like Panier Moyen)
   const chartData = useMemo(() => {
-    const allDays = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
+    const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
     
-    // Aggregate current period by day
-    const currentByDay: Record<string, { sales: number; payout: number; orders: number }> = {};
+    // Aggregate current period by month
+    const currentByMonth: Record<string, { sales: number; payout: number; orders: number }> = {};
     currentPeriodData.forEach(row => {
-      if (!currentByDay[row.day]) {
-        currentByDay[row.day] = { sales: 0, payout: 0, orders: 0 };
+      const monthKey = format(new Date(row.day), "yyyy-MM");
+      if (!currentByMonth[monthKey]) {
+        currentByMonth[monthKey] = { sales: 0, payout: 0, orders: 0 };
       }
-      currentByDay[row.day].sales += Number(row.sales) || 0;
-      currentByDay[row.day].payout += Number(row.payout) || 0;
-      currentByDay[row.day].orders += Number(row.orders_count) || 0;
+      currentByMonth[monthKey].sales += Number(row.sales) || 0;
+      currentByMonth[monthKey].payout += Number(row.payout) || 0;
+      currentByMonth[monthKey].orders += Number(row.orders_count) || 0;
     });
     
-    // Aggregate previous period by day
-    const prevByDay: Record<string, { sales: number; payout: number; orders: number }> = {};
+    // Aggregate previous period by month
+    const prevByMonth: Record<string, { sales: number; payout: number; orders: number }> = {};
     previousPeriodData.forEach(row => {
-      if (!prevByDay[row.day]) {
-        prevByDay[row.day] = { sales: 0, payout: 0, orders: 0 };
+      const monthKey = format(new Date(row.day), "yyyy-MM");
+      if (!prevByMonth[monthKey]) {
+        prevByMonth[monthKey] = { sales: 0, payout: 0, orders: 0 };
       }
-      prevByDay[row.day].sales += Number(row.sales) || 0;
-      prevByDay[row.day].payout += Number(row.payout) || 0;
-      prevByDay[row.day].orders += Number(row.orders_count) || 0;
+      prevByMonth[monthKey].sales += Number(row.sales) || 0;
+      prevByMonth[monthKey].payout += Number(row.payout) || 0;
+      prevByMonth[monthKey].orders += Number(row.orders_count) || 0;
     });
     
-    // Build aligned chart data
-    return allDays.map((day, index) => {
-      const dateStr = format(day, "yyyy-MM-dd");
-      const current = currentByDay[dateStr] || { sales: 0, payout: 0, orders: 0 };
+    // Build aligned chart data by month
+    return allMonths.map((month) => {
+      const monthKey = format(month, "yyyy-MM");
+      const current = currentByMonth[monthKey] || { sales: 0, payout: 0, orders: 0 };
       
-      // Calculate previous date based on comparison mode
-      let prevDateStr: string;
+      // Calculate previous month key based on comparison mode
+      let prevMonthKey: string;
       if (comparisonMode === "rollingPeriod") {
-        const prevDay = subWeeks(day, 4);
-        prevDateStr = format(prevDay, "yyyy-MM-dd");
+        const prevMonth = subWeeks(month, 4);
+        prevMonthKey = format(startOfMonth(prevMonth), "yyyy-MM");
       } else {
-        const prevDay = subYears(day, 1);
-        prevDateStr = format(prevDay, "yyyy-MM-dd");
+        const prevMonth = subYears(month, 1);
+        prevMonthKey = format(prevMonth, "yyyy-MM");
       }
-      const previous = prevByDay[prevDateStr] || { sales: 0, payout: 0, orders: 0 };
+      const previous = prevByMonth[prevMonthKey] || { sales: 0, payout: 0, orders: 0 };
       
       const profitability = current.sales > 0 ? (current.payout / current.sales) * 100 : null;
       const prevProfitability = previous.sales > 0 ? (previous.payout / previous.sales) * 100 : null;
       
       return {
-        date: dateStr,
-        dateLabel: format(day, "d MMM", { locale: fr }),
-        dayOfWeek: format(day, "EEE", { locale: fr }),
+        month: monthKey,
+        monthLabel: format(month, "MMM", { locale: fr }),
+        monthFull: format(month, "MMMM yyyy", { locale: fr }),
         profitability,
         prevProfitability,
         sales: current.sales,
@@ -135,8 +135,6 @@ export const ProfitabilityComparisonChart = ({
         prevSales: previous.sales,
         prevPayout: previous.payout,
         prevOrders: previous.orders,
-        currentDate: dateStr,
-        prevDate: prevDateStr,
       };
     });
   }, [currentPeriodData, previousPeriodData, dateRange, comparisonMode]);
@@ -156,41 +154,34 @@ export const ProfitabilityComparisonChart = ({
   }, [chartData]);
 
   // Period labels
-  const currentLabel = comparisonMode === "rollingPeriod" 
-    ? "Actuel" 
-    : format(dateRange.start, "MMM yyyy", { locale: fr });
-  const prevLabel = comparisonMode === "rollingPeriod" 
+  const selectedYear = format(dateRange.start, "yyyy");
+  const prevYear = comparisonMode === "rollingPeriod" 
     ? "-4 sem." 
-    : format(previousDateRange.start, "MMM yyyy", { locale: fr });
+    : format(previousDateRange.start, "yyyy");
 
   // Check if we have previous data
   const hasPrevData = prevTotalSales > 0;
 
-  // Dynamic Y-axis domain
-  const { minY, maxY } = useMemo(() => {
-    let min = Infinity, max = -Infinity;
-    chartData.forEach(d => {
-      if (d.profitability !== null) {
-        min = Math.min(min, d.profitability);
-        max = Math.max(max, d.profitability);
-      }
-      if (d.prevProfitability !== null) {
-        min = Math.min(min, d.prevProfitability);
-        max = Math.max(max, d.prevProfitability);
-      }
-    });
-    if (min === Infinity || max === -Infinity) {
-      return { minY: 50, maxY: 80 };
-    }
-    const margin = (max - min) * 0.15 || 5;
-    return { 
-      minY: Math.floor(Math.max(0, min - margin)), 
-      maxY: Math.ceil(Math.min(100, max + margin)) 
-    };
+  // Dynamic Y-axis domain with zoom effect (like Panier Moyen)
+  const profitabilityDomain = useMemo(() => {
+    const values = chartData.flatMap(d => 
+      [d.profitability, d.prevProfitability].filter((v): v is number => v !== null && v > 0)
+    );
+    if (values.length === 0) return [50, 70];
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 5;
+    
+    // Ajouter une marge de 20% pour la lisibilité
+    return [
+      Math.floor(Math.max(0, min - range * 0.2)),
+      Math.ceil(Math.min(100, max + range * 0.2))
+    ];
   }, [chartData]);
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  // Custom tooltip (like Panier Moyen style)
+  const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     
     const data = payload[0]?.payload;
@@ -206,15 +197,15 @@ export const ProfitabilityComparisonChart = ({
       : "";
     
     return (
-      <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-sm min-w-[200px]">
-        <p className="font-semibold mb-2">{data.dayOfWeek}. {label}</p>
+      <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-sm min-w-[180px]">
+        <p className="font-semibold mb-2 capitalize">{data.monthFull}</p>
         
         <div className="space-y-1.5">
           {/* Current */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm bg-emerald-500" />
-              <span className="text-muted-foreground">{currentLabel}</span>
+              <div className="w-3 h-3 rounded-full bg-emerald-500" />
+              <span className="text-muted-foreground">{selectedYear}</span>
             </div>
             <span className="font-semibold text-emerald-600">
               {profitability !== null ? `${profitability.toFixed(1)}%` : "--"}
@@ -225,8 +216,8 @@ export const ProfitabilityComparisonChart = ({
           {hasPrevData && (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-sm bg-muted-foreground/50" />
-                <span className="text-muted-foreground">{prevLabel}</span>
+                <div className="w-3 h-3 rounded-full bg-muted-foreground/50" />
+                <span className="text-muted-foreground">{prevYear}</span>
               </div>
               <span className="text-muted-foreground">
                 {prevProfitability !== null ? `${prevProfitability.toFixed(1)}%` : "--"}
@@ -245,18 +236,6 @@ export const ProfitabilityComparisonChart = ({
               </div>
             </div>
           )}
-          
-          {/* Details */}
-          <div className="pt-2 border-t border-border text-xs text-muted-foreground">
-            <div className="flex justify-between">
-              <span>Ventes</span>
-              <span>{data.sales?.toLocaleString("fr-FR")} €</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Payout</span>
-              <span>{data.payout?.toLocaleString("fr-FR")} €</span>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -265,11 +244,10 @@ export const ProfitabilityComparisonChart = ({
   // Export to Excel
   const handleExportExcel = () => {
     const exportData = chartData.map(row => ({
-      "Date": row.dateLabel,
-      "Jour": row.dayOfWeek,
-      [`Rentabilité ${currentLabel}`]: row.profitability?.toFixed(1) || "--",
+      "Mois": row.monthFull,
+      [`Rentabilité ${selectedYear}`]: row.profitability?.toFixed(1) || "--",
       ...(hasPrevData ? { 
-        [`Rentabilité ${prevLabel}`]: row.prevProfitability?.toFixed(1) || "--",
+        [`Rentabilité ${prevYear}`]: row.prevProfitability?.toFixed(1) || "--",
         "Variation (pp)": row.profitability !== null && row.prevProfitability !== null 
           ? (row.profitability - row.prevProfitability).toFixed(1) 
           : "--"
@@ -294,32 +272,42 @@ export const ProfitabilityComparisonChart = ({
 
   return (
     <div className="space-y-4">
-      {/* Header with KPIs and controls */}
+      {/* Header with KPIs (Panier Moyen style) */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        {/* Left: Icon + title + KPIs */}
+        {/* Left: Icon + title + KPIs in single styled block */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Percent className="h-5 w-5 text-emerald-500" />
             <span className="font-semibold">Rentabilité globale</span>
           </div>
           
-          {/* KPIs inline */}
-          <div className="flex items-center gap-3 text-sm">
-            <div className="px-3 py-1.5 bg-emerald-500/10 rounded-lg">
-              <span className="font-bold text-emerald-600">{totalProfitability.toFixed(1)}%</span>
+          {/* KPIs block (like Panier Moyen) */}
+          <div className="flex items-center gap-4 px-4 py-2.5 bg-muted/30 rounded-xl">
+            <div className="flex items-center gap-2.5">
+              <Percent className="h-5 w-5 text-emerald-500" />
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">{selectedYear}</p>
+                <p className="text-base font-bold">{totalProfitability.toFixed(1)}%</p>
+              </div>
             </div>
+            
             {hasPrevData && (
               <>
-                <span className="text-muted-foreground">vs</span>
-                <div className="px-3 py-1.5 bg-muted/50 rounded-lg">
-                  <span className="text-muted-foreground">{prevTotalProfitability.toFixed(1)}%</span>
+                <div className="h-10 w-px bg-border" />
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">{prevYear}</p>
+                  <p className="text-sm text-muted-foreground">{prevTotalProfitability.toFixed(1)}%</p>
                 </div>
+                
+                <div className="h-10 w-px bg-border" />
                 <div className={cn(
-                  "px-3 py-1.5 rounded-lg font-semibold",
-                  variation > 0 ? "bg-emerald-500/10 text-emerald-600" : 
-                  variation < 0 ? "bg-red-500/10 text-red-600" : "bg-muted/50 text-muted-foreground"
+                  "flex items-center gap-1 font-semibold text-base",
+                  variation > 0 ? "text-emerald-500" : variation < 0 ? "text-red-500" : "text-muted-foreground"
                 )}>
-                  {variation > 0 ? "+" : ""}{variation.toFixed(1)}pp
+                  {variation > 0 ? <ArrowUp className="h-4 w-4" /> : 
+                   variation < 0 ? <ArrowDown className="h-4 w-4" /> : 
+                   <Minus className="h-4 w-4" />}
+                  <span>{variation > 0 ? "+" : ""}{variation.toFixed(1)}pp</span>
                 </div>
               </>
             )}
@@ -349,28 +337,6 @@ export const ProfitabilityComparisonChart = ({
               <span className="text-xs hidden sm:inline">Tableau</span>
             </Button>
           </div>
-          
-          {/* Chart type toggle (only in chart mode) */}
-          {viewMode === 'chart' && (
-            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-              <Button 
-                variant={chartType === 'bar' ? 'secondary' : 'ghost'} 
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => setChartType('bar')}
-              >
-                <BarChart3 className="h-4 w-4" />
-              </Button>
-              <Button 
-                variant={chartType === 'line' ? 'secondary' : 'ghost'} 
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => setChartType('line')}
-              >
-                <TrendingUp className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
           
           {/* Rolling period toggle */}
           {onComparisonModeChange && (
@@ -411,89 +377,50 @@ export const ProfitabilityComparisonChart = ({
         </div>
       </div>
       
-      {/* Chart */}
+      {/* Chart - Line only with smooth curves (like Panier Moyen) */}
       {viewMode === 'chart' && (
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            {chartType === 'bar' ? (
-              <BarChart data={chartData} barGap={2}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis 
-                  dataKey="dateLabel" 
-                  className="text-xs"
-                  tick={{ fontSize: 11 }}
-                  interval="preserveStartEnd"
-                />
-                <YAxis 
-                  domain={[minY, maxY]}
-                  className="text-xs"
-                  tickFormatter={(v) => `${v}%`}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                
-                {/* Previous period bars (background) */}
-                {hasPrevData && (
-                  <Bar 
-                    dataKey="prevProfitability" 
-                    fill="hsl(var(--muted-foreground))" 
-                    fillOpacity={0.3}
-                    radius={[2, 2, 0, 0]}
-                    name={prevLabel}
-                  />
-                )}
-                
-                {/* Current period bars */}
-                <Bar 
-                  dataKey="profitability" 
-                  fill="hsl(142 71% 45%)"
-                  radius={[4, 4, 0, 0]}
-                  name={currentLabel}
-                />
-              </BarChart>
-            ) : (
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis 
-                  dataKey="dateLabel" 
-                  className="text-xs"
-                  tick={{ fontSize: 11 }}
-                  interval="preserveStartEnd"
-                />
-                <YAxis 
-                  domain={[minY, maxY]}
-                  className="text-xs"
-                  tickFormatter={(v) => `${v}%`}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                
-                {/* Previous period line */}
-                {hasPrevData && (
-                  <Line 
-                    type="monotone"
-                    dataKey="prevProfitability" 
-                    stroke="hsl(var(--muted-foreground))"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    strokeOpacity={0.5}
-                    dot={false}
-                    name={prevLabel}
-                    connectNulls
-                  />
-                )}
-                
-                {/* Current period line */}
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+              <XAxis 
+                dataKey="monthLabel" 
+                className="text-xs"
+                tick={{ fontSize: 12 }}
+                interval={0}
+              />
+              <YAxis 
+                domain={profitabilityDomain}
+                className="text-xs"
+                tickFormatter={(v) => `${v}%`}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              
+              {/* Previous period line (dashed, muted) */}
+              {hasPrevData && (
                 <Line 
                   type="monotone"
-                  dataKey="profitability" 
-                  stroke="hsl(142 71% 45%)"
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: "hsl(142 71% 45%)" }}
-                  activeDot={{ r: 5 }}
-                  name={currentLabel}
+                  dataKey="prevProfitability" 
+                  stroke="hsl(var(--muted-foreground))"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  strokeOpacity={0.6}
+                  dot={{ r: 3, fill: "hsl(var(--muted-foreground))" }}
                   connectNulls
                 />
-              </LineChart>
-            )}
+              )}
+              
+              {/* Current period line (solid, bold) */}
+              <Line 
+                type="monotone"
+                dataKey="profitability" 
+                stroke="hsl(142 71% 45%)"
+                strokeWidth={3}
+                dot={{ r: 4, fill: "hsl(142 71% 45%)" }}
+                activeDot={{ r: 6 }}
+                connectNulls
+              />
+            </LineChart>
           </ResponsiveContainer>
         </div>
       )}
@@ -504,11 +431,11 @@ export const ProfitabilityComparisonChart = ({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Rentabilité {currentLabel}</TableHead>
+                <TableHead>Mois</TableHead>
+                <TableHead className="text-right">Rentabilité {selectedYear}</TableHead>
                 {hasPrevData && (
                   <>
-                    <TableHead className="text-right">Rentabilité {prevLabel}</TableHead>
+                    <TableHead className="text-right">Rentabilité {prevYear}</TableHead>
                     <TableHead className="text-right">Variation</TableHead>
                   </>
                 )}
@@ -520,7 +447,7 @@ export const ProfitabilityComparisonChart = ({
             <TableBody>
               {chartData.map((row, index) => (
                 <TableRow key={index}>
-                  <TableCell className="font-medium">{row.dayOfWeek}. {row.dateLabel}</TableCell>
+                  <TableCell className="font-medium capitalize">{row.monthFull}</TableCell>
                   <TableCell className="text-right font-semibold text-emerald-600">
                     {row.profitability !== null ? `${row.profitability.toFixed(1)}%` : "--"}
                   </TableCell>
