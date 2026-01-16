@@ -54,6 +54,7 @@ import { RevenuePerVisitKPI } from "./RevenuePerVisitKPI";
 import { SelectedRestaurantsRankingChart } from "./SelectedRestaurantsRankingChart";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
 import { ProfitabilityComparisonTable } from "./ProfitabilityComparisonTable";
+import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
 import { OrdersAnalysisSection } from "./OrdersAnalysisSection";
 import {
   LineChart,
@@ -209,6 +210,14 @@ interface ContextualEvent {
   icon: string;
 }
 
+interface DailyProfitabilityRow {
+  restaurant_id: string;
+  day: string;
+  sales: number;
+  payout: number;
+  orders_count: number;
+}
+
 interface AnalyticsChartsProps {
   revenueData: MonthlyRevenue[] | undefined;
   conversionData: MonthlyConversion[] | undefined;
@@ -244,6 +253,13 @@ interface AnalyticsChartsProps {
   onDrillDownChange?: (month: number | null) => void;
   // Contextual events
   contextualEvents?: ContextualEvent[];
+  // Profitability comparison chart props
+  profitabilityData?: DailyProfitabilityRow[];
+  prevProfitabilityData?: DailyProfitabilityRow[];
+  profitabilityDateRange?: { start: Date; end: Date };
+  profitabilityPrevDateRange?: { start: Date; end: Date };
+  profitabilityComparisonMode?: "yearOverYear" | "rollingPeriod";
+  onProfitabilityComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
 }
 
 // Action category colors
@@ -522,6 +538,13 @@ export function AnalyticsCharts({
   drillDownMonth,
   onDrillDownChange,
   contextualEvents = [],
+  // Profitability chart props (renamed to avoid conflict with local profitabilityData)
+  profitabilityData: chartProfitabilityData,
+  prevProfitabilityData: chartPrevProfitabilityData,
+  profitabilityDateRange,
+  profitabilityPrevDateRange,
+  profitabilityComparisonMode = "yearOverYear",
+  onProfitabilityComparisonModeChange,
 }: AnalyticsChartsProps) {
   const prevYear = selectedYear - 1;
   
@@ -2820,7 +2843,22 @@ export function AnalyticsCharts({
       </Card>
       )}
 
-      {/* Top 10 Restaurants by Revenue */}
+      {/* Évolution de la Rentabilité - Comparaison Période */}
+      {showRevenue && chartProfitabilityData && chartProfitabilityData.length > 0 && profitabilityDateRange && profitabilityPrevDateRange && (
+        <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg overflow-hidden">
+          <CardContent className="pt-6">
+            <ProfitabilityComparisonChart 
+              currentPeriodData={chartProfitabilityData}
+              previousPeriodData={chartPrevProfitabilityData || []}
+              dateRange={profitabilityDateRange}
+              previousDateRange={profitabilityPrevDateRange}
+              comparisonMode={profitabilityComparisonMode}
+              onComparisonModeChange={onProfitabilityComparisonModeChange}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {showRevenue && isMultiRestaurant && topRestaurantsData.length > 0 && (
       <Card>
         <CardHeader>

@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, subYears, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, FileDown, Zap } from "lucide-react";
@@ -79,6 +79,9 @@ export default function Analytics() {
   const [showHolidays, setShowHolidays] = useState(false);
   const [showSchoolHolidays, setShowSchoolHolidays] = useState(false);
   const [showFootballMatches, setShowFootballMatches] = useState(false);
+  
+  // Profitability chart comparison mode state
+  const [profitabilityComparisonMode, setProfitabilityComparisonMode] = useState<"yearOverYear" | "rollingPeriod">("yearOverYear");
 
   // Handler for synchronized drill-down (changes global context)
   const handleMonthDrillDown = (month: number | null) => {
@@ -332,6 +335,57 @@ export default function Analytics() {
       return null;
     },
     enabled: !!drillDownMonth || viewMode === "finances",
+  });
+
+  // ========== PROFITABILITY DATA ==========
+  // Calculate previous period range for profitability comparison
+  const profitabilityPrevRange = useMemo(() => {
+    if (profitabilityComparisonMode === "rollingPeriod") {
+      return { start: subWeeks(startDate, 4), end: subWeeks(endDate, 4) };
+    }
+    return { start: subYears(startDate, 1), end: subYears(endDate, 1) };
+  }, [startDate, endDate, profitabilityComparisonMode]);
+
+  // Fetch profitability data for current period
+  const { data: profitabilityData } = useQuery({
+    queryKey: ["analytics_profitability", restaurantFilter, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const ids = restaurantFilter || restaurants?.filter(r => r.is_pinned).map(r => r.id) || [];
+      if (!ids.length) return [];
+      
+      const { data, error } = await supabase.rpc("get_profitability_daily", {
+        p_restaurant_ids: ids,
+        p_start_date: format(startDate, "yyyy-MM-dd"),
+        p_end_date: format(endDate, "yyyy-MM-dd"),
+      });
+      if (error) {
+        console.error("[Analytics] get_profitability_daily error:", error);
+        throw error;
+      }
+      return data || [];
+    },
+    enabled: (restaurants?.length || 0) > 0,
+  });
+
+  // Fetch profitability data for previous period
+  const { data: prevProfitabilityData } = useQuery({
+    queryKey: ["analytics_profitability_prev", restaurantFilter, format(profitabilityPrevRange.start, "yyyy-MM-dd"), format(profitabilityPrevRange.end, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const ids = restaurantFilter || restaurants?.filter(r => r.is_pinned).map(r => r.id) || [];
+      if (!ids.length) return [];
+      
+      const { data, error } = await supabase.rpc("get_profitability_daily", {
+        p_restaurant_ids: ids,
+        p_start_date: format(profitabilityPrevRange.start, "yyyy-MM-dd"),
+        p_end_date: format(profitabilityPrevRange.end, "yyyy-MM-dd"),
+      });
+      if (error) {
+        console.error("[Analytics] get_profitability_daily prev error:", error);
+        throw error;
+      }
+      return data || [];
+    },
+    enabled: (restaurants?.length || 0) > 0,
   });
 
   // ========== HYBRID DATA SOURCE LOGIC ==========
@@ -1230,6 +1284,12 @@ export default function Analytics() {
                   drillDownMonth={drillDownMonth}
                   onDrillDownChange={handleMonthDrillDown}
                   contextualEvents={allContextualEvents}
+                  profitabilityData={profitabilityData}
+                  prevProfitabilityData={prevProfitabilityData}
+                  profitabilityDateRange={{ start: startDate, end: endDate }}
+                  profitabilityPrevDateRange={profitabilityPrevRange}
+                  profitabilityComparisonMode={profitabilityComparisonMode}
+                  onProfitabilityComparisonModeChange={setProfitabilityComparisonMode}
                 />
               );
             }
