@@ -518,13 +518,16 @@ Deno.serve(async (req) => {
       const existing = ordersMap.get(key);
       
       if (existing) {
-        // Merge: sum numeric financial fields
-        existing.sales_excl_vat = (existing.sales_excl_vat || 0) + (order.sales_excl_vat || 0);
+        // Merge: TOTALS use MAX (they are repeated identically on each CSV line)
+        existing.sales_excl_vat = Math.max(existing.sales_excl_vat || 0, order.sales_excl_vat || 0);
+        existing.sales_incl_vat = Math.max(existing.sales_incl_vat || 0, order.sales_incl_vat || 0);
+        existing.gross_amount = Math.max(existing.gross_amount || 0, order.gross_amount || 0);
+        existing.order_total_incl_vat = Math.max(existing.order_total_incl_vat || 0, order.order_total_incl_vat || 0);
+        
+        // COMPONENTS: sum (they differ between CSV lines for the same order)
         existing.vat_1_sales = (existing.vat_1_sales || 0) + (order.vat_1_sales || 0);
         existing.vat_2_sales = (existing.vat_2_sales || 0) + (order.vat_2_sales || 0);
         existing.vat_3_sales = (existing.vat_3_sales || 0) + (order.vat_3_sales || 0);
-        existing.sales_incl_vat = (existing.sales_incl_vat || 0) + (order.sales_incl_vat || 0);
-        existing.gross_amount = (existing.gross_amount || 0) + (order.gross_amount || 0);
         existing.refund_excl_vat = (existing.refund_excl_vat || 0) + (order.refund_excl_vat || 0);
         existing.vat_1_refund = (existing.vat_1_refund || 0) + (order.vat_1_refund || 0);
         existing.vat_2_refund = (existing.vat_2_refund || 0) + (order.vat_2_refund || 0);
@@ -552,7 +555,6 @@ Deno.serve(async (req) => {
         existing.delivery_promo_excl_vat = (existing.delivery_promo_excl_vat || 0) + (order.delivery_promo_excl_vat || 0);
         existing.vat_delivery_promo = (existing.vat_delivery_promo || 0) + (order.vat_delivery_promo || 0);
         existing.delivery_promo_incl_vat = (existing.delivery_promo_incl_vat || 0) + (order.delivery_promo_incl_vat || 0);
-        existing.order_total_incl_vat = (existing.order_total_incl_vat || 0) + (order.order_total_incl_vat || 0);
         existing.delivery_cost_excl_vat = (existing.delivery_cost_excl_vat || 0) + (order.delivery_cost_excl_vat || 0);
         existing.vat_delivery_cost = (existing.vat_delivery_cost || 0) + (order.vat_delivery_cost || 0);
         existing.delivery_cost_incl_vat = (existing.delivery_cost_incl_vat || 0) + (order.delivery_cost_incl_vat || 0);
