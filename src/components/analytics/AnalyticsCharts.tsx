@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { format, startOfWeek, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,20 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  DndContext,
-  closestCenter,
-  DragEndEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
-import { SortableChartCard } from "./SortableChartCard";
 import {
   TrendingUp,
   TrendingDown,
@@ -48,8 +34,6 @@ import {
   ArrowLeftRight,
   CalendarDays,
   LayoutList,
-  RotateCcw,
-  GripVertical,
 } from "lucide-react";
 import { RevenueDataTable } from "./RevenueDataTable";
 import { ConversionFunnelChart } from "./ConversionFunnelChart";
@@ -620,101 +604,6 @@ export function AnalyticsCharts({
   // State for payout detail sheet
   const [selectedPayoutDate, setSelectedPayoutDate] = useState<string | null>(null);
   const [payoutDetailOpen, setPayoutDetailOpen] = useState(false);
-
-  // ========== CHART ORDERING STATE ==========
-  // Default order of charts for revenue view
-  const REVENUE_CHART_IDS = ["revenue-evolution", "orders-evolution", "avg-basket", "profitability", "top-restaurants", "restaurant-distribution"];
-  const CONVERSION_CHART_IDS = ["conversion-funnel", "conversion-rate", "conversion-ranking", "conversion-scatter", "leaky-bucket"];
-  const FINANCES_CHART_IDS = ["fees-breakdown", "net-payout", "profitability-table"];
-  
-  const getDefaultOrder = useCallback((mode: string) => {
-    switch (mode) {
-      case "revenue": return REVENUE_CHART_IDS;
-      case "conversion": return CONVERSION_CHART_IDS;
-      case "finances": return FINANCES_CHART_IDS;
-      default: return [...REVENUE_CHART_IDS, ...CONVERSION_CHART_IDS, ...FINANCES_CHART_IDS];
-    }
-  }, []);
-  
-  const [chartOrder, setChartOrder] = useState<string[]>(() => {
-    try {
-      const storageKey = `analytics_chart_order_${viewMode}`;
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const defaultOrder = getDefaultOrder(viewMode);
-        // Validate saved order
-        const validOrder = parsed.filter((id: string) => defaultOrder.includes(id));
-        const missingCharts = defaultOrder.filter((id: string) => !validOrder.includes(id));
-        return [...validOrder, ...missingCharts];
-      }
-    } catch (e) {
-      console.warn("Failed to parse chart order", e);
-    }
-    return getDefaultOrder(viewMode);
-  });
-
-  // Persist chart order
-  useEffect(() => {
-    const storageKey = `analytics_chart_order_${viewMode}`;
-    localStorage.setItem(storageKey, JSON.stringify(chartOrder));
-  }, [chartOrder, viewMode]);
-  
-  // Reset order when viewMode changes
-  useEffect(() => {
-    const storageKey = `analytics_chart_order_${viewMode}`;
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      try {
-        setChartOrder(JSON.parse(saved));
-      } catch {
-        setChartOrder(getDefaultOrder(viewMode));
-      }
-    } else {
-      setChartOrder(getDefaultOrder(viewMode));
-    }
-  }, [viewMode, getDefaultOrder]);
-
-  const isCustomOrder = chartOrder.join(",") !== getDefaultOrder(viewMode).join(",");
-
-  // DnD sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    })
-  );
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      setChartOrder((items) => {
-        const oldIndex = items.indexOf(active.id as string);
-        const newIndex = items.indexOf(over.id as string);
-        return arrayMove(items, oldIndex, newIndex);
-      });
-    }
-  }, []);
-
-  const moveChart = useCallback((chartId: string, direction: "up" | "down") => {
-    setChartOrder((items) => {
-      const currentIndex = items.indexOf(chartId);
-      if (currentIndex === -1) return items;
-      const newIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-      if (newIndex < 0 || newIndex >= items.length) return items;
-      return arrayMove(items, currentIndex, newIndex);
-    });
-  }, []);
-
-  const resetChartOrder = useCallback(() => {
-    setChartOrder(getDefaultOrder(viewMode));
-  }, [viewMode, getDefaultOrder]);
-
-  // Get chart order index for a given chart ID
-  const getChartIndex = useCallback((chartId: string) => {
-    const index = chartOrder.indexOf(chartId);
-    return index === -1 ? 999 : index;
-  }, [chartOrder]);
-  // ========== END CHART ORDERING ==========
 
   const createToggle = (setter: React.Dispatch<React.SetStateAction<Set<string>>>) => (dataKey: string) => {
     setter(prev => {
@@ -1939,20 +1828,8 @@ export function AnalyticsCharts({
 
   return (
     <div className="space-y-6">
-      {/* Chart reordering controls */}
-      {isCustomOrder && (
-        <div className="flex justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={resetChartOrder}
-            className="text-muted-foreground hover:text-foreground gap-2"
-          >
-            <RotateCcw className="h-4 w-4" />
-            Réinitialiser l'ordre des graphiques
-          </Button>
-        </div>
-      )}
+      {/* Actions are now filtered by ActionFilterPopover in parent */}
+
 
       {/* Revenue Chart with N-1 comparison */}
       {showRevenue && (
