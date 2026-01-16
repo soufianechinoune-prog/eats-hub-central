@@ -119,7 +119,8 @@ const ProfitabilityComparison = () => {
         .select("restaurant_id, order_datetime, sales_incl_vat, net_payout, meal_voucher_amount")
         .in("restaurant_id", pinnedRestaurants.map(r => r.id))
         .gte("order_datetime", `${startStr}T00:00:00`)
-        .lte("order_datetime", `${endStr}T23:59:59`);
+        .lte("order_datetime", `${endStr}T23:59:59`)
+        .limit(50000);
       
       if (error) throw error;
       return data || [];
