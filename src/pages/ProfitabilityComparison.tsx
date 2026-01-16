@@ -1,11 +1,11 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
-import { ArrowLeft, Percent } from "lucide-react";
+import { ArrowLeft, Percent, RefreshCw, Bug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
@@ -14,14 +14,51 @@ import { ProfitabilityInsightsSection } from "@/components/compare/Profitability
 import { ProfitabilityHeatmapGrid } from "@/components/compare/ProfitabilityHeatmapGrid";
 import { ProfitabilityEvolutionChart } from "@/components/compare/ProfitabilityEvolutionChart";
 
+// Fonction pour fetcher TOUTES les commandes avec pagination
+async function fetchAllOrdersForPeriod(
+  restaurantIds: string[],
+  startStr: string,
+  endStr: string
+): Promise<any[]> {
+  const PAGE_SIZE = 10000;
+  let allData: any[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("restaurant_id, order_datetime, sales_incl_vat, net_payout, meal_voucher_amount")
+      .in("restaurant_id", restaurantIds)
+      .gte("order_datetime", `${startStr}T00:00:00`)
+      .lte("order_datetime", `${endStr}T23:59:59`)
+      .order("order_datetime", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = allData.concat(data);
+      from += PAGE_SIZE;
+      hasMore = data.length === PAGE_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 const ProfitabilityComparison = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   // Period state - same as Overview
   const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("previous_week");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
+  const [showDebug, setShowDebug] = useState(false);
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
@@ -103,9 +140,11 @@ const ProfitabilityComparison = () => {
       return data || [];
     },
     enabled: !!pinnedRestaurants?.length,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
-  // Fetch daily orders data for detailed evolution chart
+  // Fetch daily orders data for detailed evolution chart - WITH PAGINATION
   const { data: ordersData, isLoading } = useQuery({
     queryKey: ["profitability-comparison-orders", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
@@ -114,19 +153,39 @@ const ProfitabilityComparison = () => {
       const startStr = format(dateRange.start, "yyyy-MM-dd");
       const endStr = format(dateRange.end, "yyyy-MM-dd");
       
-      const { data, error } = await supabase
-        .from("orders")
-        .select("restaurant_id, order_datetime, sales_incl_vat, net_payout, meal_voucher_amount")
-        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
-        .gte("order_datetime", `${startStr}T00:00:00`)
-        .lte("order_datetime", `${endStr}T23:59:59`)
-        .limit(50000);
-      
-      if (error) throw error;
-      return data || [];
+      return fetchAllOrdersForPeriod(
+        pinnedRestaurants.map(r => r.id),
+        startStr,
+        endStr
+      );
     },
     enabled: !!pinnedRestaurants?.length,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
+
+  // Debug info
+  const debugInfo = useMemo(() => {
+    if (!ordersData?.length) return null;
+    const dates = ordersData
+      .map(o => o.order_datetime?.split("T")[0])
+      .filter(Boolean);
+    const uniqueDates = [...new Set(dates)].sort();
+    return {
+      totalOrders: ordersData.length,
+      minDate: uniqueDates[0] || "N/A",
+      maxDate: uniqueDates[uniqueDates.length - 1] || "N/A",
+      uniqueDays: uniqueDates.length,
+      periodStart: format(dateRange.start, "dd/MM/yyyy"),
+      periodEnd: format(dateRange.end, "dd/MM/yyyy"),
+    };
+  }, [ordersData, dateRange]);
+
+  // Refresh function
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["profitability-comparison-orders"] });
+    queryClient.invalidateQueries({ queryKey: ["profitability-comparison-payouts"] });
+  };
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
@@ -230,17 +289,50 @@ const ProfitabilityComparison = () => {
             </div>
           </div>
           
-          <OverviewPeriodSelector
-            periodMode={periodMode}
-            onPeriodModeChange={setPeriodMode}
-            selectedYear={selectedYear}
-            onYearChange={setSelectedYear}
-            selectedMonth={selectedMonth}
-            onMonthChange={setSelectedMonth}
-            dateRange={customDateRange}
-            onDateRangeChange={setCustomDateRange}
-          />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              title="Rafraîchir les données"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={showDebug ? "default" : "outline"}
+              size="icon"
+              onClick={() => setShowDebug(!showDebug)}
+              title="Afficher/Masquer debug"
+            >
+              <Bug className="h-4 w-4" />
+            </Button>
+            <OverviewPeriodSelector
+              periodMode={periodMode}
+              onPeriodModeChange={setPeriodMode}
+              selectedYear={selectedYear}
+              onYearChange={setSelectedYear}
+              selectedMonth={selectedMonth}
+              onMonthChange={setSelectedMonth}
+              dateRange={customDateRange}
+              onDateRangeChange={setCustomDateRange}
+            />
+          </div>
         </div>
+
+        {/* Debug Panel */}
+        {showDebug && debugInfo && (
+          <Card className="bg-yellow-500/10 border-yellow-500/50">
+            <CardContent className="py-3">
+              <div className="flex flex-wrap gap-4 text-sm">
+                <div><strong>Période:</strong> {debugInfo.periodStart} → {debugInfo.periodEnd}</div>
+                <div><strong>Commandes:</strong> {debugInfo.totalOrders.toLocaleString()}</div>
+                <div><strong>Jours uniques:</strong> {debugInfo.uniqueDays}</div>
+                <div><strong>Min date:</strong> {debugInfo.minDate}</div>
+                <div><strong>Max date:</strong> {debugInfo.maxDate}</div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
