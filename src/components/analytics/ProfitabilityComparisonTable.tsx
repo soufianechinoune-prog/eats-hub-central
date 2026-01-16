@@ -747,6 +747,9 @@ export function ProfitabilityComparisonTable({
                           {index === comparisonData.length - 1 && comparisonData.length > 1 && (
                             <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">BAS</Badge>
                           )}
+                          <Badge variant="secondary" className="text-[10px] px-1.5 font-normal">
+                            Sem. {row.weekNumber}
+                          </Badge>
                           {isSingleRestaurant ? (
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
