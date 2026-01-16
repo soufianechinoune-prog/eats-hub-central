@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { format, eachDayOfInterval, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
@@ -62,12 +62,14 @@ const ActionMarkerLabel = ({
   viewBox, 
   actions, 
   color, 
-  onActionClick 
+  onActionClick,
+  chartWidth = 800
 }: { 
   viewBox?: { x?: number; y?: number };
   actions: RestaurantAction[]; 
   color: string;
   onActionClick?: (actionId: string) => void;
+  chartWidth?: number;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   
@@ -75,6 +77,21 @@ const ActionMarkerLabel = ({
   
   const x = viewBox.x;
   const y = 10;
+  const tooltipWidth = 220;
+  
+  // Positionnement dynamique : à droite si proche du bord gauche, à gauche sinon
+  const isNearLeftEdge = x < tooltipWidth + 50;
+  const isNearRightEdge = x > chartWidth - tooltipWidth - 50;
+  
+  // Calcul de la position X du tooltip
+  let tooltipX: number;
+  if (isNearLeftEdge) {
+    tooltipX = x + 15; // Afficher à droite du marqueur
+  } else if (isNearRightEdge) {
+    tooltipX = x - tooltipWidth - 15; // Afficher à gauche du marqueur
+  } else {
+    tooltipX = x - tooltipWidth / 2; // Centré par défaut
+  }
 
   const handleMarkerClick = () => {
     if (actions.length === 1 && onActionClick) {
@@ -102,9 +119,9 @@ const ActionMarkerLabel = ({
         cy={y}
         r={8}
         fill={color}
-        fillOpacity={0.15}
+        fillOpacity={0.2}
         stroke={color}
-        strokeWidth={1.5}
+        strokeWidth={2}
         style={{ cursor: "pointer" }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -126,11 +143,11 @@ const ActionMarkerLabel = ({
       {/* Tooltip riche */}
       {isHovered && (
         <foreignObject
-          x={x - 220}
+          x={tooltipX}
           y={y + 14}
-          width={210}
-          height={Math.min(actions.length * 70 + 30, 220)}
-          style={{ overflow: "visible", pointerEvents: "none" }}
+          width={tooltipWidth}
+          height={Math.min(actions.length * 70 + 40, 250)}
+          style={{ overflow: "visible", pointerEvents: "none", zIndex: 99999 }}
         >
           <div
             className="bg-popover border border-border rounded-lg shadow-xl p-2.5 text-xs pointer-events-auto"
@@ -199,6 +216,20 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }:
   });
   const [open, setOpen] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const [chartWidth, setChartWidth] = useState(800);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  // Track chart width for tooltip positioning
+  useEffect(() => {
+    const updateWidth = () => {
+      if (chartContainerRef.current) {
+        setChartWidth(chartContainerRef.current.offsetWidth);
+      }
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
   // Update selection when stats change
   useEffect(() => {
@@ -460,7 +491,7 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }:
       </div>
 
       {/* Chart */}
-      <div className="h-[350px]">
+      <div className="h-[350px]" ref={chartContainerRef}>
         {selectedStats.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             Sélectionnez au moins un restaurant
@@ -520,6 +551,7 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }:
                           viewBox={props.viewBox} 
                           actions={dayActions} 
                           color={color}
+                          chartWidth={chartWidth}
                           onActionClick={(id) => {
                             console.log("Action clicked:", id);
                           }}
