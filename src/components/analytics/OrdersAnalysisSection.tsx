@@ -572,9 +572,9 @@ export function OrdersAnalysisSection({
                               </TableCell>
                               <TableCell className={cn(
                                 "text-right tabular-nums",
-                                getProfitabilityColor((dailyTotals.netPayout / dailyTotals.sales) * 100)
+                                getProfitabilityColor((dailyTotals.totalPayout / dailyTotals.sales) * 100)
                               )}>
-                                {formatPercent((dailyTotals.netPayout / dailyTotals.sales) * 100)}
+                                {formatPercent((dailyTotals.totalPayout / dailyTotals.sales) * 100)}
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-orange-600">
                                 {dailyTotals.commission > 0 ? `-${formatCurrency(dailyTotals.commission)}` : '-'}
