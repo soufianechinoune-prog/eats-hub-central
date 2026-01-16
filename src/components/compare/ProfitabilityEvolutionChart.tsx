@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { format, eachDayOfInterval, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -280,6 +281,13 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }:
   
   const handleTooltipLeave = () => {
     setActionTooltip(null);
+  };
+
+  // Navigation vers la page Actions avec highlight
+  const navigate = useNavigate();
+  const handleActionClick = (actionId: string) => {
+    setActionTooltip(null);
+    navigate(`/actions?highlight=${actionId}`);
   };
 
   // Track chart width for tooltip positioning
@@ -618,9 +626,7 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }:
                             color={color}
                             onHover={handleActionHover}
                             onLeave={handleActionLeave}
-                            onActionClick={(id) => {
-                              console.log("Action clicked:", id);
-                            }}
+                            onActionClick={handleActionClick}
                           />
                         )}
                       />
@@ -653,10 +659,7 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }:
                 chartWidth={chartWidth}
                 onMouseEnter={handleTooltipEnter}
                 onMouseLeave={handleTooltipLeave}
-                onActionClick={(id) => {
-                  console.log("Action clicked:", id);
-                  setActionTooltip(null);
-                }}
+                onActionClick={handleActionClick}
               />
             )}
           </>
