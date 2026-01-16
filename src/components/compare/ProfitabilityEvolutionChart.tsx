@@ -5,7 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown, Zap } from "lucide-react";
+import { ChevronDown, Zap, Camera, Euro, Gift, Megaphone, UtensilsCrossed, Settings } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useRestaurantActions, ACTION_CATEGORY_COLORS, ACTION_CATEGORY_LABELS, RestaurantAction } from "@/hooks/useRestaurantActions";
@@ -47,54 +47,143 @@ const COLORS = [
   "#22c55e", // green
 ];
 
+// Category icons mapping
+const ACTION_CATEGORY_ICONS: Record<string, any> = {
+  visuals: Camera,
+  pricing: Euro,
+  promotions: Gift,
+  marketing: Megaphone,
+  menu: UtensilsCrossed,
+  operational: Settings,
+};
+
 // Action marker label component
-const ActionMarkerLabel = ({ actions, color }: { actions: RestaurantAction[]; color: string }) => {
+const ActionMarkerLabel = ({ 
+  viewBox, 
+  actions, 
+  color, 
+  onActionClick 
+}: { 
+  viewBox?: { x?: number; y?: number };
+  actions: RestaurantAction[]; 
+  color: string;
+  onActionClick?: (actionId: string) => void;
+}) => {
   const [isHovered, setIsHovered] = useState(false);
   
+  if (!viewBox?.x) return null;
+  
+  const x = viewBox.x;
+  const y = 10;
+
+  const handleMarkerClick = () => {
+    if (actions.length === 1 && onActionClick) {
+      onActionClick(actions[0].id);
+    }
+  };
+  
   return (
-    <g
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{ cursor: "pointer" }}
-    >
+    <g>
+      {/* Zone de clic invisible plus grande */}
+      <rect
+        x={x - 12}
+        y={y - 8}
+        width={24}
+        height={20}
+        fill="transparent"
+        style={{ cursor: "pointer" }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onClick={handleMarkerClick}
+      />
+      {/* Cercle avec meilleur contraste */}
       <circle
-        cx={0}
-        cy={10}
+        cx={x}
+        cy={y}
         r={8}
         fill={color}
-        stroke="white"
-        strokeWidth={2}
+        fillOpacity={0.15}
+        stroke={color}
+        strokeWidth={1.5}
+        style={{ cursor: "pointer" }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onClick={handleMarkerClick}
       />
+      {/* Icône ou nombre */}
       <text
-        x={0}
-        y={14}
+        x={x}
+        y={y + 3.5}
         textAnchor="middle"
-        fill="white"
-        fontSize={10}
+        fill={color}
+        fontSize={9}
         fontWeight="bold"
+        style={{ pointerEvents: "none" }}
       >
-        ⚡
+        {actions.length > 1 ? actions.length : "⚡"}
       </text>
+      
+      {/* Tooltip riche */}
       {isHovered && (
-        <foreignObject x={-120} y={20} width={240} height={150}>
-          <div className="bg-popover border border-border rounded-lg shadow-lg p-2 text-xs">
-            {actions.slice(0, 3).map((action, idx) => (
-              <div key={action.id} className={cn("py-1", idx > 0 && "border-t border-border")}>
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: ACTION_CATEGORY_COLORS[action.category] || "#64748b" }}
-                  />
-                  <span className="text-muted-foreground">
-                    {ACTION_CATEGORY_LABELS[action.category] || action.category}
-                  </span>
-                </div>
-                <p className="font-medium truncate">{action.title}</p>
-              </div>
-            ))}
-            {actions.length > 3 && (
-              <p className="text-muted-foreground mt-1">+{actions.length - 3} autres</p>
-            )}
+        <foreignObject
+          x={x - 220}
+          y={y + 14}
+          width={210}
+          height={Math.min(actions.length * 70 + 30, 220)}
+          style={{ overflow: "visible", pointerEvents: "none" }}
+        >
+          <div
+            className="bg-popover border border-border rounded-lg shadow-xl p-2.5 text-xs pointer-events-auto"
+            style={{ zIndex: 9999 }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
+            <div className="font-medium text-foreground mb-2 flex items-center gap-1.5 pb-1.5 border-b border-border">
+              <Zap className="h-3.5 w-3.5" style={{ color }} />
+              {actions.length} action{actions.length > 1 ? "s" : ""}
+            </div>
+            <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
+              {actions.map((action, idx) => {
+                const Icon = ACTION_CATEGORY_ICONS[action.category] || Zap;
+                const categoryColor = ACTION_CATEGORY_COLORS[action.category] || "#64748b";
+                const date = new Date(action.start_date);
+                const formattedDate = date.toLocaleDateString("fr-FR", { 
+                  day: "numeric", 
+                  month: "short",
+                  year: "numeric"
+                });
+                
+                return (
+                  <div 
+                    key={action.id || idx} 
+                    className="flex items-start gap-2 p-1.5 rounded bg-muted/50 hover:bg-muted cursor-pointer transition-colors group"
+                    onClick={() => onActionClick?.(action.id)}
+                  >
+                    <Icon 
+                      className="h-3.5 w-3.5 mt-0.5 shrink-0" 
+                      style={{ color: categoryColor }} 
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                        {action.title}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <span 
+                          className="text-[10px] px-1 py-0.5 rounded"
+                          style={{
+                            backgroundColor: `${categoryColor}20`,
+                            color: categoryColor 
+                          }}
+                        >
+                          {ACTION_CATEGORY_LABELS[action.category] || action.category}
+                        </span>
+                        <span className="text-[10px]">{formattedDate}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </foreignObject>
       )}
@@ -420,14 +509,23 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }:
                 const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
                 
                 return (
-                  <ReferenceLine
-                    key={`action-${dateStr}`}
-                    x={dateLabel}
-                    stroke={color}
-                    strokeWidth={2}
-                    strokeDasharray="4 4"
-                    label={<ActionMarkerLabel actions={dayActions} color={color} />}
-                  />
+                    <ReferenceLine
+                      key={`action-${dateStr}`}
+                      x={dateLabel}
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      label={(props) => (
+                        <ActionMarkerLabel 
+                          viewBox={props.viewBox} 
+                          actions={dayActions} 
+                          color={color}
+                          onActionClick={(id) => {
+                            console.log("Action clicked:", id);
+                          }}
+                        />
+                      )}
+                    />
                 );
               })}
               
