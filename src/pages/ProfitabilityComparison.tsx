@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from "date-fns";
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { ArrowLeft, Percent, RefreshCw, Bug } from "lucide-react";
@@ -14,39 +14,13 @@ import { ProfitabilityInsightsSection } from "@/components/compare/Profitability
 import { ProfitabilityHeatmapGrid } from "@/components/compare/ProfitabilityHeatmapGrid";
 import { ProfitabilityEvolutionChart } from "@/components/compare/ProfitabilityEvolutionChart";
 
-// Fonction pour fetcher TOUTES les commandes avec pagination
-async function fetchAllOrdersForPeriod(
-  restaurantIds: string[],
-  startStr: string,
-  endStr: string
-): Promise<any[]> {
-  const PAGE_SIZE = 10000;
-  let allData: any[] = [];
-  let from = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data, error } = await supabase
-      .from("orders")
-      .select("restaurant_id, order_datetime, sales_incl_vat, net_payout, meal_voucher_amount")
-      .in("restaurant_id", restaurantIds)
-      .gte("order_datetime", `${startStr}T00:00:00`)
-      .lte("order_datetime", `${endStr}T23:59:59`)
-      .order("order_datetime", { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
-
-    if (error) throw error;
-
-    if (data && data.length > 0) {
-      allData = allData.concat(data);
-      from += PAGE_SIZE;
-      hasMore = data.length === PAGE_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allData;
+// Type for the RPC result
+interface DailyProfitabilityRow {
+  restaurant_id: string;
+  day: string;
+  sales: number;
+  payout: number;
+  orders_count: number;
 }
 
 const ProfitabilityComparison = () => {
@@ -117,10 +91,10 @@ const ProfitabilityComparison = () => {
       if (error) throw error;
       return data || [];
     },
-    staleTime: 0, // Toujours refetch pour avoir les données fraîches
+    staleTime: 0,
   });
 
-  // Fetch payouts data for the period (for aggregated stats)
+  // Fetch payouts data for the period (for aggregated stats like promo, refunds, uber fees)
   const { data: payoutsData } = useQuery({
     queryKey: ["profitability-comparison-payouts", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
@@ -144,20 +118,23 @@ const ProfitabilityComparison = () => {
     refetchOnWindowFocus: true,
   });
 
-  // Fetch daily orders data for detailed evolution chart - WITH PAGINATION
-  const { data: ordersData, isLoading } = useQuery({
-    queryKey: ["profitability-comparison-orders", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+  // Fetch daily aggregated data using RPC (NO more pagination issues!)
+  const { data: dailyAggregatedData, isLoading } = useQuery({
+    queryKey: ["profitability-daily-rpc", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
       
       const startStr = format(dateRange.start, "yyyy-MM-dd");
       const endStr = format(dateRange.end, "yyyy-MM-dd");
       
-      return fetchAllOrdersForPeriod(
-        pinnedRestaurants.map(r => r.id),
-        startStr,
-        endStr
-      );
+      const { data, error } = await supabase.rpc("get_profitability_daily", {
+        p_restaurant_ids: pinnedRestaurants.map(r => r.id),
+        p_start_date: startStr,
+        p_end_date: endStr,
+      });
+      
+      if (error) throw error;
+      return (data || []) as DailyProfitabilityRow[];
     },
     enabled: !!pinnedRestaurants?.length,
     staleTime: 0,
@@ -166,24 +143,23 @@ const ProfitabilityComparison = () => {
 
   // Debug info
   const debugInfo = useMemo(() => {
-    if (!ordersData?.length) return null;
-    const dates = ordersData
-      .map(o => o.order_datetime?.split("T")[0])
-      .filter(Boolean);
-    const uniqueDates = [...new Set(dates)].sort();
+    if (!dailyAggregatedData?.length) return null;
+    const uniqueDays = [...new Set(dailyAggregatedData.map(d => d.day))].sort();
+    const totalOrders = dailyAggregatedData.reduce((sum, d) => sum + Number(d.orders_count || 0), 0);
     return {
-      totalOrders: ordersData.length,
-      minDate: uniqueDates[0] || "N/A",
-      maxDate: uniqueDates[uniqueDates.length - 1] || "N/A",
-      uniqueDays: uniqueDates.length,
+      totalRows: dailyAggregatedData.length,
+      totalOrders,
+      minDate: uniqueDays[0] || "N/A",
+      maxDate: uniqueDays[uniqueDays.length - 1] || "N/A",
+      uniqueDays: uniqueDays.length,
       periodStart: format(dateRange.start, "dd/MM/yyyy"),
       periodEnd: format(dateRange.end, "dd/MM/yyyy"),
     };
-  }, [ordersData, dateRange]);
+  }, [dailyAggregatedData, dateRange]);
 
   // Refresh function
   const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["profitability-comparison-orders"] });
+    queryClient.invalidateQueries({ queryKey: ["profitability-daily-rpc"] });
     queryClient.invalidateQueries({ queryKey: ["profitability-comparison-payouts"] });
   };
 
@@ -193,66 +169,65 @@ const ProfitabilityComparison = () => {
     
     const stats = pinnedRestaurants.map(restaurant => {
       const restaurantPayouts = payoutsData?.filter(d => d.restaurant_id === restaurant.id) || [];
-      const restaurantOrders = ordersData?.filter(d => d.restaurant_id === restaurant.id) || [];
+      const restaurantDailyData = dailyAggregatedData?.filter(d => d.restaurant_id === restaurant.id) || [];
       
-      // Aggregate totals from payouts (for accurate overall stats)
-      const totalSales = restaurantPayouts.reduce((sum, p) => sum + Math.abs(Number(p.sales_incl_vat) || 0), 0);
+      // Aggregate totals from payouts (for accurate overall stats including promo, fees, refunds)
+      const totalSalesFromPayouts = restaurantPayouts.reduce((sum, p) => sum + Math.abs(Number(p.sales_incl_vat) || 0), 0);
       const totalNetPayout = restaurantPayouts.reduce((sum, p) => sum + Number(p.net_payout || 0), 0);
       const totalMealVoucher = restaurantPayouts.reduce((sum, p) => sum + Math.abs(Number(p.meal_voucher_amount) || 0), 0);
-      const totalOrders = restaurantPayouts.reduce((sum, p) => sum + Number(p.order_count || 0), 0);
+      const totalOrdersFromPayouts = restaurantPayouts.reduce((sum, p) => sum + Number(p.order_count || 0), 0);
       const totalPromo = restaurantPayouts.reduce((sum, p) => sum + Math.abs(Number(p.item_promo_incl_vat) || 0), 0);
       const totalRefund = restaurantPayouts.reduce((sum, p) => sum + Math.abs(Number(p.refund_incl_vat) || 0), 0);
       const totalUberFee = restaurantPayouts.reduce((sum, p) => sum + Math.abs(Number(p.uber_fee_after_promo_incl_vat) || 0), 0);
       
-      // Calculate profitability
+      // Use RPC data for daily/evolution charts (more reliable!)
+      const totalSalesFromRPC = restaurantDailyData.reduce((sum, d) => sum + Number(d.sales || 0), 0);
+      const totalPayoutFromRPC = restaurantDailyData.reduce((sum, d) => sum + Number(d.payout || 0), 0);
+      const totalOrdersFromRPC = restaurantDailyData.reduce((sum, d) => sum + Number(d.orders_count || 0), 0);
+      
+      // Calculate profitability from payouts (most accurate for totals)
       const totalPayout = totalNetPayout + totalMealVoucher;
-      const profitability = totalSales > 0 ? (totalPayout / totalSales) * 100 : 0;
+      const profitability = totalSalesFromPayouts > 0 ? (totalPayout / totalSalesFromPayouts) * 100 : 0;
       
       // Calculate rates
-      const uberFeeRate = totalSales > 0 ? (totalUberFee / totalSales) * 100 : 0;
-      const promoRate = totalSales > 0 ? (totalPromo / totalSales) * 100 : 0;
-      const refundRate = totalSales > 0 ? (totalRefund / totalSales) * 100 : 0;
+      const uberFeeRate = totalSalesFromPayouts > 0 ? (totalUberFee / totalSalesFromPayouts) * 100 : 0;
+      const promoRate = totalSalesFromPayouts > 0 ? (totalPromo / totalSalesFromPayouts) * 100 : 0;
+      const refundRate = totalSalesFromPayouts > 0 ? (totalRefund / totalSalesFromPayouts) * 100 : 0;
       
-      // Group orders by date for DAILY evolution (this gives us real daily data!)
+      // Build dailyData from RPC result (already aggregated by day!)
       const dailyData: Record<string, { sales: number; payout: number; orders: number }> = {};
-      restaurantOrders.forEach(order => {
-        if (order.order_datetime) {
-          const date = format(new Date(order.order_datetime), "yyyy-MM-dd");
-          if (!dailyData[date]) {
-            dailyData[date] = { sales: 0, payout: 0, orders: 0 };
-          }
-          dailyData[date].sales += Math.abs(Number(order.sales_incl_vat) || 0);
-          dailyData[date].payout += Number(order.net_payout || 0) + Math.abs(Number(order.meal_voucher_amount) || 0);
-          dailyData[date].orders += 1;
-        }
+      restaurantDailyData.forEach(d => {
+        dailyData[d.day] = {
+          sales: Number(d.sales || 0),
+          payout: Number(d.payout || 0),
+          orders: Number(d.orders_count || 0),
+        };
       });
 
-      // Group by day of week (from orders for accuracy)
+      // Group by day of week from RPC data
       const weekdayData: Record<number, { sales: number; payout: number; count: number }> = {};
-      restaurantOrders.forEach(order => {
-        if (order.order_datetime) {
-          const date = new Date(order.order_datetime);
-          const weekday = date.getDay();
-          if (!weekdayData[weekday]) {
-            weekdayData[weekday] = { sales: 0, payout: 0, count: 0 };
-          }
-          weekdayData[weekday].sales += Math.abs(Number(order.sales_incl_vat) || 0);
-          weekdayData[weekday].payout += Number(order.net_payout || 0) + Math.abs(Number(order.meal_voucher_amount) || 0);
-          weekdayData[weekday].count += 1;
+      restaurantDailyData.forEach(d => {
+        const date = new Date(d.day);
+        const weekday = getDay(date);
+        if (!weekdayData[weekday]) {
+          weekdayData[weekday] = { sales: 0, payout: 0, count: 0 };
         }
+        weekdayData[weekday].sales += Number(d.sales || 0);
+        weekdayData[weekday].payout += Number(d.payout || 0);
+        weekdayData[weekday].count += Number(d.orders_count || 0);
       });
       
       return {
         id: restaurant.id,
         name: restaurant.name,
         profitability,
-        totalSales,
-        totalPayout,
-        totalOrders,
+        totalSales: totalSalesFromPayouts || totalSalesFromRPC,
+        totalPayout: totalPayout || totalPayoutFromRPC,
+        totalOrders: totalOrdersFromPayouts || totalOrdersFromRPC,
         uberFeeRate,
         promoRate,
         refundRate,
-        avgBasket: totalOrders > 0 ? totalSales / totalOrders : 0,
+        avgBasket: totalOrdersFromPayouts > 0 ? totalSalesFromPayouts / totalOrdersFromPayouts : 0,
         dailyData,
         weekdayData,
         payoutsCount: restaurantPayouts.length,
@@ -262,7 +237,7 @@ const ProfitabilityComparison = () => {
     
     // Sort by profitability (highest first)
     return stats.sort((a, b) => b.profitability - a.profitability);
-  }, [payoutsData, ordersData, pinnedRestaurants]);
+  }, [payoutsData, dailyAggregatedData, pinnedRestaurants]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -325,7 +300,8 @@ const ProfitabilityComparison = () => {
             <CardContent className="py-3">
               <div className="flex flex-wrap gap-4 text-sm">
                 <div><strong>Période:</strong> {debugInfo.periodStart} → {debugInfo.periodEnd}</div>
-                <div><strong>Commandes:</strong> {debugInfo.totalOrders.toLocaleString()}</div>
+                <div><strong>Lignes RPC:</strong> {debugInfo.totalRows}</div>
+                <div><strong>Commandes totales:</strong> {debugInfo.totalOrders.toLocaleString()}</div>
                 <div><strong>Jours uniques:</strong> {debugInfo.uniqueDays}</div>
                 <div><strong>Min date:</strong> {debugInfo.minDate}</div>
                 <div><strong>Max date:</strong> {debugInfo.maxDate}</div>
