@@ -335,7 +335,11 @@ const ProfitabilityComparison = () => {
                 <CardTitle className="text-lg">Évolution de la rentabilité</CardTitle>
               </CardHeader>
               <CardContent>
-                <ProfitabilityEvolutionChart stats={restaurantStats} dateRange={dateRange} />
+                <ProfitabilityEvolutionChart 
+                  stats={restaurantStats} 
+                  dateRange={dateRange} 
+                  restaurantIds={pinnedRestaurants?.map(r => r.id)}
+                />
               </CardContent>
             </Card>
 

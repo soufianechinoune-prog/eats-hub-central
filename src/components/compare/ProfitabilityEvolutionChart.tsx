@@ -5,9 +5,12 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Zap } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useRestaurantActions, ACTION_CATEGORY_COLORS, ACTION_CATEGORY_LABELS, RestaurantAction } from "@/hooks/useRestaurantActions";
+import { cn } from "@/lib/utils";
 
 interface RestaurantStats {
   id: string;
@@ -19,6 +22,7 @@ interface RestaurantStats {
 interface ProfitabilityEvolutionChartProps {
   stats: RestaurantStats[];
   dateRange: { start: Date; end: Date };
+  restaurantIds?: string[];
 }
 
 const MAX_SELECTION = 8;
@@ -42,13 +46,69 @@ const COLORS = [
   "#22c55e", // green
 ];
 
-export const ProfitabilityEvolutionChart = ({ stats, dateRange }: ProfitabilityEvolutionChartProps) => {
+// Action marker label component
+const ActionMarkerLabel = ({ actions, color }: { actions: RestaurantAction[]; color: string }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  return (
+    <g
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{ cursor: "pointer" }}
+    >
+      <circle
+        cx={0}
+        cy={10}
+        r={8}
+        fill={color}
+        stroke="white"
+        strokeWidth={2}
+      />
+      <text
+        x={0}
+        y={14}
+        textAnchor="middle"
+        fill="white"
+        fontSize={10}
+        fontWeight="bold"
+      >
+        ⚡
+      </text>
+      {isHovered && (
+        <foreignObject x={-120} y={20} width={240} height={150}>
+          <div className="bg-popover border border-border rounded-lg shadow-lg p-2 text-xs">
+            {actions.slice(0, 3).map((action, idx) => (
+              <div key={action.id} className={cn("py-1", idx > 0 && "border-t border-border")}>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: ACTION_CATEGORY_COLORS[action.category] || "#64748b" }}
+                  />
+                  <span className="text-muted-foreground">
+                    {ACTION_CATEGORY_LABELS[action.category] || action.category}
+                  </span>
+                </div>
+                <p className="font-medium truncate">{action.title}</p>
+              </div>
+            ))}
+            {actions.length > 3 && (
+              <p className="text-muted-foreground mt-1">+{actions.length - 3} autres</p>
+            )}
+          </div>
+        </foreignObject>
+      )}
+    </g>
+  );
+};
+
+export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }: ProfitabilityEvolutionChartProps) => {
   // Initialize with top performers (by profitability)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
     const top = stats.slice(0, Math.min(5, stats.length)).map(s => s.id);
     return new Set(top);
   });
   const [open, setOpen] = useState(false);
+  const [showActions, setShowActions] = useState(false);
 
   // Update selection when stats change
   useEffect(() => {
@@ -66,6 +126,33 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange }: ProfitabilityE
     stats.filter(s => selectedIds.has(s.id)), 
     [stats, selectedIds]
   );
+
+  // Fetch actions for the selected restaurants
+  const year = dateRange.start.getFullYear();
+  const { data: actions = [] } = useRestaurantActions(
+    year,
+    restaurantIds,
+    "uber_eats"
+  );
+
+  // Group actions by date
+  const actionsByDate = useMemo(() => {
+    const map: Record<string, RestaurantAction[]> = {};
+    actions.forEach(action => {
+      const dateStr = format(new Date(action.start_date), "yyyy-MM-dd");
+      if (!map[dateStr]) map[dateStr] = [];
+      map[dateStr].push(action);
+    });
+    return map;
+  }, [actions]);
+
+  // Filter action dates within the displayed period
+  const actionDates = useMemo(() => {
+    return Object.keys(actionsByDate).filter(dateStr => {
+      const date = parseISO(dateStr);
+      return date >= dateRange.start && date <= dateRange.end;
+    });
+  }, [actionsByDate, dateRange]);
 
   const chartData = useMemo(() => {
     // NOUVEAU: Générer TOUS les jours de la période (pas seulement ceux avec data)
@@ -244,6 +331,35 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange }: ProfitabilityE
           </PopoverContent>
         </Popover>
 
+        {/* Actions toggle */}
+        <TooltipProvider>
+          <UITooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={actions.length === 0}
+                className={cn(
+                  "h-8 w-8 p-0 rounded-full",
+                  showActions 
+                    ? "bg-primary/10 text-primary" 
+                    : "bg-muted/50 text-muted-foreground"
+                )}
+                onClick={() => setShowActions(!showActions)}
+              >
+                <Zap className={cn("h-4 w-4", showActions && "fill-primary")} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="text-xs">
+                {actions.length === 0 
+                  ? "Aucune action enregistrée" 
+                  : showActions ? "Masquer les actions" : `Afficher ${actions.length} action${actions.length > 1 ? 's' : ''}`}
+              </p>
+            </TooltipContent>
+          </UITooltip>
+        </TooltipProvider>
+
         {/* Selected badges */}
         <div className="flex flex-wrap gap-1">
           {selectedStats.map((restaurant, idx) => {
@@ -305,6 +421,26 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange }: ProfitabilityE
                   fontSize: 11
                 }}
               />
+              
+              {/* Action markers */}
+              {showActions && actionDates.map(dateStr => {
+                const dateLabel = format(parseISO(dateStr), "d MMM", { locale: fr });
+                const dayActions = actionsByDate[dateStr] || [];
+                const primaryAction = dayActions[0];
+                if (!primaryAction) return null;
+                const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                
+                return (
+                  <ReferenceLine
+                    key={`action-${dateStr}`}
+                    x={dateLabel}
+                    stroke={color}
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    label={<ActionMarkerLabel actions={dayActions} color={color} />}
+                  />
+                );
+              })}
               
               {selectedStats.map((restaurant) => {
                 const originalIndex = stats.findIndex(s => s.id === restaurant.id);
