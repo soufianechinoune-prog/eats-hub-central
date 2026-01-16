@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getDay } from "date-fns";
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getDay, subYears, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { ArrowLeft, Percent, RefreshCw, Bug } from "lucide-react";
@@ -13,6 +13,7 @@ import { ProfitabilityRankingBars } from "@/components/compare/ProfitabilityRank
 import { ProfitabilityInsightsSection } from "@/components/compare/ProfitabilityInsightsSection";
 import { ProfitabilityHeatmapGrid } from "@/components/compare/ProfitabilityHeatmapGrid";
 import { ProfitabilityEvolutionChart } from "@/components/compare/ProfitabilityEvolutionChart";
+import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
 
 // Type for the RPC result
 interface DailyProfitabilityRow {
@@ -33,6 +34,7 @@ const ProfitabilityComparison = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
   const [showDebug, setShowDebug] = useState(false);
+  const [comparisonMode, setComparisonMode] = useState<"yearOverYear" | "rollingPeriod">("yearOverYear");
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
@@ -70,6 +72,20 @@ const ProfitabilityComparison = () => {
         return { start: subDays(now, 7), end: now };
     }
   }, [periodMode, selectedYear, selectedMonth, customDateRange]);
+
+  // Calculate previous date range for comparison
+  const previousDateRange = useMemo(() => {
+    if (comparisonMode === "rollingPeriod") {
+      return {
+        start: subWeeks(dateRange.start, 4),
+        end: subWeeks(dateRange.end, 4),
+      };
+    }
+    return {
+      start: subYears(dateRange.start, 1),
+      end: subYears(dateRange.end, 1),
+    };
+  }, [dateRange, comparisonMode]);
 
   // Derive period type for child components
   const periodType = useMemo(() => {
@@ -141,6 +157,29 @@ const ProfitabilityComparison = () => {
     refetchOnWindowFocus: true,
   });
 
+  // Fetch previous period daily data for comparison chart
+  const { data: previousDailyData } = useQuery({
+    queryKey: ["profitability-daily-prev", pinnedRestaurants?.map(r => r.id), previousDateRange.start, previousDateRange.end],
+    queryFn: async () => {
+      if (!pinnedRestaurants?.length) return [];
+      
+      const startStr = format(previousDateRange.start, "yyyy-MM-dd");
+      const endStr = format(previousDateRange.end, "yyyy-MM-dd");
+      
+      const { data, error } = await supabase.rpc("get_profitability_daily", {
+        p_restaurant_ids: pinnedRestaurants.map(r => r.id),
+        p_start_date: startStr,
+        p_end_date: endStr,
+      });
+      
+      if (error) throw error;
+      return (data || []) as DailyProfitabilityRow[];
+    },
+    enabled: !!pinnedRestaurants?.length,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+
   // Debug info
   const debugInfo = useMemo(() => {
     if (!dailyAggregatedData?.length) return null;
@@ -160,6 +199,7 @@ const ProfitabilityComparison = () => {
   // Refresh function
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["profitability-daily-rpc"] });
+    queryClient.invalidateQueries({ queryKey: ["profitability-daily-prev"] });
     queryClient.invalidateQueries({ queryKey: ["profitability-comparison-payouts"] });
   };
 
@@ -316,6 +356,20 @@ const ProfitabilityComparison = () => {
           </div>
         ) : (
           <div className="grid gap-6">
+            {/* NEW: Profitability Comparison Chart (Period vs Period) */}
+            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
+              <CardContent className="pt-6">
+                <ProfitabilityComparisonChart 
+                  currentPeriodData={dailyAggregatedData || []}
+                  previousPeriodData={previousDailyData || []}
+                  dateRange={dateRange}
+                  previousDateRange={previousDateRange}
+                  comparisonMode={comparisonMode}
+                  onComparisonModeChange={setComparisonMode}
+                />
+              </CardContent>
+            </Card>
+
             {/* Insights Section */}
             <ProfitabilityInsightsSection stats={restaurantStats} period={periodType} />
 
@@ -332,7 +386,7 @@ const ProfitabilityComparison = () => {
             {/* Evolution Chart */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
               <CardHeader>
-                <CardTitle className="text-lg">Évolution de la rentabilité</CardTitle>
+                <CardTitle className="text-lg">Évolution par restaurant</CardTitle>
               </CardHeader>
               <CardContent>
                 <ProfitabilityEvolutionChart 
