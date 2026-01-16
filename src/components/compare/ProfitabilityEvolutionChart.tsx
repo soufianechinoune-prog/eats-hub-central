@@ -8,9 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, Zap } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRestaurantActions, ACTION_CATEGORY_COLORS, ACTION_CATEGORY_LABELS, RestaurantAction } from "@/hooks/useRestaurantActions";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface RestaurantStats {
   id: string;
@@ -332,33 +333,21 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }:
         </Popover>
 
         {/* Actions toggle */}
-        <TooltipProvider>
-          <UITooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={actions.length === 0}
-                className={cn(
-                  "h-8 w-8 p-0 rounded-full",
-                  showActions 
-                    ? "bg-primary/10 text-primary" 
-                    : "bg-muted/50 text-muted-foreground"
-                )}
-                onClick={() => setShowActions(!showActions)}
-              >
-                <Zap className={cn("h-4 w-4", showActions && "fill-primary")} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="text-xs">
-                {actions.length === 0 
-                  ? "Aucune action enregistrée" 
-                  : showActions ? "Masquer les actions" : `Afficher ${actions.length} action${actions.length > 1 ? 's' : ''}`}
-              </p>
-            </TooltipContent>
-          </UITooltip>
-        </TooltipProvider>
+        <div className="flex items-center gap-2">
+          <Zap className="h-4 w-4 text-primary" />
+          <Label 
+            htmlFor="show-profitability-actions" 
+            className="text-sm font-medium cursor-pointer"
+          >
+            Afficher les actions
+          </Label>
+          <Switch
+            id="show-profitability-actions"
+            checked={showActions}
+            onCheckedChange={setShowActions}
+            disabled={actions.length === 0}
+          />
+        </div>
 
         {/* Selected badges */}
         <div className="flex flex-wrap gap-1">
