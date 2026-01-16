@@ -57,41 +57,34 @@ const ACTION_CATEGORY_ICONS: Record<string, any> = {
   operational: Settings,
 };
 
-// Action marker label component
+// Action tooltip data type for HTML overlay
+interface ActionTooltipData {
+  x: number;
+  y: number;
+  actions: RestaurantAction[];
+  color: string;
+}
+
+// Action marker label component - simplified, only renders the marker
 const ActionMarkerLabel = ({ 
   viewBox, 
   actions, 
   color, 
-  onActionClick,
-  chartWidth = 800
+  onHover,
+  onLeave,
+  onActionClick
 }: { 
   viewBox?: { x?: number; y?: number };
   actions: RestaurantAction[]; 
   color: string;
+  onHover: (x: number, actions: RestaurantAction[], color: string) => void;
+  onLeave: () => void;
   onActionClick?: (actionId: string) => void;
-  chartWidth?: number;
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  
   if (!viewBox?.x) return null;
   
   const x = viewBox.x;
   const y = 10;
-  const tooltipWidth = 220;
-  
-  // Positionnement dynamique : à droite si proche du bord gauche, à gauche sinon
-  const isNearLeftEdge = x < tooltipWidth + 50;
-  const isNearRightEdge = x > chartWidth - tooltipWidth - 50;
-  
-  // Calcul de la position X du tooltip
-  let tooltipX: number;
-  if (isNearLeftEdge) {
-    tooltipX = x + 15; // Afficher à droite du marqueur
-  } else if (isNearRightEdge) {
-    tooltipX = x - tooltipWidth - 15; // Afficher à gauche du marqueur
-  } else {
-    tooltipX = x - tooltipWidth / 2; // Centré par défaut
-  }
 
   const handleMarkerClick = () => {
     if (actions.length === 1 && onActionClick) {
@@ -109,22 +102,34 @@ const ActionMarkerLabel = ({
         height={20}
         fill="transparent"
         style={{ cursor: "pointer" }}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseEnter={() => onHover(x, actions, color)}
+        onMouseLeave={onLeave}
         onClick={handleMarkerClick}
       />
-      {/* Cercle avec meilleur contraste */}
+      {/* Halo blanc pour meilleure lisibilité */}
+      <circle
+        cx={x}
+        cy={y}
+        r={10}
+        fill="white"
+        fillOpacity={0.9}
+        style={{ cursor: "pointer" }}
+        onMouseEnter={() => onHover(x, actions, color)}
+        onMouseLeave={onLeave}
+        onClick={handleMarkerClick}
+      />
+      {/* Cercle principal */}
       <circle
         cx={x}
         cy={y}
         r={8}
         fill={color}
-        fillOpacity={0.2}
+        fillOpacity={0.25}
         stroke={color}
-        strokeWidth={2}
+        strokeWidth={2.5}
         style={{ cursor: "pointer" }}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseEnter={() => onHover(x, actions, color)}
+        onMouseLeave={onLeave}
         onClick={handleMarkerClick}
       />
       {/* Icône ou nombre */}
@@ -139,72 +144,100 @@ const ActionMarkerLabel = ({
       >
         {actions.length > 1 ? actions.length : "⚡"}
       </text>
-      
-      {/* Tooltip riche */}
-      {isHovered && (
-        <foreignObject
-          x={tooltipX}
-          y={y + 14}
-          width={tooltipWidth}
-          height={Math.min(actions.length * 70 + 40, 250)}
-          style={{ overflow: "visible", pointerEvents: "none", zIndex: 99999 }}
-        >
-          <div
-            className="bg-popover border border-border rounded-lg shadow-xl p-2.5 text-xs pointer-events-auto"
-            style={{ zIndex: 9999 }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-          >
-            <div className="font-medium text-foreground mb-2 flex items-center gap-1.5 pb-1.5 border-b border-border">
-              <Zap className="h-3.5 w-3.5" style={{ color }} />
-              {actions.length} action{actions.length > 1 ? "s" : ""}
-            </div>
-            <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
-              {actions.map((action, idx) => {
-                const Icon = ACTION_CATEGORY_ICONS[action.category] || Zap;
-                const categoryColor = ACTION_CATEGORY_COLORS[action.category] || "#64748b";
-                const date = new Date(action.start_date);
-                const formattedDate = date.toLocaleDateString("fr-FR", { 
-                  day: "numeric", 
-                  month: "short",
-                  year: "numeric"
-                });
-                
-                return (
-                  <div 
-                    key={action.id || idx} 
-                    className="flex items-start gap-2 p-1.5 rounded bg-muted/50 hover:bg-muted cursor-pointer transition-colors group"
-                    onClick={() => onActionClick?.(action.id)}
-                  >
-                    <Icon 
-                      className="h-3.5 w-3.5 mt-0.5 shrink-0" 
-                      style={{ color: categoryColor }} 
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                        {action.title}
-                      </div>
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <span 
-                          className="text-[10px] px-1 py-0.5 rounded"
-                          style={{
-                            backgroundColor: `${categoryColor}20`,
-                            color: categoryColor 
-                          }}
-                        >
-                          {ACTION_CATEGORY_LABELS[action.category] || action.category}
-                        </span>
-                        <span className="text-[10px]">{formattedDate}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </foreignObject>
-      )}
     </g>
+  );
+};
+
+// HTML Action Tooltip component - rendered outside SVG
+const ActionTooltipOverlay = ({
+  tooltip,
+  chartWidth,
+  onMouseEnter,
+  onMouseLeave,
+  onActionClick
+}: {
+  tooltip: ActionTooltipData;
+  chartWidth: number;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onActionClick?: (actionId: string) => void;
+}) => {
+  const tooltipWidth = 260;
+  const tooltipHeight = Math.min(tooltip.actions.length * 70 + 50, 280);
+  
+  // Calcul position X avec anti-clipping
+  let left = tooltip.x + 20; // Par défaut à droite du marqueur
+  if (left + tooltipWidth > chartWidth - 10) {
+    left = tooltip.x - tooltipWidth - 20; // À gauche si pas de place à droite
+  }
+  if (left < 10) {
+    left = 10; // Minimum 10px du bord
+  }
+  
+  // Position Y fixe en haut du chart (30px du haut)
+  const top = 30;
+
+  return (
+    <div
+      className="absolute bg-popover border border-border rounded-lg shadow-2xl p-3 text-xs"
+      style={{
+        left,
+        top,
+        width: tooltipWidth,
+        maxHeight: tooltipHeight,
+        zIndex: 9999,
+        pointerEvents: "auto"
+      }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      <div className="font-semibold text-foreground mb-2.5 flex items-center gap-2 pb-2 border-b border-border">
+        <Zap className="h-4 w-4" style={{ color: tooltip.color }} />
+        <span>{tooltip.actions.length} action{tooltip.actions.length > 1 ? "s" : ""}</span>
+      </div>
+      <div className="space-y-2 max-h-[200px] overflow-y-auto">
+        {tooltip.actions.map((action, idx) => {
+          const Icon = ACTION_CATEGORY_ICONS[action.category] || Zap;
+          const categoryColor = ACTION_CATEGORY_COLORS[action.category] || "#64748b";
+          const date = new Date(action.start_date);
+          const formattedDate = date.toLocaleDateString("fr-FR", { 
+            day: "numeric", 
+            month: "short",
+            year: "numeric"
+          });
+          
+          return (
+            <div 
+              key={action.id || idx} 
+              className="flex items-start gap-2.5 p-2 rounded-md bg-muted/60 hover:bg-muted cursor-pointer transition-colors group"
+              onClick={() => onActionClick?.(action.id)}
+            >
+              <Icon 
+                className="h-4 w-4 mt-0.5 shrink-0" 
+                style={{ color: categoryColor }} 
+              />
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-foreground truncate group-hover:text-primary transition-colors text-[13px]">
+                  {action.title}
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground mt-1">
+                  <span 
+                    className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                    style={{
+                      backgroundColor: `${categoryColor}20`,
+                      color: categoryColor 
+                    }}
+                  >
+                    {ACTION_CATEGORY_LABELS[action.category] || action.category}
+                  </span>
+                  <span className="text-[11px]">{formattedDate}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 
@@ -218,6 +251,36 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }:
   const [showActions, setShowActions] = useState(false);
   const [chartWidth, setChartWidth] = useState(800);
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  
+  // State for HTML overlay action tooltip
+  const [actionTooltip, setActionTooltip] = useState<ActionTooltipData | null>(null);
+  const actionTooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Handlers for action tooltip with delay
+  const handleActionHover = (x: number, actions: RestaurantAction[], color: string) => {
+    if (actionTooltipTimeoutRef.current) {
+      clearTimeout(actionTooltipTimeoutRef.current);
+      actionTooltipTimeoutRef.current = null;
+    }
+    setActionTooltip({ x, y: 30, actions, color });
+  };
+  
+  const handleActionLeave = () => {
+    actionTooltipTimeoutRef.current = setTimeout(() => {
+      setActionTooltip(null);
+    }, 150); // Petit délai pour permettre de passer au tooltip
+  };
+  
+  const handleTooltipEnter = () => {
+    if (actionTooltipTimeoutRef.current) {
+      clearTimeout(actionTooltipTimeoutRef.current);
+      actionTooltipTimeoutRef.current = null;
+    }
+  };
+  
+  const handleTooltipLeave = () => {
+    setActionTooltip(null);
+  };
 
   // Track chart width for tooltip positioning
   useEffect(() => {
@@ -491,94 +554,112 @@ export const ProfitabilityEvolutionChart = ({ stats, dateRange, restaurantIds }:
       </div>
 
       {/* Chart */}
-      <div className="h-[350px]" ref={chartContainerRef}>
+      <div className="h-[350px] relative overflow-visible" ref={chartContainerRef}>
         {selectedStats.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             Sélectionnez au moins un restaurant
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis 
-                dataKey="dateLabel" 
-                tick={{ fontSize: 12 }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis 
-                domain={[minY, maxY]}
-                tick={{ fontSize: 12 }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(value) => `${value}%`}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              
-              {/* Average reference line */}
-              <ReferenceLine 
-                y={avgProfitability} 
-                stroke="#888" 
-                strokeDasharray="5 5"
-                label={{ 
-                  value: `Moy: ${avgProfitability.toFixed(1)}%`, 
-                  position: 'right',
-                  fill: '#888',
-                  fontSize: 11
+          <>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={chartData}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis 
+                  dataKey="dateLabel" 
+                  tick={{ fontSize: 12 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis 
+                  domain={[minY, maxY]}
+                  tick={{ fontSize: 12 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                {/* N'affiche le tooltip Recharts que si pas de tooltip action */}
+                {!actionTooltip && <Tooltip content={<CustomTooltip />} />}
+                
+                {/* Average reference line */}
+                <ReferenceLine 
+                  y={avgProfitability} 
+                  stroke="#888" 
+                  strokeDasharray="5 5"
+                  label={{ 
+                    value: `Moy: ${avgProfitability.toFixed(1)}%`, 
+                    position: 'right',
+                    fill: '#888',
+                    fontSize: 11
+                  }}
+                />
+                
+                {/* Action markers */}
+                {showActions && actionDates.map(dateStr => {
+                  const dateLabel = format(parseISO(dateStr), "d MMM", { locale: fr });
+                  const dayActions = actionsByDate[dateStr] || [];
+                  const primaryAction = dayActions[0];
+                  if (!primaryAction) return null;
+                  const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                  
+                  return (
+                      <ReferenceLine
+                        key={`action-${dateStr}`}
+                        x={dateLabel}
+                        stroke={color}
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        label={(props) => (
+                          <ActionMarkerLabel 
+                            viewBox={props.viewBox} 
+                            actions={dayActions} 
+                            color={color}
+                            onHover={handleActionHover}
+                            onLeave={handleActionLeave}
+                            onActionClick={(id) => {
+                              console.log("Action clicked:", id);
+                            }}
+                          />
+                        )}
+                      />
+                  );
+                })}
+                
+                {selectedStats.map((restaurant) => {
+                  const originalIndex = stats.findIndex(s => s.id === restaurant.id);
+                  return (
+                    <Line
+                      key={restaurant.id}
+                      type="monotone"
+                      dataKey={restaurant.id}
+                      name={restaurant.name}
+                      stroke={COLORS[originalIndex % COLORS.length]}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                      connectNulls={false}
+                    />
+                  );
+                })}
+              </LineChart>
+            </ResponsiveContainer>
+            
+            {/* HTML Overlay for Action Tooltip - Toujours visible et opaque */}
+            {actionTooltip && (
+              <ActionTooltipOverlay
+                tooltip={actionTooltip}
+                chartWidth={chartWidth}
+                onMouseEnter={handleTooltipEnter}
+                onMouseLeave={handleTooltipLeave}
+                onActionClick={(id) => {
+                  console.log("Action clicked:", id);
+                  setActionTooltip(null);
                 }}
               />
-              
-              {/* Action markers */}
-              {showActions && actionDates.map(dateStr => {
-                const dateLabel = format(parseISO(dateStr), "d MMM", { locale: fr });
-                const dayActions = actionsByDate[dateStr] || [];
-                const primaryAction = dayActions[0];
-                if (!primaryAction) return null;
-                const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
-                
-                return (
-                    <ReferenceLine
-                      key={`action-${dateStr}`}
-                      x={dateLabel}
-                      stroke={color}
-                      strokeWidth={2}
-                      strokeDasharray="4 4"
-                      label={(props) => (
-                        <ActionMarkerLabel 
-                          viewBox={props.viewBox} 
-                          actions={dayActions} 
-                          color={color}
-                          chartWidth={chartWidth}
-                          onActionClick={(id) => {
-                            console.log("Action clicked:", id);
-                          }}
-                        />
-                      )}
-                    />
-                );
-              })}
-              
-              {selectedStats.map((restaurant) => {
-                const originalIndex = stats.findIndex(s => s.id === restaurant.id);
-                return (
-                  <Line
-                    key={restaurant.id}
-                    type="monotone"
-                    dataKey={restaurant.id}
-                    name={restaurant.name}
-                    stroke={COLORS[originalIndex % COLORS.length]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                    connectNulls={false}
-                  />
-                );
-              })}
-            </LineChart>
-          </ResponsiveContainer>
+            )}
+          </>
         )}
       </div>
     </div>
