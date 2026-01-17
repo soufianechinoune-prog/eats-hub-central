@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, startOfWeek, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -546,6 +547,7 @@ export function AnalyticsCharts({
   profitabilityComparisonMode = "yearOverYear",
   onProfitabilityComparisonModeChange,
 }: AnalyticsChartsProps) {
+  const navigate = useNavigate();
   const prevYear = selectedYear - 1;
   
   // Dynamic labels based on comparison mode
@@ -554,6 +556,14 @@ export function AnalyticsCharts({
   const comparisonSuffix = comparisonMode === "rollingPeriod" 
     ? "(vs 4 sem. avant)" 
     : `(${selectedYear} vs ${prevYear})`;
+
+  // Handle profitability chart click to navigate to Finances
+  const handleProfitabilityClick = (monthNum: number) => {
+    if (onDrillDownChange) {
+      onDrillDownChange(monthNum);
+    }
+    navigate("/analytics/finances");
+  };
   
   // Compute actual date ranges for rolling period labels (will be populated from data)
   const rollingPeriodDateRanges = useMemo(() => {
@@ -2854,6 +2864,7 @@ export function AnalyticsCharts({
               previousDateRange={profitabilityPrevDateRange}
               comparisonMode={profitabilityComparisonMode}
               onComparisonModeChange={onProfitabilityComparisonModeChange}
+              onMonthClick={handleProfitabilityClick}
             />
           </CardContent>
         </Card>
