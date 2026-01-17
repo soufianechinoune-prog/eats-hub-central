@@ -15,44 +15,34 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { 
+  REPORT_TYPE_CONFIG as SHARED_REPORT_CONFIG, 
+  getEdgeFunctionName, 
+  getTargetTables,
+  validateReportTypeForContent 
+} from "@/lib/reportImportConfig";
 
-// Mapping from report type to database tables for deletion
-const REPORT_TYPE_TABLES: Record<string, string[]> = {
-  sales_over_time: ["daily_sales_uber"],
-  payment_order_level: ["orders"],
-  payment_item_level: ["order_items"],
-  payout_summary: ["payout_summaries"],
-  marketing_campaigns: ["promotions"],
-  conversion_funnel: ["daily_conversion"],
-  reviews_order: ["customer_reviews"],
-  reviews_item: ["menu_item_reviews"],
-  downtime_report: ["hourly_availability"],
-  order_history: ["orders"],
-  inaccurate_orders: ["inaccurate_order_issues"],
-  order_accuracy_summary: ["daily_order_accuracy"],
-  item_issues_leaderboard: ["product_issues_ranking"],
-};
+// Mapping from report type to database tables for deletion (uses shared config)
+const REPORT_TYPE_TABLES: Record<string, string[]> = Object.fromEntries(
+  Object.entries(SHARED_REPORT_CONFIG).map(([key, config]) => [key, config.targetTables])
+);
 
-// Report type definitions with labels
+// Report type definitions with labels (derived from shared config)
 const REPORT_TYPE_CONFIG: Record<string, { 
   label: string; 
   requiresRestaurant: boolean;
   edgeFunctionName: string;
-}> = {
-  sales_over_time: { label: "Sales Over Time", requiresRestaurant: true, edgeFunctionName: "parse-sales-over-time" },
-  payment_order_level: { label: "Paiements (commandes)", requiresRestaurant: false, edgeFunctionName: "parse-payment-report" },
-  payment_item_level: { label: "Paiements (articles)", requiresRestaurant: false, edgeFunctionName: "parse-payment-report" },
-  payout_summary: { label: "Récapitulatif versements", requiresRestaurant: false, edgeFunctionName: "parse-payout-summary" },
-  marketing_campaigns: { label: "Campagnes Marketing", requiresRestaurant: true, edgeFunctionName: "parse-marketing-campaigns" },
-  conversion_funnel: { label: "Tunnel de conversion", requiresRestaurant: true, edgeFunctionName: "parse-conversion-report" },
-  reviews_order: { label: "Avis (commandes)", requiresRestaurant: false, edgeFunctionName: "parse-reviews-order" },
-  reviews_item: { label: "Avis (articles)", requiresRestaurant: false, edgeFunctionName: "parse-reviews-item" },
-  downtime_report: { label: "Temps d'inactivité", requiresRestaurant: false, edgeFunctionName: "parse-downtime-report" },
-  order_history: { label: "Historique commandes", requiresRestaurant: false, edgeFunctionName: "parse-order-history" },
-  inaccurate_orders: { label: "Commandes incorrectes", requiresRestaurant: false, edgeFunctionName: "parse-inaccurate-orders" },
-  order_accuracy_summary: { label: "Résumé erreurs", requiresRestaurant: true, edgeFunctionName: "parse-order-accuracy-summary" },
-  item_issues_leaderboard: { label: "Top articles problématiques", requiresRestaurant: true, edgeFunctionName: "parse-item-issues-leaderboard" },
-};
+}> = Object.fromEntries(
+  Object.entries(SHARED_REPORT_CONFIG).map(([key, config]) => [
+    key, 
+    { 
+      label: config.label, 
+      requiresRestaurant: config.requiresRestaurant,
+      // CRITICAL: Use getEdgeFunctionName to ensure guardrails are applied
+      edgeFunctionName: getEdgeFunctionName(key),
+    }
+  ])
+);
 
 interface BulkFile {
   id: string;

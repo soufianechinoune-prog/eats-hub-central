@@ -202,6 +202,28 @@ serve(async (req) => {
 
     console.log('Mapped columns:', Object.keys(columnIndices));
 
+    // GUARDRAIL: Check if this file has item_title column
+    // If not, it's likely an order-level file sent to the wrong parser
+    const hasItemTitleColumn = columnIndices['item_title'] !== undefined;
+    
+    if (!hasItemTitleColumn) {
+      console.warn('WRONG PARSER: This file does not contain item-level columns (item_title missing). Should use parse-payment-report.');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'wrong_report_type',
+          reportType: 'payment_item_level',
+          message: "Ce fichier ne contient pas de données par article (colonne 'Nom du plat/de l'article' absente). Utilisez 'Informations de paiement (niveau commande)' pour l'importer correctement.",
+          stats: { totalRows: 0, inserted: 0, updated: 0, skipped: 0, errors: 0 },
+          suggestion: {
+            correctType: 'payment_order_level',
+            correctLabel: 'Informations de paiement (niveau commande)',
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
     // Process data rows - only items with a name
     const itemsToUpsert: any[] = [];
     let currentUberOrderId = '';
