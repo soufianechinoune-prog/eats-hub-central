@@ -415,7 +415,7 @@ Deno.serve(async (req) => {
           // In some exports, the amount for "Autres frais" lines is not in other_payments_incl_vat
           // (it can be 0) but is carried in the total amount column.
           const otherPaymentsInclVat = parseNumber(getValue('other_payments_incl_vat'));
-          const totalAmount = parseNumber(getValue('total_amount'));
+          const totalAmount = parseNumber(getValue('net_payout'));
           const candidateAmount = otherPaymentsInclVat !== 0 ? otherPaymentsInclVat : totalAmount;
 
           // ───────────────────────────────────────────────────────────────────
