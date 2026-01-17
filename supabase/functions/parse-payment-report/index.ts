@@ -362,6 +362,10 @@ Deno.serve(async (req) => {
       restaurantId: string;
     }>();
 
+    // Track eco-contribution refunds (lines without uber_order_id but with positive "Autres frais")
+    const ecoContributionByPayout = new Map<string, { amount: number; restaurantId: string }>();
+    let ecoContributionRowCount = 0;
+
     const importTimestamp = new Date().toISOString();
 
     console.log('Phase 1: Parsing', dataRows.length, 'rows...');
@@ -399,6 +403,32 @@ Deno.serve(async (req) => {
         }
       } else {
         if (!uberOrderId || uberOrderId === '') {
+          // Check if this is an eco-contribution refund line
+          const otherDesc = getValue('other_payments_description');
+          const otherAmount = parseNumber(getValue('other_payments_incl_vat'));
+          const payoutRefId = getValue('payout_reference_id');
+          
+          // Eco-contribution: "Autres frais" with positive amount (refund to restaurant)
+          if (otherDesc === 'Autres frais' && otherAmount > 0 && payoutRefId) {
+            // Try to get restaurant from uber_store_id
+            const storeId = getValue('uber_store_id');
+            const restaurantForEco = restaurantMap.get(storeId);
+            
+            if (restaurantForEco) {
+              const existing = ecoContributionByPayout.get(payoutRefId);
+              if (existing) {
+                existing.amount += otherAmount;
+              } else {
+                ecoContributionByPayout.set(payoutRefId, { 
+                  amount: otherAmount, 
+                  restaurantId: restaurantForEco.id 
+                });
+              }
+              ecoContributionRowCount++;
+              continue; // Line processed, skip to next
+            }
+          }
+          
           skippedCount++;
           if (skippedDetails.length < 50) {
             skippedDetails.push({
@@ -669,6 +699,31 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Phase 3: Update payouts with eco-contribution amounts
+    let ecoContributionPayoutsUpdated = 0;
+    let ecoContributionTotalAmount = 0;
+    
+    if (!dryRun && ecoContributionByPayout.size > 0) {
+      console.log('Phase 3: Updating payouts with eco-contribution for', ecoContributionByPayout.size, 'payouts');
+      
+      for (const [payoutRefId, { amount, restaurantId }] of ecoContributionByPayout) {
+        const { error: updateError } = await supabase
+          .from('payouts')
+          .update({ eco_contribution_refund: amount })
+          .eq('payout_reference_id', payoutRefId)
+          .eq('restaurant_id', restaurantId);
+        
+        if (!updateError) {
+          ecoContributionPayoutsUpdated++;
+          ecoContributionTotalAmount += amount;
+        } else {
+          console.warn('Failed to update payout eco-contribution:', payoutRefId, updateError.message);
+        }
+      }
+      
+      console.log('Eco-contribution update complete:', ecoContributionPayoutsUpdated, 'payouts updated, total:', ecoContributionTotalAmount, '€');
+    }
+
     // Sample first order's critical values for debugging
     const sampleOrder = deduplicatedOrders[0];
     const sampleCriticalValues = sampleOrder ? {
@@ -691,6 +746,11 @@ Deno.serve(async (req) => {
         updated: updatedCount,
         skipped: skippedCount,
         errors: errorCount,
+      },
+      ecoContribution: {
+        rowsDetected: ecoContributionRowCount,
+        payoutsUpdated: ecoContributionPayoutsUpdated,
+        totalAmount: ecoContributionTotalAmount,
       },
       validation: {
         dateRange: {
