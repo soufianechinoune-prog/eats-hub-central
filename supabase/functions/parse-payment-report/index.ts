@@ -403,44 +403,44 @@ Deno.serve(async (req) => {
         }
       } else {
         if (!uberOrderId || uberOrderId === '') {
-          // Check if this is an eco-contribution refund line
-          const otherDesc = (getValue('other_payments_description') || '').toLowerCase().trim();
-          const otherAmount = parseNumber(getValue('other_payments_incl_vat'));
+          // Lines without order id can still contain payout-level adjustments (eco-contribution, ads, etc.)
           const payoutRefId = getValue('payout_reference_id');
-          
-          // Eco-contribution detection: robust matching for "Autres frais", "eco", "éco", etc.
-          // Some exports use negative numbers for credits; we normalize with Math.abs.
-          const isEcoContribution = !!payoutRefId && otherAmount !== 0 && (
-            otherDesc.includes('autres frais') ||
-            otherDesc.includes('eco') ||
-            otherDesc.includes('éco') ||
-            otherDesc.includes('contribution') ||
-            otherDesc.includes('environnement')
-          );
-          
+          const otherDesc = (getValue('other_payments_description') || '').toLowerCase().trim();
+
+          // In some exports, the amount for "Autres frais" lines is not in other_payments_incl_vat
+          // (it can be 0) but is carried in the total amount column.
+          const otherPaymentsInclVat = parseNumber(getValue('other_payments_incl_vat'));
+          const totalAmount = parseNumber(getValue('total_amount'));
+          const candidateAmount = otherPaymentsInclVat !== 0 ? otherPaymentsInclVat : totalAmount;
+
+          // We only treat "Autres frais" lines as eco-contribution refunds.
+          // (Avoids catching VAT rounding adjustments or ad spend lines.)
+          const isEcoContribution = !!payoutRefId && candidateAmount !== 0 && otherDesc.includes('autres frais');
+
           if (isEcoContribution) {
-            const normalizedAmount = Math.abs(otherAmount);
-            // Aggregate by payout_reference_id ONLY (no restaurant dependency)
+            const normalizedAmount = Math.abs(candidateAmount);
             const existing = ecoContributionByPayout.get(payoutRefId);
             if (existing) {
               existing.amount += normalizedAmount;
             } else {
               ecoContributionByPayout.set(payoutRefId, {
                 amount: normalizedAmount,
-                restaurantId: '' // Will be resolved later from payout
+                restaurantId: '',
               });
             }
             ecoContributionRowCount++;
-            console.log(`[eco-contrib] Row ${rowIndex + 2}: "${otherDesc}" = ${otherAmount} € (normalized ${normalizedAmount} €) (payout: ${payoutRefId})`);
-            continue; // Line processed, skip to next
+            console.log(
+              `[eco-contrib] Row ${rowIndex + 2}: "${otherDesc}" other=${otherPaymentsInclVat} total=${totalAmount} -> ${normalizedAmount} (payout: ${payoutRefId})`
+            );
+            continue;
           }
-          
+
           skippedCount++;
           if (skippedDetails.length < 50) {
             skippedDetails.push({
               rowIndex: rowIndex + headerRowIndex + 2,
               reason: 'no_order_id',
-              details: 'Ligne sans identifiant de commande'
+              details: 'Ligne sans identifiant de commande',
             });
           }
           continue;
