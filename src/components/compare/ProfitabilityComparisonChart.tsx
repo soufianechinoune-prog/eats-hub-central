@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, eachMonthOfInterval, startOfMonth, subYears, subWeeks } from "date-fns";
+import { format, eachMonthOfInterval, eachDayOfInterval, startOfMonth, subYears, subWeeks, subDays, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -38,6 +38,7 @@ interface ProfitabilityComparisonChartProps {
   isLoading?: boolean;
   comparisonMode?: "yearOverYear" | "rollingPeriod";
   onComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
+  onMonthClick?: (monthNum: number) => void;
 }
 
 type ViewMode = "chart" | "table";
@@ -73,71 +74,159 @@ export const ProfitabilityComparisonChart = ({
   isLoading,
   comparisonMode = "yearOverYear",
   onComparisonModeChange,
+  onMonthClick,
 }: ProfitabilityComparisonChartProps) => {
   const [viewMode, setViewMode] = useState<ViewMode>("chart");
 
-  // Aggregate data by MONTH (like Panier Moyen)
+  // Detect if short period (≤ 45 days → show daily instead of monthly)
+  const isShortPeriod = useMemo(() => {
+    return differenceInDays(dateRange.end, dateRange.start) <= 45;
+  }, [dateRange]);
+
+  // Aggregate data by MONTH or DAY depending on period length
   const chartData = useMemo(() => {
-    const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
-    
-    // Aggregate current period by month
-    const currentByMonth: Record<string, { sales: number; payout: number; orders: number }> = {};
-    currentPeriodData.forEach(row => {
-      const monthKey = format(new Date(row.day), "yyyy-MM");
-      if (!currentByMonth[monthKey]) {
-        currentByMonth[monthKey] = { sales: 0, payout: 0, orders: 0 };
-      }
-      currentByMonth[monthKey].sales += Number(row.sales) || 0;
-      currentByMonth[monthKey].payout += Number(row.payout) || 0;
-      currentByMonth[monthKey].orders += Number(row.orders_count) || 0;
-    });
-    
-    // Aggregate previous period by month
-    const prevByMonth: Record<string, { sales: number; payout: number; orders: number }> = {};
-    previousPeriodData.forEach(row => {
-      const monthKey = format(new Date(row.day), "yyyy-MM");
-      if (!prevByMonth[monthKey]) {
-        prevByMonth[monthKey] = { sales: 0, payout: 0, orders: 0 };
-      }
-      prevByMonth[monthKey].sales += Number(row.sales) || 0;
-      prevByMonth[monthKey].payout += Number(row.payout) || 0;
-      prevByMonth[monthKey].orders += Number(row.orders_count) || 0;
-    });
-    
-    // Build aligned chart data by month
-    return allMonths.map((month) => {
-      const monthKey = format(month, "yyyy-MM");
-      const current = currentByMonth[monthKey] || { sales: 0, payout: 0, orders: 0 };
+    if (isShortPeriod) {
+      // DAILY aggregation for short periods
+      const allDays = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
       
-      // Calculate previous month key based on comparison mode
-      let prevMonthKey: string;
-      if (comparisonMode === "rollingPeriod") {
-        const prevMonth = subWeeks(month, 4);
-        prevMonthKey = format(startOfMonth(prevMonth), "yyyy-MM");
-      } else {
-        const prevMonth = subYears(month, 1);
-        prevMonthKey = format(prevMonth, "yyyy-MM");
-      }
-      const previous = prevByMonth[prevMonthKey] || { sales: 0, payout: 0, orders: 0 };
+      // Map current data by day
+      const currentByDay: Record<string, { sales: number; payout: number; orders: number }> = {};
+      currentPeriodData.forEach(row => {
+        const dayKey = row.day; // format yyyy-MM-dd
+        if (!currentByDay[dayKey]) {
+          currentByDay[dayKey] = { sales: 0, payout: 0, orders: 0 };
+        }
+        currentByDay[dayKey].sales += Number(row.sales) || 0;
+        currentByDay[dayKey].payout += Number(row.payout) || 0;
+        currentByDay[dayKey].orders += Number(row.orders_count) || 0;
+      });
       
-      const profitability = current.sales > 0 ? (current.payout / current.sales) * 100 : null;
-      const prevProfitability = previous.sales > 0 ? (previous.payout / previous.sales) * 100 : null;
+      // Map previous data by day
+      const prevByDay: Record<string, { sales: number; payout: number; orders: number }> = {};
+      previousPeriodData.forEach(row => {
+        const dayKey = row.day;
+        if (!prevByDay[dayKey]) {
+          prevByDay[dayKey] = { sales: 0, payout: 0, orders: 0 };
+        }
+        prevByDay[dayKey].sales += Number(row.sales) || 0;
+        prevByDay[dayKey].payout += Number(row.payout) || 0;
+        prevByDay[dayKey].orders += Number(row.orders_count) || 0;
+      });
       
-      return {
-        month: monthKey,
-        monthLabel: format(month, "MMM", { locale: fr }),
-        monthFull: format(month, "MMMM yyyy", { locale: fr }),
-        profitability,
-        prevProfitability,
-        sales: current.sales,
-        payout: current.payout,
-        orders: current.orders,
-        prevSales: previous.sales,
-        prevPayout: previous.payout,
-        prevOrders: previous.orders,
-      };
-    });
-  }, [currentPeriodData, previousPeriodData, dateRange, comparisonMode]);
+      return allDays.map((day) => {
+        const dayKey = format(day, "yyyy-MM-dd");
+        const current = currentByDay[dayKey] || { sales: 0, payout: 0, orders: 0 };
+        
+        // Calculate previous day key based on comparison mode
+        let prevDayKey: string;
+        if (comparisonMode === "rollingPeriod") {
+          const prevDay = subWeeks(day, 4);
+          prevDayKey = format(prevDay, "yyyy-MM-dd");
+        } else {
+          const prevDay = subYears(day, 1);
+          prevDayKey = format(prevDay, "yyyy-MM-dd");
+        }
+        const previous = prevByDay[prevDayKey] || { sales: 0, payout: 0, orders: 0 };
+        
+        const profitability = current.sales > 0 ? (current.payout / current.sales) * 100 : null;
+        const prevProfitability = previous.sales > 0 ? (previous.payout / previous.sales) * 100 : null;
+        
+        return {
+          date: dayKey,
+          month: format(day, "yyyy-MM"),
+          monthLabel: format(day, "dd/MM"), // Short label for X axis
+          monthFull: format(day, "EEEE d MMMM yyyy", { locale: fr }),
+          profitability,
+          prevProfitability,
+          sales: current.sales,
+          payout: current.payout,
+          orders: current.orders,
+          prevSales: previous.sales,
+          prevPayout: previous.payout,
+          prevOrders: previous.orders,
+        };
+      });
+    } else {
+      // MONTHLY aggregation for longer periods
+      const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
+      
+      // Aggregate current period by month
+      const currentByMonth: Record<string, { sales: number; payout: number; orders: number }> = {};
+      currentPeriodData.forEach(row => {
+        const monthKey = format(new Date(row.day), "yyyy-MM");
+        if (!currentByMonth[monthKey]) {
+          currentByMonth[monthKey] = { sales: 0, payout: 0, orders: 0 };
+        }
+        currentByMonth[monthKey].sales += Number(row.sales) || 0;
+        currentByMonth[monthKey].payout += Number(row.payout) || 0;
+        currentByMonth[monthKey].orders += Number(row.orders_count) || 0;
+      });
+      
+      // Aggregate previous period by month
+      const prevByMonth: Record<string, { sales: number; payout: number; orders: number }> = {};
+      previousPeriodData.forEach(row => {
+        const monthKey = format(new Date(row.day), "yyyy-MM");
+        if (!prevByMonth[monthKey]) {
+          prevByMonth[monthKey] = { sales: 0, payout: 0, orders: 0 };
+        }
+        prevByMonth[monthKey].sales += Number(row.sales) || 0;
+        prevByMonth[monthKey].payout += Number(row.payout) || 0;
+        prevByMonth[monthKey].orders += Number(row.orders_count) || 0;
+      });
+      
+      // Build aligned chart data by month
+      return allMonths.map((month) => {
+        const monthKey = format(month, "yyyy-MM");
+        const current = currentByMonth[monthKey] || { sales: 0, payout: 0, orders: 0 };
+        
+        // Calculate previous month key based on comparison mode
+        let prevMonthKey: string;
+        if (comparisonMode === "rollingPeriod") {
+          const prevMonth = subWeeks(month, 4);
+          prevMonthKey = format(startOfMonth(prevMonth), "yyyy-MM");
+        } else {
+          const prevMonth = subYears(month, 1);
+          prevMonthKey = format(prevMonth, "yyyy-MM");
+        }
+        const previous = prevByMonth[prevMonthKey] || { sales: 0, payout: 0, orders: 0 };
+        
+        const profitability = current.sales > 0 ? (current.payout / current.sales) * 100 : null;
+        const prevProfitability = previous.sales > 0 ? (previous.payout / previous.sales) * 100 : null;
+        
+        return {
+          date: undefined,
+          month: monthKey,
+          monthLabel: format(month, "MMM", { locale: fr }),
+          monthFull: format(month, "MMMM yyyy", { locale: fr }),
+          profitability,
+          prevProfitability,
+          sales: current.sales,
+          payout: current.payout,
+          orders: current.orders,
+          prevSales: previous.sales,
+          prevPayout: previous.payout,
+          prevOrders: previous.orders,
+        };
+      });
+    }
+  }, [currentPeriodData, previousPeriodData, dateRange, comparisonMode, isShortPeriod]);
+
+  // Handle chart click to navigate to Finances
+  const handleChartClick = (data: any) => {
+    if (!onMonthClick || !data?.activePayload?.[0]) return;
+    
+    const payload = data.activePayload[0].payload;
+    
+    if (isShortPeriod && payload.date) {
+      // In daily view, extract month from the clicked day
+      const clickedDate = new Date(payload.date);
+      onMonthClick(clickedDate.getMonth() + 1);
+    } else if (payload.month) {
+      // In monthly view, extract month directly
+      const monthNum = parseInt(payload.month.split("-")[1], 10);
+      onMonthClick(monthNum);
+    }
+  };
 
   // Calculate totals and KPIs
   const { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales } = useMemo(() => {
@@ -381,13 +470,17 @@ export const ProfitabilityComparisonChart = ({
       {viewMode === 'chart' && (
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
+            <LineChart 
+              data={chartData}
+              onClick={handleChartClick}
+              style={{ cursor: onMonthClick ? "pointer" : "default" }}
+            >
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis 
                 dataKey="monthLabel" 
                 className="text-xs"
                 tick={{ fontSize: 12 }}
-                interval={0}
+                interval={isShortPeriod ? "preserveStartEnd" : 0}
               />
               <YAxis 
                 domain={profitabilityDomain}
