@@ -2944,6 +2944,8 @@ export type Database = {
         }
         Returns: {
           day: string
+          meal_voucher: number
+          net_payout: number
           orders_count: number
           payout: number
           restaurant_id: string

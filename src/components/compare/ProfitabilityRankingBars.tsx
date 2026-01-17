@@ -6,9 +6,13 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 interface RestaurantStats {
   id: string;
   name: string;
-  profitability: number;
+  profitability: number; // Total encaissé (backward compat)
+  margeUber: number; // What Uber pays / sales (primary metric)
+  trBonus: number; // Meal voucher / sales
   totalSales: number;
   totalPayout: number;
+  totalNetPayout: number;
+  totalMealVoucher: number;
   totalOrders: number;
   uberFeeRate: number;
   promoRate: number;
@@ -21,9 +25,10 @@ interface ProfitabilityRankingBarsProps {
 }
 
 export const ProfitabilityRankingBars = ({ stats, dateRange }: ProfitabilityRankingBarsProps) => {
+  // Use margeUber as primary metric (without meal vouchers)
   const maxProfitability = useMemo(() => {
     if (!stats.length) return 100;
-    return Math.max(...stats.map(s => s.profitability), 80);
+    return Math.max(...stats.map(s => s.margeUber), 80);
   }, [stats]);
 
   if (!stats.length) {
@@ -52,7 +57,7 @@ export const ProfitabilityRankingBars = ({ stats, dateRange }: ProfitabilityRank
     <TooltipProvider>
       <div className="space-y-3">
         {stats.map((restaurant, index) => {
-          const barWidth = (restaurant.profitability / maxProfitability) * 100;
+          const barWidth = (restaurant.margeUber / maxProfitability) * 100;
           
           return (
             <div key={restaurant.id} className="flex items-center gap-3">
@@ -78,7 +83,7 @@ export const ProfitabilityRankingBars = ({ stats, dateRange }: ProfitabilityRank
                     <div
                       className={cn(
                         "h-full rounded-lg transition-all duration-500",
-                        getBarColor(restaurant.profitability)
+                        getBarColor(restaurant.margeUber)
                       )}
                       style={{ width: `${Math.min(barWidth, 100)}%` }}
                     />
@@ -89,8 +94,10 @@ export const ProfitabilityRankingBars = ({ stats, dateRange }: ProfitabilityRank
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                         <span className="text-muted-foreground">CA TTC:</span>
                         <span>{restaurant.totalSales.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €</span>
-                        <span className="text-muted-foreground">Versement:</span>
-                        <span>{restaurant.totalPayout.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €</span>
+                        <span className="text-muted-foreground">Versement Uber:</span>
+                        <span>{restaurant.totalNetPayout.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €</span>
+                        <span className="text-muted-foreground">Titres-resto:</span>
+                        <span className="text-blue-600">+{restaurant.totalMealVoucher.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €</span>
                         <span className="text-muted-foreground">Commandes:</span>
                         <span>{restaurant.totalOrders}</span>
                         <span className="text-muted-foreground">Comm. Uber:</span>
@@ -105,19 +112,25 @@ export const ProfitabilityRankingBars = ({ stats, dateRange }: ProfitabilityRank
                 </Tooltip>
               </div>
               
-              {/* Value */}
+              {/* Marge Uber value */}
               <div className={cn(
                 "w-16 text-right text-sm font-bold",
-                getTextColor(restaurant.profitability)
+                getTextColor(restaurant.margeUber)
               )}>
-                {restaurant.profitability.toFixed(1)}%
+                {restaurant.margeUber.toFixed(1)}%
+              </div>
+              
+              {/* TR Bonus */}
+              <div className="w-14 text-right text-xs text-blue-600 font-medium">
+                +{restaurant.trBonus.toFixed(1)}%
               </div>
             </div>
           );
         })}
         
         {/* Legend */}
-        <div className="flex items-center justify-center gap-6 pt-4 text-xs text-muted-foreground">
+        <div className="flex items-center justify-center gap-6 pt-4 text-xs text-muted-foreground border-t mt-4">
+          <div className="font-medium">Marge Uber (hors TR)</div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-emerald-500" />
             <span>≥ 70%</span>
@@ -133,6 +146,10 @@ export const ProfitabilityRankingBars = ({ stats, dateRange }: ProfitabilityRank
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-red-500" />
             <span>&lt; 60%</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-l pl-4">
+            <span className="text-blue-600 font-medium">+X%</span>
+            <span>= TR Bonus</span>
           </div>
         </div>
       </div>

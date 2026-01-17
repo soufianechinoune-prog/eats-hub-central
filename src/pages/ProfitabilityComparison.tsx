@@ -15,12 +15,14 @@ import { ProfitabilityHeatmapGrid } from "@/components/compare/ProfitabilityHeat
 import { ProfitabilityEvolutionChart } from "@/components/compare/ProfitabilityEvolutionChart";
 import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
 
-// Type for the RPC result
+// Type for the RPC result - now with separated net_payout and meal_voucher
 interface DailyProfitabilityRow {
   restaurant_id: string;
   day: string;
   sales: number;
-  payout: number;
+  payout: number; // Total: net_payout + meal_voucher (backward compatibility)
+  net_payout: number; // What Uber pays (without meal vouchers)
+  meal_voucher: number; // External payment from Swile/Edenred
   orders_count: number;
 }
 
@@ -223,10 +225,21 @@ const ProfitabilityComparison = () => {
       // Use RPC data for daily/evolution charts (more reliable!)
       const totalSalesFromRPC = restaurantDailyData.reduce((sum, d) => sum + Number(d.sales || 0), 0);
       const totalPayoutFromRPC = restaurantDailyData.reduce((sum, d) => sum + Number(d.payout || 0), 0);
+      const totalNetPayoutFromRPC = restaurantDailyData.reduce((sum, d) => sum + Number(d.net_payout || 0), 0);
+      const totalMealVoucherFromRPC = restaurantDailyData.reduce((sum, d) => sum + Number(d.meal_voucher || 0), 0);
       const totalOrdersFromRPC = restaurantDailyData.reduce((sum, d) => sum + Number(d.orders_count || 0), 0);
       
       // Calculate profitability from payouts (most accurate for totals)
+      // Use MARGE UBER (net_payout only, WITHOUT meal vouchers) as primary metric
       const totalPayout = totalNetPayout + totalMealVoucher;
+      
+      // MARGE UBER = Net payout from Uber / Sales (excludes meal vouchers)
+      const margeUber = totalSalesFromPayouts > 0 ? (totalNetPayout / totalSalesFromPayouts) * 100 : 0;
+      
+      // TR BONUS = Meal vouchers / Sales (external payment)
+      const trBonus = totalSalesFromPayouts > 0 ? (totalMealVoucher / totalSalesFromPayouts) * 100 : 0;
+      
+      // TOTAL ENCAISSE = (Net payout + Meal vouchers) / Sales (for reference)
       const profitability = totalSalesFromPayouts > 0 ? (totalPayout / totalSalesFromPayouts) * 100 : 0;
       
       // Calculate rates
@@ -260,9 +273,13 @@ const ProfitabilityComparison = () => {
       return {
         id: restaurant.id,
         name: restaurant.name,
-        profitability,
+        profitability, // Total encaissé (with TR) - kept for backward compatibility
+        margeUber, // Primary metric: what Uber pays / sales
+        trBonus, // External payment from Swile/Edenred
         totalSales: totalSalesFromPayouts || totalSalesFromRPC,
         totalPayout: totalPayout || totalPayoutFromRPC,
+        totalNetPayout: totalNetPayout || totalNetPayoutFromRPC,
+        totalMealVoucher: totalMealVoucher || totalMealVoucherFromRPC,
         totalOrders: totalOrdersFromPayouts || totalOrdersFromRPC,
         uberFeeRate,
         promoRate,
@@ -275,8 +292,8 @@ const ProfitabilityComparison = () => {
       };
     });
     
-    // Sort by profitability (highest first)
-    return stats.sort((a, b) => b.profitability - a.profitability);
+    // Sort by Marge Uber (highest first) - this is the primary metric now
+    return stats.sort((a, b) => b.margeUber - a.margeUber);
   }, [payoutsData, dailyAggregatedData, pinnedRestaurants]);
 
   return (
