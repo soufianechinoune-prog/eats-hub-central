@@ -1603,6 +1603,7 @@ export type Database = {
           delivery_fee_gain: number | null
           delivery_promo_excl_vat: number | null
           delivery_promo_incl_vat: number | null
+          eco_contribution_refund: number | null
           fulfillment_type: string | null
           gross_amount: number | null
           id: string
@@ -1680,6 +1681,7 @@ export type Database = {
           delivery_fee_gain?: number | null
           delivery_promo_excl_vat?: number | null
           delivery_promo_incl_vat?: number | null
+          eco_contribution_refund?: number | null
           fulfillment_type?: string | null
           gross_amount?: number | null
           id?: string
@@ -1757,6 +1759,7 @@ export type Database = {
           delivery_fee_gain?: number | null
           delivery_promo_excl_vat?: number | null
           delivery_promo_incl_vat?: number | null
+          eco_contribution_refund?: number | null
           fulfillment_type?: string | null
           gross_amount?: number | null
           id?: string
@@ -1842,6 +1845,7 @@ export type Database = {
           delivery_fee_gain: number | null
           delivery_promo_excl_vat: number | null
           delivery_promo_incl_vat: number | null
+          eco_contribution_refund: number | null
           id: string
           item_promo_excl_vat: number | null
           item_promo_incl_vat: number | null
@@ -1896,6 +1900,7 @@ export type Database = {
           delivery_fee_gain?: number | null
           delivery_promo_excl_vat?: number | null
           delivery_promo_incl_vat?: number | null
+          eco_contribution_refund?: number | null
           id?: string
           item_promo_excl_vat?: number | null
           item_promo_incl_vat?: number | null
@@ -1950,6 +1955,7 @@ export type Database = {
           delivery_fee_gain?: number | null
           delivery_promo_excl_vat?: number | null
           delivery_promo_incl_vat?: number | null
+          eco_contribution_refund?: number | null
           id?: string
           item_promo_excl_vat?: number | null
           item_promo_incl_vat?: number | null
