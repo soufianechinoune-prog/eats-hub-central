@@ -26,7 +26,9 @@ interface DailyProfitabilityRow {
   restaurant_id: string;
   day: string;
   sales: number;
-  payout: number;
+  payout: number; // Total: net_payout + meal_voucher (backward compat)
+  net_payout: number; // What Uber pays (without meal vouchers) - for Marge Uber
+  meal_voucher: number; // External payment from Swile/Edenred
   orders_count: number;
 }
 
@@ -89,33 +91,35 @@ export const ProfitabilityComparisonChart = ({
       // DAILY aggregation for short periods
       const allDays = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
       
-      // Map current data by day
-      const currentByDay: Record<string, { sales: number; payout: number; orders: number }> = {};
+      // Map current data by day - using net_payout for Marge Uber (without meal vouchers)
+      const currentByDay: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number }> = {};
       currentPeriodData.forEach(row => {
         const dayKey = row.day; // format yyyy-MM-dd
         if (!currentByDay[dayKey]) {
-          currentByDay[dayKey] = { sales: 0, payout: 0, orders: 0 };
+          currentByDay[dayKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
         }
         currentByDay[dayKey].sales += Number(row.sales) || 0;
-        currentByDay[dayKey].payout += Number(row.payout) || 0;
+        currentByDay[dayKey].netPayout += Number(row.net_payout) || 0;
+        currentByDay[dayKey].mealVoucher += Number(row.meal_voucher) || 0;
         currentByDay[dayKey].orders += Number(row.orders_count) || 0;
       });
       
       // Map previous data by day
-      const prevByDay: Record<string, { sales: number; payout: number; orders: number }> = {};
+      const prevByDay: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number }> = {};
       previousPeriodData.forEach(row => {
         const dayKey = row.day;
         if (!prevByDay[dayKey]) {
-          prevByDay[dayKey] = { sales: 0, payout: 0, orders: 0 };
+          prevByDay[dayKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
         }
         prevByDay[dayKey].sales += Number(row.sales) || 0;
-        prevByDay[dayKey].payout += Number(row.payout) || 0;
+        prevByDay[dayKey].netPayout += Number(row.net_payout) || 0;
+        prevByDay[dayKey].mealVoucher += Number(row.meal_voucher) || 0;
         prevByDay[dayKey].orders += Number(row.orders_count) || 0;
       });
       
       return allDays.map((day) => {
         const dayKey = format(day, "yyyy-MM-dd");
-        const current = currentByDay[dayKey] || { sales: 0, payout: 0, orders: 0 };
+        const current = currentByDay[dayKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
         
         // Calculate previous day key based on comparison mode
         let prevDayKey: string;
@@ -126,10 +130,15 @@ export const ProfitabilityComparisonChart = ({
           const prevDay = subYears(day, 1);
           prevDayKey = format(prevDay, "yyyy-MM-dd");
         }
-        const previous = prevByDay[prevDayKey] || { sales: 0, payout: 0, orders: 0 };
+        const previous = prevByDay[prevDayKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
         
-        const profitability = current.sales > 0 ? (current.payout / current.sales) * 100 : null;
-        const prevProfitability = previous.sales > 0 ? (previous.payout / previous.sales) * 100 : null;
+        // MARGE UBER = net_payout / sales (without meal vouchers)
+        const profitability = current.sales > 0 ? (current.netPayout / current.sales) * 100 : null;
+        const prevProfitability = previous.sales > 0 ? (previous.netPayout / previous.sales) * 100 : null;
+        
+        // TR bonus for tooltip
+        const trBonus = current.sales > 0 ? (current.mealVoucher / current.sales) * 100 : 0;
+        const prevTrBonus = previous.sales > 0 ? (previous.mealVoucher / previous.sales) * 100 : 0;
         
         return {
           date: dayKey,
@@ -139,45 +148,51 @@ export const ProfitabilityComparisonChart = ({
           profitability,
           prevProfitability,
           sales: current.sales,
-          payout: current.payout,
+          netPayout: current.netPayout,
+          mealVoucher: current.mealVoucher,
           orders: current.orders,
           prevSales: previous.sales,
-          prevPayout: previous.payout,
+          prevNetPayout: previous.netPayout,
+          prevMealVoucher: previous.mealVoucher,
           prevOrders: previous.orders,
+          trBonus,
+          prevTrBonus,
         };
       });
     } else {
       // MONTHLY aggregation for longer periods
       const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
       
-      // Aggregate current period by month
-      const currentByMonth: Record<string, { sales: number; payout: number; orders: number }> = {};
+      // Aggregate current period by month - using net_payout for Marge Uber
+      const currentByMonth: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number }> = {};
       currentPeriodData.forEach(row => {
         const monthKey = format(new Date(row.day), "yyyy-MM");
         if (!currentByMonth[monthKey]) {
-          currentByMonth[monthKey] = { sales: 0, payout: 0, orders: 0 };
+          currentByMonth[monthKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
         }
         currentByMonth[monthKey].sales += Number(row.sales) || 0;
-        currentByMonth[monthKey].payout += Number(row.payout) || 0;
+        currentByMonth[monthKey].netPayout += Number(row.net_payout) || 0;
+        currentByMonth[monthKey].mealVoucher += Number(row.meal_voucher) || 0;
         currentByMonth[monthKey].orders += Number(row.orders_count) || 0;
       });
       
       // Aggregate previous period by month
-      const prevByMonth: Record<string, { sales: number; payout: number; orders: number }> = {};
+      const prevByMonth: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number }> = {};
       previousPeriodData.forEach(row => {
         const monthKey = format(new Date(row.day), "yyyy-MM");
         if (!prevByMonth[monthKey]) {
-          prevByMonth[monthKey] = { sales: 0, payout: 0, orders: 0 };
+          prevByMonth[monthKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
         }
         prevByMonth[monthKey].sales += Number(row.sales) || 0;
-        prevByMonth[monthKey].payout += Number(row.payout) || 0;
+        prevByMonth[monthKey].netPayout += Number(row.net_payout) || 0;
+        prevByMonth[monthKey].mealVoucher += Number(row.meal_voucher) || 0;
         prevByMonth[monthKey].orders += Number(row.orders_count) || 0;
       });
       
       // Build aligned chart data by month
       return allMonths.map((month) => {
         const monthKey = format(month, "yyyy-MM");
-        const current = currentByMonth[monthKey] || { sales: 0, payout: 0, orders: 0 };
+        const current = currentByMonth[monthKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
         
         // Calculate previous month key based on comparison mode
         let prevMonthKey: string;
@@ -188,10 +203,15 @@ export const ProfitabilityComparisonChart = ({
           const prevMonth = subYears(month, 1);
           prevMonthKey = format(prevMonth, "yyyy-MM");
         }
-        const previous = prevByMonth[prevMonthKey] || { sales: 0, payout: 0, orders: 0 };
+        const previous = prevByMonth[prevMonthKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
         
-        const profitability = current.sales > 0 ? (current.payout / current.sales) * 100 : null;
-        const prevProfitability = previous.sales > 0 ? (previous.payout / previous.sales) * 100 : null;
+        // MARGE UBER = net_payout / sales (without meal vouchers)
+        const profitability = current.sales > 0 ? (current.netPayout / current.sales) * 100 : null;
+        const prevProfitability = previous.sales > 0 ? (previous.netPayout / previous.sales) * 100 : null;
+        
+        // TR bonus for tooltip
+        const trBonus = current.sales > 0 ? (current.mealVoucher / current.sales) * 100 : 0;
+        const prevTrBonus = previous.sales > 0 ? (previous.mealVoucher / previous.sales) * 100 : 0;
         
         return {
           date: undefined,
@@ -201,11 +221,15 @@ export const ProfitabilityComparisonChart = ({
           profitability,
           prevProfitability,
           sales: current.sales,
-          payout: current.payout,
+          netPayout: current.netPayout,
+          mealVoucher: current.mealVoucher,
           orders: current.orders,
           prevSales: previous.sales,
-          prevPayout: previous.payout,
+          prevNetPayout: previous.netPayout,
+          prevMealVoucher: previous.mealVoucher,
           prevOrders: previous.orders,
+          trBonus,
+          prevTrBonus,
         };
       });
     }
@@ -228,30 +252,33 @@ export const ProfitabilityComparisonChart = ({
     }
   };
 
-  // Calculate totals and KPIs
-  const { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalPayout, totalOrders } = useMemo(() => {
+  // Calculate totals and KPIs - using netPayout for Marge Uber
+  const { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalNetPayout, totalMealVoucher, totalOrders } = useMemo(() => {
     const totalSales = chartData.reduce((sum, d) => sum + (d.sales || 0), 0);
-    const totalPayout = chartData.reduce((sum, d) => sum + (d.payout || 0), 0);
+    const totalNetPayout = chartData.reduce((sum, d) => sum + (d.netPayout || 0), 0);
+    const totalMealVoucher = chartData.reduce((sum, d) => sum + (d.mealVoucher || 0), 0);
     const totalOrders = chartData.reduce((sum, d) => sum + (d.orders || 0), 0);
     const prevTotalSales = chartData.reduce((sum, d) => sum + (d.prevSales || 0), 0);
-    const prevTotalPayout = chartData.reduce((sum, d) => sum + (d.prevPayout || 0), 0);
+    const prevTotalNetPayout = chartData.reduce((sum, d) => sum + (d.prevNetPayout || 0), 0);
     
-    const totalProfitability = totalSales > 0 ? (totalPayout / totalSales) * 100 : 0;
-    const prevTotalProfitability = prevTotalSales > 0 ? (prevTotalPayout / prevTotalSales) * 100 : 0;
+    // Marge Uber = net_payout / sales (without meal vouchers)
+    const totalProfitability = totalSales > 0 ? (totalNetPayout / totalSales) * 100 : 0;
+    const prevTotalProfitability = prevTotalSales > 0 ? (prevTotalNetPayout / prevTotalSales) * 100 : 0;
     const variation = totalProfitability - prevTotalProfitability;
     
-    // Debug log for profitability calculation
-    console.log("[ProfitabilityChart] Calculation:", {
+    // Debug log for Marge Uber calculation
+    console.log("[ProfitabilityChart] Marge Uber Calculation:", {
       totalSales: totalSales.toFixed(2),
-      totalPayout: totalPayout.toFixed(2),
-      totalOrders,
-      profitability: totalProfitability.toFixed(2) + "%",
+      totalNetPayout: totalNetPayout.toFixed(2),
+      totalMealVoucher: totalMealVoucher.toFixed(2),
+      margeUber: totalProfitability.toFixed(2) + "%",
+      trBonus: totalSales > 0 ? ((totalMealVoucher / totalSales) * 100).toFixed(2) + "%" : "0%",
       rawDataPoints: currentPeriodData.length,
       chartDataPoints: chartData.length,
       dateRange: `${format(dateRange.start, "yyyy-MM-dd")} → ${format(dateRange.end, "yyyy-MM-dd")}`,
     });
     
-    return { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalPayout, totalOrders };
+    return { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalNetPayout, totalMealVoucher, totalOrders };
   }, [chartData, currentPeriodData, dateRange]);
 
   // Period labels
@@ -354,7 +381,8 @@ export const ProfitabilityComparisonChart = ({
           : "--"
       } : {}),
       "Ventes": row.sales,
-      "Payout": row.payout,
+      "Marge Uber": row.netPayout,
+      "TR": row.mealVoucher,
       "Commandes": row.orders,
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -569,7 +597,7 @@ export const ProfitabilityComparisonChart = ({
                     </>
                   )}
                   <TableCell className="text-right">{row.sales.toLocaleString("fr-FR")} €</TableCell>
-                  <TableCell className="text-right">{row.payout.toLocaleString("fr-FR")} €</TableCell>
+                  <TableCell className="text-right">{row.netPayout.toLocaleString("fr-FR")} €</TableCell>
                   <TableCell className="text-right">{row.orders}</TableCell>
                 </TableRow>
               ))}
@@ -593,7 +621,7 @@ export const ProfitabilityComparisonChart = ({
                   {chartData.reduce((sum, d) => sum + d.sales, 0).toLocaleString("fr-FR")} €
                 </TableCell>
                 <TableCell className="text-right font-bold">
-                  {chartData.reduce((sum, d) => sum + d.payout, 0).toLocaleString("fr-FR")} €
+                  {chartData.reduce((sum, d) => sum + d.netPayout, 0).toLocaleString("fr-FR")} €
                 </TableCell>
                 <TableCell className="text-right font-bold">
                   {chartData.reduce((sum, d) => sum + d.orders, 0)}

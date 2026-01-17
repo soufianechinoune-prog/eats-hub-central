@@ -6,9 +6,13 @@ import { cn } from "@/lib/utils";
 interface RestaurantStats {
   id: string;
   name: string;
-  profitability: number;
+  profitability: number; // Total encaissé (backward compat)
+  margeUber: number; // What Uber pays / sales (primary metric)
+  trBonus: number; // Meal voucher / sales
   totalSales: number;
   totalPayout: number;
+  totalNetPayout: number;
+  totalMealVoucher: number;
   totalOrders: number;
   uberFeeRate: number;
   promoRate: number;
@@ -24,36 +28,47 @@ export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityIns
   const insights = useMemo(() => {
     if (!stats.length) return null;
 
-    // Best performer
+    // Best performer (by Marge Uber, primary metric)
     const bestPerformer = stats[0];
     // Worst performer
     const worstPerformer = stats[stats.length - 1];
     
-    // Average profitability
-    const avgProfitability = stats.reduce((sum, s) => sum + s.profitability, 0) / stats.length;
+    // Average Marge Uber (not total encaissé)
+    const avgMargeUber = stats.reduce((sum, s) => sum + s.margeUber, 0) / stats.length;
     
-    // Spread between best and worst
-    const spread = bestPerformer.profitability - worstPerformer.profitability;
+    // Average TR Bonus
+    const avgTrBonus = stats.reduce((sum, s) => sum + s.trBonus, 0) / stats.length;
+    
+    // Spread between best and worst (on Marge Uber)
+    const spread = bestPerformer.margeUber - worstPerformer.margeUber;
     
     // Count restaurants above/below average
-    const aboveAvg = stats.filter(s => s.profitability >= avgProfitability).length;
+    const aboveAvg = stats.filter(s => s.margeUber >= avgMargeUber).length;
     const belowAvg = stats.length - aboveAvg;
     
     // Total network values
     const totalSales = stats.reduce((sum, s) => sum + s.totalSales, 0);
-    const totalPayout = stats.reduce((sum, s) => sum + s.totalPayout, 0);
-    const networkProfitability = totalSales > 0 ? (totalPayout / totalSales) * 100 : 0;
+    const totalNetPayout = stats.reduce((sum, s) => sum + s.totalNetPayout, 0);
+    const totalMealVoucher = stats.reduce((sum, s) => sum + s.totalMealVoucher, 0);
+    
+    // Network Marge Uber (without meal vouchers)
+    const networkMargeUber = totalSales > 0 ? (totalNetPayout / totalSales) * 100 : 0;
+    // Network TR Bonus
+    const networkTrBonus = totalSales > 0 ? (totalMealVoucher / totalSales) * 100 : 0;
 
     return {
       bestPerformer,
       worstPerformer,
-      avgProfitability,
-      networkProfitability,
+      avgMargeUber,
+      avgTrBonus,
+      networkMargeUber,
+      networkTrBonus,
       spread,
       aboveAvg,
       belowAvg,
       totalSales,
-      totalPayout,
+      totalNetPayout,
+      totalMealVoucher,
     };
   }, [stats]);
 
@@ -63,16 +78,19 @@ export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityIns
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {/* Network Profitability */}
+      {/* Network Marge Uber */}
       <Card className="backdrop-blur-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/20">
         <CardContent className="p-4">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Rentabilité réseau</p>
+              <p className="text-sm text-muted-foreground">Marge Uber réseau</p>
               <p className="text-2xl font-bold text-emerald-600">
-                {insights.networkProfitability.toFixed(1)}%
+                {insights.networkMargeUber.toFixed(1)}%
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-blue-600 font-medium mt-1">
+                +{insights.networkTrBonus.toFixed(1)}% TR
+              </p>
+              <p className="text-xs text-muted-foreground">
                 Sur {(insights.totalSales / 1000).toFixed(0)}k€ de CA {periodLabel}
               </p>
             </div>
@@ -88,12 +106,15 @@ export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityIns
         <CardContent className="p-4">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Meilleure rentabilité</p>
+              <p className="text-sm text-muted-foreground">Meilleure marge</p>
               <p className="text-lg font-semibold truncate max-w-[180px]">
                 {insights.bestPerformer.name}
               </p>
               <p className="text-2xl font-bold text-blue-600">
-                {insights.bestPerformer.profitability.toFixed(1)}%
+                {insights.bestPerformer.margeUber.toFixed(1)}%
+              </p>
+              <p className="text-xs text-blue-600/70 font-medium">
+                +{insights.bestPerformer.trBonus.toFixed(1)}% TR
               </p>
             </div>
             <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center">
@@ -106,7 +127,7 @@ export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityIns
       {/* Worst Performer */}
       <Card className={cn(
         "backdrop-blur-xl border-border/50",
-        insights.worstPerformer.profitability < 60 
+        insights.worstPerformer.margeUber < 60 
           ? "bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/20"
           : "bg-gradient-to-br from-amber-500/10 to-amber-500/5 border-amber-500/20"
       )}>
@@ -119,18 +140,21 @@ export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityIns
               </p>
               <p className={cn(
                 "text-2xl font-bold",
-                insights.worstPerformer.profitability < 60 ? "text-red-600" : "text-amber-600"
+                insights.worstPerformer.margeUber < 60 ? "text-red-600" : "text-amber-600"
               )}>
-                {insights.worstPerformer.profitability.toFixed(1)}%
+                {insights.worstPerformer.margeUber.toFixed(1)}%
+              </p>
+              <p className="text-xs text-blue-600/70 font-medium">
+                +{insights.worstPerformer.trBonus.toFixed(1)}% TR
               </p>
             </div>
             <div className={cn(
               "h-10 w-10 rounded-full flex items-center justify-center",
-              insights.worstPerformer.profitability < 60 ? "bg-red-500/20" : "bg-amber-500/20"
+              insights.worstPerformer.margeUber < 60 ? "bg-red-500/20" : "bg-amber-500/20"
             )}>
               <TrendingDown className={cn(
                 "h-5 w-5",
-                insights.worstPerformer.profitability < 60 ? "text-red-600" : "text-amber-600"
+                insights.worstPerformer.margeUber < 60 ? "text-red-600" : "text-amber-600"
               )} />
             </div>
           </div>
