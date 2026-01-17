@@ -409,8 +409,8 @@ Deno.serve(async (req) => {
           const payoutRefId = getValue('payout_reference_id');
           
           // Eco-contribution detection: robust matching for "Autres frais", "eco", "éco", etc.
-          // with positive amount (refund to restaurant)
-          const isEcoContribution = otherAmount > 0 && payoutRefId && (
+          // Some exports use negative numbers for credits; we normalize with Math.abs.
+          const isEcoContribution = !!payoutRefId && otherAmount !== 0 && (
             otherDesc.includes('autres frais') ||
             otherDesc.includes('eco') ||
             otherDesc.includes('éco') ||
@@ -419,18 +419,19 @@ Deno.serve(async (req) => {
           );
           
           if (isEcoContribution) {
+            const normalizedAmount = Math.abs(otherAmount);
             // Aggregate by payout_reference_id ONLY (no restaurant dependency)
             const existing = ecoContributionByPayout.get(payoutRefId);
             if (existing) {
-              existing.amount += otherAmount;
+              existing.amount += normalizedAmount;
             } else {
-              ecoContributionByPayout.set(payoutRefId, { 
-                amount: otherAmount, 
+              ecoContributionByPayout.set(payoutRefId, {
+                amount: normalizedAmount,
                 restaurantId: '' // Will be resolved later from payout
               });
             }
             ecoContributionRowCount++;
-            console.log(`[eco-contrib] Row ${rowIndex + 2}: "${otherDesc}" = ${otherAmount} € (payout: ${payoutRefId})`);
+            console.log(`[eco-contrib] Row ${rowIndex + 2}: "${otherDesc}" = ${otherAmount} € (normalized ${normalizedAmount} €) (payout: ${payoutRefId})`);
             continue; // Line processed, skip to next
           }
           
