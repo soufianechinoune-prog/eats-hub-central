@@ -366,6 +366,10 @@ Deno.serve(async (req) => {
     const ecoContributionByPayout = new Map<string, { amount: number; restaurantId: string }>();
     let ecoContributionRowCount = 0;
 
+    // DIAGNOSTIC: Track ALL "autres paiements" descriptions for lines without order id
+    // Aggregated by payout_reference_id → description → total amount
+    const payoutAdjustmentsDiagnostic = new Map<string, Map<string, number>>();
+
     const importTimestamp = new Date().toISOString();
 
     console.log('Phase 1: Parsing', dataRows.length, 'rows...');
@@ -405,7 +409,8 @@ Deno.serve(async (req) => {
         if (!uberOrderId || uberOrderId === '') {
           // Lines without order id can still contain payout-level adjustments (eco-contribution, ads, etc.)
           const payoutRefId = getValue('payout_reference_id');
-          const otherDesc = (getValue('other_payments_description') || '').toLowerCase().trim();
+          const otherDescRaw = getValue('other_payments_description') || '';
+          const otherDesc = otherDescRaw.toLowerCase().trim();
 
           // In some exports, the amount for "Autres frais" lines is not in other_payments_incl_vat
           // (it can be 0) but is carried in the total amount column.
@@ -413,9 +418,36 @@ Deno.serve(async (req) => {
           const totalAmount = parseNumber(getValue('total_amount'));
           const candidateAmount = otherPaymentsInclVat !== 0 ? otherPaymentsInclVat : totalAmount;
 
-          // We only treat "Autres frais" lines as eco-contribution refunds.
-          // (Avoids catching VAT rounding adjustments or ad spend lines.)
-          const isEcoContribution = !!payoutRefId && candidateAmount !== 0 && otherDesc.includes('autres frais');
+          // ───────────────────────────────────────────────────────────────────
+          // DIAGNOSTIC: record ALL "autres paiements" descriptions by payout
+          // ───────────────────────────────────────────────────────────────────
+          if (payoutRefId && otherDesc) {
+            if (!payoutAdjustmentsDiagnostic.has(payoutRefId)) {
+              payoutAdjustmentsDiagnostic.set(payoutRefId, new Map<string, number>());
+            }
+            const descMap = payoutAdjustmentsDiagnostic.get(payoutRefId)!;
+            descMap.set(otherDesc, (descMap.get(otherDesc) || 0) + candidateAmount);
+          }
+
+          // ───────────────────────────────────────────────────────────────────
+          // ECO-CONTRIBUTION DETECTION (robust matching)
+          // Match on: eco, éco, eco-contribution, eco contribution, contribution environnement, autres frais
+          // Exclude: dépenses publicitaires, ads, advertising
+          // ───────────────────────────────────────────────────────────────────
+          const isExcluded = 
+            otherDesc.includes('dépenses publicitaires') ||
+            otherDesc.includes('depenses publicitaires') ||
+            otherDesc.includes('advertising') ||
+            otherDesc.includes(' ads');
+
+          const isEcoKeyword = 
+            otherDesc.includes('eco') ||
+            otherDesc.includes('éco') ||
+            otherDesc.includes('contribution') ||
+            otherDesc.includes('environnement') ||
+            otherDesc.includes('autres frais');
+
+          const isEcoContribution = !!payoutRefId && candidateAmount !== 0 && isEcoKeyword && !isExcluded;
 
           if (isEcoContribution) {
             const normalizedAmount = Math.abs(candidateAmount);
@@ -430,7 +462,7 @@ Deno.serve(async (req) => {
             }
             ecoContributionRowCount++;
             console.log(
-              `[eco-contrib] Row ${rowIndex + 2}: "${otherDesc}" other=${otherPaymentsInclVat} total=${totalAmount} -> ${normalizedAmount} (payout: ${payoutRefId})`
+              `[eco-contrib] MATCHED Row ${rowIndex + 2}: "${otherDescRaw}" other=${otherPaymentsInclVat} total=${totalAmount} -> ${normalizedAmount} (payout: ${payoutRefId})`
             );
             continue;
           }
@@ -440,7 +472,7 @@ Deno.serve(async (req) => {
             skippedDetails.push({
               rowIndex: rowIndex + headerRowIndex + 2,
               reason: 'no_order_id',
-              details: 'Ligne sans identifiant de commande',
+              details: `Ligne sans identifiant de commande (desc: "${otherDescRaw.substring(0, 50)}")`,
             });
           }
           continue;
@@ -569,6 +601,32 @@ Deno.serve(async (req) => {
     }
 
     console.log('Phase 1 parsing complete. Raw orders:', ordersToUpsert.length);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DIAGNOSTIC: Log ALL "autres paiements" descriptions by payout_reference_id
+    // This helps identify which descriptions exist and whether eco-contrib is present
+    // ═══════════════════════════════════════════════════════════════════════════
+    console.log('═══════════════════════════════════════════════════════════════════');
+    console.log('DIAGNOSTIC: "Autres paiements" descriptions (lines without order id)');
+    console.log('═══════════════════════════════════════════════════════════════════');
+    if (payoutAdjustmentsDiagnostic.size === 0) {
+      console.log('  (aucune ligne "autres paiements" sans order id détectée)');
+    } else {
+      for (const [payoutId, descMap] of payoutAdjustmentsDiagnostic.entries()) {
+        console.log(`  Payout ${payoutId}:`);
+        for (const [desc, amount] of descMap.entries()) {
+          const marker = (desc.includes('eco') || desc.includes('éco') || desc.includes('autres frais') || desc.includes('contribution')) ? ' ← ECO?' : '';
+          console.log(`    - "${desc}": ${amount.toFixed(2)} €${marker}`);
+        }
+      }
+    }
+    console.log('═══════════════════════════════════════════════════════════════════');
+    console.log(`Eco-contribution rows detected: ${ecoContributionRowCount}`);
+    console.log(`Eco-contribution payouts: ${ecoContributionByPayout.size}`);
+    for (const [payoutId, data] of ecoContributionByPayout.entries()) {
+      console.log(`  → ${payoutId}: ${data.amount.toFixed(2)} €`);
+    }
+    console.log('═══════════════════════════════════════════════════════════════════');
 
     // Phase 1.5: Deduplicate orders by (uber_order_id, uber_flow_id)
     // Multiple CSV lines can have the same key - merge them by summing financial fields
