@@ -215,7 +215,9 @@ interface DailyProfitabilityRow {
   restaurant_id: string;
   day: string;
   sales: number;
-  payout: number;
+  payout: number; // Total: net_payout + meal_voucher (backward compat)
+  net_payout: number; // What Uber pays (without meal vouchers)
+  meal_voucher: number; // External payment from Swile/Edenred
   orders_count: number;
 }
 
