@@ -404,29 +404,34 @@ Deno.serve(async (req) => {
       } else {
         if (!uberOrderId || uberOrderId === '') {
           // Check if this is an eco-contribution refund line
-          const otherDesc = getValue('other_payments_description');
+          const otherDesc = (getValue('other_payments_description') || '').toLowerCase().trim();
           const otherAmount = parseNumber(getValue('other_payments_incl_vat'));
           const payoutRefId = getValue('payout_reference_id');
           
-          // Eco-contribution: "Autres frais" with positive amount (refund to restaurant)
-          if (otherDesc === 'Autres frais' && otherAmount > 0 && payoutRefId) {
-            // Try to get restaurant from uber_store_id
-            const storeId = getValue('uber_store_id');
-            const restaurantForEco = restaurantMap.get(storeId);
-            
-            if (restaurantForEco) {
-              const existing = ecoContributionByPayout.get(payoutRefId);
-              if (existing) {
-                existing.amount += otherAmount;
-              } else {
-                ecoContributionByPayout.set(payoutRefId, { 
-                  amount: otherAmount, 
-                  restaurantId: restaurantForEco.id 
-                });
-              }
-              ecoContributionRowCount++;
-              continue; // Line processed, skip to next
+          // Eco-contribution detection: robust matching for "Autres frais", "eco", "éco", etc.
+          // with positive amount (refund to restaurant)
+          const isEcoContribution = otherAmount > 0 && payoutRefId && (
+            otherDesc.includes('autres frais') ||
+            otherDesc.includes('eco') ||
+            otherDesc.includes('éco') ||
+            otherDesc.includes('contribution') ||
+            otherDesc.includes('environnement')
+          );
+          
+          if (isEcoContribution) {
+            // Aggregate by payout_reference_id ONLY (no restaurant dependency)
+            const existing = ecoContributionByPayout.get(payoutRefId);
+            if (existing) {
+              existing.amount += otherAmount;
+            } else {
+              ecoContributionByPayout.set(payoutRefId, { 
+                amount: otherAmount, 
+                restaurantId: '' // Will be resolved later from payout
+              });
             }
+            ecoContributionRowCount++;
+            console.log(`[eco-contrib] Row ${rowIndex + 2}: "${otherDesc}" = ${otherAmount} € (payout: ${payoutRefId})`);
+            continue; // Line processed, skip to next
           }
           
           skippedCount++;
@@ -706,18 +711,22 @@ Deno.serve(async (req) => {
     if (!dryRun && ecoContributionByPayout.size > 0) {
       console.log('Phase 3: Updating payouts with eco-contribution for', ecoContributionByPayout.size, 'payouts');
       
-      for (const [payoutRefId, { amount, restaurantId }] of ecoContributionByPayout) {
-        const { error: updateError } = await supabase
+      for (const [payoutRefId, { amount }] of ecoContributionByPayout) {
+        // Update payout by payout_reference_id ONLY (works even without restaurant mapping)
+        const { data: updateData, error: updateError } = await supabase
           .from('payouts')
           .update({ eco_contribution_refund: amount })
           .eq('payout_reference_id', payoutRefId)
-          .eq('restaurant_id', restaurantId);
+          .select('id, restaurant_id');
         
-        if (!updateError) {
+        if (!updateError && updateData && updateData.length > 0) {
           ecoContributionPayoutsUpdated++;
           ecoContributionTotalAmount += amount;
-        } else {
+          console.log(`[eco-contrib] Updated payout ${payoutRefId}: ${amount} € (matched ${updateData.length} row(s))`);
+        } else if (updateError) {
           console.warn('Failed to update payout eco-contribution:', payoutRefId, updateError.message);
+        } else {
+          console.warn(`[eco-contrib] No payout found for reference: ${payoutRefId}`);
         }
       }
       
