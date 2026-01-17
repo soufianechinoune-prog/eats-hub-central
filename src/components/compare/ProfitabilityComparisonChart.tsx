@@ -229,9 +229,10 @@ export const ProfitabilityComparisonChart = ({
   };
 
   // Calculate totals and KPIs
-  const { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales } = useMemo(() => {
+  const { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalPayout, totalOrders } = useMemo(() => {
     const totalSales = chartData.reduce((sum, d) => sum + (d.sales || 0), 0);
     const totalPayout = chartData.reduce((sum, d) => sum + (d.payout || 0), 0);
+    const totalOrders = chartData.reduce((sum, d) => sum + (d.orders || 0), 0);
     const prevTotalSales = chartData.reduce((sum, d) => sum + (d.prevSales || 0), 0);
     const prevTotalPayout = chartData.reduce((sum, d) => sum + (d.prevPayout || 0), 0);
     
@@ -239,8 +240,19 @@ export const ProfitabilityComparisonChart = ({
     const prevTotalProfitability = prevTotalSales > 0 ? (prevTotalPayout / prevTotalSales) * 100 : 0;
     const variation = totalProfitability - prevTotalProfitability;
     
-    return { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales };
-  }, [chartData]);
+    // Debug log for profitability calculation
+    console.log("[ProfitabilityChart] Calculation:", {
+      totalSales: totalSales.toFixed(2),
+      totalPayout: totalPayout.toFixed(2),
+      totalOrders,
+      profitability: totalProfitability.toFixed(2) + "%",
+      rawDataPoints: currentPeriodData.length,
+      chartDataPoints: chartData.length,
+      dateRange: `${format(dateRange.start, "yyyy-MM-dd")} → ${format(dateRange.end, "yyyy-MM-dd")}`,
+    });
+    
+    return { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalPayout, totalOrders };
+  }, [chartData, currentPeriodData, dateRange]);
 
   // Period labels
   const selectedYear = format(dateRange.start, "yyyy");
