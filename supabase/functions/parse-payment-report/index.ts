@@ -273,6 +273,31 @@ Deno.serve(async (req) => {
     const headers = rows[headerRowIndex];
     console.log('Found headers at row:', headerRowIndex, 'Columns:', headers.length);
 
+    // GUARDRAIL: Detect if this is actually an item-level file
+    const headerLine = headers.join(' ').toLowerCase();
+    const hasItemColumns = headerLine.includes("nom du plat") || 
+                          headerLine.includes("titre de l'article") ||
+                          headerLine.includes("item title") ||
+                          headerLine.includes("nom de l'article");
+    
+    if (hasItemColumns) {
+      console.warn('WRONG PARSER: This file contains item-level columns. Should use parse-item-report.');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'wrong_report_type',
+          reportType: 'payment_order_level',
+          message: "Ce fichier contient des données par article (colonnes détectées: 'Nom du plat', 'Titre de l'article'). Utilisez 'Informations de paiement (niveau articles)' pour l'importer correctement.",
+          stats: { totalRows: 0, inserted: 0, updated: 0, skipped: 0, errors: 0 },
+          suggestion: {
+            correctType: 'payment_item_level',
+            correctLabel: 'Informations de paiement (niveau articles)',
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
     // Build column indices with normalized header matching
     const columnIndices: Record<string, number> = {};
     const recognizedColumns: { original: string; normalized: string; dbField: string }[] = [];
