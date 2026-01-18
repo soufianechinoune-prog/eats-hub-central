@@ -23,7 +23,9 @@ const MONTHS_FULL = [
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
 ];
 
-const currentYear = new Date().getFullYear();
+const today = new Date();
+const currentYear = today.getFullYear();
+const currentMonth = today.getMonth(); // 0-11
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
 
 export type OverviewPeriodMode = "previous_week" | "7d" | "30d" | "current_month" | "year" | "custom_month" | "custom_range";
@@ -209,7 +211,7 @@ export function OverviewPeriodSelector({
                 size="icon"
                 className="h-8 w-8 rounded-full hover:bg-muted"
                 onClick={() => setTempYear(tempYear + 1)}
-                disabled={tempYear >= YEARS[YEARS.length - 1]}
+                disabled={tempYear >= currentYear}
               >
                 <ChevronRight className="h-5 w-5" />
               </Button>
@@ -220,16 +222,20 @@ export function OverviewPeriodSelector({
                 const isSelected = periodMode === "custom_month" && 
                                    selectedMonth === index + 1 && 
                                    selectedYear === tempYear;
+                const isFutureMonth = tempYear > currentYear || 
+                                      (tempYear === currentYear && index > currentMonth);
                 return (
                   <Button
                     key={month}
                     variant="outline"
                     size="sm"
+                    disabled={isFutureMonth}
                     className={cn(
                       "h-11 text-sm font-medium rounded-lg transition-all",
                       isSelected 
                         ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground" 
-                        : "hover:bg-muted hover:border-muted-foreground/30"
+                        : "hover:bg-muted hover:border-muted-foreground/30",
+                      isFutureMonth && "opacity-50 cursor-not-allowed"
                     )}
                     onClick={() => handleMonthSelect(index)}
                   >
@@ -245,15 +251,18 @@ export function OverviewPeriodSelector({
             <div className="grid grid-cols-3 gap-3">
               {YEARS.map((year) => {
                 const isSelected = periodMode === "year" && selectedYear === year;
+                const isFutureYear = year > currentYear;
                 return (
                   <Button
                     key={year}
                     variant="outline"
+                    disabled={isFutureYear}
                     className={cn(
                       "h-12 text-base font-medium rounded-lg transition-all",
                       isSelected 
                         ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground" 
-                        : "hover:bg-muted hover:border-muted-foreground/30"
+                        : "hover:bg-muted hover:border-muted-foreground/30",
+                      isFutureYear && "opacity-50 cursor-not-allowed"
                     )}
                     onClick={() => handleYearSelect(year)}
                   >
@@ -273,6 +282,7 @@ export function OverviewPeriodSelector({
                 onSelect={handleDateRangeSelect}
                 numberOfMonths={2}
                 locale={fr}
+                disabled={{ after: today }}
                 className="pointer-events-auto"
               />
             </div>
