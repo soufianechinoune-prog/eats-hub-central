@@ -2,13 +2,12 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getDay, subYears, subWeeks } from "date-fns";
-import { fr } from "date-fns/locale";
-import type { DateRange } from "react-day-picker";
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subYears, getDay, subWeeks } from "date-fns";
 import { ArrowLeft, Percent, RefreshCw, Bug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
+import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { ProfitabilityRankingBars } from "@/components/compare/ProfitabilityRankingBars";
 import { ProfitabilityInsightsSection } from "@/components/compare/ProfitabilityInsightsSection";
 import { ProfitabilityHeatmapGrid } from "@/components/compare/ProfitabilityHeatmapGrid";
@@ -30,15 +29,22 @@ const ProfitabilityComparison = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
-  // Period state - same as Overview
-  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("previous_week");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
-  const [showDebug, setShowDebug] = useState(false);
-  const [comparisonMode, setComparisonMode] = useState<"yearOverYear" | "rollingPeriod">("yearOverYear");
+  // Use Analytics Context for filters
+  const {
+    selectedRestaurants,
+    visibleRestaurants,
+    selectedPlatform,
+    periodMode,
+    selectedYear,
+    selectedMonth,
+    dateRange: contextDateRange,
+    comparisonMode,
+    setComparisonMode,
+  } = useAnalyticsContext();
 
-  // Calculate date range based on period mode
+  const [showDebug, setShowDebug] = useState(false);
+
+  // Calculate date range based on period mode from context
   const dateRange = useMemo(() => {
     const now = new Date();
     switch (periodMode) {
@@ -56,24 +62,25 @@ const ProfitabilityComparison = () => {
       case "current_month": {
         return { start: startOfMonth(now), end: now };
       }
-      case "custom_month": {
+      case "month": {
         const monthDate = new Date(selectedYear, selectedMonth - 1, 1);
         return { start: startOfMonth(monthDate), end: endOfMonth(monthDate) };
       }
       case "year": {
-        const yearDate = new Date(selectedYear, 0, 1);
-        return { start: startOfYear(yearDate), end: endOfYear(yearDate) };
+        const yearStart = new Date(selectedYear, 0, 1);
+        const yearEnd = new Date(selectedYear, 11, 31);
+        return { start: yearStart, end: yearEnd };
       }
-      case "custom_range": {
-        if (customDateRange?.from && customDateRange?.to) {
-          return { start: customDateRange.from, end: customDateRange.to };
+      case "range": {
+        if (contextDateRange?.from && contextDateRange?.to) {
+          return { start: contextDateRange.from, end: contextDateRange.to };
         }
         return { start: subDays(now, 7), end: now };
       }
       default:
         return { start: subDays(now, 7), end: now };
     }
-  }, [periodMode, selectedYear, selectedMonth, customDateRange]);
+  }, [periodMode, selectedYear, selectedMonth, contextDateRange]);
 
   // Calculate previous date range for comparison
   const previousDateRange = useMemo(() => {
@@ -97,14 +104,13 @@ const ProfitabilityComparison = () => {
     return "quarter";
   }, [dateRange]);
 
-  // Fetch pinned restaurants only
-  const { data: pinnedRestaurants } = useQuery({
-    queryKey: ["pinned-restaurants-profitability"],
+  // Get restaurant IDs to use (selected from context, or fall back to pinned)
+  const { data: allRestaurants } = useQuery({
+    queryKey: ["all-restaurants-profitability"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
         .select("id, name, uber_commission_rate, is_pinned")
-        .eq("is_pinned", true)
         .order("name");
       if (error) throw error;
       return data || [];
@@ -112,11 +118,27 @@ const ProfitabilityComparison = () => {
     staleTime: 0,
   });
 
+  // Determine which restaurant IDs to use for queries
+  const activeRestaurantIds = useMemo(() => {
+    // If there are selected restaurants in context, use those
+    if (selectedRestaurants.length > 0) {
+      return selectedRestaurants;
+    }
+    // Otherwise, fall back to pinned restaurants
+    return allRestaurants?.filter(r => r.is_pinned).map(r => r.id) || [];
+  }, [selectedRestaurants, allRestaurants]);
+
+  // Get restaurant details for active IDs
+  const activeRestaurants = useMemo(() => {
+    if (!allRestaurants) return [];
+    return allRestaurants.filter(r => activeRestaurantIds.includes(r.id));
+  }, [allRestaurants, activeRestaurantIds]);
+
   // Fetch payouts data for the period (for aggregated stats like promo, refunds, uber fees)
   const { data: payoutsData } = useQuery({
-    queryKey: ["profitability-comparison-payouts", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+    queryKey: ["profitability-comparison-payouts", activeRestaurantIds, dateRange.start, dateRange.end],
     queryFn: async () => {
-      if (!pinnedRestaurants?.length) return [];
+      if (!activeRestaurantIds.length) return [];
       
       const startStr = format(dateRange.start, "yyyy-MM-dd");
       const endStr = format(dateRange.end, "yyyy-MM-dd");
@@ -124,29 +146,29 @@ const ProfitabilityComparison = () => {
       const { data, error } = await supabase
         .from("payouts")
         .select("*")
-        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
+        .in("restaurant_id", activeRestaurantIds)
         .gte("payout_date", startStr)
         .lte("payout_date", endStr);
       
       if (error) throw error;
       return data || [];
     },
-    enabled: !!pinnedRestaurants?.length,
+    enabled: activeRestaurantIds.length > 0,
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
 
   // Fetch daily aggregated data using RPC (NO more pagination issues!)
   const { data: dailyAggregatedData, isLoading } = useQuery({
-    queryKey: ["profitability-daily-rpc", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+    queryKey: ["profitability-daily-rpc", activeRestaurantIds, dateRange.start, dateRange.end],
     queryFn: async () => {
-      if (!pinnedRestaurants?.length) return [];
+      if (!activeRestaurantIds.length) return [];
       
       const startStr = format(dateRange.start, "yyyy-MM-dd");
       const endStr = format(dateRange.end, "yyyy-MM-dd");
       
       const { data, error } = await supabase.rpc("get_profitability_daily", {
-        p_restaurant_ids: pinnedRestaurants.map(r => r.id),
+        p_restaurant_ids: activeRestaurantIds,
         p_start_date: startStr,
         p_end_date: endStr,
       });
@@ -154,22 +176,22 @@ const ProfitabilityComparison = () => {
       if (error) throw error;
       return (data || []) as DailyProfitabilityRow[];
     },
-    enabled: !!pinnedRestaurants?.length,
+    enabled: activeRestaurantIds.length > 0,
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
 
   // Fetch previous period daily data for comparison chart
   const { data: previousDailyData } = useQuery({
-    queryKey: ["profitability-daily-prev", pinnedRestaurants?.map(r => r.id), previousDateRange.start, previousDateRange.end],
+    queryKey: ["profitability-daily-prev", activeRestaurantIds, previousDateRange.start, previousDateRange.end],
     queryFn: async () => {
-      if (!pinnedRestaurants?.length) return [];
+      if (!activeRestaurantIds.length) return [];
       
       const startStr = format(previousDateRange.start, "yyyy-MM-dd");
       const endStr = format(previousDateRange.end, "yyyy-MM-dd");
       
       const { data, error } = await supabase.rpc("get_profitability_daily", {
-        p_restaurant_ids: pinnedRestaurants.map(r => r.id),
+        p_restaurant_ids: activeRestaurantIds,
         p_start_date: startStr,
         p_end_date: endStr,
       });
@@ -177,7 +199,7 @@ const ProfitabilityComparison = () => {
       if (error) throw error;
       return (data || []) as DailyProfitabilityRow[];
     },
-    enabled: !!pinnedRestaurants?.length,
+    enabled: activeRestaurantIds.length > 0,
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
@@ -195,8 +217,10 @@ const ProfitabilityComparison = () => {
       uniqueDays: uniqueDays.length,
       periodStart: format(dateRange.start, "dd/MM/yyyy"),
       periodEnd: format(dateRange.end, "dd/MM/yyyy"),
+      restaurantCount: activeRestaurantIds.length,
+      platform: selectedPlatform,
     };
-  }, [dailyAggregatedData, dateRange]);
+  }, [dailyAggregatedData, dateRange, activeRestaurantIds, selectedPlatform]);
 
   // Refresh function
   const handleRefresh = () => {
@@ -207,9 +231,9 @@ const ProfitabilityComparison = () => {
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!pinnedRestaurants?.length) return [];
+    if (!activeRestaurants?.length) return [];
     
-    const stats = pinnedRestaurants.map(restaurant => {
+    const stats = activeRestaurants.map(restaurant => {
       const restaurantPayouts = payoutsData?.filter(d => d.restaurant_id === restaurant.id) || [];
       const restaurantDailyData = dailyAggregatedData?.filter(d => d.restaurant_id === restaurant.id) || [];
       
@@ -294,12 +318,12 @@ const ProfitabilityComparison = () => {
     
     // Sort by Marge Uber (highest first) - this is the primary metric now
     return stats.sort((a, b) => b.margeUber - a.margeUber);
-  }, [payoutsData, dailyAggregatedData, pinnedRestaurants]);
+  }, [payoutsData, dailyAggregatedData, activeRestaurants]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-6 space-y-6">
-        {/* Header */}
+        {/* Header with title and actions */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
@@ -316,7 +340,7 @@ const ProfitabilityComparison = () => {
                 <h1 className="text-2xl font-bold">Comparaison Rentabilité</h1>
               </div>
               <p className="text-muted-foreground text-sm">
-                Analyse comparative des restaurants épinglés
+                Analyse comparative des restaurants sélectionnés
               </p>
             </div>
           </div>
@@ -338,18 +362,11 @@ const ProfitabilityComparison = () => {
             >
               <Bug className="h-4 w-4" />
             </Button>
-            <OverviewPeriodSelector
-              periodMode={periodMode}
-              onPeriodModeChange={setPeriodMode}
-              selectedYear={selectedYear}
-              onYearChange={setSelectedYear}
-              selectedMonth={selectedMonth}
-              onMonthChange={setSelectedMonth}
-              dateRange={customDateRange}
-              onDateRangeChange={setCustomDateRange}
-            />
           </div>
         </div>
+
+        {/* Full Analytics Header with filters */}
+        <AnalyticsHeader />
 
         {/* Debug Panel */}
         {showDebug && debugInfo && (
@@ -360,8 +377,8 @@ const ProfitabilityComparison = () => {
                 <div><strong>Lignes RPC:</strong> {debugInfo.totalRows}</div>
                 <div><strong>Commandes totales:</strong> {debugInfo.totalOrders.toLocaleString()}</div>
                 <div><strong>Jours uniques:</strong> {debugInfo.uniqueDays}</div>
-                <div><strong>Min date:</strong> {debugInfo.minDate}</div>
-                <div><strong>Max date:</strong> {debugInfo.maxDate}</div>
+                <div><strong>Restaurants:</strong> {debugInfo.restaurantCount}</div>
+                <div><strong>Plateforme:</strong> {debugInfo.platform}</div>
               </div>
             </CardContent>
           </Card>
@@ -409,7 +426,7 @@ const ProfitabilityComparison = () => {
                 <ProfitabilityEvolutionChart 
                   stats={restaurantStats} 
                   dateRange={dateRange} 
-                  restaurantIds={pinnedRestaurants?.map(r => r.id)}
+                  restaurantIds={activeRestaurantIds}
                 />
               </CardContent>
             </Card>
