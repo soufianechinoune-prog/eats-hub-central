@@ -56,7 +56,8 @@ export const REPORT_TYPE_CONFIG: Record<string, ReportTypeConfig> = {
     requiresRestaurant: false,
     edgeFunctionName: "parse-payout-summary",
     targetTables: ["payouts"],
-    requiredColumns: ["Identifiant de versement", "Date du versement"],
+    // Accept multiple header variations found in Uber Eats exports
+    requiredColumns: ["Date du versement", "Montant total"],
   },
   
   marketing_campaigns: {
