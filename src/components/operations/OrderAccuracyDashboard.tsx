@@ -405,7 +405,7 @@ export function OrderAccuracyDashboard({
     const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 
     // RANGE MODE - Show daily data for the selected range
-    if (periodMode === "range" && dailyAccuracy && dailyAccuracy.length > 0) {
+    if (periodMode === "range") {
       // Get daily order counts from daily sales data
       const dailyOrders: Record<string, number> = {};
       (dailySalesData || []).forEach((r: any) => {
@@ -413,27 +413,36 @@ export function OrderAccuracyDashboard({
         dailyOrders[dateStr] = (dailyOrders[dateStr] || 0) + (r.order_count || 0);
       });
 
-      // Group by day
-      const dailyData: Record<string, { errors: number; refund: number }> = {};
-      dailyAccuracy.forEach(d => {
+      // Group errors by day
+      const dailyErrors: Record<string, { errors: number; refund: number }> = {};
+      (dailyAccuracy || []).forEach(d => {
         const dateStr = d.date;
-        if (!dailyData[dateStr]) {
-          dailyData[dateStr] = { errors: 0, refund: 0 };
+        if (!dailyErrors[dateStr]) {
+          dailyErrors[dateStr] = { errors: 0, refund: 0 };
         }
-        dailyData[dateStr].errors += d.incorrect_orders_count || 0;
-        dailyData[dateStr].refund += Number(d.total_refund || 0);
+        dailyErrors[dateStr].errors += d.incorrect_orders_count || 0;
+        dailyErrors[dateStr].refund += Number(d.total_refund || 0);
       });
 
-      return Object.entries(dailyData)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([dateStr, data]) => {
+      // CRITICAL FIX: Use ALL days from sales data as base, not just days with errors
+      // This ensures days with 0 errors are displayed as 0% instead of being omitted
+      const allDates = new Set([
+        ...Object.keys(dailyOrders),
+        ...Object.keys(dailyErrors),
+      ]);
+
+      return Array.from(allDates)
+        .sort((a, b) => a.localeCompare(b))
+        .map(dateStr => {
           const date = parseISO(dateStr);
           const orders = dailyOrders[dateStr] || 0;
+          const errorData = dailyErrors[dateStr] || { errors: 0, refund: 0 };
           return {
             period: dateStr,
             label: format(date, "d MMM", { locale: fr }),
-            errorRate: orders > 0 ? (data.errors / orders) * 100 : null,
-            errorCount: data.errors,
+            // If we have orders but no errors, that's 0% - not null
+            errorRate: orders > 0 ? (errorData.errors / orders) * 100 : null,
+            errorCount: errorData.errors,
             orderCount: orders,
             hasSalesData: orders > 0,
           };
@@ -441,7 +450,7 @@ export function OrderAccuracyDashboard({
     }
 
     // DAILY VIEW (drill-down mode for month view)
-    if (chartPeriodMode === "month" && chartSelectedMonth && dailyAccuracy) {
+    if (chartPeriodMode === "month" && chartSelectedMonth) {
       // Get daily order counts from daily sales data
       const dailyOrders: Record<string, number> = {};
       (dailySalesData || []).forEach((r: any) => {
@@ -450,32 +459,41 @@ export function OrderAccuracyDashboard({
       });
 
       // Filter daily accuracy data for the selected month
-      const filteredDailyAccuracy = dailyAccuracy.filter(d => {
+      const filteredDailyAccuracy = (dailyAccuracy || []).filter(d => {
         const date = parseISO(d.date);
         return date.getMonth() + 1 === chartSelectedMonth;
       });
 
-      // Group by day
-      const dailyData: Record<string, { errors: number; refund: number }> = {};
+      // Group errors by day
+      const dailyErrors: Record<string, { errors: number; refund: number }> = {};
       filteredDailyAccuracy.forEach(d => {
         const dateStr = d.date;
-        if (!dailyData[dateStr]) {
-          dailyData[dateStr] = { errors: 0, refund: 0 };
+        if (!dailyErrors[dateStr]) {
+          dailyErrors[dateStr] = { errors: 0, refund: 0 };
         }
-        dailyData[dateStr].errors += d.incorrect_orders_count || 0;
-        dailyData[dateStr].refund += Number(d.total_refund || 0);
+        dailyErrors[dateStr].errors += d.incorrect_orders_count || 0;
+        dailyErrors[dateStr].refund += Number(d.total_refund || 0);
       });
 
-      return Object.entries(dailyData)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([dateStr, data]) => {
+      // CRITICAL FIX: Use ALL days from sales data as base, not just days with errors
+      // This ensures days with 0 errors are displayed as 0% instead of being omitted
+      const allDates = new Set([
+        ...Object.keys(dailyOrders),
+        ...Object.keys(dailyErrors),
+      ]);
+
+      return Array.from(allDates)
+        .sort((a, b) => a.localeCompare(b))
+        .map(dateStr => {
           const date = parseISO(dateStr);
           const orders = dailyOrders[dateStr] || 0;
+          const errorData = dailyErrors[dateStr] || { errors: 0, refund: 0 };
           return {
             period: dateStr,
             label: format(date, "d", { locale: fr }),
-            errorRate: orders > 0 ? (data.errors / orders) * 100 : null,
-            errorCount: data.errors,
+            // If we have orders but no errors, that's 0% - not null
+            errorRate: orders > 0 ? (errorData.errors / orders) * 100 : null,
+            errorCount: errorData.errors,
             orderCount: orders,
             hasSalesData: orders > 0,
           };
