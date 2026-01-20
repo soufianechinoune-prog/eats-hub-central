@@ -1,9 +1,35 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
-import { format, startOfWeek, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
+import { format, startOfWeek, startOfMonth, endOfMonth, differenceInDays, addDays, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 
+// Utility to get date key in Europe/Paris timezone (YYYY-MM-DD format)
+const getParisDateKey = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date);
+};
+
+// Utility to get hour in Europe/Paris timezone (0-23)
+const getParisHour = (dateStr: string): number => {
+  const date = new Date(dateStr);
+  const hourStr = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Paris',
+    hour: '2-digit',
+    hourCycle: 'h23'
+  }).format(date);
+  return parseInt(hourStr, 10);
+};
+
+// Check if a Paris date key is within the target range
+const isDateInRange = (parisDateKey: string, startStr: string, endStr: string): boolean => {
+  return parisDateKey >= startStr && parisDateKey <= endStr;
+};
 export type DrilldownGranularity = "daily" | "hourly" | "product" | "order";
 
 interface DailyFinanceData {
@@ -94,6 +120,10 @@ export function useFinancesDrilldown({
   const endStr = format(endDate, "yyyy-MM-dd");
 
   // Fetch orders data for daily/hourly breakdown - include financial fields with pagination
+  // Expand the query window by 1 day on each side to handle timezone edge cases
+  const expandedStartStr = format(subDays(startDate, 1), "yyyy-MM-dd");
+  const expandedEndStr = format(addDays(endDate, 1), "yyyy-MM-dd");
+  
   const { data: ordersData, isLoading: loadingOrders } = useQuery({
     queryKey: ["finances-drilldown-orders", restaurantIds, startStr, endStr, granularity],
     queryFn: async () => {
@@ -106,8 +136,8 @@ export function useFinancesDrilldown({
         let query = supabase
           .from("orders")
           .select("order_datetime, sales_incl_vat, refund_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, net_payout, meal_voucher_amount, restaurant_id")
-          .gte("order_datetime", `${startStr}T00:00:00`)
-          .lte("order_datetime", `${endStr}T23:59:59`)
+          .gte("order_datetime", `${expandedStartStr}T00:00:00`)
+          .lte("order_datetime", `${expandedEndStr}T23:59:59`)
           .range(from, from + PAGE_SIZE - 1);
 
         if (restaurantIds && restaurantIds.length > 0) {
@@ -126,7 +156,12 @@ export function useFinancesDrilldown({
         }
       }
 
-      return allOrders;
+      // Filter orders by Paris timezone date to match RPC behavior
+      return allOrders.filter(order => {
+        if (!order.order_datetime) return false;
+        const parisDate = getParisDateKey(order.order_datetime);
+        return isDateInRange(parisDate, startStr, endStr);
+      });
     },
     enabled: enabled && (granularity === "daily" || granularity === "hourly"),
   });
@@ -353,7 +388,8 @@ export function useFinancesDrilldown({
 
     ordersData.forEach(order => {
       if (!order.order_datetime) return;
-      const date = order.order_datetime.split("T")[0];
+      // Use Paris timezone for date grouping (consistent with RPC get_profitability_daily)
+      const date = getParisDateKey(order.order_datetime);
       
       if (!byDate[date]) {
         byDate[date] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 };
@@ -406,7 +442,8 @@ export function useFinancesDrilldown({
 
     ordersData.forEach(order => {
       if (!order.order_datetime) return;
-      const hour = new Date(order.order_datetime).getHours();
+      // Use Paris timezone for hour grouping (consistent timezone handling)
+      const hour = getParisHour(order.order_datetime);
       
       byHour[hour].sales += Math.abs(Number(order.sales_incl_vat) || 0);
       byHour[hour].refund += Math.abs(Number(order.refund_incl_vat) || 0);
