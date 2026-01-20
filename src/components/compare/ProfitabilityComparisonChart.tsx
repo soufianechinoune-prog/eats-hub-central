@@ -132,9 +132,9 @@ export const ProfitabilityComparisonChart = ({
         }
         const previous = prevByDay[prevDayKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
         
-        // MARGE UBER = net_payout / sales (without meal vouchers)
-        const profitability = current.sales > 0 ? (current.netPayout / current.sales) * 100 : null;
-        const prevProfitability = previous.sales > 0 ? (previous.netPayout / previous.sales) * 100 : null;
+        // TOTAL ENCAISSE = (net_payout + meal_voucher) / sales
+        const profitability = current.sales > 0 ? ((current.netPayout + current.mealVoucher) / current.sales) * 100 : null;
+        const prevProfitability = previous.sales > 0 ? ((previous.netPayout + previous.mealVoucher) / previous.sales) * 100 : null;
         
         // TR bonus for tooltip
         const trBonus = current.sales > 0 ? (current.mealVoucher / current.sales) * 100 : 0;
@@ -205,9 +205,9 @@ export const ProfitabilityComparisonChart = ({
         }
         const previous = prevByMonth[prevMonthKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
         
-        // MARGE UBER = net_payout / sales (without meal vouchers)
-        const profitability = current.sales > 0 ? (current.netPayout / current.sales) * 100 : null;
-        const prevProfitability = previous.sales > 0 ? (previous.netPayout / previous.sales) * 100 : null;
+        // TOTAL ENCAISSE = (net_payout + meal_voucher) / sales
+        const profitability = current.sales > 0 ? ((current.netPayout + current.mealVoucher) / current.sales) * 100 : null;
+        const prevProfitability = previous.sales > 0 ? ((previous.netPayout + previous.mealVoucher) / previous.sales) * 100 : null;
         
         // TR bonus for tooltip
         const trBonus = current.sales > 0 ? (current.mealVoucher / current.sales) * 100 : 0;
@@ -261,17 +261,19 @@ export const ProfitabilityComparisonChart = ({
     const prevTotalSales = chartData.reduce((sum, d) => sum + (d.prevSales || 0), 0);
     const prevTotalNetPayout = chartData.reduce((sum, d) => sum + (d.prevNetPayout || 0), 0);
     
-    // Marge Uber = net_payout / sales (without meal vouchers)
-    const totalProfitability = totalSales > 0 ? (totalNetPayout / totalSales) * 100 : 0;
-    const prevTotalProfitability = prevTotalSales > 0 ? (prevTotalNetPayout / prevTotalSales) * 100 : 0;
+    // Total Encaissé = (net_payout + meal_voucher) / sales
+    const prevTotalMealVoucher = chartData.reduce((sum, d) => sum + (d.prevMealVoucher || 0), 0);
+    const totalProfitability = totalSales > 0 ? ((totalNetPayout + totalMealVoucher) / totalSales) * 100 : 0;
+    const prevTotalProfitability = prevTotalSales > 0 ? ((prevTotalNetPayout + prevTotalMealVoucher) / prevTotalSales) * 100 : 0;
     const variation = totalProfitability - prevTotalProfitability;
     
-    // Debug log for Marge Uber calculation
-    console.log("[ProfitabilityChart] Marge Uber Calculation:", {
+    // Debug log for Total Encaissé calculation
+    console.log("[ProfitabilityChart] Total Encaissé Calculation:", {
       totalSales: totalSales.toFixed(2),
       totalNetPayout: totalNetPayout.toFixed(2),
       totalMealVoucher: totalMealVoucher.toFixed(2),
-      margeUber: totalProfitability.toFixed(2) + "%",
+      totalEncaisse: totalProfitability.toFixed(2) + "%",
+      margeUber: totalSales > 0 ? ((totalNetPayout / totalSales) * 100).toFixed(2) + "%" : "0%",
       trBonus: totalSales > 0 ? ((totalMealVoucher / totalSales) * 100).toFixed(2) + "%" : "0%",
       rawDataPoints: currentPeriodData.length,
       chartDataPoints: chartData.length,
