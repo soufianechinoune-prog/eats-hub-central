@@ -451,12 +451,7 @@ export function ProfitabilityComparisonTable({
     const avgPromoRate = comparisonData.reduce((sum, d) => sum + d.promoRate, 0) / comparisonData.length;
     const avgRefundRate = comparisonData.reduce((sum, d) => sum + d.refundRate, 0) / comparisonData.length;
     const avgOtherRate = comparisonData.reduce((sum, d) => sum + d.otherRate, 0) / comparisonData.length;
-    
-    // Moyenne pondérée par le CA (weighted average)
-    const weightedProfitability = totalSales > 0 ? (totalPayout / totalSales) * 100 : 0;
-    
-    // Moyenne simple (arithmetic average of daily percentages)
-    const simpleProfitability = comparisonData.reduce((sum, d) => sum + d.profitability, 0) / comparisonData.length;
+    const avgProfitability = totalSales > 0 ? (totalPayout / totalSales) * 100 : 0;
     
     // Average amounts
     const avgUberFeeAmount = comparisonData.reduce((sum, d) => sum + d.uberFeeNet, 0) / comparisonData.length;
@@ -467,9 +462,7 @@ export function ProfitabilityComparisonTable({
     const avgTotalPayoutAmount = totalPayout / comparisonData.length;
     
     return {
-      profitability: weightedProfitability,        // Moyenne pondérée (existante, gardée pour compatibilité)
-      weightedProfitability,                       // Moyenne pondérée par CA
-      simpleProfitability,                         // Moyenne simple arithmétique
+      profitability: avgProfitability,
       uberFeeRate: avgUberRate,
       promoRate: avgPromoRate,
       refundRate: avgRefundRate,
@@ -481,7 +474,7 @@ export function ProfitabilityComparisonTable({
       ecoContributionAmount: avgEcoContributionAmount,
       totalPayoutAmount: avgTotalPayoutAmount,
     };
-  }, [comparisonData, payouts]);
+  }, [comparisonData]);
   
   if (comparisonData.length === 0) return null;
   
@@ -654,7 +647,7 @@ export function ProfitabilityComparisonTable({
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger className="flex items-center gap-1 ml-auto">
-                        Rentab. moy.
+                        Rentabilité
                         <HelpCircle className="h-3 w-3" />
                         {sortColumn === 'profitability' ? (
                           sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
@@ -663,28 +656,7 @@ export function ProfitabilityComparisonTable({
                         )}
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
-                        <div className="text-xs space-y-1">
-                          <p className="font-medium">Moyenne simple</p>
-                          <p>Moyenne arithmétique des rentabilités journalières. Chaque jour compte à égalité, indépendamment du CA réalisé.</p>
-                          <p className="text-muted-foreground italic">Formule : Σ(Rentab. jour) / Nb jours</p>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </TableHead>
-                <TableHead className="text-right">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger className="flex items-center gap-1 ml-auto">
-                        Rentab. pond.
-                        <HelpCircle className="h-3 w-3" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <div className="text-xs space-y-1">
-                          <p className="font-medium">Moyenne pondérée par le CA</p>
-                          <p>Les jours avec un CA plus élevé pèsent davantage. Reflète la rentabilité réelle du chiffre d'affaires total encaissé.</p>
-                          <p className="text-muted-foreground italic">Formule : Total Encaissé / CA Total × 100</p>
-                        </div>
+                        <p className="text-xs">Total à encaisser (Versement Uber + Titres restaurant) / CA TTC × 100</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -815,11 +787,8 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right font-medium tabular-nums">
                         {formatCurrency(row.sales)}
                       </TableCell>
-                      <TableCell className="text-right text-emerald-600">
+                      <TableCell className="text-right text-green-600">
                         <span className="font-medium tabular-nums">{row.profitability.toFixed(1)}%</span>
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        <span className="tabular-nums text-xs">-</span>
                       </TableCell>
                       <TableCell className="text-right">
                         <ComparisonCell percentValue={row.uberFeeRate} amountValue={row.uberFeeNet} isCommission />
@@ -849,13 +818,10 @@ export function ProfitabilityComparisonTable({
                   {averages && comparisonData.length > 1 && (
                     <TableRow className="bg-muted/50 font-medium">
                       <TableCell colSpan={2} className="text-muted-foreground">
-                        Moyenne ({comparisonData.length} jours)
+                        Moyenne
                       </TableCell>
-                      <TableCell className="text-right text-emerald-600 tabular-nums">
-                        {averages.simpleProfitability.toFixed(1)}%
-                      </TableCell>
-                      <TableCell className="text-right text-emerald-600 tabular-nums">
-                        {averages.weightedProfitability.toFixed(1)}%
+                      <TableCell className="text-right text-green-600 tabular-nums">
+                        {averages.profitability.toFixed(1)}%
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {displayMode === 'amount' 
@@ -913,7 +879,7 @@ export function ProfitabilityComparisonTable({
                       <>
                         {/* Week header row */}
                         <TableRow key={group.weekKey} className="bg-muted/30 hover:bg-muted/40">
-                          <TableCell colSpan={11} className="py-2">
+                          <TableCell colSpan={10} className="py-2">
                             <div className="flex items-center gap-2 font-medium">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
                               {group.weekLabel}
@@ -968,11 +934,8 @@ export function ProfitabilityComparisonTable({
                               <TableCell className="text-right font-medium tabular-nums">
                                 {formatCurrency(row.sales)}
                               </TableCell>
-                              <TableCell className="text-right text-emerald-600">
+                              <TableCell className="text-right text-green-600">
                                 <span className="font-medium tabular-nums">{row.profitability.toFixed(1)}%</span>
-                              </TableCell>
-                              <TableCell className="text-right text-muted-foreground">
-                                <span className="tabular-nums text-xs">-</span>
                               </TableCell>
                               <TableCell className="text-right">
                                 <ComparisonCell percentValue={row.uberFeeRate} amountValue={row.uberFeeNet} isCommission />
@@ -1009,12 +972,9 @@ export function ProfitabilityComparisonTable({
                               {salesGap >= 0 ? '+' : ''}{formatCurrency(salesGap)}
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums font-medium">
-                              <span className={profitGap >= 0 ? 'text-emerald-600' : 'text-destructive'}>
+                              <span className={profitGap >= 0 ? 'text-green-600' : 'text-red-600'}>
                                 {profitGap >= 0 ? '+' : ''}{profitGap.toFixed(1)} pts
                               </span>
-                            </TableCell>
-                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
-                              -
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
                               {displayMode === 'amount' 
@@ -1093,11 +1053,8 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right font-medium tabular-nums">
                         {formatCurrency(group.totalSales)}
                       </TableCell>
-                      <TableCell className="text-right text-emerald-600">
+                      <TableCell className="text-right text-green-600">
                         <span className="font-medium tabular-nums">{group.avgProfitability.toFixed(1)}%</span>
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        <span className="tabular-nums text-xs">-</span>
                       </TableCell>
                       <TableCell className="text-right">
                         <ComparisonCell percentValue={group.avgUberFeeRate} amountValue={group.totalUberFee} isCommission />
@@ -1129,13 +1086,10 @@ export function ProfitabilityComparisonTable({
                   {monthGroups.length > 1 && (
                     <TableRow className="bg-muted/50 font-medium">
                       <TableCell colSpan={2} className="text-muted-foreground">
-                        Total ({monthGroups.length} mois)
+                        Total
                       </TableCell>
-                      <TableCell className="text-right text-emerald-600 tabular-nums">
-                        {averages?.simpleProfitability.toFixed(1)}%
-                      </TableCell>
-                      <TableCell className="text-right text-emerald-600 tabular-nums">
-                        {averages?.weightedProfitability.toFixed(1)}%
+                      <TableCell className="text-right text-green-600 tabular-nums">
+                        {averages?.profitability.toFixed(1)}%
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {displayMode === 'amount' 
