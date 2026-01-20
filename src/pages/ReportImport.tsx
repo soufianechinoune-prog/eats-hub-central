@@ -447,9 +447,16 @@ export default function ReportImport() {
     if (headerLine.includes("Identifiant de versement") || headerLine.includes("Date de versement")) {
       return "payout_summary";
     }
-    // Payment reports (default fallback for order/item level)
+    // Payment reports - MUST detect item-level BEFORE order-level
+    // Item-level detection: check for article/item columns
+    const isItemLevel = 
+      headerLine.includes("Titre de l'article") || 
+      headerLine.includes("Item title") ||
+      headerLine.includes("Nom du plat") ||
+      headerLine.includes("Nom de l'article");
+    
     if (headerLine.includes("Id. de la commande") || headerLine.includes("Id. du flux")) {
-      if (headerLine.includes("Titre de l'article") || headerLine.includes("Item title")) {
+      if (isItemLevel) {
         return "payment_item_level";
       }
       return "payment_order_level";
