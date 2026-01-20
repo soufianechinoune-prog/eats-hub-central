@@ -411,8 +411,13 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
         const content = event.target?.result as string;
         const lines = content.split("\n").filter(l => l.trim());
         
-        // Find header row (skip metadata rows)
-        let headerLine = "";
+        // CRITICAL FIX: Uber Eats item-level files have TWO header rows:
+        // Row 1: Long descriptions (e.g., "Code alphanumérique de commande...")
+        // Row 2: Actual short headers (e.g., "Id. de la commande", "Nom du plat/de l'article")
+        // We need to check MULTIPLE rows for detection keywords
+        
+        // Collect potential header lines (first 5 non-metadata lines)
+        const potentialHeaders: string[] = [];
         for (let i = 0; i < Math.min(10, lines.length); i++) {
           const line = lines[i];
           // Skip lines that look like metadata
@@ -420,15 +425,19 @@ export default function BulkImportTab({ restaurants }: BulkImportTabProps) {
               !line.startsWith("Rapport :") &&
               !line.includes("Légende du rapport") &&
               line.includes(",")) {
-            headerLine = line;
-            break;
+            potentialHeaders.push(line);
+            if (potentialHeaders.length >= 5) break;
           }
         }
         
+        // Combine first few potential header lines for detection
+        // This ensures we catch "Nom du plat" even if it's on row 2
+        const combinedHeaders = potentialHeaders.slice(0, 3).join(" ").toLowerCase();
+        
         // First try filename-based detection (most reliable)
         const typeFromFilename = detectReportTypeFromFilename(file.name);
-        // Fallback to content-based detection
-        const typeFromContent = detectReportTypeFromContent(headerLine);
+        // Fallback to content-based detection using COMBINED headers
+        const typeFromContent = detectReportTypeFromContent(combinedHeaders);
         
         const detectedType = typeFromFilename || typeFromContent;
         const detectionSource: "filename" | "content" | null = typeFromFilename ? "filename" : (typeFromContent ? "content" : null);
