@@ -443,30 +443,41 @@ export default function ReportImport() {
         (headerLine.includes("menu a été consulté") || headerLine.includes("menu consulté") || headerLine.includes("Plat ajouté"))) {
       return "conversion_funnel";
     }
-    // Payout Summary - detect all variations
-    if (
-      headerLine.includes("Identifiant de versement") || 
-      headerLine.includes("Id. de référence du versement") ||
-      headerLine.includes("Date de versement") ||
-      headerLine.includes("Date du versement") ||
-      (headerLine.includes("Montant total") && headerLine.includes("Nombre de commandes") && !headerLine.includes("Id. de la commande"))
-    ) {
-      return "payout_summary";
-    }
-    // Payment reports - MUST detect item-level BEFORE order-level
-    // Item-level detection: check for article/item columns
-    const isItemLevel = 
+    // Helper: Check for item-level columns
+    const hasItemColumns = 
       headerLine.includes("Titre de l'article") || 
       headerLine.includes("Item title") ||
       headerLine.includes("Nom du plat") ||
-      headerLine.includes("Nom de l'article");
+      headerLine.includes("Nom de l'article") ||
+      headerLine.includes("Nom du plat/de l'article");
     
-    if (headerLine.includes("Id. de la commande") || headerLine.includes("Id. du flux")) {
-      if (isItemLevel) {
-        return "payment_item_level";
+    // Helper: Check for order identifiers
+    const hasOrderId = headerLine.includes("Id. de la commande") || headerLine.includes("Id de la commande");
+    const hasFlowId = headerLine.includes("Id. du flux");
+    
+    // PRIORITY 1: ITEM-LEVEL PAYMENT (most specific - has order/flow ID AND item columns)
+    if ((hasOrderId || hasFlowId) && hasItemColumns) {
+      return "payment_item_level";
+    }
+    
+    // PRIORITY 2: PAYOUT SUMMARY (aggregated - NO order IDs)
+    if (!hasOrderId && !hasFlowId) {
+      if (
+        headerLine.includes("Identifiant de versement") || 
+        headerLine.includes("Id. de référence du versement") ||
+        headerLine.includes("Date de versement") ||
+        headerLine.includes("Date du versement") ||
+        (headerLine.includes("Montant total") && headerLine.includes("Nombre de commandes"))
+      ) {
+        return "payout_summary";
       }
+    }
+    
+    // PRIORITY 3: ORDER-LEVEL PAYMENT (has order/flow ID, no item columns)
+    if (hasOrderId || hasFlowId) {
       return "payment_order_level";
     }
+    
     return null;
   };
 
