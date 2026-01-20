@@ -443,8 +443,14 @@ export default function ReportImport() {
         (headerLine.includes("menu a été consulté") || headerLine.includes("menu consulté") || headerLine.includes("Plat ajouté"))) {
       return "conversion_funnel";
     }
-    // Payout Summary
-    if (headerLine.includes("Identifiant de versement") || headerLine.includes("Date de versement")) {
+    // Payout Summary - detect all variations
+    if (
+      headerLine.includes("Identifiant de versement") || 
+      headerLine.includes("Id. de référence du versement") ||
+      headerLine.includes("Date de versement") ||
+      headerLine.includes("Date du versement") ||
+      (headerLine.includes("Montant total") && headerLine.includes("Nombre de commandes") && !headerLine.includes("Id. de la commande"))
+    ) {
       return "payout_summary";
     }
     // Payment reports - MUST detect item-level BEFORE order-level

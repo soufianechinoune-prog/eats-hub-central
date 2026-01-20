@@ -6,6 +6,7 @@ const corsHeaders = {
 };
 
 // Column mapping from French CSV headers to database fields
+// Include variations to handle Uber Eats export inconsistencies (singular/plural, spacing)
 const COLUMN_MAPPING: Record<string, string> = {
   'Nom du restaurant': 'restaurant_name',
   'Id. du restaurant': 'uber_store_id',
@@ -15,48 +16,71 @@ const COLUMN_MAPPING: Record<string, string> = {
   'TVA 1 sur les ventes': 'vat_1_sales',
   'TVA 2 sur les ventes': 'vat_2_sales',
   'TVA 3 sur les ventes': 'vat_3_sales',
+  // Handle both singular and plural variations
   'Ventes (TVA incluses)': 'sales_incl_vat',
+  'Ventes (TVA incluse)': 'sales_incl_vat',
   'Remboursements (hors TVA)': 'refund_excl_vat',
   'TVA sur les remboursements': 'vat_refund',
   'Remboursements (TVA incluse)': 'refund_incl_vat',
+  'Remboursements (TVA incluses)': 'refund_incl_vat',
   'Promotion sur les plats/articles (hors TVA)': 'item_promo_excl_vat',
   'TVA 1 sur les offres sur les articles': 'vat_1_item_promo',
   'TVA 2 sur les offres sur les articles': 'vat_2_item_promo',
   'TVA 3 sur les offres sur les articles': 'vat_3_item_promo',
   'Promotion sur les plats/articles (TVA incluse)': 'item_promo_incl_vat',
+  'Promotion sur les plats/articles (TVA incluses)': 'item_promo_incl_vat',
   'Ajustement des frais de marketing': 'marketing_fee_adjustment',
   'Titre-restaurant': 'meal_voucher_amount',
   'Ajustements du prix (hors TVA)': 'price_adjustment_excl_vat',
   'TVA sur les ajustements du prix': 'vat_price_adjustment',
   'Ajustements du prix (TVA comprise)': 'price_adjustment_incl_vat',
+  'Ajustements du prix (TVA incluse)': 'price_adjustment_incl_vat',
   'Frais de livraison (hors TVA)': 'merchant_delivery_fee_excl_vat',
   'TVA 1 sur les frais de livraison': 'vat_1_merchant_delivery',
   'TVA 2 sur les frais de livraison': 'vat_2_merchant_delivery',
   'TVA 3 sur les frais de livraison': 'vat_3_merchant_delivery',
   'Frais de livraison (TVA incluse)': 'merchant_delivery_fee_incl_vat',
+  'Frais de livraison (TVA incluses)': 'merchant_delivery_fee_incl_vat',
   'Frais de préparation et d\'emballage': 'packaging_fee',
   'TVA sur les frais pour Préparation et emballage': 'vat_packaging_fee',
   'Frais de sac de livraison': 'bag_fee',
   'Promotion sur la livraison (hors TVA)': 'delivery_promo_excl_vat',
   'Taxe sur les promotions sur la livraison': 'vat_delivery_promo',
   'Promotion sur la livraison (TVA incluse)': 'delivery_promo_incl_vat',
+  'Promotion sur la livraison (TVA incluses)': 'delivery_promo_incl_vat',
   'Total de la commande (TVA incluse)': 'order_total_incl_vat',
+  'Total de la commande (TVA incluses)': 'order_total_incl_vat',
   'Coût de la livraison (hors TVA)': 'delivery_cost_excl_vat',
   'TVA sur le coût de la livraison': 'vat_delivery_cost',
   'Coût de la livraison (TVA incluse)': 'delivery_cost_incl_vat',
+  'Coût de la livraison (TVA incluses)': 'delivery_cost_incl_vat',
   'Frais de service Uber avant promotion (hors TVA)': 'uber_fee_before_promo_excl_vat',
   'Promotion sur les frais de service de la Marketplace / frais de mise en relation (hors TVA)': 'uber_fee_promo_excl_vat',
   'Frais de service de la Marketplace / frais de mise en relation après promotion (hors TVA)': 'uber_fee_after_promo_excl_vat',
   'TVA sur les frais de service de la Marketplace / frais de mise en relation après offre': 'vat_uber_fee',
   'Frais de service de la Marketplace / fais de mise en relation après promotion (TVA incluse)': 'uber_fee_after_promo_incl_vat',
+  'Frais de service de la Marketplace / frais de mise en relation après promotion (TVA incluse)': 'uber_fee_after_promo_incl_vat',
   'Ajustement de la TVA': 'vat_adjustment',
   'Gain sur les frais de livraison': 'delivery_fee_gain',
   'Pourboires': 'tips',
   'Autres paiements (TVA incluse)': 'other_payments_incl_vat',
+  'Autres paiements (TVA incluses)': 'other_payments_incl_vat',
   'Montant total': 'net_payout',
   'Date du versement': 'payout_date',
+  'Date de versement': 'payout_date',
   'Id. de référence du versement': 'payout_reference_id',
+  'Identifiant de versement': 'payout_reference_id',
 };
+
+// Normalize header strings to handle Unicode variants and special spaces
+function normalizeHeader(header: string): string {
+  return header
+    .replace(/\u00A0/g, ' ')  // Replace non-breaking spaces
+    .replace(/\u202F/g, ' ')  // Replace narrow no-break space
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width chars
+    .normalize('NFC')
+    .trim();
+}
 
 function parseCSV(csvText: string): string[][] {
   const rows: string[][] = [];
@@ -191,10 +215,10 @@ Deno.serve(async (req) => {
 
     console.log('Found headers:', headers.slice(0, 10), '...');
 
-    // Map column indices - trim headers to handle trailing spaces
+    // Map column indices - normalize headers to handle Unicode variants and trailing spaces
     const columnIndices: Record<string, number> = {};
     headers.forEach((header, index) => {
-      const cleanHeader = header.trim();
+      const cleanHeader = normalizeHeader(header);
       const mappedField = COLUMN_MAPPING[cleanHeader];
       if (mappedField) {
         // Handle duplicate "Id. du restaurant" - first one is often empty, second is UUID
@@ -206,6 +230,12 @@ Deno.serve(async (req) => {
         }
       }
     });
+    
+    // Log unmapped columns for diagnostics
+    const unmappedHeaders = headers.filter(h => !COLUMN_MAPPING[normalizeHeader(h)]);
+    if (unmappedHeaders.length > 0) {
+      console.log('Unmapped columns:', unmappedHeaders.slice(0, 10));
+    }
 
     console.log('Mapped columns:', Object.keys(columnIndices));
 
