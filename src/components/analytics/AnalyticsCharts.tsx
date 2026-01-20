@@ -3270,7 +3270,7 @@ export function AnalyticsCharts({
       />
       
       {/* Profitability Comparison Table - shown when we have payouts data */}
-      {showFinances && dailyPayoutsData && dailyPayoutsData.length > 1 && (
+      {showFinances && dailyPayoutsData && dailyPayoutsData.length > 0 && (
         <ProfitabilityComparisonTable
           payouts={dailyPayoutsData}
           restaurants={restaurants}
