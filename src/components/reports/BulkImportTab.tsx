@@ -171,23 +171,40 @@ const detectReportTypeFromFilename = (filename: string): string | null => {
 };
 
 // Auto-detect report type based on CSV headers
+// CRITICAL: Order of detection matters! Item-level MUST be checked BEFORE payout_summary
+// because item-level files also contain "Id. de référence du versement" column
 const detectReportTypeFromContent = (headerLine: string): string | null => {
   const lowerHeader = headerLine.toLowerCase();
   
-  // Payout Summary - CHECK FIRST before payment_order_level!
-  // These are aggregated files with order count, no individual order IDs
-  if ((lowerHeader.includes("nombre de commandes") || lowerHeader.includes("order count")) &&
-      (lowerHeader.includes("montant total") || lowerHeader.includes("total amount") || lowerHeader.includes("order total"))) {
-    return "payout_summary";
+  // Helper: Check if this looks like item-level data (article/item columns present)
+  const hasItemColumns = 
+    lowerHeader.includes("nom du plat") || 
+    lowerHeader.includes("titre de l'article") || 
+    lowerHeader.includes("item title") ||
+    lowerHeader.includes("nom du plat/de l'article") ||
+    lowerHeader.includes("nom de l'article");
+  
+  // Helper: Check if this has order-level identifiers
+  const hasOrderId = 
+    lowerHeader.includes("id. de la commande") || 
+    lowerHeader.includes("id de la commande") ||
+    lowerHeader.includes("order id");
+  
+  const hasFlowId = 
+    lowerHeader.includes("id. du flux") || 
+    lowerHeader.includes("flow id");
+  
+  // =========================================================
+  // PRIORITY 1: ITEM-LEVEL PAYMENT REPORTS (most specific)
+  // These have order/flow IDs AND item columns
+  // =========================================================
+  if ((hasOrderId || hasFlowId) && hasItemColumns) {
+    return "payment_item_level";
   }
-  // Alternative payout detection: payout ID or date du versement
-  if ((lowerHeader.includes("identifiant de versement") || lowerHeader.includes("payout id") ||
-       lowerHeader.includes("id. de référence du versement") || lowerHeader.includes("payout reference"))) {
-    return "payout_summary";
-  }
-  if ((lowerHeader.includes("date du versement") || lowerHeader.includes("date de versement") || lowerHeader.includes("payout date"))) {
-    return "payout_summary";
-  }
+  
+  // =========================================================
+  // PRIORITY 2: OTHER SPECIFIC REPORT TYPES
+  // =========================================================
   
   // Marketing campaigns - Offers
   if ((lowerHeader.includes("type d'offre") || lowerHeader.includes("offer type")) && 
@@ -219,8 +236,8 @@ const detectReportTypeFromContent = (headerLine: string): string | null => {
       (lowerHeader.includes("disponibilité du menu") || lowerHeader.includes("menu availability"))) {
     return "downtime_report";
   }
-  // Order History
-  if ((lowerHeader.includes("id. de la commande") || lowerHeader.includes("id de la commande") || lowerHeader.includes("order id")) && 
+  // Order History - has order ID + specific time columns (NOT item columns)
+  if (hasOrderId && !hasItemColumns &&
       (lowerHeader.includes("temps d'attente du coursier") || lowerHeader.includes("heure de la commande") || lowerHeader.includes("courier wait time"))) {
     return "order_history";
   }
@@ -245,13 +262,35 @@ const detectReportTypeFromContent = (headerLine: string): string | null => {
       (lowerHeader.includes("menu a été consulté") || lowerHeader.includes("menu consulté") || lowerHeader.includes("plat ajouté") || lowerHeader.includes("item added"))) {
     return "conversion_funnel";
   }
-  // Payment reports (default fallback for order/item level) - CHECK LAST
-  if ((lowerHeader.includes("id. de la commande") || lowerHeader.includes("id. du flux") || lowerHeader.includes("flow id"))) {
-    if (lowerHeader.includes("titre de l'article") || lowerHeader.includes("item title")) {
-      return "payment_item_level";
+  
+  // =========================================================
+  // PRIORITY 3: PAYOUT SUMMARY (aggregated data, NO order IDs)
+  // CRITICAL: Only detect as payout_summary if NO order ID present!
+  // =========================================================
+  if (!hasOrderId && !hasFlowId) {
+    // Has order count + total amount = aggregated payout summary
+    if ((lowerHeader.includes("nombre de commandes") || lowerHeader.includes("order count")) &&
+        (lowerHeader.includes("montant total") || lowerHeader.includes("total amount") || lowerHeader.includes("order total"))) {
+      return "payout_summary";
     }
+    // Has payout-specific identifiers
+    if ((lowerHeader.includes("identifiant de versement") || lowerHeader.includes("payout id") ||
+         lowerHeader.includes("id. de référence du versement") || lowerHeader.includes("payout reference"))) {
+      return "payout_summary";
+    }
+    if ((lowerHeader.includes("date du versement") || lowerHeader.includes("date de versement") || lowerHeader.includes("payout date"))) {
+      return "payout_summary";
+    }
+  }
+  
+  // =========================================================
+  // PRIORITY 4: ORDER-LEVEL PAYMENT REPORTS (fallback)
+  // Has order/flow IDs but no item columns
+  // =========================================================
+  if (hasOrderId || hasFlowId) {
     return "payment_order_level";
   }
+  
   return null;
 };
 
