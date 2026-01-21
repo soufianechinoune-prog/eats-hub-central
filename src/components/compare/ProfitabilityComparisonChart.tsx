@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { 
   Percent, LayoutList, ChartArea,
-  ArrowUp, ArrowDown, Minus, Download, ArrowLeftRight, Flag
+  ArrowUp, ArrowDown, Minus, Download, ArrowLeftRight, Flag, HelpCircle, BarChart3, Coins
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -20,6 +20,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import * as XLSX from "xlsx";
 import { useAnalyticsContext, type ProfitabilityBase } from "@/contexts/AnalyticsContext";
 import { useRestaurantActions, ACTION_CATEGORY_COLORS, type RestaurantAction } from "@/hooks/useRestaurantActions";
@@ -564,6 +574,86 @@ export const ProfitabilityComparisonChart = ({
             </TooltipProvider>
           </div>
           
+          {/* Info icon with HoverCard (short) + Popover (detailed) */}
+          <Popover>
+            <HoverCard openDelay={200}>
+              <PopoverTrigger asChild>
+                <HoverCardTrigger asChild>
+                  <button 
+                    className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+                    aria-label="Comment sont calculées les marges ?"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                  </button>
+                </HoverCardTrigger>
+              </PopoverTrigger>
+              
+              {/* Short version on hover */}
+              <HoverCardContent side="bottom" className="w-[280px] p-3 text-sm">
+                <p className="font-medium mb-1">Deux marges complémentaires :</p>
+                <ul className="space-y-1 text-muted-foreground text-xs">
+                  <li>• <span className="font-medium text-foreground">Brut</span> = alignée rapports Uber (contrôle)</li>
+                  <li>• <span className="font-medium text-foreground">Net</span> = vraie rentabilité (pilotage)</li>
+                </ul>
+                <p className="text-xs text-muted-foreground mt-2 italic">Cliquez ℹ️ pour plus de détails</p>
+              </HoverCardContent>
+            </HoverCard>
+            
+            {/* Detailed version on click */}
+            <PopoverContent side="bottom" align="end" className="w-[360px] p-0">
+              <div className="p-4 space-y-4">
+                <h3 className="font-semibold text-base">Comment sont calculées vos marges ?</h3>
+                
+                {/* Marge Uber (Brut) */}
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-md bg-blue-500/10">
+                      <BarChart3 className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <span className="font-medium">Marge Uber (Brut)</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Base : ventes affichées Uber Eats
+                  </p>
+                  <p className="text-sm italic text-foreground/80">
+                    "Sur 100€ affichés, combien Uber me reverse ?"
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium">Utile pour :</span> auditer commissions, suivre l'impact des promos
+                  </p>
+                </div>
+                
+                {/* Marge économique (Net) */}
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-md bg-emerald-500/10">
+                      <Coins className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <span className="font-medium">Marge économique (Net)</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Base : ventes réellement payées par les clients
+                  </p>
+                  <p className="text-sm italic text-foreground/80">
+                    "Sur 100€ payés, combien j'encaisse après Uber ?"
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium">Utile pour :</span> mesurer vraie rentabilité, comparer des périodes
+                  </p>
+                </div>
+                
+                {/* Summary */}
+                <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
+                  <p className="text-xs font-medium text-foreground/90">
+                    💡 Les deux sont justes et complémentaires.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    L'une sert à contrôler Uber, l'autre à piloter votre business.
+                  </p>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
           
           {/* View mode toggle */}
           <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
