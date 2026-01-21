@@ -34,19 +34,23 @@ import * as XLSX from "xlsx";
 import { useAnalyticsContext, type ProfitabilityBase } from "@/contexts/AnalyticsContext";
 import { useRestaurantActions, ACTION_CATEGORY_COLORS, type RestaurantAction } from "@/hooks/useRestaurantActions";
 
-// Use the same PayoutData structure as the table for consistency
-interface PayoutData {
-  payout_date: string;
-  restaurant_id: string;
-  sales_incl_vat: number;
-  net_payout: number;
-  item_promo_incl_vat: number;
-  order_count: number;
-  meal_voucher_amount?: number;
+// Daily order data from useFinancesDrilldown (same source as "Par Jour" table)
+interface DailyOrderData {
+  date: string;               // "2025-12-01"
+  label: string;              // "Lun 01 déc"
+  sales_incl_vat: number;     // CA TTC
+  net_payout: number;         // Versement Uber
+  meal_voucher_amount: number; // Titres resto
+  promo_incl_vat: number;     // Promos
+  order_count: number;        // Nombre de commandes
+  uber_fee_incl_vat: number;  // Frais Uber
+  refund_incl_vat: number;    // Remboursements
+  avg_basket: number;         // Panier moyen
+  total_payout: number;       // Versement total
 }
 
 interface ProfitabilityComparisonChartProps {
-  payoutsData: PayoutData[];
+  dailyOrdersData: DailyOrderData[];
   dateRange: { start: Date; end: Date };
   previousDateRange: { start: Date; end: Date };
   isLoading?: boolean;
@@ -100,7 +104,7 @@ function ActionMarkerLabel({ viewBox, actions, color }: { viewBox?: { x?: number
 }
 
 export const ProfitabilityComparisonChart = ({
-  payoutsData,
+  dailyOrdersData,
   dateRange,
   previousDateRange,
   isLoading,
@@ -147,7 +151,7 @@ export const ProfitabilityComparisonChart = ({
     return grouped;
   }, [actions, isShortPeriod, selectedActionIds]);
 
-  // Aggregate payouts data by date (same logic as the table)
+  // Use daily orders data directly (same source as "Par Jour" table)
   const chartData = useMemo(() => {
     // Helper to calculate profitability based on base type
     const calcProfitability = (netPayout: number, mealVoucher: number, sales: number, promo: number): number | null => {
@@ -158,50 +162,29 @@ export const ProfitabilityComparisonChart = ({
       return denominator > 0 ? (totalPayout / denominator) * 100 : null;
     };
 
-    // Group payouts by date (payout_date)
-    const dataByDate: Record<string, {
-      sales: number;
-      netPayout: number;
-      mealVoucher: number;
-      promo: number;
-      orders: number;
-    }> = {};
-
-    payoutsData.forEach(payout => {
-      const dateKey = payout.payout_date; // YYYY-MM-DD
-      if (!dataByDate[dateKey]) {
-        dataByDate[dateKey] = { sales: 0, netPayout: 0, mealVoucher: 0, promo: 0, orders: 0 };
-      }
-      dataByDate[dateKey].sales += Number(payout.sales_incl_vat) || 0;
-      dataByDate[dateKey].netPayout += Number(payout.net_payout) || 0;
-      dataByDate[dateKey].mealVoucher += Number(payout.meal_voucher_amount) || 0;
-      dataByDate[dateKey].promo += Number(payout.item_promo_incl_vat) || 0;
-      dataByDate[dateKey].orders += Number(payout.order_count) || 0;
-    });
-
     if (isShortPeriod) {
-      // DAILY view
-      const allDays = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
-      
-      return allDays.map((day) => {
-        const dayKey = format(day, "yyyy-MM-dd");
-        const data = dataByDate[dayKey] || { sales: 0, netPayout: 0, mealVoucher: 0, promo: 0, orders: 0 };
-        
-        const profitability = calcProfitability(data.netPayout, data.mealVoucher, data.sales, data.promo);
-        const trBonus = data.sales > 0 ? (data.mealVoucher / data.sales) * 100 : 0;
+      // DAILY view - use dailyOrdersData directly (already aggregated by day)
+      return dailyOrdersData.map((day) => {
+        const profitability = calcProfitability(
+          day.net_payout, 
+          day.meal_voucher_amount, 
+          day.sales_incl_vat, 
+          day.promo_incl_vat
+        );
+        const trBonus = day.sales_incl_vat > 0 ? (day.meal_voucher_amount / day.sales_incl_vat) * 100 : 0;
         
         return {
-          date: dayKey,
-          month: format(day, "yyyy-MM"),
-          monthLabel: format(day, "dd/MM"),
-          monthFull: format(day, "EEEE d MMMM yyyy", { locale: fr }),
+          date: day.date,
+          month: day.date.substring(0, 7),
+          monthLabel: format(new Date(day.date), "dd/MM"),
+          monthFull: format(new Date(day.date), "EEEE d MMMM yyyy", { locale: fr }),
           profitability,
-          prevProfitability: null, // N-1 comparison disabled for simplicity (uses same source)
-          sales: data.sales,
-          netPayout: data.netPayout,
-          mealVoucher: data.mealVoucher,
-          orders: data.orders,
-          promo: data.promo,
+          prevProfitability: null,
+          sales: day.sales_incl_vat,
+          netPayout: day.net_payout,
+          mealVoucher: day.meal_voucher_amount,
+          orders: day.order_count,
+          promo: day.promo_incl_vat,
           prevSales: 0,
           prevNetPayout: 0,
           prevMealVoucher: 0,
@@ -211,10 +194,10 @@ export const ProfitabilityComparisonChart = ({
         };
       });
     } else {
-      // MONTHLY aggregation
+      // MONTHLY aggregation from daily data
       const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
       
-      // Aggregate by month
+      // Aggregate daily data by month
       const dataByMonth: Record<string, {
         sales: number;
         netPayout: number;
@@ -223,16 +206,16 @@ export const ProfitabilityComparisonChart = ({
         orders: number;
       }> = {};
 
-      Object.entries(dataByDate).forEach(([dateKey, data]) => {
-        const monthKey = dateKey.substring(0, 7); // yyyy-MM
+      dailyOrdersData.forEach((day) => {
+        const monthKey = day.date.substring(0, 7); // yyyy-MM
         if (!dataByMonth[monthKey]) {
           dataByMonth[monthKey] = { sales: 0, netPayout: 0, mealVoucher: 0, promo: 0, orders: 0 };
         }
-        dataByMonth[monthKey].sales += data.sales;
-        dataByMonth[monthKey].netPayout += data.netPayout;
-        dataByMonth[monthKey].mealVoucher += data.mealVoucher;
-        dataByMonth[monthKey].promo += data.promo;
-        dataByMonth[monthKey].orders += data.orders;
+        dataByMonth[monthKey].sales += day.sales_incl_vat;
+        dataByMonth[monthKey].netPayout += day.net_payout;
+        dataByMonth[monthKey].mealVoucher += day.meal_voucher_amount;
+        dataByMonth[monthKey].promo += day.promo_incl_vat;
+        dataByMonth[monthKey].orders += day.order_count;
       });
 
       return allMonths.map((month) => {
@@ -263,7 +246,7 @@ export const ProfitabilityComparisonChart = ({
         };
       });
     }
-  }, [payoutsData, dateRange, isShortPeriod, profitabilityBase]);
+  }, [dailyOrdersData, dateRange, isShortPeriod, profitabilityBase]);
 
   // Handle chart click to navigate to Finances
   const handleChartClick = (data: any) => {

@@ -6,8 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ActionFilterPopover } from "./ActionFilterPopover";
-
-// PayoutData fields used by the chart (subset of full PayoutData from table)
+import { useFinancesDrilldown } from "@/hooks/useFinancesDrilldown";
 // The chart only needs these fields for aggregation and calculation
 
 interface RestaurantAction {
@@ -81,6 +80,17 @@ export function FinancesSection({
 }: FinancesSectionProps) {
   const hasActions = globalActions.length > 0;
 
+  // Fetch daily data from orders table for the chart (same source as "Par Jour" table)
+  const { dailyData: chartDailyData, isLoading: isChartLoading } = useFinancesDrilldown({
+    restaurantIds: selectedRestaurants.length > 0 
+      ? selectedRestaurants 
+      : restaurants?.map(r => r.id) || [],
+    startDate,
+    endDate,
+    granularity: 'daily',
+    enabled: true,
+  });
+
   return (
     <div className="space-y-6">
       {/* === Actions Control Bar === */}
@@ -126,12 +136,13 @@ export function FinancesSection({
         )}
       </div>
 
-      {/* Profitability Comparison Chart - utilise les mêmes données que le tableau */}
-      {dailyPayoutsData && dailyPayoutsData.length > 0 && dateRange && previousDateRange && (
+      {/* Profitability Comparison Chart - utilise les données journalières (table orders) */}
+      {chartDailyData && chartDailyData.length > 0 && dateRange && previousDateRange && (
         <ProfitabilityComparisonChart
-          payoutsData={dailyPayoutsData}
+          dailyOrdersData={chartDailyData}
           dateRange={dateRange}
           previousDateRange={previousDateRange}
+          isLoading={isChartLoading}
           comparisonMode={profitabilityComparisonMode}
           onComparisonModeChange={onProfitabilityComparisonModeChange}
           onMonthClick={onMonthDrillDown}
