@@ -151,12 +151,13 @@ export const ProfitabilityComparisonChart = ({
 
   // Aggregate data by MONTH or DAY depending on period length
   const chartData = useMemo(() => {
-    // Helper to calculate profitability based on base type
-    const calcProfitability = (netPayout: number, sales: number, promo: number): number | null => {
+    // Helper to calculate profitability based on base type (includes meal voucher for Total Encaissé)
+    const calcProfitability = (netPayout: number, mealVoucher: number, sales: number, promo: number): number | null => {
+      const totalPayout = netPayout + mealVoucher; // Total Encaissé = Uber + TR
       const denominator = profitabilityBase === 'net' 
         ? Math.max(0, sales - promo) 
         : sales;
-      return denominator > 0 ? (netPayout / denominator) * 100 : null;
+      return denominator > 0 ? (totalPayout / denominator) * 100 : null;
     };
     
     if (isShortPeriod) {
@@ -206,9 +207,9 @@ export const ProfitabilityComparisonChart = ({
         }
         const previous = prevByDay[prevDayKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0, promo: 0 };
         
-        // Calculate profitability based on selected base (Brut or Net)
-        const profitability = calcProfitability(current.netPayout, current.sales, current.promo);
-        const prevProfitability = calcProfitability(previous.netPayout, previous.sales, previous.promo);
+        // Calculate profitability based on selected base (Brut or Net) - includes meal voucher
+        const profitability = calcProfitability(current.netPayout, current.mealVoucher, current.sales, current.promo);
+        const prevProfitability = calcProfitability(previous.netPayout, previous.mealVoucher, previous.sales, previous.promo);
         
         // TR bonus for tooltip
         const trBonus = current.sales > 0 ? (current.mealVoucher / current.sales) * 100 : 0;
@@ -282,9 +283,9 @@ export const ProfitabilityComparisonChart = ({
         }
         const previous = prevByMonth[prevMonthKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0, promo: 0 };
         
-        // Calculate profitability based on selected base (Brut or Net)
-        const profitability = calcProfitability(current.netPayout, current.sales, current.promo);
-        const prevProfitability = calcProfitability(previous.netPayout, previous.sales, previous.promo);
+        // Calculate profitability based on selected base (Brut or Net) - includes meal voucher
+        const profitability = calcProfitability(current.netPayout, current.mealVoucher, current.sales, current.promo);
+        const prevProfitability = calcProfitability(previous.netPayout, previous.mealVoucher, previous.sales, previous.promo);
         
         // TR bonus for tooltip
         const trBonus = current.sales > 0 ? (current.mealVoucher / current.sales) * 100 : 0;
@@ -340,7 +341,11 @@ export const ProfitabilityComparisonChart = ({
     const prevTotalSales = chartData.reduce((sum, d) => sum + (d.prevSales || 0), 0);
     const prevTotalNetPayout = chartData.reduce((sum, d) => sum + (d.prevNetPayout || 0), 0);
     
-    // Calculate based on profitability base (Brut or Net)
+    // Calculate based on profitability base (Brut or Net) - includes meal voucher for Total Encaissé
+    const totalPayoutWithVoucher = totalNetPayout + totalMealVoucher;
+    const prevTotalMealVoucher = chartData.reduce((sum, d) => sum + (d.prevMealVoucher || 0), 0);
+    const prevTotalPayoutWithVoucher = prevTotalNetPayout + prevTotalMealVoucher;
+    
     const denominator = profitabilityBase === 'net' 
       ? Math.max(0, totalSales - totalPromo) 
       : totalSales;
@@ -348,8 +353,8 @@ export const ProfitabilityComparisonChart = ({
       ? Math.max(0, prevTotalSales - chartData.reduce((sum, d) => sum + (d.promo || 0), 0))
       : prevTotalSales;
     
-    const totalProfitability = denominator > 0 ? (totalNetPayout / denominator) * 100 : 0;
-    const prevTotalProfitability = prevDenominator > 0 ? (prevTotalNetPayout / prevDenominator) * 100 : 0;
+    const totalProfitability = denominator > 0 ? (totalPayoutWithVoucher / denominator) * 100 : 0;
+    const prevTotalProfitability = prevDenominator > 0 ? (prevTotalPayoutWithVoucher / prevDenominator) * 100 : 0;
     const variation = totalProfitability - prevTotalProfitability;
     
     // Debug log for Marge Uber calculation
