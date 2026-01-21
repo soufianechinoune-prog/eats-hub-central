@@ -13,6 +13,7 @@ import { ProfitabilityInsightsSection } from "@/components/compare/Profitability
 import { ProfitabilityHeatmapGrid } from "@/components/compare/ProfitabilityHeatmapGrid";
 import { ProfitabilityEvolutionChart } from "@/components/compare/ProfitabilityEvolutionChart";
 import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
+import { ProfitabilityWaterfall } from "@/components/analytics/ProfitabilityWaterfall";
 
 // Type for the RPC result - now with separated net_payout and meal_voucher
 interface DailyProfitabilityRow {
@@ -407,15 +408,30 @@ const ProfitabilityComparison = () => {
             {/* Insights Section */}
             <ProfitabilityInsightsSection stats={restaurantStats} period={periodType} />
 
-            {/* Ranking - Full Width */}
-            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-lg">Classement par rentabilité</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ProfitabilityRankingBars stats={restaurantStats} dateRange={dateRange} />
-              </CardContent>
-            </Card>
+            {/* Waterfall + Ranking side by side */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Waterfall Breakdown */}
+              <ProfitabilityWaterfall 
+                data={{
+                  totalSales: restaurantStats.reduce((sum, s) => sum + s.totalSales, 0),
+                  totalPromo: restaurantStats.reduce((sum, s) => sum + (s.totalSales * s.promoRate / 100), 0),
+                  totalUberFee: restaurantStats.reduce((sum, s) => sum + (s.totalSales * s.uberFeeRate / 100), 0),
+                  totalRefund: restaurantStats.reduce((sum, s) => sum + (s.totalSales * s.refundRate / 100), 0),
+                  totalNetPayout: restaurantStats.reduce((sum, s) => sum + s.totalNetPayout, 0),
+                  totalMealVoucher: restaurantStats.reduce((sum, s) => sum + s.totalMealVoucher, 0),
+                }}
+              />
+
+              {/* Ranking */}
+              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="text-lg">Classement par rentabilité</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ProfitabilityRankingBars stats={restaurantStats} dateRange={dateRange} />
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Evolution Chart */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">

@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, AlertTriangle, Award, Target, Percent } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, Award, Target, Percent, Calculator } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAnalyticsContext, ProfitabilityBase } from "@/contexts/AnalyticsContext";
+import { Button } from "@/components/ui/button";
 
 interface RestaurantStats {
   id: string;
@@ -25,6 +27,8 @@ interface ProfitabilityInsightsSectionProps {
 }
 
 export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityInsightsSectionProps) => {
+  const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
+  
   const insights = useMemo(() => {
     if (!stats.length) return null;
 
@@ -50,11 +54,16 @@ export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityIns
     const totalSales = stats.reduce((sum, s) => sum + s.totalSales, 0);
     const totalNetPayout = stats.reduce((sum, s) => sum + s.totalNetPayout, 0);
     const totalMealVoucher = stats.reduce((sum, s) => sum + s.totalMealVoucher, 0);
+    const totalPromo = stats.reduce((sum, s) => sum + (s.totalSales * s.promoRate / 100), 0);
     
     // Network Marge Uber (without meal vouchers)
     const networkMargeUber = totalSales > 0 ? (totalNetPayout / totalSales) * 100 : 0;
     // Network TR Bonus
     const networkTrBonus = totalSales > 0 ? (totalMealVoucher / totalSales) * 100 : 0;
+    
+    // Marge économique (base nette = ventes - promos)
+    const netSales = totalSales - totalPromo;
+    const networkMargeEco = netSales > 0 ? (totalNetPayout / netSales) * 100 : 0;
 
     return {
       bestPerformer,
@@ -62,6 +71,7 @@ export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityIns
       avgMargeUber,
       avgTrBonus,
       networkMargeUber,
+      networkMargeEco,
       networkTrBonus,
       spread,
       aboveAvg,
@@ -69,6 +79,8 @@ export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityIns
       totalSales,
       totalNetPayout,
       totalMealVoucher,
+      totalPromo,
+      netSales,
     };
   }, [stats]);
 
@@ -76,30 +88,81 @@ export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityIns
 
   const periodLabel = period === "week" ? "cette semaine" : period === "month" ? "ce mois" : "ce trimestre";
 
+  // Calculate display values based on selected base
+  const displayMargin = profitabilityBase === "net" ? insights.networkMargeEco : insights.networkMargeUber;
+  const baseLabel = profitabilityBase === "net" ? "base nette" : "base brute";
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {/* Network Marge Uber */}
-      <Card className="backdrop-blur-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/20">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Marge Uber réseau</p>
-              <p className="text-2xl font-bold text-emerald-600">
-                {insights.networkMargeUber.toFixed(1)}%
-              </p>
-              <p className="text-xs text-blue-600 font-medium mt-1">
-                +{insights.networkTrBonus.toFixed(1)}% TR
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Sur {(insights.totalSales / 1000).toFixed(0)}k€ de CA {periodLabel}
-              </p>
+    <div className="space-y-4">
+      {/* Toggle for calculation base */}
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-sm text-muted-foreground">Base de calcul:</span>
+        <div className="flex items-center rounded-lg border bg-muted/30 p-1">
+          <Button
+            variant={profitabilityBase === "gross" ? "default" : "ghost"}
+            size="sm"
+            className="h-7 px-3 text-xs"
+            onClick={() => setProfitabilityBase("gross")}
+          >
+            Ventes brutes
+          </Button>
+          <Button
+            variant={profitabilityBase === "net" ? "default" : "ghost"}
+            size="sm"
+            className="h-7 px-3 text-xs"
+            onClick={() => setProfitabilityBase("net")}
+          >
+            Ventes nettes
+          </Button>
+        </div>
+      </div>
+      
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        {/* Network Marge Uber */}
+        <Card className="backdrop-blur-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Marge Uber ({baseLabel})</p>
+                <p className="text-2xl font-bold text-emerald-600">
+                  {displayMargin.toFixed(1)}%
+                </p>
+                <p className="text-xs text-blue-600 font-medium mt-1">
+                  +{insights.networkTrBonus.toFixed(1)}% TR
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Sur {(insights.totalSales / 1000).toFixed(0)}k€ de CA {periodLabel}
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <Percent className="h-5 w-5 text-emerald-600" />
+              </div>
             </div>
-            <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <Percent className="h-5 w-5 text-emerald-600" />
+          </CardContent>
+        </Card>
+
+        {/* Marge Économique (NEW) */}
+        <Card className="backdrop-blur-xl bg-gradient-to-br from-teal-500/10 to-teal-500/5 border-teal-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Marge économique</p>
+                <p className="text-2xl font-bold text-teal-600">
+                  {insights.networkMargeEco.toFixed(1)}%
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Net Payout / Ventes Nettes
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Ventes nettes: {(insights.netSales / 1000).toFixed(0)}k€
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-teal-500/20 flex items-center justify-center">
+                <Calculator className="h-5 w-5 text-teal-600" />
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
       {/* Best Performer */}
       <Card className="backdrop-blur-xl bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
@@ -194,6 +257,7 @@ export const ProfitabilityInsightsSection = ({ stats, period }: ProfitabilityIns
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };
