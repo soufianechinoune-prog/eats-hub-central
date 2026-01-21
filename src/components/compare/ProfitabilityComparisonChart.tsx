@@ -662,13 +662,33 @@ export const ProfitabilityComparisonChart = ({
                   </div>
                 </div>
                 
+                {/* Concrete example */}
+                <div className="rounded-lg bg-muted/50 border p-3 space-y-2">
+                  <p className="text-xs font-medium text-foreground">
+                    📝 Exemple concret
+                  </p>
+                  <div className="text-xs text-muted-foreground space-y-1.5">
+                    <p>
+                      Un client voit <span className="font-medium text-foreground">100€</span> sur Uber Eats, 
+                      mais avec une promo de 20%, il ne paie que <span className="font-medium text-foreground">80€</span>.
+                    </p>
+                    <p>
+                      Les 20€ de différence sont <span className="italic">offerts par vous</span>, pas par Uber.
+                    </p>
+                    <div className="bg-background/70 rounded p-2 mt-2 space-y-1">
+                      <p>• <span className="font-medium">Base Brut (100€)</span> : ce qu'affiche Uber = votre CA déclaré</p>
+                      <p>• <span className="font-medium">Base Net (80€)</span> : ce que paie le client = votre encaissement réel</p>
+                    </div>
+                  </div>
+                </div>
+                
                 {/* Why two margins */}
                 <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 space-y-2">
                   <p className="text-xs font-medium text-foreground">
                     🎯 Pourquoi afficher deux marges ?
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Parce que les <span className="font-medium text-foreground">promotions ne sont pas un vrai chiffre d'affaires</span>, mais un <span className="italic">coût marketing</span>.
+                    Parce que les <span className="font-medium text-foreground">promotions ne sont pas un vrai chiffre d'affaires</span>, mais un <span className="italic">coût marketing que vous financez</span>.
                   </p>
                   <div className="text-xs text-muted-foreground pt-1 border-t border-border/50">
                     <ul className="space-y-1">
