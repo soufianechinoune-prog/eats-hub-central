@@ -37,7 +37,7 @@ import RatingsComparison from "./pages/RatingsComparison";
 import OpeningHoursComparison from "./pages/OpeningHoursComparison";
 import PrepTimeComparison from "./pages/PrepTimeComparison";
 import InaccurateOrdersComparison from "./pages/InaccurateOrdersComparison";
-import ProfitabilityComparison from "./pages/ProfitabilityComparison";
+
 import ItemSales from "./pages/ItemSales";
 import MarketingAnalytics from "./pages/MarketingAnalytics";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
@@ -279,11 +279,7 @@ const App = () => {
               />
               <Route
                 path="/compare/profitability"
-                element={
-                  <AppLayout>
-                    <ProfitabilityComparison />
-                  </AppLayout>
-                }
+                element={<Navigate to="/analytics/finances" replace />}
               />
               <Route path="/item-sales" element={<ItemSales />} />
               <Route path="/marketing-analytics" element={<MarketingAnalytics />} />

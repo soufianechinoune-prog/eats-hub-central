@@ -87,6 +87,30 @@ const Overview = () => {
     navigate("/analytics/finances");
   };
 
+  // Navigate to Finances & Frais globally (all restaurants) with period pre-selected
+  const navigateToFinancesGlobal = () => {
+    // Map Overview periodMode to Analytics periodMode
+    const analyticsMode: PeriodMode = 
+      periodMode === "previous_week" ? "previous_week" :
+      periodMode === "7d" ? "7d" :
+      periodMode === "30d" ? "30d" :
+      periodMode === "current_month" ? "current_month" :
+      periodMode === "year" ? "year" :
+      periodMode === "custom_month" ? "month" :
+      periodMode === "custom_range" ? "range" : "previous_week";
+    
+    setAnalyticsPeriodMode(analyticsMode);
+    setAnalyticsYear(selectedYear);
+    setAnalyticsMonth(selectedMonth);
+    
+    if (dateRange) {
+      setAnalyticsDateRange(dateRange);
+    }
+    
+    // Navigate to Finances tab
+    navigate("/analytics/finances");
+  };
+
   const isCustomPeriod = periodMode !== defaultPeriodMode;
 
   const handleResetPeriod = () => {
@@ -734,7 +758,7 @@ const Overview = () => {
                 <MetricRow icon={Star} label="Note moyenne" value={networkData?.global.rating != null ? networkData.global.rating.toFixed(1) : null} unit="/5" color="text-blue-500" onClick={() => navigate(`/compare/ratings?period=${periodMode === 'previous_week' || periodMode === '7d' ? 'week' : periodMode === 'year' ? 'quarter' : 'month'}`)} />
                 <MetricRow icon={Clock} label="Temps préparation" value={formatMinutesToTime(networkData?.global.prepTime)} color="text-amber-500" onClick={() => navigate('/compare/prep-time')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.global.incorrectOrderRate != null ? networkData.global.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
-                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability != null ? networkData.global.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigate('/compare/profitability')} />
+                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability != null ? networkData.global.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal()} />
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.global.downtime)} color="text-orange-500" onClick={() => navigate('/compare/downtime')} />
                 <MetricRow icon={Clock} label="Horaires d'ouverture" value="Voir analyse" color="text-indigo-500" onClick={() => navigate('/compare/opening-hours')} />
                 <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productApprovalRate != null ? Math.round(networkData.global.productApprovalRate) : null} unit="%" color="text-violet-500" />
@@ -760,7 +784,7 @@ const Overview = () => {
                 <MetricRow icon={Star} label="Note moyenne" value={networkData?.uber.rating != null ? networkData.uber.rating.toFixed(1) : null} unit="/5" color="text-blue-500" onClick={() => navigate(`/compare/ratings?period=${periodMode === 'previous_week' || periodMode === '7d' ? 'week' : periodMode === 'year' ? 'quarter' : 'month'}`)} />
                 <MetricRow icon={Clock} label="Temps préparation" value={formatMinutesToTime(networkData?.uber.prepTime)} color="text-amber-500" onClick={() => navigate('/compare/prep-time')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
-                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability != null ? networkData.uber.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigate('/compare/profitability')} />
+                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability != null ? networkData.uber.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal()} />
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.uber.downtime)} color="text-orange-500" onClick={() => navigate('/compare/downtime')} />
               </CardContent>
             </Card>
@@ -784,7 +808,7 @@ const Overview = () => {
                 <MetricRow icon={Star} label="Note moyenne" value={networkData?.deliveroo.rating != null ? networkData.deliveroo.rating.toFixed(1) : null} unit="/5" color="text-blue-500" onClick={() => navigate(`/compare/ratings?period=${periodMode === 'previous_week' || periodMode === '7d' ? 'week' : periodMode === 'year' ? 'quarter' : 'month'}`)} />
                 <MetricRow icon={Clock} label="Temps préparation" value={formatMinutesToTime(networkData?.deliveroo.prepTime)} color="text-amber-500" onClick={() => navigate('/compare/prep-time')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate != null ? networkData.deliveroo.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" />
-                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability != null ? networkData.deliveroo.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigate('/compare/profitability')} />
+                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability != null ? networkData.deliveroo.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal()} />
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" onClick={() => navigate('/compare/downtime')} />
               </CardContent>
             </Card>
