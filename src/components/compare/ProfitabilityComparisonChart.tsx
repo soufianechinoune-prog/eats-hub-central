@@ -676,8 +676,8 @@ export const ProfitabilityComparisonChart = ({
                       Les 20€ de différence sont <span className="italic">offerts par vous</span>, pas par Uber.
                     </p>
                     <div className="bg-background/70 rounded p-2 mt-2 space-y-1">
-                      <p>• <span className="font-medium">Base Brut (100€)</span> : ce qu'affiche Uber = votre CA déclaré</p>
-                      <p>• <span className="font-medium">Base Net (80€)</span> : ce que paie le client = votre encaissement réel</p>
+                      <p>• <span className="font-medium">Base Brut (100€)</span> : prix affiché sur Uber = votre CA déclaré</p>
+                      <p>• <span className="font-medium">Base Net (80€)</span> : ce que paie le client = votre CA effectif</p>
                     </div>
                   </div>
                 </div>
