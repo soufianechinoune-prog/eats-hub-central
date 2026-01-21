@@ -583,40 +583,38 @@ export function AnalyticsCharts({
     ? selectedRestaurants 
     : restaurants?.map(r => r.id) || [];
   
-  // Compute date ranges for profitability chart - sync with comparisonMode
+  // Compute date ranges for profitability chart - always use selected dates
   const profitStartDate = useMemo(() => {
-    if (comparisonMode === 'rollingPeriod') {
-      return subWeeks(new Date(), 4);
-    }
     return propStartDate || new Date(selectedYear, startMonth - 1, 1);
-  }, [comparisonMode, propStartDate, selectedYear, startMonth]);
+  }, [propStartDate, selectedYear, startMonth]);
   
   const profitEndDate = useMemo(() => {
-    if (comparisonMode === 'rollingPeriod') {
-      return new Date();
-    }
     return propEndDate || new Date(selectedYear, endMonth, 0);
-  }, [comparisonMode, propEndDate, selectedYear, endMonth]);
+  }, [propEndDate, selectedYear, endMonth]);
   
+  // N-1 dates for comparison (always previous year)
   const profitPrevStartDate = useMemo(() => {
-    if (comparisonMode === 'rollingPeriod') {
-      return subWeeks(profitStartDate, 4);
-    }
     return new Date(profitStartDate.getFullYear() - 1, profitStartDate.getMonth(), profitStartDate.getDate());
-  }, [comparisonMode, profitStartDate]);
+  }, [profitStartDate]);
   
   const profitPrevEndDate = useMemo(() => {
-    if (comparisonMode === 'rollingPeriod') {
-      return subWeeks(profitEndDate, 4);
-    }
     return new Date(profitEndDate.getFullYear() - 1, profitEndDate.getMonth(), profitEndDate.getDate());
-  }, [comparisonMode, profitEndDate]);
+  }, [profitEndDate]);
   
   // Fetch profitability data for the chart in Revenue section
   const { dailyData: revenueProfitabilityData, isLoading: isProfitabilityLoading } = useFinancesDrilldown({
     restaurantIds,
     startDate: profitStartDate,
     endDate: profitEndDate,
+    granularity: 'daily',
+    enabled: viewMode === 'revenue' && restaurantIds.length > 0,
+  });
+  
+  // Fetch N-1 profitability data for comparison
+  const { dailyData: revenueProfitabilityPrevData, isLoading: isProfitabilityPrevLoading } = useFinancesDrilldown({
+    restaurantIds,
+    startDate: profitPrevStartDate,
+    endDate: profitPrevEndDate,
     granularity: 'daily',
     enabled: viewMode === 'revenue' && restaurantIds.length > 0,
   });
@@ -2930,6 +2928,7 @@ export function AnalyticsCharts({
           <CardContent className="pt-6">
             <ProfitabilityComparisonChart
               dailyOrdersData={revenueProfitabilityData || []}
+              previousDailyOrdersData={revenueProfitabilityPrevData || []}
               dateRange={{
                 start: profitStartDate,
                 end: profitEndDate,
@@ -2938,7 +2937,7 @@ export function AnalyticsCharts({
                 start: profitPrevStartDate,
                 end: profitPrevEndDate,
               }}
-              isLoading={isProfitabilityLoading || !revenueProfitabilityData}
+              isLoading={isProfitabilityLoading || isProfitabilityPrevLoading || !revenueProfitabilityData}
               comparisonMode={comparisonMode}
               onComparisonModeChange={onComparisonModeChange}
               onMonthClick={handleProfitabilityClick}
