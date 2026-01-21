@@ -1128,22 +1128,26 @@ export default function Analytics() {
       {/* Analytics Header with shared filters */}
       <AnalyticsHeader />
 
-      {/* Granularity Badge and Actions Toggle */}
+      {/* Granularity Badge and Actions Toggle - hide actions toggle on finances view */}
       <div className="flex flex-col gap-3 p-4 bg-muted/30 rounded-lg border">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-primary" />
-              <Label htmlFor="show-actions" className="text-sm font-medium cursor-pointer">
-                Afficher les actions
-              </Label>
+          {viewMode !== "finances" ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" />
+                <Label htmlFor="show-actions" className="text-sm font-medium cursor-pointer">
+                  Afficher les actions
+                </Label>
+              </div>
+              <Switch
+                id="show-actions"
+                checked={chartActionsConfig.global}
+                onCheckedChange={handleGlobalToggleChange}
+              />
             </div>
-            <Switch
-              id="show-actions"
-              checked={chartActionsConfig.global}
-              onCheckedChange={handleGlobalToggleChange}
-            />
-          </div>
+          ) : (
+            <div /> // Empty div to maintain flex layout
+          )}
           <Badge 
             variant={granularity === "daily" ? "default" : "secondary"} 
             className="text-xs font-medium gap-1.5 px-3 py-1"
@@ -1155,8 +1159,8 @@ export default function Analytics() {
           </Badge>
         </div>
         
-        {/* Granular action filtering */}
-        {chartActionsConfig.global && (
+        {/* Granular action filtering - not shown on finances view */}
+        {chartActionsConfig.global && viewMode !== "finances" && (
           <ActionFilterPopover
             actions={globalActions}
             selectedActionIds={selectedActionIds}
