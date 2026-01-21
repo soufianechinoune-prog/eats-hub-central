@@ -1128,10 +1128,10 @@ export default function Analytics() {
       {/* Analytics Header with shared filters */}
       <AnalyticsHeader />
 
-      {/* Granularity Badge and Actions Toggle - hide actions toggle on finances view */}
-      <div className="flex flex-col gap-3 p-4 bg-muted/30 rounded-lg border">
-        <div className="flex items-center justify-between">
-          {viewMode !== "finances" ? (
+      {/* Granularity Badge and Actions Toggle - hidden entirely on finances view */}
+      {viewMode !== "finances" && (
+        <div className="flex flex-col gap-3 p-4 bg-muted/30 rounded-lg border">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <Zap className="h-4 w-4 text-primary" />
@@ -1145,37 +1145,35 @@ export default function Analytics() {
                 onCheckedChange={handleGlobalToggleChange}
               />
             </div>
-          ) : (
-            <div /> // Empty div to maintain flex layout
+            <Badge 
+              variant={granularity === "daily" ? "default" : "secondary"} 
+              className="text-xs font-medium gap-1.5 px-3 py-1"
+            >
+              {granularity === "daily" && "📅"}
+              {granularity === "weekly" && "📊"}
+              {granularity === "monthly" && "📆"}
+              {granularity === "daily" ? "Données quotidiennes" : granularity === "weekly" ? "Données hebdomadaires" : "Données mensuelles"}
+            </Badge>
+          </div>
+          
+          {/* Granular action filtering */}
+          {chartActionsConfig.global && (
+            <ActionFilterPopover
+              actions={globalActions}
+              selectedActionIds={selectedActionIds}
+              onActionToggle={handleActionToggle}
+              onSelectAllCategory={handleSelectAllCategory}
+              onSelectAll={handleSelectAll}
+              showHolidays={showHolidays}
+              showSchoolHolidays={showSchoolHolidays}
+              showFootballMatches={showFootballMatches}
+              onHolidaysToggle={setShowHolidays}
+              onSchoolHolidaysToggle={setShowSchoolHolidays}
+              onFootballMatchesToggle={setShowFootballMatches}
+            />
           )}
-          <Badge 
-            variant={granularity === "daily" ? "default" : "secondary"} 
-            className="text-xs font-medium gap-1.5 px-3 py-1"
-          >
-            {granularity === "daily" && "📅"}
-            {granularity === "weekly" && "📊"}
-            {granularity === "monthly" && "📆"}
-            {granularity === "daily" ? "Données quotidiennes" : granularity === "weekly" ? "Données hebdomadaires" : "Données mensuelles"}
-          </Badge>
         </div>
-        
-        {/* Granular action filtering - not shown on finances view */}
-        {chartActionsConfig.global && viewMode !== "finances" && (
-          <ActionFilterPopover
-            actions={globalActions}
-            selectedActionIds={selectedActionIds}
-            onActionToggle={handleActionToggle}
-            onSelectAllCategory={handleSelectAllCategory}
-            onSelectAll={handleSelectAll}
-            showHolidays={showHolidays}
-            showSchoolHolidays={showSchoolHolidays}
-            showFootballMatches={showFootballMatches}
-            onHolidaysToggle={setShowHolidays}
-            onSchoolHolidaysToggle={setShowSchoolHolidays}
-            onFootballMatchesToggle={setShowFootballMatches}
-          />
-        )}
-      </div>
+      )}
 
       {/* Content based on selected platform from context */}
       {isLoading ? (
