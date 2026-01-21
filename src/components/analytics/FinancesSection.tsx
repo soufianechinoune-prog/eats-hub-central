@@ -30,6 +30,8 @@ interface FinancesSectionProps {
   profitabilityComparisonMode?: "yearOverYear" | "rollingPeriod";
   onProfitabilityComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
   onMonthDrillDown?: (month: number | null) => void;
+  // Platform for actions filtering
+  selectedPlatform?: string;
 }
 
 export function FinancesSection({
@@ -45,6 +47,7 @@ export function FinancesSection({
   profitabilityComparisonMode = "yearOverYear",
   onProfitabilityComparisonModeChange,
   onMonthDrillDown,
+  selectedPlatform,
 }: FinancesSectionProps) {
   const [activeTab, setActiveTab] = useState<"synthese" | "detail">("synthese");
 
@@ -87,6 +90,8 @@ export function FinancesSection({
               comparisonMode={profitabilityComparisonMode}
               onComparisonModeChange={onProfitabilityComparisonModeChange}
               onMonthClick={onMonthDrillDown}
+              restaurantIds={selectedRestaurants}
+              platform={selectedPlatform}
             />
           )}
 

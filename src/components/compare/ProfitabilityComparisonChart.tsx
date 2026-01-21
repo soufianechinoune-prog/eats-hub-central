@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { format, eachMonthOfInterval, eachDayOfInterval, startOfMonth, subYears, subWeeks, subDays, differenceInDays } from "date-fns";
+import { format, eachMonthOfInterval, eachDayOfInterval, startOfMonth, subYears, subWeeks, differenceInDays, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer 
+  Tooltip, ResponsiveContainer, ReferenceLine
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { 
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { 
   Percent, LayoutList, ChartArea,
-  ArrowUp, ArrowDown, Minus, Download, ArrowLeftRight
+  ArrowUp, ArrowDown, Minus, Download, ArrowLeftRight, Flag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -21,6 +21,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import * as XLSX from "xlsx";
+import { useAnalyticsContext, type ProfitabilityBase } from "@/contexts/AnalyticsContext";
+import { useRestaurantActions, ACTION_CATEGORY_COLORS, type RestaurantAction } from "@/hooks/useRestaurantActions";
 
 interface DailyProfitabilityRow {
   restaurant_id: string;
@@ -30,6 +32,7 @@ interface DailyProfitabilityRow {
   net_payout: number; // What Uber pays (without meal vouchers) - for Marge Uber
   meal_voucher: number; // External payment from Swile/Edenred
   orders_count: number;
+  item_promo_incl_vat?: number; // For Net base calculation
 }
 
 interface ProfitabilityComparisonChartProps {
@@ -41,6 +44,8 @@ interface ProfitabilityComparisonChartProps {
   comparisonMode?: "yearOverYear" | "rollingPeriod";
   onComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
   onMonthClick?: (monthNum: number) => void;
+  restaurantIds?: string[];
+  platform?: string;
 }
 
 type ViewMode = "chart" | "table";
@@ -68,6 +73,20 @@ function VariationCell({ current, previous, suffix = "pp" }: { current: number; 
   );
 }
 
+// Action marker label for chart
+function ActionMarkerLabel({ viewBox, actions, color }: { viewBox?: { x?: number; y?: number }; actions: RestaurantAction[]; color: string }) {
+  if (!viewBox || viewBox.x === undefined) return null;
+  const count = actions.length;
+  return (
+    <g>
+      <circle cx={viewBox.x} cy={10} r={8} fill={color} />
+      <text x={viewBox.x} y={14} textAnchor="middle" fill="white" fontSize={10} fontWeight="bold">
+        {count}
+      </text>
+    </g>
+  );
+}
+
 export const ProfitabilityComparisonChart = ({
   currentPeriodData,
   previousPeriodData,
@@ -77,49 +96,86 @@ export const ProfitabilityComparisonChart = ({
   comparisonMode = "yearOverYear",
   onComparisonModeChange,
   onMonthClick,
+  restaurantIds,
+  platform,
 }: ProfitabilityComparisonChartProps) => {
   const [viewMode, setViewMode] = useState<ViewMode>("chart");
+  const [showActions, setShowActions] = useState(false);
+  
+  // Get profitability base from context
+  const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
+  
+  // Fetch actions for the chart
+  const year = dateRange.start.getFullYear();
+  const { data: actions = [] } = useRestaurantActions(
+    year,
+    restaurantIds,
+    platform || "uber_eats"
+  );
 
   // Detect if short period (≤ 45 days → show daily instead of monthly)
   const isShortPeriod = useMemo(() => {
     return differenceInDays(dateRange.end, dateRange.start) <= 45;
   }, [dateRange]);
+  
+  // Group actions by date key (day or month)
+  const actionsByDateKey = useMemo(() => {
+    const grouped: Record<string, RestaurantAction[]> = {};
+    actions.forEach(action => {
+      const dateKey = isShortPeriod 
+        ? action.start_date.substring(0, 10)  // yyyy-MM-dd
+        : action.start_date.substring(0, 7);   // yyyy-MM
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(action);
+    });
+    return grouped;
+  }, [actions, isShortPeriod]);
 
   // Aggregate data by MONTH or DAY depending on period length
   const chartData = useMemo(() => {
+    // Helper to calculate profitability based on base type
+    const calcProfitability = (netPayout: number, sales: number, promo: number): number | null => {
+      const denominator = profitabilityBase === 'net' 
+        ? Math.max(0, sales - promo) 
+        : sales;
+      return denominator > 0 ? (netPayout / denominator) * 100 : null;
+    };
+    
     if (isShortPeriod) {
       // DAILY aggregation for short periods
       const allDays = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
       
       // Map current data by day - using net_payout for Marge Uber (without meal vouchers)
-      const currentByDay: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number }> = {};
+      const currentByDay: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number; promo: number }> = {};
       currentPeriodData.forEach(row => {
         const dayKey = row.day; // format yyyy-MM-dd
         if (!currentByDay[dayKey]) {
-          currentByDay[dayKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
+          currentByDay[dayKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0, promo: 0 };
         }
         currentByDay[dayKey].sales += Number(row.sales) || 0;
         currentByDay[dayKey].netPayout += Number(row.net_payout) || 0;
         currentByDay[dayKey].mealVoucher += Number(row.meal_voucher) || 0;
         currentByDay[dayKey].orders += Number(row.orders_count) || 0;
+        currentByDay[dayKey].promo += Number(row.item_promo_incl_vat) || 0;
       });
       
       // Map previous data by day
-      const prevByDay: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number }> = {};
+      const prevByDay: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number; promo: number }> = {};
       previousPeriodData.forEach(row => {
         const dayKey = row.day;
         if (!prevByDay[dayKey]) {
-          prevByDay[dayKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
+          prevByDay[dayKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0, promo: 0 };
         }
         prevByDay[dayKey].sales += Number(row.sales) || 0;
         prevByDay[dayKey].netPayout += Number(row.net_payout) || 0;
         prevByDay[dayKey].mealVoucher += Number(row.meal_voucher) || 0;
         prevByDay[dayKey].orders += Number(row.orders_count) || 0;
+        prevByDay[dayKey].promo += Number(row.item_promo_incl_vat) || 0;
       });
       
       return allDays.map((day) => {
         const dayKey = format(day, "yyyy-MM-dd");
-        const current = currentByDay[dayKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
+        const current = currentByDay[dayKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0, promo: 0 };
         
         // Calculate previous day key based on comparison mode
         let prevDayKey: string;
@@ -130,11 +186,11 @@ export const ProfitabilityComparisonChart = ({
           const prevDay = subYears(day, 1);
           prevDayKey = format(prevDay, "yyyy-MM-dd");
         }
-        const previous = prevByDay[prevDayKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
+        const previous = prevByDay[prevDayKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0, promo: 0 };
         
-        // MARGE UBER = net_payout / sales (without meal vouchers)
-        const profitability = current.sales > 0 ? (current.netPayout / current.sales) * 100 : null;
-        const prevProfitability = previous.sales > 0 ? (previous.netPayout / previous.sales) * 100 : null;
+        // Calculate profitability based on selected base (Brut or Net)
+        const profitability = calcProfitability(current.netPayout, current.sales, current.promo);
+        const prevProfitability = calcProfitability(previous.netPayout, previous.sales, previous.promo);
         
         // TR bonus for tooltip
         const trBonus = current.sales > 0 ? (current.mealVoucher / current.sales) * 100 : 0;
@@ -151,6 +207,7 @@ export const ProfitabilityComparisonChart = ({
           netPayout: current.netPayout,
           mealVoucher: current.mealVoucher,
           orders: current.orders,
+          promo: current.promo,
           prevSales: previous.sales,
           prevNetPayout: previous.netPayout,
           prevMealVoucher: previous.mealVoucher,
@@ -164,35 +221,37 @@ export const ProfitabilityComparisonChart = ({
       const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
       
       // Aggregate current period by month - using net_payout for Marge Uber
-      const currentByMonth: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number }> = {};
+      const currentByMonth: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number; promo: number }> = {};
       currentPeriodData.forEach(row => {
         const monthKey = format(new Date(row.day), "yyyy-MM");
         if (!currentByMonth[monthKey]) {
-          currentByMonth[monthKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
+          currentByMonth[monthKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0, promo: 0 };
         }
         currentByMonth[monthKey].sales += Number(row.sales) || 0;
         currentByMonth[monthKey].netPayout += Number(row.net_payout) || 0;
         currentByMonth[monthKey].mealVoucher += Number(row.meal_voucher) || 0;
         currentByMonth[monthKey].orders += Number(row.orders_count) || 0;
+        currentByMonth[monthKey].promo += Number(row.item_promo_incl_vat) || 0;
       });
       
       // Aggregate previous period by month
-      const prevByMonth: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number }> = {};
+      const prevByMonth: Record<string, { sales: number; netPayout: number; mealVoucher: number; orders: number; promo: number }> = {};
       previousPeriodData.forEach(row => {
         const monthKey = format(new Date(row.day), "yyyy-MM");
         if (!prevByMonth[monthKey]) {
-          prevByMonth[monthKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
+          prevByMonth[monthKey] = { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0, promo: 0 };
         }
         prevByMonth[monthKey].sales += Number(row.sales) || 0;
         prevByMonth[monthKey].netPayout += Number(row.net_payout) || 0;
         prevByMonth[monthKey].mealVoucher += Number(row.meal_voucher) || 0;
         prevByMonth[monthKey].orders += Number(row.orders_count) || 0;
+        prevByMonth[monthKey].promo += Number(row.item_promo_incl_vat) || 0;
       });
       
       // Build aligned chart data by month
       return allMonths.map((month) => {
         const monthKey = format(month, "yyyy-MM");
-        const current = currentByMonth[monthKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
+        const current = currentByMonth[monthKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0, promo: 0 };
         
         // Calculate previous month key based on comparison mode
         let prevMonthKey: string;
@@ -203,11 +262,11 @@ export const ProfitabilityComparisonChart = ({
           const prevMonth = subYears(month, 1);
           prevMonthKey = format(prevMonth, "yyyy-MM");
         }
-        const previous = prevByMonth[prevMonthKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0 };
+        const previous = prevByMonth[prevMonthKey] || { sales: 0, netPayout: 0, mealVoucher: 0, orders: 0, promo: 0 };
         
-        // MARGE UBER = net_payout / sales (without meal vouchers)
-        const profitability = current.sales > 0 ? (current.netPayout / current.sales) * 100 : null;
-        const prevProfitability = previous.sales > 0 ? (previous.netPayout / previous.sales) * 100 : null;
+        // Calculate profitability based on selected base (Brut or Net)
+        const profitability = calcProfitability(current.netPayout, current.sales, current.promo);
+        const prevProfitability = calcProfitability(previous.netPayout, previous.sales, previous.promo);
         
         // TR bonus for tooltip
         const trBonus = current.sales > 0 ? (current.mealVoucher / current.sales) * 100 : 0;
@@ -224,6 +283,7 @@ export const ProfitabilityComparisonChart = ({
           netPayout: current.netPayout,
           mealVoucher: current.mealVoucher,
           orders: current.orders,
+          promo: current.promo,
           prevSales: previous.sales,
           prevNetPayout: previous.netPayout,
           prevMealVoucher: previous.mealVoucher,
@@ -233,7 +293,7 @@ export const ProfitabilityComparisonChart = ({
         };
       });
     }
-  }, [currentPeriodData, previousPeriodData, dateRange, comparisonMode, isShortPeriod]);
+  }, [currentPeriodData, previousPeriodData, dateRange, comparisonMode, isShortPeriod, profitabilityBase]);
 
   // Handle chart click to navigate to Finances
   const handleChartClick = (data: any) => {
@@ -253,22 +313,33 @@ export const ProfitabilityComparisonChart = ({
   };
 
   // Calculate totals and KPIs - using netPayout for Marge Uber
-  const { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalNetPayout, totalMealVoucher, totalOrders } = useMemo(() => {
+  const { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalNetPayout, totalMealVoucher, totalOrders, totalPromo } = useMemo(() => {
     const totalSales = chartData.reduce((sum, d) => sum + (d.sales || 0), 0);
     const totalNetPayout = chartData.reduce((sum, d) => sum + (d.netPayout || 0), 0);
     const totalMealVoucher = chartData.reduce((sum, d) => sum + (d.mealVoucher || 0), 0);
     const totalOrders = chartData.reduce((sum, d) => sum + (d.orders || 0), 0);
+    const totalPromo = chartData.reduce((sum, d) => sum + (d.promo || 0), 0);
     const prevTotalSales = chartData.reduce((sum, d) => sum + (d.prevSales || 0), 0);
     const prevTotalNetPayout = chartData.reduce((sum, d) => sum + (d.prevNetPayout || 0), 0);
     
-    // Marge Uber = net_payout / sales (without meal vouchers)
-    const totalProfitability = totalSales > 0 ? (totalNetPayout / totalSales) * 100 : 0;
-    const prevTotalProfitability = prevTotalSales > 0 ? (prevTotalNetPayout / prevTotalSales) * 100 : 0;
+    // Calculate based on profitability base (Brut or Net)
+    const denominator = profitabilityBase === 'net' 
+      ? Math.max(0, totalSales - totalPromo) 
+      : totalSales;
+    const prevDenominator = profitabilityBase === 'net'
+      ? Math.max(0, prevTotalSales - chartData.reduce((sum, d) => sum + (d.promo || 0), 0))
+      : prevTotalSales;
+    
+    const totalProfitability = denominator > 0 ? (totalNetPayout / denominator) * 100 : 0;
+    const prevTotalProfitability = prevDenominator > 0 ? (prevTotalNetPayout / prevDenominator) * 100 : 0;
     const variation = totalProfitability - prevTotalProfitability;
     
     // Debug log for Marge Uber calculation
     console.log("[ProfitabilityChart] Marge Uber Calculation:", {
+      base: profitabilityBase,
       totalSales: totalSales.toFixed(2),
+      totalPromo: totalPromo.toFixed(2),
+      denominator: denominator.toFixed(2),
       totalNetPayout: totalNetPayout.toFixed(2),
       totalMealVoucher: totalMealVoucher.toFixed(2),
       margeUber: totalProfitability.toFixed(2) + "%",
@@ -278,8 +349,8 @@ export const ProfitabilityComparisonChart = ({
       dateRange: `${format(dateRange.start, "yyyy-MM-dd")} → ${format(dateRange.end, "yyyy-MM-dd")}`,
     });
     
-    return { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalNetPayout, totalMealVoucher, totalOrders };
-  }, [chartData, currentPeriodData, dateRange]);
+    return { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalNetPayout, totalMealVoucher, totalOrders, totalPromo };
+  }, [chartData, currentPeriodData, dateRange, profitabilityBase]);
 
   // Period labels
   const selectedYear = format(dateRange.start, "yyyy");
@@ -445,6 +516,72 @@ export const ProfitabilityComparisonChart = ({
         
         {/* Right: Controls */}
         <div className="flex items-center gap-2">
+          {/* Profitability base toggle (Brut/Net) */}
+          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+            <TooltipProvider>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant={profitabilityBase === 'gross' ? 'secondary' : 'ghost'} 
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => setProfitabilityBase('gross')}
+                  >
+                    <span className="text-xs">Brut</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p className="font-medium">Base Brut</p>
+                  <p className="text-xs text-muted-foreground">Rentabilité sur Ventes TTC (inclut promos)</p>
+                </TooltipContent>
+              </UITooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant={profitabilityBase === 'net' ? 'secondary' : 'ghost'} 
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => setProfitabilityBase('net')}
+                  >
+                    <span className="text-xs">Net</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p className="font-medium">Base Net</p>
+                  <p className="text-xs text-muted-foreground">Rentabilité sur Ventes - Promos (encaissé)</p>
+                </TooltipContent>
+              </UITooltip>
+            </TooltipProvider>
+          </div>
+          
+          {/* Actions toggle */}
+          {viewMode === 'chart' && actions.length > 0 && (
+            <TooltipProvider>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant={showActions ? 'default' : 'outline'} 
+                    size="sm"
+                    className={cn(
+                      "h-8 gap-1.5 transition-all",
+                      showActions && "bg-purple-600 hover:bg-purple-700 text-white border-0"
+                    )}
+                    onClick={() => setShowActions(!showActions)}
+                  >
+                    <Flag className="h-3.5 w-3.5" />
+                    <span className="text-xs">{actions.length}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p className="font-medium">Afficher les actions</p>
+                  <p className="text-xs text-muted-foreground">{actions.length} action(s) sur la période</p>
+                </TooltipContent>
+              </UITooltip>
+            </TooltipProvider>
+          )}
+          
           {/* View mode toggle */}
           <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
             <Button 
@@ -514,6 +651,7 @@ export const ProfitabilityComparisonChart = ({
               data={chartData}
               onClick={handleChartClick}
               style={{ cursor: onMonthClick ? "pointer" : "default" }}
+              margin={{ top: showActions ? 24 : 5, right: 5, left: 5, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis 
@@ -528,6 +666,27 @@ export const ProfitabilityComparisonChart = ({
                 tickFormatter={(v) => `${v}%`}
               />
               <Tooltip content={<CustomTooltip />} />
+              
+              {/* Action markers as ReferenceLine */}
+              {showActions && chartData.map((dataPoint) => {
+                const dateKey = dataPoint.date || dataPoint.month;
+                const dayActions = actionsByDateKey[dateKey];
+                if (!dayActions || dayActions.length === 0) return null;
+                
+                const primaryAction = dayActions[0];
+                const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                
+                return (
+                  <ReferenceLine
+                    key={`action-${dateKey}`}
+                    x={dataPoint.monthLabel}
+                    stroke={color}
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    label={<ActionMarkerLabel actions={dayActions} color={color} />}
+                  />
+                );
+              })}
               
               {/* Previous period line (dashed, muted) */}
               {hasPrevData && (
