@@ -540,9 +540,14 @@ export const ProfitabilityComparisonChart = ({
               <UITooltip>
                 <TooltipTrigger asChild>
                   <Button 
-                    variant={profitabilityBase === 'gross' ? 'secondary' : 'ghost'} 
+                    variant="ghost" 
                     size="sm"
-                    className="h-7 px-2"
+                    className={cn(
+                      "h-7 px-2 transition-all",
+                      profitabilityBase === 'gross' 
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
                     onClick={() => setProfitabilityBase('gross')}
                   >
                     <span className="text-xs">Brut</span>
@@ -558,9 +563,14 @@ export const ProfitabilityComparisonChart = ({
               <UITooltip>
                 <TooltipTrigger asChild>
                   <Button 
-                    variant={profitabilityBase === 'net' ? 'secondary' : 'ghost'} 
+                    variant="ghost" 
                     size="sm"
-                    className="h-7 px-2"
+                    className={cn(
+                      "h-7 px-2 transition-all",
+                      profitabilityBase === 'net' 
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
                     onClick={() => setProfitabilityBase('net')}
                   >
                     <span className="text-xs">Net</span>
