@@ -2950,6 +2950,7 @@ export type Database = {
         }
         Returns: {
           day: string
+          item_promo_incl_vat: number
           meal_voucher: number
           net_payout: number
           orders_count: number
