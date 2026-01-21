@@ -7,15 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ActionFilterPopover } from "./ActionFilterPopover";
 
-interface DailyProfitabilityRow {
-  restaurant_id: string;
-  day: string;
-  sales: number;
-  payout: number;
-  net_payout: number;
-  meal_voucher: number;
-  orders_count: number;
-}
+// PayoutData fields used by the chart (subset of full PayoutData from table)
+// The chart only needs these fields for aggregation and calculation
 
 interface RestaurantAction {
   id: string;
@@ -28,16 +21,14 @@ interface RestaurantAction {
 }
 
 interface FinancesSectionProps {
-  dailyPayoutsData: any[];
+  dailyPayoutsData: any[]; // Uses actual payout data from the table
   restaurants: { id: string; name: string; city?: string }[];
   selectedRestaurants: string[];
   startDate: Date;
   endDate: Date;
-  // Profitability chart props
-  profitabilityData?: DailyProfitabilityRow[];
-  prevProfitabilityData?: DailyProfitabilityRow[];
-  profitabilityDateRange?: { start: Date; end: Date };
-  profitabilityPrevDateRange?: { start: Date; end: Date };
+  // Date ranges for chart
+  dateRange?: { start: Date; end: Date };
+  previousDateRange?: { start: Date; end: Date };
   profitabilityComparisonMode?: "yearOverYear" | "rollingPeriod";
   onProfitabilityComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
   onMonthDrillDown?: (month: number | null) => void;
@@ -66,10 +57,8 @@ export function FinancesSection({
   selectedRestaurants,
   startDate,
   endDate,
-  profitabilityData,
-  prevProfitabilityData,
-  profitabilityDateRange,
-  profitabilityPrevDateRange,
+  dateRange,
+  previousDateRange,
   profitabilityComparisonMode = "yearOverYear",
   onProfitabilityComparisonModeChange,
   onMonthDrillDown,
@@ -137,13 +126,12 @@ export function FinancesSection({
         )}
       </div>
 
-      {/* Profitability Comparison Chart - évolution N vs N-1 */}
-      {profitabilityData && profitabilityData.length > 0 && profitabilityDateRange && profitabilityPrevDateRange && (
+      {/* Profitability Comparison Chart - utilise les mêmes données que le tableau */}
+      {dailyPayoutsData && dailyPayoutsData.length > 0 && dateRange && previousDateRange && (
         <ProfitabilityComparisonChart
-          currentPeriodData={profitabilityData}
-          previousPeriodData={prevProfitabilityData || []}
-          dateRange={profitabilityDateRange}
-          previousDateRange={profitabilityPrevDateRange}
+          payoutsData={dailyPayoutsData}
+          dateRange={dateRange}
+          previousDateRange={previousDateRange}
           comparisonMode={profitabilityComparisonMode}
           onComparisonModeChange={onProfitabilityComparisonModeChange}
           onMonthClick={onMonthDrillDown}

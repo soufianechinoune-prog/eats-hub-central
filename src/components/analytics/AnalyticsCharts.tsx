@@ -3293,10 +3293,8 @@ export function AnalyticsCharts({
             const month = drillDownMonth ?? endMonth ?? 12;
             return new Date(year, month, 0);
           })()}
-          profitabilityData={chartProfitabilityData}
-          prevProfitabilityData={chartPrevProfitabilityData}
-          profitabilityDateRange={profitabilityDateRange}
-          profitabilityPrevDateRange={profitabilityPrevDateRange}
+          dateRange={profitabilityDateRange}
+          previousDateRange={profitabilityPrevDateRange}
           profitabilityComparisonMode={profitabilityComparisonMode}
           onProfitabilityComparisonModeChange={onProfitabilityComparisonModeChange}
           onMonthDrillDown={handleProfitabilityClick}
