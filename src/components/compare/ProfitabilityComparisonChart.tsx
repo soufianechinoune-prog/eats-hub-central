@@ -46,6 +46,9 @@ interface ProfitabilityComparisonChartProps {
   onMonthClick?: (monthNum: number) => void;
   restaurantIds?: string[];
   platform?: string;
+  // Action props from parent (FinancesSection)
+  showActions?: boolean;
+  selectedActionIds?: Set<string>;
 }
 
 type ViewMode = "chart" | "table";
@@ -98,9 +101,10 @@ export const ProfitabilityComparisonChart = ({
   onMonthClick,
   restaurantIds,
   platform,
+  showActions = false,
+  selectedActionIds,
 }: ProfitabilityComparisonChartProps) => {
   const [viewMode, setViewMode] = useState<ViewMode>("chart");
-  const [showActions, setShowActions] = useState(false);
   
   // Get profitability base from context
   const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
@@ -118,10 +122,14 @@ export const ProfitabilityComparisonChart = ({
     return differenceInDays(dateRange.end, dateRange.start) <= 45;
   }, [dateRange]);
   
-  // Group actions by date key (day or month)
+  // Group actions by date key (day or month), filtered by selectedActionIds
   const actionsByDateKey = useMemo(() => {
     const grouped: Record<string, RestaurantAction[]> = {};
     actions.forEach(action => {
+      // Filter by selectedActionIds if provided
+      if (selectedActionIds && selectedActionIds.size > 0 && !selectedActionIds.has(action.id)) {
+        return;
+      }
       const dateKey = isShortPeriod 
         ? action.start_date.substring(0, 10)  // yyyy-MM-dd
         : action.start_date.substring(0, 7);   // yyyy-MM
@@ -129,7 +137,7 @@ export const ProfitabilityComparisonChart = ({
       grouped[dateKey].push(action);
     });
     return grouped;
-  }, [actions, isShortPeriod]);
+  }, [actions, isShortPeriod, selectedActionIds]);
 
   // Aggregate data by MONTH or DAY depending on period length
   const chartData = useMemo(() => {
@@ -556,31 +564,6 @@ export const ProfitabilityComparisonChart = ({
             </TooltipProvider>
           </div>
           
-          {/* Actions toggle */}
-          {viewMode === 'chart' && actions.length > 0 && (
-            <TooltipProvider>
-              <UITooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant={showActions ? 'default' : 'outline'} 
-                    size="sm"
-                    className={cn(
-                      "h-8 gap-1.5 transition-all",
-                      showActions && "bg-purple-600 hover:bg-purple-700 text-white border-0"
-                    )}
-                    onClick={() => setShowActions(!showActions)}
-                  >
-                    <Flag className="h-3.5 w-3.5" />
-                    <span className="text-xs">{actions.length}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p className="font-medium">Afficher les actions</p>
-                  <p className="text-xs text-muted-foreground">{actions.length} action(s) sur la période</p>
-                </TooltipContent>
-              </UITooltip>
-            </TooltipProvider>
-          )}
           
           {/* View mode toggle */}
           <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">

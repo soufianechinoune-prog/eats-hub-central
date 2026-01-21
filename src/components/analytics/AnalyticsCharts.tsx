@@ -262,6 +262,18 @@ interface AnalyticsChartsProps {
   profitabilityPrevDateRange?: { start: Date; end: Date };
   profitabilityComparisonMode?: "yearOverYear" | "rollingPeriod";
   onProfitabilityComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
+  // Action filtering props for FinancesSection
+  globalActions?: RestaurantAction[];
+  selectedActionIds?: Set<string>;
+  onActionToggle?: (actionId: string) => void;
+  onSelectAllCategory?: (category: string, selected: boolean) => void;
+  onSelectAll?: (selected: boolean) => void;
+  showHolidays?: boolean;
+  showSchoolHolidays?: boolean;
+  showFootballMatches?: boolean;
+  onHolidaysToggle?: (value: boolean) => void;
+  onSchoolHolidaysToggle?: (value: boolean) => void;
+  onFootballMatchesToggle?: (value: boolean) => void;
 }
 
 // Action category colors
@@ -547,6 +559,18 @@ export function AnalyticsCharts({
   profitabilityPrevDateRange,
   profitabilityComparisonMode = "yearOverYear",
   onProfitabilityComparisonModeChange,
+  // Action filtering props for FinancesSection
+  globalActions = [],
+  selectedActionIds,
+  onActionToggle,
+  onSelectAllCategory,
+  onSelectAll,
+  showHolidays = true,
+  showSchoolHolidays = true,
+  showFootballMatches = true,
+  onHolidaysToggle,
+  onSchoolHolidaysToggle,
+  onFootballMatchesToggle,
 }: AnalyticsChartsProps) {
   const navigate = useNavigate();
   const { selectedPlatform } = useAnalyticsContext();
@@ -3277,6 +3301,21 @@ export function AnalyticsCharts({
           onProfitabilityComparisonModeChange={onProfitabilityComparisonModeChange}
           onMonthDrillDown={handleProfitabilityClick}
           selectedPlatform={selectedPlatform}
+          // Action filtering props
+          showActions={chartActionsConfig?.global}
+          onShowActionsChange={(value) => onChartActionsConfigChange?.({ ...chartActionsConfig!, global: value })}
+          globalActions={globalActions}
+          selectedActionIds={selectedActionIds}
+          onActionToggle={onActionToggle}
+          onSelectAllCategory={onSelectAllCategory}
+          onSelectAll={onSelectAll}
+          showHolidays={showHolidays}
+          showSchoolHolidays={showSchoolHolidays}
+          showFootballMatches={showFootballMatches}
+          onHolidaysToggle={onHolidaysToggle}
+          onSchoolHolidaysToggle={onSchoolHolidaysToggle}
+          onFootballMatchesToggle={onFootballMatchesToggle}
+          granularity={granularity}
         />
       )}
     </div>
