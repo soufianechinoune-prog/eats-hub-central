@@ -346,8 +346,10 @@ export const ProfitabilityComparisonChart = ({
       ? (diff > 0 ? "text-emerald-600" : diff < 0 ? "text-red-600" : "text-muted-foreground")
       : "";
     
+    const totalPayout = (data.netPayout || 0) + (data.mealVoucher || 0);
+    
     return (
-      <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-sm min-w-[180px]">
+      <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-sm min-w-[220px]">
         <p className="font-semibold mb-2 capitalize">{data.monthFull}</p>
         
         <div className="space-y-1.5">
@@ -386,6 +388,51 @@ export const ProfitabilityComparisonChart = ({
               </div>
             </div>
           )}
+          
+          {/* Financial details */}
+          <div className="pt-2 mt-2 border-t border-border space-y-1">
+            {/* CA Brut */}
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">CA Brut</span>
+              <span className="font-medium">
+                {data.sales?.toLocaleString("fr-FR", { 
+                  style: "currency", 
+                  currency: "EUR",
+                  maximumFractionDigits: 0 
+                })}
+              </span>
+            </div>
+            
+            {/* Promo */}
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Promo</span>
+              <span className="font-medium text-orange-600">
+                -{data.promo?.toLocaleString("fr-FR", { 
+                  style: "currency", 
+                  currency: "EUR",
+                  maximumFractionDigits: 0 
+                })}
+              </span>
+            </div>
+            
+            {/* Versement total */}
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Versement total</span>
+              <span className="font-medium text-emerald-600">
+                {totalPayout.toLocaleString("fr-FR", { 
+                  style: "currency", 
+                  currency: "EUR",
+                  maximumFractionDigits: 0 
+                })}
+              </span>
+            </div>
+            
+            {/* Nombre de commandes */}
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Commandes</span>
+              <span className="font-medium">{data.orders}</span>
+            </div>
+          </div>
         </div>
       </div>
     );
