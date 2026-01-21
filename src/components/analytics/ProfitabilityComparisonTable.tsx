@@ -725,26 +725,6 @@ export function ProfitabilityComparisonTable({
           </div>
         </div>
         
-        {/* Gap indicator - only in profitability mode */}
-        {viewMode === 'profitability' && profitabilityGap > 2 && (
-          <div className="flex items-center gap-2 mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-            <p className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{profitabilityGap.toFixed(1)} pts d'écart</span> entre 
-              {isSingleRestaurant ? (
-                <>
-                  <span className="text-green-600"> {format(new Date(best.date), "d MMM", { locale: fr })}</span> ({best.profitability.toFixed(1)}%) et 
-                  <span className="text-red-600"> {format(new Date(worst.date), "d MMM", { locale: fr })}</span> ({worst.profitability.toFixed(1)}%)
-                </>
-              ) : (
-                <>
-                  <span className="text-green-600"> {best.restaurantName}</span> ({best.profitability.toFixed(1)}%) et 
-                  <span className="text-red-600"> {worst.restaurantName}</span> ({worst.profitability.toFixed(1)}%)
-                </>
-              )}
-            </p>
-          </div>
-        )}
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
