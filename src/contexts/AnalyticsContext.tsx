@@ -4,6 +4,7 @@ import type { DateRange } from "react-day-picker";
 export type PeriodMode = "year" | "month" | "range" | "previous_week" | "7d" | "30d" | "current_month";
 export type Platform = "uber_eats" | "deliveroo" | "global";
 export type ComparisonMode = "yearOverYear" | "rollingPeriod";
+export type ProfitabilityBase = "gross" | "net"; // gross = Ventes TTC, net = Ventes - Promos
 
 interface AnalyticsContextType {
   selectedRestaurants: string[];
@@ -25,6 +26,8 @@ interface AnalyticsContextType {
   setDateRange: (range: DateRange | undefined) => void;
   comparisonMode: ComparisonMode;
   setComparisonMode: (mode: ComparisonMode) => void;
+  profitabilityBase: ProfitabilityBase;
+  setProfitabilityBase: (base: ProfitabilityBase) => void;
   isInitialized: boolean;
 }
 
@@ -88,6 +91,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     () => storedState?.comparisonMode || "yearOverYear"
   );
 
+  const [profitabilityBase, setProfitabilityBase] = useState<ProfitabilityBase>(
+    () => storedState?.profitabilityBase || "gross"
+  );
+
   // Track if initial mount is complete to prevent saving during hydration
   const hasMounted = useRef(false);
 
@@ -139,6 +146,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       selectedMonth,
       periodMode,
       comparisonMode,
+      profitabilityBase,
       dateRange: dateRange
         ? {
             from: dateRange.from?.toISOString(),
@@ -157,6 +165,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     periodMode,
     dateRange,
     comparisonMode,
+    profitabilityBase,
   ]);
 
   const value = {
@@ -179,6 +188,8 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setDateRange,
     comparisonMode,
     setComparisonMode,
+    profitabilityBase,
+    setProfitabilityBase,
     isInitialized: true, // Always true now since provider is stable
   };
 
