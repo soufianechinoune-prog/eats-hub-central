@@ -600,46 +600,82 @@ export const ProfitabilityComparisonChart = ({
             </HoverCard>
             
             {/* Detailed version on click */}
-            <PopoverContent side="bottom" align="end" className="w-[360px] p-0">
+            <PopoverContent side="bottom" align="end" className="w-[420px] p-0 max-h-[85vh] overflow-y-auto">
               <div className="p-4 space-y-4">
-                <h3 className="font-semibold text-base">Comment sont calculées vos marges ?</h3>
+                <div>
+                  <h3 className="font-semibold text-base">Comment sont calculées vos marges ?</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sur Uber Eats, il existe deux façons complémentaires de lire la rentabilité.
+                  </p>
+                </div>
                 
                 {/* Marge Uber (Brut) */}
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2.5">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-md bg-blue-500/10">
                       <BarChart3 className="h-4 w-4 text-blue-600" />
                     </div>
-                    <span className="font-medium">Marge Uber (Brut)</span>
+                    <span className="font-medium">Marge Uber (base Brut)</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Base : ventes affichées Uber Eats
+                    Calculée sur le <span className="font-medium text-foreground">CA affiché Uber Eats</span>, avant déduction des promotions.
                   </p>
-                  <p className="text-sm italic text-foreground/80">
-                    "Sur 100€ affichés, combien Uber me reverse ?"
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-medium">Utile pour :</span> auditer commissions, suivre l'impact des promos
-                  </p>
+                  <div className="bg-background/50 rounded p-2 border-l-2 border-blue-500">
+                    <p className="text-sm italic text-foreground/90">
+                      👉 "Sur 100€ de ventes affichées, combien me reverse réellement Uber ?"
+                    </p>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p className="font-medium text-foreground">Utile pour :</p>
+                    <ul className="list-disc list-inside space-y-0.5 pl-1">
+                      <li>Suivre l'impact des promotions sur la marge</li>
+                      <li>Vérifier et auditer les commissions Uber</li>
+                      <li>Comparer avec les rapports officiels Uber Eats</li>
+                    </ul>
+                  </div>
                 </div>
                 
                 {/* Marge économique (Net) */}
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2.5">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-md bg-emerald-500/10">
                       <Coins className="h-4 w-4 text-emerald-600" />
                     </div>
-                    <span className="font-medium">Marge économique (Net)</span>
+                    <span className="font-medium">Marge économique réelle (base Net)</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Base : ventes réellement payées par les clients
+                    Calculée sur les <span className="font-medium text-foreground">ventes réellement payées</span> par les clients, après promotions.
                   </p>
-                  <p className="text-sm italic text-foreground/80">
-                    "Sur 100€ payés, combien j'encaisse après Uber ?"
+                  <div className="bg-background/50 rounded p-2 border-l-2 border-emerald-500">
+                    <p className="text-sm italic text-foreground/90">
+                      👉 "Sur 100€ payés par les clients, combien j'encaisse après Uber ?"
+                    </p>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p className="font-medium text-foreground">Utile pour :</p>
+                    <ul className="list-disc list-inside space-y-0.5 pl-1">
+                      <li>Mesurer la vraie rentabilité de l'activité</li>
+                      <li>Piloter les promotions en connaissance de cause</li>
+                      <li>Comparer des périodes entre elles</li>
+                      <li>Prendre de meilleures décisions économiques</li>
+                    </ul>
+                  </div>
+                </div>
+                
+                {/* Why two margins */}
+                <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 space-y-2">
+                  <p className="text-xs font-medium text-foreground">
+                    🎯 Pourquoi afficher deux marges ?
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    <span className="font-medium">Utile pour :</span> mesurer vraie rentabilité, comparer des périodes
+                    Parce que les <span className="font-medium text-foreground">promotions ne sont pas un vrai chiffre d'affaires</span>, mais un <span className="italic">coût marketing</span>.
                   </p>
+                  <div className="text-xs text-muted-foreground pt-1 border-t border-border/50">
+                    <ul className="space-y-1">
+                      <li>• <span className="font-medium text-foreground">Marge Brut</span> = vision plateforme (contrôle Uber)</li>
+                      <li>• <span className="font-medium text-foreground">Marge Net</span> = vision business (décisions)</li>
+                    </ul>
+                  </div>
                 </div>
                 
                 {/* Summary */}
@@ -648,7 +684,7 @@ export const ProfitabilityComparisonChart = ({
                     💡 Les deux sont justes et complémentaires.
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    L'une sert à contrôler Uber, l'autre à piloter votre business.
+                    Utilisez la première pour contrôler Uber, la seconde pour décider quoi faire demain.
                   </p>
                 </div>
               </div>
