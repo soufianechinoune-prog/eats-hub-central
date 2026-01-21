@@ -51,6 +51,7 @@ interface DailyOrderData {
 
 interface ProfitabilityComparisonChartProps {
   dailyOrdersData: DailyOrderData[];
+  previousDailyOrdersData?: DailyOrderData[];  // N-1 data for comparison
   dateRange: { start: Date; end: Date };
   previousDateRange: { start: Date; end: Date };
   isLoading?: boolean;
@@ -105,6 +106,7 @@ function ActionMarkerLabel({ viewBox, actions, color }: { viewBox?: { x?: number
 
 export const ProfitabilityComparisonChart = ({
   dailyOrdersData,
+  previousDailyOrdersData = [],
   dateRange,
   previousDateRange,
   isLoading,
@@ -161,15 +163,25 @@ export const ProfitabilityComparisonChart = ({
     };
 
     if (isShortPeriod) {
-      // DAILY view - use dailyOrdersData directly (already aggregated by day)
-      return dailyOrdersData.map((day) => {
+      // DAILY view - align N and N-1 by day index (like other charts)
+      return dailyOrdersData.map((day, index) => {
+        const prevDay = previousDailyOrdersData[index];
+        
         const profitability = calcProfitability(
           day.net_payout, 
           day.meal_voucher_amount, 
           day.sales_incl_vat, 
           day.promo_incl_vat
         );
+        
+        const prevProfitability = prevDay 
+          ? calcProfitability(prevDay.net_payout, prevDay.meal_voucher_amount, prevDay.sales_incl_vat, prevDay.promo_incl_vat)
+          : null;
+        
         const trBonus = day.sales_incl_vat > 0 ? (day.meal_voucher_amount / day.sales_incl_vat) * 100 : 0;
+        const prevTrBonus = prevDay && prevDay.sales_incl_vat > 0 
+          ? (prevDay.meal_voucher_amount / prevDay.sales_incl_vat) * 100 
+          : 0;
         
         return {
           date: day.date,
@@ -177,25 +189,25 @@ export const ProfitabilityComparisonChart = ({
           monthLabel: format(new Date(day.date), "dd/MM"),
           monthFull: format(new Date(day.date), "EEEE d MMMM yyyy", { locale: fr }),
           profitability,
-          prevProfitability: null,
+          prevProfitability,
           sales: day.sales_incl_vat,
           netPayout: day.net_payout,
           mealVoucher: day.meal_voucher_amount,
           orders: day.order_count,
           promo: day.promo_incl_vat,
-          prevSales: 0,
-          prevNetPayout: 0,
-          prevMealVoucher: 0,
-          prevOrders: 0,
+          prevSales: prevDay?.sales_incl_vat || 0,
+          prevNetPayout: prevDay?.net_payout || 0,
+          prevMealVoucher: prevDay?.meal_voucher_amount || 0,
+          prevOrders: prevDay?.order_count || 0,
           trBonus,
-          prevTrBonus: 0,
+          prevTrBonus,
         };
       });
     } else {
       // MONTHLY aggregation from daily data
       const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
       
-      // Aggregate daily data by month
+      // Aggregate current period daily data by month
       const dataByMonth: Record<string, {
         sales: number;
         netPayout: number;
@@ -215,13 +227,44 @@ export const ProfitabilityComparisonChart = ({
         dataByMonth[monthKey].promo += day.promo_incl_vat;
         dataByMonth[monthKey].orders += day.order_count;
       });
+      
+      // Aggregate N-1 period daily data by month (for comparison)
+      const prevDataByMonth: Record<string, {
+        sales: number;
+        netPayout: number;
+        mealVoucher: number;
+        promo: number;
+        orders: number;
+      }> = {};
 
-      return allMonths.map((month) => {
+      previousDailyOrdersData.forEach((day) => {
+        const monthKey = day.date.substring(0, 7); // yyyy-MM
+        if (!prevDataByMonth[monthKey]) {
+          prevDataByMonth[monthKey] = { sales: 0, netPayout: 0, mealVoucher: 0, promo: 0, orders: 0 };
+        }
+        prevDataByMonth[monthKey].sales += day.sales_incl_vat;
+        prevDataByMonth[monthKey].netPayout += day.net_payout;
+        prevDataByMonth[monthKey].mealVoucher += day.meal_voucher_amount;
+        prevDataByMonth[monthKey].promo += day.promo_incl_vat;
+        prevDataByMonth[monthKey].orders += day.order_count;
+      });
+
+      return allMonths.map((month, index) => {
         const monthKey = format(month, "yyyy-MM");
         const data = dataByMonth[monthKey] || { sales: 0, netPayout: 0, mealVoucher: 0, promo: 0, orders: 0 };
         
+        // Get N-1 month data by index alignment (same month of previous year)
+        const prevYear = dateRange.start.getFullYear() - 1;
+        const prevMonthKey = format(new Date(prevYear, month.getMonth(), 1), "yyyy-MM");
+        const prevData = prevDataByMonth[prevMonthKey] || { sales: 0, netPayout: 0, mealVoucher: 0, promo: 0, orders: 0 };
+        
         const profitability = calcProfitability(data.netPayout, data.mealVoucher, data.sales, data.promo);
+        const prevProfitability = prevData.sales > 0 
+          ? calcProfitability(prevData.netPayout, prevData.mealVoucher, prevData.sales, prevData.promo)
+          : null;
+        
         const trBonus = data.sales > 0 ? (data.mealVoucher / data.sales) * 100 : 0;
+        const prevTrBonus = prevData.sales > 0 ? (prevData.mealVoucher / prevData.sales) * 100 : 0;
         
         return {
           date: undefined,
@@ -229,22 +272,22 @@ export const ProfitabilityComparisonChart = ({
           monthLabel: format(month, "MMM", { locale: fr }),
           monthFull: format(month, "MMMM yyyy", { locale: fr }),
           profitability,
-          prevProfitability: null,
+          prevProfitability,
           sales: data.sales,
           netPayout: data.netPayout,
           mealVoucher: data.mealVoucher,
           orders: data.orders,
           promo: data.promo,
-          prevSales: 0,
-          prevNetPayout: 0,
-          prevMealVoucher: 0,
-          prevOrders: 0,
+          prevSales: prevData.sales,
+          prevNetPayout: prevData.netPayout,
+          prevMealVoucher: prevData.mealVoucher,
+          prevOrders: prevData.orders,
           trBonus,
-          prevTrBonus: 0,
+          prevTrBonus,
         };
       });
     }
-  }, [dailyOrdersData, dateRange, isShortPeriod, profitabilityBase]);
+  }, [dailyOrdersData, previousDailyOrdersData, dateRange, isShortPeriod, profitabilityBase]);
 
   // Handle chart click to navigate to Finances
   const handleChartClick = (data: any) => {
@@ -271,29 +314,38 @@ export const ProfitabilityComparisonChart = ({
     const totalOrders = chartData.reduce((sum, d) => sum + (d.orders || 0), 0);
     const totalPromo = chartData.reduce((sum, d) => sum + (d.promo || 0), 0);
     
+    // N-1 totals
+    const prevTotalSales = chartData.reduce((sum, d) => sum + (d.prevSales || 0), 0);
+    const prevTotalNetPayout = chartData.reduce((sum, d) => sum + (d.prevNetPayout || 0), 0);
+    const prevTotalMealVoucher = chartData.reduce((sum, d) => sum + (d.prevMealVoucher || 0), 0);
+    const prevTotalPromo = chartData.reduce((sum, d) => sum + (d.promo || 0), 0); // Prev promo not tracked separately
+    
     // Total payout includes meal vouchers
     const totalPayoutWithVoucher = totalNetPayout + totalMealVoucher;
+    const prevTotalPayoutWithVoucher = prevTotalNetPayout + prevTotalMealVoucher;
     
     // Calculate denominator based on profitability base
     const denominator = profitabilityBase === 'net' 
       ? Math.max(0, totalSales - totalPromo) 
       : totalSales;
     
+    const prevDenominator = profitabilityBase === 'net' 
+      ? Math.max(0, prevTotalSales - prevTotalPromo) 
+      : prevTotalSales;
+    
     const totalProfitability = denominator > 0 ? (totalPayoutWithVoucher / denominator) * 100 : 0;
+    const prevTotalProfitability = prevDenominator > 0 ? (prevTotalPayoutWithVoucher / prevDenominator) * 100 : 0;
     
-    // No previous data comparison (same source = same values)
-    const prevTotalSales = 0;
-    const prevTotalProfitability = 0;
-    const variation = 0;
+    // Variation in percentage points
+    const variation = prevTotalProfitability > 0 ? totalProfitability - prevTotalProfitability : 0;
     
-    console.log("[ProfitabilityChart] Unified data (from payouts):", {
+    console.log("[ProfitabilityChart] Unified data with N-1:", {
       base: profitabilityBase,
       totalSales: totalSales.toFixed(2),
-      totalPromo: totalPromo.toFixed(2),
-      denominator: denominator.toFixed(2),
-      totalNetPayout: totalNetPayout.toFixed(2),
-      totalMealVoucher: totalMealVoucher.toFixed(2),
+      prevTotalSales: prevTotalSales.toFixed(2),
       profitability: totalProfitability.toFixed(2) + "%",
+      prevProfitability: prevTotalProfitability.toFixed(2) + "%",
+      variation: variation.toFixed(2) + "pp",
       chartDataPoints: chartData.length,
       dateRange: `${format(dateRange.start, "yyyy-MM-dd")} → ${format(dateRange.end, "yyyy-MM-dd")}`,
     });
