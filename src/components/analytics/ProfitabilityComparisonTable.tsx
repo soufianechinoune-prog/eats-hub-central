@@ -37,6 +37,7 @@ import {
   ZoomIn
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 interface PayoutData {
   payout_date: string;
@@ -85,6 +86,7 @@ interface ComparisonRow {
   restaurantId: string;
   restaurantName: string;
   sales: number;
+  netSales: number;            // CA net après promos
   netPayout: number;
   mealVoucher: number;       // Versement Titre Restaurant
   ecoContribution: number;   // Remboursement éco-contribution
@@ -149,6 +151,7 @@ export function ProfitabilityComparisonTable({
   payouts, 
   restaurants 
 }: ProfitabilityComparisonTableProps) {
+  const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedPayouts, setSelectedPayouts] = useState<PayoutData[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -258,10 +261,14 @@ export function ProfitabilityComparisonTable({
       const netSalesTTC = sales - promoAmount; // CA net après promos
       const uberFeeRateHT = netSalesTTC > 0 ? (uberFeeHT / netSalesTTC) * 100 : 0;
       
-      // Rentabilité = (Versement Uber + Titres restaurant) / CA TTC
+      // Rentabilité = (Versement Uber + Titres restaurant) / Base
+      // Base = CA TTC (gross) ou CA TTC - Promos (net)
       const mealVoucher = Math.abs(Number(payout.meal_voucher_amount) || 0);
       const ecoContribution = Math.abs(Number(payout.eco_contribution_refund) || 0);
       const totalToReceive = netPayout + mealVoucher;
+      
+      // Dénominateur pour le calcul de rentabilité selon la base choisie
+      const profitabilityDenominator = profitabilityBase === 'net' ? netSalesTTC : sales;
       
       // Week calculation
       const payoutDate = new Date(payout.payout_date);
@@ -277,11 +284,12 @@ export function ProfitabilityComparisonTable({
         restaurantId: payout.restaurant_id,
         restaurantName: getRestaurantName(payout.restaurant_id),
         sales,
+        netSales: netSalesTTC,
         netPayout,
         mealVoucher,
         ecoContribution,
         totalPayout: totalToReceive,
-        profitability: sales > 0 ? (totalToReceive / sales) * 100 : 0,
+        profitability: profitabilityDenominator > 0 ? (totalToReceive / profitabilityDenominator) * 100 : 0,
         uberFeeGross,
         uberFeeReduction,
         uberFeeNet,
@@ -331,7 +339,7 @@ export function ProfitabilityComparisonTable({
       }
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [payouts, restaurants, sortColumn, sortDirection]);
+  }, [payouts, restaurants, sortColumn, sortDirection, profitabilityBase]);
   
   // Group by week for week view mode
   const weekGroups = useMemo((): WeekGroup[] => {
@@ -402,7 +410,10 @@ export function ProfitabilityComparisonTable({
         const avgUberFeeRate = netSales > 0 ? (totalUberFeeHT / netSales) * 100 : 0;
         const avgPromoRate = totalSales > 0 ? (totalPromo / totalSales) * 100 : 0;
         const avgRefundRate = totalSales > 0 ? (totalRefund / totalSales) * 100 : 0;
-        const avgProfitability = totalSales > 0 ? (totalPayoutWithVoucher / totalSales) * 100 : 0;
+        
+        // Profitability uses the selected base
+        const profitabilityDenominator = profitabilityBase === 'net' ? netSales : totalSales;
+        const avgProfitability = profitabilityDenominator > 0 ? (totalPayoutWithVoucher / profitabilityDenominator) * 100 : 0;
         
         // Create month label
         const monthDate = new Date(year, monthNumber, 1);
@@ -432,7 +443,7 @@ export function ProfitabilityComparisonTable({
         if (a.year !== b.year) return b.year - a.year;
         return b.monthNumber - a.monthNumber;
       });
-  }, [comparisonData, payouts]);
+  }, [comparisonData, payouts, profitabilityBase]);
   
   // Calculate averages for comparison
   const averages = useMemo(() => {
@@ -451,7 +462,10 @@ export function ProfitabilityComparisonTable({
     const avgPromoRate = comparisonData.reduce((sum, d) => sum + d.promoRate, 0) / comparisonData.length;
     const avgRefundRate = comparisonData.reduce((sum, d) => sum + d.refundRate, 0) / comparisonData.length;
     const avgOtherRate = comparisonData.reduce((sum, d) => sum + d.otherRate, 0) / comparisonData.length;
-    const avgProfitability = totalSales > 0 ? (totalPayout / totalSales) * 100 : 0;
+    
+    // Profitability uses the selected base
+    const profitabilityDenominator = profitabilityBase === 'net' ? netSales : totalSales;
+    const avgProfitability = profitabilityDenominator > 0 ? (totalPayout / profitabilityDenominator) * 100 : 0;
     
     // Average amounts
     const avgUberFeeAmount = comparisonData.reduce((sum, d) => sum + d.uberFeeNet, 0) / comparisonData.length;
@@ -474,7 +488,7 @@ export function ProfitabilityComparisonTable({
       ecoContributionAmount: avgEcoContributionAmount,
       totalPayoutAmount: avgTotalPayoutAmount,
     };
-  }, [comparisonData]);
+  }, [comparisonData, profitabilityBase, payouts]);
   
   if (comparisonData.length === 0) return null;
   
@@ -535,7 +549,7 @@ export function ProfitabilityComparisonTable({
             </TooltipProvider>
           </CardTitle>
           
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap items-center">
             {/* Display mode toggle for Commission/Promos/Remb */}
             <Button
               variant={displayMode === 'percent' ? 'default' : 'outline'}
@@ -555,7 +569,7 @@ export function ProfitabilityComparisonTable({
             </Button>
             
             {/* Separator */}
-            <div className="w-px bg-border mx-1" />
+            <div className="w-px bg-border mx-1 h-5" />
             
             {/* View mode toggle - always show */}
             <Button
@@ -585,6 +599,42 @@ export function ProfitabilityComparisonTable({
               <Calendar className="h-3.5 w-3.5" />
               Mois
             </Button>
+            
+            {/* Separator */}
+            <div className="w-px bg-border mx-1 h-5" />
+            
+            {/* Profitability base toggle */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center rounded-lg border bg-muted/30 p-0.5">
+                    <Button
+                      variant={profitabilityBase === "gross" ? "default" : "ghost"}
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => setProfitabilityBase("gross")}
+                    >
+                      Brut
+                    </Button>
+                    <Button
+                      variant={profitabilityBase === "net" ? "default" : "ghost"}
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => setProfitabilityBase("net")}
+                    >
+                      Net
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-medium text-sm mb-1">Base de calcul de rentabilité</p>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Brut:</strong> Rentabilité = Versement / CA TTC<br/>
+                    <strong>Net:</strong> Rentabilité = Versement / (CA TTC - Promos)
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
         
