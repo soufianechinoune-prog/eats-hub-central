@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import {
   TrendingUp,
   TrendingDown,
@@ -548,6 +549,7 @@ export function AnalyticsCharts({
   onProfitabilityComparisonModeChange,
 }: AnalyticsChartsProps) {
   const navigate = useNavigate();
+  const { selectedPlatform } = useAnalyticsContext();
   const prevYear = selectedYear - 1;
   
   // Dynamic labels based on comparison mode
@@ -3274,6 +3276,7 @@ export function AnalyticsCharts({
           profitabilityComparisonMode={profitabilityComparisonMode}
           onProfitabilityComparisonModeChange={onProfitabilityComparisonModeChange}
           onMonthDrillDown={handleProfitabilityClick}
+          selectedPlatform={selectedPlatform}
         />
       )}
     </div>
