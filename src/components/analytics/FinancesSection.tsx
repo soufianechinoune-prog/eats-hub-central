@@ -1,10 +1,7 @@
-import { useState } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ProfitabilityComparisonTable } from "./ProfitabilityComparisonTable";
 import { OrdersAnalysisSection } from "./OrdersAnalysisSection";
 import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
-import { BarChart3, FileText, TrendingUp, Zap } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Zap } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -93,120 +90,87 @@ export function FinancesSection({
   onFootballMatchesToggle,
   granularity = "monthly",
 }: FinancesSectionProps) {
-  const [activeTab, setActiveTab] = useState<"synthese" | "detail">("synthese");
-
   const hasActions = globalActions.length > 0;
 
   return (
-    <div className="space-y-4">
-      {/* Sub-tabs navigation */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-        <TabsList className="bg-muted/50 p-1 h-auto">
-          <TabsTrigger 
-            value="synthese" 
-            className={cn(
-              "flex items-center gap-2 px-4 py-2.5 text-sm font-medium",
-              "data-[state=active]:bg-background data-[state=active]:shadow-sm"
-            )}
-          >
-            <TrendingUp className="h-4 w-4" />
-            <span>Synthèse</span>
-          </TabsTrigger>
-          <TabsTrigger 
-            value="detail"
-            className={cn(
-              "flex items-center gap-2 px-4 py-2.5 text-sm font-medium",
-              "data-[state=active]:bg-background data-[state=active]:shadow-sm"
-            )}
-          >
-            <FileText className="h-4 w-4" />
-            <span>Détail</span>
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Synthèse Tab - KPIs + Profitability Chart + Comparison Table */}
-        <TabsContent value="synthese" className="mt-4 space-y-6">
-          {/* === Actions Control Bar (identique à Revenus & Ventes) === */}
-          <div className="flex flex-col gap-3 p-4 bg-muted/30 rounded-lg border">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-primary" />
-                  <Label htmlFor="show-actions-finances" className="text-sm font-medium cursor-pointer">
-                    Afficher les actions
-                  </Label>
-                </div>
-                <Switch
-                  id="show-actions-finances"
-                  checked={showActions}
-                  onCheckedChange={onShowActionsChange}
-                  disabled={!hasActions}
-                />
-                {!hasActions && (
-                  <span className="text-xs text-muted-foreground">Aucune action sur la période</span>
-                )}
-              </div>
-              <Badge variant={granularity === "daily" ? "default" : "secondary"} className="text-xs">
-                {granularity === "daily" ? "📅 Données quotidiennes" : "📆 Données mensuelles"}
-              </Badge>
+    <div className="space-y-6">
+      {/* === Actions Control Bar === */}
+      <div className="flex flex-col gap-3 p-4 bg-muted/30 rounded-lg border">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              <Label htmlFor="show-actions-finances" className="text-sm font-medium cursor-pointer">
+                Afficher les actions
+              </Label>
             </div>
-            
-            {/* Filtres granulaires (ActionFilterPopover) */}
-            {showActions && hasActions && onActionToggle && onSelectAllCategory && onSelectAll && (
-              <ActionFilterPopover
-                actions={globalActions}
-                selectedActionIds={selectedActionIds}
-                onActionToggle={onActionToggle}
-                onSelectAllCategory={onSelectAllCategory}
-                onSelectAll={onSelectAll}
-                showHolidays={showHolidays}
-                showSchoolHolidays={showSchoolHolidays}
-                showFootballMatches={showFootballMatches}
-                onHolidaysToggle={onHolidaysToggle}
-                onSchoolHolidaysToggle={onSchoolHolidaysToggle}
-                onFootballMatchesToggle={onFootballMatchesToggle}
-              />
+            <Switch
+              id="show-actions-finances"
+              checked={showActions}
+              onCheckedChange={onShowActionsChange}
+              disabled={!hasActions}
+            />
+            {!hasActions && (
+              <span className="text-xs text-muted-foreground">Aucune action sur la période</span>
             )}
           </div>
+          <Badge variant={granularity === "daily" ? "default" : "secondary"} className="text-xs">
+            {granularity === "daily" ? "📅 Données quotidiennes" : "📆 Données mensuelles"}
+          </Badge>
+        </div>
+        
+        {/* Filtres granulaires (ActionFilterPopover) */}
+        {showActions && hasActions && onActionToggle && onSelectAllCategory && onSelectAll && (
+          <ActionFilterPopover
+            actions={globalActions}
+            selectedActionIds={selectedActionIds}
+            onActionToggle={onActionToggle}
+            onSelectAllCategory={onSelectAllCategory}
+            onSelectAll={onSelectAll}
+            showHolidays={showHolidays}
+            showSchoolHolidays={showSchoolHolidays}
+            showFootballMatches={showFootballMatches}
+            onHolidaysToggle={onHolidaysToggle}
+            onSchoolHolidaysToggle={onSchoolHolidaysToggle}
+            onFootballMatchesToggle={onFootballMatchesToggle}
+          />
+        )}
+      </div>
 
-          {/* Profitability Comparison Chart - évolution N vs N-1 */}
-          {profitabilityData && profitabilityData.length > 0 && profitabilityDateRange && profitabilityPrevDateRange && (
-            <ProfitabilityComparisonChart
-              currentPeriodData={profitabilityData}
-              previousPeriodData={prevProfitabilityData || []}
-              dateRange={profitabilityDateRange}
-              previousDateRange={profitabilityPrevDateRange}
-              comparisonMode={profitabilityComparisonMode}
-              onComparisonModeChange={onProfitabilityComparisonModeChange}
-              onMonthClick={onMonthDrillDown}
-              restaurantIds={selectedRestaurants}
-              platform={selectedPlatform}
-              showActions={showActions}
-              selectedActionIds={selectedActionIds}
-            />
-          )}
+      {/* Profitability Comparison Chart - évolution N vs N-1 */}
+      {profitabilityData && profitabilityData.length > 0 && profitabilityDateRange && profitabilityPrevDateRange && (
+        <ProfitabilityComparisonChart
+          currentPeriodData={profitabilityData}
+          previousPeriodData={prevProfitabilityData || []}
+          dateRange={profitabilityDateRange}
+          previousDateRange={profitabilityPrevDateRange}
+          comparisonMode={profitabilityComparisonMode}
+          onComparisonModeChange={onProfitabilityComparisonModeChange}
+          onMonthClick={onMonthDrillDown}
+          restaurantIds={selectedRestaurants}
+          platform={selectedPlatform}
+          showActions={showActions}
+          selectedActionIds={selectedActionIds}
+        />
+      )}
 
-          {/* Profitability Comparison Table */}
-          {dailyPayoutsData && dailyPayoutsData.length > 0 && (
-            <ProfitabilityComparisonTable
-              payouts={dailyPayoutsData}
-              restaurants={restaurants}
-            />
-          )}
-        </TabsContent>
+      {/* Profitability Comparison Table */}
+      {dailyPayoutsData && dailyPayoutsData.length > 0 && (
+        <ProfitabilityComparisonTable
+          payouts={dailyPayoutsData}
+          restaurants={restaurants}
+        />
+      )}
 
-        {/* Détail Tab - Orders Analysis */}
-        <TabsContent value="detail" className="mt-4">
-          {restaurants && restaurants.length > 0 && (
-            <OrdersAnalysisSection
-              restaurants={restaurants}
-              selectedRestaurants={selectedRestaurants}
-              startDate={startDate}
-              endDate={endDate}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
+      {/* Orders Analysis Section (anciennement onglet "Détail") */}
+      {restaurants && restaurants.length > 0 && (
+        <OrdersAnalysisSection
+          restaurants={restaurants}
+          selectedRestaurants={selectedRestaurants}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      )}
     </div>
   );
 }
