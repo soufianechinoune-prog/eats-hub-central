@@ -116,8 +116,6 @@ export const ProfitabilityComparisonChart = ({
   showActions = false,
   selectedActionIds,
 }: ProfitabilityComparisonChartProps) => {
-  const [viewMode, setViewMode] = useState<ViewMode>("chart");
-  
   // Get profitability base from context
   const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
   
@@ -711,70 +709,11 @@ export const ProfitabilityComparisonChart = ({
             </PopoverContent>
           </Popover>
           
-          {/* View mode toggle */}
-          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-            <Button 
-              variant={viewMode === 'chart' ? 'secondary' : 'ghost'} 
-              size="sm"
-              className="h-7 px-2 gap-1"
-              onClick={() => setViewMode('chart')}
-            >
-              <ChartArea className="h-4 w-4" />
-              <span className="text-xs hidden sm:inline">Graphique</span>
-            </Button>
-            <Button 
-              variant={viewMode === 'table' ? 'secondary' : 'ghost'} 
-              size="sm"
-              className="h-7 px-2 gap-1"
-              onClick={() => setViewMode('table')}
-            >
-              <LayoutList className="h-4 w-4" />
-              <span className="text-xs hidden sm:inline">Tableau</span>
-            </Button>
-          </div>
-          
-          {/* Rolling period toggle */}
-          {onComparisonModeChange && (
-            <TooltipProvider>
-              <UITooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant={comparisonMode === 'rollingPeriod' ? 'default' : 'outline'} 
-                    size="sm"
-                    className={cn(
-                      "h-8 gap-1.5 transition-all",
-                      comparisonMode === 'rollingPeriod' && "bg-amber-600 hover:bg-amber-700 text-white border-0"
-                    )}
-                    onClick={() => {
-                      const newMode = comparisonMode === 'rollingPeriod' ? 'yearOverYear' : 'rollingPeriod';
-                      onComparisonModeChange(newMode);
-                    }}
-                  >
-                    <ArrowLeftRight className="h-3.5 w-3.5" />
-                    <span className="text-xs">4 sem.</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p className="font-medium">Période glissante</p>
-                  <p className="text-xs text-muted-foreground">Comparer avec 4 semaines avant (même jour)</p>
-                </TooltipContent>
-              </UITooltip>
-            </TooltipProvider>
-          )}
-          
-          {/* Export */}
-          {viewMode === 'table' && (
-            <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2 h-8">
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Export</span>
-            </Button>
-          )}
         </div>
       </div>
       
       {/* Chart - Line only with smooth curves (like Panier Moyen) */}
-      {viewMode === 'chart' && (
-        <div className="h-[300px]">
+      <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart 
               data={chartData}
@@ -844,81 +783,6 @@ export const ProfitabilityComparisonChart = ({
             </LineChart>
           </ResponsiveContainer>
         </div>
-      )}
-      
-      {/* Table */}
-      {viewMode === 'table' && (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Mois</TableHead>
-                <TableHead className="text-right">Rentabilité {selectedYear}</TableHead>
-                {hasPrevData && (
-                  <>
-                    <TableHead className="text-right">Rentabilité {prevYear}</TableHead>
-                    <TableHead className="text-right">Variation</TableHead>
-                  </>
-                )}
-                <TableHead className="text-right">Ventes</TableHead>
-                <TableHead className="text-right">Payout</TableHead>
-                <TableHead className="text-right">Commandes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {chartData.map((row, index) => (
-                <TableRow key={index}>
-                  <TableCell className="font-medium capitalize">{row.monthFull}</TableCell>
-                  <TableCell className="text-right font-semibold text-emerald-600">
-                    {row.profitability !== null ? `${row.profitability.toFixed(1)}%` : "--"}
-                  </TableCell>
-                  {hasPrevData && (
-                    <>
-                      <TableCell className="text-right text-muted-foreground">
-                        {row.prevProfitability !== null ? `${row.prevProfitability.toFixed(1)}%` : "--"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {row.profitability !== null && row.prevProfitability !== null ? (
-                          <VariationCell current={row.profitability} previous={row.prevProfitability} />
-                        ) : "--"}
-                      </TableCell>
-                    </>
-                  )}
-                  <TableCell className="text-right">{row.sales.toLocaleString("fr-FR")} €</TableCell>
-                  <TableCell className="text-right">{row.netPayout.toLocaleString("fr-FR")} €</TableCell>
-                  <TableCell className="text-right">{row.orders}</TableCell>
-                </TableRow>
-              ))}
-              {/* Total row */}
-              <TableRow className="bg-muted/50 font-bold hover:bg-muted/50">
-                <TableCell className="font-bold">TOTAL</TableCell>
-                <TableCell className="text-right font-bold text-emerald-600">
-                  {totalProfitability.toFixed(1)}%
-                </TableCell>
-                {hasPrevData && (
-                  <>
-                    <TableCell className="text-right text-muted-foreground font-semibold">
-                      {prevTotalProfitability.toFixed(1)}%
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <VariationCell current={totalProfitability} previous={prevTotalProfitability} />
-                    </TableCell>
-                  </>
-                )}
-                <TableCell className="text-right font-bold">
-                  {chartData.reduce((sum, d) => sum + d.sales, 0).toLocaleString("fr-FR")} €
-                </TableCell>
-                <TableCell className="text-right font-bold">
-                  {chartData.reduce((sum, d) => sum + d.netPayout, 0).toLocaleString("fr-FR")} €
-                </TableCell>
-                <TableCell className="text-right font-bold">
-                  {chartData.reduce((sum, d) => sum + d.orders, 0)}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-      )}
     </div>
   );
 };

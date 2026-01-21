@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, parseISO } from "date-fns";
+import { format, startOfWeek, parseISO, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -583,11 +583,34 @@ export function AnalyticsCharts({
     ? selectedRestaurants 
     : restaurants?.map(r => r.id) || [];
   
-  // Compute date ranges for profitability chart
-  const profitStartDate = propStartDate || new Date(selectedYear, startMonth - 1, 1);
-  const profitEndDate = propEndDate || new Date(selectedYear, endMonth, 0);
-  const profitPrevStartDate = new Date(profitStartDate.getFullYear() - 1, profitStartDate.getMonth(), profitStartDate.getDate());
-  const profitPrevEndDate = new Date(profitEndDate.getFullYear() - 1, profitEndDate.getMonth(), profitEndDate.getDate());
+  // Compute date ranges for profitability chart - sync with comparisonMode
+  const profitStartDate = useMemo(() => {
+    if (comparisonMode === 'rollingPeriod') {
+      return subWeeks(new Date(), 4);
+    }
+    return propStartDate || new Date(selectedYear, startMonth - 1, 1);
+  }, [comparisonMode, propStartDate, selectedYear, startMonth]);
+  
+  const profitEndDate = useMemo(() => {
+    if (comparisonMode === 'rollingPeriod') {
+      return new Date();
+    }
+    return propEndDate || new Date(selectedYear, endMonth, 0);
+  }, [comparisonMode, propEndDate, selectedYear, endMonth]);
+  
+  const profitPrevStartDate = useMemo(() => {
+    if (comparisonMode === 'rollingPeriod') {
+      return subWeeks(profitStartDate, 4);
+    }
+    return new Date(profitStartDate.getFullYear() - 1, profitStartDate.getMonth(), profitStartDate.getDate());
+  }, [comparisonMode, profitStartDate]);
+  
+  const profitPrevEndDate = useMemo(() => {
+    if (comparisonMode === 'rollingPeriod') {
+      return subWeeks(profitEndDate, 4);
+    }
+    return new Date(profitEndDate.getFullYear() - 1, profitEndDate.getMonth(), profitEndDate.getDate());
+  }, [comparisonMode, profitEndDate]);
   
   // Fetch profitability data for the chart in Revenue section
   const { dailyData: revenueProfitabilityData, isLoading: isProfitabilityLoading } = useFinancesDrilldown({
