@@ -1292,6 +1292,18 @@ export default function Analytics() {
                   profitabilityPrevDateRange={profitabilityPrevRange}
                   profitabilityComparisonMode={profitabilityComparisonMode}
                   onProfitabilityComparisonModeChange={setProfitabilityComparisonMode}
+                  // Action filtering props for FinancesSection
+                  globalActions={globalActions}
+                  selectedActionIds={selectedActionIds}
+                  onActionToggle={handleActionToggle}
+                  onSelectAllCategory={handleSelectAllCategory}
+                  onSelectAll={handleSelectAll}
+                  showHolidays={showHolidays}
+                  showSchoolHolidays={showSchoolHolidays}
+                  showFootballMatches={showFootballMatches}
+                  onHolidaysToggle={setShowHolidays}
+                  onSchoolHolidaysToggle={setShowSchoolHolidays}
+                  onFootballMatchesToggle={setShowFootballMatches}
                 />
               );
             }
