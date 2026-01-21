@@ -462,8 +462,32 @@ export const ProfitabilityComparisonChart = ({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="space-y-4">
+        {/* Header - always visible during loading */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Percent className="h-5 w-5 text-emerald-500" />
+              <span className="font-semibold">Rentabilité globale</span>
+            </div>
+            
+            {/* KPIs skeleton */}
+            <div className="flex items-center gap-4 px-4 py-2.5 bg-muted/30 rounded-xl">
+              <div className="h-10 w-24 bg-muted animate-pulse rounded" />
+            </div>
+          </div>
+          
+          {/* Controls skeleton */}
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-20 bg-muted animate-pulse rounded-lg" />
+            <div className="h-8 w-24 bg-muted animate-pulse rounded-lg" />
+          </div>
+        </div>
+        
+        {/* Chart loading area */}
+        <div className="h-[300px] flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
       </div>
     );
   }

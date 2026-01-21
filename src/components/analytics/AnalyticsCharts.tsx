@@ -2901,27 +2901,31 @@ export function AnalyticsCharts({
       </Card>
       )}
 
-      {/* Profitability Chart in Revenue Section */}
-      {showRevenue && revenueProfitabilityData && revenueProfitabilityData.length > 0 && (
-        <ProfitabilityComparisonChart
-          dailyOrdersData={revenueProfitabilityData}
-          dateRange={{
-            start: profitStartDate,
-            end: profitEndDate,
-          }}
-          previousDateRange={{
-            start: profitPrevStartDate,
-            end: profitPrevEndDate,
-          }}
-          isLoading={isProfitabilityLoading}
-          comparisonMode={comparisonMode}
-          onComparisonModeChange={onComparisonModeChange}
-          onMonthClick={handleProfitabilityClick}
-          restaurantIds={selectedRestaurants}
-          platform={selectedPlatform}
-          showActions={chartActionsConfig?.global}
-          selectedActionIds={selectedActionIds}
-        />
+      {/* Profitability Chart in Revenue Section - wrapped in Card for consistent design */}
+      {showRevenue && (
+        <Card>
+          <CardContent className="pt-6">
+            <ProfitabilityComparisonChart
+              dailyOrdersData={revenueProfitabilityData || []}
+              dateRange={{
+                start: profitStartDate,
+                end: profitEndDate,
+              }}
+              previousDateRange={{
+                start: profitPrevStartDate,
+                end: profitPrevEndDate,
+              }}
+              isLoading={isProfitabilityLoading || !revenueProfitabilityData}
+              comparisonMode={comparisonMode}
+              onComparisonModeChange={onComparisonModeChange}
+              onMonthClick={handleProfitabilityClick}
+              restaurantIds={selectedRestaurants}
+              platform={selectedPlatform}
+              showActions={chartActionsConfig?.global}
+              selectedActionIds={selectedActionIds}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {showRevenue && isMultiRestaurant && topRestaurantsData.length > 0 && (
