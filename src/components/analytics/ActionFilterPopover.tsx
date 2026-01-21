@@ -226,7 +226,7 @@ function CategoryPopover({
           )}
         </div>
         
-        <ScrollArea className="max-h-64">
+        <ScrollArea className="h-64">
           <div className="p-2 space-y-0.5">
             {filteredActions.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">
