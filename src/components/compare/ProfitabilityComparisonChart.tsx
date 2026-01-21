@@ -600,8 +600,8 @@ export const ProfitabilityComparisonChart = ({
             </HoverCard>
             
             {/* Detailed version on click */}
-            <PopoverContent side="bottom" align="end" className="w-[420px] p-0 max-h-[85vh] overflow-y-auto">
-              <div className="p-4 space-y-4">
+            <PopoverContent side="bottom" align="end" className="w-[580px] p-0">
+              <div className="p-4 space-y-3">
                 <div>
                   <h3 className="font-semibold text-base">Comment sont calculées vos marges ?</h3>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -609,103 +609,89 @@ export const ProfitabilityComparisonChart = ({
                   </p>
                 </div>
                 
-                {/* Marge Uber (Brut) */}
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-2.5">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-md bg-blue-500/10">
-                      <BarChart3 className="h-4 w-4 text-blue-600" />
+                {/* Two columns for Brut and Net */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Marge Uber (Brut) */}
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 rounded-md bg-blue-500/10">
+                        <BarChart3 className="h-3.5 w-3.5 text-blue-600" />
+                      </div>
+                      <span className="font-medium text-sm">Marge Uber (Brut)</span>
                     </div>
-                    <span className="font-medium">Marge Uber (base Brut)</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Calculée sur le <span className="font-medium text-foreground">CA affiché Uber Eats</span>, avant déduction des promotions.
-                  </p>
-                  <div className="bg-background/50 rounded p-2 border-l-2 border-blue-500">
-                    <p className="text-sm italic text-foreground/90">
-                      👉 "Sur 100€ de ventes affichées, combien me reverse réellement Uber ?"
+                    <p className="text-xs text-muted-foreground">
+                      Calculée sur le <span className="font-medium text-foreground">CA affiché</span>, avant déduction des promotions.
                     </p>
-                  </div>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p className="font-medium text-foreground">Utile pour :</p>
-                    <ul className="list-disc list-inside space-y-0.5 pl-1">
-                      <li>Suivre l'impact des promotions sur la marge</li>
-                      <li>Vérifier et auditer les commissions Uber</li>
-                      <li>Comparer avec les rapports officiels Uber Eats</li>
-                    </ul>
-                  </div>
-                </div>
-                
-                {/* Marge économique (Net) */}
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-2.5">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-md bg-emerald-500/10">
-                      <Coins className="h-4 w-4 text-emerald-600" />
+                    <div className="bg-background/50 rounded p-2 border-l-2 border-blue-500">
+                      <p className="text-xs italic text-foreground/90">
+                        👉 "Sur 100€ affichés, combien me reverse Uber ?"
+                      </p>
                     </div>
-                    <span className="font-medium">Marge économique réelle (base Net)</span>
+                    <div className="text-xs text-muted-foreground">
+                      <p className="font-medium text-foreground mb-1">Utile pour :</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                        <li>Suivre l'impact des promotions</li>
+                        <li>Auditer les commissions Uber</li>
+                        <li>Comparer avec les rapports Uber</li>
+                      </ul>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Calculée sur les <span className="font-medium text-foreground">ventes réellement payées</span> par les clients, après promotions.
-                  </p>
-                  <div className="bg-background/50 rounded p-2 border-l-2 border-emerald-500">
-                    <p className="text-sm italic text-foreground/90">
-                      👉 "Sur 100€ payés par les clients, combien j'encaisse après Uber ?"
+                  
+                  {/* Marge économique (Net) */}
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 rounded-md bg-emerald-500/10">
+                        <Coins className="h-3.5 w-3.5 text-emerald-600" />
+                      </div>
+                      <span className="font-medium text-sm">Marge économique (Net)</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Calculée sur les <span className="font-medium text-foreground">ventes payées</span> par les clients, après promotions.
                     </p>
-                  </div>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p className="font-medium text-foreground">Utile pour :</p>
-                    <ul className="list-disc list-inside space-y-0.5 pl-1">
-                      <li>Mesurer la vraie rentabilité de l'activité</li>
-                      <li>Piloter les promotions en connaissance de cause</li>
-                      <li>Comparer des périodes entre elles</li>
-                      <li>Prendre de meilleures décisions économiques</li>
-                    </ul>
-                  </div>
-                </div>
-                
-                {/* Concrete example */}
-                <div className="rounded-lg bg-muted/50 border p-3 space-y-2">
-                  <p className="text-xs font-medium text-foreground">
-                    📝 Exemple concret
-                  </p>
-                  <div className="text-xs text-muted-foreground space-y-1.5">
-                    <p>
-                      Un client voit <span className="font-medium text-foreground">100€</span> sur Uber Eats, 
-                      mais avec une promo de 20%, il ne paie que <span className="font-medium text-foreground">80€</span>.
-                    </p>
-                    <p>
-                      Les 20€ de différence sont <span className="italic">offerts par vous</span>, pas par Uber.
-                    </p>
-                    <div className="bg-background/70 rounded p-2 mt-2 space-y-1">
-                      <p>• <span className="font-medium">Base Brut (100€)</span> : prix affiché sur Uber = votre CA déclaré</p>
-                      <p>• <span className="font-medium">Base Net (80€)</span> : ce que paie le client = votre CA effectif</p>
+                    <div className="bg-background/50 rounded p-2 border-l-2 border-emerald-500">
+                      <p className="text-xs italic text-foreground/90">
+                        👉 "Sur 100€ payés, combien j'encaisse ?"
+                      </p>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      <p className="font-medium text-foreground mb-1">Utile pour :</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                        <li>Mesurer la vraie rentabilité</li>
+                        <li>Piloter les promotions</li>
+                        <li>Prendre de meilleures décisions</li>
+                      </ul>
                     </div>
                   </div>
                 </div>
                 
-                {/* Why two margins */}
-                <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 space-y-2">
-                  <p className="text-xs font-medium text-foreground">
-                    🎯 Pourquoi afficher deux marges ?
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Parce que les <span className="font-medium text-foreground">promotions ne sont pas un vrai chiffre d'affaires</span>, mais un <span className="italic">coût marketing que vous financez</span>.
-                  </p>
-                  <div className="text-xs text-muted-foreground pt-1 border-t border-border/50">
-                    <ul className="space-y-1">
-                      <li>• <span className="font-medium text-foreground">Marge Brut</span> = vision plateforme (contrôle Uber)</li>
-                      <li>• <span className="font-medium text-foreground">Marge Net</span> = vision business (décisions)</li>
-                    </ul>
+                {/* Concrete example - compact */}
+                <div className="rounded-lg bg-muted/50 border p-2.5 flex gap-4 items-start">
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-foreground mb-1">📝 Exemple concret</p>
+                    <p className="text-xs text-muted-foreground">
+                      Client voit <span className="font-medium text-foreground">100€</span>, paie <span className="font-medium text-foreground">80€</span> (promo 20%). Les 20€ sont <span className="italic">offerts par vous</span>.
+                    </p>
+                  </div>
+                  <div className="bg-background/70 rounded px-2 py-1.5 text-[11px] space-y-0.5 shrink-0">
+                    <p>• <span className="font-medium">Brut</span> = 100€ (CA déclaré)</p>
+                    <p>• <span className="font-medium">Net</span> = 80€ (CA effectif)</p>
                   </div>
                 </div>
                 
-                {/* Summary */}
-                <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
-                  <p className="text-xs font-medium text-foreground/90">
-                    💡 Les deux sont justes et complémentaires.
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Utilisez la première pour contrôler Uber, la seconde pour décider quoi faire demain.
-                  </p>
+                {/* Why two margins + Summary - inline */}
+                <div className="flex gap-3">
+                  <div className="flex-1 rounded-lg bg-amber-500/5 border border-amber-500/20 p-2.5">
+                    <p className="text-xs font-medium text-foreground mb-1">🎯 Pourquoi deux marges ?</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Les promotions sont un <span className="italic">coût marketing</span>, pas un vrai CA.
+                    </p>
+                  </div>
+                  <div className="flex-1 rounded-lg bg-primary/5 border border-primary/20 p-2.5">
+                    <p className="text-xs font-medium text-foreground/90 mb-1">💡 Complémentaires</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Brut pour contrôler Uber, Net pour décider.
+                    </p>
+                  </div>
                 </div>
               </div>
             </PopoverContent>
