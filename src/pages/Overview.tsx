@@ -793,20 +793,20 @@ const Overview = () => {
           {/* Top & Flop Restaurants with Modern Tabs */}
           <Tabs value={rankingTab} onValueChange={(v) => setRankingTab(v as typeof rankingTab)} className="w-full">
             <div className="flex items-center justify-center mb-8">
-              <TabsList className="grid w-full max-w-2xl grid-cols-4 h-14 p-1.5 bg-muted/50 backdrop-blur-xl border-2 border-border/50 rounded-2xl shadow-lg">
-                <TabsTrigger value="rating" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:shadow-lg transition-all duration-300">
+              <TabsList className="grid w-full max-w-2xl grid-cols-4 h-14 p-1.5 bg-white dark:bg-card border-2 border-border shadow-xl rounded-2xl">
+                <TabsTrigger value="rating" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-muted/80 transition-all duration-300 cursor-pointer">
                   <Star className="h-4 w-4" />
                   Note
                 </TabsTrigger>
-                <TabsTrigger value="revenue" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:shadow-lg transition-all duration-300">
+                <TabsTrigger value="revenue" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-muted/80 transition-all duration-300 cursor-pointer">
                   <Euro className="h-4 w-4" />
                   CA
                 </TabsTrigger>
-                <TabsTrigger value="profitability" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:shadow-lg transition-all duration-300">
+                <TabsTrigger value="profitability" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-muted/80 transition-all duration-300 cursor-pointer">
                   <Percent className="h-4 w-4" />
                   Rentabilité
                 </TabsTrigger>
-                <TabsTrigger value="conversion" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:shadow-lg transition-all duration-300">
+                <TabsTrigger value="conversion" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-muted/80 transition-all duration-300 cursor-pointer">
                   <Users className="h-4 w-4" />
                   Conversion
                 </TabsTrigger>
