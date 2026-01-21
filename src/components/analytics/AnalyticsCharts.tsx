@@ -56,6 +56,8 @@ import { RevenuePerVisitKPI } from "./RevenuePerVisitKPI";
 import { SelectedRestaurantsRankingChart } from "./SelectedRestaurantsRankingChart";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
 import { FinancesSection } from "./FinancesSection";
+import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
+import { useFinancesDrilldown } from "@/hooks/useFinancesDrilldown";
 import {
   LineChart,
   Line,
@@ -575,6 +577,26 @@ export function AnalyticsCharts({
   const navigate = useNavigate();
   const { selectedPlatform } = useAnalyticsContext();
   const prevYear = selectedYear - 1;
+  
+  // Determine restaurant IDs for profitability data
+  const restaurantIds = selectedRestaurants?.length > 0 
+    ? selectedRestaurants 
+    : restaurants?.map(r => r.id) || [];
+  
+  // Compute date ranges for profitability chart
+  const profitStartDate = propStartDate || new Date(selectedYear, startMonth - 1, 1);
+  const profitEndDate = propEndDate || new Date(selectedYear, endMonth, 0);
+  const profitPrevStartDate = new Date(profitStartDate.getFullYear() - 1, profitStartDate.getMonth(), profitStartDate.getDate());
+  const profitPrevEndDate = new Date(profitEndDate.getFullYear() - 1, profitEndDate.getMonth(), profitEndDate.getDate());
+  
+  // Fetch profitability data for the chart in Revenue section
+  const { dailyData: revenueProfitabilityData, isLoading: isProfitabilityLoading } = useFinancesDrilldown({
+    restaurantIds,
+    startDate: profitStartDate,
+    endDate: profitEndDate,
+    granularity: 'daily',
+    enabled: viewMode === 'revenue' && restaurantIds.length > 0,
+  });
   
   // Dynamic labels based on comparison mode
   const currentLabel = comparisonMode === "rollingPeriod" ? "Cette période" : String(selectedYear);
@@ -2879,6 +2901,28 @@ export function AnalyticsCharts({
       </Card>
       )}
 
+      {/* Profitability Chart in Revenue Section */}
+      {showRevenue && revenueProfitabilityData && revenueProfitabilityData.length > 0 && (
+        <ProfitabilityComparisonChart
+          dailyOrdersData={revenueProfitabilityData}
+          dateRange={{
+            start: profitStartDate,
+            end: profitEndDate,
+          }}
+          previousDateRange={{
+            start: profitPrevStartDate,
+            end: profitPrevEndDate,
+          }}
+          isLoading={isProfitabilityLoading}
+          comparisonMode={comparisonMode}
+          onComparisonModeChange={onComparisonModeChange}
+          onMonthClick={handleProfitabilityClick}
+          restaurantIds={selectedRestaurants}
+          platform={selectedPlatform}
+          showActions={chartActionsConfig?.global}
+          selectedActionIds={selectedActionIds}
+        />
+      )}
 
       {showRevenue && isMultiRestaurant && topRestaurantsData.length > 0 && (
       <Card>
