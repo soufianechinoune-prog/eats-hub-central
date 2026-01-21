@@ -54,9 +54,7 @@ import { ConversionScatterPlot } from "./ConversionScatterPlot";
 import { RevenuePerVisitKPI } from "./RevenuePerVisitKPI";
 import { SelectedRestaurantsRankingChart } from "./SelectedRestaurantsRankingChart";
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
-import { ProfitabilityComparisonTable } from "./ProfitabilityComparisonTable";
-import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
-import { OrdersAnalysisSection } from "./OrdersAnalysisSection";
+import { FinancesSection } from "./FinancesSection";
 import {
   LineChart,
   Line,
@@ -2855,22 +2853,6 @@ export function AnalyticsCharts({
       </Card>
       )}
 
-      {/* Évolution de la Rentabilité - Comparaison Période */}
-      {showRevenue && chartProfitabilityData && chartProfitabilityData.length > 0 && profitabilityDateRange && profitabilityPrevDateRange && (
-        <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg overflow-hidden">
-          <CardContent className="pt-6">
-            <ProfitabilityComparisonChart 
-              currentPeriodData={chartProfitabilityData}
-              previousPeriodData={chartPrevProfitabilityData || []}
-              dateRange={profitabilityDateRange}
-              previousDateRange={profitabilityPrevDateRange}
-              comparisonMode={profitabilityComparisonMode}
-              onComparisonModeChange={onProfitabilityComparisonModeChange}
-              onMonthClick={handleProfitabilityClick}
-            />
-          </CardContent>
-        </Card>
-      )}
 
       {showRevenue && isMultiRestaurant && topRestaurantsData.length > 0 && (
       <Card>
@@ -3269,17 +3251,10 @@ export function AnalyticsCharts({
         restaurants={restaurants}
       />
       
-      {/* Profitability Comparison Table - shown when we have payouts data */}
-      {showFinances && dailyPayoutsData && dailyPayoutsData.length > 0 && (
-        <ProfitabilityComparisonTable
-          payouts={dailyPayoutsData}
-          restaurants={restaurants}
-        />
-      )}
-      
-      {/* Orders Analysis Section - separate from payouts data */}
+      {/* Finances Section - Synthèse + Détail tabs */}
       {showFinances && restaurants && restaurants.length > 0 && (
-        <OrdersAnalysisSection
+        <FinancesSection
+          dailyPayoutsData={dailyPayoutsData || []}
           restaurants={restaurants}
           selectedRestaurants={selectedRestaurants || []}
           startDate={propStartDate || (() => {
@@ -3290,8 +3265,15 @@ export function AnalyticsCharts({
           endDate={propEndDate || (() => {
             const year = selectedYear;
             const month = drillDownMonth ?? endMonth ?? 12;
-            return new Date(year, month, 0); // Last day of month
+            return new Date(year, month, 0);
           })()}
+          profitabilityData={chartProfitabilityData}
+          prevProfitabilityData={chartPrevProfitabilityData}
+          profitabilityDateRange={profitabilityDateRange}
+          profitabilityPrevDateRange={profitabilityPrevDateRange}
+          profitabilityComparisonMode={profitabilityComparisonMode}
+          onProfitabilityComparisonModeChange={onProfitabilityComparisonModeChange}
+          onMonthDrillDown={handleProfitabilityClick}
         />
       )}
     </div>
