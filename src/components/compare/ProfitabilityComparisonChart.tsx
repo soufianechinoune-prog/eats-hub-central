@@ -376,14 +376,19 @@ export const ProfitabilityComparisonChart = ({
     return map;
   }, [restaurantDetails]);
 
-  // Get short restaurant name
+  // Get short restaurant name - format "CS [City]" for Chicken Street restaurants
   const getShortName = (name: string): string => {
-    if (name.length <= 15) return name;
-    const words = name.split(/[\s-]+/);
-    if (words.length >= 2) {
-      return words.slice(0, 2).join(" ");
+    if (name.toUpperCase().includes("CHICKEN STREET")) {
+      const cityPart = name.replace(/chicken street\s*/i, "").trim();
+      const formattedCity = cityPart
+        .toLowerCase()
+        .split(/[\s-]+/)
+        .filter(word => word.length > 0)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+      return `CS ${formattedCity}`;
     }
-    return name.substring(0, 12) + "...";
+    return name.length > 20 ? name.substring(0, 17) + "..." : name;
   };
 
   // Toggle restaurant visibility in detailed mode
