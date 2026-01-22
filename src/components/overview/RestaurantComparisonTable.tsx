@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { type RestaurantNetworkStats, type NetworkTotals } from "@/hooks/useNetworkStats";
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
 
-type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "rating" | "profitability" | "prepTime" | "errorRate" | "downtime";
+type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "rating" | "profitability" | "prepTime" | "errorRate" | "downtime";
 type SortDirection = "asc" | "desc";
 
 interface RestaurantComparisonTableProps {
@@ -87,6 +87,15 @@ export function RestaurantComparisonTable({
     }
   };
 
+  // Format net payout
+  const formatNetPayout = (value: number) => {
+    return new Intl.NumberFormat("fr-FR", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value) + " €";
+  };
+
   const sortedStats = useMemo(() => {
     return [...stats].sort((a, b) => {
       let aVal: number | string | null = null;
@@ -112,6 +121,10 @@ export function RestaurantComparisonTable({
         case "avgBasket":
           aVal = a.avgBasket;
           bVal = b.avgBasket;
+          break;
+        case "netPayout":
+          aVal = a.netPayout;
+          bVal = b.netPayout;
           break;
         case "rating":
           aVal = a.rating ?? -999;
@@ -234,6 +247,7 @@ export function RestaurantComparisonTable({
               )}
               <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
               <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>
+              <HeaderCell column="netPayout" className="text-right">Versement</HeaderCell>
               <HeaderCell column="rating" className="text-right">Note</HeaderCell>
               <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
               <HeaderCell column="prepTime" className="text-right">Prépa</HeaderCell>
@@ -281,7 +295,10 @@ export function RestaurantComparisonTable({
                     {resto.orders.toLocaleString("fr-FR")}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    {resto.avgBasket.toFixed(1)} €
+                    {resto.avgBasket.toFixed(2)} €
+                  </TableCell>
+                  <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                    {formatNetPayout(resto.netPayout)}
                   </TableCell>
                   <TableCell className="text-right">
                     <span className={cn("flex items-center justify-end gap-1 font-medium", getStatusTextClass(ratingStatus))}>
@@ -332,7 +349,10 @@ export function RestaurantComparisonTable({
                 {networkTotals.totalOrders.toLocaleString("fr-FR")}
               </TableCell>
               <TableCell className="text-right font-semibold whitespace-nowrap">
-                {networkTotals.avgBasket.toFixed(1)} €
+                {networkTotals.avgBasket.toFixed(2)} €
+              </TableCell>
+              <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                {formatNetPayout(networkTotals.totalNetPayout)}
               </TableCell>
               <TableCell className="text-right">
                 <span className="flex items-center justify-end gap-1 font-semibold text-muted-foreground">
