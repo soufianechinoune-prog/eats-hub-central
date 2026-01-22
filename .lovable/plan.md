@@ -1,106 +1,88 @@
 
-# Synchroniser les filtres entre Analytics et Comparaison Temps de préparation
+
+# Corriger la navigation depuis le classement vers le restaurant cliqué
 
 ## Problème identifié
 
-Les deux pages affichent des valeurs différentes pour Athis-Mons :
-- **Analytics** : 7min 16s sur **1592 commandes**
-- **Comparaison** : 6min 33s sur **661 commandes**
+Quand tu cliques sur un restaurant dans le "Classement par rapidité" de la page Comparaison :
+- **Attendu** : La page Analytics affiche les données du restaurant cliqué (ex: Bonneuil)
+- **Actuel** : La page Analytics affiche toujours Athis-Mons, peu importe le restaurant cliqué
 
-### Causes du décalage
+### Cause technique
 
-| Critère | Analytics (PrepTimeAnalytics) | Comparaison (PrepTimeComparison) |
-|---------|------------------------------|----------------------------------|
-| Source restaurants | `selectedRestaurants` du contexte global | `pinnedRestaurants` (is_pinned = true uniquement) |
-| Filtre plateforme | **Oui** (Uber Eats sélectionné) | **Non** (toutes plateformes) |
-| Période | Date range du contexte (12-18 janv) | Calcul indépendant (semaine précédente) |
+Dans `PrepTimeRankingBars.tsx`, la fonction de clic utilise :
+```typescript
+toggleRestaurantSelection(restaurantId);  // AJOUTE à la sélection existante
+```
 
-Le paradoxe (moins de commandes sans filtre plateforme) s'explique par le fait que la page Comparaison ne filtre **pas sur la plateforme**. Les 661 commandes sont donc un sous-ensemble différent.
+Au lieu de :
+```typescript
+setSelectedRestaurants([restaurantId]);   // REMPLACE la sélection par ce seul restaurant
+setVisibleRestaurants([restaurantId]);    // Met aussi à jour les restaurants visibles
+```
+
+Le localStorage est également mis à jour incorrectement (il ne change pas `selectedRestaurants`).
 
 ## Solution proposée
 
-### 1. Ajouter le filtre plateforme dans PrepTimeComparison.tsx
+### Fichier à modifier : `src/components/compare/PrepTimeRankingBars.tsx`
 
-Modifier la requête de données (lignes 70-77) pour accepter un paramètre plateforme :
-
-```typescript
-// Ajouter un state pour la plateforme sélectionnée
-const [selectedPlatform, setSelectedPlatform] = useState<"uber_eats" | "deliveroo" | "global">("global");
-
-// Dans la requête
-let query = supabase
-  .from("order_history")
-  .select("restaurant_id, initial_prep_time_minutes, order_datetime")
-  .in("restaurant_id", restaurantIds)
-  .gte("order_datetime", dateRange.start.toISOString())
-  .lte("order_datetime", dateRange.end.toISOString())
-  .not("initial_prep_time_minutes", "is", null);
-
-// Ajouter le filtre plateforme
-if (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") {
-  query = query.eq("platform", selectedPlatform);
-}
-```
-
-### 2. Synchroniser les périodes avec le contexte global
-
-Au lieu de calculer la période de façon indépendante, utiliser le `dateRange` du contexte Analytics :
+**1. Importer les bonnes fonctions du contexte (ligne 54)**
 
 ```typescript
-import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+// AVANT
+const { toggleRestaurantSelection, setPeriodMode, setDateRange: setContextDateRange } = useAnalyticsContext();
 
-const {
-  dateRange: contextDateRange,
-  selectedPlatform,
+// APRÈS
+const { 
+  setSelectedRestaurants, 
+  setVisibleRestaurants,
+  setPeriodMode, 
+  setDateRange: setContextDateRange 
 } = useAnalyticsContext();
-
-// Utiliser directement le contexte
-const dateRange = useMemo(() => {
-  if (contextDateRange?.from && contextDateRange?.to) {
-    return { start: contextDateRange.from, end: contextDateRange.to };
-  }
-  // Fallback si pas de contexte
-  return { start: subDays(new Date(), 7), end: new Date() };
-}, [contextDateRange]);
 ```
 
-### 3. Ajouter un sélecteur de plateforme dans l'UI
-
-À côté du sélecteur de période, ajouter les boutons Uber Eats / Deliveroo / Global :
+**2. Modifier la fonction handleRestaurantClick (lignes 60-81)**
 
 ```typescript
-<div className="flex items-center gap-2">
-  <Button 
-    variant={selectedPlatform === "uber_eats" ? "default" : "outline"}
-    onClick={() => setSelectedPlatform("uber_eats")}
-  >
-    Uber Eats
-  </Button>
-  <Button 
-    variant={selectedPlatform === "deliveroo" ? "default" : "outline"}
-    onClick={() => setSelectedPlatform("deliveroo")}
-  >
-    Deliveroo
-  </Button>
-  <Button 
-    variant={selectedPlatform === "global" ? "default" : "outline"}
-    onClick={() => setSelectedPlatform("global")}
-  >
-    Global
-  </Button>
-</div>
+const handleRestaurantClick = (restaurantId: string) => {
+  // REMPLACER la sélection par ce seul restaurant (au lieu de toggle)
+  setVisibleRestaurants([restaurantId]);
+  setSelectedRestaurants([restaurantId]);
+  setPeriodMode("range");
+  setContextDateRange({ from: dateRange.start, to: dateRange.end });
+  
+  // Mettre à jour localStorage avec le BON restaurant
+  const currentState = localStorage.getItem("analytics-context");
+  const state = currentState ? JSON.parse(currentState) : {};
+  const updatedState = {
+    ...state,
+    selectedRestaurants: [restaurantId],  // ← Le restaurant cliqué
+    visibleRestaurants: [restaurantId],   // ← Le restaurant cliqué
+    periodMode: "range",
+    dateRange: {
+      from: dateRange.start.toISOString(),
+      to: dateRange.end.toISOString(),
+    },
+  };
+  localStorage.setItem("analytics-context", JSON.stringify(updatedState));
+  
+  // Naviguer vers l'onglet Temps de préparation
+  navigate("/analytics/operations?tab=prepTime");
+};
 ```
-
-## Fichiers à modifier
-
-| Fichier | Modification |
-|---------|--------------|
-| `src/pages/PrepTimeComparison.tsx` | Importer AnalyticsContext, utiliser ses filtres (dateRange, platform), ajouter UI plateforme |
-| `src/components/compare/PrepTimeRankingBars.tsx` | Passer le dateRange depuis le contexte lors de la navigation vers Analytics |
 
 ## Résultat attendu
 
-Après cette modification :
-- Les **mêmes filtres** (période + plateforme) seront appliqués sur les deux pages
-- Les valeurs seront **identiques** pour le même restaurant
-- La navigation entre les pages **préservera le contexte**
+| Avant | Après |
+|-------|-------|
+| Clic sur Bonneuil → Affiche Athis-Mons | Clic sur Bonneuil → Affiche Bonneuil |
+| Clic sur Antony → Affiche Athis-Mons | Clic sur Antony → Affiche Antony |
+| Données incohérentes | Données du restaurant cliqué |
+
+## Fichier modifié
+
+| Fichier | Modification |
+|---------|--------------|
+| `src/components/compare/PrepTimeRankingBars.tsx` | Remplacer `toggleRestaurantSelection` par `setSelectedRestaurants` + `setVisibleRestaurants` avec le seul restaurant cliqué |
+
