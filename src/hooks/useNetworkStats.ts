@@ -10,6 +10,7 @@ export interface RestaurantNetworkStats {
   revenue: number;
   orders: number;
   avgBasket: number;
+  netPayout: number; // Versement net total (net_payout + meal_voucher)
   // Quality metrics
   rating: number | null;
   profitability: number | null;
@@ -28,6 +29,7 @@ export interface NetworkTotals {
   totalRevenue: number;
   totalOrders: number;
   avgBasket: number;
+  totalNetPayout: number; // Total versement net réseau
   avgRating: number | null;
   avgProfitability: number | null;
   avgPrepTime: number | null;
@@ -170,7 +172,7 @@ export function useNetworkStats({
       
       const { data, error } = await supabase
         .from("payouts")
-        .select("restaurant_id, sales_incl_vat, net_payout, item_promo_incl_vat")
+        .select("restaurant_id, sales_incl_vat, net_payout, item_promo_incl_vat, meal_voucher_amount")
         .gte("payout_date", startDateStr)
         .lte("payout_date", endDateStr)
         .in("restaurant_id", restaurantIds);
@@ -264,9 +266,11 @@ export function useNetworkStats({
             restoReviews.length
           : null;
 
-      // Profitability (same formula as ProfitabilityComparisonChart)
+      // Profitability & Net Payout (same formula as ProfitabilityComparisonChart)
       const restoPayouts = payoutsData?.filter((p) => p.restaurant_id === resto.id) || [];
       let profitability: number | null = null;
+      let netPayout = 0;
+      
       if (restoPayouts.length > 0) {
         const totalSales = restoPayouts.reduce(
           (sum, p) => sum + Math.max(0, Number(p.sales_incl_vat || 0)),
@@ -276,10 +280,17 @@ export function useNetworkStats({
           (sum, p) => sum + Math.abs(Number(p.item_promo_incl_vat || 0)),
           0
         );
-        const totalNetPayout = restoPayouts.reduce(
+        const totalNetPayoutRaw = restoPayouts.reduce(
           (sum, p) => sum + Number(p.net_payout || 0),
           0
         );
+        const totalMealVoucher = restoPayouts.reduce(
+          (sum, p) => sum + Number(p.meal_voucher_amount || 0),
+          0
+        );
+        
+        // Versement net total = net_payout + meal_voucher
+        netPayout = totalNetPayoutRaw + totalMealVoucher;
 
         const denominator =
           profitabilityBase === "net"
@@ -288,7 +299,7 @@ export function useNetworkStats({
 
         profitability =
           denominator > 0
-            ? (totalNetPayout / denominator) * 100
+            ? (netPayout / denominator) * 100
             : null;
       }
 
@@ -347,6 +358,7 @@ export function useNetworkStats({
         prepTime: prepTime != null ? parseFloat(prepTime.toFixed(1)) : null,
         errorRate: errorRate != null ? parseFloat(errorRate.toFixed(2)) : null,
         downtime: downtime != null ? parseFloat(downtime.toFixed(1)) : null,
+        netPayout: parseFloat(netPayout.toFixed(2)),
         prevRevenue: includeN1Comparison ? prevRevenue : undefined,
         prevOrders: includeN1Comparison ? prevOrders : undefined,
         revenueVariation:
@@ -377,6 +389,7 @@ export function useNetworkStats({
     const totalRevenue = stats.reduce((sum, s) => sum + s.revenue, 0);
     const totalOrders = stats.reduce((sum, s) => sum + s.orders, 0);
     const avgBasket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    const totalNetPayout = stats.reduce((sum, s) => sum + s.netPayout, 0);
 
     // Average of non-null values
     const validRatings = stats.filter((s) => s.rating != null);
@@ -429,6 +442,7 @@ export function useNetworkStats({
       totalRevenue,
       totalOrders,
       avgBasket: parseFloat(avgBasket.toFixed(2)),
+      totalNetPayout: parseFloat(totalNetPayout.toFixed(2)),
       avgRating: avgRating != null ? parseFloat(avgRating.toFixed(2)) : null,
       avgProfitability:
         avgProfitability != null

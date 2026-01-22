@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import jsPDF from "jspdf";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import csLogoBase64 from "@/assets/cs-logo.jpeg";
 
 interface RestaurantMetric {
@@ -62,6 +62,7 @@ interface RestaurantComparisonRow {
   revenue: number;
   orders: number;
   avgBasket: number;
+  netPayout: number;
   rating: number | null;
   profitability: number | null;
   prepTime: number | null;
@@ -74,6 +75,7 @@ interface NetworkTotals {
   totalRevenue: number;
   totalOrders: number;
   avgBasket: number;
+  totalNetPayout: number;
   avgRating: number | null;
   avgProfitability: number | null;
   avgPrepTime: number | null;
@@ -635,90 +637,175 @@ export function useOverviewExport() {
     try {
       const workbook = XLSX.utils.book_new();
 
-      // Sheet 1: Comparison Table
+      // Styles
+      const headerStyle = {
+        font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+        fill: { fgColor: { rgb: "2D7D46" } }, // Emerald green
+        alignment: { horizontal: "center", vertical: "center" },
+        border: {
+          top: { style: "thin", color: { rgb: "CCCCCC" } },
+          bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+          left: { style: "thin", color: { rgb: "CCCCCC" } },
+          right: { style: "thin", color: { rgb: "CCCCCC" } },
+        },
+      };
+
+      const titleStyle = {
+        font: { bold: true, sz: 16, color: { rgb: "1F2937" } },
+        alignment: { horizontal: "left" },
+      };
+
+      const subtitleStyle = {
+        font: { sz: 11, color: { rgb: "6B7280" } },
+        alignment: { horizontal: "left" },
+      };
+
+      const dataStyle = {
+        font: { sz: 10 },
+        alignment: { horizontal: "right", vertical: "center" },
+        border: {
+          top: { style: "thin", color: { rgb: "E5E7EB" } },
+          bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+          left: { style: "thin", color: { rgb: "E5E7EB" } },
+          right: { style: "thin", color: { rgb: "E5E7EB" } },
+        },
+      };
+
+      const dataStyleLeft = { ...dataStyle, alignment: { horizontal: "left", vertical: "center" } };
+
+      const totalsStyle = {
+        font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "059669" } }, // Emerald 600
+        alignment: { horizontal: "right", vertical: "center" },
+        border: {
+          top: { style: "medium", color: { rgb: "047857" } },
+          bottom: { style: "medium", color: { rgb: "047857" } },
+          left: { style: "thin", color: { rgb: "047857" } },
+          right: { style: "thin", color: { rgb: "047857" } },
+        },
+      };
+
+      const totalsStyleLeft = { ...totalsStyle, alignment: { horizontal: "left", vertical: "center" } };
+
+      const currencyStyle = {
+        ...dataStyle,
+        numFmt: '#,##0.00" €"',
+      };
+
+      const currencyStyleTotals = {
+        ...totalsStyle,
+        numFmt: '#,##0.00" €"',
+      };
+
+      // Sheet 1: Comparison Table with styling
       const comparisonHeaders = data.showN1
-        ? ["#", "Restaurant", "Ville", "CA (EUR)", "vs N-1 (%)", "Commandes", "Panier (EUR)", "Note", "Rentabilite (%)", "Temps Prepa", "Erreurs (%)", "Inactivite"]
-        : ["#", "Restaurant", "Ville", "CA (EUR)", "Commandes", "Panier (EUR)", "Note", "Rentabilite (%)", "Temps Prepa", "Erreurs (%)", "Inactivite"];
+        ? ["#", "Restaurant", "Ville", "CA (€)", "vs N-1 (%)", "Cmds", "Panier (€)", "Versement (€)", "Note", "Rentab. (%)", "Prépa", "Erreurs (%)", "Inactiv."]
+        : ["#", "Restaurant", "Ville", "CA (€)", "Cmds", "Panier (€)", "Versement (€)", "Note", "Rentab. (%)", "Prépa", "Erreurs (%)", "Inactiv."];
 
       const comparisonRows = data.restaurantComparison.map((r, idx) => {
-        const baseRow = [
+        const baseRow: (string | number)[] = [
           idx + 1,
           r.name,
           r.city || "",
-          r.revenue,
+          Math.round(r.revenue * 100) / 100,
         ];
 
         if (data.showN1) {
-          baseRow.push(r.revenueVariation ?? "");
+          baseRow.push(r.revenueVariation != null ? Math.round(r.revenueVariation * 10) / 10 : "");
         }
 
         return [
           ...baseRow,
           r.orders,
-          r.avgBasket,
-          r.rating ?? "",
-          r.profitability ?? "",
+          Math.round(r.avgBasket * 100) / 100,
+          Math.round(r.netPayout * 100) / 100,
+          r.rating != null ? Math.round(r.rating * 10) / 10 : "",
+          r.profitability != null ? Math.round(r.profitability * 10) / 10 : "",
           r.prepTime != null ? `${Math.round(r.prepTime)} min` : "",
-          r.errorRate ?? "",
-          r.downtime != null ? `${r.downtime.toFixed(1)} h` : "",
+          r.errorRate != null ? Math.round(r.errorRate * 10) / 10 : "",
+          r.downtime != null ? `${r.downtime.toFixed(1)}h` : "",
         ];
       });
 
       // Add network totals row
-      const totalsRow = data.showN1
+      const totalsRowData: (string | number)[] = data.showN1
         ? [
             "",
-            "RESEAU",
+            "RÉSEAU",
             `${data.restaurantComparison.length} restaurants`,
-            data.networkTotals.totalRevenue,
-            data.networkTotals.revenueVariation ?? "",
+            Math.round(data.networkTotals.totalRevenue * 100) / 100,
+            data.networkTotals.revenueVariation != null ? Math.round(data.networkTotals.revenueVariation * 10) / 10 : "",
             data.networkTotals.totalOrders,
-            data.networkTotals.avgBasket,
-            data.networkTotals.avgRating ?? "",
-            data.networkTotals.avgProfitability ?? "",
+            Math.round(data.networkTotals.avgBasket * 100) / 100,
+            Math.round(data.networkTotals.totalNetPayout * 100) / 100,
+            data.networkTotals.avgRating != null ? Math.round(data.networkTotals.avgRating * 10) / 10 : "",
+            data.networkTotals.avgProfitability != null ? Math.round(data.networkTotals.avgProfitability * 10) / 10 : "",
             data.networkTotals.avgPrepTime != null ? `${Math.round(data.networkTotals.avgPrepTime)} min` : "",
-            data.networkTotals.avgErrorRate ?? "",
-            data.networkTotals.totalDowntime != null ? `${data.networkTotals.totalDowntime.toFixed(1)} h` : "",
+            data.networkTotals.avgErrorRate != null ? Math.round(data.networkTotals.avgErrorRate * 10) / 10 : "",
+            data.networkTotals.totalDowntime != null ? `${data.networkTotals.totalDowntime.toFixed(1)}h` : "",
           ]
         : [
             "",
-            "RESEAU",
+            "RÉSEAU",
             `${data.restaurantComparison.length} restaurants`,
-            data.networkTotals.totalRevenue,
+            Math.round(data.networkTotals.totalRevenue * 100) / 100,
             data.networkTotals.totalOrders,
-            data.networkTotals.avgBasket,
-            data.networkTotals.avgRating ?? "",
-            data.networkTotals.avgProfitability ?? "",
+            Math.round(data.networkTotals.avgBasket * 100) / 100,
+            Math.round(data.networkTotals.totalNetPayout * 100) / 100,
+            data.networkTotals.avgRating != null ? Math.round(data.networkTotals.avgRating * 10) / 10 : "",
+            data.networkTotals.avgProfitability != null ? Math.round(data.networkTotals.avgProfitability * 10) / 10 : "",
             data.networkTotals.avgPrepTime != null ? `${Math.round(data.networkTotals.avgPrepTime)} min` : "",
-            data.networkTotals.avgErrorRate ?? "",
-            data.networkTotals.totalDowntime != null ? `${data.networkTotals.totalDowntime.toFixed(1)} h` : "",
+            data.networkTotals.avgErrorRate != null ? Math.round(data.networkTotals.avgErrorRate * 10) / 10 : "",
+            data.networkTotals.totalDowntime != null ? `${data.networkTotals.totalDowntime.toFixed(1)}h` : "",
           ];
 
-      const comparisonSheet = XLSX.utils.aoa_to_sheet([
-        ["CS Delivery Performance - Tableau Comparatif"],
-        [`Periode: ${data.period}`],
-        [`Genere le: ${new Date().toLocaleString("fr-FR")}`],
+      // Create sheet data with proper structure
+      const sheetData = [
+        [{ v: "CS Delivery Performance - Tableau Comparatif", s: titleStyle }],
+        [{ v: `Période: ${data.period}`, s: subtitleStyle }],
+        [{ v: `Généré le: ${new Date().toLocaleString("fr-FR")}`, s: subtitleStyle }],
         [],
-        comparisonHeaders,
-        ...comparisonRows,
-        totalsRow,
-      ]);
+        comparisonHeaders.map(h => ({ v: h, s: headerStyle })),
+        ...comparisonRows.map((row, rowIdx) => 
+          row.map((cell, colIdx) => ({
+            v: cell,
+            s: rowIdx % 2 === 0 
+              ? (colIdx <= 2 ? dataStyleLeft : dataStyle)
+              : { ...(colIdx <= 2 ? dataStyleLeft : dataStyle), fill: { fgColor: { rgb: "F9FAFB" } } },
+          }))
+        ),
+        totalsRowData.map((cell, colIdx) => ({
+          v: cell,
+          s: colIdx <= 2 ? totalsStyleLeft : totalsStyle,
+        })),
+      ];
+
+      const comparisonSheet = XLSX.utils.aoa_to_sheet(sheetData);
 
       // Set column widths
-      comparisonSheet["!cols"] = [
+      const baseColWidths = [
         { wch: 4 },   // #
-        { wch: 25 },  // Restaurant
-        { wch: 15 },  // Ville
-        { wch: 12 },  // CA
-        ...(data.showN1 ? [{ wch: 10 }] : []), // vs N-1
+        { wch: 28 },  // Restaurant
+        { wch: 18 },  // Ville
+        { wch: 14 },  // CA
+      ];
+      
+      if (data.showN1) {
+        baseColWidths.push({ wch: 10 }); // vs N-1
+      }
+      
+      baseColWidths.push(
         { wch: 10 },  // Commandes
         { wch: 12 },  // Panier
-        { wch: 6 },   // Note
+        { wch: 14 },  // Versement
+        { wch: 8 },   // Note
         { wch: 12 },  // Rentabilite
-        { wch: 12 },  // Temps Prepa
-        { wch: 10 },  // Erreurs
-        { wch: 12 },  // Inactivite
-      ];
+        { wch: 10 },  // Temps Prepa
+        { wch: 12 },  // Erreurs
+        { wch: 10 },  // Inactivite
+      );
+
+      comparisonSheet["!cols"] = baseColWidths;
 
       XLSX.utils.book_append_sheet(workbook, comparisonSheet, "Tableau Comparatif");
 
