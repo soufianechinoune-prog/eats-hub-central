@@ -298,17 +298,42 @@ const Overview = () => {
 
       console.log("Reviews data (paginated):", reviewsData.length, "rows");
 
-      // 3. Fetch order history for prep times - use order_datetime field
-      const { data: orderHistoryData, error: historyError } = await supabase
-        .from("order_history")
-        .select("restaurant_id, initial_prep_time_minutes, avoidable_wait_time_minutes, order_datetime, platform")
-        .gte("order_datetime", startDate.toISOString())
-        .lte("order_datetime", endDate.toISOString())
-        .in("restaurant_id", restaurantIds)
-        .range(0, 50000);
+      // 3. Fetch order history for prep times - use order_datetime field (paginated)
+      let orderHistoryData: Array<{
+        restaurant_id: string;
+        initial_prep_time_minutes: number | null;
+        avoidable_wait_time_minutes: number | null;
+        order_datetime: string;
+        platform: string | null;
+      }> = [];
+      let historyPage = 0;
+      let historyHasMore = true;
 
-      if (historyError) console.error("Error fetching order history:", historyError);
-      console.log("Order history data:", orderHistoryData?.length, "rows");
+      while (historyHasMore) {
+        const { data: historyPageData, error: historyError } = await supabase
+          .from("order_history")
+          .select("restaurant_id, initial_prep_time_minutes, avoidable_wait_time_minutes, order_datetime, platform")
+          .gte("order_datetime", startDate.toISOString())
+          .lte("order_datetime", endDate.toISOString())
+          .in("restaurant_id", restaurantIds)
+          .order("order_datetime", { ascending: true })
+          .order("restaurant_id", { ascending: true })
+          .range(historyPage * PAGE_SIZE, (historyPage + 1) * PAGE_SIZE - 1);
+
+        if (historyError) {
+          console.error("Error fetching order history:", historyError);
+          break;
+        }
+
+        if (historyPageData && historyPageData.length > 0) {
+          orderHistoryData = [...orderHistoryData, ...historyPageData];
+          historyHasMore = historyPageData.length === PAGE_SIZE;
+          historyPage++;
+        } else {
+          historyHasMore = false;
+        }
+      }
+      console.log("Order history data (paginated):", orderHistoryData.length, "rows");
 
       // 4. Fetch order errors - use error_date field
       const { data: errorsData, error: errorsError } = await supabase
