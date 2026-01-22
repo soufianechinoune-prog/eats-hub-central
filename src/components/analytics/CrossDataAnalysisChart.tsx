@@ -144,6 +144,23 @@ export function CrossDataAnalysisChart({
     return Object.values(aggregated).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   }, [data, granularity, profitabilityBase]);
 
+  // Calculate dynamic Y-axis bounds for profitability
+  const profitabilityDomain = useMemo(() => {
+    if (!chartData.length) return [0, 100];
+    
+    const values = chartData.map(d => d.profitability).filter(v => v > 0);
+    if (!values.length) return [0, 100];
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    
+    // Round to nearest 10 with 5-point margin
+    const lowerBound = Math.max(0, Math.floor((min - 5) / 10) * 10);
+    const upperBound = Math.min(100, Math.ceil((max + 5) / 10) * 10);
+    
+    return [lowerBound, upperBound];
+  }, [chartData]);
+
   // Calculate insights
   const insights = useMemo(() => {
     if (!chartData || chartData.length === 0) return null;
@@ -297,14 +314,14 @@ export function CrossDataAnalysisChart({
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k€`}
                 />
               )}
-              {/* Right axis for percentage (Profitability) */}
+              {/* Right axis for percentage (Profitability) - dynamic scale */}
               {visibleMetrics.has("profitability") && (
                 <YAxis 
                   yAxisId="right"
                   orientation="right"
                   className="text-xs"
                   unit="%"
-                  domain={[0, 100]}
+                  domain={profitabilityDomain}
                 />
               )}
               <Tooltip
