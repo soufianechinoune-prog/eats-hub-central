@@ -57,6 +57,8 @@ import { SelectedRestaurantsRankingChart } from "./SelectedRestaurantsRankingCha
 import { PayoutDetailSheet } from "./PayoutDetailSheet";
 import { FinancesSection } from "./FinancesSection";
 import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
+import { PromotionEvolutionChart } from "./PromotionEvolutionChart";
+import { CrossDataAnalysisChart } from "./CrossDataAnalysisChart";
 import { useFinancesDrilldown } from "@/hooks/useFinancesDrilldown";
 import {
   LineChart,
@@ -2976,6 +2978,27 @@ export function AnalyticsCharts({
             />
           </CardContent>
         </Card>
+      )}
+
+      {/* Promotion Evolution Chart */}
+      {showRevenue && revenueProfitabilityData && revenueProfitabilityData.length > 0 && (
+        <PromotionEvolutionChart
+          data={revenueProfitabilityData}
+          previousData={revenueProfitabilityPrevData || undefined}
+          granularity={granularity}
+          isLoading={isProfitabilityLoading}
+          selectedYear={selectedYear}
+        />
+      )}
+
+      {/* Cross Data Analysis Chart (CA / Promos / Rentabilité) */}
+      {showRevenue && revenueProfitabilityData && revenueProfitabilityData.length > 0 && (
+        <CrossDataAnalysisChart
+          data={revenueProfitabilityData}
+          previousData={revenueProfitabilityPrevData || undefined}
+          granularity={granularity}
+          isLoading={isProfitabilityLoading}
+        />
       )}
 
       {showRevenue && isMultiRestaurant && topRestaurantsData.length > 0 && (
