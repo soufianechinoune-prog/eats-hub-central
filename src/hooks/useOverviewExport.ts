@@ -42,11 +42,17 @@ interface ExportData {
   };
 }
 
-// Comprehensive export data with full comparison table
-interface ComprehensiveExportData extends ExportData {
-  comparisonTable: RestaurantComparisonRow[];
+// Comprehensive export data with full comparison table (simplified without rankings)
+export interface ComprehensiveExportData {
+  title: string;
+  period: string;
+  totalRestaurants: number;
+  globalMetrics: PlatformMetrics;
+  uberMetrics: PlatformMetrics;
+  deliverooMetrics: PlatformMetrics;
+  restaurantComparison: RestaurantComparisonRow[];
   networkTotals: NetworkTotals;
-  showN1Comparison: boolean;
+  showN1: boolean;
 }
 
 interface RestaurantComparisonRow {
@@ -496,11 +502,11 @@ export function useOverviewExport() {
 
       const tableStartY = 48;
       const rowHeight = 10;
-      const colWidths = data.showN1Comparison 
+      const colWidths = data.showN1 
         ? [8, 45, 30, 28, 18, 20, 20, 15, 20, 18, 18, 18]  // With N-1
         : [8, 50, 35, 30, 22, 22, 18, 22, 20, 20, 20];     // Without N-1
 
-      const headers = data.showN1Comparison
+      const headers = data.showN1
         ? ["#", "Restaurant", "Ville", "CA (EUR)", "vs N-1", "Cmds", "Panier", "Note", "Rentab.", "Prepa", "Erreurs", "Inactiv."]
         : ["#", "Restaurant", "Ville", "CA (EUR)", "Cmds", "Panier", "Note", "Rentab.", "Prepa", "Erreurs", "Inactiv."];
 
@@ -520,7 +526,7 @@ export function useOverviewExport() {
 
       // Draw data rows
       pdf.setFont("helvetica", "normal");
-      data.comparisonTable.slice(0, 12).forEach((resto, idx) => {
+      data.restaurantComparison.slice(0, 12).forEach((resto, idx) => {
         const rowY = tableStartY + rowHeight * (idx + 1);
         
         if (idx % 2 === 0) {
@@ -534,7 +540,7 @@ export function useOverviewExport() {
         pdf.setFontSize(8);
         pdf.setTextColor(darkGray.r, darkGray.g, darkGray.b);
 
-        const values = data.showN1Comparison
+        const values = data.showN1
           ? [
               String(idx + 1),
               resto.name.substring(0, 20),
@@ -570,7 +576,7 @@ export function useOverviewExport() {
       });
 
       // Draw totals row
-      const totalsRowY = tableStartY + rowHeight * (Math.min(data.comparisonTable.length, 12) + 1);
+      const totalsRowY = tableStartY + rowHeight * (Math.min(data.restaurantComparison.length, 12) + 1);
       pdf.setFillColor(emerald.r, emerald.g, emerald.b);
       pdf.rect(margin, totalsRowY, pageWidth - margin * 2, rowHeight, "F");
       
@@ -578,11 +584,11 @@ export function useOverviewExport() {
       pdf.setTextColor(255, 255, 255);
       currentX = margin;
 
-      const totalsValues = data.showN1Comparison
+      const totalsValues = data.showN1
         ? [
             "",
             "RESEAU",
-            `${data.comparisonTable.length} resto`,
+            `${data.restaurantComparison.length} resto`,
             formatNumber(data.networkTotals.totalRevenue, 0),
             data.networkTotals.revenueVariation != null ? `${data.networkTotals.revenueVariation > 0 ? "+" : ""}${data.networkTotals.revenueVariation.toFixed(1)}%` : "--",
             String(data.networkTotals.totalOrders),
@@ -596,7 +602,7 @@ export function useOverviewExport() {
         : [
             "",
             "RESEAU",
-            `${data.comparisonTable.length} resto`,
+            `${data.restaurantComparison.length} resto`,
             formatNumber(data.networkTotals.totalRevenue, 0),
             String(data.networkTotals.totalOrders),
             `${data.networkTotals.avgBasket.toFixed(1)} EUR`,
@@ -630,11 +636,11 @@ export function useOverviewExport() {
       const workbook = XLSX.utils.book_new();
 
       // Sheet 1: Comparison Table
-      const comparisonHeaders = data.showN1Comparison
+      const comparisonHeaders = data.showN1
         ? ["#", "Restaurant", "Ville", "CA (EUR)", "vs N-1 (%)", "Commandes", "Panier (EUR)", "Note", "Rentabilite (%)", "Temps Prepa", "Erreurs (%)", "Inactivite"]
         : ["#", "Restaurant", "Ville", "CA (EUR)", "Commandes", "Panier (EUR)", "Note", "Rentabilite (%)", "Temps Prepa", "Erreurs (%)", "Inactivite"];
 
-      const comparisonRows = data.comparisonTable.map((r, idx) => {
+      const comparisonRows = data.restaurantComparison.map((r, idx) => {
         const baseRow = [
           idx + 1,
           r.name,
@@ -642,7 +648,7 @@ export function useOverviewExport() {
           r.revenue,
         ];
 
-        if (data.showN1Comparison) {
+        if (data.showN1) {
           baseRow.push(r.revenueVariation ?? "");
         }
 
@@ -659,11 +665,11 @@ export function useOverviewExport() {
       });
 
       // Add network totals row
-      const totalsRow = data.showN1Comparison
+      const totalsRow = data.showN1
         ? [
             "",
             "RESEAU",
-            `${data.comparisonTable.length} restaurants`,
+            `${data.restaurantComparison.length} restaurants`,
             data.networkTotals.totalRevenue,
             data.networkTotals.revenueVariation ?? "",
             data.networkTotals.totalOrders,
@@ -677,7 +683,7 @@ export function useOverviewExport() {
         : [
             "",
             "RESEAU",
-            `${data.comparisonTable.length} restaurants`,
+            `${data.restaurantComparison.length} restaurants`,
             data.networkTotals.totalRevenue,
             data.networkTotals.totalOrders,
             data.networkTotals.avgBasket,
@@ -704,7 +710,7 @@ export function useOverviewExport() {
         { wch: 25 },  // Restaurant
         { wch: 15 },  // Ville
         { wch: 12 },  // CA
-        ...(data.showN1Comparison ? [{ wch: 10 }] : []), // vs N-1
+        ...(data.showN1 ? [{ wch: 10 }] : []), // vs N-1
         { wch: 10 },  // Commandes
         { wch: 12 },  // Panier
         { wch: 6 },   // Note

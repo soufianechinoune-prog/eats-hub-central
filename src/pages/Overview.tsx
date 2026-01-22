@@ -6,11 +6,9 @@ import type { DateRange } from "react-day-picker";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext, PeriodMode } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Star, Clock, TrendingDown, Percent, DollarSign, PauseCircle, Award, Euro, FileDown, FileSpreadsheet, ChevronRight, Users, RefreshCw } from "lucide-react";
+import { Star, Clock, TrendingDown, Percent, PauseCircle, Award, FileDown, FileSpreadsheet, ChevronRight, RefreshCw } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
@@ -45,11 +43,10 @@ const Overview = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [rankingTab, setRankingTab] = useState<"rating" | "revenue" | "profitability" | "conversion">("rating");
   const [showN1Comparison, setShowN1Comparison] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { exportToPdf, exportToExcel, isExporting } = useOverviewExport();
+  const { exportComprehensivePdf, exportComprehensiveExcel, isExporting } = useOverviewExport();
   
   // Analytics context for navigation to Finances
   const {
@@ -629,7 +626,7 @@ const Overview = () => {
   };
 
   const handleExportPdf = () => {
-    exportToPdf({
+    exportComprehensivePdf({
       title: "Vue d'ensemble",
       period: getPeriodLabel(),
       totalRestaurants: networkData?.totalRestaurants || 0,
@@ -657,44 +654,44 @@ const Overview = () => {
         profitability: networkData?.deliveroo?.profitability ?? null,
         downtime: networkData?.deliveroo?.downtime ?? null,
       },
-      rankings: {
-        rating: {
-          top: networkData?.topByRating || [],
-          flop: networkData?.flopByRating || [],
-        },
-        revenue: {
-          top: networkData?.topByRevenue || [],
-          flop: networkData?.flopByRevenue || [],
-        },
-        profitability: {
-          top: networkData?.topByProfitability || [],
-          flop: networkData?.flopByProfitability || [],
-        },
-        conversion: {
-          top: networkData?.topByConversion || [],
-          flop: networkData?.flopByConversion || [],
-        },
-      },
+      restaurantComparison: comparisonStats,
+      networkTotals: networkTotals,
+      showN1: showN1Comparison,
     });
   };
 
   const handleExportExcel = () => {
-    const rankingType = rankingTab === "rating" ? "Note" : rankingTab === "revenue" ? "CA" : "Rentabilité";
-    const topRestaurants = rankingTab === "rating" ? networkData?.topByRating : rankingTab === "revenue" ? networkData?.topByRevenue : networkData?.topByProfitability;
-    const flopRestaurants = rankingTab === "rating" ? networkData?.flopByRating : rankingTab === "revenue" ? networkData?.flopByRevenue : networkData?.flopByProfitability;
-    
-    exportToExcel({
+    exportComprehensiveExcel({
       title: "Vue d'ensemble",
       period: getPeriodLabel(),
+      totalRestaurants: networkData?.totalRestaurants || 0,
       globalMetrics: {
-        avgRating: networkData?.global.rating || 0,
-        avgPrepTime: networkData?.global.prepTime || 0,
-        avgErrorRate: networkData?.global.errorRate || 0,
-        avgProfitability: networkData?.global.profitability || 0,
+        rating: networkData?.global.rating ?? null,
+        prepTime: networkData?.global.prepTime ?? null,
+        errorRate: networkData?.global.errorRate ?? null,
+        incorrectOrderRate: networkData?.global.incorrectOrderRate ?? null,
+        profitability: networkData?.global.profitability ?? null,
+        downtime: networkData?.global.downtime ?? null,
       },
-      topRestaurants: topRestaurants || [],
-      flopRestaurants: flopRestaurants || [],
-      rankingType,
+      uberMetrics: {
+        rating: networkData?.uber?.rating ?? null,
+        prepTime: networkData?.uber?.prepTime ?? null,
+        errorRate: networkData?.uber?.errorRate ?? null,
+        incorrectOrderRate: networkData?.uber?.incorrectOrderRate ?? null,
+        profitability: networkData?.uber?.profitability ?? null,
+        downtime: networkData?.uber?.downtime ?? null,
+      },
+      deliverooMetrics: {
+        rating: networkData?.deliveroo?.rating ?? null,
+        prepTime: networkData?.deliveroo?.prepTime ?? null,
+        errorRate: networkData?.deliveroo?.errorRate ?? null,
+        incorrectOrderRate: networkData?.deliveroo?.incorrectOrderRate ?? null,
+        profitability: networkData?.deliveroo?.profitability ?? null,
+        downtime: networkData?.deliveroo?.downtime ?? null,
+      },
+      restaurantComparison: comparisonStats,
+      networkTotals: networkTotals,
+      showN1: showN1Comparison,
     });
   };
 
@@ -855,431 +852,6 @@ const Overview = () => {
             isLoading={statsLoading}
           />
 
-          {/* Top & Flop Restaurants with Modern Tabs */}
-          <Tabs value={rankingTab} onValueChange={(v) => setRankingTab(v as typeof rankingTab)} className="w-full">
-            <div className="flex items-center justify-center mb-8">
-              <TabsList className="grid w-full max-w-2xl grid-cols-4 h-14 p-1.5 bg-white dark:bg-card border-2 border-border shadow-xl rounded-2xl">
-                <TabsTrigger value="rating" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-muted/80 transition-all duration-300 cursor-pointer">
-                  <Star className="h-4 w-4" />
-                  Note
-                </TabsTrigger>
-                <TabsTrigger value="revenue" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-muted/80 transition-all duration-300 cursor-pointer">
-                  <Euro className="h-4 w-4" />
-                  CA
-                </TabsTrigger>
-                <TabsTrigger value="profitability" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-muted/80 transition-all duration-300 cursor-pointer">
-                  <Percent className="h-4 w-4" />
-                  Rentabilité
-                </TabsTrigger>
-                <TabsTrigger value="conversion" className="flex items-center gap-2 text-sm font-semibold rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-muted/80 transition-all duration-300 cursor-pointer">
-                  <Users className="h-4 w-4" />
-                  Conversion
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <TabsContent value="rating" className="mt-0 space-y-0">
-              <div className="grid gap-8 lg:grid-cols-2">
-                {/* Top 5 by Rating */}
-                <Card className="border-2 border-emerald-500/20 shadow-xl bg-gradient-to-br from-card to-emerald-500/5 backdrop-blur-xl">
-                  <CardHeader className="border-b border-border/50 pb-4">
-                    <CardTitle className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400">
-                      <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                        <Award className="h-6 w-6" />
-                      </div>
-                      <span className="text-xl">Top 5 Restaurants</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent border-border/50">
-                          <TableHead className="w-16 text-xs font-semibold uppercase">#</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Restaurant</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Ville</TableHead>
-                          <TableHead className="text-right text-xs font-semibold uppercase">Note</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {networkData?.topByRating.map((resto, idx) => (
-                          <TableRow 
-                            key={resto.id} 
-                            className="cursor-pointer hover:bg-emerald-500/5 transition-all duration-300 border-border/30 group"
-                            onClick={() => navigate(`/restaurants/${resto.id}`)}
-                          >
-                            <TableCell className="font-bold">
-                              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-base h-8 w-8 flex items-center justify-center rounded-lg">
-                                {idx + 1}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-semibold group-hover:text-emerald-600 transition-colors">{resto.name}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
-                            <TableCell className="text-right">
-                              <span className="flex items-center justify-end gap-2 font-bold text-lg">
-                                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                                {resto.rating ?? "—"}
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-
-                {/* Flop 5 by Rating */}
-                <Card className="border-2 border-red-500/20 shadow-xl bg-gradient-to-br from-card to-red-500/5 backdrop-blur-xl">
-                  <CardHeader className="border-b border-border/50 pb-4">
-                    <CardTitle className="flex items-center gap-3 text-red-600 dark:text-red-400">
-                      <div className="h-10 w-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-                        <TrendingDown className="h-6 w-6" />
-                      </div>
-                      <span className="text-xl">Points d'attention</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent border-border/50">
-                          <TableHead className="w-16 text-xs font-semibold uppercase">#</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Restaurant</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Ville</TableHead>
-                          <TableHead className="text-right text-xs font-semibold uppercase">Note</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {networkData?.flopByRating.map((resto, idx) => (
-                          <TableRow 
-                            key={resto.id} 
-                            className="cursor-pointer hover:bg-red-500/5 transition-all duration-300 border-border/30 group"
-                            onClick={() => navigate(`/restaurants/${resto.id}`)}
-                          >
-                            <TableCell className="font-bold">
-                              <Badge variant="secondary" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 text-base h-8 w-8 flex items-center justify-center rounded-lg">
-                                {idx + 1}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-semibold group-hover:text-red-600 transition-colors">{resto.name}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
-                            <TableCell className="text-right">
-                              <span className="flex items-center justify-end gap-2 font-bold text-lg text-red-600">
-                                <Star className="h-4 w-4 fill-red-400/50 text-red-400/50" />
-                                {resto.rating ?? "—"}
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="revenue" className="mt-0 space-y-0">
-              <div className="grid gap-8 lg:grid-cols-2">
-                {/* Top 5 by Revenue */}
-                <Card className="border-2 border-emerald-500/20 shadow-xl bg-gradient-to-br from-card to-emerald-500/5 backdrop-blur-xl">
-                  <CardHeader className="border-b border-border/50 pb-4">
-                    <CardTitle className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400">
-                      <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                        <Award className="h-6 w-6" />
-                      </div>
-                      <span className="text-xl">Top 5 Restaurants</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent border-border/50">
-                          <TableHead className="w-16 text-xs font-semibold uppercase">#</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Restaurant</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Ville</TableHead>
-                          <TableHead className="text-right text-xs font-semibold uppercase">CA</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {networkData?.topByRevenue.map((resto, idx) => (
-                          <TableRow 
-                            key={resto.id} 
-                            className="cursor-pointer hover:bg-emerald-500/5 transition-all duration-300 border-border/30 group"
-                            onClick={() => navigate(`/restaurants/${resto.id}`)}
-                          >
-                            <TableCell className="font-bold">
-                              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-base h-8 w-8 flex items-center justify-center rounded-lg">
-                                {idx + 1}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-semibold group-hover:text-emerald-600 transition-colors">{resto.name}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
-                            <TableCell className="text-right">
-                              <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                                {resto.revenue.toLocaleString('fr-FR')} €
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-
-                {/* Flop 5 by Revenue */}
-                <Card className="border-2 border-red-500/20 shadow-xl bg-gradient-to-br from-card to-red-500/5 backdrop-blur-xl">
-                  <CardHeader className="border-b border-border/50 pb-4">
-                    <CardTitle className="flex items-center gap-3 text-red-600 dark:text-red-400">
-                      <div className="h-10 w-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-                        <TrendingDown className="h-6 w-6" />
-                      </div>
-                      <span className="text-xl">Points d'attention</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent border-border/50">
-                          <TableHead className="w-16 text-xs font-semibold uppercase">#</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Restaurant</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Ville</TableHead>
-                          <TableHead className="text-right text-xs font-semibold uppercase">CA</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {networkData?.flopByRevenue.map((resto, idx) => (
-                          <TableRow 
-                            key={resto.id} 
-                            className="cursor-pointer hover:bg-red-500/5 transition-all duration-300 border-border/30 group"
-                            onClick={() => navigate(`/restaurants/${resto.id}`)}
-                          >
-                            <TableCell className="font-bold">
-                              <Badge variant="secondary" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 text-base h-8 w-8 flex items-center justify-center rounded-lg">
-                                {idx + 1}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-semibold group-hover:text-red-600 transition-colors">{resto.name}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
-                            <TableCell className="text-right">
-                              <span className="font-bold text-sm text-red-600 whitespace-nowrap">
-                                {resto.revenue.toLocaleString('fr-FR')} €
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="profitability" className="mt-0 space-y-0">
-              <div className="grid gap-8 lg:grid-cols-2">
-                {/* Top 5 by Profitability */}
-                <Card className="border-2 border-emerald-500/20 shadow-xl bg-gradient-to-br from-card to-emerald-500/5 backdrop-blur-xl">
-                  <CardHeader className="border-b border-border/50 pb-4">
-                    <CardTitle className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400">
-                      <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                        <Award className="h-6 w-6" />
-                      </div>
-                      <span className="text-xl">Top 5 Restaurants</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent border-border/50">
-                          <TableHead className="w-16 text-xs font-semibold uppercase">#</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Restaurant</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Ville</TableHead>
-                          <TableHead className="text-right text-xs font-semibold uppercase">Rentabilité</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {networkData?.topByProfitability.map((resto, idx) => (
-                          <TableRow 
-                            key={resto.id} 
-                            className="cursor-pointer hover:bg-emerald-500/5 transition-all duration-300 border-border/30 group"
-                            onClick={() => navigateToFinances(resto.id)}
-                          >
-                            <TableCell className="font-bold">
-                              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-base h-8 w-8 flex items-center justify-center rounded-lg">
-                                {idx + 1}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-semibold group-hover:text-emerald-600 transition-colors">{resto.name}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
-                            <TableCell className="text-right">
-                              <span className={cn("font-bold text-lg", (resto.profitability ?? 0) > 55 ? "text-emerald-600 dark:text-emerald-400" : (resto.profitability ?? 0) > 45 ? "text-amber-600 dark:text-amber-400" : "text-red-600")}>
-                                {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-
-                {/* Flop 5 by Profitability */}
-                <Card className="border-2 border-red-500/20 shadow-xl bg-gradient-to-br from-card to-red-500/5 backdrop-blur-xl">
-                  <CardHeader className="border-b border-border/50 pb-4">
-                    <CardTitle className="flex items-center gap-3 text-red-600 dark:text-red-400">
-                      <div className="h-10 w-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-                        <TrendingDown className="h-6 w-6" />
-                      </div>
-                      <span className="text-xl">Points d'attention</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent border-border/50">
-                          <TableHead className="w-16 text-xs font-semibold uppercase">#</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Restaurant</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Ville</TableHead>
-                          <TableHead className="text-right text-xs font-semibold uppercase">Rentabilité</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {networkData?.flopByProfitability.map((resto, idx) => (
-                          <TableRow 
-                            key={resto.id} 
-                            className="cursor-pointer hover:bg-red-500/5 transition-all duration-300 border-border/30 group"
-                            onClick={() => navigateToFinances(resto.id)}
-                          >
-                            <TableCell className="font-bold">
-                              <Badge variant="secondary" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 text-base h-8 w-8 flex items-center justify-center rounded-lg">
-                                {idx + 1}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-semibold group-hover:text-red-600 transition-colors">{resto.name}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
-                            <TableCell className="text-right">
-                              <span className="font-bold text-lg text-red-600">
-                                {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="conversion" className="mt-0 space-y-0">
-              <div className="grid gap-8 lg:grid-cols-2">
-                {/* Top 5 by Conversion */}
-                <Card className="border-2 border-emerald-500/20 shadow-xl bg-gradient-to-br from-card to-emerald-500/5 backdrop-blur-xl">
-                  <CardHeader className="border-b border-border/50 pb-4">
-                    <CardTitle className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400">
-                      <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                        <Award className="h-6 w-6" />
-                      </div>
-                      <span className="text-xl">Top 5 Restaurants</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent border-border/50">
-                          <TableHead className="w-16 text-xs font-semibold uppercase">#</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Restaurant</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Ville</TableHead>
-                          <TableHead className="text-right text-xs font-semibold uppercase">Taux</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {networkData?.topByConversion?.map((resto, idx) => (
-                          <TableRow 
-                            key={resto.id} 
-                            className="cursor-pointer hover:bg-emerald-500/5 transition-all duration-300 border-border/30 group"
-                            onClick={() => navigate(`/restaurants/${resto.id}`)}
-                          >
-                            <TableCell className="font-bold">
-                              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-base h-8 w-8 flex items-center justify-center rounded-lg">
-                                {idx + 1}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-semibold group-hover:text-emerald-600 transition-colors">{resto.name}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
-                            <TableCell className="text-right">
-                              <span className="flex items-center justify-end gap-2 font-bold text-lg text-emerald-600 dark:text-emerald-400">
-                                <Users className="h-4 w-4" />
-                                {resto.conversionRate}%
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {(!networkData?.topByConversion || networkData.topByConversion.length === 0) && (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                              Aucune donnée de conversion disponible
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-
-                {/* Flop 5 by Conversion */}
-                <Card className="border-2 border-red-500/20 shadow-xl bg-gradient-to-br from-card to-red-500/5 backdrop-blur-xl">
-                  <CardHeader className="border-b border-border/50 pb-4">
-                    <CardTitle className="flex items-center gap-3 text-red-600 dark:text-red-400">
-                      <div className="h-10 w-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-                        <TrendingDown className="h-6 w-6" />
-                      </div>
-                      <span className="text-xl">Points d'attention</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent border-border/50">
-                          <TableHead className="w-16 text-xs font-semibold uppercase">#</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Restaurant</TableHead>
-                          <TableHead className="text-xs font-semibold uppercase">Ville</TableHead>
-                          <TableHead className="text-right text-xs font-semibold uppercase">Taux</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {networkData?.flopByConversion?.map((resto, idx) => (
-                          <TableRow 
-                            key={resto.id} 
-                            className="cursor-pointer hover:bg-red-500/5 transition-all duration-300 border-border/30 group"
-                            onClick={() => navigate(`/restaurants/${resto.id}`)}
-                          >
-                            <TableCell className="font-bold">
-                              <Badge variant="secondary" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 text-base h-8 w-8 flex items-center justify-center rounded-lg">
-                                {idx + 1}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-semibold group-hover:text-red-600 transition-colors">{resto.name}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{resto.city || "—"}</TableCell>
-                            <TableCell className="text-right">
-                              <span className="flex items-center justify-end gap-2 font-bold text-lg text-red-600">
-                                <Users className="h-4 w-4" />
-                                {resto.conversionRate}%
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {(!networkData?.flopByConversion || networkData.flopByConversion.length === 0) && (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                              Aucune donnée de conversion disponible
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
 
           {/* Avis Produits */}
           <div className="grid gap-6 lg:grid-cols-2">
