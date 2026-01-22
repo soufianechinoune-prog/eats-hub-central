@@ -504,13 +504,14 @@ export function useOverviewExport() {
 
       const tableStartY = 48;
       const rowHeight = 10;
+      // New column order: #, Restaurant, CA, Versement, Rentab, Cmds, Panier, Note, Erreurs, Prépa, Inactiv
       const colWidths = data.showN1 
-        ? [8, 45, 30, 28, 18, 20, 20, 15, 20, 18, 18, 18]  // With N-1
-        : [8, 50, 35, 30, 22, 22, 18, 22, 20, 20, 20];     // Without N-1
+        ? [8, 45, 28, 20, 28, 18, 18, 22, 15, 18, 18, 18, 18]  // With N-1
+        : [8, 50, 32, 32, 24, 20, 24, 18, 20, 20, 20];     // Without N-1
 
       const headers = data.showN1
-        ? ["#", "Restaurant", "Ville", "CA (EUR)", "vs N-1", "Cmds", "Panier", "Note", "Rentab.", "Prepa", "Erreurs", "Inactiv."]
-        : ["#", "Restaurant", "Ville", "CA (EUR)", "Cmds", "Panier", "Note", "Rentab.", "Prepa", "Erreurs", "Inactiv."];
+        ? ["#", "Restaurant", "CA (EUR)", "vs N-1", "Versement", "Rentab.", "Cmds", "Panier", "Note", "Erreurs", "Prepa", "Inactiv."]
+        : ["#", "Restaurant", "CA (EUR)", "Versement", "Rentab.", "Cmds", "Panier", "Note", "Erreurs", "Prepa", "Inactiv."];
 
       // Draw header row
       let currentX = margin;
@@ -546,28 +547,28 @@ export function useOverviewExport() {
           ? [
               String(idx + 1),
               resto.name.substring(0, 20),
-              (resto.city || "--").substring(0, 15),
               formatNumber(resto.revenue, 0),
               resto.revenueVariation != null ? `${resto.revenueVariation > 0 ? "+" : ""}${resto.revenueVariation.toFixed(1)}%` : "--",
-              String(resto.orders),
-              `${resto.avgBasket.toFixed(1)} EUR`,
-              resto.rating != null ? resto.rating.toFixed(1) : "--",
+              `${formatNumber(resto.netPayout, 0)} EUR`,
               resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "--",
-              formatMinutes(resto.prepTime),
+              String(resto.orders),
+              `${resto.avgBasket.toFixed(2)} EUR`,
+              resto.rating != null ? resto.rating.toFixed(1) : "--",
               resto.errorRate != null ? `${resto.errorRate.toFixed(1)}%` : "--",
+              formatMinutes(resto.prepTime),
               formatHours(resto.downtime),
             ]
           : [
               String(idx + 1),
               resto.name.substring(0, 22),
-              (resto.city || "--").substring(0, 18),
               formatNumber(resto.revenue, 0),
-              String(resto.orders),
-              `${resto.avgBasket.toFixed(1)} EUR`,
-              resto.rating != null ? resto.rating.toFixed(1) : "--",
+              `${formatNumber(resto.netPayout, 0)} EUR`,
               resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "--",
-              formatMinutes(resto.prepTime),
+              String(resto.orders),
+              `${resto.avgBasket.toFixed(2)} EUR`,
+              resto.rating != null ? resto.rating.toFixed(1) : "--",
               resto.errorRate != null ? `${resto.errorRate.toFixed(1)}%` : "--",
+              formatMinutes(resto.prepTime),
               formatHours(resto.downtime),
             ];
 
@@ -590,28 +591,28 @@ export function useOverviewExport() {
         ? [
             "",
             "RESEAU",
-            `${data.restaurantComparison.length} resto`,
             formatNumber(data.networkTotals.totalRevenue, 0),
             data.networkTotals.revenueVariation != null ? `${data.networkTotals.revenueVariation > 0 ? "+" : ""}${data.networkTotals.revenueVariation.toFixed(1)}%` : "--",
-            String(data.networkTotals.totalOrders),
-            `${data.networkTotals.avgBasket.toFixed(1)} EUR`,
-            data.networkTotals.avgRating != null ? data.networkTotals.avgRating.toFixed(1) : "--",
+            `${formatNumber(data.networkTotals.totalNetPayout, 0)} EUR`,
             data.networkTotals.avgProfitability != null ? `${data.networkTotals.avgProfitability.toFixed(1)}%` : "--",
-            data.networkTotals.avgPrepTime != null ? formatMinutes(data.networkTotals.avgPrepTime) : "--",
+            String(data.networkTotals.totalOrders),
+            `${data.networkTotals.avgBasket.toFixed(2)} EUR`,
+            data.networkTotals.avgRating != null ? data.networkTotals.avgRating.toFixed(1) : "--",
             data.networkTotals.avgErrorRate != null ? `${data.networkTotals.avgErrorRate.toFixed(1)}%` : "--",
+            data.networkTotals.avgPrepTime != null ? formatMinutes(data.networkTotals.avgPrepTime) : "--",
             formatHours(data.networkTotals.totalDowntime),
           ]
         : [
             "",
             "RESEAU",
-            `${data.restaurantComparison.length} resto`,
             formatNumber(data.networkTotals.totalRevenue, 0),
-            String(data.networkTotals.totalOrders),
-            `${data.networkTotals.avgBasket.toFixed(1)} EUR`,
-            data.networkTotals.avgRating != null ? data.networkTotals.avgRating.toFixed(1) : "--",
+            `${formatNumber(data.networkTotals.totalNetPayout, 0)} EUR`,
             data.networkTotals.avgProfitability != null ? `${data.networkTotals.avgProfitability.toFixed(1)}%` : "--",
-            data.networkTotals.avgPrepTime != null ? formatMinutes(data.networkTotals.avgPrepTime) : "--",
+            String(data.networkTotals.totalOrders),
+            `${data.networkTotals.avgBasket.toFixed(2)} EUR`,
+            data.networkTotals.avgRating != null ? data.networkTotals.avgRating.toFixed(1) : "--",
             data.networkTotals.avgErrorRate != null ? `${data.networkTotals.avgErrorRate.toFixed(1)}%` : "--",
+            data.networkTotals.avgPrepTime != null ? formatMinutes(data.networkTotals.avgPrepTime) : "--",
             formatHours(data.networkTotals.totalDowntime),
           ];
 
