@@ -1,149 +1,106 @@
 
+# Synchroniser les filtres entre Analytics et Comparaison Temps de préparation
 
-# Ajouter un onglet "Temps de préparation" dans la section Opérations
+## Problème identifié
 
-## Contexte du problème
+Les deux pages affichent des valeurs différentes pour Athis-Mons :
+- **Analytics** : 7min 16s sur **1592 commandes**
+- **Comparaison** : 6min 33s sur **661 commandes**
 
-Actuellement, quand on clique sur un restaurant dans le "Classement par rapidité" de la page Comparaison Temps de préparation, la navigation redirige vers l'onglet **"Temps d'attente"** (`/analytics/operations?tab=waitTime`).
+### Causes du décalage
 
-Or ce sont deux métriques totalement différentes :
-- **Temps de préparation** = temps entre l'acceptation de la commande et la fin de préparation (côté cuisine) → `initial_prep_time_minutes`
-- **Temps d'attente** = temps que le livreur attend à son arrivée au restaurant (côté coursier) → `avoidable_wait_time_minutes`
+| Critère | Analytics (PrepTimeAnalytics) | Comparaison (PrepTimeComparison) |
+|---------|------------------------------|----------------------------------|
+| Source restaurants | `selectedRestaurants` du contexte global | `pinnedRestaurants` (is_pinned = true uniquement) |
+| Filtre plateforme | **Oui** (Uber Eats sélectionné) | **Non** (toutes plateformes) |
+| Période | Date range du contexte (12-18 janv) | Calcul indépendant (semaine précédente) |
+
+Le paradoxe (moins de commandes sans filtre plateforme) s'explique par le fait que la page Comparaison ne filtre **pas sur la plateforme**. Les 661 commandes sont donc un sous-ensemble différent.
 
 ## Solution proposée
 
-Créer un **4ème onglet "Temps de préparation"** dans la section Opérations, avec les mêmes visualisations que l'onglet "Temps d'attente" mais adaptées aux données de préparation.
+### 1. Ajouter le filtre plateforme dans PrepTimeComparison.tsx
 
-## Structure des onglets après modification
+Modifier la requête de données (lignes 70-77) pour accepter un paramètre plateforme :
 
-| Onglet | Icône | Métrique | Source de données |
-|--------|-------|----------|-------------------|
-| Disponibilité | Store | Taux de disponibilité | `hourly_availability` |
-| **Temps de préparation (NOUVEAU)** | Timer/ChefHat | Temps cuisine | `order_history.initial_prep_time_minutes` |
-| Temps d'attente | Clock | Attente coursier | `order_history.avoidable_wait_time_minutes` |
-| Erreurs commandes | AlertTriangle | Erreurs | `order_errors` |
-
-## Fichiers à créer
-
-### 1. `src/components/analytics/PrepTimeAnalytics.tsx` (nouveau fichier)
-
-Composant similaire à `WaitTimeAnalytics.tsx` mais adapté pour le temps de préparation :
-
-**KPIs à afficher :**
-- Temps de préparation moyen
-- Nombre de commandes analysées  
-- Objectif atteint (≤ 6 min)
-- Tendance vs période précédente
-
-**Visualisations :**
-- Graphique d'évolution (jour/mois) avec ligne d'objectif (6 min par défaut)
-- Drill-down mois → jour → heure
-- Heatmap (jour de la semaine × heure)
-- Classement des restaurants (du plus rapide au plus lent)
-
-**Logique technique :**
 ```typescript
-// Requête similaire à WaitTimeAnalytics mais avec prep time
-const { data } = await supabase
-  .from("order_history")
-  .select("id, restaurant_id, order_datetime, initial_prep_time_minutes")
-  .not("initial_prep_time_minutes", "is", null)
-  .gte("order_datetime", startDate)
-  .lte("order_datetime", endDate)
-  .in("restaurant_id", selectedRestaurants);
+// Ajouter un state pour la plateforme sélectionnée
+const [selectedPlatform, setSelectedPlatform] = useState<"uber_eats" | "deliveroo" | "global">("global");
 
-// Seuils de couleur pour prep time
-const getBarColor = (prepTimeMinutes: number) => {
-  if (prepTimeMinutes <= 4) return "green";   // Excellent
-  if (prepTimeMinutes <= 6) return "amber";   // OK
-  return "red";                                // À améliorer
-};
+// Dans la requête
+let query = supabase
+  .from("order_history")
+  .select("restaurant_id, initial_prep_time_minutes, order_datetime")
+  .in("restaurant_id", restaurantIds)
+  .gte("order_datetime", dateRange.start.toISOString())
+  .lte("order_datetime", dateRange.end.toISOString())
+  .not("initial_prep_time_minutes", "is", null);
+
+// Ajouter le filtre plateforme
+if (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") {
+  query = query.eq("platform", selectedPlatform);
+}
+```
+
+### 2. Synchroniser les périodes avec le contexte global
+
+Au lieu de calculer la période de façon indépendante, utiliser le `dateRange` du contexte Analytics :
+
+```typescript
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+
+const {
+  dateRange: contextDateRange,
+  selectedPlatform,
+} = useAnalyticsContext();
+
+// Utiliser directement le contexte
+const dateRange = useMemo(() => {
+  if (contextDateRange?.from && contextDateRange?.to) {
+    return { start: contextDateRange.from, end: contextDateRange.to };
+  }
+  // Fallback si pas de contexte
+  return { start: subDays(new Date(), 7), end: new Date() };
+}, [contextDateRange]);
+```
+
+### 3. Ajouter un sélecteur de plateforme dans l'UI
+
+À côté du sélecteur de période, ajouter les boutons Uber Eats / Deliveroo / Global :
+
+```typescript
+<div className="flex items-center gap-2">
+  <Button 
+    variant={selectedPlatform === "uber_eats" ? "default" : "outline"}
+    onClick={() => setSelectedPlatform("uber_eats")}
+  >
+    Uber Eats
+  </Button>
+  <Button 
+    variant={selectedPlatform === "deliveroo" ? "default" : "outline"}
+    onClick={() => setSelectedPlatform("deliveroo")}
+  >
+    Deliveroo
+  </Button>
+  <Button 
+    variant={selectedPlatform === "global" ? "default" : "outline"}
+    onClick={() => setSelectedPlatform("global")}
+  >
+    Global
+  </Button>
+</div>
 ```
 
 ## Fichiers à modifier
 
-### 2. `src/components/analytics/OperationsAnalytics.tsx`
+| Fichier | Modification |
+|---------|--------------|
+| `src/pages/PrepTimeComparison.tsx` | Importer AnalyticsContext, utiliser ses filtres (dateRange, platform), ajouter UI plateforme |
+| `src/components/compare/PrepTimeRankingBars.tsx` | Passer le dateRange depuis le contexte lors de la navigation vers Analytics |
 
-**Modifications :**
-1. Importer le nouveau composant `PrepTimeAnalytics`
-2. Ajouter `"prepTime"` au type de l'état `activeTab`
-3. Ajouter un 4ème onglet dans la `TabsList` (passer de `grid-cols-3` à `grid-cols-4`)
-4. Ajouter le `TabsContent` pour le nouvel onglet
+## Résultat attendu
 
-```typescript
-// État mis à jour
-const [activeTab, setActiveTab] = useState<
-  "availability" | "prepTime" | "waitTime" | "orderErrors"
->(() => { ... });
-
-// Nouveau trigger dans TabsList
-<TabsTrigger value="prepTime">
-  <Timer className="h-4 w-4" />
-  Temps de préparation
-</TabsTrigger>
-
-// Nouveau contenu
-<TabsContent value="prepTime">
-  <PrepTimeAnalytics />
-</TabsContent>
-```
-
-### 3. `src/components/compare/PrepTimeRankingBars.tsx`
-
-**Modification ligne 80 :** Changer la navigation pour pointer vers le nouvel onglet
-
-```typescript
-// AVANT
-navigate("/analytics/operations?tab=waitTime");
-
-// APRÈS  
-navigate("/analytics/operations?tab=prepTime");
-```
-
-## Design de l'interface PrepTimeAnalytics
-
-Le composant reprendra la même structure visuelle que `WaitTimeAnalytics` :
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│  KPIs Cards (5 cartes)                                       │
-│  ┌─────┐ ┌─────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────┐ │
-│  │ Avg │ │ Nb  │ │ Temps total │ │  Objectif   │ │ Tendance│ │
-│  │4.2mn│ │1984 │ │   moyen     │ │ atteint 85% │ │  -12%   │ │
-│  └─────┘ └─────┘ └─────────────┘ └─────────────┘ └─────────┘ │
-├──────────────────────────────────────────────────────────────┤
-│  Graphique d'évolution                                       │
-│  [Retour] Janvier 2026 [<] [>]          Objectif: [6 min]    │
-│  ┌──────────────────────────────────────────────────────────┐│
-│  │ 8min ┤                                                   ││
-│  │ 6min ┤ ─ ─ ─ ─ ─ ─ ─ OBJECTIF ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   ││
-│  │ 4min ┤ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █            ││
-│  │ 2min ┤                                                   ││
-│  │ 0min ┼─────────────────────────────────────────────────  ││
-│  │       1  2  3  4  5 ... 30 31                            ││
-│  └──────────────────────────────────────────────────────────┘│
-├──────────────────────────────────────────────────────────────┤
-│  Heatmap + Classement (2 colonnes)                           │
-│  ┌──────────────────────┐ ┌─────────────────────────────────┐│
-│  │  Heatmap             │ │  Classement restaurants         ││
-│  │  (heure × jour)      │ │  🥇 Athis-Mons    4m 12s        ││
-│  │                      │ │  🥈 Bonneuil      5m 33s        ││
-│  │                      │ │  🥉 Antony        6m 45s        ││
-│  └──────────────────────┘ └─────────────────────────────────┘│
-└──────────────────────────────────────────────────────────────┘
-```
-
-## Résumé des changements
-
-| Fichier | Action |
-|---------|--------|
-| `src/components/analytics/PrepTimeAnalytics.tsx` | **Créer** - Nouveau composant complet |
-| `src/components/analytics/OperationsAnalytics.tsx` | **Modifier** - Ajouter l'onglet et son contenu |
-| `src/components/compare/PrepTimeRankingBars.tsx` | **Modifier** - Corriger la navigation (ligne 80) |
-
-## Complexité estimée
-
-- **Fichier à créer** : ~800-900 lignes (basé sur WaitTimeAnalytics qui fait 939 lignes)
-- **Modifications** : ~50 lignes dans les fichiers existants
-- **Temps estimé** : ~15-20 minutes de génération
-
+Après cette modification :
+- Les **mêmes filtres** (période + plateforme) seront appliqués sur les deux pages
+- Les valeurs seront **identiques** pour le même restaurant
+- La navigation entre les pages **préservera le contexte**
