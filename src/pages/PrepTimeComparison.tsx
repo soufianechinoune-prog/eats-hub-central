@@ -60,16 +60,35 @@ const PrepTimeComparison = () => {
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
       
-      const { data, error } = await supabase
-        .from("order_history")
-        .select("restaurant_id, initial_prep_time_minutes, order_datetime")
-        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
-        .gte("order_datetime", dateRange.start.toISOString())
-        .lte("order_datetime", dateRange.end.toISOString())
-        .not("initial_prep_time_minutes", "is", null);
+      const restaurantIds = pinnedRestaurants.map(r => r.id);
+      let allData: typeof data = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      let data: { restaurant_id: string; initial_prep_time_minutes: number | null; order_datetime: string | null }[] = [];
+
+      while (hasMore) {
+        const { data: pageData, error } = await supabase
+          .from("order_history")
+          .select("restaurant_id, initial_prep_time_minutes, order_datetime")
+          .in("restaurant_id", restaurantIds)
+          .gte("order_datetime", dateRange.start.toISOString())
+          .lte("order_datetime", dateRange.end.toISOString())
+          .not("initial_prep_time_minutes", "is", null)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) throw error;
+        
+        if (pageData && pageData.length > 0) {
+          allData = [...allData, ...pageData];
+          hasMore = pageData.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
       
-      if (error) throw error;
-      return data || [];
+      return allData;
     },
     enabled: !!pinnedRestaurants?.length,
   });
