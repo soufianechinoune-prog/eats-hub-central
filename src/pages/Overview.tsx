@@ -559,8 +559,80 @@ const Overview = () => {
         flopByProfitability,
         topByConversion,
         flopByConversion,
-        topProducts: [],
-        improvementProducts: [],
+        // Aggregate menu reviews by product for top/flop products
+        topProducts: (() => {
+          const productMap = new Map<string, {
+            title: string;
+            thumbsUp: number;
+            thumbsDown: number;
+          }>();
+
+          menuReviewsData?.forEach(review => {
+            const title = review.item_title?.trim() || "Unknown";
+            const key = title.toLowerCase();
+            
+            if (!productMap.has(key)) {
+              productMap.set(key, { title, thumbsUp: 0, thumbsDown: 0 });
+            }
+            
+            const prod = productMap.get(key)!;
+            prod.thumbsUp += review.thumb_up || 0;
+            prod.thumbsDown += review.thumb_down || 0;
+          });
+
+          return Array.from(productMap.values())
+            .filter(p => (p.thumbsUp + p.thumbsDown) > 0)
+            .filter(p => !p.title.toLowerCase().includes('article inconnu'))
+            .filter(p => !p.title.toLowerCase().includes('unknown item'))
+            .map(p => {
+              const total = p.thumbsUp + p.thumbsDown;
+              return {
+                name: p.title,
+                rating: `${Math.round((p.thumbsUp / total) * 100)}%`,
+                reviews: total,
+                approvalRate: Math.round((p.thumbsUp / total) * 100)
+              };
+            })
+            .sort((a, b) => b.approvalRate - a.approvalRate)
+            .slice(0, 5);
+        })(),
+        improvementProducts: (() => {
+          const productMap = new Map<string, {
+            title: string;
+            thumbsUp: number;
+            thumbsDown: number;
+          }>();
+
+          menuReviewsData?.forEach(review => {
+            const title = review.item_title?.trim() || "Unknown";
+            const key = title.toLowerCase();
+            
+            if (!productMap.has(key)) {
+              productMap.set(key, { title, thumbsUp: 0, thumbsDown: 0 });
+            }
+            
+            const prod = productMap.get(key)!;
+            prod.thumbsUp += review.thumb_up || 0;
+            prod.thumbsDown += review.thumb_down || 0;
+          });
+
+          return Array.from(productMap.values())
+            .filter(p => (p.thumbsUp + p.thumbsDown) > 0)
+            .filter(p => p.thumbsDown > 0) // Only products with at least 1 negative review
+            .filter(p => !p.title.toLowerCase().includes('article inconnu'))
+            .filter(p => !p.title.toLowerCase().includes('unknown item'))
+            .map(p => {
+              const total = p.thumbsUp + p.thumbsDown;
+              return {
+                name: p.title,
+                rating: `${Math.round((p.thumbsUp / total) * 100)}%`,
+                reviews: total,
+                approvalRate: Math.round((p.thumbsUp / total) * 100)
+              };
+            })
+            .sort((a, b) => a.approvalRate - b.approvalRate)
+            .slice(0, 5);
+        })(),
         totalRestaurants: restaurants?.length || 0,
         hasData: (dailySalesData?.length || 0) > 0 || (reviewsData?.length || 0) > 0,
         debugInfo,
