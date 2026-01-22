@@ -385,15 +385,34 @@ const Overview = () => {
       if (ordersForItems && ordersForItems.length > 0) {
         const orderIds = ordersForItems.map(o => o.id);
         // Fetch in chunks to avoid query limits
-        const chunkSize = 500;
+        const chunkSize = 300; // Reduced to stay under 1000 items per chunk
         for (let i = 0; i < orderIds.length; i += chunkSize) {
           const chunk = orderIds.slice(i, i + chunkSize);
-          const { data: items, error: itemsError } = await supabase
-            .from("order_items")
-            .select("item_title, quantity")
-            .in("order_id", chunk);
-          if (itemsError) console.error("Error fetching order items:", itemsError);
-          if (items) orderItemsData = [...orderItemsData, ...items];
+          
+          // Internal pagination to ensure all items are fetched
+          let offset = 0;
+          let hasMore = true;
+          while (hasMore) {
+            const { data: items, error: itemsError } = await supabase
+              .from("order_items")
+              .select("item_title, quantity")
+              .in("order_id", chunk)
+              .order("order_id", { ascending: true })
+              .range(offset, offset + 999);
+            
+            if (itemsError) {
+              console.error("Error fetching order items:", itemsError);
+              break;
+            }
+            
+            if (items && items.length > 0) {
+              orderItemsData = [...orderItemsData, ...items];
+              offset += 1000;
+              hasMore = items.length === 1000;
+            } else {
+              hasMore = false;
+            }
+          }
         }
       }
       console.log("Order items data:", orderItemsData.length, "rows");
