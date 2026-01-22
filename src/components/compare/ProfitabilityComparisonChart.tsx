@@ -63,6 +63,8 @@ interface ProfitabilityComparisonChartProps {
   // Action props from parent (FinancesSection)
   showActions?: boolean;
   selectedActionIds?: Set<string>;
+  // Rolling period date ranges for legend harmonization
+  rollingPeriodRanges?: { currentRange: string; prevRange: string };
 }
 
 type ViewMode = "chart" | "table";
@@ -117,6 +119,7 @@ export const ProfitabilityComparisonChart = ({
   platform,
   showActions = false,
   selectedActionIds,
+  rollingPeriodRanges,
 }: ProfitabilityComparisonChartProps) => {
   // Get profitability base from context
   const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
@@ -558,7 +561,11 @@ export const ProfitabilityComparisonChart = ({
             <div className="flex items-center gap-2.5">
               <Percent className="h-5 w-5 text-emerald-500" />
               <div className="text-right">
-                <p className="text-xs text-muted-foreground">{selectedYear}</p>
+                <p className="text-xs text-muted-foreground">
+                  {comparisonMode === "rollingPeriod" && rollingPeriodRanges?.currentRange 
+                    ? rollingPeriodRanges.currentRange 
+                    : selectedYear}
+                </p>
                 <p className="text-base font-bold">{totalProfitability.toFixed(1)}%</p>
               </div>
             </div>
@@ -567,7 +574,11 @@ export const ProfitabilityComparisonChart = ({
               <>
                 <div className="h-10 w-px bg-border" />
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">{prevYear}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {comparisonMode === "rollingPeriod" && rollingPeriodRanges?.prevRange 
+                      ? rollingPeriodRanges.prevRange 
+                      : prevYear}
+                  </p>
                   <p className="text-sm text-muted-foreground">{prevTotalProfitability.toFixed(1)}%</p>
                 </div>
                 

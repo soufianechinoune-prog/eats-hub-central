@@ -2756,7 +2756,14 @@ export function AnalyticsCharts({
           <CardTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
             Évolution du Panier Moyen
-            {hasPrevData && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedYear} vs {prevYear})</span>}
+            {hasPrevData && (
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                {comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.currentRange
+                  ? `(${rollingPeriodDateRanges.currentRange} vs ${rollingPeriodDateRanges.prevRange})`
+                  : `(${selectedYear} vs ${prevYear})`
+                }
+              </span>
+            )}
           </CardTitle>
           <div className="flex items-center gap-4">
             {/* Inline KPIs */}
@@ -2780,7 +2787,11 @@ export function AnalyticsCharts({
                   <div className="flex items-center gap-2.5">
                     <Euro className="h-5 w-5 text-chart-1" />
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground leading-tight">{selectedYear}</p>
+                      <p className="text-xs text-muted-foreground leading-tight">
+                        {comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.currentRange 
+                          ? rollingPeriodDateRanges.currentRange 
+                          : selectedYear}
+                      </p>
                       <p className="text-base font-bold leading-tight">{avgBasket.toFixed(2)} €</p>
                     </div>
                   </div>
@@ -2788,7 +2799,11 @@ export function AnalyticsCharts({
                     <>
                       <div className="h-10 w-px bg-border" />
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground leading-tight">{prevYear}</p>
+                        <p className="text-xs text-muted-foreground leading-tight">
+                          {comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.prevRange 
+                            ? rollingPeriodDateRanges.prevRange 
+                            : prevYear}
+                        </p>
                         <p className="text-sm text-muted-foreground leading-tight">{avgPrevBasket.toFixed(2)} €</p>
                       </div>
                       <div className="h-10 w-px bg-border" />
@@ -2945,6 +2960,7 @@ export function AnalyticsCharts({
               platform={selectedPlatform}
               showActions={chartActionsConfig?.global}
               selectedActionIds={selectedActionIds}
+              rollingPeriodRanges={rollingPeriodDateRanges}
             />
           </CardContent>
         </Card>
