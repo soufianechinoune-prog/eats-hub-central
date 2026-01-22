@@ -200,7 +200,7 @@ const DowntimeComparison = () => {
                   <CardTitle className="text-lg">Classement par disponibilité</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <DowntimeRankingBars stats={restaurantStats} />
+                  <DowntimeRankingBars stats={restaurantStats} dateRange={dateRange} />
                 </CardContent>
               </Card>
 

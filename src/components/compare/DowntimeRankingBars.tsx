@@ -14,6 +14,7 @@ interface RestaurantStat {
 
 interface DowntimeRankingBarsProps {
   stats: RestaurantStat[];
+  dateRange: { start: Date; end: Date };
 }
 
 const formatMinutesToDisplay = (minutes: number): string => {
@@ -48,20 +49,42 @@ const getStatusLabel = (availabilityRate: number): { text: string; color: string
   return { text: "Critique", color: "text-red-500" };
 };
 
-export const DowntimeRankingBars = ({ stats }: DowntimeRankingBarsProps) => {
+export const DowntimeRankingBars = ({ stats, dateRange }: DowntimeRankingBarsProps) => {
   const navigate = useNavigate();
-  const { toggleRestaurantSelection, setSelectedMonth, setSelectedYear, setPeriodMode } = useAnalyticsContext();
+  const { 
+    setSelectedRestaurants, 
+    setVisibleRestaurants,
+    setPeriodMode, 
+    setDateRange: setContextDateRange 
+  } = useAnalyticsContext();
   const maxMinutes = Math.max(...stats.map(s => s.totalOfflineMinutes), 1);
 
   const handleRestaurantClick = (restaurantId: string) => {
-    // Update analytics context to show this restaurant with month view (no drill-down)
-    toggleRestaurantSelection(restaurantId);
-    setPeriodMode("month");
-    setSelectedMonth(new Date().getMonth() + 1);
-    setSelectedYear(new Date().getFullYear());
+    // REMPLACER la sélection par ce seul restaurant
+    setVisibleRestaurants([restaurantId]);
+    setSelectedRestaurants([restaurantId]);
     
-    // Navigate without day param = month view
-    navigate("/analytics/operations");
+    // Utiliser la période de la page Comparaison (range)
+    setPeriodMode("range");
+    setContextDateRange({ from: dateRange.start, to: dateRange.end });
+    
+    // Mettre à jour localStorage pour persister le contexte
+    const currentState = localStorage.getItem("analytics-context");
+    const state = currentState ? JSON.parse(currentState) : {};
+    const updatedState = {
+      ...state,
+      selectedRestaurants: [restaurantId],
+      visibleRestaurants: [restaurantId],
+      periodMode: "range",
+      dateRange: {
+        from: dateRange.start.toISOString(),
+        to: dateRange.end.toISOString(),
+      },
+    };
+    localStorage.setItem("analytics-context", JSON.stringify(updatedState));
+    
+    // Naviguer vers l'onglet Disponibilité
+    navigate("/analytics/operations?tab=availability");
   };
 
   if (stats.length === 0) {
