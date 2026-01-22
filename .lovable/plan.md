@@ -1,39 +1,32 @@
 
 
-# Corriger la navigation depuis le classement vers le restaurant cliqué
+# Corriger la navigation depuis "Comparaison Temps d'inactivité"
 
-## Problème identifié
+## Problèmes identifiés
 
-Quand tu cliques sur un restaurant dans le "Classement par rapidité" de la page Comparaison :
-- **Attendu** : La page Analytics affiche les données du restaurant cliqué (ex: Bonneuil)
-- **Actuel** : La page Analytics affiche toujours Athis-Mons, peu importe le restaurant cliqué
+### 1. Mauvais restaurant affiché
+- **Symptôme** : Clic sur Bonneuil ou Juvisy → Analytics affiche toujours Athis-Mons
+- **Cause** : `toggleRestaurantSelection(restaurantId)` ajoute le restaurant à la sélection existante au lieu de la remplacer
 
-### Cause technique
+### 2. Mauvaise période
+- **Symptôme** : La page Analytics affiche "Janvier 2026" au lieu de "Semaine précédente (12-18 janv)"
+- **Cause** : Le code force `setPeriodMode("month")` et `setSelectedMonth(new Date().getMonth() + 1)`
 
-Dans `PrepTimeRankingBars.tsx`, la fonction de clic utilise :
-```typescript
-toggleRestaurantSelection(restaurantId);  // AJOUTE à la sélection existante
-```
+### 3. Données incohérentes
+- **Symptôme** : Athis-Mons = 100% sur Comparaison vs 98.6% sur Analytics
+- **Cause** : Conséquence du problème 2 - les données du mois entier sont différentes de celles de la semaine
 
-Au lieu de :
-```typescript
-setSelectedRestaurants([restaurantId]);   // REMPLACE la sélection par ce seul restaurant
-setVisibleRestaurants([restaurantId]);    // Met aussi à jour les restaurants visibles
-```
+## Solution
 
-Le localStorage est également mis à jour incorrectement (il ne change pas `selectedRestaurants`).
+### Fichier à modifier : `src/components/compare/DowntimeRankingBars.tsx`
 
-## Solution proposée
-
-### Fichier à modifier : `src/components/compare/PrepTimeRankingBars.tsx`
-
-**1. Importer les bonnes fonctions du contexte (ligne 54)**
+**1. Mettre à jour les imports du contexte (ligne 53)**
 
 ```typescript
 // AVANT
-const { toggleRestaurantSelection, setPeriodMode, setDateRange: setContextDateRange } = useAnalyticsContext();
+const { toggleRestaurantSelection, setSelectedMonth, setSelectedYear, setPeriodMode } = useAnalyticsContext();
 
-// APRÈS
+// APRÈS  
 const { 
   setSelectedRestaurants, 
   setVisibleRestaurants,
@@ -42,23 +35,39 @@ const {
 } = useAnalyticsContext();
 ```
 
-**2. Modifier la fonction handleRestaurantClick (lignes 60-81)**
+**2. Ajouter le dateRange en prop du composant**
+
+Le composant doit recevoir la période sélectionnée depuis la page parent.
+
+```typescript
+// Props
+interface DowntimeRankingBarsProps {
+  stats: RestaurantStat[];
+  dateRange: { start: Date; end: Date };  // Ajouter cette prop
+}
+
+export const DowntimeRankingBars = ({ stats, dateRange }: DowntimeRankingBarsProps) => {
+```
+
+**3. Réécrire la fonction handleRestaurantClick (lignes 56-65)**
 
 ```typescript
 const handleRestaurantClick = (restaurantId: string) => {
-  // REMPLACER la sélection par ce seul restaurant (au lieu de toggle)
+  // REMPLACER la sélection par ce seul restaurant
   setVisibleRestaurants([restaurantId]);
   setSelectedRestaurants([restaurantId]);
+  
+  // Utiliser la période de la page Comparaison (range)
   setPeriodMode("range");
   setContextDateRange({ from: dateRange.start, to: dateRange.end });
   
-  // Mettre à jour localStorage avec le BON restaurant
+  // Mettre à jour localStorage pour persister le contexte
   const currentState = localStorage.getItem("analytics-context");
   const state = currentState ? JSON.parse(currentState) : {};
   const updatedState = {
     ...state,
-    selectedRestaurants: [restaurantId],  // ← Le restaurant cliqué
-    visibleRestaurants: [restaurantId],   // ← Le restaurant cliqué
+    selectedRestaurants: [restaurantId],
+    visibleRestaurants: [restaurantId],
     periodMode: "range",
     dateRange: {
       from: dateRange.start.toISOString(),
@@ -67,22 +76,36 @@ const handleRestaurantClick = (restaurantId: string) => {
   };
   localStorage.setItem("analytics-context", JSON.stringify(updatedState));
   
-  // Naviguer vers l'onglet Temps de préparation
-  navigate("/analytics/operations?tab=prepTime");
+  // Naviguer vers l'onglet Disponibilité
+  navigate("/analytics/operations?tab=availability");
 };
+```
+
+### Fichier à modifier : `src/pages/DowntimeComparison.tsx` (ligne 203)
+
+Passer la prop `dateRange` au composant :
+
+```typescript
+// AVANT
+<DowntimeRankingBars stats={restaurantStats} />
+
+// APRÈS
+<DowntimeRankingBars stats={restaurantStats} dateRange={dateRange} />
 ```
 
 ## Résultat attendu
 
 | Avant | Après |
 |-------|-------|
-| Clic sur Bonneuil → Affiche Athis-Mons | Clic sur Bonneuil → Affiche Bonneuil |
-| Clic sur Antony → Affiche Athis-Mons | Clic sur Antony → Affiche Antony |
-| Données incohérentes | Données du restaurant cliqué |
+| Clic Bonneuil → Athis-Mons | Clic Bonneuil → Bonneuil |
+| Clic Juvisy → Athis-Mons | Clic Juvisy → Juvisy |
+| Période: Janvier 2026 | Période: 12-18 janv. 2026 |
+| Taux: 98.6% (mois entier) | Taux: 100% (semaine sélectionnée) |
 
-## Fichier modifié
+## Fichiers modifiés
 
 | Fichier | Modification |
 |---------|--------------|
-| `src/components/compare/PrepTimeRankingBars.tsx` | Remplacer `toggleRestaurantSelection` par `setSelectedRestaurants` + `setVisibleRestaurants` avec le seul restaurant cliqué |
+| `src/components/compare/DowntimeRankingBars.tsx` | Remplacer toggle par set, passer dateRange, corriger navigation |
+| `src/pages/DowntimeComparison.tsx` | Passer dateRange comme prop |
 
