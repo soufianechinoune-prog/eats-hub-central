@@ -373,7 +373,8 @@ export function useNetworkStats({
         rating: rating != null ? parseFloat(rating.toFixed(2)) : null,
         profitability:
           profitability != null ? parseFloat(profitability.toFixed(1)) : null,
-        prepTime: prepTime != null ? parseFloat(prepTime.toFixed(1)) : null,
+        // Keep full precision; UI formatting will handle rounding to seconds.
+        prepTime: prepTime != null ? prepTime : null,
         errorRate: errorRate != null ? parseFloat(errorRate.toFixed(2)) : null,
         downtime: downtime != null ? parseFloat(downtime.toFixed(1)) : null,
         netPayout: parseFloat(netPayout.toFixed(2)),
@@ -466,8 +467,8 @@ export function useNetworkStats({
         avgProfitability != null
           ? parseFloat(avgProfitability.toFixed(1))
           : null,
-      avgPrepTime:
-        avgPrepTime != null ? parseFloat(avgPrepTime.toFixed(1)) : null,
+       // Keep full precision; UI formatting will handle rounding to seconds.
+       avgPrepTime: avgPrepTime != null ? avgPrepTime : null,
       avgErrorRate:
         avgErrorRate != null ? parseFloat(avgErrorRate.toFixed(2)) : null,
       totalDowntime:
