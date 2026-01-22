@@ -76,8 +76,8 @@ export const PrepTimeRankingBars = ({ stats, dateRange }: PrepTimeRankingBarsPro
     };
     localStorage.setItem("analytics-context", JSON.stringify(updatedState));
     
-    // Navigate with tab parameter for wait time
-    navigate("/analytics/operations?tab=waitTime");
+    // Navigate with tab parameter for prep time
+    navigate("/analytics/operations?tab=prepTime");
   };
 
   if (sortedStats.length === 0) {

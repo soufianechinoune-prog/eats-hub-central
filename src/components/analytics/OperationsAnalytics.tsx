@@ -29,6 +29,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { WaitTimeAnalytics } from "./WaitTimeAnalytics";
+import { PrepTimeAnalytics } from "./PrepTimeAnalytics";
 import { OrderAccuracyDashboard } from "@/components/operations/OrderAccuracyDashboard";
 
 interface AvailabilityData {
@@ -54,9 +55,9 @@ export function OperationsAnalytics() {
   } = useAnalyticsContext();
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"availability" | "waitTime" | "orderErrors">(() => {
+  const [activeTab, setActiveTab] = useState<"availability" | "prepTime" | "waitTime" | "orderErrors">(() => {
     const stored = localStorage.getItem("operations-active-tab");
-    if (stored === "availability" || stored === "waitTime" || stored === "orderErrors") {
+    if (stored === "availability" || stored === "prepTime" || stored === "waitTime" || stored === "orderErrors") {
       return stored;
     }
     return "availability";
@@ -70,7 +71,7 @@ export function OperationsAnalytics() {
     const tabParam = searchParams.get("tab");
 
     // Handle tab parameter for navigation from comparison pages
-    if (tabParam === "orderErrors" || tabParam === "availability" || tabParam === "waitTime") {
+    if (tabParam === "orderErrors" || tabParam === "availability" || tabParam === "waitTime" || tabParam === "prepTime") {
       setActiveTab(tabParam);
       localStorage.setItem("operations-active-tab", tabParam);
     }
@@ -560,30 +561,45 @@ export function OperationsAnalytics() {
   return (
     <div className="space-y-6">
       {/* Sub-tabs for Operations */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "availability" | "waitTime" | "orderErrors")} className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3 h-12 bg-muted/50 backdrop-blur-sm border border-border/50 p-1 rounded-xl">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "availability" | "prepTime" | "waitTime" | "orderErrors")} className="w-full">
+        <TabsList className="grid w-full max-w-3xl grid-cols-4 h-12 bg-muted/50 backdrop-blur-sm border border-border/50 p-1 rounded-xl">
           <TabsTrigger 
             value="availability" 
             className="flex items-center gap-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg transition-all duration-200"
           >
             <Store className="h-4 w-4" />
-            Disponibilité
+            <span className="hidden sm:inline">Disponibilité</span>
+            <span className="sm:hidden">Dispo</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="prepTime" 
+            className="flex items-center gap-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg transition-all duration-200"
+          >
+            <Clock className="h-4 w-4" />
+            <span className="hidden sm:inline">Temps de prépa</span>
+            <span className="sm:hidden">Prépa</span>
           </TabsTrigger>
           <TabsTrigger 
             value="waitTime" 
             className="flex items-center gap-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg transition-all duration-200"
           >
             <Timer className="h-4 w-4" />
-            Temps d'attente
+            <span className="hidden sm:inline">Temps d'attente</span>
+            <span className="sm:hidden">Attente</span>
           </TabsTrigger>
           <TabsTrigger 
             value="orderErrors" 
             className="flex items-center gap-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg transition-all duration-200"
           >
             <AlertTriangle className="h-4 w-4" />
-            Erreurs commandes
+            <span className="hidden sm:inline">Erreurs</span>
+            <span className="sm:hidden">Erreurs</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="prepTime" className="mt-6">
+          <PrepTimeAnalytics />
+        </TabsContent>
 
         <TabsContent value="waitTime" className="mt-6">
           <WaitTimeAnalytics />
