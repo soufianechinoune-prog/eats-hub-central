@@ -351,7 +351,8 @@ export function useNetworkStats({
         (sum, a) => sum + Number(a.offline_minutes || 0),
         0
       );
-      const downtime = totalOfflineMinutes > 0 ? totalOfflineMinutes / 60 : null;
+      // Show 0 if there's availability data but no downtime, null only if no data at all
+      const downtime = restoAvail.length > 0 ? totalOfflineMinutes / 60 : null;
 
       // Variations
       const revenueVariation =
