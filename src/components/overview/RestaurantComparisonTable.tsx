@@ -240,18 +240,17 @@ export function RestaurantComparisonTable({
             <TableRow className="hover:bg-transparent border-border/50">
               <TableHead className="w-12 text-xs font-semibold uppercase">#</TableHead>
               <HeaderCell column="name">Restaurant</HeaderCell>
-              <HeaderCell column="city">Ville</HeaderCell>
               <HeaderCell column="revenue" className="text-right">CA</HeaderCell>
               {showN1Comparison && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
               )}
+              <HeaderCell column="netPayout" className="text-right">Versement</HeaderCell>
+              <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
               <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
               <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>
-              <HeaderCell column="netPayout" className="text-right">Versement</HeaderCell>
               <HeaderCell column="rating" className="text-right">Note</HeaderCell>
-              <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
-              <HeaderCell column="prepTime" className="text-right">Prépa</HeaderCell>
               <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>
+              <HeaderCell column="prepTime" className="text-right">Prépa</HeaderCell>
               <HeaderCell column="downtime" className="text-right">Inactiv.</HeaderCell>
             </TableRow>
           </TableHeader>
@@ -280,9 +279,6 @@ export function RestaurantComparisonTable({
                   <TableCell className="font-semibold group-hover:text-primary transition-colors">
                     {resto.name}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {resto.city || "—"}
-                  </TableCell>
                   <TableCell className="text-right font-semibold whitespace-nowrap">
                     {formatCurrency(resto.revenue)}
                   </TableCell>
@@ -291,14 +287,19 @@ export function RestaurantComparisonTable({
                       {formatVariation(resto.revenueVariation)}
                     </TableCell>
                   )}
+                  <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                    {formatNetPayout(resto.netPayout)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
+                      {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right text-muted-foreground">
                     {resto.orders.toLocaleString("fr-FR")}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     {resto.avgBasket.toFixed(2)} €
-                  </TableCell>
-                  <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                    {formatNetPayout(resto.netPayout)}
                   </TableCell>
                   <TableCell className="text-right">
                     <span className={cn("flex items-center justify-end gap-1 font-medium", getStatusTextClass(ratingStatus))}>
@@ -307,18 +308,13 @@ export function RestaurantComparisonTable({
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
-                      {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
+                    <span className={cn("font-medium", getStatusTextClass(errorStatus))}>
+                      {resto.errorRate != null ? `${resto.errorRate.toFixed(1)}%` : "—"}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(prepStatus))}>
                       {formatMinutes(resto.prepTime)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className={cn("font-medium", getStatusTextClass(errorStatus))}>
-                      {resto.errorRate != null ? `${resto.errorRate.toFixed(1)}%` : "—"}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
@@ -333,9 +329,8 @@ export function RestaurantComparisonTable({
             {/* Network totals row */}
             <TableRow className="bg-muted/30 font-semibold border-t-2 border-border hover:bg-muted/40">
               <TableCell></TableCell>
-              <TableCell className="font-bold text-primary">RÉSEAU</TableCell>
-              <TableCell className="text-muted-foreground text-sm">
-                {stats.length} restaurants
+              <TableCell className="font-bold text-primary">
+                RÉSEAU <span className="text-muted-foreground font-normal text-sm">({stats.length} restos)</span>
               </TableCell>
               <TableCell className="text-right font-bold whitespace-nowrap">
                 {formatCurrency(networkTotals.totalRevenue)}
@@ -345,14 +340,19 @@ export function RestaurantComparisonTable({
                   {formatVariation(networkTotals.revenueVariation)}
                 </TableCell>
               )}
+              <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                {formatNetPayout(networkTotals.totalNetPayout)}
+              </TableCell>
+              <TableCell className="text-right font-semibold text-muted-foreground">
+                {networkTotals.avgProfitability != null
+                  ? `${networkTotals.avgProfitability.toFixed(1)}%`
+                  : "—"}
+              </TableCell>
               <TableCell className="text-right font-semibold">
                 {networkTotals.totalOrders.toLocaleString("fr-FR")}
               </TableCell>
               <TableCell className="text-right font-semibold whitespace-nowrap">
                 {networkTotals.avgBasket.toFixed(2)} €
-              </TableCell>
-              <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                {formatNetPayout(networkTotals.totalNetPayout)}
               </TableCell>
               <TableCell className="text-right">
                 <span className="flex items-center justify-end gap-1 font-semibold text-muted-foreground">
@@ -361,17 +361,12 @@ export function RestaurantComparisonTable({
                 </span>
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground">
-                {networkTotals.avgProfitability != null
-                  ? `${networkTotals.avgProfitability.toFixed(1)}%`
+                {networkTotals.avgErrorRate != null
+                  ? `${networkTotals.avgErrorRate.toFixed(1)}%`
                   : "—"}
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
                 {formatMinutes(networkTotals.avgPrepTime)}
-              </TableCell>
-              <TableCell className="text-right font-semibold text-muted-foreground">
-                {networkTotals.avgErrorRate != null
-                  ? `${networkTotals.avgErrorRate.toFixed(1)}%`
-                  : "—"}
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
                 {formatHours(networkTotals.totalDowntime)}
