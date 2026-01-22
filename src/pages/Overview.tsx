@@ -989,6 +989,7 @@ const Overview = () => {
               showN1Comparison={showN1Comparison}
               onToggleN1={setShowN1Comparison}
               isLoading={statsLoading}
+              onRestaurantClick={navigateToFinances}
             />
           </div>
 

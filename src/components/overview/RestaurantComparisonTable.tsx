@@ -20,6 +20,7 @@ interface RestaurantComparisonTableProps {
   showN1Comparison: boolean;
   onToggleN1: (value: boolean) => void;
   isLoading: boolean;
+  onRestaurantClick?: (restaurantId: string) => void;
 }
 
 // Format helpers
@@ -72,6 +73,7 @@ export function RestaurantComparisonTable({
   showN1Comparison,
   onToggleN1,
   isLoading,
+  onRestaurantClick,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
@@ -266,7 +268,7 @@ export function RestaurantComparisonTable({
                 <TableRow
                   key={resto.id}
                   className="cursor-pointer hover:bg-muted/50 transition-all duration-200 border-border/30 group"
-                  onClick={() => navigate(`/restaurants/${resto.id}`)}
+                  onClick={() => onRestaurantClick ? onRestaurantClick(resto.id) : navigate(`/restaurants/${resto.id}`)}
                 >
                   <TableCell>
                     <Badge
