@@ -9,18 +9,37 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PrepTimeRankingBars } from "@/components/compare/PrepTimeRankingBars";
-
 import { PrepTimeInsightsSection } from "@/components/compare/PrepTimeInsightsSection";
 import { PrepTimeHeatmapGrid } from "@/components/compare/PrepTimeHeatmapGrid";
+import { useAnalyticsContext, Platform } from "@/contexts/AnalyticsContext";
+import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 
-type PeriodType = "week" | "month" | "quarter";
+type PeriodType = "week" | "month" | "quarter" | "context";
 
 const PrepTimeComparison = () => {
   const navigate = useNavigate();
-  const [period, setPeriod] = useState<PeriodType>("week");
+  const { 
+    dateRange: contextDateRange, 
+    selectedPlatform: contextPlatform,
+    setSelectedPlatform: setContextPlatform,
+    periodMode: contextPeriodMode
+  } = useAnalyticsContext();
+  
+  // Determine initial period based on context
+  const [period, setPeriod] = useState<PeriodType>(() => {
+    if (contextDateRange?.from && contextDateRange?.to) {
+      return "context";
+    }
+    return "week";
+  });
 
-  // Calculate date range based on period
+  // Calculate date range based on period or context
   const dateRange = useMemo(() => {
+    // If using context and context has valid dates
+    if (period === "context" && contextDateRange?.from && contextDateRange?.to) {
+      return { start: contextDateRange.from, end: contextDateRange.to };
+    }
+    
     const now = new Date();
     switch (period) {
       case "week": {
@@ -38,7 +57,7 @@ const PrepTimeComparison = () => {
       default:
         return { start: subDays(now, 7), end: now };
     }
-  }, [period]);
+  }, [period, contextDateRange]);
 
   // Fetch pinned restaurants
   const { data: pinnedRestaurants } = useQuery({
@@ -54,9 +73,9 @@ const PrepTimeComparison = () => {
     },
   });
 
-  // Fetch order history data for prep times
+  // Fetch order history data for prep times with platform filter
   const { data: orderHistoryData, isLoading } = useQuery({
-    queryKey: ["prep-time-comparison", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+    queryKey: ["prep-time-comparison", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, contextPlatform],
     queryFn: async () => {
       if (!pinnedRestaurants?.length) return [];
       
@@ -65,17 +84,23 @@ const PrepTimeComparison = () => {
       let page = 0;
       const pageSize = 1000;
       let hasMore = true;
-      let data: { restaurant_id: string; initial_prep_time_minutes: number | null; order_datetime: string | null }[] = [];
+      let data: { restaurant_id: string; initial_prep_time_minutes: number | null; order_datetime: string | null; platform: string | null }[] = [];
 
       while (hasMore) {
-        const { data: pageData, error } = await supabase
+        let query = supabase
           .from("order_history")
-          .select("restaurant_id, initial_prep_time_minutes, order_datetime")
+          .select("restaurant_id, initial_prep_time_minutes, order_datetime, platform")
           .in("restaurant_id", restaurantIds)
           .gte("order_datetime", dateRange.start.toISOString())
           .lte("order_datetime", dateRange.end.toISOString())
-          .not("initial_prep_time_minutes", "is", null)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
+          .not("initial_prep_time_minutes", "is", null);
+        
+        // Apply platform filter if not global
+        if (contextPlatform !== "global") {
+          query = query.eq("platform", contextPlatform);
+        }
+        
+        const { data: pageData, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
         
         if (error) throw error;
         
@@ -187,7 +212,37 @@ const PrepTimeComparison = () => {
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
+            {/* Platform selector */}
+            <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg">
+              <Button
+                variant={contextPlatform === "uber_eats" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 px-3 gap-1.5"
+                onClick={() => setContextPlatform("uber_eats")}
+              >
+                <UberEatsIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Uber Eats</span>
+              </Button>
+              <Button
+                variant={contextPlatform === "deliveroo" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 px-3 gap-1.5"
+                onClick={() => setContextPlatform("deliveroo")}
+              >
+                <DeliverooIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Deliveroo</span>
+              </Button>
+              <Button
+                variant={contextPlatform === "global" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 px-3"
+                onClick={() => setContextPlatform("global")}
+              >
+                Global
+              </Button>
+            </div>
+            
             <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
               <Calendar className="h-4 w-4" />
               <span>{periodLabel}</span>
@@ -197,6 +252,9 @@ const PrepTimeComparison = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                {contextDateRange?.from && contextDateRange?.to && (
+                  <SelectItem value="context">Période Analytics</SelectItem>
+                )}
                 <SelectItem value="week">Semaine précédente</SelectItem>
                 <SelectItem value="month">Mois précédent</SelectItem>
                 <SelectItem value="quarter">3 derniers mois</SelectItem>
