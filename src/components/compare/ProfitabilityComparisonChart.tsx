@@ -1006,7 +1006,7 @@ export const ProfitabilityComparisonChart = ({
               data={detailedChartData}
               onClick={handleChartClick}
               style={{ cursor: onMonthClick ? "pointer" : "default" }}
-              margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+              margin={{ top: showActions ? 24 : 5, right: 5, left: 5, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis 
@@ -1059,6 +1059,27 @@ export const ProfitabilityComparisonChart = ({
                   );
                 }}
               />
+              
+              {/* Action markers as ReferenceLine - also in detailed mode */}
+              {showActions && detailedChartData.map((dataPoint) => {
+                const dateKey = dataPoint.date || dataPoint.month;
+                const dayActions = actionsByDateKey[dateKey];
+                if (!dayActions || dayActions.length === 0) return null;
+                
+                const primaryAction = dayActions[0];
+                const color = ACTION_CATEGORY_COLORS[primaryAction.category] || "#64748b";
+                
+                return (
+                  <ReferenceLine
+                    key={`action-${dateKey}`}
+                    x={dataPoint.monthLabel}
+                    stroke={color}
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    label={<ActionMarkerLabel actions={dayActions} color={color} />}
+                  />
+                );
+              })}
               
               {/* One line per restaurant */}
               {restaurantDetails
