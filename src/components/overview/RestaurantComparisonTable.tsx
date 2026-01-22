@@ -41,7 +41,7 @@ const formatMinutes = (minutes: number | null): string => {
 };
 
 const formatHours = (hours: number | null): string => {
-  if (hours == null || hours === 0) return "—";
+  if (hours == null) return "—";
   const totalMinutes = Math.round(hours * 60);
   const h = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
