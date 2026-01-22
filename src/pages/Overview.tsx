@@ -844,13 +844,15 @@ const Overview = () => {
           </div>
 
           {/* Comprehensive Restaurant Comparison Table */}
-          <RestaurantComparisonTable
-            stats={comparisonStats}
-            networkTotals={networkTotals}
-            showN1Comparison={showN1Comparison}
-            onToggleN1={setShowN1Comparison}
-            isLoading={statsLoading}
-          />
+          <div className="mt-10">
+            <RestaurantComparisonTable
+              stats={comparisonStats}
+              networkTotals={networkTotals}
+              showN1Comparison={showN1Comparison}
+              onToggleN1={setShowN1Comparison}
+              isLoading={statsLoading}
+            />
+          </div>
 
 
           {/* Avis Produits */}
