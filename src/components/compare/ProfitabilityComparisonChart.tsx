@@ -237,7 +237,14 @@ export const ProfitabilityComparisonChart = ({
       });
     } else {
       // MONTHLY aggregation from daily data
-      const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
+      // Adaptive X-axis: for current year, only show up to current month
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth(); // 0-11
+      const intervalEnd = dateRange.end.getFullYear() === currentYear 
+        ? new Date(currentYear, currentMonth, 1) // Cap at current month start
+        : dateRange.end;
+      const allMonths = eachMonthOfInterval({ start: dateRange.start, end: intervalEnd });
       
       // Aggregate current period daily data by month
       const dataByMonth: Record<string, {
