@@ -135,10 +135,10 @@ export function PromotionEvolutionChart({
       item.promoPercent = item.sales > 0 ? (item.promo / item.sales) * 100 : 0;
     });
 
-    return Object.values(aggregated).sort((a, b) => {
-      // Sort by label naturally
-      return a.label.localeCompare(b.label, 'fr', { numeric: true });
-    });
+    // Sort by date key (ISO format) for chronological order
+    const entries = Object.entries(aggregated);
+    entries.sort(([keyA], [keyB]) => keyA.localeCompare(keyB));
+    return entries.map(([_, value]) => value);
   }, [data, previousData, granularity]);
 
   // Calculate KPIs
