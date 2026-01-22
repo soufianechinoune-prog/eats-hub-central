@@ -46,6 +46,7 @@ export function WaitTimeAnalytics() {
     selectedYear,
     selectedMonth,
     periodMode,
+    dateRange: contextDateRange,
     setPeriodMode,
     setSelectedMonth,
   } = useAnalyticsContext();
@@ -56,15 +57,21 @@ export function WaitTimeAnalytics() {
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
-    if (periodMode === "month") {
+    // Custom range mode (7d, 30d, previous_week, range)
+    if ((periodMode === "range" || periodMode === "7d" || periodMode === "30d" || periodMode === "previous_week") && contextDateRange?.from && contextDateRange?.to) {
+      return { start: contextDateRange.from, end: contextDateRange.to };
+    }
+    // Month mode
+    if (periodMode === "month" || periodMode === "current_month") {
       const start = startOfMonth(new Date(selectedYear, selectedMonth - 1));
       const end = endOfMonth(new Date(selectedYear, selectedMonth - 1));
       return { start, end };
     }
+    // Year mode (default)
     const start = new Date(selectedYear, 0, 1);
     const end = new Date(selectedYear, 11, 31);
     return { start, end };
-  }, [selectedYear, selectedMonth, periodMode]);
+  }, [selectedYear, selectedMonth, periodMode, contextDateRange]);
 
   // Fetch order history data with pagination
   // Use JSON.stringify for selectedRestaurants to ensure React Query cache invalidation
@@ -387,10 +394,11 @@ export function WaitTimeAnalytics() {
     };
   }, [restaurantRanking]);
 
-  // Select data based on current view
+  // Select data based on current view - use daily for custom ranges
+  const isRangeMode = periodMode === "range" || periodMode === "7d" || periodMode === "30d" || periodMode === "previous_week";
   const chartData = selectedDay
     ? hourlyEvolution
-    : periodMode === "month"
+    : (periodMode === "month" || periodMode === "current_month" || isRangeMode)
       ? dailyEvolution
       : monthlyEvolution;
 
