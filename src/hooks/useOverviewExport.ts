@@ -493,9 +493,114 @@ export function useOverviewExport() {
         pdf.text(`Page ${pageNum}/${totalPages}`, pageWidth - margin - 20, pageHeight - 5);
       };
 
-      // ========== PAGE 1: Overview (existing) ==========
+      // ========== PAGE 1: Overview with KPIs ==========
       drawHeader(1, "Vue d'ensemble - Toutes plateformes");
-      // ... existing overview page content would go here ...
+      
+      const kpiStartY = 55;
+      const cardWidth = (pageWidth - margin * 2 - 20) / 3;
+      const cardHeight = 50;
+      
+      // Helper to draw a KPI card
+      const drawKpiCard = (x: number, y: number, width: number, height: number, title: string, metrics: { label: string; value: string; color?: { r: number; g: number; b: number } }[]) => {
+        // Card background with subtle border
+        pdf.setFillColor(255, 255, 255);
+        pdf.setDrawColor(229, 231, 235);
+        pdf.roundedRect(x, y, width, height, 3, 3, "FD");
+        
+        // Title
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(darkGray.r, darkGray.g, darkGray.b);
+        pdf.text(title, x + 8, y + 12);
+        
+        // Metrics
+        const metricStartY = y + 22;
+        const metricSpacing = 12;
+        
+        metrics.forEach((metric, idx) => {
+          const metricY = metricStartY + idx * metricSpacing;
+          
+          // Label
+          pdf.setFontSize(8);
+          pdf.setFont("helvetica", "normal");
+          pdf.setTextColor(gray.r, gray.g, gray.b);
+          pdf.text(metric.label, x + 8, metricY);
+          
+          // Value
+          pdf.setFontSize(9);
+          pdf.setFont("helvetica", "bold");
+          if (metric.color) {
+            pdf.setTextColor(metric.color.r, metric.color.g, metric.color.b);
+          } else {
+            pdf.setTextColor(darkGray.r, darkGray.g, darkGray.b);
+          }
+          pdf.text(metric.value, x + width - 8, metricY, { align: "right" });
+        });
+      };
+      
+      // Global metrics card
+      drawKpiCard(margin, kpiStartY, cardWidth, cardHeight, "RÉSEAU GLOBAL", [
+        { label: "Note moyenne", value: data.globalMetrics.rating != null ? data.globalMetrics.rating.toFixed(1) : "--" },
+        { label: "Temps de préparation", value: data.globalMetrics.prepTime != null ? formatMinutes(data.globalMetrics.prepTime) : "--" },
+        { label: "Taux d'erreur", value: data.globalMetrics.errorRate != null ? `${data.globalMetrics.errorRate.toFixed(1)}%` : "--", color: data.globalMetrics.errorRate != null && data.globalMetrics.errorRate > 5 ? orange : emerald },
+      ]);
+      
+      // Uber metrics card
+      drawKpiCard(margin + cardWidth + 10, kpiStartY, cardWidth, cardHeight, "UBER EATS", [
+        { label: "Note moyenne", value: data.uberMetrics.rating != null ? data.uberMetrics.rating.toFixed(1) : "--" },
+        { label: "Temps de préparation", value: data.uberMetrics.prepTime != null ? formatMinutes(data.uberMetrics.prepTime) : "--" },
+        { label: "Taux d'erreur", value: data.uberMetrics.errorRate != null ? `${data.uberMetrics.errorRate.toFixed(1)}%` : "--", color: data.uberMetrics.errorRate != null && data.uberMetrics.errorRate > 5 ? orange : emerald },
+      ]);
+      
+      // Deliveroo metrics card
+      drawKpiCard(margin + (cardWidth + 10) * 2, kpiStartY, cardWidth, cardHeight, "DELIVEROO", [
+        { label: "Note moyenne", value: data.deliverooMetrics.rating != null ? data.deliverooMetrics.rating.toFixed(1) : "--" },
+        { label: "Temps de préparation", value: data.deliverooMetrics.prepTime != null ? formatMinutes(data.deliverooMetrics.prepTime) : "--" },
+        { label: "Taux d'erreur", value: data.deliverooMetrics.errorRate != null ? `${data.deliverooMetrics.errorRate.toFixed(1)}%` : "--", color: data.deliverooMetrics.errorRate != null && data.deliverooMetrics.errorRate > 5 ? orange : emerald },
+      ]);
+      
+      // Network summary section
+      const summaryY = kpiStartY + cardHeight + 15;
+      
+      pdf.setFillColor(248, 250, 252);
+      pdf.roundedRect(margin, summaryY, pageWidth - margin * 2, 55, 3, 3, "F");
+      
+      pdf.setFontSize(11);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(darkGray.r, darkGray.g, darkGray.b);
+      pdf.text("Synthèse du réseau", margin + 10, summaryY + 12);
+      
+      // Summary metrics in 2 rows
+      const summaryMetrics = [
+        { label: "Chiffre d'affaires total", value: `${formatNumber(data.networkTotals.totalRevenue, 0)} €` },
+        { label: "Versement total", value: `${formatNumber(data.networkTotals.totalNetPayout, 0)} €` },
+        { label: "Rentabilité moyenne", value: data.networkTotals.avgProfitability != null ? `${data.networkTotals.avgProfitability.toFixed(1)}%` : "--" },
+        { label: "Commandes", value: formatNumber(data.networkTotals.totalOrders, 0) },
+        { label: "Panier moyen", value: `${data.networkTotals.avgBasket.toFixed(2)} €` },
+        { label: "Inactivité totale", value: formatHours(data.networkTotals.totalDowntime) },
+      ];
+      
+      const colCount = 3;
+      const rowCount = 2;
+      const metricWidth = (pageWidth - margin * 2 - 20) / colCount;
+      
+      summaryMetrics.forEach((metric, idx) => {
+        const col = idx % colCount;
+        const row = Math.floor(idx / colCount);
+        const x = margin + 10 + col * metricWidth;
+        const y = summaryY + 22 + row * 16;
+        
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(gray.r, gray.g, gray.b);
+        pdf.text(metric.label, x, y);
+        
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(emerald.r, emerald.g, emerald.b);
+        pdf.text(metric.value, x + metricWidth - 10, y, { align: "right" });
+      });
+      
       drawFooter(1);
 
       // ========== PAGE 2: Comparison Table ==========
