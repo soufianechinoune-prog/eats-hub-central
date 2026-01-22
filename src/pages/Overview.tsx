@@ -316,6 +316,7 @@ const Overview = () => {
           .gte("order_datetime", startDate.toISOString())
           .lte("order_datetime", endDate.toISOString())
           .in("restaurant_id", restaurantIds)
+          .not("initial_prep_time_minutes", "is", null)
           .order("order_datetime", { ascending: true })
           .order("restaurant_id", { ascending: true })
           .range(historyPage * PAGE_SIZE, (historyPage + 1) * PAGE_SIZE - 1);

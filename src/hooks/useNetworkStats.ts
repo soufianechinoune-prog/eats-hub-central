@@ -201,6 +201,7 @@ export function useNetworkStats({
           .gte("order_datetime", startDate.toISOString())
           .lte("order_datetime", endDate.toISOString())
           .in("restaurant_id", restaurantIds)
+          .not("initial_prep_time_minutes", "is", null)
           .order("order_datetime", { ascending: true })
           .order("restaurant_id", { ascending: true })
           .range(page * pageSize, (page + 1) * pageSize - 1);
