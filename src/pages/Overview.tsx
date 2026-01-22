@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext, PeriodMode } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Star, Clock, TrendingDown, Percent, PauseCircle, Award, FileDown, FileSpreadsheet, ChevronRight, RefreshCw } from "lucide-react";
+import { Star, Clock, TrendingDown, TrendingUp, Percent, PauseCircle, Award, FileDown, FileSpreadsheet, ChevronRight, RefreshCw } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
@@ -200,7 +200,7 @@ const Overview = () => {
           deliveroo: { rating: null, prepTime: null, errorRate: null, incorrectOrderRate: null, profitability: null, downtime: null },
           topByRating: [], flopByRating: [], topByRevenue: [], flopByRevenue: [], topByProfitability: [], flopByProfitability: [],
           topByConversion: [], flopByConversion: [],
-          topProducts: [], improvementProducts: [], totalRestaurants: 0, hasData: false,
+          topProducts: [], bestSellingProducts: [], totalRestaurants: 0, hasData: false,
           debugInfo: { periodMode, startDateStr, endDateStr, pinnedRestaurants: 0, salesRowsTotal: 0, reviewsRowsTotal: 0, salesByRestaurant: [], reviewsByRestaurant: [], buildTimestamp: BUILD_TIMESTAMP },
         };
       }
@@ -369,6 +369,34 @@ const Overview = () => {
 
       if (conversionError) console.error("Error fetching conversion:", conversionError);
       console.log("Conversion data:", conversionData?.length, "rows");
+
+      // 9. Fetch order_items for best-selling products (via orders table for date filtering)
+      const { data: ordersForItems, error: ordersForItemsError } = await supabase
+        .from("orders")
+        .select("id")
+        .gte("order_datetime", startDate.toISOString())
+        .lte("order_datetime", endDate.toISOString())
+        .in("restaurant_id", restaurantIds)
+        .range(0, 10000);
+
+      if (ordersForItemsError) console.error("Error fetching orders for items:", ordersForItemsError);
+      
+      let orderItemsData: Array<{ item_title: string; quantity: number }> = [];
+      if (ordersForItems && ordersForItems.length > 0) {
+        const orderIds = ordersForItems.map(o => o.id);
+        // Fetch in chunks to avoid query limits
+        const chunkSize = 500;
+        for (let i = 0; i < orderIds.length; i += chunkSize) {
+          const chunk = orderIds.slice(i, i + chunkSize);
+          const { data: items, error: itemsError } = await supabase
+            .from("order_items")
+            .select("item_title, quantity")
+            .in("order_id", chunk);
+          if (itemsError) console.error("Error fetching order items:", itemsError);
+          if (items) orderItemsData = [...orderItemsData, ...items];
+        }
+      }
+      console.log("Order items data:", orderItemsData.length, "rows");
 
       // Calculate aggregated metrics
       const totalRevenue = dailySalesData?.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0) || 0;
@@ -596,42 +624,35 @@ const Overview = () => {
             .sort((a, b) => b.approvalRate - a.approvalRate)
             .slice(0, 5);
         })(),
-        improvementProducts: (() => {
+        bestSellingProducts: (() => {
           const productMap = new Map<string, {
             title: string;
-            thumbsUp: number;
-            thumbsDown: number;
+            quantity: number;
           }>();
 
-          menuReviewsData?.forEach(review => {
-            const title = review.item_title?.trim() || "Unknown";
+          orderItemsData?.forEach(item => {
+            const title = item.item_title?.trim() || "Unknown";
             const key = title.toLowerCase();
             
             if (!productMap.has(key)) {
-              productMap.set(key, { title, thumbsUp: 0, thumbsDown: 0 });
+              productMap.set(key, { title, quantity: 0 });
             }
             
             const prod = productMap.get(key)!;
-            prod.thumbsUp += review.thumb_up || 0;
-            prod.thumbsDown += review.thumb_down || 0;
+            prod.quantity += item.quantity || 0;
           });
 
           return Array.from(productMap.values())
-            .filter(p => (p.thumbsUp + p.thumbsDown) > 0)
-            .filter(p => p.thumbsDown > 0) // Only products with at least 1 negative review
+            .filter(p => p.quantity > 0)
             .filter(p => !p.title.toLowerCase().includes('article inconnu'))
             .filter(p => !p.title.toLowerCase().includes('unknown item'))
-            .map(p => {
-              const total = p.thumbsUp + p.thumbsDown;
-              return {
-                name: p.title,
-                rating: `${Math.round((p.thumbsUp / total) * 100)}%`,
-                reviews: total,
-                approvalRate: Math.round((p.thumbsUp / total) * 100)
-              };
-            })
-            .sort((a, b) => a.approvalRate - b.approvalRate)
-            .slice(0, 5);
+            .filter(p => !p.title.toLowerCase().includes('unknown'))
+            .sort((a, b) => b.quantity - a.quantity)
+            .slice(0, 5)
+            .map(p => ({
+              name: p.title,
+              quantity: p.quantity
+            }));
         })(),
         totalRestaurants: restaurants?.length || 0,
         hasData: (dailySalesData?.length || 0) > 0 || (reviewsData?.length || 0) > 0,
@@ -970,35 +991,32 @@ const Overview = () => {
               </CardContent>
             </Card>
 
-            {/* Products to Improve */}
+            {/* Best Selling Products */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <TrendingDown className="h-5 w-5 text-warning" />
-                  Produits à améliorer
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  Produits les plus vendus
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {networkData?.improvementProducts && networkData.improvementProducts.length > 0 ? (
+                {networkData?.bestSellingProducts && networkData.bestSellingProducts.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Produit</TableHead>
-                        <TableHead className="text-right">Note</TableHead>
-                        <TableHead className="text-right">Avis</TableHead>
+                        <TableHead className="text-right">Quantité</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {networkData.improvementProducts.map((product, idx) => (
+                      {networkData.bestSellingProducts.map((product, idx) => (
                         <TableRow key={idx}>
                           <TableCell className="font-medium">{product.name}</TableCell>
                           <TableCell className="text-right">
-                            <span className="flex items-center justify-end gap-1 text-warning/70 font-semibold">
-                              <Star className="h-3 w-3 fill-warning/70" />
-                              {product.rating}
+                            <span className="font-semibold text-primary">
+                              {product.quantity.toLocaleString('fr-FR')}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right text-muted-foreground">{product.reviews}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
