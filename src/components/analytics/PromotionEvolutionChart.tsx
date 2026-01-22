@@ -315,7 +315,6 @@ export function PromotionEvolutionChart({
                 formatter={(value) => {
                   if (value === "promo") return "Montant Promos (€)";
                   if (value === "promoPercent") return "% du CA";
-                  if (value === "prevPromoPercent") return "% du CA N-1";
                   return value;
                 }}
               />
@@ -339,20 +338,6 @@ export function PromotionEvolutionChart({
                 animationDuration={CHART_ANIMATION_DURATION}
                 animationEasing={CHART_ANIMATION_EASING}
               />
-              {previousData && previousData.length > 0 && (
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="prevPromoPercent"
-                  name="prevPromoPercent"
-                  stroke="hsl(var(--muted-foreground))"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={false}
-                  animationDuration={CHART_ANIMATION_DURATION}
-                  animationEasing={CHART_ANIMATION_EASING}
-                />
-              )}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
