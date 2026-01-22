@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { subWeeks, startOfWeek, endOfWeek, format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -15,7 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
-
+import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
+import { useNetworkStats } from "@/hooks/useNetworkStats";
 // Build timestamp for cache verification
 const BUILD_TIMESTAMP = new Date().toISOString();
 // Formater les minutes en "X min Y s" (ex: 4.5 → "4 min 30 s")
@@ -45,6 +46,7 @@ const Overview = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [rankingTab, setRankingTab] = useState<"rating" | "revenue" | "profitability" | "conversion">("rating");
+  const [showN1Comparison, setShowN1Comparison] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { exportToPdf, exportToExcel, isExporting } = useOverviewExport();
@@ -572,6 +574,36 @@ const Overview = () => {
     },
   });
 
+  // Use centralized network stats hook for the comparison table
+  const pinnedRestaurantIds = useMemo(() => {
+    // Extract restaurant IDs from networkData if available
+    return networkData?.topByRevenue?.map(r => r.id) || 
+           networkData?.topByRating?.map(r => r.id) || 
+           [];
+  }, [networkData?.topByRevenue, networkData?.topByRating]);
+
+  // Fetch pinned restaurant IDs directly for the table
+  const { data: pinnedIds } = useQuery({
+    queryKey: ["pinned-restaurant-ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("is_active", true)
+        .eq("is_pinned", true);
+      if (error) throw error;
+      return data?.map(r => r.id) || [];
+    },
+  });
+
+  const { stats: comparisonStats, networkTotals, isLoading: statsLoading } = useNetworkStats({
+    restaurantIds: pinnedIds || [],
+    startDate,
+    endDate,
+    profitabilityBase: "gross",
+    includeN1Comparison: showN1Comparison,
+  });
+
   console.log("Query state - isLoading:", isLoading, "error:", error, "data:", networkData);
 
   const MONTHS_FULL = [
@@ -813,6 +845,15 @@ const Overview = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Comprehensive Restaurant Comparison Table */}
+          <RestaurantComparisonTable
+            stats={comparisonStats}
+            networkTotals={networkTotals}
+            showN1Comparison={showN1Comparison}
+            onToggleN1={setShowN1Comparison}
+            isLoading={statsLoading}
+          />
 
           {/* Top & Flop Restaurants with Modern Tabs */}
           <Tabs value={rankingTab} onValueChange={(v) => setRankingTab(v as typeof rankingTab)} className="w-full">
