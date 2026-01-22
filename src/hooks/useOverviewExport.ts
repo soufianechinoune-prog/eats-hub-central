@@ -698,15 +698,15 @@ export function useOverviewExport() {
       };
 
       // Sheet 1: Comparison Table with styling
+      // New column order: Restaurant - CA - Versement - Rentab - Commandes - Panier - Notes - Erreur - Prépa - Inactiv
       const comparisonHeaders = data.showN1
-        ? ["#", "Restaurant", "Ville", "CA (€)", "vs N-1 (%)", "Cmds", "Panier (€)", "Versement (€)", "Note", "Rentab. (%)", "Prépa", "Erreurs (%)", "Inactiv."]
-        : ["#", "Restaurant", "Ville", "CA (€)", "Cmds", "Panier (€)", "Versement (€)", "Note", "Rentab. (%)", "Prépa", "Erreurs (%)", "Inactiv."];
+        ? ["#", "Restaurant", "CA (€)", "vs N-1 (%)", "Versement (€)", "Rentab. (%)", "Cmds", "Panier (€)", "Note", "Erreurs (%)", "Prépa", "Inactiv."]
+        : ["#", "Restaurant", "CA (€)", "Versement (€)", "Rentab. (%)", "Cmds", "Panier (€)", "Note", "Erreurs (%)", "Prépa", "Inactiv."];
 
       const comparisonRows = data.restaurantComparison.map((r, idx) => {
         const baseRow: (string | number)[] = [
           idx + 1,
           r.name,
-          r.city || "",
           Math.round(r.revenue * 100) / 100,
         ];
 
@@ -716,13 +716,13 @@ export function useOverviewExport() {
 
         return [
           ...baseRow,
+          Math.round(r.netPayout * 100) / 100,
+          r.profitability != null ? Math.round(r.profitability * 10) / 10 : "",
           r.orders,
           Math.round(r.avgBasket * 100) / 100,
-          Math.round(r.netPayout * 100) / 100,
           r.rating != null ? Math.round(r.rating * 10) / 10 : "",
-          r.profitability != null ? Math.round(r.profitability * 10) / 10 : "",
-          r.prepTime != null ? `${Math.round(r.prepTime)} min` : "",
           r.errorRate != null ? Math.round(r.errorRate * 10) / 10 : "",
+          r.prepTime != null ? `${Math.round(r.prepTime)} min` : "",
           r.downtime != null ? `${r.downtime.toFixed(1)}h` : "",
         ];
       });
@@ -732,30 +732,28 @@ export function useOverviewExport() {
         ? [
             "",
             "RÉSEAU",
-            `${data.restaurantComparison.length} restaurants`,
             Math.round(data.networkTotals.totalRevenue * 100) / 100,
             data.networkTotals.revenueVariation != null ? Math.round(data.networkTotals.revenueVariation * 10) / 10 : "",
+            Math.round(data.networkTotals.totalNetPayout * 100) / 100,
+            data.networkTotals.avgProfitability != null ? Math.round(data.networkTotals.avgProfitability * 10) / 10 : "",
             data.networkTotals.totalOrders,
             Math.round(data.networkTotals.avgBasket * 100) / 100,
-            Math.round(data.networkTotals.totalNetPayout * 100) / 100,
             data.networkTotals.avgRating != null ? Math.round(data.networkTotals.avgRating * 10) / 10 : "",
-            data.networkTotals.avgProfitability != null ? Math.round(data.networkTotals.avgProfitability * 10) / 10 : "",
-            data.networkTotals.avgPrepTime != null ? `${Math.round(data.networkTotals.avgPrepTime)} min` : "",
             data.networkTotals.avgErrorRate != null ? Math.round(data.networkTotals.avgErrorRate * 10) / 10 : "",
+            data.networkTotals.avgPrepTime != null ? `${Math.round(data.networkTotals.avgPrepTime)} min` : "",
             data.networkTotals.totalDowntime != null ? `${data.networkTotals.totalDowntime.toFixed(1)}h` : "",
           ]
         : [
             "",
             "RÉSEAU",
-            `${data.restaurantComparison.length} restaurants`,
             Math.round(data.networkTotals.totalRevenue * 100) / 100,
+            Math.round(data.networkTotals.totalNetPayout * 100) / 100,
+            data.networkTotals.avgProfitability != null ? Math.round(data.networkTotals.avgProfitability * 10) / 10 : "",
             data.networkTotals.totalOrders,
             Math.round(data.networkTotals.avgBasket * 100) / 100,
-            Math.round(data.networkTotals.totalNetPayout * 100) / 100,
             data.networkTotals.avgRating != null ? Math.round(data.networkTotals.avgRating * 10) / 10 : "",
-            data.networkTotals.avgProfitability != null ? Math.round(data.networkTotals.avgProfitability * 10) / 10 : "",
-            data.networkTotals.avgPrepTime != null ? `${Math.round(data.networkTotals.avgPrepTime)} min` : "",
             data.networkTotals.avgErrorRate != null ? Math.round(data.networkTotals.avgErrorRate * 10) / 10 : "",
+            data.networkTotals.avgPrepTime != null ? `${Math.round(data.networkTotals.avgPrepTime)} min` : "",
             data.networkTotals.totalDowntime != null ? `${data.networkTotals.totalDowntime.toFixed(1)}h` : "",
           ];
 
@@ -770,23 +768,22 @@ export function useOverviewExport() {
           row.map((cell, colIdx) => ({
             v: cell,
             s: rowIdx % 2 === 0 
-              ? (colIdx <= 2 ? dataStyleLeft : dataStyle)
-              : { ...(colIdx <= 2 ? dataStyleLeft : dataStyle), fill: { fgColor: { rgb: "F9FAFB" } } },
+              ? (colIdx <= 1 ? dataStyleLeft : dataStyle)
+              : { ...(colIdx <= 1 ? dataStyleLeft : dataStyle), fill: { fgColor: { rgb: "F9FAFB" } } },
           }))
         ),
         totalsRowData.map((cell, colIdx) => ({
           v: cell,
-          s: colIdx <= 2 ? totalsStyleLeft : totalsStyle,
+          s: colIdx <= 1 ? totalsStyleLeft : totalsStyle,
         })),
       ];
 
       const comparisonSheet = XLSX.utils.aoa_to_sheet(sheetData);
 
-      // Set column widths
+      // Set column widths (without Ville column)
       const baseColWidths = [
         { wch: 4 },   // #
         { wch: 28 },  // Restaurant
-        { wch: 18 },  // Ville
         { wch: 14 },  // CA
       ];
       
@@ -795,13 +792,13 @@ export function useOverviewExport() {
       }
       
       baseColWidths.push(
+        { wch: 14 },  // Versement
+        { wch: 12 },  // Rentabilite
         { wch: 10 },  // Commandes
         { wch: 12 },  // Panier
-        { wch: 14 },  // Versement
         { wch: 8 },   // Note
-        { wch: 12 },  // Rentabilite
-        { wch: 10 },  // Temps Prepa
         { wch: 12 },  // Erreurs
+        { wch: 10 },  // Temps Prepa
         { wch: 10 },  // Inactivite
       );
 
