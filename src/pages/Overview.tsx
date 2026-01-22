@@ -650,8 +650,11 @@ const Overview = () => {
             prod.thumbsDown += review.thumb_down || 0;
           });
 
+          // Minimum 5 reviews threshold to ensure statistical significance
+          const MIN_REVIEWS_THRESHOLD = 5;
+          
           return Array.from(productMap.values())
-            .filter(p => (p.thumbsUp + p.thumbsDown) > 0)
+            .filter(p => (p.thumbsUp + p.thumbsDown) >= MIN_REVIEWS_THRESHOLD)
             .filter(p => !p.title.toLowerCase().includes('article inconnu'))
             .filter(p => !p.title.toLowerCase().includes('unknown item'))
             .map(p => {
