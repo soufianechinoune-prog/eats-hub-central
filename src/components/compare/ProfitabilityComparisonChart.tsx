@@ -3,7 +3,7 @@ import { format, eachMonthOfInterval, eachDayOfInterval, startOfMonth, subYears,
 import { fr } from "date-fns/locale";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, ReferenceLine
+  Tooltip, ResponsiveContainer, ReferenceLine, Legend
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { 
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { 
   Percent, LayoutList, ChartArea,
-  ArrowUp, ArrowDown, Minus, Download, ArrowLeftRight, Flag, HelpCircle, BarChart3, Coins
+  ArrowUp, ArrowDown, Minus, Download, ArrowLeftRight, Flag, HelpCircle, BarChart3, Coins, Users, TrendingUp
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -33,6 +33,13 @@ import {
 import * as XLSX from "xlsx";
 import { useAnalyticsContext, type ProfitabilityBase } from "@/contexts/AnalyticsContext";
 import { useRestaurantActions, ACTION_CATEGORY_COLORS, type RestaurantAction } from "@/hooks/useRestaurantActions";
+import { Badge } from "@/components/ui/badge";
+
+// Color palette for detailed restaurant lines
+const RESTAURANT_COLORS = [
+  "#10b981", "#f59e0b", "#3b82f6", "#ec4899", "#8b5cf6", 
+  "#ef4444", "#06b6d4", "#84cc16", "#f97316", "#6366f1"
+];
 
 // Daily order data from useFinancesDrilldown (same source as "Par Jour" table)
 interface DailyOrderData {
@@ -47,6 +54,13 @@ interface DailyOrderData {
   refund_incl_vat: number;    // Remboursements
   avg_basket: number;         // Panier moyen
   total_payout: number;       // Versement total
+  restaurant_id?: string;     // Optional: for detailed mode
+}
+
+interface RestaurantInfo {
+  id: string;
+  name: string;
+  city?: string;
 }
 
 interface ProfitabilityComparisonChartProps {
@@ -65,9 +79,13 @@ interface ProfitabilityComparisonChartProps {
   selectedActionIds?: Set<string>;
   // Rolling period date ranges for legend harmonization
   rollingPeriodRanges?: { currentRange: string; prevRange: string };
+  // Detailed mode: per-restaurant data
+  dailyOrdersDataByRestaurant?: Record<string, DailyOrderData[]>;
+  restaurantDetails?: RestaurantInfo[];
 }
 
 type ViewMode = "chart" | "table";
+type ChartMode = "average" | "detailed";
 
 // Calculate variation
 const calcVariation = (current: number, previous: number): number | null => {
@@ -120,9 +138,20 @@ export const ProfitabilityComparisonChart = ({
   showActions = false,
   selectedActionIds,
   rollingPeriodRanges,
+  dailyOrdersDataByRestaurant,
+  restaurantDetails = [],
 }: ProfitabilityComparisonChartProps) => {
   // Get profitability base from context
   const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
+  
+  // Chart mode: average (default) or detailed (per-restaurant)
+  const [chartMode, setChartMode] = useState<ChartMode>("average");
+  
+  // For detailed mode: which restaurants are visible
+  const [hiddenRestaurants, setHiddenRestaurants] = useState<Set<string>>(new Set());
+  
+  // Only enable detailed mode when we have multiple restaurants and data
+  const canShowDetailed = (restaurantIds?.length ?? 0) > 1 && dailyOrdersDataByRestaurant && Object.keys(dailyOrdersDataByRestaurant).length > 1;
   
   // Fetch actions for the chart
   const year = dateRange.start.getFullYear();
@@ -292,6 +321,87 @@ export const ProfitabilityComparisonChart = ({
     }
   }, [dailyOrdersData, previousDailyOrdersData, dateRange, isShortPeriod, profitabilityBase]);
 
+  // Detailed chart data: per-restaurant profitability for multi-line view
+  const detailedChartData = useMemo(() => {
+    if (!dailyOrdersDataByRestaurant || chartMode !== "detailed") return [];
+    
+    const calcProfitability = (netPayout: number, mealVoucher: number, sales: number, promo: number): number | null => {
+      const totalPayout = netPayout + mealVoucher;
+      const denominator = profitabilityBase === 'net' 
+        ? Math.max(0, sales - promo) 
+        : sales;
+      return denominator > 0 ? (totalPayout / denominator) * 100 : null;
+    };
+
+    // Get all unique dates across all restaurants
+    const allDates = new Set<string>();
+    Object.values(dailyOrdersDataByRestaurant).forEach(restaurantData => {
+      restaurantData.forEach(day => allDates.add(day.date));
+    });
+    const sortedDates = Array.from(allDates).sort();
+
+    // Build chart data with a column per restaurant
+    return sortedDates.map(date => {
+      const baseRow: Record<string, any> = {
+        date,
+        monthLabel: format(new Date(date), isShortPeriod ? "dd/MM" : "MMM", { locale: fr }),
+        monthFull: format(new Date(date), "EEEE d MMMM yyyy", { locale: fr }),
+      };
+
+      // Add profitability for each restaurant
+      Object.entries(dailyOrdersDataByRestaurant).forEach(([restaurantId, data]) => {
+        const dayData = data.find(d => d.date === date);
+        if (dayData) {
+          baseRow[`profitability_${restaurantId}`] = calcProfitability(
+            dayData.net_payout,
+            dayData.meal_voucher_amount,
+            dayData.sales_incl_vat,
+            dayData.promo_incl_vat
+          );
+          baseRow[`sales_${restaurantId}`] = dayData.sales_incl_vat;
+          baseRow[`orders_${restaurantId}`] = dayData.order_count;
+        }
+      });
+
+      return baseRow;
+    });
+  }, [dailyOrdersDataByRestaurant, chartMode, isShortPeriod, profitabilityBase]);
+
+  // Restaurant color mapping
+  const restaurantColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    restaurantDetails.forEach((r, i) => {
+      map[r.id] = RESTAURANT_COLORS[i % RESTAURANT_COLORS.length];
+    });
+    return map;
+  }, [restaurantDetails]);
+
+  // Get short restaurant name
+  const getShortName = (name: string): string => {
+    if (name.length <= 15) return name;
+    const words = name.split(/[\s-]+/);
+    if (words.length >= 2) {
+      return words.slice(0, 2).join(" ");
+    }
+    return name.substring(0, 12) + "...";
+  };
+
+  // Toggle restaurant visibility in detailed mode
+  const toggleRestaurant = (restaurantId: string) => {
+    setHiddenRestaurants(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(restaurantId)) {
+        newSet.delete(restaurantId);
+      } else {
+        // Don't hide if it would hide all restaurants
+        if (newSet.size < restaurantDetails.length - 1) {
+          newSet.add(restaurantId);
+        }
+      }
+      return newSet;
+    });
+  };
+
   // Handle chart click to navigate to Finances
   const handleChartClick = (data: any) => {
     if (!onMonthClick || !data?.activePayload?.[0]) return;
@@ -364,6 +474,30 @@ export const ProfitabilityComparisonChart = ({
 
   // Check if we have previous data
   const hasPrevData = prevTotalSales > 0;
+
+  // Dynamic Y-axis domain with zoom effect (like Panier Moyen)
+  const detailedProfitabilityDomain = useMemo(() => {
+    if (chartMode !== "detailed" || detailedChartData.length === 0) return [50, 70];
+    
+    const values: number[] = [];
+    detailedChartData.forEach(row => {
+      restaurantDetails.forEach(r => {
+        const val = row[`profitability_${r.id}`];
+        if (typeof val === 'number' && val > 0) values.push(val);
+      });
+    });
+    
+    if (values.length === 0) return [50, 70];
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 5;
+    
+    return [
+      Math.floor(Math.max(0, min - range * 0.2)),
+      Math.ceil(Math.min(100, max + range * 0.2))
+    ];
+  }, [detailedChartData, chartMode, restaurantDetails]);
 
   // Dynamic Y-axis domain with zoom effect (like Panier Moyen)
   const profitabilityDomain = useMemo(() => {
@@ -599,6 +733,60 @@ export const ProfitabilityComparisonChart = ({
         
         {/* Right: Controls */}
         <div className="flex items-center gap-2">
+          {/* Chart mode toggle (Moyenne/Détaillé) - only show when multiple restaurants */}
+          {canShowDetailed && (
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+              <TooltipProvider>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className={cn(
+                        "h-7 px-2 transition-all gap-1",
+                        chartMode === 'average' 
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => setChartMode('average')}
+                    >
+                      <TrendingUp className="h-3.5 w-3.5" />
+                      <span className="text-xs">Moyenne</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="font-medium">Vue moyenne</p>
+                    <p className="text-xs text-muted-foreground">Rentabilité agrégée du réseau</p>
+                  </TooltipContent>
+                </UITooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className={cn(
+                        "h-7 px-2 transition-all gap-1",
+                        chartMode === 'detailed' 
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => setChartMode('detailed')}
+                    >
+                      <Users className="h-3.5 w-3.5" />
+                      <span className="text-xs">Détaillé</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="font-medium">Vue détaillée</p>
+                    <p className="text-xs text-muted-foreground">Une courbe par restaurant</p>
+                  </TooltipContent>
+                </UITooltip>
+              </TooltipProvider>
+            </div>
+          )}
+          
           {/* Profitability base toggle (Brut/Net) */}
           <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
             <TooltipProvider>
@@ -775,9 +963,122 @@ export const ProfitabilityComparisonChart = ({
         </div>
       </div>
       
+      {/* Detailed mode: restaurant legend */}
+      {chartMode === "detailed" && canShowDetailed && (
+        <div className="flex flex-wrap gap-2 px-2">
+          {restaurantDetails.map((restaurant) => {
+            const isHidden = hiddenRestaurants.has(restaurant.id);
+            const color = restaurantColorMap[restaurant.id];
+            return (
+              <Badge
+                key={restaurant.id}
+                variant="outline"
+                className={cn(
+                  "cursor-pointer transition-all text-xs py-1 px-2",
+                  isHidden 
+                    ? "opacity-40 bg-muted" 
+                    : "hover:opacity-80"
+                )}
+                style={{ 
+                  borderColor: color,
+                  backgroundColor: isHidden ? undefined : `${color}15`,
+                  color: isHidden ? undefined : color
+                }}
+                onClick={() => toggleRestaurant(restaurant.id)}
+              >
+                <div 
+                  className="w-2 h-2 rounded-full mr-1.5 shrink-0" 
+                  style={{ backgroundColor: color }}
+                />
+                {getShortName(restaurant.name)}
+              </Badge>
+            );
+          })}
+        </div>
+      )}
+      
       {/* Chart - Line only with smooth curves (like Panier Moyen) */}
       <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%">
+          {chartMode === "detailed" && canShowDetailed && detailedChartData.length > 0 ? (
+            /* Detailed mode: multiple lines, one per restaurant */
+            <LineChart 
+              data={detailedChartData}
+              onClick={handleChartClick}
+              style={{ cursor: onMonthClick ? "pointer" : "default" }}
+              margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+              <XAxis 
+                dataKey="monthLabel" 
+                className="text-xs"
+                tick={{ fontSize: 12 }}
+                interval={isShortPeriod ? "preserveStartEnd" : 0}
+              />
+              <YAxis 
+                domain={detailedProfitabilityDomain}
+                className="text-xs"
+                tickFormatter={(v) => `${v}%`}
+              />
+              <Tooltip 
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const data = payload[0]?.payload;
+                  if (!data) return null;
+                  
+                  return (
+                    <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-sm min-w-[200px]">
+                      <p className="font-semibold mb-2 capitalize">{data.monthFull}</p>
+                      <div className="space-y-1.5">
+                        {restaurantDetails
+                          .filter(r => !hiddenRestaurants.has(r.id))
+                          .map(restaurant => {
+                            const profitability = data[`profitability_${restaurant.id}`];
+                            const color = restaurantColorMap[restaurant.id];
+                            return (
+                              <div key={restaurant.id} className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="w-2.5 h-2.5 rounded-full shrink-0" 
+                                    style={{ backgroundColor: color }} 
+                                  />
+                                  <span className="text-muted-foreground text-xs truncate max-w-[120px]">
+                                    {getShortName(restaurant.name)}
+                                  </span>
+                                </div>
+                                <span className="font-semibold" style={{ color }}>
+                                  {profitability !== null && profitability !== undefined 
+                                    ? `${profitability.toFixed(1)}%` 
+                                    : "--"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+              
+              {/* One line per restaurant */}
+              {restaurantDetails
+                .filter(r => !hiddenRestaurants.has(r.id))
+                .map((restaurant) => (
+                  <Line
+                    key={restaurant.id}
+                    type="monotone"
+                    dataKey={`profitability_${restaurant.id}`}
+                    name={restaurant.name}
+                    stroke={restaurantColorMap[restaurant.id]}
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: restaurantColorMap[restaurant.id] }}
+                    activeDot={{ r: 5 }}
+                    connectNulls
+                  />
+                ))}
+            </LineChart>
+          ) : (
+            /* Average mode: single aggregated line with N-1 comparison */
             <LineChart 
               data={chartData}
               onClick={handleChartClick}
@@ -844,8 +1145,9 @@ export const ProfitabilityComparisonChart = ({
                 connectNulls
               />
             </LineChart>
-          </ResponsiveContainer>
-        </div>
+          )}
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 };
