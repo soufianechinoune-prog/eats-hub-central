@@ -1,160 +1,74 @@
 
-# Correction : Temps de préparation manquant pour Athis-Mons
+
+# Unifier le calcul du temps de préparation
 
 ## Problème identifié
 
-Le temps de préparation d'Athis-Mons n'apparaît pas dans la table "Comparatif des restaurants" sur la Vue d'ensemble, alors qu'il s'affiche correctement sur la page "Comparaison Temps de préparation".
+Les deux pages (Vue d'ensemble et Comparaison Prep Time) affichent des valeurs différentes car :
 
-## Cause racine
+| Page | Période | Filtre SQL |
+|------|---------|------------|
+| Vue d'ensemble | 30 derniers jours glissants | Pas de filtre `IS NOT NULL` dans la requête |
+| Comparaison | Mois précédent complet | Filtre `.not("initial_prep_time_minutes", "is", null)` |
 
-La requête `order_history` dans **deux fichiers** est limitée à **1000 lignes** (limite par défaut de l'API Supabase) au lieu de paginer correctement :
+**Valeur réelle en base** (22 déc 2025 - 22 jan 2026) : **6m 53s** (6.88 min sur 3127 commandes)
 
-| Fichier | Problème |
-|---------|----------|
-| `src/pages/Overview.tsx` (ligne 302-308) | `.range(0, 50000)` mais pas de pagination |
-| `src/hooks/useNetworkStats.ts` (ligne 192-198) | `.range(0, 50000)` mais pas de pagination |
+## Solution : Unifier le filtre SQL
 
-**Preuve dans les logs console** :
-```
-Order history data: 1000 rows  ← Limité à 1000
-```
-
-Alors que les données réelles sont **1998 lignes** pour la période, dont **665 pour Athis-Mons**.
-
-Le problème est que `.range(0, 50000)` ne contourne pas la limite de 1000 lignes de l'API REST Supabase. Une pagination explicite est nécessaire.
-
-## Solution
-
-Implémenter une pagination correcte comme dans `PrepTimeComparison.tsx` (qui fonctionne) :
-
-```typescript
-// Pattern de pagination à appliquer
-let allOrderHistory: Array<{...}> = [];
-let page = 0;
-const pageSize = 1000;
-let hasMore = true;
-
-while (hasMore) {
-  const { data: pageData, error } = await supabase
-    .from("order_history")
-    .select("restaurant_id, initial_prep_time_minutes, ...")
-    .gte("order_datetime", startDate.toISOString())
-    .lte("order_datetime", endDate.toISOString())
-    .in("restaurant_id", restaurantIds)
-    .range(page * pageSize, (page + 1) * pageSize - 1);
-  
-  if (error) throw error;
-  
-  if (pageData && pageData.length > 0) {
-    allOrderHistory = [...allOrderHistory, ...pageData];
-    hasMore = pageData.length === pageSize;
-    page++;
-  } else {
-    hasMore = false;
-  }
-}
-```
+Ajouter le filtre `.not("initial_prep_time_minutes", "is", null)` directement dans les requêtes SQL plutôt que de filtrer en JavaScript après coup. Cela garantit :
+- Moins de données transférées
+- Calcul identique partout
+- Cohérence avec PrepTimeComparison.tsx
 
 ## Fichiers à modifier
 
 ### 1. `src/pages/Overview.tsx`
 
-**Lignes 301-311** - Remplacer la requête simple par une boucle de pagination :
+**Ligne ~315** - Ajouter le filtre `NOT NULL` dans la boucle de pagination :
 
 ```typescript
-// AVANT (bugué)
-const { data: orderHistoryData, error: historyError } = await supabase
+// Dans la boucle while (historyHasMore)
+const { data: historyPageData, error: historyError } = await supabase
   .from("order_history")
-  .select("...")
-  .range(0, 50000);
-
-// APRÈS (paginé)
-let orderHistoryData: Array<{...}> = [];
-let historyPage = 0;
-let historyHasMore = true;
-const PAGE_SIZE = 1000;
-
-while (historyHasMore) {
-  const { data: historyPageData, error: historyError } = await supabase
-    .from("order_history")
-    .select("restaurant_id, initial_prep_time_minutes, avoidable_wait_time_minutes, order_datetime, platform")
-    .gte("order_datetime", startDate.toISOString())
-    .lte("order_datetime", endDate.toISOString())
-    .in("restaurant_id", restaurantIds)
-    .order("order_datetime", { ascending: true })
-    .order("restaurant_id", { ascending: true })
-    .range(historyPage * PAGE_SIZE, (historyPage + 1) * PAGE_SIZE - 1);
-
-  if (historyError) {
-    console.error("Error fetching order history:", historyError);
-    break;
-  }
-
-  if (historyPageData && historyPageData.length > 0) {
-    orderHistoryData = [...orderHistoryData, ...historyPageData];
-    historyHasMore = historyPageData.length === PAGE_SIZE;
-    historyPage++;
-  } else {
-    historyHasMore = false;
-  }
-}
-console.log("Order history data (paginated):", orderHistoryData.length, "rows");
+  .select("restaurant_id, initial_prep_time_minutes, avoidable_wait_time_minutes, order_datetime, platform")
+  .gte("order_datetime", startDate.toISOString())
+  .lte("order_datetime", endDate.toISOString())
+  .in("restaurant_id", restaurantIds)
+  .not("initial_prep_time_minutes", "is", null)  // ← AJOUTER
+  .order("order_datetime", { ascending: true })
+  .order("restaurant_id", { ascending: true })
+  .range(historyPage * PAGE_SIZE, (historyPage + 1) * PAGE_SIZE - 1);
 ```
 
 ### 2. `src/hooks/useNetworkStats.ts`
 
-**Lignes 186-204** - Même correction pour le hook centralisé :
+**Ligne ~198** - Même correction dans le hook centralisé :
 
 ```typescript
-// Fetch order history for prep times with pagination
-const { data: orderHistoryData, isLoading: historyLoading } = useQuery({
-  queryKey: ["network-stats-history", restaurantIds, startDateStr, endDateStr],
-  queryFn: async () => {
-    if (restaurantIds.length === 0) return [];
-    
-    let allData: Array<{ restaurant_id: string; initial_prep_time_minutes: number | null }> = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data: pageData, error } = await supabase
-        .from("order_history")
-        .select("restaurant_id, initial_prep_time_minutes")
-        .gte("order_datetime", startDate.toISOString())
-        .lte("order_datetime", endDate.toISOString())
-        .in("restaurant_id", restaurantIds)
-        .order("order_datetime", { ascending: true })
-        .order("restaurant_id", { ascending: true })
-        .range(page * pageSize, (page + 1) * pageSize - 1);
-
-      if (error) throw error;
-
-      if (pageData && pageData.length > 0) {
-        allData = [...allData, ...pageData];
-        hasMore = pageData.length === pageSize;
-        page++;
-      } else {
-        hasMore = false;
-      }
-    }
-    return allData;
-  },
-  enabled: restaurantIds.length > 0,
-});
+// Dans la boucle while (hasMore)
+const { data: pageData, error } = await supabase
+  .from("order_history")
+  .select("restaurant_id, initial_prep_time_minutes")
+  .gte("order_datetime", startDate.toISOString())
+  .lte("order_datetime", endDate.toISOString())
+  .in("restaurant_id", restaurantIds)
+  .not("initial_prep_time_minutes", "is", null)  // ← AJOUTER
+  .order("order_datetime", { ascending: true })
+  .order("restaurant_id", { ascending: true })
+  .range(page * pageSize, (page + 1) * pageSize - 1);
 ```
+
+## Note importante
+
+Les valeurs peuvent encore différer légèrement entre Overview et Comparaison si les **périodes sélectionnées** sont différentes :
+- Overview "30 derniers jours" ≠ Comparaison "Mois précédent"
+
+C'est normal et attendu. L'important est que pour une **même période**, les valeurs soient identiques.
 
 ## Résultat attendu
 
 | Avant | Après |
 |-------|-------|
-| Athis-Mons : "—" (null) | Athis-Mons : "6m 33s" |
-| 1000 lignes order_history | ~1998 lignes (toutes) |
+| Calculs différents selon la page | Calcul unifié via même filtre SQL |
+| Filtre JS post-requête (moins fiable) | Filtre SQL direct (plus efficace) |
 
-## Autres requêtes à vérifier (optionnel)
-
-Les mêmes problèmes de pagination pourraient exister pour :
-- `hourly_availability` (ligne 233-237 dans useNetworkStats)
-- `order_errors` (ligne 314-320 dans Overview.tsx)
-
-Ces requêtes utilisent aussi `.range(0, X)` sans pagination. À corriger si les volumes de données augmentent.
