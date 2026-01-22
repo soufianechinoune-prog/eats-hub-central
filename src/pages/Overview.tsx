@@ -371,51 +371,74 @@ const Overview = () => {
       console.log("Conversion data:", conversionData?.length, "rows");
 
       // 9. Fetch order_items for best-selling products (via orders table for date filtering)
-      const { data: ordersForItems, error: ordersForItemsError } = await supabase
-        .from("orders")
-        .select("id")
-        .gte("order_datetime", startDate.toISOString())
-        .lte("order_datetime", endDate.toISOString())
-        .in("restaurant_id", restaurantIds)
-        .range(0, 10000);
+      // IMPORTANT: orders can exceed 10k rows on large periods -> paginate to avoid silent truncation.
+      let ordersForItems: Array<{ id: string; order_datetime: string | null }> = [];
+      let ordersOffset = 0;
+      let ordersHasMore = true;
+      while (ordersHasMore) {
+        const { data: ordersPage, error: ordersForItemsError } = await supabase
+          .from("orders")
+          .select("id, order_datetime")
+          .gte("order_datetime", startDate.toISOString())
+          .lte("order_datetime", endDate.toISOString())
+          .in("restaurant_id", restaurantIds)
+          // Deterministic sort for stable pagination
+          .order("order_datetime", { ascending: true })
+          .order("id", { ascending: true })
+          .range(ordersOffset, ordersOffset + PAGE_SIZE - 1);
 
-      if (ordersForItemsError) console.error("Error fetching orders for items:", ordersForItemsError);
-      
+        if (ordersForItemsError) {
+          console.error("Error fetching orders for items:", ordersForItemsError);
+          break;
+        }
+
+        if (ordersPage && ordersPage.length > 0) {
+          ordersForItems = [...ordersForItems, ...ordersPage];
+          ordersOffset += PAGE_SIZE;
+          ordersHasMore = ordersPage.length === PAGE_SIZE;
+        } else {
+          ordersHasMore = false;
+        }
+      }
+
       let orderItemsData: Array<{ item_title: string; quantity: number }> = [];
-      if (ordersForItems && ordersForItems.length > 0) {
-        const orderIds = ordersForItems.map(o => o.id);
-        // Fetch in chunks to avoid query limits
-        const chunkSize = 300; // Reduced to stay under 1000 items per chunk
+      if (ordersForItems.length > 0) {
+        const orderIds = ordersForItems.map((o) => o.id);
+
+        // Fetch in chunks to avoid query limits / overly long URLs
+        const chunkSize = 100;
         for (let i = 0; i < orderIds.length; i += chunkSize) {
           const chunk = orderIds.slice(i, i + chunkSize);
-          
-          // Internal pagination to ensure all items are fetched
+
+          // Internal pagination to ensure all items are fetched for this chunk
           let offset = 0;
           let hasMore = true;
           while (hasMore) {
             const { data: items, error: itemsError } = await supabase
               .from("order_items")
-              .select("item_title, quantity")
+              .select("id, item_title, quantity")
               .in("order_id", chunk)
+              // Stable pagination
               .order("order_id", { ascending: true })
-              .range(offset, offset + 999);
-            
+              .order("id", { ascending: true })
+              .range(offset, offset + PAGE_SIZE - 1);
+
             if (itemsError) {
               console.error("Error fetching order items:", itemsError);
               break;
             }
-            
+
             if (items && items.length > 0) {
               orderItemsData = [...orderItemsData, ...items];
-              offset += 1000;
-              hasMore = items.length === 1000;
+              offset += PAGE_SIZE;
+              hasMore = items.length === PAGE_SIZE;
             } else {
               hasMore = false;
             }
           }
         }
       }
-      console.log("Order items data:", orderItemsData.length, "rows");
+      console.log("Orders for items:", ordersForItems.length, "orders | Order items:", orderItemsData.length, "rows");
 
       // Calculate aggregated metrics
       const totalRevenue = dailySalesData?.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0) || 0;
