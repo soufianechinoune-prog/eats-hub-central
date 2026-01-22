@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { ProfitabilityComparisonTable } from "./ProfitabilityComparisonTable";
 import { OrdersAnalysisSection } from "./OrdersAnalysisSection";
 import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
@@ -7,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ActionFilterPopover } from "./ActionFilterPopover";
 import { useFinancesDrilldown } from "@/hooks/useFinancesDrilldown";
-// The chart only needs these fields for aggregation and calculation
 
 interface RestaurantAction {
   id: string;
@@ -81,7 +81,7 @@ export function FinancesSection({
   const hasActions = globalActions.length > 0;
 
   // Fetch daily data from orders table for the chart (same source as "Par Jour" table)
-  const { dailyData: chartDailyData, isLoading: isChartLoading } = useFinancesDrilldown({
+  const { dailyData: chartDailyData, dailyDataByRestaurant, isLoading: isChartLoading } = useFinancesDrilldown({
     restaurantIds: selectedRestaurants.length > 0 
       ? selectedRestaurants 
       : restaurants?.map(r => r.id) || [],
@@ -90,6 +90,14 @@ export function FinancesSection({
     granularity: 'daily',
     enabled: true,
   });
+
+  // Prepare restaurant details for the chart
+  const chartRestaurantDetails = useMemo(() => {
+    const activeIds = selectedRestaurants.length > 0 
+      ? selectedRestaurants 
+      : restaurants?.map(r => r.id) || [];
+    return restaurants?.filter(r => activeIds.includes(r.id)) || [];
+  }, [restaurants, selectedRestaurants]);
 
   return (
     <div className="space-y-6">
@@ -150,6 +158,8 @@ export function FinancesSection({
           platform={selectedPlatform}
           showActions={showActions}
           selectedActionIds={selectedActionIds}
+          dailyOrdersDataByRestaurant={dailyDataByRestaurant}
+          restaurantDetails={chartRestaurantDetails}
         />
       )}
 

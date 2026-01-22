@@ -385,6 +385,69 @@ export function useFinancesDrilldown({
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [ordersData, granularity]);
 
+  // Process daily data BY RESTAURANT for detailed chart view
+  const dailyDataByRestaurant = useMemo((): Record<string, DailyFinanceData[]> => {
+    if (granularity !== "daily" || !ordersData?.length) return {};
+
+    // Group by restaurant then by date
+    const byRestaurantAndDate: Record<string, Record<string, { 
+      sales: number; 
+      refund: number; 
+      count: number;
+      uberFee: number;
+      promo: number;
+      netPayout: number;
+      mealVoucher: number;
+    }>> = {};
+
+    ordersData.forEach(order => {
+      if (!order.order_datetime || !order.restaurant_id) return;
+      const date = order.order_datetime.split("T")[0];
+      const restaurantId = order.restaurant_id;
+      
+      if (!byRestaurantAndDate[restaurantId]) {
+        byRestaurantAndDate[restaurantId] = {};
+      }
+      
+      if (!byRestaurantAndDate[restaurantId][date]) {
+        byRestaurantAndDate[restaurantId][date] = { 
+          sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 
+        };
+      }
+      
+      byRestaurantAndDate[restaurantId][date].sales += Math.abs(Number(order.sales_incl_vat) || 0);
+      byRestaurantAndDate[restaurantId][date].refund += Math.abs(Number(order.refund_incl_vat) || 0);
+      byRestaurantAndDate[restaurantId][date].uberFee += Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
+      byRestaurantAndDate[restaurantId][date].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
+      byRestaurantAndDate[restaurantId][date].netPayout += Number(order.net_payout) || 0;
+      byRestaurantAndDate[restaurantId][date].mealVoucher += Number(order.meal_voucher_amount) || 0;
+      byRestaurantAndDate[restaurantId][date].count += 1;
+    });
+
+    // Convert to output format
+    const result: Record<string, DailyFinanceData[]> = {};
+    
+    Object.entries(byRestaurantAndDate).forEach(([restaurantId, dateData]) => {
+      result[restaurantId] = Object.entries(dateData)
+        .map(([date, stats]) => ({
+          date,
+          label: format(new Date(date), "EEE dd MMM", { locale: fr }),
+          sales_incl_vat: stats.sales,
+          refund_incl_vat: stats.refund,
+          order_count: stats.count,
+          avg_basket: stats.count > 0 ? stats.sales / stats.count : 0,
+          uber_fee_incl_vat: stats.uberFee,
+          promo_incl_vat: stats.promo,
+          net_payout: stats.netPayout,
+          meal_voucher_amount: stats.mealVoucher,
+          total_payout: stats.netPayout + stats.mealVoucher,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    });
+
+    return result;
+  }, [ordersData, granularity]);
+
   // Process hourly data with additional financial columns
   const hourlyData = useMemo((): HourlyFinanceData[] => {
     if (granularity !== "hourly" || !ordersData?.length) return [];
@@ -570,6 +633,7 @@ export function useFinancesDrilldown({
 
   return {
     dailyData,
+    dailyDataByRestaurant,
     hourlyData,
     productData,
     orderData,
