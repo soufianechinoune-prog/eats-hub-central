@@ -2135,8 +2135,20 @@ export function AnalyticsCharts({
               {/* Interactive Legend */}
               <InteractiveLegend
                 items={[
-                  { key: 'revenue', label: `CA ${currentLabel}`, color: 'hsl(var(--primary))' },
-                  ...((drillDownMonth ? hasDrillDownPrevData : hasPrevData) ? [{ key: 'prevRevenue', label: `CA ${prevLabel}`, color: 'hsl(var(--muted-foreground))' }] : []),
+                  { 
+                    key: 'revenue', 
+                    label: `CA ${comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.currentRange 
+                      ? rollingPeriodDateRanges.currentRange 
+                      : currentLabel}`, 
+                    color: 'hsl(var(--primary))' 
+                  },
+                  ...((drillDownMonth ? hasDrillDownPrevData : hasPrevData) ? [{ 
+                    key: 'prevRevenue', 
+                    label: `CA ${comparisonMode === "rollingPeriod" && rollingPeriodDateRanges.prevRange 
+                      ? rollingPeriodDateRanges.prevRange 
+                      : prevLabel}`, 
+                    color: 'hsl(var(--muted-foreground))' 
+                  }] : []),
                 ]}
                 hiddenKeys={hiddenRevenueBars}
                 onToggle={toggleRevenueBar}
