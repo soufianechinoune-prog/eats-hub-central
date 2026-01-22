@@ -561,9 +561,12 @@ export function useOverviewExport() {
       
       // Network summary section
       const summaryY = kpiStartY + cardHeight + 15;
+      const summaryHeight = 55;
       
+      // Draw summary card with border
       pdf.setFillColor(248, 250, 252);
-      pdf.roundedRect(margin, summaryY, pageWidth - margin * 2, 55, 3, 3, "F");
+      pdf.setDrawColor(229, 231, 235);
+      pdf.roundedRect(margin, summaryY, pageWidth - margin * 2, summaryHeight, 3, 3, "FD");
       
       pdf.setFontSize(11);
       pdf.setFont("helvetica", "bold");
@@ -600,6 +603,17 @@ export function useOverviewExport() {
         pdf.setTextColor(emerald.r, emerald.g, emerald.b);
         pdf.text(metric.value, x + metricWidth - 10, y, { align: "right" });
       });
+      
+      // Bottom decorative bar
+      const bottomBarY = summaryY + summaryHeight + 20;
+      pdf.setFillColor(emerald.r, emerald.g, emerald.b);
+      pdf.rect(margin, bottomBarY, pageWidth - margin * 2, 4, "F");
+      
+      // Small note text
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "italic");
+      pdf.setTextColor(gray.r, gray.g, gray.b);
+      pdf.text("Données consolidées sur la période sélectionnée - Toutes plateformes confondues", margin, bottomBarY + 12);
       
       drawFooter(1);
 
