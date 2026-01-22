@@ -183,22 +183,39 @@ export function useNetworkStats({
     enabled: restaurantIds.length > 0,
   });
 
-  // Fetch order history for prep times
+  // Fetch order history for prep times (paginated)
   const { data: orderHistoryData, isLoading: historyLoading } = useQuery({
     queryKey: ["network-stats-history", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (restaurantIds.length === 0) return [];
       
-      const { data, error } = await supabase
-        .from("order_history")
-        .select("restaurant_id, initial_prep_time_minutes")
-        .gte("order_datetime", startDate.toISOString())
-        .lte("order_datetime", endDate.toISOString())
-        .in("restaurant_id", restaurantIds)
-        .range(0, 50000);
+      let allData: Array<{ restaurant_id: string; initial_prep_time_minutes: number | null }> = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
-      return data || [];
+      while (hasMore) {
+        const { data: pageData, error } = await supabase
+          .from("order_history")
+          .select("restaurant_id, initial_prep_time_minutes")
+          .gte("order_datetime", startDate.toISOString())
+          .lte("order_datetime", endDate.toISOString())
+          .in("restaurant_id", restaurantIds)
+          .order("order_datetime", { ascending: true })
+          .order("restaurant_id", { ascending: true })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) throw error;
+
+        if (pageData && pageData.length > 0) {
+          allData = [...allData, ...pageData];
+          hasMore = pageData.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+      return allData;
     },
     enabled: restaurantIds.length > 0,
   });
