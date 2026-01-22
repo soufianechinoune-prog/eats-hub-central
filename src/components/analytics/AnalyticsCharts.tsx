@@ -1034,11 +1034,6 @@ export function AnalyticsCharts({
         prevMonthlyData[item.month].orders += item.order_count || 0;
       });
       
-      // Determine max month to display for current year (adaptive X-axis)
-      const currentYear = new Date().getFullYear();
-      const currentMonth = new Date().getMonth() + 1; // 1-12
-      const maxMonthToShow = selectedYear === currentYear ? currentMonth : 12;
-      
       return Array.from({ length: 12 }, (_, i) => ({
         month: MONTHS[i],
         monthNum: i + 1,
@@ -1049,7 +1044,7 @@ export function AnalyticsCharts({
           : 0,
         prevRevenue: prevMonthlyData[i + 1]?.revenue || 0,
         prevOrders: prevMonthlyData[i + 1]?.orders || 0,
-      })).filter(d => filterByRange(d.monthNum) && d.monthNum <= maxMonthToShow);
+      })).filter(d => filterByRange(d.monthNum));
     }
   }, [revenueData, prevRevenueData, startMonth, endMonth, granularity, comparisonMode]);
 
