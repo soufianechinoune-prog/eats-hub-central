@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { type RestaurantNetworkStats, type NetworkTotals } from "@/hooks/useNetworkStats";
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
 
-type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "rating" | "profitability" | "prepTime" | "errorRate" | "downtime";
+type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
 type SortDirection = "asc" | "desc";
 
 interface RestaurantComparisonTableProps {
@@ -32,12 +32,10 @@ const formatCurrency = (value: number) => {
   }).format(value) + " €";
 };
 
-const formatMinutes = (minutes: number | null): string => {
+const formatMinutesLong = (minutes: number | null): string => {
   if (minutes == null) return "—";
-  const totalSeconds = Math.round(minutes * 60);
-  const mins = Math.floor(totalSeconds / 60);
-  const secs = totalSeconds % 60;
-  return `${mins}m${secs > 0 ? ` ${secs}s` : ""}`;
+  const mins = Math.round(minutes);
+  return `${mins}min`;
 };
 
 const formatHours = (hours: number | null): string => {
@@ -84,8 +82,8 @@ export function RestaurantComparisonTable({
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
       setSortColumn(column);
-      // Default to desc for most metrics (higher is better), asc for prepTime, errorRate, downtime
-      setSortDirection(["prepTime", "errorRate", "downtime"].includes(column) ? "asc" : "desc");
+      // Default to desc for most metrics (higher is better), asc for totalDeliveryTime, errorRate, downtime
+      setSortDirection(["totalDeliveryTime", "errorRate", "downtime"].includes(column) ? "asc" : "desc");
     }
   };
 
@@ -136,9 +134,9 @@ export function RestaurantComparisonTable({
           aVal = a.profitability ?? -999;
           bVal = b.profitability ?? -999;
           break;
-        case "prepTime":
-          aVal = a.prepTime ?? 999;
-          bVal = b.prepTime ?? 999;
+        case "totalDeliveryTime":
+          aVal = a.totalDeliveryTime ?? 999;
+          bVal = b.totalDeliveryTime ?? 999;
           break;
         case "errorRate":
           aVal = a.errorRate ?? 999;
@@ -252,7 +250,7 @@ export function RestaurantComparisonTable({
               <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>
               <HeaderCell column="rating" className="text-right">Note</HeaderCell>
               <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>
-              <HeaderCell column="prepTime" className="text-right">Prépa</HeaderCell>
+              <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>
               <HeaderCell column="downtime" className="text-right">Inactiv.</HeaderCell>
             </TableRow>
           </TableHeader>
@@ -260,7 +258,7 @@ export function RestaurantComparisonTable({
             {sortedStats.map((resto, idx) => {
               const ratingStatus = getMetricStatus("rating", resto.rating);
               const profitStatus = getMetricStatus("profitability", resto.profitability);
-              const prepStatus = getMetricStatus("prepTime", resto.prepTime);
+              const totalDeliveryStatus = getMetricStatus("totalDeliveryTime", resto.totalDeliveryTime);
               const errorStatus = getMetricStatus("errorRate", resto.errorRate);
               const downtimeStatus = getMetricStatus("downtime", resto.downtime);
 
@@ -315,8 +313,8 @@ export function RestaurantComparisonTable({
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(prepStatus))}>
-                      {formatMinutes(resto.prepTime)}
+                    <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(totalDeliveryStatus))}>
+                      {formatMinutesLong(resto.totalDeliveryTime)}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
@@ -368,7 +366,7 @@ export function RestaurantComparisonTable({
                   : "—"}
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
-                {formatMinutes(networkTotals.avgPrepTime)}
+                {formatMinutesLong(networkTotals.avgTotalDeliveryTime)}
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
                 {formatHours(networkTotals.totalDowntime)}

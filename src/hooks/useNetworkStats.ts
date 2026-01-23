@@ -16,6 +16,7 @@ export interface RestaurantNetworkStats {
   profitability: number | null;
   // Operations metrics
   prepTime: number | null;
+  totalDeliveryTime: number | null; // Temps prépa+livraison moyen
   errorRate: number | null;
   downtime: number | null;
   // N-1 comparison (optional)
@@ -33,6 +34,7 @@ export interface NetworkTotals {
   avgRating: number | null;
   avgProfitability: number | null;
   avgPrepTime: number | null;
+  avgTotalDeliveryTime: number | null; // Moyenne temps prépa+livraison
   avgErrorRate: number | null;
   totalDowntime: number | null;
   // N-1 comparison
@@ -189,7 +191,11 @@ export function useNetworkStats({
     queryFn: async () => {
       if (restaurantIds.length === 0) return [];
       
-      let allData: Array<{ restaurant_id: string; initial_prep_time_minutes: number | null }> = [];
+      let allData: Array<{ 
+        restaurant_id: string; 
+        initial_prep_time_minutes: number | null;
+        total_prep_delivery_time_minutes: number | null;
+      }> = [];
       let page = 0;
       const pageSize = 1000;
       let hasMore = true;
@@ -197,11 +203,10 @@ export function useNetworkStats({
       while (hasMore) {
         const { data: pageData, error } = await supabase
           .from("order_history")
-          .select("restaurant_id, initial_prep_time_minutes")
+          .select("restaurant_id, initial_prep_time_minutes, total_prep_delivery_time_minutes")
           .gte("order_datetime", startDate.toISOString())
           .lte("order_datetime", endDate.toISOString())
           .in("restaurant_id", restaurantIds)
-          .not("initial_prep_time_minutes", "is", null)
           .order("order_datetime", { ascending: true })
           .order("restaurant_id", { ascending: true })
           .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -335,6 +340,18 @@ export function useNetworkStats({
             ) / validPrepTimes.length
           : null;
 
+      // Total delivery time (prep + delivery)
+      const validTotalDelivery = restoHistory.filter(
+        (h) => h.total_prep_delivery_time_minutes != null
+      );
+      const totalDeliveryTime =
+        validTotalDelivery.length > 0
+          ? validTotalDelivery.reduce(
+              (sum, h) => sum + Number(h.total_prep_delivery_time_minutes || 0),
+              0
+            ) / validTotalDelivery.length
+          : null;
+
       // Error rate (same formula as InaccurateOrdersComparison.tsx line 163-164)
       const restoAccuracy =
         accuracyData?.filter((a) => a.restaurant_id === resto.id) || [];
@@ -376,6 +393,7 @@ export function useNetworkStats({
           profitability != null ? parseFloat(profitability.toFixed(1)) : null,
         // Keep full precision; UI formatting will handle rounding to seconds.
         prepTime: prepTime != null ? prepTime : null,
+        totalDeliveryTime: totalDeliveryTime != null ? totalDeliveryTime : null,
         errorRate: errorRate != null ? parseFloat(errorRate.toFixed(2)) : null,
         downtime: downtime != null ? parseFloat(downtime.toFixed(1)) : null,
         netPayout: parseFloat(netPayout.toFixed(2)),
@@ -433,6 +451,13 @@ export function useNetworkStats({
           validPrepTimes.length
         : null;
 
+    const validTotalDeliveryTimes = stats.filter((s) => s.totalDeliveryTime != null);
+    const avgTotalDeliveryTime =
+      validTotalDeliveryTimes.length > 0
+        ? validTotalDeliveryTimes.reduce((sum, s) => sum + (s.totalDeliveryTime ?? 0), 0) /
+          validTotalDeliveryTimes.length
+        : null;
+
     const validErrorRates = stats.filter((s) => s.errorRate != null);
     const avgErrorRate =
       validErrorRates.length > 0
@@ -470,6 +495,7 @@ export function useNetworkStats({
           : null,
        // Keep full precision; UI formatting will handle rounding to seconds.
        avgPrepTime: avgPrepTime != null ? avgPrepTime : null,
+       avgTotalDeliveryTime: avgTotalDeliveryTime != null ? avgTotalDeliveryTime : null,
       avgErrorRate:
         avgErrorRate != null ? parseFloat(avgErrorRate.toFixed(2)) : null,
       totalDowntime:
