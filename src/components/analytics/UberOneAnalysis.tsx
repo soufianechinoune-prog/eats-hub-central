@@ -57,15 +57,16 @@ export function UberOneAnalysis() {
     dateRange: contextDateRange,
   } = useAnalyticsContext();
 
-  // Use visibleRestaurants for detailed mode (all visible chips), fallback to selected
+  // Use selectedRestaurants for calculations (active chips = dark background)
+  // Fallback to pinned restaurants via useUberOneStats when no selection
   const restaurantIdsForQuery = useMemo(() => {
-    // If we have visible restaurants (from header chips), use them
-    if (visibleRestaurants && visibleRestaurants.length > 0) {
-      return visibleRestaurants;
+    // Use selected restaurants (active ones)
+    if (selectedRestaurants && selectedRestaurants.length > 0) {
+      return selectedRestaurants;
     }
-    // Otherwise fallback to selectedRestaurants
-    return selectedRestaurants;
-  }, [visibleRestaurants, selectedRestaurants]);
+    // If no explicit selection, the hook useUberOneStats will use pinned as fallback
+    return [];
+  }, [selectedRestaurants]);
 
   const [chartMode, setChartMode] = useState<ChartMode>("average");
 
