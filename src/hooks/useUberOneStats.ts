@@ -19,6 +19,12 @@ export interface UberOneEvolutionData {
   totalOrders: number;
 }
 
+export interface UberOneEvolutionByRestaurant {
+  month: string;
+  monthLabel: string;
+  [restaurantId: string]: number | string; // restaurantId -> uberOnePercent
+}
+
 export interface UberOneByRestaurant {
   restaurantId: string;
   restaurantName: string;
@@ -150,14 +156,15 @@ export function useUberOneStats({
   }, [rawData]);
 
   // Calculate monthly evolution
+  const monthLabels = [
+    "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
+    "Juil", "Août", "Sep", "Oct", "Nov", "Déc"
+  ];
+
   const evolution = useMemo<UberOneEvolutionData[]>(() => {
     if (!rawData || rawData.length === 0) return [];
 
     const monthlyMap: Record<string, { uberOne: number; nonUberOne: number }> = {};
-    const monthLabels = [
-      "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
-      "Juil", "Août", "Sep", "Oct", "Nov", "Déc"
-    ];
 
     rawData.forEach((order) => {
       const date = new Date(order.order_datetime);
@@ -187,6 +194,48 @@ export function useUberOneStats({
           nonUberOneCount: data.nonUberOne,
           totalOrders: total,
         };
+      });
+  }, [rawData]);
+
+  // Calculate monthly evolution by restaurant
+  const evolutionByRestaurant = useMemo<UberOneEvolutionByRestaurant[]>(() => {
+    if (!rawData || rawData.length === 0) return [];
+
+    // Map: month -> restaurantId -> { uberOne, total }
+    const monthlyRestaurantMap: Record<string, Record<string, { uberOne: number; total: number }>> = {};
+
+    rawData.forEach((order) => {
+      const date = new Date(order.order_datetime);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const rid = order.restaurant_id;
+
+      if (!monthlyRestaurantMap[monthKey]) {
+        monthlyRestaurantMap[monthKey] = {};
+      }
+      if (!monthlyRestaurantMap[monthKey][rid]) {
+        monthlyRestaurantMap[monthKey][rid] = { uberOne: 0, total: 0 };
+      }
+
+      monthlyRestaurantMap[monthKey][rid].total++;
+      if (order.uber_one === true) {
+        monthlyRestaurantMap[monthKey][rid].uberOne++;
+      }
+    });
+
+    return Object.entries(monthlyRestaurantMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, restaurantData]) => {
+        const [year, monthNum] = month.split("-");
+        const result: UberOneEvolutionByRestaurant = {
+          month,
+          monthLabel: `${monthLabels[parseInt(monthNum) - 1]} ${year.slice(2)}`,
+        };
+
+        Object.entries(restaurantData).forEach(([rid, data]) => {
+          result[rid] = data.total > 0 ? (data.uberOne / data.total) * 100 : 0;
+        });
+
+        return result;
       });
   }, [rawData]);
 
@@ -281,8 +330,10 @@ export function useUberOneStats({
   return {
     globalStats,
     evolution,
+    evolutionByRestaurant,
     byRestaurant,
     comparison,
     isLoading,
+    restaurantMap,
   };
 }
