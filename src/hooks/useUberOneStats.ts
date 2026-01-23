@@ -155,86 +155,109 @@ export function useUberOneStats({
     };
   }, [rawData]);
 
-  // Calculate monthly evolution
+  // Calculate evolution with adaptive granularity
   const monthLabels = [
     "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
     "Juil", "Août", "Sep", "Oct", "Nov", "Déc"
   ];
 
+  // Use daily granularity for short periods, monthly for year view
+  const useDaily = ["month", "7d", "30d", "previous_week", "current_month", "range"].includes(periodMode);
+
   const evolution = useMemo<UberOneEvolutionData[]>(() => {
     if (!rawData || rawData.length === 0) return [];
 
-    const monthlyMap: Record<string, { uberOne: number; nonUberOne: number }> = {};
+    const dataMap: Record<string, { uberOne: number; nonUberOne: number }> = {};
 
     rawData.forEach((order) => {
       const date = new Date(order.order_datetime);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const key = useDaily 
+        ? date.toISOString().split('T')[0]  // YYYY-MM-DD
+        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;  // YYYY-MM
 
-      if (!monthlyMap[monthKey]) {
-        monthlyMap[monthKey] = { uberOne: 0, nonUberOne: 0 };
+      if (!dataMap[key]) {
+        dataMap[key] = { uberOne: 0, nonUberOne: 0 };
       }
 
       if (order.uber_one === true) {
-        monthlyMap[monthKey].uberOne++;
+        dataMap[key].uberOne++;
       } else {
-        monthlyMap[monthKey].nonUberOne++;
+        dataMap[key].nonUberOne++;
       }
     });
 
-    return Object.entries(monthlyMap)
+    return Object.entries(dataMap)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, data]) => {
-        const [year, monthNum] = month.split("-");
+      .map(([key, data]) => {
+        let label: string;
+        if (useDaily) {
+          const d = new Date(key);
+          label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
+        } else {
+          const [year, monthNum] = key.split("-");
+          label = `${monthLabels[parseInt(monthNum) - 1]} ${year.slice(2)}`;
+        }
+
         const total = data.uberOne + data.nonUberOne;
         return {
-          month,
-          monthLabel: `${monthLabels[parseInt(monthNum) - 1]} ${year.slice(2)}`,
+          month: key,
+          monthLabel: label,
           uberOnePercent: total > 0 ? (data.uberOne / total) * 100 : 0,
           uberOneCount: data.uberOne,
           nonUberOneCount: data.nonUberOne,
           totalOrders: total,
         };
       });
-  }, [rawData]);
+  }, [rawData, useDaily]);
 
-  // Calculate monthly evolution by restaurant
+  // Calculate evolution by restaurant with adaptive granularity
   const evolutionByRestaurant = useMemo<UberOneEvolutionByRestaurant[]>(() => {
     if (!rawData || rawData.length === 0) return [];
 
     // Get all unique restaurant IDs in the data
     const uniqueRestaurantIds = [...new Set(rawData.map(o => o.restaurant_id))];
 
-    // Map: month -> restaurantId -> { uberOne, total }
-    const monthlyRestaurantMap: Record<string, Record<string, { uberOne: number; total: number }>> = {};
+    // Map: key (date or month) -> restaurantId -> { uberOne, total }
+    const dataRestaurantMap: Record<string, Record<string, { uberOne: number; total: number }>> = {};
 
     rawData.forEach((order) => {
       const date = new Date(order.order_datetime);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const key = useDaily 
+        ? date.toISOString().split('T')[0]  // YYYY-MM-DD
+        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;  // YYYY-MM
       const rid = order.restaurant_id;
 
-      if (!monthlyRestaurantMap[monthKey]) {
-        monthlyRestaurantMap[monthKey] = {};
+      if (!dataRestaurantMap[key]) {
+        dataRestaurantMap[key] = {};
       }
-      if (!monthlyRestaurantMap[monthKey][rid]) {
-        monthlyRestaurantMap[monthKey][rid] = { uberOne: 0, total: 0 };
+      if (!dataRestaurantMap[key][rid]) {
+        dataRestaurantMap[key][rid] = { uberOne: 0, total: 0 };
       }
 
-      monthlyRestaurantMap[monthKey][rid].total++;
+      dataRestaurantMap[key][rid].total++;
       if (order.uber_one === true) {
-        monthlyRestaurantMap[monthKey][rid].uberOne++;
+        dataRestaurantMap[key][rid].uberOne++;
       }
     });
 
-    return Object.entries(monthlyRestaurantMap)
+    return Object.entries(dataRestaurantMap)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, restaurantData]) => {
-        const [year, monthNum] = month.split("-");
+      .map(([key, restaurantData]) => {
+        let label: string;
+        if (useDaily) {
+          const d = new Date(key);
+          label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
+        } else {
+          const [year, monthNum] = key.split("-");
+          label = `${monthLabels[parseInt(monthNum) - 1]} ${year.slice(2)}`;
+        }
+
         const result: UberOneEvolutionByRestaurant = {
-          month,
-          monthLabel: `${monthLabels[parseInt(monthNum) - 1]} ${year.slice(2)}`,
+          month: key,
+          monthLabel: label,
         };
 
-        // Normalize: include ALL restaurant IDs for each month (null if no data)
+        // Normalize: include ALL restaurant IDs for each period (null if no data)
         uniqueRestaurantIds.forEach((rid) => {
           const data = restaurantData[rid];
           result[rid] = data && data.total > 0 ? (data.uberOne / data.total) * 100 : null;
@@ -242,7 +265,7 @@ export function useUberOneStats({
 
         return result;
       });
-  }, [rawData]);
+  }, [rawData, useDaily]);
 
   // Calculate stats by restaurant
   const byRestaurant = useMemo<UberOneByRestaurant[]>(() => {
