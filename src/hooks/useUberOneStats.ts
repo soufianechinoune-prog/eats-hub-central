@@ -48,6 +48,7 @@ export interface UseUberOneStatsParams {
   startDate: Date;
   endDate: Date;
   periodMode: string;
+  platform: "uber_eats" | "deliveroo" | "global";
 }
 
 // Formater une date en YYYY-MM-DD selon le fuseau Europe/Paris
@@ -71,6 +72,7 @@ export function useUberOneStats({
   startDate,
   endDate,
   periodMode,
+  platform,
 }: UseUberOneStatsParams) {
   // Fetch pinned restaurants as fallback when no restaurants selected
   const { data: pinnedRestaurants } = useQuery({
@@ -93,7 +95,7 @@ export function useUberOneStats({
 
   // Fetch all order_history data with uber_one info
   const { data: rawData, isLoading } = useQuery({
-    queryKey: ["uber-one-stats", effectiveRestaurantIds, startDate.toISOString(), endDate.toISOString()],
+    queryKey: ["uber-one-stats", effectiveRestaurantIds, startDate.toISOString(), endDate.toISOString(), platform],
     queryFn: async () => {
       if (effectiveRestaurantIds.length === 0) return [];
 
@@ -104,16 +106,23 @@ export function useUberOneStats({
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
+        let query = supabase
           .from("order_history")
           .select(
-            "restaurant_id, order_datetime, uber_one, order_amount, initial_prep_time_minutes"
+            "restaurant_id, order_datetime, uber_one, order_amount, initial_prep_time_minutes, platform"
           )
           .in("restaurant_id", effectiveRestaurantIds)
           .gte("order_datetime", startDate.toISOString())
           .lte("order_datetime", endDate.toISOString())
           .order("order_datetime", { ascending: true })
           .range(from, from + batchSize - 1);
+
+        // Apply platform filter if not global
+        if (platform !== "global") {
+          query = query.eq("platform", platform);
+        }
+
+        const { data, error } = await query;
 
         if (error) {
           console.error("Error fetching uber one stats:", error);
