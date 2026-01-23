@@ -1,102 +1,97 @@
 
-# Ajouter la granularité journalière pour l'évolution Uber One
+# Corriger le problème de timezone dans l'évolution Uber One
 
-## Problème identifié
+## Diagnostic
 
-Quand vous sélectionnez un mois spécifique (ex: "Décembre 2025"), le graphique "Évolution % Uber One" affiche "Pas assez de données" car :
-1. Le hook `useUberOneStats` agrège **toujours** les données par mois (ligne 171 : `monthKey`)
-2. Avec un seul mois sélectionné, il n'y a qu'un point de données
-3. La condition `evolution.length > 1` (ligne 332) bloque l'affichage
+Le graphique "Évolution % Uber One" utilise des dates UTC alors que les autres graphiques du projet utilisent le fuseau horaire "Europe/Paris". Cela cause :
+
+1. **Décalage des jours** : Les commandes de fin de soirée (22h-00h heure Paris) sont attribuées au jour suivant en UTC
+2. **Pics artificiels** : Le 1er d'un mois en UTC peut accumuler des commandes de la veille (en heure Paris)
+3. **Disparition des pics** : Quand la plage s'élargit, la distribution change car les commandes sont réattribuées différemment
+
+### Exemple concret
+
+Une commande passée le **31 octobre à 23h30 (Paris)** :
+- En UTC : `2025-11-01 00:30:00+00`
+- Le code actuel l'attribue au **1er novembre** (clé `2025-11-01`)
+- Elle devrait être attribuée au **31 octobre** (jour ouvré Paris)
 
 ## Solution
 
-Adapter le hook pour basculer automatiquement en **granularité journalière** quand `periodMode === "month"` :
+Aligner le calcul des dates sur le fuseau "Europe/Paris", comme les autres graphiques du projet.
 
-### Fichier 1 : `src/hooks/useUberOneStats.ts`
+### Fichier à modifier : `src/hooks/useUberOneStats.ts`
 
-1. **Ajouter une interface pour l'évolution journalière** :
+**1. Ajouter une fonction utilitaire pour formater en heure Paris**
+
 ```typescript
-export interface UberOneEvolutionData {
-  month: string;        // Clé (YYYY-MM ou YYYY-MM-DD)
-  monthLabel: string;   // Label affiché (ex: "15 déc" ou "Déc 24")
-  uberOnePercent: number;
-  uberOneCount: number;
-  nonUberOneCount: number;
-  totalOrders: number;
+// Formater une date en YYYY-MM-DD selon le fuseau Europe/Paris
+const formatDateParis = (date: Date): string => {
+  return new Intl.DateTimeFormat('fr-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+};
+
+// Formater une date en YYYY-MM selon le fuseau Europe/Paris
+const formatMonthParis = (date: Date): string => {
+  const formatted = formatDateParis(date);
+  return formatted.slice(0, 7); // YYYY-MM
+};
+```
+
+**2. Modifier le calcul de `evolution` (lignes 172-211)**
+
+Remplacer :
+```typescript
+const date = new Date(order.order_datetime);
+const key = useDaily 
+  ? date.toISOString().split('T')[0]  // YYYY-MM-DD
+  : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+```
+
+Par :
+```typescript
+const date = new Date(order.order_datetime);
+const key = useDaily 
+  ? formatDateParis(date)  // YYYY-MM-DD en heure Paris
+  : formatMonthParis(date);  // YYYY-MM en heure Paris
+```
+
+**3. Modifier la génération des labels (lignes 193-199)**
+
+Remplacer :
+```typescript
+if (useDaily) {
+  const d = new Date(key);
+  label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
 }
 ```
 
-2. **Modifier le calcul de `evolution`** pour supporter la granularité journalière :
+Par :
 ```typescript
-const evolution = useMemo<UberOneEvolutionData[]>(() => {
-  if (!rawData || rawData.length === 0) return [];
-
-  // Utiliser granularité journalière en mode mois
-  const useDaily = periodMode === "month";
-  
-  const dataMap: Record<string, { uberOne: number; nonUberOne: number }> = {};
-
-  rawData.forEach((order) => {
-    const date = new Date(order.order_datetime);
-    const key = useDaily 
-      ? date.toISOString().split('T')[0]  // YYYY-MM-DD
-      : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;  // YYYY-MM
-
-    if (!dataMap[key]) {
-      dataMap[key] = { uberOne: 0, nonUberOne: 0 };
-    }
-
-    if (order.uber_one === true) {
-      dataMap[key].uberOne++;
-    } else {
-      dataMap[key].nonUberOne++;
-    }
-  });
-
-  const dayLabels = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
-
-  return Object.entries(dataMap)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, data]) => {
-      let label: string;
-      if (useDaily) {
-        const d = new Date(key);
-        label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
-      } else {
-        const [year, monthNum] = key.split("-");
-        label = `${monthLabels[parseInt(monthNum) - 1]} ${year.slice(2)}`;
-      }
-
-      const total = data.uberOne + data.nonUberOne;
-      return {
-        month: key,
-        monthLabel: label,
-        uberOnePercent: total > 0 ? (data.uberOne / total) * 100 : 0,
-        uberOneCount: data.uberOne,
-        nonUberOneCount: data.nonUberOne,
-        totalOrders: total,
-      };
-    });
-}, [rawData, periodMode]);
+if (useDaily) {
+  // Ajouter T12:00:00 pour éviter les décalages de timezone lors du parsing
+  const d = new Date(key + "T12:00:00");
+  label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
+}
 ```
 
-3. **Appliquer la même logique à `evolutionByRestaurant`** pour le mode détaillé par restaurant.
+**4. Appliquer les mêmes corrections à `evolutionByRestaurant` (lignes 223-268)**
 
-### Fichier 2 : `src/components/analytics/UberOneAnalysis.tsx`
-
-Le composant n'a pas besoin de changement majeur car il utilise déjà `evolution` et `monthLabel` dynamiquement.
+Même logique : utiliser `formatDateParis` et `formatMonthParis` pour les clés, et corriger le parsing pour les labels.
 
 ---
 
 ## Résultat attendu
 
-| Période sélectionnée | Granularité | Points affichés |
-|---------------------|-------------|-----------------|
-| Année 2025 | Mensuelle | 12 points (Jan-Déc) |
-| Décembre 2025 | Journalière | ~30 points (1-31 déc) |
-| Novembre 2025 | Journalière | ~30 points (1-30 nov) |
-| 7 derniers jours | Journalière | 7 points |
-| 30 derniers jours | Journalière | 30 points |
+| Avant | Après |
+|-------|-------|
+| Commande 31 oct 23h30 → Clé "2025-11-01" | Commande 31 oct 23h30 → Clé "2025-10-31" |
+| Pic artificiel le 1er du mois | Distribution réaliste |
+| Données incohérentes selon la plage | Données identiques quelle que soit la plage |
 
 ---
 
@@ -104,16 +99,26 @@ Le composant n'a pas besoin de changement majeur car il utilise déjà `evolutio
 
 | Fichier | Modification |
 |---------|--------------|
-| `src/hooks/useUberOneStats.ts` | Granularité adaptative (mensuelle vs journalière) basée sur `periodMode` |
-| `src/components/analytics/UberOneAnalysis.tsx` | Aucune modification nécessaire (déjà dynamique) |
+| `src/hooks/useUberOneStats.ts` | Utiliser le fuseau Europe/Paris pour le groupement des dates |
 
 ---
 
 ## Section technique
 
-La logique de granularité sera basée sur :
-```typescript
-const useDaily = ["month", "7d", "30d", "previous_week", "current_month", "range"].includes(periodMode);
-```
+### Pourquoi `Intl.DateTimeFormat` avec `fr-CA` ?
 
-Cela garantit que toute période courte (moins d'un an) affiche des données journalières, tandis que la vue annuelle reste mensuelle pour la lisibilité.
+- `fr-CA` retourne le format `YYYY-MM-DD` directement (ISO-compatible)
+- Combiné avec `timeZone: 'Europe/Paris'`, cela garantit le bon jour ouvré français
+
+### Pourquoi `T12:00:00` lors du parsing ?
+
+- `new Date("2025-11-01")` est interprété comme minuit UTC
+- En France (UTC+1), cela devient le 31 octobre à 23h
+- En ajoutant `T12:00:00`, on force midi local, évitant tout décalage de jour
+
+### Cohérence avec le projet
+
+Cette approche est déjà utilisée dans :
+- `useFinancesDrilldown` pour les groupements journaliers
+- Les graphiques de rentabilité
+- Toute la section "Revenus & Ventes"
