@@ -22,7 +22,7 @@ export interface UberOneEvolutionData {
 export interface UberOneEvolutionByRestaurant {
   month: string;
   monthLabel: string;
-  [restaurantId: string]: number | string; // restaurantId -> uberOnePercent
+  [restaurantId: string]: number | string | null; // restaurantId -> uberOnePercent (null if no data)
 }
 
 export interface UberOneByRestaurant {
@@ -201,6 +201,9 @@ export function useUberOneStats({
   const evolutionByRestaurant = useMemo<UberOneEvolutionByRestaurant[]>(() => {
     if (!rawData || rawData.length === 0) return [];
 
+    // Get all unique restaurant IDs in the data
+    const uniqueRestaurantIds = [...new Set(rawData.map(o => o.restaurant_id))];
+
     // Map: month -> restaurantId -> { uberOne, total }
     const monthlyRestaurantMap: Record<string, Record<string, { uberOne: number; total: number }>> = {};
 
@@ -231,8 +234,10 @@ export function useUberOneStats({
           monthLabel: `${monthLabels[parseInt(monthNum) - 1]} ${year.slice(2)}`,
         };
 
-        Object.entries(restaurantData).forEach(([rid, data]) => {
-          result[rid] = data.total > 0 ? (data.uberOne / data.total) * 100 : 0;
+        // Normalize: include ALL restaurant IDs for each month (null if no data)
+        uniqueRestaurantIds.forEach((rid) => {
+          const data = restaurantData[rid];
+          result[rid] = data && data.total > 0 ? (data.uberOne / data.total) * 100 : null;
         });
 
         return result;
@@ -335,5 +340,6 @@ export function useUberOneStats({
     comparison,
     isLoading,
     restaurantMap,
+    effectiveRestaurantIds,
   };
 }

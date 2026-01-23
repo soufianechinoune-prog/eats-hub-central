@@ -50,11 +50,22 @@ type ChartMode = "average" | "detailed";
 export function UberOneAnalysis() {
   const {
     selectedRestaurants,
+    visibleRestaurants,
     selectedYear,
     selectedMonth,
     periodMode,
     dateRange: contextDateRange,
   } = useAnalyticsContext();
+
+  // Use visibleRestaurants for detailed mode (all visible chips), fallback to selected
+  const restaurantIdsForQuery = useMemo(() => {
+    // If we have visible restaurants (from header chips), use them
+    if (visibleRestaurants && visibleRestaurants.length > 0) {
+      return visibleRestaurants;
+    }
+    // Otherwise fallback to selectedRestaurants
+    return selectedRestaurants;
+  }, [visibleRestaurants, selectedRestaurants]);
 
   const [chartMode, setChartMode] = useState<ChartMode>("average");
 
@@ -96,12 +107,15 @@ export function UberOneAnalysis() {
     }
   }, [periodMode, selectedYear, selectedMonth, contextDateRange]);
 
-  const { globalStats, evolution, evolutionByRestaurant, byRestaurant, comparison, isLoading, restaurantMap } = useUberOneStats({
-    restaurantIds: selectedRestaurants,
+  const { globalStats, evolution, evolutionByRestaurant, byRestaurant, comparison, isLoading, restaurantMap, effectiveRestaurantIds } = useUberOneStats({
+    restaurantIds: restaurantIdsForQuery,
     startDate,
     endDate,
     periodMode,
   });
+
+  // Determine if we can show detailed view based on effective restaurant count
+  const hasMultipleRestaurants = effectiveRestaurantIds && effectiveRestaurantIds.length > 1;
 
   // Calcul du domaine Y dynamique pour le graphique d'évolution
   const evolutionYDomain = useMemo(() => {
@@ -155,7 +169,7 @@ export function UberOneAnalysis() {
   };
 
   // Can show detailed view?
-  const canShowDetailed = byRestaurant.length > 1;
+  const canShowDetailed = hasMultipleRestaurants || byRestaurant.length > 1;
 
   if (isLoading) {
     return (
