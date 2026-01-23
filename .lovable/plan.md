@@ -1,91 +1,74 @@
 
-
-# Limiter la date de fin à aujourd'hui pour l'année en cours
+# Corriger le filtre de restaurants dans l'analyse Uber One
 
 ## Problème identifié
 
-Quand vous sélectionnez "2026" comme année, le système définit :
-- `startDate` = 1er janvier 2026
-- `endDate` = 31 décembre 2026
+Quand vous cliquez sur un chip de restaurant pour le désactiver (fond gris clair), les données des sections "Répartition Clientèle", "Évolution % Uber One" et "Comportement comparé" ne changent pas. Seule la section "Comparaison par restaurant" se met à jour.
 
-Mais nous sommes le 23 janvier 2026, donc :
-1. Il n'y a des données que du 1er au 23 janvier
-2. Le graphique essaie de tracer toute l'année avec un seul mois de données
-3. Le message "Pas assez de données" apparaît car la logique attend plus de points
+### Cause technique
+
+Dans `UberOneAnalysis.tsx`, le code utilise `visibleRestaurants` (tous les chips affichés) au lieu de `selectedRestaurants` (chips avec fond sombre = actifs) :
+
+```typescript
+// Code actuel (lignes 61-68)
+const restaurantIdsForQuery = useMemo(() => {
+  if (visibleRestaurants && visibleRestaurants.length > 0) {
+    return visibleRestaurants;  // ← Utilise TOUS les restaurants visibles
+  }
+  return selectedRestaurants;
+}, [visibleRestaurants, selectedRestaurants]);
+```
+
+Cela signifie que même si vous désactivez un restaurant (clic sur le chip), ses données sont toujours incluses dans les calculs.
 
 ## Solution
 
-**Ajouter une logique de "cap à aujourd'hui"** quand `selectedYear === currentYear`.
+Modifier la logique pour utiliser `selectedRestaurants` comme source de données principale, avec les restaurants épinglés comme fallback quand aucun restaurant n'est sélectionné.
 
-### Fichiers à modifier
+### Fichier à modifier : `src/components/analytics/UberOneAnalysis.tsx`
 
-**1. `src/components/analytics/UberOneAnalysis.tsx` (lignes 102-106)**
+Remplacer le `useMemo` actuel par :
 
-Remplacer :
 ```typescript
-default: // "year"
-  return {
-    startDate: startOfYear(new Date(selectedYear, 0, 1)),
-    endDate: endOfYear(new Date(selectedYear, 0, 1)),
-  };
-```
-
-Par :
-```typescript
-default: // "year"
-  const yearStart = startOfYear(new Date(selectedYear, 0, 1));
-  const yearEnd = endOfYear(new Date(selectedYear, 0, 1));
-  // Cap to today if current year
-  const effectiveEnd = selectedYear === now.getFullYear() && yearEnd > now 
-    ? now 
-    : yearEnd;
-  return {
-    startDate: yearStart,
-    endDate: effectiveEnd,
-  };
-```
-
-**2. `src/hooks/useDataGranularity.ts` (lignes 66-70)**
-
-Même correction pour assurer la cohérence globale :
-```typescript
-} else {
-  // Full year view
-  startDate = new Date(selectedYear, 0, 1);
-  const yearEnd = new Date(selectedYear, 11, 31);
-  // Cap to today if current year
-  endDate = selectedYear === today.getFullYear() && yearEnd > today 
-    ? today 
-    : yearEnd;
-  periodDays = differenceInDays(endDate, startDate) + 1;
-}
+// Utiliser selectedRestaurants pour les calculs (chips actifs = fond sombre)
+// Fallback aux restaurants épinglés si aucune sélection
+const restaurantIdsForQuery = useMemo(() => {
+  // Utiliser les restaurants sélectionnés (actifs)
+  if (selectedRestaurants && selectedRestaurants.length > 0) {
+    return selectedRestaurants;
+  }
+  // Si aucune sélection explicite, le hook useUberOneStats utilisera les épinglés comme fallback
+  return [];
+}, [selectedRestaurants]);
 ```
 
 ---
 
-## Résultat attendu
+## Comportement après correction
 
-| Sélection | Avant | Après |
-|-----------|-------|-------|
-| 2026 (janvier) | 1 jan → 31 déc 2026 | 1 jan → 23 jan 2026 |
-| 2025 | 1 jan → 31 déc 2025 | 1 jan → 31 déc 2025 (inchangé) |
-| 2024 | 1 jan → 31 déc 2024 | 1 jan → 31 déc 2024 (inchangé) |
+| Action | Avant | Après |
+|--------|-------|-------|
+| 2 restaurants affichés, tous sélectionnés | Données de 2 restaurants | Données de 2 restaurants |
+| Clic sur 1 chip pour désactiver | Données inchangées (2 restaurants) | Données mises à jour (1 restaurant) |
+| Aucun restaurant sélectionné | Données de tous les visibles | Fallback aux restaurants épinglés |
 
-Cela garantit que :
-- Les années passées restent complètes (12 mois)
-- L'année en cours est limitée aux données réellement disponibles
-- Le graphique affichera les points journaliers du 1er au 23 janvier
+Cela alignera le comportement de l'onglet Uber One avec les autres onglets de la plateforme, où cliquer sur un chip de restaurant filtre immédiatement les données affichées.
 
 ---
 
 ## Section technique
 
-La logique de "cap" utilise une comparaison simple :
-```typescript
-const effectiveEnd = selectedYear === currentYear && theoreticalEnd > now 
-  ? now 
-  : theoreticalEnd;
-```
+### Distinction `visibleRestaurants` vs `selectedRestaurants`
 
-Cette approche est déjà utilisée implicitement dans les modes "7d", "30d", et "current_month" qui prennent `today` comme référence. On applique simplement la même logique au mode "year".
+Le contexte Analytics gère deux listes :
+- **`visibleRestaurants`** : Tous les chips affichés dans l'en-tête (peuvent être actifs ou inactifs)
+- **`selectedRestaurants`** : Sous-ensemble des visibles qui sont actifs (fond sombre = inclus dans les calculs)
 
+La section "Comparaison par restaurant" fonctionne correctement car elle utilise `byRestaurant` qui est dérivé des données déjà filtrées par `useUberOneStats`. Mais comme ce hook reçoit `visibleRestaurants`, il récupère toujours toutes les données.
+
+### Impact sur les autres calculs
+
+- `globalStats` : Sera recalculé avec uniquement les restaurants sélectionnés
+- `evolution` : Graphique d'évolution mis à jour
+- `comparison` : Table "Comportement comparé" mise à jour
+- `byRestaurant` : Déjà correct (affiche le ranking des restaurants présents dans les données)
