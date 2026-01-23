@@ -1,78 +1,119 @@
 
-Objectif
-- Rendre la barre de progression “Uber One” visuellement remplie (elle est calculée mais la couleur de remplissage ne s’applique pas).
-- Afficher réellement 2–3 courbes quand 2–3 restaurants sont sélectionnés (mode “par restaurant”), sans dépendre d’un état ambigu “visible vs sélectionné”.
+# Ajouter la granularité journalière pour l'évolution Uber One
 
-Constats (depuis le code actuel)
-1) Barre de progression non visible
-- Dans `src/components/analytics/UberOneAnalysis.tsx`, le remplissage utilise des classes Tailwind `bg-chart-1` / `text-chart-1`.
-- Or dans `tailwind.config.ts`, il n’y a pas de palette `chart` déclarée (seulement `stat`, `uber`, etc.).
-- Résultat probable: `bg-chart-1` / `text-chart-1` ne génèrent pas de CSS => le “fill” est transparent, donc on voit le conteneur mais pas la barre.
+## Problème identifié
 
-2) Courbes multi-restaurants non affichées
-- Le mode “detailed” trace une `Line` par restaurant à partir de `byRestaurant` (dérivé de `rawData`) et utilise `evolutionByRestaurant` (objet par mois avec clés = restaurantId).
-- Si `selectedRestaurants` ne contient pas vraiment 2–3 IDs “actifs” (cas fréquent avec votre UX où un restaurant peut être “affiché” mais désélectionné via les badges), `useUberOneStats` ne récupère potentiellement qu’un sous-ensemble.
-- Autre point: l’UI n’indique pas clairement si vous êtes en mode “Moyenne” ou “Par restaurant”; vous pouvez avoir 3 restaurants “affichés” mais 1 seul réellement “sélectionné”, donc une seule courbe possible.
+Quand vous sélectionnez un mois spécifique (ex: "Décembre 2025"), le graphique "Évolution % Uber One" affiche "Pas assez de données" car :
+1. Le hook `useUberOneStats` agrège **toujours** les données par mois (ligne 171 : `monthKey`)
+2. Avec un seul mois sélectionné, il n'y a qu'un point de données
+3. La condition `evolution.length > 1` (ligne 332) bloque l'affichage
 
-Solution proposée (robuste)
-A) Corriger définitivement les couleurs `chart-*` dans Tailwind (solution “propre” et globale)
-1. Modifier `tailwind.config.ts` pour ajouter:
-   - `colors: { chart: { 1: "hsl(var(--chart-1))", 2: ..., 5: ... } }`
-   - Cela activera `bg-chart-1`, `text-chart-1`, etc. partout dans l’app.
-2. En complément (optionnel mais sûr): sur la barre de progression, remplacer le fond Tailwind par un inline style `backgroundColor: "hsl(var(--chart-1))"` pour garantir l’affichage même si un build cache une config (rare mais possible). On peut choisir l’une des deux approches; je recommande surtout la config Tailwind.
+## Solution
 
-B) Rendre le “mode par restaurant” fiable et aligné avec ce que vous voyez à l’écran
-1. Dans `useUberOneStats.ts`
-   - Introduire la notion d’IDs “effectifs” plus explicite:
-     - Si `restaurantIds` (selected) est vide: fallback pinned (déjà fait)
-     - Mais aussi: si vous voulez que “les restaurants affichés” soient les courbes, on peut (au choix) baser le détail sur:
-       - Option 1 (strict): uniquement les restaurants sélectionnés (actuels)
-       - Option 2 (plus intuitive pour vous): les restaurants visibles (affichés) quand c’est disponible dans le contexte
-   - Comme `useUberOneStats` ne reçoit aujourd’hui que `restaurantIds`, on va ajuster côté composant (UberOneAnalysis) pour lui fournir la liste qui correspond à l’intention utilisateur.
+Adapter le hook pour basculer automatiquement en **granularité journalière** quand `periodMode === "month"` :
 
-2. Dans `UberOneAnalysis.tsx`
-   - Récupérer `visibleRestaurants` depuis `useAnalyticsContext()` en plus de `selectedRestaurants`.
-   - Définir `restaurantIdsForDetailed`:
-     - Si `selectedRestaurants.length >= 2` => utiliser `selectedRestaurants`
-     - Sinon si `visibleRestaurants.length >= 2` => utiliser `visibleRestaurants`
-     - Sinon => fallback (comme aujourd’hui)
-   - Appeler `useUberOneStats({ restaurantIds: restaurantIdsForDetailed, ... })`
-   - Ajuster `canShowDetailed`:
-     - Basé sur le nombre de restaurants réellement utilisés pour le graphe (pas sur `byRestaurant.length` uniquement).
-   - UX: si l’utilisateur a >=2 restaurants, on peut automatiquement passer en mode “detailed” (ou au minimum afficher un libellé “Moyenne / Par restaurant” + état actif très clair).
+### Fichier 1 : `src/hooks/useUberOneStats.ts`
 
-3. Sécuriser les séries dans Recharts (cas mois sans data)
-   - Normaliser la série: pour chaque mois, garantir que chaque restaurant sélectionné a une valeur (null) plutôt qu’absence de clé, afin que Recharts trace correctement (et que la légende s’affiche). Aujourd’hui il peut manquer la clé du restaurant sur certains mois.
-   - Concrètement: au moment de construire `evolutionByRestaurant`, forcer l’ajout de toutes les clés restaurants attendues pour chaque point mensuel.
+1. **Ajouter une interface pour l'évolution journalière** :
+```typescript
+export interface UberOneEvolutionData {
+  month: string;        // Clé (YYYY-MM ou YYYY-MM-DD)
+  monthLabel: string;   // Label affiché (ex: "15 déc" ou "Déc 24")
+  uberOnePercent: number;
+  uberOneCount: number;
+  nonUberOneCount: number;
+  totalOrders: number;
+}
+```
 
-Fichiers à modifier
-- `tailwind.config.ts`
-  - Ajouter la palette `chart` (chart-1..chart-5).
-- `src/components/analytics/UberOneAnalysis.tsx`
-  - Utiliser `visibleRestaurants` pour déterminer la liste réellement “à tracer”.
-  - Rendre le toggle plus explicite et éventuellement auto-switch en “detailed” quand >=2 restaurants.
-- `src/hooks/useUberOneStats.ts`
-  - Normaliser `evolutionByRestaurant` pour inclure toutes les clés restaurants attendues chaque mois (évite “pas de courbes” selon la période).
-  - (Optionnel) Retourner aussi la liste `effectiveRestaurantIds` si besoin pour debug/affichage.
+2. **Modifier le calcul de `evolution`** pour supporter la granularité journalière :
+```typescript
+const evolution = useMemo<UberOneEvolutionData[]>(() => {
+  if (!rawData || rawData.length === 0) return [];
 
-Validation (ce que je vérifierai après implémentation)
-1) Barre:
-- À 60% Uber One, la barre violette/bleue se remplit visiblement à ~60% sur fond gris.
-- Même résultat en mode sombre.
+  // Utiliser granularité journalière en mode mois
+  const useDaily = periodMode === "month";
+  
+  const dataMap: Record<string, { uberOne: number; nonUberOne: number }> = {};
 
-2) Courbes:
-- Avec 2 restaurants sélectionnés, on voit:
-  - 2 courbes distinctes (couleurs différentes) + légende.
-  - Tooltip qui affiche la valeur + le nom restaurant correct.
-- Avec 3 restaurants, 3 courbes.
-- Sur une période où un restaurant a 0 commandes un mois donné, la courbe présente un trou (null) mais les autres restent visibles.
+  rawData.forEach((order) => {
+    const date = new Date(order.order_datetime);
+    const key = useDaily 
+      ? date.toISOString().split('T')[0]  // YYYY-MM-DD
+      : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;  // YYYY-MM
 
-Questions de clarification (rapides, pour choisir l’option la plus intuitive)
-- Quand vous dites “je sélectionne 2 ou 3 restaurants”, vous parlez:
-  1) des “chips” bleus dans la barre “Restaurants:” (affichés) ?
-  2) ou du fait qu’ils sont vraiment “actifs” (chips bleus vs gris/atténués) ?
-- Vous préférez que le mode “Par restaurant” trace:
-  - uniquement les restaurants actifs (sélectionnés),
-  - ou tous les restaurants affichés, même si certains sont désélectionnés ?
+    if (!dataMap[key]) {
+      dataMap[key] = { uberOne: 0, nonUberOne: 0 };
+    }
 
-Dès que vous confirmez ces 2 points (ou si vous me dites “par défaut: tous les affichés”), j’implémente la version la plus logique pour votre usage.
+    if (order.uber_one === true) {
+      dataMap[key].uberOne++;
+    } else {
+      dataMap[key].nonUberOne++;
+    }
+  });
+
+  const dayLabels = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
+
+  return Object.entries(dataMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, data]) => {
+      let label: string;
+      if (useDaily) {
+        const d = new Date(key);
+        label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
+      } else {
+        const [year, monthNum] = key.split("-");
+        label = `${monthLabels[parseInt(monthNum) - 1]} ${year.slice(2)}`;
+      }
+
+      const total = data.uberOne + data.nonUberOne;
+      return {
+        month: key,
+        monthLabel: label,
+        uberOnePercent: total > 0 ? (data.uberOne / total) * 100 : 0,
+        uberOneCount: data.uberOne,
+        nonUberOneCount: data.nonUberOne,
+        totalOrders: total,
+      };
+    });
+}, [rawData, periodMode]);
+```
+
+3. **Appliquer la même logique à `evolutionByRestaurant`** pour le mode détaillé par restaurant.
+
+### Fichier 2 : `src/components/analytics/UberOneAnalysis.tsx`
+
+Le composant n'a pas besoin de changement majeur car il utilise déjà `evolution` et `monthLabel` dynamiquement.
+
+---
+
+## Résultat attendu
+
+| Période sélectionnée | Granularité | Points affichés |
+|---------------------|-------------|-----------------|
+| Année 2025 | Mensuelle | 12 points (Jan-Déc) |
+| Décembre 2025 | Journalière | ~30 points (1-31 déc) |
+| Novembre 2025 | Journalière | ~30 points (1-30 nov) |
+| 7 derniers jours | Journalière | 7 points |
+| 30 derniers jours | Journalière | 30 points |
+
+---
+
+## Fichiers modifiés
+
+| Fichier | Modification |
+|---------|--------------|
+| `src/hooks/useUberOneStats.ts` | Granularité adaptative (mensuelle vs journalière) basée sur `periodMode` |
+| `src/components/analytics/UberOneAnalysis.tsx` | Aucune modification nécessaire (déjà dynamique) |
+
+---
+
+## Section technique
+
+La logique de granularité sera basée sur :
+```typescript
+const useDaily = ["month", "7d", "30d", "previous_week", "current_month", "range"].includes(periodMode);
+```
+
+Cela garantit que toute période courte (moins d'un an) affiche des données journalières, tandis que la vue annuelle reste mensuelle pour la lisibilité.
