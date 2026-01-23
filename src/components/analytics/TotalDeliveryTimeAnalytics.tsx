@@ -382,8 +382,8 @@ export function TotalDeliveryTimeAnalytics() {
 
   const getBarColor = (value: number | null) => {
     if (value === null || value === 0) return "hsl(142, 76%, 36%)";
-    if (value <= 25) return "hsl(142, 76%, 36%)"; // Green - Excellent
-    if (value <= targetMinutes) return "hsl(38, 92%, 50%)"; // Amber - Under target
+    if (value <= targetMinutes) return "hsl(142, 76%, 36%)"; // Green - Under or at target
+    if (value <= targetMinutes * 1.2) return "hsl(38, 92%, 50%)"; // Amber - Slightly over
     return "hsl(0, 84%, 50%)"; // Red - Over target
   };
 
