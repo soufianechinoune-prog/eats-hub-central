@@ -50,6 +50,22 @@ export interface UseUberOneStatsParams {
   periodMode: string;
 }
 
+// Formater une date en YYYY-MM-DD selon le fuseau Europe/Paris
+const formatDateParis = (date: Date): string => {
+  return new Intl.DateTimeFormat('fr-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+};
+
+// Formater une date en YYYY-MM selon le fuseau Europe/Paris
+const formatMonthParis = (date: Date): string => {
+  const formatted = formatDateParis(date);
+  return formatted.slice(0, 7); // YYYY-MM
+};
+
 export function useUberOneStats({
   restaurantIds,
   startDate,
@@ -172,8 +188,8 @@ export function useUberOneStats({
     rawData.forEach((order) => {
       const date = new Date(order.order_datetime);
       const key = useDaily 
-        ? date.toISOString().split('T')[0]  // YYYY-MM-DD
-        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;  // YYYY-MM
+        ? formatDateParis(date)  // YYYY-MM-DD en heure Paris
+        : formatMonthParis(date);  // YYYY-MM en heure Paris
 
       if (!dataMap[key]) {
         dataMap[key] = { uberOne: 0, nonUberOne: 0 };
@@ -191,7 +207,8 @@ export function useUberOneStats({
       .map(([key, data]) => {
         let label: string;
         if (useDaily) {
-          const d = new Date(key);
+          // Ajouter T12:00:00 pour éviter les décalages de timezone lors du parsing
+          const d = new Date(key + "T12:00:00");
           label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
         } else {
           const [year, monthNum] = key.split("-");
@@ -223,8 +240,8 @@ export function useUberOneStats({
     rawData.forEach((order) => {
       const date = new Date(order.order_datetime);
       const key = useDaily 
-        ? date.toISOString().split('T')[0]  // YYYY-MM-DD
-        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;  // YYYY-MM
+        ? formatDateParis(date)  // YYYY-MM-DD en heure Paris
+        : formatMonthParis(date);  // YYYY-MM en heure Paris
       const rid = order.restaurant_id;
 
       if (!dataRestaurantMap[key]) {
@@ -245,7 +262,8 @@ export function useUberOneStats({
       .map(([key, restaurantData]) => {
         let label: string;
         if (useDaily) {
-          const d = new Date(key);
+          // Ajouter T12:00:00 pour éviter les décalages de timezone lors du parsing
+          const d = new Date(key + "T12:00:00");
           label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
         } else {
           const [year, monthNum] = key.split("-");
