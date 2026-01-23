@@ -66,7 +66,11 @@ export function useDataGranularity({
     } else {
       // Full year view
       startDate = new Date(selectedYear, 0, 1);
-      endDate = new Date(selectedYear, 11, 31);
+      const yearEnd = new Date(selectedYear, 11, 31);
+      // Cap to today if current year
+      endDate = selectedYear === today.getFullYear() && yearEnd > today 
+        ? today 
+        : yearEnd;
       periodDays = differenceInDays(endDate, startDate) + 1;
     }
 

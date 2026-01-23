@@ -100,9 +100,15 @@ export function UberOneAnalysis() {
         return { startDate: startOfMonth(now), endDate: now };
       
       default: // "year"
+        const yearStart = startOfYear(new Date(selectedYear, 0, 1));
+        const yearEnd = endOfYear(new Date(selectedYear, 0, 1));
+        // Cap to today if current year
+        const effectiveEnd = selectedYear === now.getFullYear() && yearEnd > now 
+          ? now 
+          : yearEnd;
         return {
-          startDate: startOfYear(new Date(selectedYear, 0, 1)),
-          endDate: endOfYear(new Date(selectedYear, 0, 1)),
+          startDate: yearStart,
+          endDate: effectiveEnd,
         };
     }
   }, [periodMode, selectedYear, selectedMonth, contextDateRange]);
