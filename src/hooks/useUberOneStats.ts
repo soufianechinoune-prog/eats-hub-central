@@ -364,14 +364,6 @@ export function useUberOneStats({
         unit: "€",
       },
       {
-        metric: "Temps de prépa",
-        uberOneValue: uberOnePrepTime,
-        nonUberOneValue: nonUberOnePrepTime,
-        difference: prepDiff,
-        differencePercent: prepDiffPercent,
-        unit: "min",
-      },
-      {
         metric: "Volume",
         uberOneValue: uberOneOrders.length,
         nonUberOneValue: nonUberOneOrders.length,

@@ -418,13 +418,13 @@ export function UberOneAnalysis() {
 
       {/* Bottom Section: Restaurant Comparison + Behavior Table */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Restaurant Ranking */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Comparaison par restaurant</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {byRestaurant.length > 0 ? (
+        {/* Restaurant Ranking - Only show if more than 1 restaurant */}
+        {byRestaurant.length > 1 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Comparaison par restaurant</CardTitle>
+            </CardHeader>
+            <CardContent>
               <ChartContainer config={restaurantChartConfig} className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -478,16 +478,12 @@ export function UberOneAnalysis() {
                   </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                Aucune donnée par restaurant
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Behavior Comparison Table */}
-        <Card>
+        <Card className={byRestaurant.length > 1 ? "" : "lg:col-span-2"}>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Comportement comparé</CardTitle>
           </CardHeader>
