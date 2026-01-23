@@ -496,16 +496,16 @@ export function TotalDeliveryTimeAnalytics() {
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Amplitude
+              Commandes conformes
             </CardTitle>
-            <TrendingDown className="h-5 w-5 text-muted-foreground" />
+            <Target className="h-5 w-5 text-chart-2" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">
-              {formatMinutes(kpis.minTime)} - {formatMinutes(kpis.maxTime)}
+            <div className="text-3xl font-bold text-chart-2">
+              {kpis.ordersUnderTarget.toLocaleString('fr-FR')}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Min - Max sur la période
+              ≤ {targetMinutes} min sur {kpis.totalOrders.toLocaleString('fr-FR')}
             </p>
           </CardContent>
         </Card>
@@ -557,9 +557,9 @@ export function TotalDeliveryTimeAnalytics() {
               <Slider
                 value={[targetMinutes]}
                 onValueChange={([val]) => setTargetMinutes(val)}
-                min={20}
+                min={10}
                 max={60}
-                step={5}
+                step={1}
                 className="w-28"
               />
               <span className="text-sm font-semibold text-primary min-w-[3rem]">{targetMinutes} min</span>
