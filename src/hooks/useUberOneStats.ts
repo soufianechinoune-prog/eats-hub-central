@@ -50,11 +50,30 @@ export function useUberOneStats({
   endDate,
   periodMode,
 }: UseUberOneStatsParams) {
+  // Fetch pinned restaurants as fallback when no restaurants selected
+  const { data: pinnedRestaurants } = useQuery({
+    queryKey: ["pinned-restaurants-for-uber-one"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("is_active", true)
+        .eq("is_pinned", true);
+      return data?.map(r => r.id) || [];
+    },
+  });
+
+  // Use pinned restaurants as fallback when no selection
+  const effectiveRestaurantIds = useMemo(() => {
+    if (restaurantIds.length > 0) return restaurantIds;
+    return pinnedRestaurants || [];
+  }, [restaurantIds, pinnedRestaurants]);
+
   // Fetch all order_history data with uber_one info
   const { data: rawData, isLoading } = useQuery({
-    queryKey: ["uber-one-stats", restaurantIds, startDate.toISOString(), endDate.toISOString()],
+    queryKey: ["uber-one-stats", effectiveRestaurantIds, startDate.toISOString(), endDate.toISOString()],
     queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
+      if (effectiveRestaurantIds.length === 0) return [];
 
       // Fetch in batches to handle 1000 row limit
       const allData: any[] = [];
@@ -66,7 +85,7 @@ export function useUberOneStats({
         const { data, error } = await supabase
           .from("order_history")
           .select("restaurant_id, order_datetime, uber_one, order_amount, actual_prep_time")
-          .in("restaurant_id", restaurantIds)
+          .in("restaurant_id", effectiveRestaurantIds)
           .gte("order_datetime", startDate.toISOString())
           .lte("order_datetime", endDate.toISOString())
           .order("order_datetime", { ascending: true })
@@ -88,7 +107,7 @@ export function useUberOneStats({
 
       return allData;
     },
-    enabled: restaurantIds.length > 0,
+    enabled: effectiveRestaurantIds.length > 0,
   });
 
   // Fetch restaurant names for mapping
