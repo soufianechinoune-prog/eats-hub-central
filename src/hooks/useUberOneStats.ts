@@ -84,7 +84,9 @@ export function useUberOneStats({
       while (hasMore) {
         const { data, error } = await supabase
           .from("order_history")
-          .select("restaurant_id, order_datetime, uber_one, order_amount, actual_prep_time")
+          .select(
+            "restaurant_id, order_datetime, uber_one, order_amount, initial_prep_time_minutes"
+          )
           .in("restaurant_id", effectiveRestaurantIds)
           .gte("order_datetime", startDate.toISOString())
           .lte("order_datetime", endDate.toISOString())
@@ -240,8 +242,8 @@ export function useUberOneStats({
     const basketDiff = uberOneBasket - nonUberOneBasket;
     const basketDiffPercent = nonUberOneBasket > 0 ? (basketDiff / nonUberOneBasket) * 100 : 0;
 
-    const uberOnePrepTime = calcAvg(uberOneOrders, "actual_prep_time");
-    const nonUberOnePrepTime = calcAvg(nonUberOneOrders, "actual_prep_time");
+    const uberOnePrepTime = calcAvg(uberOneOrders, "initial_prep_time_minutes");
+    const nonUberOnePrepTime = calcAvg(nonUberOneOrders, "initial_prep_time_minutes");
     const prepDiff = uberOnePrepTime - nonUberOnePrepTime;
     const prepDiffPercent = nonUberOnePrepTime > 0 ? (prepDiff / nonUberOnePrepTime) * 100 : 0;
 
