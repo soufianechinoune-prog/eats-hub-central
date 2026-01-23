@@ -1,111 +1,146 @@
 
 
-# Corriger la navigation depuis "Comparaison Temps d'inactivité"
+# Analyse Uber One vs Non Uber One
 
-## Problèmes identifiés
+## Objectif
 
-### 1. Mauvais restaurant affiché
-- **Symptôme** : Clic sur Bonneuil ou Juvisy → Analytics affiche toujours Athis-Mons
-- **Cause** : `toggleRestaurantSelection(restaurantId)` ajoute le restaurant à la sélection existante au lieu de la remplacer
+Créer une visualisation de la proportion des clients Uber One vs non-Uber One pour comprendre la composition de la clientèle et son évolution.
 
-### 2. Mauvaise période
-- **Symptôme** : La page Analytics affiche "Janvier 2026" au lieu de "Semaine précédente (12-18 janv)"
-- **Cause** : Le code force `setPeriodMode("month")` et `setSelectedMonth(new Date().getMonth() + 1)`
+## Données disponibles
 
-### 3. Données incohérentes
-- **Symptôme** : Athis-Mons = 100% sur Comparaison vs 98.6% sur Analytics
-- **Cause** : Conséquence du problème 2 - les données du mois entier sont différentes de celles de la semaine
+La table `order_history` contient le champ `uber_one` (boolean) avec des données fiables :
+- 62.7% de clients Uber One (32 746 commandes en 2025)
+- 37.3% de clients non-Uber One (19 493 commandes)
+- Tendance à la hausse : de 60% (juin 2025) à 66.3% (janvier 2026)
 
-## Solution
+---
 
-### Fichier à modifier : `src/components/compare/DowntimeRankingBars.tsx`
+## Solution proposée
 
-**1. Mettre à jour les imports du contexte (ligne 53)**
+### Nouveau composant : `src/components/analytics/UberOneAnalysis.tsx`
 
-```typescript
-// AVANT
-const { toggleRestaurantSelection, setSelectedMonth, setSelectedYear, setPeriodMode } = useAnalyticsContext();
+Un composant affichant :
 
-// APRÈS  
-const { 
-  setSelectedRestaurants, 
-  setVisibleRestaurants,
-  setPeriodMode, 
-  setDateRange: setContextDateRange 
-} = useAnalyticsContext();
+1. **KPI principal** : Pourcentage Uber One avec jauge visuelle
+2. **Graphique d'évolution** : Courbe mensuelle du % Uber One
+3. **Comparaison par restaurant** : Barres horizontales classant les restaurants
+4. **Tableau comparatif** : Uber One vs Non-Uber One (panier moyen, temps prep, volume)
+
+### Nouveau hook : `src/hooks/useUberOneStats.ts`
+
+Centralise les requêtes Supabase pour récupérer :
+- Proportion globale Uber One / Non-Uber One
+- Évolution mensuelle
+- Breakdown par restaurant
+- Métriques comparatives (panier moyen, temps prep)
+
+### Emplacement
+
+Intégrer dans la page **Analytics > Operations** (`/analytics/operations`) dans un nouvel onglet "Clientèle" ou directement dans l'onglet existant.
+
+Alternative : Ajouter dans la page **Overview** comme nouvelle carte "Répartition clientèle".
+
+---
+
+## Visualisation proposée
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  RÉPARTITION CLIENTÈLE UBER                                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌────────────────────┐   ┌────────────────────────────────────────────┐   │
+│  │                    │   │ Évolution % Uber One                       │   │
+│  │   ████████  62.7%  │   │                                            │   │
+│  │   Uber One         │   │  66% ─────────────────────────────● Jan 26 │   │
+│  │                    │   │  64% ─────────────────────●───────         │   │
+│  │   ░░░░░░░░  37.3%  │   │  62% ─────────────●───────                 │   │
+│  │   Standard         │   │  60% ●────────────                         │   │
+│  │                    │   │      Juin  Sept  Nov  Jan                  │   │
+│  └────────────────────┘   └────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │ Comparaison par restaurant                                            │  │
+│  │                                                                        │  │
+│  │ Antony      ████████████████████████████████████  66.9%               │  │
+│  │ Bonneuil    ██████████████████████████████████    64.9%               │  │
+│  │ Juvisy      ████████████████████████████████      62.8%               │  │
+│  │ Athis-Mons  ██████████████████████████████        60.4%               │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │ Comportement comparé                                                  │  │
+│  │                                                                        │  │
+│  │                    Uber One          Standard         Différence      │  │
+│  │ Panier moyen       23.82 €           24.18 €          -1.5%           │  │
+│  │ Temps prep         8.2 min           8.3 min          -1.2%           │  │
+│  │ Volume             32 746            19 493           +68%            │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**2. Ajouter le dateRange en prop du composant**
+---
 
-Le composant doit recevoir la période sélectionnée depuis la page parent.
+## Implémentation technique
 
-```typescript
-// Props
-interface DowntimeRankingBarsProps {
-  stats: RestaurantStat[];
-  dateRange: { start: Date; end: Date };  // Ajouter cette prop
-}
+### Fichiers à créer
 
-export const DowntimeRankingBars = ({ stats, dateRange }: DowntimeRankingBarsProps) => {
-```
+| Fichier | Description |
+|---------|-------------|
+| `src/hooks/useUberOneStats.ts` | Hook pour récupérer les stats Uber One depuis `order_history` |
+| `src/components/analytics/UberOneAnalysis.tsx` | Composant principal avec graphiques et tableaux |
 
-**3. Réécrire la fonction handleRestaurantClick (lignes 56-65)**
-
-```typescript
-const handleRestaurantClick = (restaurantId: string) => {
-  // REMPLACER la sélection par ce seul restaurant
-  setVisibleRestaurants([restaurantId]);
-  setSelectedRestaurants([restaurantId]);
-  
-  // Utiliser la période de la page Comparaison (range)
-  setPeriodMode("range");
-  setContextDateRange({ from: dateRange.start, to: dateRange.end });
-  
-  // Mettre à jour localStorage pour persister le contexte
-  const currentState = localStorage.getItem("analytics-context");
-  const state = currentState ? JSON.parse(currentState) : {};
-  const updatedState = {
-    ...state,
-    selectedRestaurants: [restaurantId],
-    visibleRestaurants: [restaurantId],
-    periodMode: "range",
-    dateRange: {
-      from: dateRange.start.toISOString(),
-      to: dateRange.end.toISOString(),
-    },
-  };
-  localStorage.setItem("analytics-context", JSON.stringify(updatedState));
-  
-  // Naviguer vers l'onglet Disponibilité
-  navigate("/analytics/operations?tab=availability");
-};
-```
-
-### Fichier à modifier : `src/pages/DowntimeComparison.tsx` (ligne 203)
-
-Passer la prop `dateRange` au composant :
-
-```typescript
-// AVANT
-<DowntimeRankingBars stats={restaurantStats} />
-
-// APRÈS
-<DowntimeRankingBars stats={restaurantStats} dateRange={dateRange} />
-```
-
-## Résultat attendu
-
-| Avant | Après |
-|-------|-------|
-| Clic Bonneuil → Athis-Mons | Clic Bonneuil → Bonneuil |
-| Clic Juvisy → Athis-Mons | Clic Juvisy → Juvisy |
-| Période: Janvier 2026 | Période: 12-18 janv. 2026 |
-| Taux: 98.6% (mois entier) | Taux: 100% (semaine sélectionnée) |
-
-## Fichiers modifiés
+### Fichier à modifier
 
 | Fichier | Modification |
 |---------|--------------|
-| `src/components/compare/DowntimeRankingBars.tsx` | Remplacer toggle par set, passer dateRange, corriger navigation |
-| `src/pages/DowntimeComparison.tsx` | Passer dateRange comme prop |
+| `src/pages/Analytics.tsx` | Ajouter le composant dans la vue Operations ou créer un nouvel onglet |
+
+### Logique du hook
+
+```typescript
+export function useUberOneStats({
+  restaurantIds,
+  startDate,
+  endDate
+}: UseUberOneStatsParams) {
+  // Query 1: Proportion globale
+  const { data: globalStats } = useQuery({
+    queryKey: ["uber-one-global", restaurantIds, startDate, endDate],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("order_history")
+        .select("uber_one")
+        .in("restaurant_id", restaurantIds)
+        .gte("order_datetime", startDate)
+        .lte("order_datetime", endDate);
+      
+      const uberOneCount = data?.filter(d => d.uber_one).length || 0;
+      const total = data?.length || 0;
+      return {
+        uberOneCount,
+        nonUberOneCount: total - uberOneCount,
+        uberOnePercent: total > 0 ? (uberOneCount / total) * 100 : 0
+      };
+    }
+  });
+
+  // Query 2: Évolution mensuelle
+  // Query 3: Par restaurant
+  // Query 4: Métriques comparatives (panier, temps prep)
+  
+  return { globalStats, evolution, byRestaurant, comparison, isLoading };
+}
+```
+
+---
+
+## Insights métier potentiels
+
+Le composant pourra mettre en évidence :
+- **Tendance croissante** : +6 points en 6 mois (60% → 66%)
+- **Différence de panier** : Les clients Uber One ont un panier légèrement inférieur (-1.5%)
+- **Volume dominant** : Uber One représente 2/3 des commandes
+- **Variation par restaurant** : Antony a plus de clients Uber One (66.9%) qu'Athis-Mons (60.4%)
 
