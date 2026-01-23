@@ -1,74 +1,95 @@
 
-# Corriger le filtre de restaurants dans l'analyse Uber One
+# Optimiser l'affichage de l'analyse Uber One
 
-## Problème identifié
+## Problèmes identifiés
 
-Quand vous cliquez sur un chip de restaurant pour le désactiver (fond gris clair), les données des sections "Répartition Clientèle", "Évolution % Uber One" et "Comportement comparé" ne changent pas. Seule la section "Comparaison par restaurant" se met à jour.
+1. **"Comparaison par restaurant"** : Quand un seul restaurant est affiché, cette section montre une seule barre horizontale sans aucun comparatif — c'est inutile
+2. **"Temps de prépa"** : Dans la table "Comportement comparé", cette métrique n'apporte pas de valeur ajoutée pertinente pour analyser les clients Uber One
 
-### Cause technique
+## Solution proposée
 
-Dans `UberOneAnalysis.tsx`, le code utilise `visibleRestaurants` (tous les chips affichés) au lieu de `selectedRestaurants` (chips avec fond sombre = actifs) :
+### 1. Masquer "Comparaison par restaurant" en vue mono-restaurant
+
+Ajouter une condition pour ne pas afficher cette Card quand `byRestaurant.length === 1`
+
+**Fichier** : `src/components/analytics/UberOneAnalysis.tsx`
+
+**Comportement** :
+- Si 1 restaurant sélectionné → la section "Comparaison par restaurant" est masquée
+- Si 2+ restaurants sélectionnés → la section s'affiche normalement
+
+**Impact sur le layout** :
+- En vue mono-restaurant, la table "Comportement comparé" passe en pleine largeur (`lg:col-span-2`) pour occuper l'espace libéré
+
+### 2. Retirer "Temps de prépa" du tableau "Comportement comparé"
+
+Supprimer cette ligne du tableau de comparaison Uber One vs Standard
+
+**Fichier** : `src/hooks/useUberOneStats.ts`
+
+**Métriques conservées** :
+- ✅ Panier moyen (€)
+- ✅ Volume (nombre de commandes)
+- ❌ Temps de prépa (retiré)
+
+---
+
+## Changements techniques
+
+### `src/components/analytics/UberOneAnalysis.tsx`
+
+**Ligne ~420** — Ajouter une condition sur la section :
 
 ```typescript
-// Code actuel (lignes 61-68)
-const restaurantIdsForQuery = useMemo(() => {
-  if (visibleRestaurants && visibleRestaurants.length > 0) {
-    return visibleRestaurants;  // ← Utilise TOUS les restaurants visibles
-  }
-  return selectedRestaurants;
-}, [visibleRestaurants, selectedRestaurants]);
+// Afficher uniquement si plus d'un restaurant
+{byRestaurant.length > 1 && (
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-lg">Comparaison par restaurant</CardTitle>
+    </CardHeader>
+    {/* ... contenu existant ... */}
+  </Card>
+)}
+
+{/* Adapter la largeur de "Comportement comparé" */}
+<Card className={byRestaurant.length > 1 ? "" : "lg:col-span-2"}>
+  {/* ... Comportement comparé ... */}
+</Card>
 ```
 
-Cela signifie que même si vous désactivez un restaurant (clic sur le chip), ses données sont toujours incluses dans les calculs.
+### `src/hooks/useUberOneStats.ts`
 
-## Solution
-
-Modifier la logique pour utiliser `selectedRestaurants` comme source de données principale, avec les restaurants épinglés comme fallback quand aucun restaurant n'est sélectionné.
-
-### Fichier à modifier : `src/components/analytics/UberOneAnalysis.tsx`
-
-Remplacer le `useMemo` actuel par :
+**Lignes 349-372** — Supprimer le bloc "Temps de prépa" :
 
 ```typescript
-// Utiliser selectedRestaurants pour les calculs (chips actifs = fond sombre)
-// Fallback aux restaurants épinglés si aucune sélection
-const restaurantIdsForQuery = useMemo(() => {
-  // Utiliser les restaurants sélectionnés (actifs)
-  if (selectedRestaurants && selectedRestaurants.length > 0) {
-    return selectedRestaurants;
-  }
-  // Si aucune sélection explicite, le hook useUberOneStats utilisera les épinglés comme fallback
-  return [];
-}, [selectedRestaurants]);
+// Avant (3 métriques)
+return [
+  { metric: "Panier moyen", ... },
+  { metric: "Temps de prépa", ... },  // ← Supprimer
+  { metric: "Volume", ... },
+];
+
+// Après (2 métriques)
+return [
+  { metric: "Panier moyen", ... },
+  { metric: "Volume", ... },
+];
 ```
 
 ---
 
-## Comportement après correction
+## Résultat attendu
 
-| Action | Avant | Après |
-|--------|-------|-------|
-| 2 restaurants affichés, tous sélectionnés | Données de 2 restaurants | Données de 2 restaurants |
-| Clic sur 1 chip pour désactiver | Données inchangées (2 restaurants) | Données mises à jour (1 restaurant) |
-| Aucun restaurant sélectionné | Données de tous les visibles | Fallback aux restaurants épinglés |
-
-Cela alignera le comportement de l'onglet Uber One avec les autres onglets de la plateforme, où cliquer sur un chip de restaurant filtre immédiatement les données affichées.
+| Sélection | Avant | Après |
+|-----------|-------|-------|
+| 1 restaurant | Bar chart avec 1 barre + table 3 lignes | Pas de bar chart, table pleine largeur 2 lignes |
+| 2+ restaurants | Bar chart comparatif + table 3 lignes | Bar chart comparatif + table 2 lignes |
 
 ---
 
-## Section technique
+## Fichiers modifiés
 
-### Distinction `visibleRestaurants` vs `selectedRestaurants`
-
-Le contexte Analytics gère deux listes :
-- **`visibleRestaurants`** : Tous les chips affichés dans l'en-tête (peuvent être actifs ou inactifs)
-- **`selectedRestaurants`** : Sous-ensemble des visibles qui sont actifs (fond sombre = inclus dans les calculs)
-
-La section "Comparaison par restaurant" fonctionne correctement car elle utilise `byRestaurant` qui est dérivé des données déjà filtrées par `useUberOneStats`. Mais comme ce hook reçoit `visibleRestaurants`, il récupère toujours toutes les données.
-
-### Impact sur les autres calculs
-
-- `globalStats` : Sera recalculé avec uniquement les restaurants sélectionnés
-- `evolution` : Graphique d'évolution mis à jour
-- `comparison` : Table "Comportement comparé" mise à jour
-- `byRestaurant` : Déjà correct (affiche le ranking des restaurants présents dans les données)
+| Fichier | Modification |
+|---------|--------------|
+| `src/components/analytics/UberOneAnalysis.tsx` | Condition d'affichage sur "Comparaison par restaurant", layout adaptatif |
+| `src/hooks/useUberOneStats.ts` | Retrait de la métrique "Temps de prépa" |
