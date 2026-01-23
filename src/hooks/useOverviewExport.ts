@@ -66,6 +66,7 @@ interface RestaurantComparisonRow {
   rating: number | null;
   profitability: number | null;
   prepTime: number | null;
+  totalDeliveryTime: number | null;
   errorRate: number | null;
   downtime: number | null;
   revenueVariation?: number | null;
@@ -79,6 +80,7 @@ interface NetworkTotals {
   avgRating: number | null;
   avgProfitability: number | null;
   avgPrepTime: number | null;
+  avgTotalDeliveryTime: number | null;
   avgErrorRate: number | null;
   totalDowntime: number | null;
   revenueVariation?: number | null;
@@ -127,6 +129,12 @@ const formatHours = (hours: number | null): string => {
   if (h === 0) return `${mins}min`;
   if (mins === 0) return `${h}h`;
   return `${h}h ${mins}min`;
+};
+
+// Helper to format total delivery time (simple minutes)
+const formatTotalDeliveryTime = (minutes: number | null): string => {
+  if (minutes == null || isNaN(minutes)) return "--";
+  return `${Math.round(minutes)}min`;
 };
 
 export function useOverviewExport() {
@@ -623,14 +631,14 @@ export function useOverviewExport() {
 
       const tableStartY = 48;
       const rowHeight = 10;
-      // New column order: #, Restaurant, CA, Versement, Rentab, Cmds, Panier, Note, Erreurs, Prépa, Inactiv
+      // New column order: #, Restaurant, CA, Versement, Rentab, Cmds, Panier, Note, Erreurs, Prépa+Livr, Inactiv
       const colWidths = data.showN1 
-        ? [8, 45, 28, 20, 28, 18, 18, 22, 15, 18, 18, 18, 18]  // With N-1
-        : [8, 50, 32, 32, 24, 20, 24, 18, 20, 20, 20];     // Without N-1
+        ? [8, 45, 28, 20, 28, 18, 18, 22, 15, 18, 22, 18]  // With N-1
+        : [8, 50, 32, 32, 24, 20, 24, 18, 20, 24, 20];     // Without N-1
 
       const headers = data.showN1
-        ? ["#", "Restaurant", "CA (EUR)", "vs N-1", "Versement", "Rentab.", "Cmds", "Panier", "Note", "Erreurs", "Prepa", "Inactiv."]
-        : ["#", "Restaurant", "CA (EUR)", "Versement", "Rentab.", "Cmds", "Panier", "Note", "Erreurs", "Prepa", "Inactiv."];
+        ? ["#", "Restaurant", "CA (EUR)", "vs N-1", "Versement", "Rentab.", "Cmds", "Panier", "Note", "Erreurs", "Prepa+Livr", "Inactiv."]
+        : ["#", "Restaurant", "CA (EUR)", "Versement", "Rentab.", "Cmds", "Panier", "Note", "Erreurs", "Prepa+Livr", "Inactiv."];
 
       // Draw header row
       let currentX = margin;
@@ -674,7 +682,7 @@ export function useOverviewExport() {
               `${resto.avgBasket.toFixed(2)} EUR`,
               resto.rating != null ? resto.rating.toFixed(1) : "--",
               resto.errorRate != null ? `${resto.errorRate.toFixed(1)}%` : "--",
-              formatMinutes(resto.prepTime),
+              formatTotalDeliveryTime(resto.totalDeliveryTime),
               formatHours(resto.downtime),
             ]
           : [
@@ -687,7 +695,7 @@ export function useOverviewExport() {
               `${resto.avgBasket.toFixed(2)} EUR`,
               resto.rating != null ? resto.rating.toFixed(1) : "--",
               resto.errorRate != null ? `${resto.errorRate.toFixed(1)}%` : "--",
-              formatMinutes(resto.prepTime),
+              formatTotalDeliveryTime(resto.totalDeliveryTime),
               formatHours(resto.downtime),
             ];
 
@@ -718,7 +726,7 @@ export function useOverviewExport() {
             `${data.networkTotals.avgBasket.toFixed(2)} EUR`,
             data.networkTotals.avgRating != null ? data.networkTotals.avgRating.toFixed(1) : "--",
             data.networkTotals.avgErrorRate != null ? `${data.networkTotals.avgErrorRate.toFixed(1)}%` : "--",
-            data.networkTotals.avgPrepTime != null ? formatMinutes(data.networkTotals.avgPrepTime) : "--",
+            formatTotalDeliveryTime(data.networkTotals.avgTotalDeliveryTime),
             formatHours(data.networkTotals.totalDowntime),
           ]
         : [
@@ -731,7 +739,7 @@ export function useOverviewExport() {
             `${data.networkTotals.avgBasket.toFixed(2)} EUR`,
             data.networkTotals.avgRating != null ? data.networkTotals.avgRating.toFixed(1) : "--",
             data.networkTotals.avgErrorRate != null ? `${data.networkTotals.avgErrorRate.toFixed(1)}%` : "--",
-            data.networkTotals.avgPrepTime != null ? formatMinutes(data.networkTotals.avgPrepTime) : "--",
+            formatTotalDeliveryTime(data.networkTotals.avgTotalDeliveryTime),
             formatHours(data.networkTotals.totalDowntime),
           ];
 
@@ -818,10 +826,10 @@ export function useOverviewExport() {
       };
 
       // Sheet 1: Comparison Table with styling
-      // New column order: Restaurant - CA - Versement - Rentab - Commandes - Panier - Notes - Erreur - Prépa - Inactiv
+      // New column order: Restaurant - CA - Versement - Rentab - Commandes - Panier - Notes - Erreur - Prépa+Livr - Inactiv
       const comparisonHeaders = data.showN1
-        ? ["#", "Restaurant", "CA (€)", "vs N-1 (%)", "Versement (€)", "Rentab. (%)", "Cmds", "Panier (€)", "Note", "Erreurs (%)", "Prépa", "Inactiv."]
-        : ["#", "Restaurant", "CA (€)", "Versement (€)", "Rentab. (%)", "Cmds", "Panier (€)", "Note", "Erreurs (%)", "Prépa", "Inactiv."];
+        ? ["#", "Restaurant", "CA (€)", "vs N-1 (%)", "Versement (€)", "Rentab. (%)", "Cmds", "Panier (€)", "Note", "Erreurs (%)", "Prépa+Livr", "Inactiv."]
+        : ["#", "Restaurant", "CA (€)", "Versement (€)", "Rentab. (%)", "Cmds", "Panier (€)", "Note", "Erreurs (%)", "Prépa+Livr", "Inactiv."];
 
       const comparisonRows = data.restaurantComparison.map((r, idx) => {
         const baseRow: (string | number)[] = [
@@ -842,7 +850,7 @@ export function useOverviewExport() {
           Math.round(r.avgBasket * 100) / 100,
           r.rating != null ? Math.round(r.rating * 10) / 10 : "",
           r.errorRate != null ? Math.round(r.errorRate * 10) / 10 : "",
-          r.prepTime != null ? `${Math.round(r.prepTime)} min` : "",
+          r.totalDeliveryTime != null ? `${Math.round(r.totalDeliveryTime)} min` : "",
           r.downtime != null ? `${r.downtime.toFixed(1)}h` : "",
         ];
       });
@@ -860,7 +868,7 @@ export function useOverviewExport() {
             Math.round(data.networkTotals.avgBasket * 100) / 100,
             data.networkTotals.avgRating != null ? Math.round(data.networkTotals.avgRating * 10) / 10 : "",
             data.networkTotals.avgErrorRate != null ? Math.round(data.networkTotals.avgErrorRate * 10) / 10 : "",
-            data.networkTotals.avgPrepTime != null ? `${Math.round(data.networkTotals.avgPrepTime)} min` : "",
+            data.networkTotals.avgTotalDeliveryTime != null ? `${Math.round(data.networkTotals.avgTotalDeliveryTime)} min` : "",
             data.networkTotals.totalDowntime != null ? `${data.networkTotals.totalDowntime.toFixed(1)}h` : "",
           ]
         : [
@@ -873,7 +881,7 @@ export function useOverviewExport() {
             Math.round(data.networkTotals.avgBasket * 100) / 100,
             data.networkTotals.avgRating != null ? Math.round(data.networkTotals.avgRating * 10) / 10 : "",
             data.networkTotals.avgErrorRate != null ? Math.round(data.networkTotals.avgErrorRate * 10) / 10 : "",
-            data.networkTotals.avgPrepTime != null ? `${Math.round(data.networkTotals.avgPrepTime)} min` : "",
+            data.networkTotals.avgTotalDeliveryTime != null ? `${Math.round(data.networkTotals.avgTotalDeliveryTime)} min` : "",
             data.networkTotals.totalDowntime != null ? `${data.networkTotals.totalDowntime.toFixed(1)}h` : "",
           ];
 
