@@ -9,6 +9,7 @@ import { Loader2, Clock, AlertTriangle, TrendingDown, LineChart as LineChartIcon
 import { format, parseISO, startOfMonth, endOfMonth, addDays, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { checkRestaurantOpeningDate } from "@/lib/restaurantOpeningDates";
+import { extractCityName } from "@/lib/restaurantUtils";
 import {
   LineChart,
   Line,
@@ -804,7 +805,7 @@ export function TotalDeliveryTimeAnalytics() {
                     >
                       <span className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground w-4">{i + 1}.</span>
-                        <span className="font-medium truncate max-w-[120px]">{r.name}</span>
+                        <span className="font-medium truncate max-w-[140px]">CS {extractCityName(r.name)}</span>
                       </span>
                       <span className="text-chart-2 font-semibold tabular-nums">
                         {formatMinutes(r.avgTime)}
@@ -827,7 +828,7 @@ export function TotalDeliveryTimeAnalytics() {
                     >
                       <span className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground w-4">{restaurantRanking.length - 4 + i}.</span>
-                        <span className="font-medium truncate max-w-[120px]">{r.name}</span>
+                        <span className="font-medium truncate max-w-[140px]">CS {extractCityName(r.name)}</span>
                       </span>
                       <span className="text-destructive font-semibold tabular-nums">
                         {formatMinutes(r.avgTime)}
