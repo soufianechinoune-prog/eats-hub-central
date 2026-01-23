@@ -6,7 +6,7 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Clock, AlertTriangle, CheckCircle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight, Timer, Store, Building2, Crown } from "lucide-react";
+import { Loader2, Clock, AlertTriangle, CheckCircle, TrendingDown, LineChart as LineChartIcon, BarChart3, ChevronLeft, ChevronRight, Timer, Store, Building2, Crown, Truck } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, addDays, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { checkRestaurantOpeningDate } from "@/lib/restaurantOpeningDates";
@@ -32,6 +32,7 @@ import { WaitTimeAnalytics } from "./WaitTimeAnalytics";
 import { PrepTimeAnalytics } from "./PrepTimeAnalytics";
 import { OrderAccuracyDashboard } from "@/components/operations/OrderAccuracyDashboard";
 import { UberOneAnalysis } from "./UberOneAnalysis";
+import { TotalDeliveryTimeAnalytics } from "./TotalDeliveryTimeAnalytics";
 
 interface AvailabilityData {
   id: string;
@@ -56,9 +57,9 @@ export function OperationsAnalytics() {
   } = useAnalyticsContext();
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"availability" | "prepTime" | "waitTime" | "orderErrors" | "uberOne">(() => {
+  const [activeTab, setActiveTab] = useState<"availability" | "prepTime" | "waitTime" | "totalDelivery" | "orderErrors" | "uberOne">(() => {
     const stored = localStorage.getItem("operations-active-tab");
-    if (stored === "availability" || stored === "prepTime" || stored === "waitTime" || stored === "orderErrors" || stored === "uberOne") {
+    if (stored === "availability" || stored === "prepTime" || stored === "waitTime" || stored === "totalDelivery" || stored === "orderErrors" || stored === "uberOne") {
       return stored;
     }
     return "availability";
@@ -72,7 +73,7 @@ export function OperationsAnalytics() {
     const tabParam = searchParams.get("tab");
 
     // Handle tab parameter for navigation from comparison pages
-    if (tabParam === "orderErrors" || tabParam === "availability" || tabParam === "waitTime" || tabParam === "prepTime" || tabParam === "uberOne") {
+    if (tabParam === "orderErrors" || tabParam === "availability" || tabParam === "waitTime" || tabParam === "prepTime" || tabParam === "totalDelivery" || tabParam === "uberOne") {
       setActiveTab(tabParam);
       localStorage.setItem("operations-active-tab", tabParam);
     }
@@ -562,8 +563,8 @@ export function OperationsAnalytics() {
   return (
     <div className="space-y-6">
       {/* Sub-tabs for Operations */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "availability" | "prepTime" | "waitTime" | "orderErrors" | "uberOne")} className="w-full">
-        <TabsList className="grid w-full max-w-4xl grid-cols-5 h-12 bg-muted/50 backdrop-blur-sm border border-border/50 p-1 rounded-xl">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "availability" | "prepTime" | "waitTime" | "totalDelivery" | "orderErrors" | "uberOne")} className="w-full">
+        <TabsList className="grid w-full max-w-5xl grid-cols-6 h-12 bg-muted/50 backdrop-blur-sm border border-border/50 p-1 rounded-xl">
           <TabsTrigger 
             value="availability" 
             className="flex items-center gap-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg transition-all duration-200"
@@ -587,6 +588,14 @@ export function OperationsAnalytics() {
             <Timer className="h-4 w-4" />
             <span className="hidden sm:inline">Temps d'attente</span>
             <span className="sm:hidden">Attente</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="totalDelivery" 
+            className="flex items-center gap-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg transition-all duration-200"
+          >
+            <Truck className="h-4 w-4" />
+            <span className="hidden sm:inline">Prépa+Livraison</span>
+            <span className="sm:hidden">Total</span>
           </TabsTrigger>
           <TabsTrigger 
             value="orderErrors" 
@@ -631,6 +640,10 @@ export function OperationsAnalytics() {
                 : undefined
             }
           />
+        </TabsContent>
+
+        <TabsContent value="totalDelivery" className="mt-6">
+          <TotalDeliveryTimeAnalytics />
         </TabsContent>
 
         <TabsContent value="uberOne" className="mt-6">
