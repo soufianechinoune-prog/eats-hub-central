@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useUberOneStats } from "@/hooks/useUberOneStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Users, TrendingUp, TrendingDown, Minus, Crown } from "lucide-react";
-import { startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, subWeeks, startOfWeek, endOfWeek } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Loader2, Users, TrendingUp, TrendingDown, Minus, Crown, BarChart3, LineChartIcon } from "lucide-react";
+import { startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, startOfWeek } from "date-fns";
 import {
   LineChart,
   Line,
@@ -16,6 +17,7 @@ import {
   Bar,
   Cell,
   LabelList,
+  Legend,
 } from "recharts";
 import {
   ChartContainer,
@@ -30,6 +32,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+// Color palette for restaurant lines
+const RESTAURANT_COLORS = [
+  "#10b981", "#f59e0b", "#3b82f6", "#ec4899", "#8b5cf6", 
+  "#ef4444", "#06b6d4", "#84cc16", "#f97316", "#6366f1"
+];
+
+type ChartMode = "average" | "detailed";
 
 export function UberOneAnalysis() {
   const {
@@ -39,6 +55,8 @@ export function UberOneAnalysis() {
     periodMode,
     dateRange: contextDateRange,
   } = useAnalyticsContext();
+
+  const [chartMode, setChartMode] = useState<ChartMode>("average");
 
   // Calculate date range based on period mode
   const { startDate, endDate } = useMemo(() => {
@@ -78,7 +96,7 @@ export function UberOneAnalysis() {
     }
   }, [periodMode, selectedYear, selectedMonth, contextDateRange]);
 
-  const { globalStats, evolution, byRestaurant, comparison, isLoading } = useUberOneStats({
+  const { globalStats, evolution, evolutionByRestaurant, byRestaurant, comparison, isLoading, restaurantMap } = useUberOneStats({
     restaurantIds: selectedRestaurants,
     startDate,
     endDate,
@@ -87,21 +105,57 @@ export function UberOneAnalysis() {
 
   // Calcul du domaine Y dynamique pour le graphique d'évolution
   const evolutionYDomain = useMemo(() => {
-    if (evolution.length === 0) return [0, 100];
-    
-    const values = evolution.map(e => e.uberOnePercent);
-    const minVal = Math.min(...values);
-    const maxVal = Math.max(...values);
-    
-    // Arrondir à la dizaine inférieure/supérieure avec marge de 5%
-    const range = maxVal - minVal;
-    const margin = Math.max(range * 0.1, 5); // Au moins 5 points de marge
-    
-    const yMin = Math.max(0, Math.floor((minVal - margin) / 10) * 10);
-    const yMax = Math.min(100, Math.ceil((maxVal + margin) / 10) * 10);
-    
-    return [yMin, yMax];
-  }, [evolution]);
+    if (chartMode === "average") {
+      if (evolution.length === 0) return [0, 100];
+      const values = evolution.map(e => e.uberOnePercent);
+      const minVal = Math.min(...values);
+      const maxVal = Math.max(...values);
+      const range = maxVal - minVal;
+      const margin = Math.max(range * 0.1, 5);
+      const yMin = Math.max(0, Math.floor((minVal - margin) / 10) * 10);
+      const yMax = Math.min(100, Math.ceil((maxVal + margin) / 10) * 10);
+      return [yMin, yMax];
+    } else {
+      // For detailed mode, compute from all restaurant values
+      if (evolutionByRestaurant.length === 0 || byRestaurant.length === 0) return [0, 100];
+      const allValues: number[] = [];
+      evolutionByRestaurant.forEach(point => {
+        byRestaurant.forEach(r => {
+          const val = point[r.restaurantId];
+          if (typeof val === 'number') allValues.push(val);
+        });
+      });
+      if (allValues.length === 0) return [0, 100];
+      const minVal = Math.min(...allValues);
+      const maxVal = Math.max(...allValues);
+      const range = maxVal - minVal;
+      const margin = Math.max(range * 0.1, 5);
+      const yMin = Math.max(0, Math.floor((minVal - margin) / 10) * 10);
+      const yMax = Math.min(100, Math.ceil((maxVal + margin) / 10) * 10);
+      return [yMin, yMax];
+    }
+  }, [evolution, evolutionByRestaurant, byRestaurant, chartMode]);
+
+  // Restaurant color mapping
+  const restaurantColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    byRestaurant.forEach((r, i) => {
+      map[r.restaurantId] = RESTAURANT_COLORS[i % RESTAURANT_COLORS.length];
+    });
+    return map;
+  }, [byRestaurant]);
+
+  // Get short restaurant name
+  const getShortName = (name: string) => {
+    if (name.toLowerCase().includes("chicken street")) {
+      const cityMatch = name.match(/chicken street\s+(.+)/i);
+      if (cityMatch) return `CS ${cityMatch[1].toUpperCase()}`;
+    }
+    return name.length > 15 ? name.slice(0, 12) + "..." : name;
+  };
+
+  // Can show detailed view?
+  const canShowDetailed = byRestaurant.length > 1;
 
   if (isLoading) {
     return (
@@ -168,7 +222,7 @@ export function UberOneAnalysis() {
               <div className="relative">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} />
+                    <div className="w-3 h-3 rounded-full bg-chart-1" />
                     Uber One
                   </span>
                   <span className="text-2xl font-bold text-chart-1">
@@ -222,13 +276,52 @@ export function UberOneAnalysis() {
         {/* Evolution Chart */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Évolution % Uber One</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Évolution % Uber One</CardTitle>
+              {canShowDetailed && (
+                <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                  <TooltipProvider>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className={`h-7 px-2 ${chartMode === "average" ? "bg-background shadow-sm" : ""}`}
+                          onClick={() => setChartMode("average")}
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Moyenne réseau</TooltipContent>
+                    </UITooltip>
+                  </TooltipProvider>
+                  <TooltipProvider>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className={`h-7 px-2 ${chartMode === "detailed" ? "bg-background shadow-sm" : ""}`}
+                          onClick={() => setChartMode("detailed")}
+                        >
+                          <LineChartIcon className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Par restaurant</TooltipContent>
+                    </UITooltip>
+                  </TooltipProvider>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            {evolution.length > 1 ? (
+            {(chartMode === "average" ? evolution.length > 1 : evolutionByRestaurant.length > 1) ? (
               <ChartContainer config={evolutionChartConfig} className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={evolution} margin={{ top: 20, right: 30, left: 10, bottom: 10 }}>
+                  <LineChart 
+                    data={chartMode === "average" ? evolution : evolutionByRestaurant} 
+                    margin={{ top: 20, right: 30, left: 10, bottom: 10 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis
                       dataKey="monthLabel"
@@ -247,18 +340,47 @@ export function UberOneAnalysis() {
                     <ChartTooltip
                       content={
                         <ChartTooltipContent
-                          formatter={(value, name) => [`${Number(value).toFixed(1)}%`, "% Uber One"]}
+                          formatter={(value, name) => {
+                            const label = chartMode === "average" 
+                              ? "% Uber One" 
+                              : (restaurantMap[name as string] ? getShortName(restaurantMap[name as string]) : name);
+                            return [`${Number(value).toFixed(1)}%`, label];
+                          }}
                         />
                       }
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="uberOnePercent"
-                      stroke="hsl(var(--chart-1))"
-                      strokeWidth={3}
-                      dot={{ fill: "hsl(var(--chart-1))", strokeWidth: 2, r: 4 }}
-                      activeDot={{ r: 6, fill: "hsl(var(--chart-1))" }}
-                    />
+                    {chartMode === "average" ? (
+                      <Line
+                        type="monotone"
+                        dataKey="uberOnePercent"
+                        stroke="hsl(var(--chart-1))"
+                        strokeWidth={3}
+                        dot={{ fill: "hsl(var(--chart-1))", strokeWidth: 2, r: 4 }}
+                        activeDot={{ r: 6, fill: "hsl(var(--chart-1))" }}
+                      />
+                    ) : (
+                      byRestaurant.map((restaurant) => (
+                        <Line
+                          key={restaurant.restaurantId}
+                          type="monotone"
+                          dataKey={restaurant.restaurantId}
+                          name={restaurant.restaurantId}
+                          stroke={restaurantColorMap[restaurant.restaurantId]}
+                          strokeWidth={2}
+                          dot={{ fill: restaurantColorMap[restaurant.restaurantId], r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                      ))
+                    )}
+                    {chartMode === "detailed" && (
+                      <Legend
+                        formatter={(value) => {
+                          const name = restaurantMap[value];
+                          return name ? getShortName(name) : value;
+                        }}
+                        wrapperStyle={{ fontSize: 11 }}
+                      />
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               </ChartContainer>
