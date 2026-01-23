@@ -16,6 +16,10 @@ export const PERFORMANCE_THRESHOLDS = {
     good: 4,      // ≤ 4 min = vert
     warning: 6,   // 4-6 min = orange, > 6 min = rouge
   },
+  totalDeliveryTime: {
+    good: 30,     // ≤ 30 min = vert
+    warning: 40,  // 30-40 min = orange, > 40 min = rouge
+  },
   errorRate: {
     good: 2,      // < 2% = vert
     warning: 5,   // 2-5% = orange, > 5% = rouge
@@ -57,6 +61,7 @@ export function getMetricStatus(
       return "critical";
 
     case "prepTime":
+    case "totalDeliveryTime":
     case "errorRate":
     case "downtime":
       // Lower is better
