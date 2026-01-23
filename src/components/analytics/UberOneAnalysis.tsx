@@ -55,6 +55,7 @@ export function UberOneAnalysis() {
     selectedMonth,
     periodMode,
     dateRange: contextDateRange,
+    selectedPlatform,
   } = useAnalyticsContext();
 
   // Use selectedRestaurants for calculations (active chips = dark background)
@@ -119,6 +120,7 @@ export function UberOneAnalysis() {
     startDate,
     endDate,
     periodMode,
+    platform: selectedPlatform,
   });
 
   // Determine if we can show detailed view based on effective restaurant count
