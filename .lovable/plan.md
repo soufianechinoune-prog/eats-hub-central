@@ -1,95 +1,138 @@
 
-# Optimiser l'affichage de l'analyse Uber One
+# Ajouter l'onglet "Temps Prépa+Livraison" dans Operations
 
-## Problèmes identifiés
+## Contexte
 
-1. **"Comparaison par restaurant"** : Quand un seul restaurant est affiché, cette section montre une seule barre horizontale sans aucun comparatif — c'est inutile
-2. **"Temps de prépa"** : Dans la table "Comportement comparé", cette métrique n'apporte pas de valeur ajoutée pertinente pour analyser les clients Uber One
+La colonne **"Temps total de préparation et de livraison"** du fichier CSV Uber Eats est déjà parsée et stockée dans `total_prep_delivery_time_minutes` dans la table `order_history`. Cette métrique mesure le temps total depuis la commande jusqu'à la livraison au client (préparation cuisine + trajet coursier).
 
 ## Solution proposée
 
-### 1. Masquer "Comparaison par restaurant" en vue mono-restaurant
-
-Ajouter une condition pour ne pas afficher cette Card quand `byRestaurant.length === 1`
-
-**Fichier** : `src/components/analytics/UberOneAnalysis.tsx`
-
-**Comportement** :
-- Si 1 restaurant sélectionné → la section "Comparaison par restaurant" est masquée
-- Si 2+ restaurants sélectionnés → la section s'affiche normalement
-
-**Impact sur le layout** :
-- En vue mono-restaurant, la table "Comportement comparé" passe en pleine largeur (`lg:col-span-2`) pour occuper l'espace libéré
-
-### 2. Retirer "Temps de prépa" du tableau "Comportement comparé"
-
-Supprimer cette ligne du tableau de comparaison Uber One vs Standard
-
-**Fichier** : `src/hooks/useUberOneStats.ts`
-
-**Métriques conservées** :
-- ✅ Panier moyen (€)
-- ✅ Volume (nombre de commandes)
-- ❌ Temps de prépa (retiré)
+Créer un nouvel onglet dans la section Operations Analytics pour visualiser cette donnée avec les mêmes composants que les autres onglets :
+- KPIs (moyenne, pourcentage sous objectif)
+- Graphique d'évolution (journalier/mensuel)
+- Heatmap horaire
+- Classement des restaurants
 
 ---
 
-## Changements techniques
+## Fichiers à créer
 
-### `src/components/analytics/UberOneAnalysis.tsx`
+### 1. `src/components/analytics/TotalDeliveryTimeAnalytics.tsx`
 
-**Ligne ~420** — Ajouter une condition sur la section :
+Nouveau composant basé sur la structure de `PrepTimeAnalytics.tsx` mais utilisant la colonne `total_prep_delivery_time_minutes` :
 
+**Fonctionnalités :**
+- Fetch des données `order_history` avec `total_prep_delivery_time_minutes`
+- KPIs : Temps moyen, % des commandes sous objectif (ex: 35 min), volume de commandes
+- Graphique évolution : mensuel/journalier/horaire selon le mode de période
+- Heatmap : visualisation par jour/heure
+- Classement restaurants : du plus rapide au plus lent
+
+**Différences avec PrepTimeAnalytics :**
+| Aspect | Temps de prépa | Temps total prépa+livraison |
+|--------|----------------|------------------------------|
+| Colonne DB | `initial_prep_time_minutes` | `total_prep_delivery_time_minutes` |
+| Objectif par défaut | 6 min | 35 min |
+| Échelle typique | 3-15 min | 15-60 min |
+| Icône | ChefHat | Truck |
+
+---
+
+## Fichiers à modifier
+
+### 2. `src/components/analytics/OperationsAnalytics.tsx`
+
+**Changements :**
+
+1. **Import du nouveau composant :**
 ```typescript
-// Afficher uniquement si plus d'un restaurant
-{byRestaurant.length > 1 && (
-  <Card>
-    <CardHeader className="pb-2">
-      <CardTitle className="text-lg">Comparaison par restaurant</CardTitle>
-    </CardHeader>
-    {/* ... contenu existant ... */}
-  </Card>
-)}
-
-{/* Adapter la largeur de "Comportement comparé" */}
-<Card className={byRestaurant.length > 1 ? "" : "lg:col-span-2"}>
-  {/* ... Comportement comparé ... */}
-</Card>
+import { TotalDeliveryTimeAnalytics } from "./TotalDeliveryTimeAnalytics";
 ```
 
-### `src/hooks/useUberOneStats.ts`
-
-**Lignes 349-372** — Supprimer le bloc "Temps de prépa" :
-
+2. **Ajouter le type de tab :**
 ```typescript
-// Avant (3 métriques)
-return [
-  { metric: "Panier moyen", ... },
-  { metric: "Temps de prépa", ... },  // ← Supprimer
-  { metric: "Volume", ... },
-];
+// Ligne 59 - Ajouter "totalDelivery" aux types possibles
+const [activeTab, setActiveTab] = useState<"availability" | "prepTime" | "waitTime" | "orderErrors" | "uberOne" | "totalDelivery">
+```
 
-// Après (2 métriques)
-return [
-  { metric: "Panier moyen", ... },
-  { metric: "Volume", ... },
-];
+3. **Modifier la grille TabsList (6 colonnes):**
+```typescript
+<TabsList className="grid w-full max-w-5xl grid-cols-6 h-12 ...">
+```
+
+4. **Ajouter le nouvel onglet dans TabsList (après waitTime) :**
+```typescript
+<TabsTrigger value="totalDelivery" ...>
+  <Truck className="h-4 w-4" />
+  <span className="hidden sm:inline">Prépa+Livraison</span>
+  <span className="sm:hidden">Total</span>
+</TabsTrigger>
+```
+
+5. **Ajouter le TabsContent :**
+```typescript
+<TabsContent value="totalDelivery" className="mt-6">
+  <TotalDeliveryTimeAnalytics />
+</TabsContent>
 ```
 
 ---
 
-## Résultat attendu
+## Structure du nouveau composant
 
-| Sélection | Avant | Après |
-|-----------|-------|-------|
-| 1 restaurant | Bar chart avec 1 barre + table 3 lignes | Pas de bar chart, table pleine largeur 2 lignes |
-| 2+ restaurants | Bar chart comparatif + table 3 lignes | Bar chart comparatif + table 2 lignes |
+Le composant `TotalDeliveryTimeAnalytics` aura cette structure :
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  KPIs (3 cards)                                                  │
+│  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐          │
+│  │ Temps moyen   │ │ % sous 35min  │ │ Commandes     │          │
+│  │ 28min 45s     │ │ 72%           │ │ 1 234         │          │
+│  └───────────────┘ └───────────────┘ └───────────────┘          │
+├─────────────────────────────────────────────────────────────────┤
+│  Graphique d'évolution (avec slider objectif 25-50 min)         │
+│  [LineChart / BarChart selon sélection]                         │
+│  Navigation: < Mois précédent | Mois suivant >                  │
+├─────────────────────────────────────────────────────────────────┤
+│  Heatmap horaire                                                 │
+│  Lun-Dim x 0h-23h avec intensité couleur                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Classement restaurants (plus rapides en haut)                  │
+│  🥇 Restaurant A - 24min | 🥈 Restaurant B - 28min | ...        │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Fichiers modifiés
+## Résumé des changements
 
-| Fichier | Modification |
-|---------|--------------|
-| `src/components/analytics/UberOneAnalysis.tsx` | Condition d'affichage sur "Comparaison par restaurant", layout adaptatif |
-| `src/hooks/useUberOneStats.ts` | Retrait de la métrique "Temps de prépa" |
+| Fichier | Action |
+|---------|--------|
+| `src/components/analytics/TotalDeliveryTimeAnalytics.tsx` | Créer (~800 lignes, basé sur PrepTimeAnalytics) |
+| `src/components/analytics/OperationsAnalytics.tsx` | Modifier (import, tabs, TabsContent) |
+
+---
+
+## Section technique
+
+### Requête Supabase
+
+```typescript
+supabase
+  .from("order_history")
+  .select("id, restaurant_id, order_datetime, total_prep_delivery_time_minutes")
+  .gte("order_datetime", startDate)
+  .lte("order_datetime", endDate)
+  .not("total_prep_delivery_time_minutes", "is", null)
+```
+
+### Seuils de couleur suggérés
+
+| Temps total | Couleur |
+|-------------|---------|
+| < 25 min | Vert (excellent) |
+| 25-35 min | Jaune (correct) |
+| 35-45 min | Orange (attention) |
+| > 45 min | Rouge (problème) |
+
+Ces seuils sont adaptés au temps total (prépa + livraison) qui est naturellement plus long que le temps de préparation seul.
