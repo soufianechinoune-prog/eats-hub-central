@@ -1,124 +1,91 @@
 
-# Corriger le problème de timezone dans l'évolution Uber One
 
-## Diagnostic
+# Limiter la date de fin à aujourd'hui pour l'année en cours
 
-Le graphique "Évolution % Uber One" utilise des dates UTC alors que les autres graphiques du projet utilisent le fuseau horaire "Europe/Paris". Cela cause :
+## Problème identifié
 
-1. **Décalage des jours** : Les commandes de fin de soirée (22h-00h heure Paris) sont attribuées au jour suivant en UTC
-2. **Pics artificiels** : Le 1er d'un mois en UTC peut accumuler des commandes de la veille (en heure Paris)
-3. **Disparition des pics** : Quand la plage s'élargit, la distribution change car les commandes sont réattribuées différemment
+Quand vous sélectionnez "2026" comme année, le système définit :
+- `startDate` = 1er janvier 2026
+- `endDate` = 31 décembre 2026
 
-### Exemple concret
-
-Une commande passée le **31 octobre à 23h30 (Paris)** :
-- En UTC : `2025-11-01 00:30:00+00`
-- Le code actuel l'attribue au **1er novembre** (clé `2025-11-01`)
-- Elle devrait être attribuée au **31 octobre** (jour ouvré Paris)
+Mais nous sommes le 23 janvier 2026, donc :
+1. Il n'y a des données que du 1er au 23 janvier
+2. Le graphique essaie de tracer toute l'année avec un seul mois de données
+3. Le message "Pas assez de données" apparaît car la logique attend plus de points
 
 ## Solution
 
-Aligner le calcul des dates sur le fuseau "Europe/Paris", comme les autres graphiques du projet.
+**Ajouter une logique de "cap à aujourd'hui"** quand `selectedYear === currentYear`.
 
-### Fichier à modifier : `src/hooks/useUberOneStats.ts`
+### Fichiers à modifier
 
-**1. Ajouter une fonction utilitaire pour formater en heure Paris**
-
-```typescript
-// Formater une date en YYYY-MM-DD selon le fuseau Europe/Paris
-const formatDateParis = (date: Date): string => {
-  return new Intl.DateTimeFormat('fr-CA', {
-    timeZone: 'Europe/Paris',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-};
-
-// Formater une date en YYYY-MM selon le fuseau Europe/Paris
-const formatMonthParis = (date: Date): string => {
-  const formatted = formatDateParis(date);
-  return formatted.slice(0, 7); // YYYY-MM
-};
-```
-
-**2. Modifier le calcul de `evolution` (lignes 172-211)**
+**1. `src/components/analytics/UberOneAnalysis.tsx` (lignes 102-106)**
 
 Remplacer :
 ```typescript
-const date = new Date(order.order_datetime);
-const key = useDaily 
-  ? date.toISOString().split('T')[0]  // YYYY-MM-DD
-  : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+default: // "year"
+  return {
+    startDate: startOfYear(new Date(selectedYear, 0, 1)),
+    endDate: endOfYear(new Date(selectedYear, 0, 1)),
+  };
 ```
 
 Par :
 ```typescript
-const date = new Date(order.order_datetime);
-const key = useDaily 
-  ? formatDateParis(date)  // YYYY-MM-DD en heure Paris
-  : formatMonthParis(date);  // YYYY-MM en heure Paris
+default: // "year"
+  const yearStart = startOfYear(new Date(selectedYear, 0, 1));
+  const yearEnd = endOfYear(new Date(selectedYear, 0, 1));
+  // Cap to today if current year
+  const effectiveEnd = selectedYear === now.getFullYear() && yearEnd > now 
+    ? now 
+    : yearEnd;
+  return {
+    startDate: yearStart,
+    endDate: effectiveEnd,
+  };
 ```
 
-**3. Modifier la génération des labels (lignes 193-199)**
+**2. `src/hooks/useDataGranularity.ts` (lignes 66-70)**
 
-Remplacer :
+Même correction pour assurer la cohérence globale :
 ```typescript
-if (useDaily) {
-  const d = new Date(key);
-  label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
+} else {
+  // Full year view
+  startDate = new Date(selectedYear, 0, 1);
+  const yearEnd = new Date(selectedYear, 11, 31);
+  // Cap to today if current year
+  endDate = selectedYear === today.getFullYear() && yearEnd > today 
+    ? today 
+    : yearEnd;
+  periodDays = differenceInDays(endDate, startDate) + 1;
 }
 ```
-
-Par :
-```typescript
-if (useDaily) {
-  // Ajouter T12:00:00 pour éviter les décalages de timezone lors du parsing
-  const d = new Date(key + "T12:00:00");
-  label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
-}
-```
-
-**4. Appliquer les mêmes corrections à `evolutionByRestaurant` (lignes 223-268)**
-
-Même logique : utiliser `formatDateParis` et `formatMonthParis` pour les clés, et corriger le parsing pour les labels.
 
 ---
 
 ## Résultat attendu
 
-| Avant | Après |
-|-------|-------|
-| Commande 31 oct 23h30 → Clé "2025-11-01" | Commande 31 oct 23h30 → Clé "2025-10-31" |
-| Pic artificiel le 1er du mois | Distribution réaliste |
-| Données incohérentes selon la plage | Données identiques quelle que soit la plage |
+| Sélection | Avant | Après |
+|-----------|-------|-------|
+| 2026 (janvier) | 1 jan → 31 déc 2026 | 1 jan → 23 jan 2026 |
+| 2025 | 1 jan → 31 déc 2025 | 1 jan → 31 déc 2025 (inchangé) |
+| 2024 | 1 jan → 31 déc 2024 | 1 jan → 31 déc 2024 (inchangé) |
 
----
-
-## Fichiers modifiés
-
-| Fichier | Modification |
-|---------|--------------|
-| `src/hooks/useUberOneStats.ts` | Utiliser le fuseau Europe/Paris pour le groupement des dates |
+Cela garantit que :
+- Les années passées restent complètes (12 mois)
+- L'année en cours est limitée aux données réellement disponibles
+- Le graphique affichera les points journaliers du 1er au 23 janvier
 
 ---
 
 ## Section technique
 
-### Pourquoi `Intl.DateTimeFormat` avec `fr-CA` ?
+La logique de "cap" utilise une comparaison simple :
+```typescript
+const effectiveEnd = selectedYear === currentYear && theoreticalEnd > now 
+  ? now 
+  : theoreticalEnd;
+```
 
-- `fr-CA` retourne le format `YYYY-MM-DD` directement (ISO-compatible)
-- Combiné avec `timeZone: 'Europe/Paris'`, cela garantit le bon jour ouvré français
+Cette approche est déjà utilisée implicitement dans les modes "7d", "30d", et "current_month" qui prennent `today` comme référence. On applique simplement la même logique au mode "year".
 
-### Pourquoi `T12:00:00` lors du parsing ?
-
-- `new Date("2025-11-01")` est interprété comme minuit UTC
-- En France (UTC+1), cela devient le 31 octobre à 23h
-- En ajoutant `T12:00:00`, on force midi local, évitant tout décalage de jour
-
-### Cohérence avec le projet
-
-Cette approche est déjà utilisée dans :
-- `useFinancesDrilldown` pour les groupements journaliers
-- Les graphiques de rentabilité
-- Toute la section "Revenus & Ventes"
