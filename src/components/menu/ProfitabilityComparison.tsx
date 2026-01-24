@@ -1008,7 +1008,7 @@ export function ProfitabilityComparison() {
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       <div className="text-xs space-y-1">
-                                        <div>Prix TTC: {price !== null ? `${price.toFixed(2)}€` : "—"}</div>
+                                        <div>Prix TTC: {price != null ? `${price.toFixed(2)}€` : "—"}</div>
                                         {prixHT !== null && (
                                           <div>Prix HT: {prixHT.toFixed(2)}€ <span className="text-muted-foreground">(TVA {vatRate}%)</span></div>
                                         )}
