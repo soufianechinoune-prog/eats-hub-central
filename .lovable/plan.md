@@ -1,93 +1,105 @@
 
 
-# Ajouter "Temps Prépa+Livraison" dans les vignettes et le tableau comparatif
+# Simplifier la page Analyse des Horaires + Nouveau croisement Produits × Créneaux
 
-## Contexte
+## Modifications demandées
 
-Actuellement, les vignettes KPI en haut de la page Overview et le tableau comparatif des restaurants affichent uniquement le "Temps de préparation" (`initial_prep_time_minutes`). Vous souhaitez ajouter/remplacer par le "Temps Prépa+Livraison" (`total_prep_delivery_time_minutes`) qui mesure le temps total de la commande à la livraison.
+### 1. Supprimer les badges "À surveiller" et "Sous-exploité"
 
-## Solution proposée
-
-### 1. Modifier le hook `useNetworkStats` pour récupérer le temps total
-
-**Fichier** : `src/hooks/useNetworkStats.ts`
+**Fichier** : `src/components/compare/HourlyOpportunitiesAnalysis.tsx`
 
 **Changements** :
-- Ajouter une nouvelle requête pour récupérer `total_prep_delivery_time_minutes` de `order_history`
-- Ajouter `totalDeliveryTime` dans l'interface `RestaurantNetworkStats`
-- Ajouter `avgTotalDeliveryTime` dans l'interface `NetworkTotals`
-- Calculer la moyenne par restaurant et pour le réseau
+- Supprimer les badges "À surveiller" (lignes 509-513)
+- Supprimer les badges "Sous-exploité" (lignes 519-523)
+- Conserver uniquement le badge "Point fort" (vert)
+- Supprimer ces mêmes badges de la légende (lignes 561-566)
 
-**Nouvelles propriétés** :
+### 2. Supprimer la section "Opportunités d'extension d'horaires"
+
+**Fichier** : `src/components/compare/OpeningHoursInsights.tsx`
+
+**Changements** :
+- Supprimer toute la section "Opportunités d'extension d'horaires" (lignes 152-195)
+- Les autres sections (Jours manquants, Écarts plateformes) sont conservées
+
+### 3. Corriger l'affichage des noms de restaurants
+
+**Fichier** : `src/pages/OpeningHoursComparison.tsx`
+
+**Changements** :
+- Importer `extractCityName` depuis `@/lib/restaurantUtils`
+- Remplacer le formatage tronqué par "CS + Ville"
+
 ```typescript
-interface RestaurantNetworkStats {
-  // ... existing
-  totalDeliveryTime: number | null; // Temps prépa+livraison moyen
-}
+// Avant (ligne 504)
+{row.name.length > 12 ? row.name.slice(0, 12) + "..." : row.name}
 
-interface NetworkTotals {
-  // ... existing  
-  avgTotalDeliveryTime: number | null;
-}
+// Après
+CS {extractCityName(row.name)}
 ```
 
-### 2. Ajouter les seuils de performance pour le temps total
+---
 
-**Fichier** : `src/lib/performanceThresholds.ts`
+## Nouvelle fonctionnalité : Croisement Produits × Créneaux horaires
 
-**Changements** :
+### Concept
+
+Créer une nouvelle section "Top Produits par Créneau" qui montre quels produits se vendent le mieux à chaque moment de la journée :
+
+| Créneau | Top 1 | Top 2 | Top 3 |
+|---------|-------|-------|-------|
+| Déjeuner (11h-14h) | Menu Chicken Box (45%) | Wrap Classic (22%) | Nuggets 10pc (18%) |
+| Après-midi (14h-18h) | Milkshake Oreo (38%) | Nuggets 10pc (25%) | Menu Kid (20%) |
+| Dîner (18h-22h) | Menu Street XL (42%) | Menu Duo (28%) | Chicken Wings (15%) |
+| Late Night (22h-00h) | Menu Street XL (55%) | Loaded Fries (25%) | Nuggets 20pc (12%) |
+
+### Fichiers à créer/modifier
+
+| Fichier | Description |
+|---------|-------------|
+| `src/hooks/useProductsByTimeSlot.ts` | Nouveau hook pour récupérer les ventes par produit et par créneau |
+| `src/components/compare/ProductsByTimeSlotAnalysis.tsx` | Nouveau composant affichant le croisement |
+| `src/pages/OpeningHoursComparison.tsx` | Intégrer le nouveau composant |
+
+### Logique de données
+
 ```typescript
-PERFORMANCE_THRESHOLDS = {
-  // ... existing
-  totalDeliveryTime: {
-    good: 30,      // ≤ 30 min = vert
-    warning: 40,   // 30-40 min = orange, > 40 min = rouge
-  },
-};
+// Définition des créneaux (même que HourlyOpportunitiesAnalysis)
+const TIME_SLOTS = [
+  { label: "Déjeuner", hours: [11, 12, 13] },
+  { label: "Après-midi", hours: [14, 15, 16, 17] },
+  { label: "Dîner", hours: [18, 19, 20, 21] },
+  { label: "Late Night", hours: [22, 23, 0, 1] },
+];
+
+// Requête: récupérer les commandes avec l'heure
+const orders = await supabase
+  .from("orders")
+  .select("id, order_datetime")
+  .gte("order_datetime", startDate)
+  .lte("order_datetime", endDate)
+  .in("restaurant_id", restaurantIds);
+
+// Puis récupérer les order_items et les grouper par heure
+// Calculer le top 3 produits par créneau horaire
 ```
 
-- Mettre à jour la fonction `getMetricStatus` pour gérer `totalDeliveryTime` (lower is better)
+### Visualisation proposée
 
-### 3. Modifier les vignettes KPI
+La section affichera :
+1. **Vue synthétique** : Tableau avec les top 3 produits par créneau
+2. **Indicateurs visuels** :
+   - Badge "Star" pour le produit n°1 de chaque créneau
+   - Pourcentage du CA du créneau
+   - Évolution vs période précédente (optionnel)
 
-**Fichier** : `src/pages/Overview.tsx`
+### Insights business
 
-**Changements** :
-- Ajouter une nouvelle ligne "Temps prépa+livraison" dans chaque vignette (Global, Uber Eats, Deliveroo)
-- Utiliser l'icône `Truck` pour différencier du temps de préparation seul
-- Navigation vers `/analytics/operations?tab=totalDelivery`
-
-**Résultat visuel** :
-```
-┌─────────────────────────────────┐
-│ Global                          │
-│ ☆ Note moyenne          4.5/5  │
-│ ⏱ Temps préparation   8 min 0s │
-│ 🚚 Temps prépa+livraison 25min │  ← NOUVEAU
-│ ↘ Commandes incorrectes  3.1%  │
-│ ...                             │
-└─────────────────────────────────┘
-```
-
-### 4. Remplacer la colonne "Prépa" par "Prépa+Livr" dans le tableau
-
-**Fichier** : `src/components/overview/RestaurantComparisonTable.tsx`
-
-**Changements** :
-- Remplacer la colonne "Prépa" par "Prépa+Livr" (temps total)
-- Utiliser `resto.totalDeliveryTime` au lieu de `resto.prepTime`
-- Appliquer les seuils de couleur `totalDeliveryTime` 
-- Mettre à jour le tri et le formatage
-
-**Avant** :
-| Restaurant | ... | Prépa | Inactiv. |
-|------------|-----|-------|----------|
-| CS Athis   | ... | 6m 33s | 0min    |
-
-**Après** :
-| Restaurant | ... | Prépa+Livr | Inactiv. |
-|------------|-----|------------|----------|
-| CS Athis   | ... | 24min      | 0min     |
+Cette analyse permettra de :
+- Identifier les "produits phares" de chaque moment de la journée
+- Adapter les promotions selon les créneaux (promouvoir les produits sous-performants)
+- Optimiser les stocks et la préparation selon l'heure
+- Détecter des opportunités (ex: produit populaire le soir mais absent des promos)
 
 ---
 
@@ -95,54 +107,78 @@ PERFORMANCE_THRESHOLDS = {
 
 | Fichier | Modification |
 |---------|--------------|
-| `src/hooks/useNetworkStats.ts` | Fetch `total_prep_delivery_time_minutes`, ajouter `totalDeliveryTime` aux stats |
-| `src/lib/performanceThresholds.ts` | Ajouter seuils `totalDeliveryTime` (30/40 min) |
-| `src/pages/Overview.tsx` | Ajouter ligne "Temps prépa+livraison" dans les 3 vignettes |
-| `src/components/overview/RestaurantComparisonTable.tsx` | Remplacer colonne "Prépa" par "Prépa+Livr" |
+| `src/components/compare/HourlyOpportunitiesAnalysis.tsx` | Supprimer badges "À surveiller" et "Sous-exploité" |
+| `src/components/compare/OpeningHoursInsights.tsx` | Supprimer section "Opportunités d'extension" |
+| `src/pages/OpeningHoursComparison.tsx` | Format "CS Ville" + intégrer nouveau composant |
+| `src/hooks/useProductsByTimeSlot.ts` | **NOUVEAU** - Hook pour croisement produits × créneaux |
+| `src/components/compare/ProductsByTimeSlotAnalysis.tsx` | **NOUVEAU** - Composant d'affichage |
 
 ---
 
 ## Section technique
 
-### Requête Supabase pour le temps total
+### Structure du hook useProductsByTimeSlot
 
 ```typescript
-// Dans useNetworkStats.ts - nouvelle requête
-const { data: totalDeliveryData } = useQuery({
-  queryKey: ["network-stats-total-delivery", restaurantIds, startDateStr, endDateStr],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("order_history")
-      .select("restaurant_id, total_prep_delivery_time_minutes")
-      .gte("order_datetime", startDate.toISOString())
-      .lte("order_datetime", endDate.toISOString())
-      .in("restaurant_id", restaurantIds)
-      .not("total_prep_delivery_time_minutes", "is", null);
-    
-    if (error) throw error;
-    return data || [];
-  },
-  enabled: restaurantIds.length > 0,
-});
-```
+interface ProductSlotData {
+  slotLabel: string;
+  slotHours: number[];
+  topProducts: {
+    title: string;
+    quantity: number;
+    revenue: number;
+    percentOfSlot: number;
+    rank: number;
+  }[];
+  totalOrders: number;
+  totalRevenue: number;
+}
 
-### Calcul de la moyenne par restaurant
-
-```typescript
-// Temps prépa+livraison
-const restoTotalDelivery = totalDeliveryData?.filter(h => h.restaurant_id === resto.id) || [];
-const totalDeliveryTime = restoTotalDelivery.length > 0
-  ? restoTotalDelivery.reduce((sum, h) => sum + Number(h.total_prep_delivery_time_minutes || 0), 0) / restoTotalDelivery.length
-  : null;
-```
-
-### Formatage du temps (en minutes)
-
-```typescript
-const formatMinutesLong = (minutes: number | null): string => {
-  if (minutes == null) return "—";
-  const mins = Math.round(minutes);
-  return `${mins}min`;
+export const useProductsByTimeSlot = (
+  restaurantIds: string[],
+  startDate: Date,
+  endDate: Date
+) => {
+  // 1. Récupérer les orders avec leur datetime
+  // 2. Récupérer les order_items correspondants
+  // 3. Grouper par créneau horaire
+  // 4. Calculer le top 3 produits par créneau
+  // 5. Retourner les données agrégées
 };
+```
+
+### Pattern de requête (basé sur useItemSalesAnalytics)
+
+```typescript
+// Étape 1: Récupérer les commandes avec l'heure
+const { data: ordersWithHour } = await supabase
+  .from("orders")
+  .select("id, order_datetime")
+  .gte("order_datetime", startDateStr)
+  .lte("order_datetime", endDateStr + "T23:59:59")
+  .in("restaurant_id", restaurantIds);
+
+// Créer un map order_id -> heure
+const orderHourMap = new Map(
+  ordersWithHour.map(o => [
+    o.id, 
+    parseISO(o.order_datetime).getHours()
+  ])
+);
+
+// Étape 2: Récupérer les items (pagination par chunks de 500)
+const { data: items } = await supabase
+  .from("order_items")
+  .select("order_id, item_title, quantity, sales_incl_vat")
+  .in("order_id", orderIds);
+
+// Étape 3: Grouper par créneau et produit
+const slotProductMap = new Map<string, Map<string, ProductData>>();
+
+items.forEach(item => {
+  const hour = orderHourMap.get(item.order_id);
+  const slot = TIME_SLOTS.find(s => s.hours.includes(hour));
+  // Agréger...
+});
 ```
 
