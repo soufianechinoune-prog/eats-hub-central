@@ -1,102 +1,87 @@
 
-# Fusionner l'onglet Food Cost dans Catalogue
 
-## Objectif
-Supprimer l'onglet "Food Cost" redondant en intégrant toutes ses fonctionnalités utiles directement dans l'onglet "Catalogue".
+# Ajouter la TVA au Catalogue Produits
 
-## Analyse de la situation actuelle
-
-L'onglet **Food Cost** propose :
-- Édition inline du food cost (clic → input → Enter)
-- KPIs : Avec Food Cost, À compléter, % Complétion
-- Export Excel et PDF
-- Ajout de produit
-
-L'onglet **Catalogue** propose déjà :
-- Affichage du Food Cost dans le tableau
-- Édition via dialog (avec le champ Food Cost)
-- Ajout de produit complet
-- Vue par catégorie collapsible
+## Contexte
+Lors de la fusion Food Cost → Catalogue, la TVA par produit n'a pas été incluse car elle n'existait pas dans la table `menu_items`. Or, pour calculer correctement la marge nette (Prix TTC → HT → déductions), il est nécessaire de connaître le taux de TVA applicable à chaque produit.
 
 ## Modifications à apporter
 
-### 1. Ajouter l'édition inline du Food Cost dans le Catalogue
+### 1. Migration base de données
 
-**Fichier : `src/pages/MenuItems.tsx`**
+Ajouter une colonne `vat_rate` à la table `menu_items` :
 
-Dans le tableau du Catalogue, transformer la cellule "Food Cost" en champ éditable :
-- Clic sur la cellule → Input number
-- Touche Enter → Sauvegarde
-- Touche Escape → Annulation
-- Auto-save on blur (perte de focus)
+```sql
+ALTER TABLE menu_items 
+ADD COLUMN vat_rate NUMERIC(5,2) DEFAULT 10.00;
 
-```text
-Avant: <TableCell>3,11 €</TableCell>
-Après: <TableCell onClick=startEdit> <Input value="3.11" /> ou "3,11 €"</TableCell>
+COMMENT ON COLUMN menu_items.vat_rate IS 'Taux de TVA applicable au produit (en %)';
 ```
 
-### 2. Enrichir les KPIs du Catalogue
+- Valeur par défaut : **10%** (taux standard restauration)
+- Permet des taux différents pour certains produits (boissons alcoolisées 20%, etc.)
 
-Ajouter une carte KPI supplémentaire :
-- **"Avec Food Cost"** : nombre de produits ayant un food cost renseigné
-- Ou un indicateur de complétion sous la carte "Produits total"
-
-### 3. Ajouter les exports Excel/PDF
-
-Récupérer la logique d'export depuis `FoodCostManager.tsx` :
-- Bouton "Excel" et "PDF" dans la barre de filtres du Catalogue
-- Export adapté aux colonnes du Catalogue (Nom, Catégorie, Description, Food Cost, Statut)
-
-### 4. Simplifier le dialog de création/édition
-
-Retirer les champs devenus obsolètes :
-- "Prix Uber Eats" et "Prix Deliveroo" (lignes 1433-1471)
-- Les descriptions par plateforme peuvent rester (optionnel)
-
-Le dialog devient :
-- Nom du produit *
-- Catégorie
-- Description (unique, pas par plateforme)
-- Food Cost (€)
-- Produit actif
-
-### 5. Supprimer l'onglet Food Cost
+### 2. Mise à jour du tableau Catalogue
 
 **Fichier : `src/pages/MenuItems.tsx`**
-- Retirer "foodcost" de `tabConfig`
-- Retirer le `TabsContent` pour "foodcost"
-- Supprimer l'import de `FoodCostManager`
 
-**Fichier à supprimer : `src/components/menu/FoodCostManager.tsx`**
+Ajouter une nouvelle colonne "TVA" après "Food Cost" :
 
-### 6. Mettre à jour le type activeTab
+| Nom | Description | Food Cost | TVA | Statut | Actions |
+|-----|-------------|-----------|-----|--------|---------|
+| Burger Classic | ... | 3,11 € | 10% | ✓ | ... |
+
+- **Affichage** : Format `XX%`
+- **Édition inline** : Clic → Select dropdown (5.5%, 10%, 20%) ou Input
+- **Sauvegarde** : Même logique que Food Cost (blur/Enter)
+
+### 3. Interface MenuItem
 
 ```typescript
-// Avant
-const [activeTab, setActiveTab] = useState<"catalog" | "foodcost" | "simulator" | "prices" | "profitability">("catalog");
-
-// Après
-const [activeTab, setActiveTab] = useState<"catalog" | "simulator" | "prices" | "profitability">("catalog");
+interface MenuItem {
+  // ... champs existants
+  food_cost: number | null;
+  vat_rate: number | null;  // Nouveau champ
+  is_active: boolean;
+}
 ```
+
+### 4. Formulaire de création/édition
+
+Ajouter un champ "Taux de TVA" dans le dialogue :
+
+```text
+┌─────────────────────────────────────┐
+│ Food Cost HT (€)                    │
+│ [_____3.11_____]                    │
+│                                     │
+│ Taux de TVA (%)                     │
+│ [▼ 10% ▼]  (Dropdown: 5.5%, 10%, 20%)│
+└─────────────────────────────────────┘
+```
+
+### 5. Exports Excel/PDF
+
+Ajouter la colonne TVA dans les exports :
+- Excel : `"TVA (%)": item.vat_rate ? item.vat_rate + "%" : "10%"`
+- PDF : Idem
+
+### 6. KPIs (optionnel)
+
+Ajouter une info sur la complétion TVA ou simplement afficher "10% par défaut" dans l'interface.
 
 ## Résultat attendu
 
-**Onglets après fusion :**
-- ✅ **Catalogue** (annuaire complet avec édition inline du Food Cost)
-- ✅ **Prix Restaurants** 
-- ✅ **Rentabilité**
-- ✅ **Simulateur**
+**Tableau Catalogue enrichi :**
 
-**Fonctionnalités du Catalogue après fusion :**
-| Fonctionnalité | Avant | Après |
-|----------------|-------|-------|
-| Vue par catégorie | ✅ | ✅ |
-| Édition Food Cost | Via dialog | ✅ Inline + Dialog |
-| KPIs Food Cost | ❌ | ✅ |
-| Export Excel/PDF | ❌ | ✅ |
-| Ajout produit | ✅ | ✅ (simplifié) |
+| Produit | Catégorie | Description | Food Cost | TVA | Statut |
+|---------|-----------|-------------|-----------|-----|--------|
+| Burger Classic | Burgers | Le classique... | 3,11 € | 10% | ✅ |
+| Coca-Cola | Boissons | 33cl | 0,45 € | 5.5% | ✅ |
+| Mojito | Boissons | Cocktail... | 2,10 € | 20% | ✅ |
 
 ## Fichiers impactés
 
-1. **`src/pages/MenuItems.tsx`** - Modifications principales
-2. **`src/components/menu/FoodCostManager.tsx`** - À supprimer
+1. **Migration SQL** - Ajout colonne `vat_rate`
+2. **`src/pages/MenuItems.tsx`** - Interface, tableau, édition inline, formulaire, exports
+
