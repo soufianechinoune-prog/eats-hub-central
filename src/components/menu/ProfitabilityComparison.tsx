@@ -159,6 +159,8 @@ export function ProfitabilityComparison() {
   const alertCount = marginType === "brut" ? stats.alertCountBrut : stats.alertCountNet;
 
   // Calculate Food Cost % for a specific restaurant
+  // Brut: Food Cost / Prix HT
+  // Net: Food Cost / (Prix HT - Commission) => ce qui reste vraiment
   const getRestaurantFoodCostPercent = (item: ProductProfitability, restaurantId: string): number | null => {
     if (item.foodCost === null) return null;
     const r = item.restaurants.find(rest => rest.restaurantId === restaurantId);
@@ -168,7 +170,17 @@ export function ProfitabilityComparison() {
     const vatRate = item.vatRate ?? 10;
     const prixHT = price / (1 + vatRate / 100);
     if (prixHT === 0) return null;
-    return (item.foodCost / prixHT) * 100;
+    
+    if (marginType === "brut") {
+      // FC % Brut = Food Cost / Prix HT
+      return (item.foodCost / prixHT) * 100;
+    } else {
+      // FC % Net = Food Cost / (Prix HT - Commission)
+      const commissionAmount = prixHT * (commissionRate / 100);
+      const netRevenue = prixHT - commissionAmount;
+      if (netRevenue <= 0) return null;
+      return (item.foodCost / netRevenue) * 100;
+    }
   };
 
   // Calculate average Food Cost % across all selected restaurants
@@ -557,8 +569,8 @@ export function ProfitabilityComparison() {
               </SelectContent>
             </Select>
 
-            {/* Commission Rate Input - only shown in margin mode */}
-            {viewMode === "margin" && (
+            {/* Commission Rate Input - shown when margin mode OR food cost mode with "net" */}
+            {(viewMode === "margin" || marginType === "net") && (
               <div className="flex items-center gap-2">
                 <TooltipProvider>
                   <Tooltip>
@@ -665,109 +677,103 @@ export function ProfitabilityComparison() {
                 </Button>
               </div>
               
-              {/* Margin Type Toggle - only visible in margin mode */}
-              {viewMode === "margin" && (
-                <>
-                  <div className="flex items-center gap-1 border rounded-md p-0.5">
-                    <Button
-                      variant={marginType === "brut" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setMarginType("brut")}
-                      className="h-7 px-3 text-xs"
-                    >
-                      Brute
+              {/* Margin Type Toggle - visible in both modes */}
+              <div className="flex items-center gap-1 border rounded-md p-0.5">
+                <Button
+                  variant={marginType === "brut" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setMarginType("brut")}
+                  className="h-7 px-3 text-xs"
+                >
+                  Brut{viewMode === "margin" ? "e" : ""}
+                </Button>
+                <Button
+                  variant={marginType === "net" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setMarginType("net")}
+                  className={cn(
+                    "h-7 px-3 text-xs",
+                    marginType === "net" && viewMode === "foodCost" && "bg-orange-600 hover:bg-orange-700"
+                  )}
+                >
+                  Net{viewMode === "margin" ? "te" : ""}
+                </Button>
+              </div>
+              
+              {/* Info Tooltip - adapts to viewMode */}
+              <TooltipProvider>
+                <Tooltip delayDuration={100}>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
-                    <Button
-                      variant={marginType === "net" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setMarginType("net")}
-                      className="h-7 px-3 text-xs"
-                    >
-                      Nette
-                    </Button>
-                  </div>
-                  
-                  <TooltipProvider>
-                    <Tooltip delayDuration={100}>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="w-80 p-4">
-                        <div className="space-y-3">
-                          <div>
-                            <div className="flex items-center gap-2 text-emerald-600 font-medium">
-                              <TrendingUp className="h-4 w-4" />
-                              Marge Brute
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1 font-mono">
-                              = (Prix HT − Food Cost) / Prix HT
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Ce que vous gardez avant les commissions plateforme
-                            </p>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="w-80 p-4">
+                    {viewMode === "margin" ? (
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex items-center gap-2 text-emerald-600 font-medium">
+                            <TrendingUp className="h-4 w-4" />
+                            Marge Brute
                           </div>
-                          
-                          <div className="border-t pt-3">
-                            <div className="flex items-center gap-2 text-violet-600 font-medium">
-                              <TrendingDown className="h-4 w-4" />
-                              Marge Nette
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1 font-mono">
-                              = (Prix HT − Commission − Food Cost) / Prix HT
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Ce qui reste vraiment après Uber/Deliveroo
-                            </p>
-                          </div>
+                          <p className="text-sm text-muted-foreground mt-1 font-mono">
+                            = (Prix HT − Food Cost) / Prix HT
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Ce que vous gardez avant les commissions plateforme
+                          </p>
                         </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </>
-              )}
-
-              {/* Food Cost Info Tooltip */}
-              {viewMode === "foodCost" && (
-                <TooltipProvider>
-                  <Tooltip delayDuration={100}>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="w-80 p-4">
+                        
+                        <div className="border-t pt-3">
+                          <div className="flex items-center gap-2 text-violet-600 font-medium">
+                            <TrendingDown className="h-4 w-4" />
+                            Marge Nette
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1 font-mono">
+                            = (Prix HT − Commission − Food Cost) / Prix HT
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Ce qui reste vraiment après Uber/Deliveroo
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
                       <div className="space-y-3">
                         <div>
                           <div className="flex items-center gap-2 text-orange-600 font-medium">
                             <PieChart className="h-4 w-4" />
-                            % Food Cost
+                            % Food Cost Brut
                           </div>
                           <p className="text-sm text-muted-foreground mt-1 font-mono">
                             = Food Cost HT / Prix HT × 100
                           </p>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            La règle des 30% : un food cost inférieur à 30% du prix HT est optimal en restauration.
+                          <p className="text-xs text-muted-foreground">
+                            La règle des 30% : inférieur à 30% du prix HT est optimal
                           </p>
                         </div>
                         
-                        <div className="border-t pt-3 space-y-1">
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-emerald-500">●</span> &lt; 30% : Excellent
+                        <div className="border-t pt-3">
+                          <div className="flex items-center gap-2 text-red-600 font-medium">
+                            <AlertTriangle className="h-4 w-4" />
+                            % Food Cost Net
                           </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-amber-500">●</span> 30-35% : Acceptable
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-red-500">●</span> &gt; 35% : À surveiller
-                          </div>
+                          <p className="text-sm text-muted-foreground mt-1 font-mono">
+                            = Food Cost HT / (Prix HT − Commission) × 100
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            L'impact réel sur ce que vous touchez vraiment
+                          </p>
+                        </div>
+                        
+                        <div className="border-t pt-3 text-xs text-muted-foreground">
+                          <strong>Exemple:</strong> FC 3€, Prix HT 10€, Commission 30%
+                          <br />→ FC Brut = 30%, FC Net = 3€ / 7€ = <strong>42.8%</strong>
                         </div>
                       </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* Alerts Toggle */}
