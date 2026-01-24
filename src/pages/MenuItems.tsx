@@ -138,11 +138,10 @@ const CATEGORIES = [
   "Boissons",
 ];
 
-// Draggable Item Component for Kanban
-function DraggableKanbanCard({ item, formatPrice, calculateMargin, openEditDialog, handleDeleteClick }: {
+// Draggable Item Component for Kanban - Simplified directory view
+function DraggableKanbanCard({ item, formatPrice, openEditDialog, handleDeleteClick }: {
   item: MenuItem;
   formatPrice: (price: number | null) => string;
-  calculateMargin: (price: number | null, foodCost: number | null) => number | null;
   openEditDialog: (item: MenuItem) => void;
   handleDeleteClick: (item: MenuItem) => void;
 }) {
@@ -158,9 +157,6 @@ function DraggableKanbanCard({ item, formatPrice, calculateMargin, openEditDialo
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     opacity: isDragging ? 0.5 : 1,
   } : undefined;
-
-  const marginUber = calculateMargin(item.price_uber, item.food_cost);
-  const marginDeliveroo = calculateMargin(item.price_deliveroo, item.food_cost);
 
   return (
     <motion.div
@@ -209,50 +205,16 @@ function DraggableKanbanCard({ item, formatPrice, calculateMargin, openEditDialo
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-1.5">
-              <UberEatsIcon className="h-4 w-4" />
-              <span className="text-muted-foreground">Uber</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-semibold">{formatPrice(item.price_uber)}</span>
-              {marginUber !== null && (
-                <Badge 
-                  variant={marginUber >= 70 ? "default" : marginUber >= 50 ? "secondary" : "destructive"}
-                  className={`text-xs ${marginUber >= 70 ? "bg-emerald-500" : ""}`}
-                >
-                  {marginUber.toFixed(0)}%
-                </Badge>
-              )}
-            </div>
-          </div>
+        {item.description && (
+          <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
+        )}
 
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-1.5">
-              <DeliverooIcon className="h-4 w-4" />
-              <span className="text-muted-foreground">Deliveroo</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-semibold">{formatPrice(item.price_deliveroo)}</span>
-              {marginDeliveroo !== null && (
-                <Badge 
-                  variant={marginDeliveroo >= 70 ? "default" : marginDeliveroo >= 50 ? "secondary" : "destructive"}
-                  className={`text-xs ${marginDeliveroo >= 70 ? "bg-emerald-500" : ""}`}
-                >
-                  {marginDeliveroo.toFixed(0)}%
-                </Badge>
-              )}
-            </div>
+        {item.food_cost && (
+          <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
+            <span>Food Cost</span>
+            <span className="font-mono">{formatPrice(item.food_cost)}</span>
           </div>
-
-          {item.food_cost && (
-            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
-              <span>Food Cost</span>
-              <span className="font-mono">{formatPrice(item.food_cost)}</span>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </motion.div>
   );
@@ -276,7 +238,7 @@ function DroppableZone({ id, children }: { id: string; children: React.ReactNode
   );
 }
 
-// Kanban View Component
+// Kanban View Component - Simplified
 function KanbanView({ 
   items, 
   loading, 
@@ -285,7 +247,6 @@ function KanbanView({
   sensors,
   draggedItem,
   formatPrice,
-  calculateMargin,
   openEditDialog,
   handleDeleteClick,
 }: {
@@ -296,7 +257,6 @@ function KanbanView({
   sensors: any;
   draggedItem: MenuItem | null;
   formatPrice: (price: number | null) => string;
-  calculateMargin: (price: number | null, foodCost: number | null) => number | null;
   openEditDialog: (item: MenuItem) => void;
   handleDeleteClick: (item: MenuItem) => void;
 }) {
@@ -360,7 +320,6 @@ function KanbanView({
                 key={item.id}
                 item={item}
                 formatPrice={formatPrice}
-                calculateMargin={calculateMargin}
                 openEditDialog={openEditDialog}
                 handleDeleteClick={handleDeleteClick}
               />
@@ -391,7 +350,6 @@ function KanbanView({
                 key={item.id}
                 item={item}
                 formatPrice={formatPrice}
-                calculateMargin={calculateMargin}
                 openEditDialog={openEditDialog}
                 handleDeleteClick={handleDeleteClick}
               />
@@ -925,7 +883,7 @@ export default function MenuItems() {
             Catalogue Produits
           </h1>
           <p className="text-muted-foreground mt-1.5">
-            Gérez le catalogue de produits commun avec les prix par plateforme
+            Annuaire des produits avec gestion des prix et rentabilité
           </p>
         </div>
         <div className="flex gap-2">
@@ -994,8 +952,8 @@ export default function MenuItems() {
 
         <TabsContent value="catalog" className="mt-6 space-y-6">
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* Stats Cards - Simplified directory stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -1057,76 +1015,20 @@ export default function MenuItems() {
           whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
         >
           <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#06C167]/15 via-[#06C167]/5 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent" />
             <div className="absolute inset-0 border border-white/40 rounded-lg" />
             <CardContent className="pt-6 relative">
               <div className="flex items-center gap-4">
                 <motion.div 
-                  className="p-3 bg-[#06C167]/15 backdrop-blur-sm rounded-xl shadow-lg"
+                  className="p-3 bg-amber-500/15 backdrop-blur-sm rounded-xl shadow-lg"
                   whileHover={{ scale: 1.15, rotate: 8 }}
                   transition={{ type: "spring", stiffness: 500 }}
                 >
-                  <UberEatsIcon className="h-7 w-7" />
+                  <Calculator className="h-7 w-7 text-amber-500" />
                 </motion.div>
                 <div>
-                  <p className="text-3xl font-bold tracking-tight">{formatPrice(avgPriceUber)}</p>
-                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Prix moyen Uber</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.25, type: "spring", stiffness: 200 }}
-          whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
-        >
-          <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#00CCBC]/15 via-[#00CCBC]/5 to-transparent" />
-            <div className="absolute inset-0 border border-white/40 rounded-lg" />
-            <CardContent className="pt-6 relative">
-              <div className="flex items-center gap-4">
-                <motion.div 
-                  className="p-3 bg-[#00CCBC]/15 backdrop-blur-sm rounded-xl shadow-lg"
-                  whileHover={{ scale: 1.15, rotate: 8 }}
-                  transition={{ type: "spring", stiffness: 500 }}
-                >
-                  <DeliverooIcon className="h-7 w-7" />
-                </motion.div>
-                <div>
-                  <p className="text-3xl font-bold tracking-tight">{formatPrice(avgPriceDeliveroo)}</p>
-                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Prix moyen Deliveroo</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-          whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
-        >
-          <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/15 via-blue-500/5 to-transparent" />
-            <div className="absolute inset-0 border border-white/40 rounded-lg" />
-            <CardContent className="pt-6 relative">
-              <div className="flex items-center gap-4">
-                <motion.div 
-                  className="p-3 bg-blue-500/15 backdrop-blur-sm rounded-xl shadow-lg"
-                  whileHover={{ scale: 1.15, rotate: 8 }}
-                  transition={{ type: "spring", stiffness: 500 }}
-                >
-                  <TrendingUp className="h-7 w-7 text-blue-500" />
-                </motion.div>
-                <div>
-                  <p className="text-3xl font-bold tracking-tight">
-                    {priceDifference !== null ? `${priceDifference > 0 ? "+" : ""}${priceDifference.toFixed(1)}%` : "-"}
-                  </p>
-                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Écart prix</p>
+                  <p className="text-3xl font-bold tracking-tight">{existingCategories.length}</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Catégories</p>
                 </div>
               </div>
             </CardContent>
@@ -1265,7 +1167,7 @@ export default function MenuItems() {
               <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5" />
               <CardTitle className="relative">Produits ({filteredItems.length})</CardTitle>
               <CardDescription className="relative">
-                Catalogue partagé avec prix différenciés par plateforme
+                Annuaire des produits référencés dans le réseau
               </CardDescription>
             </CardHeader>
             <CardContent className="relative">
@@ -1357,26 +1259,7 @@ export default function MenuItems() {
                                     <ArrowUpDown className="h-3 w-3" />
                                   </div>
                                 </TableHead>
-                                <TableHead 
-                                  className="cursor-pointer hover:bg-muted/50 text-right"
-                                  onClick={() => handleSort("price_uber")}
-                                >
-                                  <div className="flex items-center gap-1 justify-end">
-                                    <UberEatsIcon className="h-4 w-4" />
-                                    Prix Uber
-                                    <ArrowUpDown className="h-3 w-3" />
-                                  </div>
-                                </TableHead>
-                                <TableHead 
-                                  className="cursor-pointer hover:bg-muted/50 text-right"
-                                  onClick={() => handleSort("price_deliveroo")}
-                                >
-                                  <div className="flex items-center gap-1 justify-end">
-                                    <DeliverooIcon className="h-4 w-4" />
-                                    Prix Deliveroo
-                                    <ArrowUpDown className="h-3 w-3" />
-                                  </div>
-                                </TableHead>
+                                <TableHead>Description</TableHead>
                                 <TableHead 
                                   className="cursor-pointer hover:bg-muted/50 text-right"
                                   onClick={() => handleSort("food_cost")}
@@ -1386,71 +1269,25 @@ export default function MenuItems() {
                                     <ArrowUpDown className="h-3 w-3" />
                                   </div>
                                 </TableHead>
-                                <TableHead className="text-right">Marge Uber</TableHead>
-                                <TableHead className="text-right">Marge Deliveroo</TableHead>
                                 <TableHead className="text-center">Statut</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {categoryItems.map((item, itemIdx) => {
-                                const marginUber = calculateMargin(item.price_uber, item.food_cost);
-                                const marginDeliveroo = calculateMargin(item.price_deliveroo, item.food_cost);
-                                
+                              {categoryItems.map((item) => {
                                 return (
                                   <TableRow 
                                     key={item.id}
                                     className="border-b transition-all duration-200 hover:bg-muted/50 data-[state=selected]:bg-muted"
                                   >
                                     <TableCell className="font-medium">
-                                      <div className="flex items-center gap-1">
-                                        {item.name}
-                                        {item.description && (
-                                          <TooltipProvider>
-                                            <Tooltip>
-                                              <TooltipTrigger asChild>
-                                                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                              </TooltipTrigger>
-                                              <TooltipContent className="max-w-xs">
-                                                <p className="text-sm">{item.description}</p>
-                                              </TooltipContent>
-                                            </Tooltip>
-                                          </TooltipProvider>
-                                        )}
-                                      </div>
+                                      {item.name}
                                     </TableCell>
-                                    <TableCell className="text-right font-mono">
-                                      {formatPrice(item.price_uber)}
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono">
-                                      {formatPrice(item.price_deliveroo)}
+                                    <TableCell className="text-muted-foreground max-w-xs truncate">
+                                      {item.description || "-"}
                                     </TableCell>
                                     <TableCell className="text-right font-mono">
                                       {item.food_cost ? formatPrice(item.food_cost) : (
-                                        <span className="text-muted-foreground">-</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      {marginUber !== null ? (
-                                        <Badge 
-                                          variant={marginUber >= 70 ? "default" : marginUber >= 50 ? "secondary" : "destructive"}
-                                          className={marginUber >= 70 ? "bg-emerald-500" : ""}
-                                        >
-                                          {marginUber.toFixed(1)}%
-                                        </Badge>
-                                      ) : (
-                                        <span className="text-muted-foreground">-</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      {marginDeliveroo !== null ? (
-                                        <Badge 
-                                          variant={marginDeliveroo >= 70 ? "default" : marginDeliveroo >= 50 ? "secondary" : "destructive"}
-                                          className={marginDeliveroo >= 70 ? "bg-emerald-500" : ""}
-                                        >
-                                          {marginDeliveroo.toFixed(1)}%
-                                        </Badge>
-                                      ) : (
                                         <span className="text-muted-foreground">-</span>
                                       )}
                                     </TableCell>
@@ -1511,7 +1348,6 @@ export default function MenuItems() {
           sensors={sensors}
           draggedItem={draggedItem}
           formatPrice={formatPrice}
-          calculateMargin={calculateMargin}
           openEditDialog={openEditDialog}
           handleDeleteClick={handleDeleteClick}
         />
