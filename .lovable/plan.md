@@ -1,98 +1,46 @@
 
-# Ajouter des filtres sur la page "Analyse des Horaires"
+# Afficher "CS + Ville" dans les colonnes de restaurants
 
-## Problème identifié
+## Problème
+Les en-têtes de colonnes affichent actuellement le nom complet des restaurants (ex: "CHICKEN STREET ANTONY") qui est tronqué à "CHICKEN STRE..." car la colonne est trop étroite.
 
-La page `/compare/opening-hours` :
-1. Récupère automatiquement tous les restaurants épinglés sans possibilité de filtrer
-2. La section "Top Produits par Créneau" ne montre pas quels restaurants sont analysés
-3. Pas de cohérence avec les autres pages Analytics qui utilisent `AnalyticsHeader`
+## Solution
+Utiliser la fonction existante `extractCityName` de `src/lib/restaurantUtils.ts` et ajouter le préfixe "CS" pour obtenir un format court et lisible : **"CS Antony"**, **"CS Athis-Mons"**, etc.
 
-## Solution proposée
+## Changement à effectuer
 
-Intégrer le contexte global `AnalyticsContext` et utiliser le composant `AnalyticsHeader` existant pour avoir les mêmes filtres que sur `/analytics/revenue`.
+**Fichier : `src/components/menu/ProfitabilityComparison.tsx`**
 
-### Changements à effectuer
+| Avant | Après |
+|-------|-------|
+| `CHICKEN STRE...` | `CS Antony` |
+| `CHICKEN STRE...` | `CS Athis-Mons` |
+| `CHICKEN STRE...` | `CS Bonneuil` |
+| `CHICKEN STRE...` | `CS Juvisy` |
 
-**Fichier : `src/pages/OpeningHoursComparison.tsx`**
+### Modifications techniques
 
-1. **Importer et utiliser `AnalyticsContext`** :
-   - Remplacer la récupération automatique des restaurants épinglés par le contexte global
-   - Utiliser `selectedRestaurants`, `visibleRestaurants`, `selectedPlatform`, `periodMode`, `dateRange`, etc.
-
-2. **Ajouter le composant `AnalyticsHeader`** :
-   - Placer le header sticky avec le sélecteur de restaurants, plateforme et période
-   - Supprimer le bouton "Retour" et le `OverviewPeriodSelector` actuels
-
-3. **Adapter les requêtes de données** :
-   - Utiliser `visibleRestaurants` du contexte au lieu de `pinnedRestaurants`
-   - Synchroniser les dates avec le contexte (`dateRange`, `periodMode`)
-
-4. **Afficher les restaurants sélectionnés** :
-   - Dans la section "Top Produits par Créneau", ajouter un sous-titre indiquant quels restaurants sont analysés
-
-### Avant / Après
-
-| Élément | Avant | Après |
-|---------|-------|-------|
-| Sélection restaurants | Auto (épinglés uniquement) | Multi-select comme Analytics |
-| Filtre plateforme | Absent | Uber Eats / Deliveroo / Global |
-| Filtre période | `OverviewPeriodSelector` basique | Même que Analytics (Quick, Mois, Année, Perso) |
-| Indication restaurants | Absent | Badge ou texte sous le titre de chaque section |
-
----
-
-## Section technique
-
-### Structure du code modifié
-
+1. **Importer la fonction utilitaire** :
 ```typescript
-// Imports à ajouter
-import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
-
-// Dans le composant
-const {
-  visibleRestaurants,
-  selectedPlatform,
-  periodMode,
-  selectedYear,
-  selectedMonth,
-  dateRange,
-} = useAnalyticsContext();
-
-// Remplacer la query pinnedRestaurants par les visibleRestaurants
-const restaurantIds = visibleRestaurants;
-
-// Calcul des dates basé sur le contexte (même logique que AnalyticsCharts)
-const { startDate, endDate } = useMemo(() => {
-  // Logique selon periodMode...
-}, [periodMode, selectedYear, selectedMonth, dateRange]);
+import { extractCityName } from "@/lib/restaurantUtils";
 ```
 
-### Indication des restaurants dans les sections
-
-```tsx
-// Dans ProductsByTimeSlotAnalysis, ajouter un prop pour afficher les noms
-<CardTitle className="text-lg flex items-center gap-2">
-  <Package className="h-5 w-5 text-primary" />
-  Top Produits par Créneau Horaire
-  <Badge variant="secondary" className="ml-2 text-xs">
-    {totalOrders.toLocaleString()} commandes analysées
-  </Badge>
-</CardTitle>
-{/* Nouveau: indication des restaurants */}
-{restaurantNames.length > 0 && (
-  <p className="text-sm text-muted-foreground mt-1">
-    Données : {restaurantNames.join(", ")}
-  </p>
-)}
+2. **Créer une fonction helper** pour le format "CS + Ville" :
+```typescript
+const getShortRestaurantName = (name: string): string => {
+  return `CS ${extractCityName(name)}`;
+};
 ```
 
-### Fichiers modifiés
+3. **Modifier les 3 endroits où les noms sont affichés** :
+   - En-têtes de colonnes du tableau (ligne ~442-444)
+   - Export Excel - colonnes Prix (ligne ~196-198)
+   - Export Excel - colonnes Marges (ligne ~199-202)
 
-| Fichier | Modification |
-|---------|--------------|
-| `src/pages/OpeningHoursComparison.tsx` | Intégrer `AnalyticsContext` + `AnalyticsHeader`, remplacer la logique de filtres |
-| `src/components/compare/ProductsByTimeSlotAnalysis.tsx` | Ajouter un prop `restaurantNames` pour afficher les restaurants analysés |
-| `src/components/compare/HourlyOpportunitiesAnalysis.tsx` | Idem - afficher les restaurants concernés |
+### Résultat attendu
+
+Les colonnes afficheront :
+- **CS Antony** au lieu de "CHICKEN STRE..."
+- **CS Athis-Mons** au lieu de "CHICKEN STRE..."
+- **CS Bonneuil** au lieu de "CHICKEN STRE..."
+- **CS Juvisy** au lieu de "CHICKEN STRE..."
