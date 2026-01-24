@@ -176,8 +176,9 @@ export function ProfitabilityComparison() {
       return (item.foodCost / prixHT) * 100;
     } else {
       // FC % Net = Food Cost / (Prix HT - Commission)
-      const commissionAmount = prixHT * (commissionRate / 100);
-      const netRevenue = prixHT - commissionAmount;
+      // Commission calculée sur TTC (formule Uber officielle)
+      const commissionHT = price * (commissionRate / 100);
+      const netRevenue = prixHT - commissionHT;
       if (netRevenue <= 0) return null;
       return (item.foodCost / netRevenue) * 100;
     }
