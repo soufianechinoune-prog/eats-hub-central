@@ -660,63 +660,66 @@ export function ProfitabilityComparison() {
                     </Button>
                   </div>
 
-                  {/* Commission Rate Input - always visible when net is selected */}
-                  {(viewMode === "margin" || marginType === "net") && (
-                    <div className="flex items-center gap-1.5 border rounded-md px-2 py-1 bg-muted/30">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-help">
-                              <Percent className="h-3 w-3" />
-                              <span>Com.</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Taux de commission plateforme (0-50%)</p>
-                            <p className="text-xs text-muted-foreground mt-1">Mémorisé par plateforme</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <div className="relative">
-                        <Input
-                          type="number"
-                          value={commissionInput}
-                          onChange={handleCommissionInputChange}
-                          onBlur={handleCommissionBlur}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              handleCommissionSave();
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          step="0.01"
-                          min="0"
-                          max="50"
-                          className="w-16 pr-5 text-right h-7 text-xs"
-                        />
-                        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
-                          %
-                        </span>
-                      </div>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={handleCommissionSave}
-                            >
-                              <Save className="h-3 w-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Sauvegarder</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                  {/* Commission Rate Input - always visible, disabled when brut mode */}
+                  <div className={cn(
+                    "flex items-center gap-1.5 border rounded-md px-2 py-1 bg-muted/30",
+                    marginType === "brut" && "opacity-50 pointer-events-none"
+                  )}>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-help">
+                            <Percent className="h-3 w-3" />
+                            <span>Com.</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Taux de commission plateforme (0-50%)</p>
+                          <p className="text-xs text-muted-foreground mt-1">Mémorisé par plateforme</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={commissionInput}
+                        onChange={handleCommissionInputChange}
+                        onBlur={handleCommissionBlur}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleCommissionSave();
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        step="0.01"
+                        min="0"
+                        max="50"
+                        disabled={marginType === "brut"}
+                        className="w-20 pr-5 text-right h-7 text-xs"
+                      />
+                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
+                        %
+                      </span>
                     </div>
-                  )}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={handleCommissionSave}
+                            disabled={marginType === "brut"}
+                          >
+                            <Save className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Sauvegarder</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   
                   {/* Info Tooltip */}
                   <TooltipProvider>
