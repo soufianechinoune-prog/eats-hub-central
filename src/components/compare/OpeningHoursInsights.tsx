@@ -149,50 +149,6 @@ export const OpeningHoursInsights = ({
 
   return (
     <div className="space-y-6">
-      {/* Section Opportunités d'extension */}
-      {insights.extensionOpportunities.length > 0 && (
-        <Card className="backdrop-blur-xl bg-gradient-to-br from-green-500/5 to-emerald-500/10 border-green-500/30 shadow-lg">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2 text-green-700 dark:text-green-400">
-              <TrendingUp className="h-5 w-5" />
-              Opportunités d'extension d'horaires
-              <Badge variant="outline" className="ml-2 bg-green-500/10 text-green-700 dark:text-green-400">
-                +{insights.extensionOpportunities.reduce((sum, r) => sum + r.potentialMonthlyGain, 0).toLocaleString()}€/mois potentiel
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3">
-              {insights.extensionOpportunities.slice(0, 4).map(r => (
-                <div 
-                  key={r.id} 
-                  className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-green-500/20 hover:bg-green-500/5 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                      <Clock className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">{r.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {r.revenuePerHour}€/h avec seulement {r.totalHoursPerWeek}h/sem
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-green-600">
-                      +{r.potentialMonthlyGain.toLocaleString()}€/mois
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      si +{r.potentialExtraHours}h/sem
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Section Jours manquants */}
       {insights.missingDaysImpact.length > 0 && (

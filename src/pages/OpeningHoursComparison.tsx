@@ -14,8 +14,9 @@ import { cn } from "@/lib/utils";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { OpeningHoursInsights } from "@/components/compare/OpeningHoursInsights";
 import { HourlyOpportunitiesAnalysis } from "@/components/compare/HourlyOpportunitiesAnalysis";
+import { ProductsByTimeSlotAnalysis } from "@/components/compare/ProductsByTimeSlotAnalysis";
 import { OverviewPeriodSelector, OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
-
+import { extractCityName } from "@/lib/restaurantUtils";
 const DAY_LABELS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
 const OpeningHoursComparison = () => {
@@ -382,9 +383,16 @@ const OpeningHoursComparison = () => {
               </Card>
             </div>
 
-            {/* NOUVEAU: Analyse des opportunités horaires basée sur order_history */}
+            {/* Analyse des opportunités horaires basée sur order_history */}
             <HourlyOpportunitiesAnalysis
               restaurants={pinnedRestaurants || []}
+              startDate={startDate}
+              endDate={endDate}
+            />
+
+            {/* NOUVEAU: Croisement Produits × Créneaux horaires */}
+            <ProductsByTimeSlotAnalysis
+              restaurantIds={(pinnedRestaurants || []).map(r => r.id)}
               startDate={startDate}
               endDate={endDate}
             />
@@ -501,7 +509,7 @@ const OpeningHoursComparison = () => {
                     {heatmapData.map(row => (
                       <div key={row.name} className="grid grid-cols-8 gap-1 items-center">
                         <div className="text-xs font-medium truncate pr-2" title={row.name}>
-                          {row.name.length > 12 ? row.name.slice(0, 12) + "..." : row.name}
+                          CS {extractCityName(row.name)}
                         </div>
                         {row.days.map(cell => (
                           <div

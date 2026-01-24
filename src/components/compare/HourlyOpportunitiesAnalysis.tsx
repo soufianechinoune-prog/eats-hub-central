@@ -505,20 +505,10 @@ Format court et direct, max 150 mots.`;
                       >
                         <div className="flex flex-col items-center gap-0.5">
                           {renderContent()}
-                          {/* Visual tags for surveillance */}
-                          {hasOpportunity && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 mt-0.5 bg-amber-500/10 text-amber-600 border-amber-500/30">
-                              À surveiller
-                            </Badge>
-                          )}
+                          {/* Visual tags for strong slots only */}
                           {isStrong && (
                             <Badge variant="outline" className="text-[9px] px-1 py-0 mt-0.5 bg-green-500/10 text-green-600 border-green-500/30">
                               Point fort
-                            </Badge>
-                          )}
-                          {isUnderExploited && !hasOpportunity && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 mt-0.5 bg-orange-500/10 text-orange-600 border-orange-500/30">
-                              Sous-exploité
                             </Badge>
                           )}
                         </div>
@@ -558,12 +548,7 @@ Format court et direct, max 150 mots.`;
             <Badge variant="outline" className="text-[9px] px-1 py-0 bg-green-500/10 text-green-600 border-green-500/30">
               Point fort
             </Badge>
-            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-500/10 text-amber-600 border-amber-500/30">
-              À surveiller
-            </Badge>
-            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-500/10 text-orange-600 border-orange-500/30">
-              Sous-exploité
-            </Badge>
+            <span className="text-muted-foreground/70">≥30% du CA créneau</span>
           </div>
         </CardContent>
       </Card>
