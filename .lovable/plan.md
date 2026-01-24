@@ -1,53 +1,68 @@
 
+# Plan : Corriger le calcul de la commission (TTC au lieu de HT)
 
-# Plan : Stabiliser le champ Commission et améliorer son affichage
+## Problème confirmé
 
-## Objectif
-1. **Garder le champ Commission toujours visible** (mais désactivé en mode "Brut" pour éviter les décalages)
-2. **Élargir le champ** pour afficher correctement les décimales (ex: 24.55%)
+Le code actuel calcule la commission sur le **Prix HT**, alors qu'Uber (et Deliveroo) calculent sur le **Prix TTC**.
 
----
-
-## Modifications techniques
-
-### Fichier : `src/components/menu/ProfitabilityComparison.tsx`
-
-#### 1. Commission toujours visible
-Retirer la condition `{(viewMode === "margin" || marginType === "net") && (...)}` autour du bloc commission (lignes 664-719).
-
-Le champ sera :
-- **Actif** quand `marginType === "net"` (car le calcul en a besoin)
-- **Désactivé/grisé** quand `marginType === "brut"` (champ présent mais non modifiable)
-
-#### 2. Élargir le champ de saisie
-Changer la largeur de l'input :
-```diff
-- className="w-16 pr-5 text-right h-7 text-xs"
-+ className="w-20 pr-5 text-right h-7 text-xs"
-```
-Passer de `w-16` (64px) à `w-20` (80px) pour voir "24.55" confortablement.
-
-#### 3. Style désactivé pour mode Brut
-Ajouter une logique conditionnelle :
-```tsx
-<div className={cn(
-  "flex items-center gap-1.5 border rounded-md px-2 py-1 bg-muted/30",
-  marginType === "brut" && "opacity-50 pointer-events-none"
-)}>
-```
-Le bloc devient semi-transparent et non-interactif en mode Brut.
-
-#### 4. Indication visuelle claire
-Optionnel : ajouter un attribut `disabled` sur l'input quand `marginType === "brut"` pour l'accessibilité.
+**Exemple avec 100€ TTC, TVA 10%, Taux 27% :**
+| Calcul | Actuel (incorrect) | Correct |
+|--------|-------------------|---------|
+| Commission | 91 × 27% = 24,57€ | 100 × 27% = 27€ |
+| Revenu Net | 91 - 24,57 = 66,43€ | 91 - 27 = 64€ |
 
 ---
 
-## Résultat attendu
+## Modifications
 
-| Mode | Champ Commission |
-|------|------------------|
-| Brut | Visible, grisé, non modifiable |
-| Net  | Visible, actif, modifiable |
+### 1. `src/hooks/useRestaurantProfitability.ts`
 
-L'interface ne "saute" plus entre les modes, et les valeurs décimales (ex: 24.55%) sont lisibles.
+**Ligne 146** - Uber :
+```typescript
+// AVANT
+const commission = prixHT * (commissionRate / 100);
 
+// APRÈS
+const commissionHT = prices.priceUber * (commissionRate / 100);
+```
+
+**Ligne 157** - Deliveroo :
+```typescript
+// AVANT
+const commission = prixHT * (commissionRate / 100);
+
+// APRÈS
+const commissionHT = prices.priceDeliveroo * (commissionRate / 100);
+```
+
+### 2. `src/components/menu/ProfitabilityComparison.tsx`
+
+**Ligne 179** :
+```typescript
+// AVANT
+const commissionAmount = prixHT * (commissionRate / 100);
+
+// APRÈS
+const commissionHT = price * (commissionRate / 100); // price est TTC
+```
+
+---
+
+## Vérification avec Tower (7,90€ TTC)
+
+| Élément | Avant (bug) | Après (corrigé) |
+|---------|-------------|-----------------|
+| Prix HT (TVA 10%) | 7,18€ | 7,18€ |
+| Commission (23,75%) | 7,18 × 23,75% = 1,70€ | 7,90 × 23,75% = **1,88€** |
+| Revenu Net | 7,18 - 1,70 = 5,48€ | 7,18 - 1,88 = **5,30€** |
+| FC % Net (FC=1,63€) | 1,63 / 5,48 = 29,7% | 1,63 / 5,30 = **30,7%** |
+
+Le FC % Net augmente d'environ **1 point**, reflétant la réalité comptable.
+
+---
+
+## Résumé
+
+- **2 fichiers** à modifier
+- **3 lignes** de code à corriger
+- Formule : `Commission HT = Prix TTC × Taux Contrat`
