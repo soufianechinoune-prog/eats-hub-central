@@ -44,6 +44,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx-js-style";
+import { extractCityName } from "@/lib/restaurantUtils";
+
+// Helper to transform "CHICKEN STREET ANTONY" -> "CS Antony"
+const getShortRestaurantName = (name: string): string => {
+  return `CS ${extractCityName(name)}`;
+};
 
 interface Restaurant {
   id: string;
@@ -194,11 +200,11 @@ export function ProfitabilityComparison() {
       "Food Cost (€)",
       ...selectedRestaurantIds.map((id) => {
         const restaurant = allRestaurants.find((r) => r.id === id);
-        return `${restaurant?.name || id} - Prix`;
+        return `${restaurant ? getShortRestaurantName(restaurant.name) : id} - Prix`;
       }),
       ...selectedRestaurantIds.map((id) => {
         const restaurant = allRestaurants.find((r) => r.id === id);
-        return `${restaurant?.name || id} - Marge %`;
+        return `${restaurant ? getShortRestaurantName(restaurant.name) : id} - Marge %`;
       }),
       "Marge Moyenne %",
       "Écart %",
@@ -440,7 +446,7 @@ export function ProfitabilityComparison() {
                       return (
                         <TableHead key={id} className="text-center min-w-[100px]">
                           <div className="text-xs font-medium truncate max-w-[100px]">
-                            {restaurant?.name || id}
+                            {restaurant ? getShortRestaurantName(restaurant.name) : id}
                           </div>
                         </TableHead>
                       );
