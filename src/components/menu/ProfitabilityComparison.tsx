@@ -13,6 +13,8 @@ import {
   Info,
   Percent,
   Save,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -252,6 +254,35 @@ export function ProfitabilityComparison() {
     if (margin >= 70) return "bg-emerald-50 dark:bg-emerald-950/30";
     if (margin >= 50) return "bg-amber-50 dark:bg-amber-950/30";
     return "bg-red-50 dark:bg-red-950/30";
+  };
+
+  // Calculate Food Cost % for an item (average across selected restaurants)
+  const getFoodCostPercent = (item: ProductProfitability): number | null => {
+    if (item.foodCost === null) return null;
+    
+    const validPrices = item.restaurants
+      .filter(r => selectedRestaurantIds.includes(r.restaurantId))
+      .map(r => {
+        const price = platform === "uber" ? r.priceUber : r.priceDeliveroo;
+        if (!price) return null;
+        const vatRate = item.vatRate ?? 10;
+        return price / (1 + vatRate / 100); // Prix HT
+      })
+      .filter((p): p is number => p !== null);
+    
+    if (validPrices.length === 0) return null;
+    const avgPrixHT = validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length;
+    if (avgPrixHT === 0) return null;
+    
+    return (item.foodCost / avgPrixHT) * 100;
+  };
+
+  // Get Food Cost % color and status
+  const getFoodCostStatus = (percent: number | null): { color: string; bgColor: string; isGood: boolean } => {
+    if (percent === null) return { color: "text-muted-foreground", bgColor: "", isGood: true };
+    if (percent < 30) return { color: "text-emerald-600 dark:text-emerald-400", bgColor: "bg-emerald-50 dark:bg-emerald-950/30", isGood: true };
+    if (percent <= 35) return { color: "text-amber-600 dark:text-amber-400", bgColor: "bg-amber-50 dark:bg-amber-950/30", isGood: false };
+    return { color: "text-red-600 dark:text-red-400", bgColor: "bg-red-50 dark:bg-red-950/30", isGood: false };
   };
 
   // Toggle sort
@@ -643,6 +674,29 @@ export function ProfitabilityComparison() {
                     >
                       Food Cost <SortIcon field="foodCost" />
                     </TableHead>
+                    <TableHead className="text-center">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger className="flex items-center justify-center gap-1">
+                            % FC <Info className="h-3 w-3" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[250px]">
+                            <p className="font-medium mb-1">Ratio Food Cost / Prix HT</p>
+                            <div className="text-xs space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-emerald-500">●</span> &lt; 30% : Excellent
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-amber-500">●</span> 30-35% : Acceptable
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-red-500">●</span> &gt; 35% : À surveiller
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableHead>
                     {selectedRestaurantIds.map((id) => {
                       const restaurant = allRestaurants.find((r) => r.id === id);
                       return (
@@ -703,6 +757,28 @@ export function ProfitabilityComparison() {
                         </TableCell>
                         <TableCell className="text-right font-mono">
                           {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            const fcPercent = getFoodCostPercent(item);
+                            const { color, isGood } = getFoodCostStatus(fcPercent);
+                            return (
+                              <div className="flex items-center justify-center gap-1">
+                                <span className={cn("font-mono font-semibold", color)}>
+                                  {fcPercent !== null ? `${fcPercent.toFixed(0)}%` : "—"}
+                                </span>
+                                {fcPercent !== null && (
+                                  isGood ? (
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                                  ) : fcPercent <= 35 ? (
+                                    <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                                  ) : (
+                                    <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                                  )
+                                )}
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         {selectedRestaurantIds.map((id) => {
                           const r = item.restaurants.find((rest) => rest.restaurantId === id);
