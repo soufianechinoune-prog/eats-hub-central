@@ -1,105 +1,166 @@
 
 
-# Simplifier la page Analyse des Horaires + Nouveau croisement Produits × Créneaux
+# Corriger le timeout : Créer une fonction RPC pour l'analyse Produits × Créneaux
 
-## Modifications demandées
+## Problème identifié
 
-### 1. Supprimer les badges "À surveiller" et "Sous-exploité"
+La requête sur la table `orders` (162,861 lignes) cause un **timeout** car :
+1. La table est volumineuse et la requête REST avec pagination prend trop de temps
+2. Le hook actuel fait une requête client-side qui dépasse la limite de 8 secondes
 
-**Fichier** : `src/components/compare/HourlyOpportunitiesAnalysis.tsx`
+**Erreur dans les logs réseau** :
+```json
+{"code":"57014","message":"canceling statement due to statement timeout"}
+```
 
-**Changements** :
-- Supprimer les badges "À surveiller" (lignes 509-513)
-- Supprimer les badges "Sous-exploité" (lignes 519-523)
-- Conserver uniquement le badge "Point fort" (vert)
-- Supprimer ces mêmes badges de la légende (lignes 561-566)
+## Solution proposée
 
-### 2. Supprimer la section "Opportunités d'extension d'horaires"
+Créer une **fonction RPC PostgreSQL** `get_products_by_time_slot` qui effectue l'agrégation côté serveur, comme déjà fait pour `get_hourly_order_performance`.
 
-**Fichier** : `src/components/compare/OpeningHoursInsights.tsx`
+### 1. Créer la fonction RPC (migration SQL)
 
-**Changements** :
-- Supprimer toute la section "Opportunités d'extension d'horaires" (lignes 152-195)
-- Les autres sections (Jours manquants, Écarts plateformes) sont conservées
+La fonction agrégera directement les données en SQL :
 
-### 3. Corriger l'affichage des noms de restaurants
+```sql
+CREATE OR REPLACE FUNCTION get_products_by_time_slot(
+  p_restaurant_ids uuid[],
+  p_start_date date,
+  p_end_date date,
+  p_top_n integer DEFAULT 3
+)
+RETURNS TABLE (
+  slot_label text,
+  slot_range text,
+  product_title text,
+  quantity bigint,
+  revenue numeric,
+  percent_of_slot numeric,
+  rank integer,
+  slot_total_orders bigint,
+  slot_total_revenue numeric
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH order_slots AS (
+    SELECT 
+      o.id as order_id,
+      EXTRACT(HOUR FROM o.order_datetime) as hour,
+      CASE 
+        WHEN EXTRACT(HOUR FROM o.order_datetime) BETWEEN 11 AND 14 THEN 'Déjeuner'
+        WHEN EXTRACT(HOUR FROM o.order_datetime) BETWEEN 15 AND 17 THEN 'Après-midi'
+        WHEN EXTRACT(HOUR FROM o.order_datetime) BETWEEN 18 AND 21 THEN 'Dîner'
+        WHEN EXTRACT(HOUR FROM o.order_datetime) IN (22, 23) THEN 'Soirée'
+        WHEN EXTRACT(HOUR FROM o.order_datetime) BETWEEN 0 AND 3 THEN 'Late-night'
+        ELSE NULL
+      END as slot_label,
+      CASE 
+        WHEN EXTRACT(HOUR FROM o.order_datetime) BETWEEN 11 AND 14 THEN '11h-15h'
+        WHEN EXTRACT(HOUR FROM o.order_datetime) BETWEEN 15 AND 17 THEN '15h-18h'
+        WHEN EXTRACT(HOUR FROM o.order_datetime) BETWEEN 18 AND 21 THEN '18h-22h'
+        WHEN EXTRACT(HOUR FROM o.order_datetime) IN (22, 23) THEN '22h-00h'
+        WHEN EXTRACT(HOUR FROM o.order_datetime) BETWEEN 0 AND 3 THEN '00h-04h'
+        ELSE NULL
+      END as slot_range
+    FROM orders o
+    WHERE o.restaurant_id = ANY(p_restaurant_ids)
+      AND o.order_datetime::date BETWEEN p_start_date AND p_end_date
+      AND o.order_datetime IS NOT NULL
+  ),
+  product_agg AS (
+    SELECT 
+      os.slot_label,
+      os.slot_range,
+      oi.item_title as product_title,
+      SUM(oi.quantity) as quantity,
+      SUM(oi.sales_incl_vat) as revenue
+    FROM order_slots os
+    JOIN order_items oi ON oi.order_id = os.order_id
+    WHERE os.slot_label IS NOT NULL
+    GROUP BY os.slot_label, os.slot_range, oi.item_title
+  ),
+  slot_totals AS (
+    SELECT 
+      slot_label,
+      SUM(quantity) as total_qty,
+      SUM(revenue) as total_revenue,
+      COUNT(DISTINCT order_id) as total_orders
+    FROM order_slots os
+    JOIN order_items oi ON oi.order_id = os.order_id
+    WHERE slot_label IS NOT NULL
+    GROUP BY slot_label
+  ),
+  ranked AS (
+    SELECT 
+      pa.*,
+      st.total_orders,
+      st.total_revenue as slot_total,
+      ROUND(pa.revenue * 100.0 / NULLIF(st.total_revenue, 0), 0) as pct,
+      ROW_NUMBER() OVER (PARTITION BY pa.slot_label ORDER BY pa.revenue DESC) as rn
+    FROM product_agg pa
+    JOIN slot_totals st ON st.slot_label = pa.slot_label
+  )
+  SELECT 
+    r.slot_label,
+    r.slot_range,
+    r.product_title,
+    r.quantity,
+    r.revenue,
+    r.pct as percent_of_slot,
+    r.rn::integer as rank,
+    r.total_orders as slot_total_orders,
+    r.slot_total as slot_total_revenue
+  FROM ranked r
+  WHERE r.rn <= p_top_n
+  ORDER BY 
+    CASE r.slot_label 
+      WHEN 'Déjeuner' THEN 1
+      WHEN 'Après-midi' THEN 2
+      WHEN 'Dîner' THEN 3
+      WHEN 'Soirée' THEN 4
+      WHEN 'Late-night' THEN 5
+    END,
+    r.rn;
+END;
+$$;
+```
 
-**Fichier** : `src/pages/OpeningHoursComparison.tsx`
+### 2. Modifier le hook `useProductsByTimeSlot`
 
-**Changements** :
-- Importer `extractCityName` depuis `@/lib/restaurantUtils`
-- Remplacer le formatage tronqué par "CS + Ville"
+Remplacer les requêtes REST paginées par un appel RPC unique :
 
 ```typescript
-// Avant (ligne 504)
-{row.name.length > 12 ? row.name.slice(0, 12) + "..." : row.name}
-
-// Après
-CS {extractCityName(row.name)}
+const { data, isLoading } = useQuery({
+  queryKey: ["products-by-slot-rpc", restaurantIds, startDate, endDate, topN],
+  queryFn: async () => {
+    const { data, error } = await supabase.rpc("get_products_by_time_slot", {
+      p_restaurant_ids: restaurantIds,
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_top_n: topN,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+  enabled: !!restaurantIds?.length,
+});
 ```
+
+### 3. Adapter la transformation des données
+
+Transformer le résultat plat de la RPC en structure `ProductSlotData[]` attendue par le composant.
 
 ---
 
-## Nouvelle fonctionnalité : Croisement Produits × Créneaux horaires
+## Avantages de cette approche
 
-### Concept
-
-Créer une nouvelle section "Top Produits par Créneau" qui montre quels produits se vendent le mieux à chaque moment de la journée :
-
-| Créneau | Top 1 | Top 2 | Top 3 |
-|---------|-------|-------|-------|
-| Déjeuner (11h-14h) | Menu Chicken Box (45%) | Wrap Classic (22%) | Nuggets 10pc (18%) |
-| Après-midi (14h-18h) | Milkshake Oreo (38%) | Nuggets 10pc (25%) | Menu Kid (20%) |
-| Dîner (18h-22h) | Menu Street XL (42%) | Menu Duo (28%) | Chicken Wings (15%) |
-| Late Night (22h-00h) | Menu Street XL (55%) | Loaded Fries (25%) | Nuggets 20pc (12%) |
-
-### Fichiers à créer/modifier
-
-| Fichier | Description |
-|---------|-------------|
-| `src/hooks/useProductsByTimeSlot.ts` | Nouveau hook pour récupérer les ventes par produit et par créneau |
-| `src/components/compare/ProductsByTimeSlotAnalysis.tsx` | Nouveau composant affichant le croisement |
-| `src/pages/OpeningHoursComparison.tsx` | Intégrer le nouveau composant |
-
-### Logique de données
-
-```typescript
-// Définition des créneaux (même que HourlyOpportunitiesAnalysis)
-const TIME_SLOTS = [
-  { label: "Déjeuner", hours: [11, 12, 13] },
-  { label: "Après-midi", hours: [14, 15, 16, 17] },
-  { label: "Dîner", hours: [18, 19, 20, 21] },
-  { label: "Late Night", hours: [22, 23, 0, 1] },
-];
-
-// Requête: récupérer les commandes avec l'heure
-const orders = await supabase
-  .from("orders")
-  .select("id, order_datetime")
-  .gte("order_datetime", startDate)
-  .lte("order_datetime", endDate)
-  .in("restaurant_id", restaurantIds);
-
-// Puis récupérer les order_items et les grouper par heure
-// Calculer le top 3 produits par créneau horaire
-```
-
-### Visualisation proposée
-
-La section affichera :
-1. **Vue synthétique** : Tableau avec les top 3 produits par créneau
-2. **Indicateurs visuels** :
-   - Badge "Star" pour le produit n°1 de chaque créneau
-   - Pourcentage du CA du créneau
-   - Évolution vs période précédente (optionnel)
-
-### Insights business
-
-Cette analyse permettra de :
-- Identifier les "produits phares" de chaque moment de la journée
-- Adapter les promotions selon les créneaux (promouvoir les produits sous-performants)
-- Optimiser les stocks et la préparation selon l'heure
-- Détecter des opportunités (ex: produit populaire le soir mais absent des promos)
+| Aspect | Avant (REST) | Après (RPC) |
+|--------|--------------|-------------|
+| Temps d'exécution | Timeout (>8s) | ~100-500ms |
+| Nombre de requêtes | 2+ (orders + items en chunks) | 1 seule |
+| Transfert réseau | ~160k lignes orders + items | ~15 lignes (top 3 × 5 slots) |
+| Pagination | Nécessaire | Non |
 
 ---
 
@@ -107,78 +168,56 @@ Cette analyse permettra de :
 
 | Fichier | Modification |
 |---------|--------------|
-| `src/components/compare/HourlyOpportunitiesAnalysis.tsx` | Supprimer badges "À surveiller" et "Sous-exploité" |
-| `src/components/compare/OpeningHoursInsights.tsx` | Supprimer section "Opportunités d'extension" |
-| `src/pages/OpeningHoursComparison.tsx` | Format "CS Ville" + intégrer nouveau composant |
-| `src/hooks/useProductsByTimeSlot.ts` | **NOUVEAU** - Hook pour croisement produits × créneaux |
-| `src/components/compare/ProductsByTimeSlotAnalysis.tsx` | **NOUVEAU** - Composant d'affichage |
+| Migration SQL | Nouvelle fonction RPC `get_products_by_time_slot` |
+| `src/hooks/useProductsByTimeSlot.ts` | Remplacer les requêtes REST par un appel RPC |
 
 ---
 
 ## Section technique
 
-### Structure du hook useProductsByTimeSlot
+### Structure du résultat RPC
 
 ```typescript
-interface ProductSlotData {
-  slotLabel: string;
-  slotHours: number[];
-  topProducts: {
-    title: string;
-    quantity: number;
-    revenue: number;
-    percentOfSlot: number;
-    rank: number;
-  }[];
-  totalOrders: number;
-  totalRevenue: number;
+interface RpcResult {
+  slot_label: string;
+  slot_range: string;
+  product_title: string;
+  quantity: number;
+  revenue: number;
+  percent_of_slot: number;
+  rank: number;
+  slot_total_orders: number;
+  slot_total_revenue: number;
 }
-
-export const useProductsByTimeSlot = (
-  restaurantIds: string[],
-  startDate: Date,
-  endDate: Date
-) => {
-  // 1. Récupérer les orders avec leur datetime
-  // 2. Récupérer les order_items correspondants
-  // 3. Grouper par créneau horaire
-  // 4. Calculer le top 3 produits par créneau
-  // 5. Retourner les données agrégées
-};
 ```
 
-### Pattern de requête (basé sur useItemSalesAnalytics)
+### Transformation en ProductSlotData
 
 ```typescript
-// Étape 1: Récupérer les commandes avec l'heure
-const { data: ordersWithHour } = await supabase
-  .from("orders")
-  .select("id, order_datetime")
-  .gte("order_datetime", startDateStr)
-  .lte("order_datetime", endDateStr + "T23:59:59")
-  .in("restaurant_id", restaurantIds);
+// Grouper par slot
+const slotMap = new Map<string, ProductSlotData>();
 
-// Créer un map order_id -> heure
-const orderHourMap = new Map(
-  ordersWithHour.map(o => [
-    o.id, 
-    parseISO(o.order_datetime).getHours()
-  ])
-);
-
-// Étape 2: Récupérer les items (pagination par chunks de 500)
-const { data: items } = await supabase
-  .from("order_items")
-  .select("order_id, item_title, quantity, sales_incl_vat")
-  .in("order_id", orderIds);
-
-// Étape 3: Grouper par créneau et produit
-const slotProductMap = new Map<string, Map<string, ProductData>>();
-
-items.forEach(item => {
-  const hour = orderHourMap.get(item.order_id);
-  const slot = TIME_SLOTS.find(s => s.hours.includes(hour));
-  // Agréger...
+data.forEach((row) => {
+  if (!slotMap.has(row.slot_label)) {
+    slotMap.set(row.slot_label, {
+      slotLabel: row.slot_label,
+      slotRange: row.slot_range,
+      slotHours: TIME_SLOTS.find(s => s.label === row.slot_label)?.hours || [],
+      topProducts: [],
+      totalOrders: row.slot_total_orders,
+      totalRevenue: row.slot_total_revenue,
+    });
+  }
+  
+  slotMap.get(row.slot_label)!.topProducts.push({
+    title: row.product_title,
+    quantity: row.quantity,
+    revenue: row.revenue,
+    percentOfSlot: row.percent_of_slot,
+    rank: row.rank,
+  });
 });
+
+return Array.from(slotMap.values());
 ```
 
