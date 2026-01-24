@@ -695,7 +695,7 @@ export function ProfitabilityComparison() {
                         min="0"
                         max="50"
                         disabled={marginType === "brut"}
-                        className="w-20 pr-5 text-right h-7 text-xs"
+                        className="w-24 pr-5 text-right h-7 text-xs"
                       />
                       <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
                         %
