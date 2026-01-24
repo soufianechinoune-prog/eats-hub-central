@@ -7,6 +7,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
 import {
   Popover,
@@ -14,12 +15,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { Check, ChevronsUpDown, X } from "lucide-react";
-import { useState } from "react";
+import { Check, ChevronsUpDown, Star, X } from "lucide-react";
+import { useMemo, useState } from "react";
 
 interface Restaurant {
   id: string;
   name: string;
+  is_pinned?: boolean;
 }
 
 interface RestaurantSelectorProps {
@@ -41,6 +43,13 @@ export function RestaurantSelector({
 
   const selectedRestaurants = restaurants.filter((r) => selectedIds.includes(r.id));
 
+  // Separate pinned and unpinned restaurants
+  const { pinnedRestaurants, unpinnedRestaurants } = useMemo(() => {
+    const pinned = restaurants.filter((r) => r.is_pinned);
+    const unpinned = restaurants.filter((r) => !r.is_pinned);
+    return { pinnedRestaurants: pinned, unpinnedRestaurants: unpinned };
+  }, [restaurants]);
+
   const toggleRestaurant = (restaurantId: string) => {
     if (selectedIds.includes(restaurantId)) {
       onSelectionChange(selectedIds.filter((id) => id !== restaurantId));
@@ -54,6 +63,12 @@ export function RestaurantSelector({
     onSelectionChange(selectedIds.filter((id) => id !== restaurantId));
   };
 
+  const selectAllPinned = () => {
+    const pinnedIds = pinnedRestaurants.map((r) => r.id);
+    const newSelection = [...new Set([...selectedIds, ...pinnedIds])].slice(0, maxSelection);
+    onSelectionChange(newSelection);
+  };
+
   // Extract short name for badge display
   const getShortName = (name: string) => {
     // Remove "CHICKEN STREET " prefix if present
@@ -63,6 +78,28 @@ export function RestaurantSelector({
       return cleaned.split(/[-\s]/)[0];
     }
     return cleaned;
+  };
+
+  const renderRestaurantItem = (restaurant: Restaurant) => {
+    const isSelected = selectedIds.includes(restaurant.id);
+    const isDisabled = !isSelected && selectedIds.length >= maxSelection;
+
+    return (
+      <CommandItem
+        key={restaurant.id}
+        value={restaurant.name}
+        onSelect={() => !isDisabled && toggleRestaurant(restaurant.id)}
+        className={cn(isDisabled && "opacity-50 cursor-not-allowed")}
+      >
+        <Check
+          className={cn(
+            "mr-2 h-4 w-4",
+            isSelected ? "opacity-100" : "opacity-0"
+          )}
+        />
+        {restaurant.name}
+      </CommandItem>
+    );
   };
 
   return (
@@ -103,29 +140,36 @@ export function RestaurantSelector({
           <CommandInput placeholder="Rechercher un restaurant..." />
           <CommandList>
             <CommandEmpty>Aucun restaurant trouvé.</CommandEmpty>
-            <CommandGroup>
-              {restaurants.map((restaurant) => {
-                const isSelected = selectedIds.includes(restaurant.id);
-                const isDisabled = !isSelected && selectedIds.length >= maxSelection;
-
-                return (
+            
+            {/* Quick action: select all pinned */}
+            {pinnedRestaurants.length > 0 && (
+              <>
+                <CommandGroup>
                   <CommandItem
-                    key={restaurant.id}
-                    value={restaurant.name}
-                    onSelect={() => !isDisabled && toggleRestaurant(restaurant.id)}
-                    className={cn(isDisabled && "opacity-50 cursor-not-allowed")}
+                    onSelect={selectAllPinned}
+                    className="text-amber-600 dark:text-amber-400"
                   >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        isSelected ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    {restaurant.name}
+                    <Star className="mr-2 h-4 w-4 fill-amber-500 text-amber-500" />
+                    Sélectionner les {pinnedRestaurants.length} épinglés
                   </CommandItem>
-                );
-              })}
-            </CommandGroup>
+                </CommandGroup>
+                <CommandSeparator />
+              </>
+            )}
+            
+            {/* Pinned restaurants group */}
+            {pinnedRestaurants.length > 0 && (
+              <CommandGroup heading={`⭐ Épinglés (${pinnedRestaurants.length})`}>
+                {pinnedRestaurants.map(renderRestaurantItem)}
+              </CommandGroup>
+            )}
+            
+            {/* Other restaurants group */}
+            {unpinnedRestaurants.length > 0 && (
+              <CommandGroup heading="Autres restaurants">
+                {unpinnedRestaurants.map(renderRestaurantItem)}
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
         {selectedIds.length >= maxSelection && (

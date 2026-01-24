@@ -49,6 +49,7 @@ export interface MenuItemComparison extends MenuItemWithPrices {
 export interface Restaurant {
   id: string;
   name: string;
+  is_pinned?: boolean;
 }
 
 export function useRestaurantMenuPrices(
@@ -64,7 +65,7 @@ export function useRestaurantMenuPrices(
     const fetchRestaurants = async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name")
+        .select("id, name, is_pinned")
         .order("name");
 
       if (error) {
