@@ -143,8 +143,9 @@ export function useRestaurantProfitability(
               if (prices?.priceUber && prices.priceUber > 0) {
                 const prixHT = prices.priceUber / (1 + vatRate / 100);
                 marginBrutUber = ((prixHT - item.food_cost) / prixHT) * 100;
-                const commission = prixHT * (commissionRate / 100);
-                marginNetUber = ((prixHT - commission - item.food_cost) / prixHT) * 100;
+                // Commission calculée sur TTC (formule Uber officielle)
+                const commissionHT = prices.priceUber * (commissionRate / 100);
+                marginNetUber = ((prixHT - commissionHT - item.food_cost) / prixHT) * 100;
                 
                 marginsBrut.push(marginBrutUber);
                 marginsNet.push(marginNetUber);
@@ -154,8 +155,9 @@ export function useRestaurantProfitability(
               if (prices?.priceDeliveroo && prices.priceDeliveroo > 0) {
                 const prixHT = prices.priceDeliveroo / (1 + vatRate / 100);
                 marginBrutDeliveroo = ((prixHT - item.food_cost) / prixHT) * 100;
-                const commission = prixHT * (commissionRate / 100);
-                marginNetDeliveroo = ((prixHT - commission - item.food_cost) / prixHT) * 100;
+                // Commission calculée sur TTC (formule Uber officielle)
+                const commissionHT = prices.priceDeliveroo * (commissionRate / 100);
+                marginNetDeliveroo = ((prixHT - commissionHT - item.food_cost) / prixHT) * 100;
                 
                 if (platform === "deliveroo") {
                   marginsBrut.push(marginBrutDeliveroo);
