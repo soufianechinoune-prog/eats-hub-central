@@ -90,6 +90,7 @@ export function useMenuComparisonExport() {
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 12;
       const showDiff = data.restaurants.length === 2;
+      const numRestaurants = data.restaurants.length;
 
       // Helper to parse price - treats "Gratuit" as 0
       const parsePrice = (priceStr: string): number | null => {
@@ -107,13 +108,25 @@ export function useMenuComparisonExport() {
         return isNaN(parsed) ? null : parsed;
       };
 
-      // Column configuration
-      const colWidths = showDiff
-        ? [90, 50, 35, 35, 25, 25] // Produit, Catégorie, Prix1, Prix2, Écart%, Écart€
-        : [120, 60, 40, 40]; // Produit, Catégorie, Prix1, Prix2
-      const headers = showDiff
-        ? ["Produit", "Catégorie", data.restaurants[0], data.restaurants[1], "Écart %", "Écart €"]
-        : ["Produit", "Catégorie", ...data.restaurants];
+      // Dynamic column configuration based on number of restaurants
+      const availableWidth = pageWidth - margin * 2;
+      let colWidths: number[];
+      let headers: string[];
+
+      if (showDiff) {
+        // 2 restaurants: show diff columns
+        colWidths = [90, 50, 35, 35, 25, 25];
+        headers = ["Produit", "Catégorie", data.restaurants[0], data.restaurants[1], "Écart %", "Écart €"];
+      } else {
+        // Dynamic width for multiple restaurants
+        const productColWidth = 80;
+        const categoryColWidth = 45;
+        const remainingWidth = availableWidth - productColWidth - categoryColWidth;
+        const priceColWidth = Math.min(35, remainingWidth / numRestaurants);
+        
+        colWidths = [productColWidth, categoryColWidth, ...Array(numRestaurants).fill(priceColWidth)];
+        headers = ["Produit", "Catégorie", ...data.restaurants.map(r => r.length > 10 ? r.substring(0, 8) + "…" : r)];
+      }
 
       const rowHeight = 6;
       const headerHeight = 8;
@@ -214,9 +227,11 @@ export function useMenuComparisonExport() {
         }
 
         const parsedPrices = row.prices.map(p => parsePrice(p.price));
-        const price1 = parsedPrices[0];
-        const price2 = parsedPrices[1];
-        const bothValid = price1 !== null && price2 !== null;
+        
+        // Find min and max valid prices for highlighting
+        const validPrices = parsedPrices.filter(p => p !== null) as number[];
+        const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null;
+        const maxPrice = validPrices.length > 0 ? Math.max(...validPrices) : null;
 
         // Alternate row background
         if (idx % 2 === 0) {
@@ -249,40 +264,40 @@ export function useMenuComparisonExport() {
         pdf.text(category, x, currentY + 4);
         x += colWidths[1];
 
-        // Price 1
-        if (price1 !== null) {
-          if (bothValid && price1 > price2!) {
-            pdf.setFillColor(220, 252, 231);
-            pdf.rect(x - 2, currentY, colWidths[2], rowHeight, "F");
+        // Draw all prices dynamically
+        parsedPrices.forEach((price, priceIdx) => {
+          const colIdx = 2 + priceIdx;
+          const colWidth = colWidths[colIdx] || 35;
+          
+          if (price !== null) {
+            // Highlight best price (lowest) in green
+            if (validPrices.length > 1 && price === minPrice && minPrice !== maxPrice) {
+              pdf.setFillColor(220, 252, 231); // Light green
+              pdf.rect(x - 2, currentY, colWidth, rowHeight, "F");
+            }
+            // Highlight worst price (highest) in light red/orange
+            else if (validPrices.length > 1 && price === maxPrice && minPrice !== maxPrice) {
+              pdf.setFillColor(254, 243, 199); // Light amber
+              pdf.rect(x - 2, currentY, colWidth, rowHeight, "F");
+            }
+            
+            pdf.setTextColor(31, 41, 55);
+            pdf.text(`${price.toFixed(2)} €`, x + colWidth - 4, currentY + 4, { align: "right" });
+          } else {
+            pdf.setTextColor(156, 163, 175);
+            pdf.setFont("helvetica", "italic");
+            pdf.text("-", x + colWidth - 4, currentY + 4, { align: "right" });
+            pdf.setFont("helvetica", "normal");
           }
-          pdf.setTextColor(31, 41, 55);
-          pdf.text(`${price1.toFixed(2)} €`, x + colWidths[2] - 4, currentY + 4, { align: "right" });
-        } else {
-          pdf.setTextColor(156, 163, 175);
-          pdf.setFont("helvetica", "italic");
-          pdf.text("Manquant", x + colWidths[2] - 4, currentY + 4, { align: "right" });
-          pdf.setFont("helvetica", "normal");
-        }
-        x += colWidths[2];
+          x += colWidth;
+        });
 
-        // Price 2
-        if (price2 !== null) {
-          if (bothValid && price2 > price1!) {
-            pdf.setFillColor(220, 252, 231);
-            pdf.rect(x - 2, currentY, colWidths[3], rowHeight, "F");
-          }
-          pdf.setTextColor(31, 41, 55);
-          pdf.text(`${price2.toFixed(2)} €`, x + colWidths[3] - 4, currentY + 4, { align: "right" });
-        } else {
-          pdf.setTextColor(156, 163, 175);
-          pdf.setFont("helvetica", "italic");
-          pdf.text("Manquant", x + colWidths[3] - 4, currentY + 4, { align: "right" });
-          pdf.setFont("helvetica", "normal");
-        }
-        x += colWidths[3];
-
-        // Écart % and Écart € (only if showing diff and both prices valid)
+        // Écart % and Écart € (only if showing diff with exactly 2 restaurants)
         if (showDiff) {
+          const price1 = parsedPrices[0];
+          const price2 = parsedPrices[1];
+          const bothValid = price1 !== null && price2 !== null;
+          
           if (bothValid) {
             const diffPercent = ((price2! - price1!) / price1!) * 100;
             const diffEuro = price2! - price1!;
