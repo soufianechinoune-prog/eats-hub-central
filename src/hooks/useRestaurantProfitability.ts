@@ -6,8 +6,10 @@ interface RestaurantMargin {
   restaurantName: string;
   priceUber: number | null;
   priceDeliveroo: number | null;
-  marginUber: number | null;
-  marginDeliveroo: number | null;
+  marginBrutUber: number | null;
+  marginBrutDeliveroo: number | null;
+  marginNetUber: number | null;
+  marginNetDeliveroo: number | null;
 }
 
 export interface ProductProfitability {
@@ -15,11 +17,16 @@ export interface ProductProfitability {
   menuItemName: string;
   category: string | null;
   foodCost: number | null;
+  vatRate: number | null;
   restaurants: RestaurantMargin[];
-  avgMargin: number | null;
-  minMargin: { value: number; restaurant: string } | null;
-  maxMargin: { value: number; restaurant: string } | null;
-  marginSpread: number | null; // Écart entre min et max
+  avgMarginBrut: number | null;
+  avgMarginNet: number | null;
+  minMarginBrut: { value: number; restaurant: string } | null;
+  maxMarginBrut: { value: number; restaurant: string } | null;
+  minMarginNet: { value: number; restaurant: string } | null;
+  maxMarginNet: { value: number; restaurant: string } | null;
+  marginSpreadBrut: number | null;
+  marginSpreadNet: number | null;
 }
 
 interface Restaurant {
@@ -30,8 +37,10 @@ interface Restaurant {
 interface ProfitabilityStats {
   totalProducts: number;
   productsWithData: number;
-  avgMargin: number | null;
-  alertCount: number; // Produits avec écart > 10%
+  avgMarginBrut: number | null;
+  avgMarginNet: number | null;
+  alertCountBrut: number;
+  alertCountNet: number;
 }
 
 export function useRestaurantProfitability(
@@ -110,38 +119,49 @@ export function useRestaurantProfitability(
         // Calculate margins for each product/restaurant combination
         const profitabilityItems: ProductProfitability[] = (menuItemsData || []).map((item) => {
           const restaurantMargins: RestaurantMargin[] = [];
-          const margins: number[] = [];
-          const marginDetails: { value: number; restaurant: string }[] = [];
+          const marginsBrut: number[] = [];
+          const marginsNet: number[] = [];
+          const marginDetailsBrut: { value: number; restaurant: string }[] = [];
+          const marginDetailsNet: { value: number; restaurant: string }[] = [];
+
+          // Get VAT rate (default 10% if not set)
+          const vatRate = item.vat_rate ?? 10;
 
           selectedRestaurantIds.forEach((restaurantId) => {
             const restaurant = restaurantsData?.find((r) => r.id === restaurantId);
             const prices = pricesMap.get(item.id)?.get(restaurantId);
             
-            let marginUber: number | null = null;
-            let marginDeliveroo: number | null = null;
-
-            // Get VAT rate (default 10% if not set)
-            const vatRate = item.vat_rate ?? 10;
+            let marginBrutUber: number | null = null;
+            let marginBrutDeliveroo: number | null = null;
+            let marginNetUber: number | null = null;
+            let marginNetDeliveroo: number | null = null;
 
             if (item.food_cost !== null && item.food_cost >= 0) {
-              // Calculate NET margin: ((Prix HT - Commission - Food Cost HT) / Prix TTC) * 100
-              // Prix HT = Prix TTC / (1 + TVA%)
-              // Commission = Prix HT * commission%
+              // Marge Brute = (Prix HT - Food Cost HT) / Prix HT * 100
+              // Marge Nette = (Prix HT - Commission - Food Cost HT) / Prix HT * 100
               
               if (prices?.priceUber && prices.priceUber > 0) {
                 const prixHT = prices.priceUber / (1 + vatRate / 100);
+                marginBrutUber = ((prixHT - item.food_cost) / prixHT) * 100;
                 const commission = prixHT * (commissionRate / 100);
-                marginUber = ((prixHT - commission - item.food_cost) / prices.priceUber) * 100;
-                margins.push(marginUber);
-                marginDetails.push({ value: marginUber, restaurant: restaurant?.name || restaurantId });
+                marginNetUber = ((prixHT - commission - item.food_cost) / prixHT) * 100;
+                
+                marginsBrut.push(marginBrutUber);
+                marginsNet.push(marginNetUber);
+                marginDetailsBrut.push({ value: marginBrutUber, restaurant: restaurant?.name || restaurantId });
+                marginDetailsNet.push({ value: marginNetUber, restaurant: restaurant?.name || restaurantId });
               }
               if (prices?.priceDeliveroo && prices.priceDeliveroo > 0) {
                 const prixHT = prices.priceDeliveroo / (1 + vatRate / 100);
+                marginBrutDeliveroo = ((prixHT - item.food_cost) / prixHT) * 100;
                 const commission = prixHT * (commissionRate / 100);
-                marginDeliveroo = ((prixHT - commission - item.food_cost) / prices.priceDeliveroo) * 100;
+                marginNetDeliveroo = ((prixHT - commission - item.food_cost) / prixHT) * 100;
+                
                 if (platform === "deliveroo") {
-                  margins.push(marginDeliveroo);
-                  marginDetails.push({ value: marginDeliveroo, restaurant: restaurant?.name || restaurantId });
+                  marginsBrut.push(marginBrutDeliveroo);
+                  marginsNet.push(marginNetDeliveroo);
+                  marginDetailsBrut.push({ value: marginBrutDeliveroo, restaurant: restaurant?.name || restaurantId });
+                  marginDetailsNet.push({ value: marginNetDeliveroo, restaurant: restaurant?.name || restaurantId });
                 }
               }
             }
@@ -151,22 +171,34 @@ export function useRestaurantProfitability(
               restaurantName: restaurant?.name || restaurantId,
               priceUber: prices?.priceUber || null,
               priceDeliveroo: prices?.priceDeliveroo || null,
-              marginUber,
-              marginDeliveroo,
+              marginBrutUber,
+              marginBrutDeliveroo,
+              marginNetUber,
+              marginNetDeliveroo,
             });
           });
 
-          // Calculate stats
-          const avgMargin = margins.length > 0 
-            ? margins.reduce((a, b) => a + b, 0) / margins.length 
+          // Calculate stats for both margin types
+          const avgMarginBrut = marginsBrut.length > 0 
+            ? marginsBrut.reduce((a, b) => a + b, 0) / marginsBrut.length 
+            : null;
+          const avgMarginNet = marginsNet.length > 0 
+            ? marginsNet.reduce((a, b) => a + b, 0) / marginsNet.length 
             : null;
 
-          const sortedDetails = marginDetails.sort((a, b) => a.value - b.value);
-          const minMargin = sortedDetails.length > 0 ? sortedDetails[0] : null;
-          const maxMargin = sortedDetails.length > 0 ? sortedDetails[sortedDetails.length - 1] : null;
+          const sortedDetailsBrut = marginDetailsBrut.sort((a, b) => a.value - b.value);
+          const sortedDetailsNet = marginDetailsNet.sort((a, b) => a.value - b.value);
           
-          const marginSpread = minMargin && maxMargin 
-            ? maxMargin.value - minMargin.value 
+          const minMarginBrut = sortedDetailsBrut.length > 0 ? sortedDetailsBrut[0] : null;
+          const maxMarginBrut = sortedDetailsBrut.length > 0 ? sortedDetailsBrut[sortedDetailsBrut.length - 1] : null;
+          const minMarginNet = sortedDetailsNet.length > 0 ? sortedDetailsNet[0] : null;
+          const maxMarginNet = sortedDetailsNet.length > 0 ? sortedDetailsNet[sortedDetailsNet.length - 1] : null;
+          
+          const marginSpreadBrut = minMarginBrut && maxMarginBrut 
+            ? maxMarginBrut.value - minMarginBrut.value 
+            : null;
+          const marginSpreadNet = minMarginNet && maxMarginNet 
+            ? maxMarginNet.value - minMarginNet.value 
             : null;
 
           return {
@@ -174,11 +206,16 @@ export function useRestaurantProfitability(
             menuItemName: item.name,
             category: item.category,
             foodCost: item.food_cost,
+            vatRate: item.vat_rate,
             restaurants: restaurantMargins,
-            avgMargin,
-            minMargin,
-            maxMargin,
-            marginSpread,
+            avgMarginBrut,
+            avgMarginNet,
+            minMarginBrut,
+            maxMarginBrut,
+            minMarginNet,
+            maxMarginNet,
+            marginSpreadBrut,
+            marginSpreadNet,
           };
         });
 
@@ -195,24 +232,36 @@ export function useRestaurantProfitability(
   }, [selectedRestaurantIds, platform, commissionRate]);
 
   const stats = useMemo<ProfitabilityStats>(() => {
-    const productsWithData = items.filter((i) => i.avgMargin !== null).length;
-    const allMargins = items
-      .filter((i) => i.avgMargin !== null)
-      .map((i) => i.avgMargin!);
+    const productsWithData = items.filter((i) => i.avgMarginBrut !== null).length;
     
-    const avgMargin = allMargins.length > 0
-      ? allMargins.reduce((a, b) => a + b, 0) / allMargins.length
+    const allMarginsBrut = items
+      .filter((i) => i.avgMarginBrut !== null)
+      .map((i) => i.avgMarginBrut!);
+    const allMarginsNet = items
+      .filter((i) => i.avgMarginNet !== null)
+      .map((i) => i.avgMarginNet!);
+    
+    const avgMarginBrut = allMarginsBrut.length > 0
+      ? allMarginsBrut.reduce((a, b) => a + b, 0) / allMarginsBrut.length
+      : null;
+    const avgMarginNet = allMarginsNet.length > 0
+      ? allMarginsNet.reduce((a, b) => a + b, 0) / allMarginsNet.length
       : null;
 
-    const alertCount = items.filter((i) => 
-      i.marginSpread !== null && i.marginSpread > 10
+    const alertCountBrut = items.filter((i) => 
+      i.marginSpreadBrut !== null && i.marginSpreadBrut > 10
+    ).length;
+    const alertCountNet = items.filter((i) => 
+      i.marginSpreadNet !== null && i.marginSpreadNet > 10
     ).length;
 
     return {
       totalProducts: items.length,
       productsWithData,
-      avgMargin,
-      alertCount,
+      avgMarginBrut,
+      avgMarginNet,
+      alertCountBrut,
+      alertCountNet,
     };
   }, [items]);
 

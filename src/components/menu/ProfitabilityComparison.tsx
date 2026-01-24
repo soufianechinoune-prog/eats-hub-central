@@ -70,6 +70,7 @@ export function ProfitabilityComparison() {
   const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
   const [platform, setPlatform] = useState<"uber" | "deliveroo">("uber");
   const [commissionRate, setCommissionRate] = useState(DEFAULT_COMMISSION.uber);
+  const [marginType, setMarginType] = useState<"brut" | "net">("brut");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [showAlertsOnly, setShowAlertsOnly] = useState(false);
@@ -86,6 +87,18 @@ export function ProfitabilityComparison() {
   useEffect(() => {
     setCommissionRate(DEFAULT_COMMISSION[platform]);
   }, [platform]);
+
+  // Helper to get current margin based on marginType
+  const getMargin = (item: ProductProfitability) => marginType === "brut" ? item.avgMarginBrut : item.avgMarginNet;
+  const getSpread = (item: ProductProfitability) => marginType === "brut" ? item.marginSpreadBrut : item.marginSpreadNet;
+  const getRestaurantMargin = (r: { marginBrutUber: number | null; marginBrutDeliveroo: number | null; marginNetUber: number | null; marginNetDeliveroo: number | null }) => {
+    if (marginType === "brut") {
+      return platform === "uber" ? r.marginBrutUber : r.marginBrutDeliveroo;
+    }
+    return platform === "uber" ? r.marginNetUber : r.marginNetDeliveroo;
+  };
+  const avgMargin = marginType === "brut" ? stats.avgMarginBrut : stats.avgMarginNet;
+  const alertCount = marginType === "brut" ? stats.alertCountBrut : stats.alertCountNet;
 
   // Fetch all restaurants on mount
   useEffect(() => {
@@ -141,7 +154,10 @@ export function ProfitabilityComparison() {
 
     // Alerts only filter
     if (showAlertsOnly) {
-      result = result.filter((i) => i.marginSpread !== null && i.marginSpread > 10);
+      result = result.filter((i) => {
+        const spread = getSpread(i);
+        return spread !== null && spread > 10;
+      });
     }
 
     // Sort
@@ -158,17 +174,17 @@ export function ProfitabilityComparison() {
           comparison = (a.foodCost || 0) - (b.foodCost || 0);
           break;
         case "avgMargin":
-          comparison = (a.avgMargin || 0) - (b.avgMargin || 0);
+          comparison = (getMargin(a) || 0) - (getMargin(b) || 0);
           break;
         case "spread":
-          comparison = (a.marginSpread || 0) - (b.marginSpread || 0);
+          comparison = (getSpread(a) || 0) - (getSpread(b) || 0);
           break;
       }
       return sortDirection === "asc" ? comparison : -comparison;
     });
 
     return result;
-  }, [items, searchQuery, categoryFilter, showAlertsOnly, sortField, sortDirection]);
+  }, [items, searchQuery, categoryFilter, showAlertsOnly, sortField, sortDirection, marginType]);
 
   // Get margin color class
   const getMarginColor = (margin: number | null): string => {
@@ -230,9 +246,13 @@ export function ProfitabilityComparison() {
 
       const margins = selectedRestaurantIds.map((id) => {
         const r = item.restaurants.find((rest) => rest.restaurantId === id);
-        const margin = platform === "uber" ? r?.marginUber : r?.marginDeliveroo;
+        if (!r) return null;
+        const margin = getRestaurantMargin(r);
         return margin !== null ? Math.round(margin * 10) / 10 : null;
       });
+
+      const itemAvgMargin = getMargin(item);
+      const itemSpread = getSpread(item);
 
       return [
         item.menuItemName,
@@ -240,8 +260,8 @@ export function ProfitabilityComparison() {
         item.foodCost !== null ? item.foodCost.toFixed(2) : "",
         ...prices.map((p) => (p !== null ? p.toFixed(2) : "")),
         ...margins.map((m) => (m !== null ? m.toFixed(1) : "")),
-        item.avgMargin !== null ? item.avgMargin.toFixed(1) : "",
-        item.marginSpread !== null ? item.marginSpread.toFixed(1) : "",
+        itemAvgMargin !== null ? itemAvgMargin.toFixed(1) : "",
+        itemSpread !== null ? itemSpread.toFixed(1) : "",
       ];
     });
 
@@ -296,10 +316,10 @@ export function ProfitabilityComparison() {
           <CardContent className="pt-4">
             <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-1">
               <TrendingUp className="h-4 w-4" />
-              <span className="text-xs font-medium">Marge moyenne</span>
+              <span className="text-xs font-medium">Marge {marginType === "brut" ? "brute" : "nette"} moy.</span>
             </div>
             <div className="text-2xl font-bold">
-              {stats.avgMargin !== null ? `${stats.avgMargin.toFixed(1)}%` : "—"}
+              {avgMargin !== null ? `${avgMargin.toFixed(1)}%` : "—"}
             </div>
             <div className="text-xs text-muted-foreground">
               tous restaurants
@@ -313,7 +333,7 @@ export function ProfitabilityComparison() {
               <AlertTriangle className="h-4 w-4" />
               <span className="text-xs font-medium">Alertes écart</span>
             </div>
-            <div className="text-2xl font-bold">{stats.alertCount}</div>
+            <div className="text-2xl font-bold">{alertCount}</div>
             <div className="text-xs text-muted-foreground">
               écart &gt; 10% entre restaurants
             </div>
@@ -412,6 +432,26 @@ export function ProfitabilityComparison() {
               </SelectContent>
             </Select>
 
+            {/* Margin Type Toggle */}
+            <div className="flex items-center gap-1 border rounded-md p-0.5">
+              <Button
+                variant={marginType === "brut" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setMarginType("brut")}
+                className="h-7 px-3 text-xs"
+              >
+                Brute
+              </Button>
+              <Button
+                variant={marginType === "net" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setMarginType("net")}
+                className="h-7 px-3 text-xs"
+              >
+                Nette
+              </Button>
+            </div>
+
             {/* Alerts Toggle */}
             <Button
               variant={showAlertsOnly ? "default" : "outline"}
@@ -421,9 +461,9 @@ export function ProfitabilityComparison() {
             >
               <AlertTriangle className="h-4 w-4" />
               Alertes
-              {stats.alertCount > 0 && (
+              {alertCount > 0 && (
                 <Badge variant="secondary" className="ml-1">
-                  {stats.alertCount}
+                  {alertCount}
                 </Badge>
               )}
             </Button>
@@ -514,87 +554,96 @@ export function ProfitabilityComparison() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredItems.map((item, index) => (
-                    <motion.tr
-                      key={item.menuItemId}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.02 }}
-                      className={cn(
-                        "border-b hover:bg-muted/30 transition-colors",
-                        item.marginSpread !== null && item.marginSpread > 10 && "bg-amber-50/50 dark:bg-amber-950/10"
-                      )}
-                    >
-                      <TableCell className="font-medium">{item.menuItemName}</TableCell>
-                      <TableCell>
-                        {item.category && (
-                          <Badge variant="outline" className="text-xs">
-                            {item.category}
-                          </Badge>
+                  {filteredItems.map((item, index) => {
+                    const itemSpread = getSpread(item);
+                    const itemAvgMargin = getMargin(item);
+                    
+                    return (
+                      <motion.tr
+                        key={item.menuItemId}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.02 }}
+                        className={cn(
+                          "border-b hover:bg-muted/30 transition-colors",
+                          itemSpread !== null && itemSpread > 10 && "bg-amber-50/50 dark:bg-amber-950/10"
                         )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}
-                      </TableCell>
-                      {selectedRestaurantIds.map((id) => {
-                        const r = item.restaurants.find((rest) => rest.restaurantId === id);
-                        const margin = platform === "uber" ? r?.marginUber : r?.marginDeliveroo;
-                        const price = platform === "uber" ? r?.priceUber : r?.priceDeliveroo;
+                      >
+                        <TableCell className="font-medium">{item.menuItemName}</TableCell>
+                        <TableCell>
+                          {item.category && (
+                            <Badge variant="outline" className="text-xs">
+                              {item.category}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}
+                        </TableCell>
+                        {selectedRestaurantIds.map((id) => {
+                          const r = item.restaurants.find((rest) => rest.restaurantId === id);
+                          const margin = r ? getRestaurantMargin(r) : null;
+                          const price = platform === "uber" ? r?.priceUber : r?.priceDeliveroo;
+                          const vatRate = item.vatRate ?? 10;
+                          const prixHT = price ? price / (1 + vatRate / 100) : null;
 
-                        return (
-                          <TableCell
-                            key={id}
-                            className={cn(
-                              "text-center font-mono",
-                              getMarginBgColor(margin)
-                            )}
-                          >
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <span className={cn("font-semibold", getMarginColor(margin))}>
-                                    {margin !== null ? `${margin.toFixed(1)}%` : "—"}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <div className="text-xs space-y-1">
-                                    <div>Prix TTC: {price !== null ? `${price.toFixed(2)}€` : "—"}</div>
-                                    {price !== null && (
-                                      <div>Prix HT: {(price / 1.1).toFixed(2)}€</div>
-                                    )}
-                                    <div>Food Cost HT: {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}</div>
-                                    <div>Commission: {commissionRate}%</div>
-                                    {margin !== null && price !== null && item.foodCost !== null && (
-                                      <div className="border-t pt-1 mt-1">
-                                        Marge nette: {margin.toFixed(1)}%
-                                      </div>
-                                    )}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </TableCell>
-                        );
-                      })}
-                      <TableCell className="text-center">
-                        <span className={cn("font-semibold", getMarginColor(item.avgMargin))}>
-                          {item.avgMargin !== null ? `${item.avgMargin.toFixed(1)}%` : "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {item.marginSpread !== null ? (
-                          <Badge
-                            variant={item.marginSpread > 10 ? "destructive" : "secondary"}
-                            className="font-mono"
-                          >
-                            {item.marginSpread.toFixed(1)}%
-                          </Badge>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                    </motion.tr>
-                  ))}
+                          return (
+                            <TableCell
+                              key={id}
+                              className={cn(
+                                "text-center font-mono",
+                                getMarginBgColor(margin)
+                              )}
+                            >
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <span className={cn("font-semibold", getMarginColor(margin))}>
+                                      {margin !== null ? `${margin.toFixed(1)}%` : "—"}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <div className="text-xs space-y-1">
+                                      <div>Prix TTC: {price !== null ? `${price.toFixed(2)}€` : "—"}</div>
+                                      {prixHT !== null && (
+                                        <div>Prix HT: {prixHT.toFixed(2)}€ <span className="text-muted-foreground">(TVA {vatRate}%)</span></div>
+                                      )}
+                                      <div>Food Cost HT: {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}</div>
+                                      {marginType === "net" && (
+                                        <div>Commission: {commissionRate}%</div>
+                                      )}
+                                      {margin !== null && (
+                                        <div className="border-t pt-1 mt-1">
+                                          Marge {marginType === "brut" ? "brute" : "nette"}: {margin.toFixed(1)}%
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="text-center">
+                          <span className={cn("font-semibold", getMarginColor(itemAvgMargin))}>
+                            {itemAvgMargin !== null ? `${itemAvgMargin.toFixed(1)}%` : "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {itemSpread !== null ? (
+                            <Badge
+                              variant={itemSpread > 10 ? "destructive" : "secondary"}
+                              className="font-mono"
+                            >
+                              {itemSpread.toFixed(1)}%
+                            </Badge>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                      </motion.tr>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
