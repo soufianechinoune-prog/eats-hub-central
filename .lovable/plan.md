@@ -1,68 +1,83 @@
 
-# Plan : Corriger le calcul de la commission (TTC au lieu de HT)
+# Plan : Améliorer le tooltip pour afficher le détail du calcul Net
 
-## Problème confirmé
+## Problème
 
-Le code actuel calcule la commission sur le **Prix HT**, alors qu'Uber (et Deliveroo) calculent sur le **Prix TTC**.
+Le tooltip en mode "% Food Cost" + "Net" n'indique pas que la commission a été retirée pour calculer le ratio. L'utilisateur voit un pourcentage plus élevé sans comprendre pourquoi.
 
-**Exemple avec 100€ TTC, TVA 10%, Taux 27% :**
-| Calcul | Actuel (incorrect) | Correct |
-|--------|-------------------|---------|
-| Commission | 91 × 27% = 24,57€ | 100 × 27% = 27€ |
-| Revenu Net | 91 - 24,57 = 66,43€ | 91 - 27 = 64€ |
+## Solution
 
----
+Ajouter dans le tooltip (quand `marginType === "net"`) :
+- **Commission HT** : Prix TTC × Taux% (ex: 7,90€ × 23,75% = 1,88€)
+- **Revenu Net HT** : Prix HT - Commission (ex: 7,18€ - 1,88€ = 5,30€)
+- Modifier le libellé final pour clarifier : "% Food Cost (Net)" au lieu de "% Food Cost"
 
-## Modifications
+## Modification
 
-### 1. `src/hooks/useRestaurantProfitability.ts`
+**Fichier** : `src/components/menu/ProfitabilityComparison.tsx`
 
-**Ligne 146** - Uber :
-```typescript
+**Lignes 970-982** - Tooltip du mode Food Cost :
+
+```tsx
 // AVANT
-const commission = prixHT * (commissionRate / 100);
+<TooltipContent>
+  <div className="text-xs space-y-1">
+    <div>Prix TTC: {price !== null ? `${price.toFixed(2)}€` : "—"}</div>
+    {prixHT !== null && (
+      <div>Prix HT: {prixHT.toFixed(2)}€ <span className="text-muted-foreground">(TVA {vatRate}%)</span></div>
+    )}
+    <div>Food Cost HT: {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}</div>
+    {fcPercent !== null && (
+      <div className="border-t pt-1 mt-1">
+        % Food Cost: {fcPercent.toFixed(1)}%
+      </div>
+    )}
+  </div>
+</TooltipContent>
 
 // APRÈS
-const commissionHT = prices.priceUber * (commissionRate / 100);
+<TooltipContent>
+  <div className="text-xs space-y-1">
+    <div>Prix TTC: {price !== null ? `${price.toFixed(2)}€` : "—"}</div>
+    {prixHT !== null && (
+      <div>Prix HT: {prixHT.toFixed(2)}€ <span className="text-muted-foreground">(TVA {vatRate}%)</span></div>
+    )}
+    {marginType === "net" && price !== null && prixHT !== null && (
+      <>
+        <div>Commission: {(price * commissionRate / 100).toFixed(2)}€ <span className="text-muted-foreground">({commissionRate}%)</span></div>
+        <div className="font-medium">Revenu Net HT: {(prixHT - price * commissionRate / 100).toFixed(2)}€</div>
+      </>
+    )}
+    <div>Food Cost HT: {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}</div>
+    {fcPercent !== null && (
+      <div className="border-t pt-1 mt-1 font-medium">
+        % Food Cost {marginType === "net" ? "(Net)" : "(Brut)"}: {fcPercent.toFixed(1)}%
+      </div>
+    )}
+  </div>
+</TooltipContent>
 ```
 
-**Ligne 157** - Deliveroo :
-```typescript
-// AVANT
-const commission = prixHT * (commissionRate / 100);
+## Résultat attendu
 
-// APRÈS
-const commissionHT = prices.priceDeliveroo * (commissionRate / 100);
+Le tooltip affichera pour Tower (7,90€ TTC, TVA 10%, Taux 23,75%) :
+
+```text
+Prix TTC: 7,90€
+Prix HT: 7,18€ (TVA 10%)
+Commission: 1,88€ (23,75%)
+Revenu Net HT: 5,30€
+Food Cost HT: 1,63€
+─────────────────
+% Food Cost (Net): 30,7%
 ```
 
-### 2. `src/components/menu/ProfitabilityComparison.tsx`
-
-**Ligne 179** :
-```typescript
-// AVANT
-const commissionAmount = prixHT * (commissionRate / 100);
-
-// APRÈS
-const commissionHT = price * (commissionRate / 100); // price est TTC
-```
-
----
-
-## Vérification avec Tower (7,90€ TTC)
-
-| Élément | Avant (bug) | Après (corrigé) |
-|---------|-------------|-----------------|
-| Prix HT (TVA 10%) | 7,18€ | 7,18€ |
-| Commission (23,75%) | 7,18 × 23,75% = 1,70€ | 7,90 × 23,75% = **1,88€** |
-| Revenu Net | 7,18 - 1,70 = 5,48€ | 7,18 - 1,88 = **5,30€** |
-| FC % Net (FC=1,63€) | 1,63 / 5,48 = 29,7% | 1,63 / 5,30 = **30,7%** |
-
-Le FC % Net augmente d'environ **1 point**, reflétant la réalité comptable.
-
----
+Formule visible : **1,63 / 5,30 = 30,7%**
 
 ## Résumé
 
-- **2 fichiers** à modifier
-- **3 lignes** de code à corriger
-- Formule : `Commission HT = Prix TTC × Taux Contrat`
+| Élément | Changement |
+|---------|------------|
+| Fichier | `src/components/menu/ProfitabilityComparison.tsx` |
+| Lignes | 970-982 |
+| Ajouts | Commission HT, Revenu Net HT, libellé "(Net)" ou "(Brut)" |
