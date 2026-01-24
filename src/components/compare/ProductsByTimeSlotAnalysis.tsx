@@ -15,12 +15,14 @@ interface ProductsByTimeSlotAnalysisProps {
   restaurantIds: string[];
   startDate: string;
   endDate: string;
+  restaurantNames?: string[];
 }
 
 export const ProductsByTimeSlotAnalysis = ({
   restaurantIds,
   startDate,
   endDate,
+  restaurantNames = [],
 }: ProductsByTimeSlotAnalysisProps) => {
   const { slotData, globalTopProducts, isLoading, totalOrders } = useProductsByTimeSlot(
     restaurantIds,
@@ -62,13 +64,23 @@ export const ProductsByTimeSlotAnalysis = ({
   return (
     <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Package className="h-5 w-5 text-primary" />
-          Top Produits par Créneau Horaire
-          <Badge variant="secondary" className="ml-2 text-xs">
-            {totalOrders.toLocaleString()} commandes analysées
-          </Badge>
-        </CardTitle>
+        <div className="flex flex-col gap-1">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Package className="h-5 w-5 text-primary" />
+            Top Produits par Créneau Horaire
+            <Badge variant="secondary" className="ml-2 text-xs">
+              {totalOrders.toLocaleString()} commandes analysées
+            </Badge>
+          </CardTitle>
+          {restaurantNames.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {restaurantNames.length === 1 
+                ? `Restaurant : ${restaurantNames[0]}`
+                : `${restaurantNames.length} restaurants : ${restaurantNames.slice(0, 3).join(", ")}${restaurantNames.length > 3 ? ` +${restaurantNames.length - 3}` : ""}`
+              }
+            </p>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Tableau principal */}

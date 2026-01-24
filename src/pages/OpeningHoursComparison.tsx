@@ -1,12 +1,9 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subMonths, startOfMonth, endOfMonth, subDays, startOfWeek, endOfWeek, subWeeks } from "date-fns";
-import { fr } from "date-fns/locale";
-import type { DateRange } from "react-day-picker";
-import { ArrowLeft, Clock, Calendar, Award, AlertTriangle, Euro } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
+import { Clock, Calendar, Award, AlertTriangle, Euro } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,123 +12,91 @@ import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { OpeningHoursInsights } from "@/components/compare/OpeningHoursInsights";
 import { HourlyOpportunitiesAnalysis } from "@/components/compare/HourlyOpportunitiesAnalysis";
 import { ProductsByTimeSlotAnalysis } from "@/components/compare/ProductsByTimeSlotAnalysis";
-import { OverviewPeriodSelector, OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
+import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { extractCityName } from "@/lib/restaurantUtils";
+
 const DAY_LABELS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
 const OpeningHoursComparison = () => {
   const navigate = useNavigate();
   
-  // Period state
-  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("30d");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  // Use global analytics context
+  const {
+    visibleRestaurants,
+    selectedPlatform,
+    periodMode,
+    selectedYear,
+    selectedMonth,
+    dateRange,
+  } = useAnalyticsContext();
 
-  // Calculate date range based on period mode
-  const { startDate, endDate } = useMemo(() => {
-    const now = new Date();
-    
-    switch (periodMode) {
-      case "previous_week": {
-        const prevWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
-        const prevWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
-        return {
-          startDate: format(prevWeekStart, "yyyy-MM-dd"),
-          endDate: format(prevWeekEnd, "yyyy-MM-dd"),
-        };
-      }
-      case "7d":
-        return {
-          startDate: format(subDays(now, 7), "yyyy-MM-dd"),
-          endDate: format(now, "yyyy-MM-dd"),
-        };
-      case "30d":
-        return {
-          startDate: format(subDays(now, 30), "yyyy-MM-dd"),
-          endDate: format(now, "yyyy-MM-dd"),
-        };
-      case "current_month":
-        return {
-          startDate: format(startOfMonth(now), "yyyy-MM-dd"),
-          endDate: format(now, "yyyy-MM-dd"),
-        };
-      case "year":
-        return {
-          startDate: `${selectedYear}-01-01`,
-          endDate: `${selectedYear}-12-31`,
-        };
-      case "custom_month": {
-        const monthDate = new Date(selectedYear, selectedMonth - 1, 1);
-        return {
-          startDate: format(startOfMonth(monthDate), "yyyy-MM-dd"),
-          endDate: format(endOfMonth(monthDate), "yyyy-MM-dd"),
-        };
-      }
-      case "custom_range":
-        if (dateRange?.from && dateRange?.to) {
-          return {
-            startDate: format(dateRange.from, "yyyy-MM-dd"),
-            endDate: format(dateRange.to, "yyyy-MM-dd"),
-          };
-        }
-        return {
-          startDate: format(subDays(now, 30), "yyyy-MM-dd"),
-          endDate: format(now, "yyyy-MM-dd"),
-        };
-      default:
-        return {
-          startDate: format(subDays(now, 30), "yyyy-MM-dd"),
-          endDate: format(now, "yyyy-MM-dd"),
-        };
-    }
-  }, [periodMode, selectedYear, selectedMonth, dateRange]);
+  // Calculate date range using the shared hook
+  const { startDate: startDateObj, endDate: endDateObj } = useDataGranularity({
+    periodMode,
+    selectedYear,
+    selectedMonth,
+    dateRange,
+  });
 
-  // Fetch pinned restaurants
-  const { data: pinnedRestaurants, isLoading: loadingRestaurants } = useQuery({
-    queryKey: ["pinned-restaurants"],
+  const startDate = format(startDateObj, "yyyy-MM-dd");
+  const endDate = format(endDateObj, "yyyy-MM-dd");
+
+  // Fetch restaurants data for visible IDs
+  const { data: restaurants, isLoading: loadingRestaurants } = useQuery({
+    queryKey: ["restaurants-by-ids", visibleRestaurants],
     queryFn: async () => {
+      if (!visibleRestaurants.length) return [];
       const { data, error } = await supabase
         .from("restaurants")
         .select("id, name")
-        .eq("is_pinned", true)
+        .in("id", visibleRestaurants)
         .order("name");
       if (error) throw error;
       return data || [];
     },
+    enabled: visibleRestaurants.length > 0,
   });
 
-  // Fetch all opening hours for pinned restaurants
+  // Fetch all opening hours for selected restaurants
   const { data: openingHoursData, isPending: pendingHours, isFetching: fetchingHours } = useQuery({
-    queryKey: ["opening-hours-comparison", pinnedRestaurants?.map(r => r.id)],
+    queryKey: ["opening-hours-comparison", visibleRestaurants, selectedPlatform],
     queryFn: async () => {
-      if (!pinnedRestaurants?.length) return [];
+      if (!visibleRestaurants.length) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurant_opening_hours")
         .select("restaurant_id, platform, day_of_week, start_time, end_time, is_overnight")
-        .in("restaurant_id", pinnedRestaurants.map(r => r.id));
+        .in("restaurant_id", visibleRestaurants);
       
+      // Filter by platform if not global
+      if (selectedPlatform !== "global") {
+        query = query.eq("platform", selectedPlatform);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!pinnedRestaurants?.length,
+    enabled: visibleRestaurants.length > 0,
   });
 
-  // Fetch revenue data from daily_sales_uber (has actual data) instead of monthly_revenue (empty)
+  // Fetch revenue data from daily_sales_uber
   const { data: revenueData, isPending: pendingRevenue, isFetching: fetchingRevenue } = useQuery({
-    queryKey: ["opening-hours-revenue-daily", pinnedRestaurants?.map(r => r.id), startDate, endDate],
+    queryKey: ["opening-hours-revenue-daily", visibleRestaurants, startDate, endDate, selectedPlatform],
     queryFn: async () => {
-      if (!pinnedRestaurants?.length) return [];
+      if (!visibleRestaurants.length) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("daily_sales_uber_deduped")
         .select("restaurant_id, revenue_ttc, order_count, date")
-        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
+        .in("restaurant_id", visibleRestaurants)
         .gte("date", startDate)
         .lte("date", endDate)
         .order("date", { ascending: true });
       
+      const { data, error } = await query;
       if (error) throw error;
       
       // Aggregate by restaurant
@@ -150,14 +115,14 @@ const OpeningHoursComparison = () => {
         order_count: stats.order_count
       }));
     },
-    enabled: !!pinnedRestaurants?.length,
+    enabled: visibleRestaurants.length > 0,
   });
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!openingHoursData?.length || !pinnedRestaurants?.length) return [];
+    if (!openingHoursData?.length || !restaurants?.length) return [];
     
-    const stats = pinnedRestaurants.map(restaurant => {
+    const stats = restaurants.map(restaurant => {
       const restaurantHours = openingHoursData.filter(h => h.restaurant_id === restaurant.id);
       const restaurantRevenue = revenueData?.find(r => r.restaurant_id === restaurant.id);
       
@@ -187,7 +152,7 @@ const OpeningHoursComparison = () => {
       const allDays = new Set([...uberDays, ...deliverooDays]);
       const missingDays = [0, 1, 2, 3, 4, 5, 6].filter(day => !allDays.has(day));
       
-      // Revenue calculations - adjusted for period length
+      // Revenue calculations
       const totalRevenue = restaurantRevenue?.revenue_ttc || 0;
       const totalOrders = restaurantRevenue?.order_count || 0;
       const hoursPerMonth = totalHoursPerWeek * 4.3;
@@ -210,7 +175,7 @@ const OpeningHoursComparison = () => {
     });
     
     return stats.sort((a, b) => b.totalHoursPerWeek - a.totalHoursPerWeek);
-  }, [openingHoursData, pinnedRestaurants, revenueData]);
+  }, [openingHoursData, restaurants, revenueData]);
 
   // Global KPIs
   const globalStats = useMemo(() => {
@@ -245,83 +210,59 @@ const OpeningHoursComparison = () => {
     }));
   }, [restaurantStats]);
 
-  // Debug logs for query states (log on change, not every render)
+  // Restaurant names for display in child components
+  const restaurantNames = useMemo(() => 
+    (restaurants || []).map(r => extractCityName(r.name)),
+    [restaurants]
+  );
+
+  // Debug logs
   useEffect(() => {
     console.debug("[OpeningHoursComparison] Query states:", {
       period: { startDate, endDate, mode: periodMode },
-      pinnedRestaurants: {
-        count: pinnedRestaurants?.length ?? 0,
-        loading: loadingRestaurants,
-      },
-      openingHours: {
-        count: openingHoursData?.length ?? 0,
-        pending: pendingHours,
-        fetching: fetchingHours,
-        enabled: !!pinnedRestaurants?.length,
-      },
-      revenue: {
-        count: revenueData?.length ?? 0,
-        pending: pendingRevenue,
-        fetching: fetchingRevenue,
-        enabled: !!pinnedRestaurants?.length,
-        totalRevenue: revenueData?.reduce((sum, r) => sum + (r.revenue_ttc || 0), 0) || 0,
-      },
+      visibleRestaurants: visibleRestaurants.length,
+      restaurants: restaurants?.length ?? 0,
+      openingHours: openingHoursData?.length ?? 0,
+      revenue: revenueData?.length ?? 0,
       restaurantStats: restaurantStats.length,
     });
   }, [
     startDate,
     endDate,
     periodMode,
-    loadingRestaurants,
-    pinnedRestaurants?.length,
-    pendingHours,
-    fetchingHours,
+    visibleRestaurants.length,
+    restaurants?.length,
     openingHoursData?.length,
-    pendingRevenue,
-    fetchingRevenue,
-    revenueData,
+    revenueData?.length,
     restaurantStats.length,
   ]);
 
-  // Loading state (dependent queries)
+  // Loading state
   const isLoading =
-    loadingRestaurants || (!!pinnedRestaurants?.length && (pendingHours || pendingRevenue));
+    loadingRestaurants || (visibleRestaurants.length > 0 && (pendingHours || pendingRevenue));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/")}
-              className="rounded-full"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">Analyse des Horaires</h1>
-              <p className="text-muted-foreground text-sm">
-                Optimisation des horaires d'ouverture et revenus par créneau
-              </p>
-            </div>
-          </div>
-          
-          <OverviewPeriodSelector
-            periodMode={periodMode}
-            onPeriodModeChange={setPeriodMode}
-            selectedYear={selectedYear}
-            onYearChange={setSelectedYear}
-            selectedMonth={selectedMonth}
-            onMonthChange={setSelectedMonth}
-            dateRange={dateRange}
-            onDateRangeChange={setDateRange}
-          />
+        {/* Page title */}
+        <div>
+          <h1 className="text-2xl font-bold">Analyse des Horaires</h1>
+          <p className="text-muted-foreground text-sm">
+            Optimisation des horaires d'ouverture et revenus par créneau
+          </p>
         </div>
 
-        {isLoading ? (
+        {/* Global filters header */}
+        <AnalyticsHeader />
+
+        {visibleRestaurants.length === 0 ? (
+          <Card className="backdrop-blur-xl bg-muted/30 border-border/50">
+            <CardContent className="pt-6 text-center text-muted-foreground">
+              <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>Sélectionnez au moins un restaurant pour voir l'analyse</p>
+            </CardContent>
+          </Card>
+        ) : isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
@@ -383,18 +324,20 @@ const OpeningHoursComparison = () => {
               </Card>
             </div>
 
-            {/* Analyse des opportunités horaires basée sur order_history */}
+            {/* Analyse des opportunités horaires */}
             <HourlyOpportunitiesAnalysis
-              restaurants={pinnedRestaurants || []}
+              restaurants={restaurants || []}
               startDate={startDate}
               endDate={endDate}
+              restaurantNames={restaurantNames}
             />
 
-            {/* NOUVEAU: Croisement Produits × Créneaux horaires */}
+            {/* Croisement Produits × Créneaux horaires */}
             <ProductsByTimeSlotAnalysis
-              restaurantIds={(pinnedRestaurants || []).map(r => r.id)}
+              restaurantIds={visibleRestaurants}
               startDate={startDate}
               endDate={endDate}
+              restaurantNames={restaurantNames}
             />
 
             {/* Section Insights intelligents */}

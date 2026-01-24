@@ -33,6 +33,7 @@ interface HourlyOpportunitiesAnalysisProps {
   restaurants: Restaurant[];
   startDate: string;
   endDate: string;
+  restaurantNames?: string[];
 }
 
 interface HourlyData {
@@ -70,7 +71,8 @@ const TIME_SLOTS = [
 export const HourlyOpportunitiesAnalysis = ({ 
   restaurants, 
   startDate, 
-  endDate 
+  endDate,
+  restaurantNames = [],
 }: HourlyOpportunitiesAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('orders');
@@ -306,10 +308,20 @@ export const HourlyOpportunitiesAnalysis = ({
       <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Performance par créneau horaire
-            </CardTitle>
+            <div className="flex flex-col gap-1">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Performance par créneau horaire
+              </CardTitle>
+              {restaurantNames.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {restaurantNames.length === 1 
+                    ? `Restaurant : ${restaurantNames[0]}`
+                    : `${restaurantNames.length} restaurants : ${restaurantNames.slice(0, 3).join(", ")}${restaurantNames.length > 3 ? ` +${restaurantNames.length - 3}` : ""}`
+                  }
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-3">
               <ToggleGroup 
                 type="single" 
