@@ -1,89 +1,106 @@
 
-# Saisie précise et mémorisation du taux de commission
+# Ajout d'explications pour les marges Brute et Nette
 
-## Contexte
-Le slider actuel de commission ne permet que des valeurs entières (step=1), mais les contrats avec les plateformes utilisent souvent des taux avec décimales (ex: 24.5%, 30.25%). De plus, le taux doit être persisté pour éviter de le ressaisir à chaque visite.
+## Objectif
+Rendre les concepts de marge **Brute** et **Nette** clairs et accessibles pour tous les utilisateurs, même non-experts en finance.
 
-## Modifications prévues
+## Emplacement actuel
+Le toggle se trouve dans la barre de filtres (lignes 519-536 de `ProfitabilityComparison.tsx`), avec deux boutons sans explication.
 
-### 1. Remplacer le slider par un champ de saisie numérique
+## Solution proposée
+
+### 1. Ajout d'une icône Info avec tooltip détaillé
+
+Ajouter une icône `Info` à côté du toggle avec un tooltip explicatif :
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│  [ Brute ] [ Nette ]  ℹ️                                      │
+│                       ↓                                       │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │ 📊 Marge Brute                                        │    │
+│  │ = (Prix HT - Food Cost) / Prix HT                     │    │
+│  │ Ce que vous gardez avant les commissions plateforme   │    │
+│  │                                                        │    │
+│  │ 📉 Marge Nette                                         │    │
+│  │ = (Prix HT - Commission - Food Cost) / Prix HT        │    │
+│  │ Ce qui reste vraiment après Uber/Deliveroo            │    │
+│  └──────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 2. Contenu des explications
+
+**Marge Brute :**
+- Formule : `(Prix HT - Food Cost HT) / Prix HT × 100`
+- Explication simple : "Ce que vous gardez avant de payer la plateforme"
+- Utilité : Mesurer la performance intrinsèque du produit
+
+**Marge Nette :**
+- Formule : `(Prix HT - Commission - Food Cost HT) / Prix HT × 100`
+- Explication simple : "Ce qui reste vraiment après Uber/Deliveroo"
+- Utilité : Voir la rentabilité réelle après toutes les déductions
+
+### 3. Design du tooltip
+
+- Style : HoverCard ou Tooltip large avec formatage structuré
+- Couleurs : Icônes en vert (brute) et violet (nette) pour différencier
+- Taille : Assez large pour contenir les formules et explications
+
+## Modification technique
 
 **Fichier : `src/components/menu/ProfitabilityComparison.tsx`**
 
-Transformer le slider en un champ `Input` avec les caractéristiques suivantes :
-- Type number avec step="0.01" pour 2 décimales
-- Plage de 0 à 50%
-- Suffixe "%" affiché dans le design
-- Validation côté client (min/max)
+Envelopper le toggle existant dans un conteneur flex avec une icône `Info` qui déclenche un `HoverCard` explicatif :
 
-```text
-┌────────────────────────────────────────┐
-│ % Commission │  [  24.50  ] %  │ 💾   │
-└────────────────────────────────────────┘
-```
-
-### 2. Persister le taux de commission par plateforme
-
-Utiliser `localStorage` pour sauvegarder les taux séparément pour Uber et Deliveroo :
-- Clé : `profitability-commission-uber` et `profitability-commission-deliveroo`
-- Charger au montage du composant via `useState` avec initializer function
-- Sauvegarder à chaque modification via `useEffect`
-
-### 3. Interface utilisateur améliorée
-
-- Champ de saisie compact avec icône "%"
-- Bouton de sauvegarde visuel (icône check) qui confirme la persistance
-- Ou sauvegarde automatique au blur/changement avec toast de confirmation discret
-- Tooltip explicatif sur le champ
-
-## Code technique
-
-### Initialisation avec localStorage
-```typescript
-const COMMISSION_STORAGE_KEY = "profitability-commission";
-
-const [commissionRate, setCommissionRate] = useState(() => {
-  const saved = localStorage.getItem(`${COMMISSION_STORAGE_KEY}-${platform}`);
-  return saved ? parseFloat(saved) : DEFAULT_COMMISSION[platform];
-});
-```
-
-### Persistance automatique
-```typescript
-useEffect(() => {
-  localStorage.setItem(`${COMMISSION_STORAGE_KEY}-${platform}`, commissionRate.toString());
-}, [commissionRate, platform]);
-
-// Charger le bon taux quand on change de plateforme
-useEffect(() => {
-  const saved = localStorage.getItem(`${COMMISSION_STORAGE_KEY}-${platform}`);
-  setCommissionRate(saved ? parseFloat(saved) : DEFAULT_COMMISSION[platform]);
-}, [platform]);
-```
-
-### Champ Input avec validation
 ```tsx
-<div className="flex items-center gap-2">
-  <span className="text-xs text-muted-foreground">Commission</span>
-  <div className="relative">
-    <Input
-      type="number"
-      value={commissionRate}
-      onChange={(e) => {
-        const value = parseFloat(e.target.value);
-        if (!isNaN(value) && value >= 0 && value <= 50) {
-          setCommissionRate(value);
-        }
-      }}
-      step="0.01"
-      min="0"
-      max="50"
-      className="w-20 pr-6 text-right"
-    />
-    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
-      %
-    </span>
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+
+// Dans le JSX, autour du toggle existant (lignes 519-536) :
+<div className="flex items-center gap-1.5">
+  <div className="flex items-center gap-1 border rounded-md p-0.5">
+    <Button variant={marginType === "brut" ? "default" : "ghost"} ...>Brute</Button>
+    <Button variant={marginType === "net" ? "default" : "ghost"} ...>Nette</Button>
   </div>
+  
+  <HoverCard>
+    <HoverCardTrigger asChild>
+      <Button variant="ghost" size="icon" className="h-7 w-7">
+        <Info className="h-3.5 w-3.5 text-muted-foreground" />
+      </Button>
+    </HoverCardTrigger>
+    <HoverCardContent className="w-80">
+      <div className="space-y-3">
+        <div>
+          <div className="flex items-center gap-2 text-emerald-600 font-medium">
+            <TrendingUp className="h-4 w-4" />
+            Marge Brute
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            = (Prix HT − Food Cost) / Prix HT
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Ce que vous gardez avant les commissions plateforme
+          </p>
+        </div>
+        
+        <Separator />
+        
+        <div>
+          <div className="flex items-center gap-2 text-violet-600 font-medium">
+            <TrendingDown className="h-4 w-4" />
+            Marge Nette
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            = (Prix HT − Commission − Food Cost) / Prix HT
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Ce qui reste vraiment après Uber/Deliveroo
+          </p>
+        </div>
+      </div>
+    </HoverCardContent>
+  </HoverCard>
 </div>
 ```
 
@@ -91,9 +108,8 @@ useEffect(() => {
 
 | Avant | Après |
 |-------|-------|
-| Slider 15-45% (entiers) | Input 0-50% (2 décimales) |
-| Valeur perdue au refresh | Valeur persistée par plateforme |
-| Step = 1 | Step = 0.01 |
+| Toggle sans explication | Toggle + icône ℹ️ avec HoverCard détaillé |
+| Utilisateurs confus | Formules et explications claires au survol |
 
 ## Fichier impacté
 - `src/components/menu/ProfitabilityComparison.tsx`
