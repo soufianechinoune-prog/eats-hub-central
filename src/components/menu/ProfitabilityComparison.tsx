@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   BarChart3,
@@ -12,6 +12,7 @@ import {
   ChevronUp,
   Info,
   Percent,
+  Save,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -39,11 +40,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Slider } from "@/components/ui/slider";
 import { RestaurantSelector } from "@/components/menu/RestaurantSelector";
+import { useToast } from "@/hooks/use-toast";
 import { useRestaurantProfitability, ProductProfitability } from "@/hooks/useRestaurantProfitability";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx-js-style";
 import { extractCityName } from "@/lib/restaurantUtils";
@@ -63,13 +63,25 @@ type SortField = "name" | "category" | "foodCost" | "avgMargin" | "spread";
 type SortDirection = "asc" | "desc";
 
 // Default commission rates per platform
-const DEFAULT_COMMISSION = { uber: 30, deliveroo: 35 };
+const DEFAULT_COMMISSION: Record<"uber" | "deliveroo", number> = { uber: 30, deliveroo: 35 };
+const COMMISSION_STORAGE_KEY = "profitability-commission";
 
 export function ProfitabilityComparison() {
+  const { toast } = useToast();
   const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
   const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
   const [platform, setPlatform] = useState<"uber" | "deliveroo">("uber");
-  const [commissionRate, setCommissionRate] = useState(DEFAULT_COMMISSION.uber);
+  
+  // Initialize commission from localStorage
+  const [commissionRate, setCommissionRate] = useState<number>(() => {
+    const saved = localStorage.getItem(`${COMMISSION_STORAGE_KEY}-uber`);
+    return saved ? parseFloat(saved) : DEFAULT_COMMISSION.uber;
+  });
+  const [commissionInput, setCommissionInput] = useState<string>(() => {
+    const saved = localStorage.getItem(`${COMMISSION_STORAGE_KEY}-uber`);
+    return saved || String(DEFAULT_COMMISSION.uber);
+  });
+  
   const [marginType, setMarginType] = useState<"brut" | "net">("brut");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -83,10 +95,51 @@ export function ProfitabilityComparison() {
     commissionRate
   );
 
-  // Update commission when platform changes
+  // Load commission from localStorage when platform changes
   useEffect(() => {
-    setCommissionRate(DEFAULT_COMMISSION[platform]);
+    const saved = localStorage.getItem(`${COMMISSION_STORAGE_KEY}-${platform}`);
+    const rate = saved ? parseFloat(saved) : DEFAULT_COMMISSION[platform];
+    setCommissionRate(rate);
+    setCommissionInput(String(rate));
   }, [platform]);
+
+  // Save commission to localStorage
+  const handleCommissionSave = () => {
+    const value = parseFloat(commissionInput);
+    if (!isNaN(value) && value >= 0 && value <= 50) {
+      setCommissionRate(value);
+      localStorage.setItem(`${COMMISSION_STORAGE_KEY}-${platform}`, String(value));
+      toast({
+        title: "Commission sauvegardée",
+        description: `Taux de ${value}% enregistré pour ${platform === "uber" ? "Uber Eats" : "Deliveroo"}`,
+      });
+    }
+  };
+
+  // Handle input change with validation
+  const handleCommissionInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    setCommissionInput(rawValue);
+    
+    const value = parseFloat(rawValue);
+    if (!isNaN(value) && value >= 0 && value <= 50) {
+      setCommissionRate(value);
+    }
+  };
+
+  // Save on blur if valid
+  const handleCommissionBlur = () => {
+    const value = parseFloat(commissionInput);
+    if (!isNaN(value) && value >= 0 && value <= 50) {
+      localStorage.setItem(`${COMMISSION_STORAGE_KEY}-${platform}`, String(value));
+    } else {
+      // Reset to saved value if invalid
+      const saved = localStorage.getItem(`${COMMISSION_STORAGE_KEY}-${platform}`);
+      const rate = saved ? parseFloat(saved) : DEFAULT_COMMISSION[platform];
+      setCommissionInput(String(rate));
+      setCommissionRate(rate);
+    }
+  };
 
   // Helper to get current margin based on marginType
   const getMargin = (item: ProductProfitability) => marginType === "brut" ? item.avgMarginBrut : item.avgMarginNet;
@@ -380,8 +433,8 @@ export function ProfitabilityComparison() {
               </SelectContent>
             </Select>
 
-            {/* Commission Rate Slider */}
-            <div className="flex items-center gap-3 min-w-[180px]">
+            {/* Commission Rate Input */}
+            <div className="flex items-center gap-2">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -391,19 +444,49 @@ export function ProfitabilityComparison() {
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Taux de commission plateforme appliqué sur le prix HT</p>
+                    <p>Taux de commission plateforme appliqué sur le prix HT (0-50%)</p>
+                    <p className="text-xs text-muted-foreground mt-1">Valeur mémorisée par plateforme</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              <Slider
-                value={[commissionRate]}
-                onValueChange={([v]) => setCommissionRate(v)}
-                min={15}
-                max={45}
-                step={1}
-                className="w-24"
-              />
-              <span className="text-sm font-medium w-10 text-right">{commissionRate}%</span>
+              <div className="relative">
+                <Input
+                  type="number"
+                  value={commissionInput}
+                  onChange={handleCommissionInputChange}
+                  onBlur={handleCommissionBlur}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleCommissionSave();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  step="0.01"
+                  min="0"
+                  max="50"
+                  className="w-20 pr-6 text-right h-9"
+                />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                  %
+                </span>
+              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={handleCommissionSave}
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Sauvegarder ce taux</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* Search */}
