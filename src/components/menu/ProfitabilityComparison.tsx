@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   AlertCircle,
   PieChart,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RestaurantSelector } from "@/components/menu/RestaurantSelector";
 import { useToast } from "@/hooks/use-toast";
 import { useRestaurantProfitability, ProductProfitability } from "@/hooks/useRestaurantProfitability";
+import { useProfitabilityPdfExport } from "@/hooks/useProfitabilityPdfExport";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx-js-style";
@@ -99,6 +101,8 @@ export function ProfitabilityComparison() {
     platform,
     commissionRate
   );
+  
+  const { exportToPdf, isExporting: isPdfExporting } = useProfitabilityPdfExport();
 
   // Load commission from localStorage when platform changes
   useEffect(() => {
@@ -816,7 +820,34 @@ export function ProfitabilityComparison() {
                     )}
                   </Button>
 
-                  {/* Export */}
+                  {/* Export PDF */}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      const selectedRestos = allRestaurants.filter(r => selectedRestaurantIds.includes(r.id));
+                      exportToPdf({
+                        restaurants: selectedRestos,
+                        items: filteredItems,
+                        platform,
+                        viewMode,
+                        marginType,
+                        commissionRate,
+                        stats: {
+                          avgMargin: stats?.avgMarginBrut ?? null,
+                          avgFoodCostPercent: avgFoodCostPercent,
+                          alertCount: viewMode === "foodCost" ? fcAlertCount : alertCount,
+                        },
+                      });
+                    }}
+                    disabled={isPdfExporting || filteredItems.length === 0}
+                    className="gap-1.5 h-8"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    PDF
+                  </Button>
+
+                  {/* Export Excel */}
                   <Button variant="outline" size="sm" onClick={exportToExcel} className="gap-1.5 h-8">
                     <Download className="h-3.5 w-3.5" />
                     Excel
