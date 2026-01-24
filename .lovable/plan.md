@@ -1,87 +1,99 @@
 
-
-# Ajouter la TVA au Catalogue Produits
+# Saisie précise et mémorisation du taux de commission
 
 ## Contexte
-Lors de la fusion Food Cost → Catalogue, la TVA par produit n'a pas été incluse car elle n'existait pas dans la table `menu_items`. Or, pour calculer correctement la marge nette (Prix TTC → HT → déductions), il est nécessaire de connaître le taux de TVA applicable à chaque produit.
+Le slider actuel de commission ne permet que des valeurs entières (step=1), mais les contrats avec les plateformes utilisent souvent des taux avec décimales (ex: 24.5%, 30.25%). De plus, le taux doit être persisté pour éviter de le ressaisir à chaque visite.
 
-## Modifications à apporter
+## Modifications prévues
 
-### 1. Migration base de données
+### 1. Remplacer le slider par un champ de saisie numérique
 
-Ajouter une colonne `vat_rate` à la table `menu_items` :
+**Fichier : `src/components/menu/ProfitabilityComparison.tsx`**
 
-```sql
-ALTER TABLE menu_items 
-ADD COLUMN vat_rate NUMERIC(5,2) DEFAULT 10.00;
-
-COMMENT ON COLUMN menu_items.vat_rate IS 'Taux de TVA applicable au produit (en %)';
-```
-
-- Valeur par défaut : **10%** (taux standard restauration)
-- Permet des taux différents pour certains produits (boissons alcoolisées 20%, etc.)
-
-### 2. Mise à jour du tableau Catalogue
-
-**Fichier : `src/pages/MenuItems.tsx`**
-
-Ajouter une nouvelle colonne "TVA" après "Food Cost" :
-
-| Nom | Description | Food Cost | TVA | Statut | Actions |
-|-----|-------------|-----------|-----|--------|---------|
-| Burger Classic | ... | 3,11 € | 10% | ✓ | ... |
-
-- **Affichage** : Format `XX%`
-- **Édition inline** : Clic → Select dropdown (5.5%, 10%, 20%) ou Input
-- **Sauvegarde** : Même logique que Food Cost (blur/Enter)
-
-### 3. Interface MenuItem
-
-```typescript
-interface MenuItem {
-  // ... champs existants
-  food_cost: number | null;
-  vat_rate: number | null;  // Nouveau champ
-  is_active: boolean;
-}
-```
-
-### 4. Formulaire de création/édition
-
-Ajouter un champ "Taux de TVA" dans le dialogue :
+Transformer le slider en un champ `Input` avec les caractéristiques suivantes :
+- Type number avec step="0.01" pour 2 décimales
+- Plage de 0 à 50%
+- Suffixe "%" affiché dans le design
+- Validation côté client (min/max)
 
 ```text
-┌─────────────────────────────────────┐
-│ Food Cost HT (€)                    │
-│ [_____3.11_____]                    │
-│                                     │
-│ Taux de TVA (%)                     │
-│ [▼ 10% ▼]  (Dropdown: 5.5%, 10%, 20%)│
-└─────────────────────────────────────┘
+┌────────────────────────────────────────┐
+│ % Commission │  [  24.50  ] %  │ 💾   │
+└────────────────────────────────────────┘
 ```
 
-### 5. Exports Excel/PDF
+### 2. Persister le taux de commission par plateforme
 
-Ajouter la colonne TVA dans les exports :
-- Excel : `"TVA (%)": item.vat_rate ? item.vat_rate + "%" : "10%"`
-- PDF : Idem
+Utiliser `localStorage` pour sauvegarder les taux séparément pour Uber et Deliveroo :
+- Clé : `profitability-commission-uber` et `profitability-commission-deliveroo`
+- Charger au montage du composant via `useState` avec initializer function
+- Sauvegarder à chaque modification via `useEffect`
 
-### 6. KPIs (optionnel)
+### 3. Interface utilisateur améliorée
 
-Ajouter une info sur la complétion TVA ou simplement afficher "10% par défaut" dans l'interface.
+- Champ de saisie compact avec icône "%"
+- Bouton de sauvegarde visuel (icône check) qui confirme la persistance
+- Ou sauvegarde automatique au blur/changement avec toast de confirmation discret
+- Tooltip explicatif sur le champ
+
+## Code technique
+
+### Initialisation avec localStorage
+```typescript
+const COMMISSION_STORAGE_KEY = "profitability-commission";
+
+const [commissionRate, setCommissionRate] = useState(() => {
+  const saved = localStorage.getItem(`${COMMISSION_STORAGE_KEY}-${platform}`);
+  return saved ? parseFloat(saved) : DEFAULT_COMMISSION[platform];
+});
+```
+
+### Persistance automatique
+```typescript
+useEffect(() => {
+  localStorage.setItem(`${COMMISSION_STORAGE_KEY}-${platform}`, commissionRate.toString());
+}, [commissionRate, platform]);
+
+// Charger le bon taux quand on change de plateforme
+useEffect(() => {
+  const saved = localStorage.getItem(`${COMMISSION_STORAGE_KEY}-${platform}`);
+  setCommissionRate(saved ? parseFloat(saved) : DEFAULT_COMMISSION[platform]);
+}, [platform]);
+```
+
+### Champ Input avec validation
+```tsx
+<div className="flex items-center gap-2">
+  <span className="text-xs text-muted-foreground">Commission</span>
+  <div className="relative">
+    <Input
+      type="number"
+      value={commissionRate}
+      onChange={(e) => {
+        const value = parseFloat(e.target.value);
+        if (!isNaN(value) && value >= 0 && value <= 50) {
+          setCommissionRate(value);
+        }
+      }}
+      step="0.01"
+      min="0"
+      max="50"
+      className="w-20 pr-6 text-right"
+    />
+    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+      %
+    </span>
+  </div>
+</div>
+```
 
 ## Résultat attendu
 
-**Tableau Catalogue enrichi :**
+| Avant | Après |
+|-------|-------|
+| Slider 15-45% (entiers) | Input 0-50% (2 décimales) |
+| Valeur perdue au refresh | Valeur persistée par plateforme |
+| Step = 1 | Step = 0.01 |
 
-| Produit | Catégorie | Description | Food Cost | TVA | Statut |
-|---------|-----------|-------------|-----------|-----|--------|
-| Burger Classic | Burgers | Le classique... | 3,11 € | 10% | ✅ |
-| Coca-Cola | Boissons | 33cl | 0,45 € | 5.5% | ✅ |
-| Mojito | Boissons | Cocktail... | 2,10 € | 20% | ✅ |
-
-## Fichiers impactés
-
-1. **Migration SQL** - Ajout colonne `vat_rate`
-2. **`src/pages/MenuItems.tsx`** - Interface, tableau, édition inline, formulaire, exports
-
+## Fichier impacté
+- `src/components/menu/ProfitabilityComparison.tsx`
