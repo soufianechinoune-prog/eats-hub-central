@@ -856,6 +856,7 @@ export type Database = {
           price_deliveroo: number | null
           price_uber: number | null
           updated_at: string
+          vat_rate: number | null
         }
         Insert: {
           category?: string | null
@@ -873,6 +874,7 @@ export type Database = {
           price_deliveroo?: number | null
           price_uber?: number | null
           updated_at?: string
+          vat_rate?: number | null
         }
         Update: {
           category?: string | null
@@ -890,6 +892,7 @@ export type Database = {
           price_deliveroo?: number | null
           price_uber?: number | null
           updated_at?: string
+          vat_rate?: number | null
         }
         Relationships: []
       }

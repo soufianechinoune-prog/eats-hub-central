@@ -111,10 +111,17 @@ interface MenuItem {
   price_uber: number | null;
   price_deliveroo: number | null;
   food_cost: number | null;
+  vat_rate: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 }
+
+const VAT_RATES = [
+  { value: "5.5", label: "5,5%" },
+  { value: "10", label: "10%" },
+  { value: "20", label: "20%" },
+];
 
 const CATEGORIES = [
   "Menu Enfant",
@@ -405,6 +412,9 @@ export default function MenuItems() {
   const [editingFoodCostId, setEditingFoodCostId] = useState<string | null>(null);
   const [editingFoodCostValue, setEditingFoodCostValue] = useState<string>("");
   
+  // Inline VAT editing
+  const [editingVatId, setEditingVatId] = useState<string | null>(null);
+  
   // Restaurant price comparison state (persisted across tabs)
   const [priceComparisonRestaurantIds, setPriceComparisonRestaurantIds] = useState<string[]>([]);
   
@@ -436,6 +446,7 @@ export default function MenuItems() {
     price_uber: "",
     price_deliveroo: "",
     food_cost: "",
+    vat_rate: "10",
     is_active: true,
   });
 
@@ -526,6 +537,31 @@ export default function MenuItems() {
     }
   };
 
+  // Inline VAT editing handlers
+  const saveVatEdit = async (itemId: string, newValue: string) => {
+    const vatValue = newValue ? parseFloat(newValue) : 10;
+    
+    const { error } = await supabase
+      .from("menu_items")
+      .update({ vat_rate: vatValue })
+      .eq("id", itemId);
+
+    if (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder la TVA",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Succès",
+        description: "TVA mise à jour",
+      });
+      fetchMenuItems();
+    }
+    setEditingVatId(null);
+  };
+
   // Export to Excel
   const exportToExcel = () => {
     const data = filteredItems.map(item => ({
@@ -533,6 +569,7 @@ export default function MenuItems() {
       "Catégorie": item.category || "-",
       "Description": item.description || "-",
       "Food Cost HT (€)": item.food_cost !== null ? item.food_cost.toFixed(2) : "Non renseigné",
+      "TVA (%)": item.vat_rate ? `${item.vat_rate}%` : "10%",
       "Statut": item.is_active ? "Actif" : "Inactif",
     }));
 
@@ -544,6 +581,7 @@ export default function MenuItems() {
       { wch: 25 },
       { wch: 40 },
       { wch: 18 },
+      { wch: 10 },
       { wch: 10 },
     ];
 
@@ -609,8 +647,9 @@ export default function MenuItems() {
     pdf.setFont("helvetica", "bold");
     pdf.setTextColor(55, 65, 81);
     pdf.text("Produit", margin + 3, yPos + 5.5);
-    pdf.text("Catégorie", margin + 80, yPos + 5.5);
-    pdf.text("Food Cost HT", margin + 130, yPos + 5.5);
+    pdf.text("Catégorie", margin + 70, yPos + 5.5);
+    pdf.text("Food Cost", margin + 115, yPos + 5.5);
+    pdf.text("TVA", margin + 145, yPos + 5.5);
     pdf.text("Statut", margin + 165, yPos + 5.5);
 
     yPos += 10;
@@ -631,19 +670,23 @@ export default function MenuItems() {
       }
 
       pdf.setTextColor(0, 0, 0);
-      const name = item.name.length > 40 ? item.name.substring(0, 37) + "..." : item.name;
+      const name = item.name.length > 35 ? item.name.substring(0, 32) + "..." : item.name;
       pdf.text(name, margin + 3, yPos + 2);
       
       pdf.setTextColor(107, 114, 128);
-      pdf.text((item.category || "-").substring(0, 20), margin + 80, yPos + 2);
+      pdf.text((item.category || "-").substring(0, 18), margin + 70, yPos + 2);
       
       if (item.food_cost !== null && item.food_cost > 0) {
         pdf.setTextColor(16, 185, 129);
-        pdf.text(`${item.food_cost.toFixed(2)}€`, margin + 130, yPos + 2);
+        pdf.text(`${item.food_cost.toFixed(2)}€`, margin + 115, yPos + 2);
       } else {
         pdf.setTextColor(245, 158, 11);
-        pdf.text("À compléter", margin + 130, yPos + 2);
+        pdf.text("-", margin + 115, yPos + 2);
       }
+
+      // TVA
+      pdf.setTextColor(99, 102, 241);
+      pdf.text(`${item.vat_rate || 10}%`, margin + 145, yPos + 2);
 
       pdf.setTextColor(item.is_active ? 16 : 107, item.is_active ? 185 : 114, item.is_active ? 129 : 128);
       pdf.text(item.is_active ? "Actif" : "Inactif", margin + 165, yPos + 2);
@@ -679,6 +722,7 @@ export default function MenuItems() {
       price_uber: "",
       price_deliveroo: "",
       food_cost: "",
+      vat_rate: "10",
       is_active: true,
     });
     setIsDialogOpen(true);
@@ -695,6 +739,7 @@ export default function MenuItems() {
       price_uber: item.price_uber?.toString() || "",
       price_deliveroo: item.price_deliveroo?.toString() || "",
       food_cost: item.food_cost?.toString() || "",
+      vat_rate: item.vat_rate?.toString() || "10",
       is_active: item.is_active,
     });
     setIsDialogOpen(true);
@@ -720,6 +765,7 @@ export default function MenuItems() {
       price_uber: formData.price_uber ? parseFloat(formData.price_uber) : null,
       price_deliveroo: formData.price_deliveroo ? parseFloat(formData.price_deliveroo) : null,
       food_cost: formData.food_cost ? parseFloat(formData.food_cost) : null,
+      vat_rate: formData.vat_rate ? parseFloat(formData.vat_rate) : 10,
       is_active: formData.is_active,
     };
 
@@ -1510,6 +1556,7 @@ export default function MenuItems() {
                                     <ArrowUpDown className="h-3 w-3" />
                                   </div>
                                 </TableHead>
+                                <TableHead className="text-center">TVA</TableHead>
                                 <TableHead className="text-center">Statut</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                               </TableRow>
@@ -1548,6 +1595,35 @@ export default function MenuItems() {
                                         <span className="hover:text-primary">{formatPrice(item.food_cost)}</span>
                                       ) : (
                                         <span className="text-amber-500 hover:text-amber-600">À renseigner</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      {editingVatId === item.id ? (
+                                        <Select
+                                          defaultValue={item.vat_rate?.toString() || "10"}
+                                          onValueChange={(value) => {
+                                            saveVatEdit(item.id, value);
+                                          }}
+                                        >
+                                          <SelectTrigger className="w-20 h-7 text-sm">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {VAT_RATES.map((rate) => (
+                                              <SelectItem key={rate.value} value={rate.value}>
+                                                {rate.label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      ) : (
+                                        <Badge 
+                                          variant="outline" 
+                                          className="cursor-pointer hover:bg-primary/10 transition-colors"
+                                          onClick={() => setEditingVatId(item.id)}
+                                        >
+                                          {item.vat_rate || 10}%
+                                        </Badge>
                                       )}
                                     </TableCell>
                                     <TableCell className="text-center">
@@ -1668,20 +1744,37 @@ export default function MenuItems() {
               />
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="food_cost">Food Cost HT (€)</Label>
-              <Input
-                id="food_cost"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.food_cost}
-                onChange={(e) => setFormData({ ...formData, food_cost: e.target.value })}
-                placeholder="0.00"
-              />
-              <p className="text-xs text-muted-foreground">
-                Coût de revient hors taxes du produit
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="food_cost">Food Cost HT (€)</Label>
+                <Input
+                  id="food_cost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.food_cost}
+                  onChange={(e) => setFormData({ ...formData, food_cost: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="vat_rate">Taux de TVA</Label>
+                <Select 
+                  value={formData.vat_rate} 
+                  onValueChange={(value) => setFormData({ ...formData, vat_rate: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VAT_RATES.map((rate) => (
+                      <SelectItem key={rate.value} value={rate.value}>
+                        {rate.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="is_active">Produit actif</Label>
