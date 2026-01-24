@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  Percent,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Slider } from "@/components/ui/slider";
 import { RestaurantSelector } from "@/components/menu/RestaurantSelector";
 import { useRestaurantProfitability, ProductProfitability } from "@/hooks/useRestaurantProfitability";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,10 +62,14 @@ interface Restaurant {
 type SortField = "name" | "category" | "foodCost" | "avgMargin" | "spread";
 type SortDirection = "asc" | "desc";
 
+// Default commission rates per platform
+const DEFAULT_COMMISSION = { uber: 30, deliveroo: 35 };
+
 export function ProfitabilityComparison() {
   const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
   const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
   const [platform, setPlatform] = useState<"uber" | "deliveroo">("uber");
+  const [commissionRate, setCommissionRate] = useState(DEFAULT_COMMISSION.uber);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [showAlertsOnly, setShowAlertsOnly] = useState(false);
@@ -72,8 +78,14 @@ export function ProfitabilityComparison() {
 
   const { loading, items, stats, error } = useRestaurantProfitability(
     selectedRestaurantIds,
-    platform
+    platform,
+    commissionRate
   );
+
+  // Update commission when platform changes
+  useEffect(() => {
+    setCommissionRate(DEFAULT_COMMISSION[platform]);
+  }, [platform]);
 
   // Fetch all restaurants on mount
   useEffect(() => {
@@ -348,6 +360,32 @@ export function ProfitabilityComparison() {
               </SelectContent>
             </Select>
 
+            {/* Commission Rate Slider */}
+            <div className="flex items-center gap-3 min-w-[180px]">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                      <Percent className="h-3.5 w-3.5" />
+                      <span>Commission</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Taux de commission plateforme appliqué sur le prix HT</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <Slider
+                value={[commissionRate]}
+                onValueChange={([v]) => setCommissionRate(v)}
+                min={15}
+                max={45}
+                step={1}
+                className="w-24"
+              />
+              <span className="text-sm font-medium w-10 text-right">{commissionRate}%</span>
+            </div>
+
             {/* Search */}
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -520,11 +558,15 @@ export function ProfitabilityComparison() {
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   <div className="text-xs space-y-1">
-                                    <div>Prix: {price !== null ? `${price.toFixed(2)}€` : "—"}</div>
-                                    <div>Food Cost: {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}</div>
+                                    <div>Prix TTC: {price !== null ? `${price.toFixed(2)}€` : "—"}</div>
+                                    {price !== null && (
+                                      <div>Prix HT: {(price / 1.1).toFixed(2)}€</div>
+                                    )}
+                                    <div>Food Cost HT: {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}</div>
+                                    <div>Commission: {commissionRate}%</div>
                                     {margin !== null && price !== null && item.foodCost !== null && (
                                       <div className="border-t pt-1 mt-1">
-                                        Marge: {(price - item.foodCost).toFixed(2)}€
+                                        Marge nette: {margin.toFixed(1)}%
                                       </div>
                                     )}
                                   </div>
