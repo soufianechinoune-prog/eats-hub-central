@@ -973,10 +973,16 @@ export function ProfitabilityComparison() {
                                         {prixHT !== null && (
                                           <div>Prix HT: {prixHT.toFixed(2)}€ <span className="text-muted-foreground">(TVA {vatRate}%)</span></div>
                                         )}
+                                        {marginType === "net" && price !== null && prixHT !== null && (
+                                          <>
+                                            <div>Commission: {(price * commissionRate / 100).toFixed(2)}€ <span className="text-muted-foreground">({commissionRate}%)</span></div>
+                                            <div className="font-medium">Revenu Net HT: {(prixHT - price * commissionRate / 100).toFixed(2)}€</div>
+                                          </>
+                                        )}
                                         <div>Food Cost HT: {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}</div>
                                         {fcPercent !== null && (
-                                          <div className="border-t pt-1 mt-1">
-                                            % Food Cost: {fcPercent.toFixed(1)}%
+                                          <div className="border-t pt-1 mt-1 font-medium">
+                                            % Food Cost {marginType === "net" ? "(Net)" : "(Brut)"}: {fcPercent.toFixed(1)}%
                                           </div>
                                         )}
                                       </div>
