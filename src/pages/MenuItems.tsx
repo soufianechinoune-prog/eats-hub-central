@@ -74,7 +74,6 @@ import {
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { CsvImportDialog } from "@/components/menu/CsvImportDialog";
 import { MenuItemChangeConfirmDialog } from "@/components/menu/MenuItemChangeConfirmDialog";
-import { CatalogComparison } from "@/components/menu/CatalogComparison";
 import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
 
 import { FoodCostManager } from "@/components/menu/FoodCostManager";
@@ -440,7 +439,7 @@ export default function MenuItems() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<"catalog" | "comparison" | "foodcost" | "simulator" | "prices" | "profitability">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "foodcost" | "simulator" | "prices" | "profitability">("catalog");
   
   // Restaurant price comparison state (persisted across tabs)
   const [priceComparisonRestaurantIds, setPriceComparisonRestaurantIds] = useState<string[]>([]);
@@ -448,7 +447,6 @@ export default function MenuItems() {
   // Tab configuration with icons and colors
   const tabConfig = [
     { value: "catalog", label: "Catalogue", icon: Package, color: "text-emerald-500", bgActive: "bg-emerald-500/15", borderActive: "border-emerald-500/40" },
-    { value: "comparison", label: "Comparaison", icon: ArrowRightLeft, color: "text-blue-500", bgActive: "bg-blue-500/15", borderActive: "border-blue-500/40" },
     { value: "prices", label: "Prix Restaurants", icon: Euro, color: "text-rose-500", bgActive: "bg-rose-500/15", borderActive: "border-rose-500/40" },
     { value: "profitability", label: "Rentabilité", icon: BarChart3, color: "text-violet-500", bgActive: "bg-violet-500/15", borderActive: "border-violet-500/40" },
     { value: "foodcost", label: "Food Cost", icon: Calculator, color: "text-amber-500", bgActive: "bg-amber-500/15", borderActive: "border-amber-500/40" },
@@ -952,8 +950,8 @@ export default function MenuItems() {
         </div>
       </motion.div>
 
-      {/* Tabs for Catalog / Comparison */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "comparison" | "foodcost" | "simulator" | "prices" | "profitability")}>
+      {/* Tabs for Catalog / Food Cost / etc. */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "foodcost" | "simulator" | "prices" | "profitability")}>
         <TabsList className="h-auto p-1.5 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/40 shadow-lg rounded-xl gap-1">
           {tabConfig.map((tab) => {
             const Icon = tab.icon;
@@ -974,11 +972,6 @@ export default function MenuItems() {
             );
           })}
         </TabsList>
-
-        <TabsContent value="comparison" className="mt-6">
-          <CatalogComparison menuItems={menuItems} onRefresh={fetchMenuItems} />
-        </TabsContent>
-
 
         <TabsContent value="foodcost" className="mt-6">
           <FoodCostManager menuItems={menuItemsForFoodCost} onRefresh={fetchMenuItems} />
