@@ -2942,6 +2942,25 @@ export type Database = {
           weekday_orders: number
         }[]
       }
+      get_products_by_time_slot: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+          p_top_n?: number
+        }
+        Returns: {
+          percent_of_slot: number
+          product_title: string
+          quantity: number
+          rank: number
+          revenue: number
+          slot_label: string
+          slot_range: string
+          slot_total_orders: number
+          slot_total_revenue: number
+        }[]
+      }
       get_profitability_daily: {
         Args: {
           p_end_date: string

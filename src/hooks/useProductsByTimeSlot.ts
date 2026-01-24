@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { format, parseISO } from "date-fns";
 
 export interface ProductData {
   title: string;
@@ -28,192 +27,90 @@ export const TIME_SLOTS = [
   { label: "Late-night", hours: [0, 1, 2, 3], range: "00h-04h" },
 ];
 
+interface RpcResult {
+  slot_label: string;
+  slot_range: string;
+  product_title: string;
+  quantity: number;
+  revenue: number;
+  percent_of_slot: number;
+  rank: number;
+  slot_total_orders: number;
+  slot_total_revenue: number;
+}
+
 export function useProductsByTimeSlot(
   restaurantIds: string[] | undefined,
   startDate: string,
   endDate: string,
   topN: number = 3
 ) {
-  // Step 1: Fetch orders with their datetime to map order_id -> hour
-  const { data: ordersWithHour, isLoading: loadingOrders } = useQuery({
-    queryKey: ["products-by-slot-orders", restaurantIds, startDate, endDate],
+  const { data: rpcData, isLoading } = useQuery({
+    queryKey: ["products-by-slot-rpc", restaurantIds, startDate, endDate, topN],
     queryFn: async () => {
       if (!restaurantIds?.length) return [];
 
-      // Pagination loop to bypass 1000 row limit
-      const allOrders: { id: string; order_datetime: string }[] = [];
-      const pageSize = 1000;
-      let offset = 0;
-      let hasMore = true;
+      const { data, error } = await supabase.rpc("get_products_by_time_slot", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: startDate,
+        p_end_date: endDate,
+        p_top_n: topN,
+      });
 
-      while (hasMore) {
-        let query = supabase
-          .from("orders")
-          .select("id, order_datetime")
-          .gte("order_datetime", startDate)
-          .lte("order_datetime", endDate + "T23:59:59")
-          .in("restaurant_id", restaurantIds)
-          .range(offset, offset + pageSize - 1)
-          .order("id");
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allOrders.push(...data);
-          offset += pageSize;
-          hasMore = data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      return allOrders;
+      if (error) throw error;
+      return (data as RpcResult[]) || [];
     },
     enabled: !!restaurantIds?.length,
   });
 
-  // Create order_id -> hour map
-  const orderHourMap = useMemo(() => {
-    if (!ordersWithHour?.length) return new Map<string, number>();
-    
-    return new Map(
-      ordersWithHour.map((o) => [
-        o.id,
-        parseISO(o.order_datetime).getHours(),
-      ])
-    );
-  }, [ordersWithHour]);
-
-  // Step 2: Fetch order_items for those orders
-  const { data: orderItems, isLoading: loadingItems } = useQuery({
-    queryKey: ["products-by-slot-items", restaurantIds, startDate, endDate],
-    queryFn: async () => {
-      if (!ordersWithHour?.length) return [];
-
-      const orderIds = ordersWithHour.map((o) => o.id);
-      const chunkSize = 500;
-      const allItems: {
-        order_id: string;
-        item_title: string;
-        quantity: number;
-        sales_incl_vat: number;
-      }[] = [];
-
-      for (let i = 0; i < orderIds.length; i += chunkSize) {
-        const chunk = orderIds.slice(i, i + chunkSize);
-        const { data, error } = await supabase
-          .from("order_items")
-          .select("order_id, item_title, quantity, sales_incl_vat")
-          .in("order_id", chunk);
-
-        if (error) throw error;
-        if (data) allItems.push(...data);
-      }
-
-      return allItems;
-    },
-    enabled: !!ordersWithHour?.length,
-  });
-
-  // Step 3: Aggregate by slot and product
+  // Transform RPC result into ProductSlotData[]
   const slotData = useMemo((): ProductSlotData[] => {
-    if (!orderItems?.length || !orderHourMap.size) return [];
+    if (!rpcData?.length) return [];
 
-    // Map: slotLabel -> Map<productTitle, {qty, revenue}>
-    const slotProductMap = new Map<
-      string,
-      Map<string, { quantity: number; revenue: number }>
-    >();
-    const slotOrderCounts = new Map<string, Set<string>>();
+    const slotMap = new Map<string, ProductSlotData>();
 
-    orderItems.forEach((item) => {
-      const hour = orderHourMap.get(item.order_id);
-      if (hour === undefined) return;
-
-      const slot = TIME_SLOTS.find((s) => s.hours.includes(hour));
-      if (!slot) return;
-
-      // Initialize slot maps if needed
-      if (!slotProductMap.has(slot.label)) {
-        slotProductMap.set(slot.label, new Map());
-        slotOrderCounts.set(slot.label, new Set());
+    rpcData.forEach((row) => {
+      if (!slotMap.has(row.slot_label)) {
+        const slotDef = TIME_SLOTS.find((s) => s.label === row.slot_label);
+        slotMap.set(row.slot_label, {
+          slotLabel: row.slot_label,
+          slotRange: row.slot_range,
+          slotHours: slotDef?.hours || [],
+          topProducts: [],
+          totalOrders: Number(row.slot_total_orders) || 0,
+          totalRevenue: Number(row.slot_total_revenue) || 0,
+        });
       }
 
-      const productMap = slotProductMap.get(slot.label)!;
-      slotOrderCounts.get(slot.label)!.add(item.order_id);
-
-      // Aggregate product data
-      if (!productMap.has(item.item_title)) {
-        productMap.set(item.item_title, { quantity: 0, revenue: 0 });
-      }
-
-      const product = productMap.get(item.item_title)!;
-      product.quantity += item.quantity || 0;
-      product.revenue += item.sales_incl_vat || 0;
+      slotMap.get(row.slot_label)!.topProducts.push({
+        title: row.product_title,
+        quantity: Number(row.quantity) || 0,
+        revenue: Number(row.revenue) || 0,
+        percentOfSlot: Number(row.percent_of_slot) || 0,
+        rank: Number(row.rank) || 0,
+      });
     });
 
-    // Build final structure
-    return TIME_SLOTS.map((slot) => {
-      const productMap = slotProductMap.get(slot.label);
-      const orderSet = slotOrderCounts.get(slot.label);
+    // Sort slots in the correct order
+    const slotOrder = ["Déjeuner", "Après-midi", "Dîner", "Soirée", "Late-night"];
+    return Array.from(slotMap.values()).sort(
+      (a, b) => slotOrder.indexOf(a.slotLabel) - slotOrder.indexOf(b.slotLabel)
+    );
+  }, [rpcData]);
 
-      if (!productMap || !orderSet) {
-        return {
-          slotLabel: slot.label,
-          slotHours: slot.hours,
-          slotRange: slot.range,
-          topProducts: [],
-          totalOrders: 0,
-          totalRevenue: 0,
-        };
-      }
-
-      const totalRevenue = Array.from(productMap.values()).reduce(
-        (sum, p) => sum + p.revenue,
-        0
-      );
-
-      // Sort by revenue and take top N
-      const sortedProducts = Array.from(productMap.entries())
-        .map(([title, data]) => ({
-          title,
-          quantity: data.quantity,
-          revenue: data.revenue,
-          percentOfSlot:
-            totalRevenue > 0
-              ? Math.round((data.revenue / totalRevenue) * 100)
-              : 0,
-          rank: 0,
-        }))
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, topN)
-        .map((p, idx) => ({ ...p, rank: idx + 1 }));
-
-      return {
-        slotLabel: slot.label,
-        slotHours: slot.hours,
-        slotRange: slot.range,
-        topProducts: sortedProducts,
-        totalOrders: orderSet.size,
-        totalRevenue: Math.round(totalRevenue),
-      };
-    }).filter((slot) => slot.totalOrders > 0);
-  }, [orderItems, orderHourMap, topN]);
-
-  // Global top products (across all slots)
+  // Global top products (aggregate from slot data)
   const globalTopProducts = useMemo(() => {
-    if (!orderItems?.length) return [];
+    if (!rpcData?.length) return [];
 
     const productMap = new Map<string, { quantity: number; revenue: number }>();
 
-    orderItems.forEach((item) => {
-      if (!productMap.has(item.item_title)) {
-        productMap.set(item.item_title, { quantity: 0, revenue: 0 });
+    rpcData.forEach((row) => {
+      if (!productMap.has(row.product_title)) {
+        productMap.set(row.product_title, { quantity: 0, revenue: 0 });
       }
-      const product = productMap.get(item.item_title)!;
-      product.quantity += item.quantity || 0;
-      product.revenue += item.sales_incl_vat || 0;
+      const product = productMap.get(row.product_title)!;
+      product.quantity += Number(row.quantity) || 0;
+      product.revenue += Number(row.revenue) || 0;
     });
 
     const totalRevenue = Array.from(productMap.values()).reduce(
@@ -235,12 +132,17 @@ export function useProductsByTimeSlot(
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10)
       .map((p, idx) => ({ ...p, rank: idx + 1 }));
-  }, [orderItems]);
+  }, [rpcData]);
+
+  // Count total orders from slot data
+  const totalOrders = useMemo(() => {
+    return slotData.reduce((sum, slot) => sum + slot.totalOrders, 0);
+  }, [slotData]);
 
   return {
     slotData,
     globalTopProducts,
-    isLoading: loadingOrders || loadingItems,
-    totalOrders: ordersWithHour?.length || 0,
+    isLoading,
+    totalOrders,
   };
 }
