@@ -543,260 +543,283 @@ export function ProfitabilityComparison() {
         </Card>
       </div>
 
-      {/* Filters */}
+      {/* Filters - Two distinct zones */}
       <Card>
         <CardContent className="pt-4">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Restaurant Selector */}
-            <div className="flex-1">
-              <RestaurantSelector
-                restaurants={allRestaurants}
-                selectedIds={selectedRestaurantIds}
-                onSelectionChange={setSelectedRestaurantIds}
-                maxSelection={6}
-                placeholder="Sélectionner les restaurants à comparer..."
-              />
-            </div>
-
-            {/* Platform Toggle */}
-            <Select value={platform} onValueChange={(v) => setPlatform(v as "uber" | "deliveroo")}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="uber">Uber Eats</SelectItem>
-                <SelectItem value="deliveroo">Deliveroo</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Commission Rate Input - shown when margin mode OR food cost mode with "net" */}
-            {(viewMode === "margin" || marginType === "net") && (
-              <div className="flex items-center gap-2">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                        <Percent className="h-3.5 w-3.5" />
-                        <span>Commission</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Taux de commission plateforme appliqué sur le prix HT (0-50%)</p>
-                      <p className="text-xs text-muted-foreground mt-1">Valeur mémorisée par plateforme</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <div className="relative">
-                  <Input
-                    type="number"
-                    value={commissionInput}
-                    onChange={handleCommissionInputChange}
-                    onBlur={handleCommissionBlur}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleCommissionSave();
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                    step="0.01"
-                    min="0"
-                    max="50"
-                    className="w-20 pr-6 text-right h-9"
-                  />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                    %
-                  </span>
+          <div className="flex flex-col gap-4">
+            {/* Row 1: Data filters (left) and Display controls (right) */}
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+              
+              {/* LEFT ZONE: Données */}
+              <div className="flex flex-col gap-3">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Filter className="h-3 w-3" />
+                  Données
                 </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={handleCommissionSave}
-                      >
-                        <Save className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Sauvegarder ce taux</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            )}
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Restaurant Selector */}
+                  <div className="min-w-[280px]">
+                    <RestaurantSelector
+                      restaurants={allRestaurants}
+                      selectedIds={selectedRestaurantIds}
+                      onSelectionChange={setSelectedRestaurantIds}
+                      maxSelection={6}
+                      placeholder="Sélectionner les restaurants..."
+                    />
+                  </div>
 
-            {/* Search */}
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher un produit..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+                  {/* Platform Toggle */}
+                  <Select value={platform} onValueChange={(v) => setPlatform(v as "uber" | "deliveroo")}>
+                    <SelectTrigger className="w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="uber">Uber Eats</SelectItem>
+                      <SelectItem value="deliveroo">Deliveroo</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-            {/* Category Filter */}
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Catégorie" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes</SelectItem>
-                {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat!}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  {/* Search */}
+                  <div className="relative w-52">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Rechercher..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
 
-            {/* View Mode Toggle */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 border rounded-md p-0.5">
-                <Button
-                  variant={viewMode === "foodCost" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("foodCost")}
-                  className={cn(
-                    "h-7 px-3 text-xs",
-                    viewMode === "foodCost" && "bg-orange-600 hover:bg-orange-700"
-                  )}
-                >
-                  % Food Cost
-                </Button>
-                <Button
-                  variant={viewMode === "margin" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("margin")}
-                  className="h-7 px-3 text-xs"
-                >
-                  Marge
-                </Button>
+                  {/* Category Filter */}
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="w-36">
+                      <SelectValue placeholder="Catégorie" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Toutes</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat!}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              
-              {/* Margin Type Toggle - visible in both modes */}
-              <div className="flex items-center gap-1 border rounded-md p-0.5">
-                <Button
-                  variant={marginType === "brut" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setMarginType("brut")}
-                  className="h-7 px-3 text-xs"
-                >
-                  Brut{viewMode === "margin" ? "e" : ""}
-                </Button>
-                <Button
-                  variant={marginType === "net" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setMarginType("net")}
-                  className={cn(
-                    "h-7 px-3 text-xs",
-                    marginType === "net" && viewMode === "foodCost" && "bg-orange-600 hover:bg-orange-700"
-                  )}
-                >
-                  Net{viewMode === "margin" ? "te" : ""}
-                </Button>
-              </div>
-              
-              {/* Info Tooltip - adapts to viewMode */}
-              <TooltipProvider>
-                <Tooltip delayDuration={100}>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
+
+              {/* RIGHT ZONE: Affichage */}
+              <div className="flex flex-col gap-3">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <BarChart3 className="h-3 w-3" />
+                  Affichage
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center gap-1 border rounded-md p-0.5 bg-muted/30">
+                    <Button
+                      variant={viewMode === "foodCost" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setViewMode("foodCost")}
+                      className={cn(
+                        "h-7 px-3 text-xs",
+                        viewMode === "foodCost" && "bg-orange-600 hover:bg-orange-700"
+                      )}
+                    >
+                      % Food Cost
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="w-80 p-4">
-                    {viewMode === "margin" ? (
-                      <div className="space-y-3">
-                        <div>
-                          <div className="flex items-center gap-2 text-emerald-600 font-medium">
-                            <TrendingUp className="h-4 w-4" />
-                            Marge Brute
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1 font-mono">
-                            = (Prix HT − Food Cost) / Prix HT
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Ce que vous gardez avant les commissions plateforme
-                          </p>
-                        </div>
-                        
-                        <div className="border-t pt-3">
-                          <div className="flex items-center gap-2 text-violet-600 font-medium">
-                            <TrendingDown className="h-4 w-4" />
-                            Marge Nette
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1 font-mono">
-                            = (Prix HT − Commission − Food Cost) / Prix HT
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Ce qui reste vraiment après Uber/Deliveroo
-                          </p>
-                        </div>
+                    <Button
+                      variant={viewMode === "margin" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setViewMode("margin")}
+                      className="h-7 px-3 text-xs"
+                    >
+                      Marge
+                    </Button>
+                  </div>
+                  
+                  {/* Margin Type Toggle */}
+                  <div className="flex items-center gap-1 border rounded-md p-0.5 bg-muted/30">
+                    <Button
+                      variant={marginType === "brut" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setMarginType("brut")}
+                      className="h-7 px-3 text-xs"
+                    >
+                      Brut{viewMode === "margin" ? "e" : ""}
+                    </Button>
+                    <Button
+                      variant={marginType === "net" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setMarginType("net")}
+                      className={cn(
+                        "h-7 px-3 text-xs",
+                        marginType === "net" && viewMode === "foodCost" && "bg-orange-600 hover:bg-orange-700"
+                      )}
+                    >
+                      Net{viewMode === "margin" ? "te" : ""}
+                    </Button>
+                  </div>
+
+                  {/* Commission Rate Input - always visible when net is selected */}
+                  {(viewMode === "margin" || marginType === "net") && (
+                    <div className="flex items-center gap-1.5 border rounded-md px-2 py-1 bg-muted/30">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-help">
+                              <Percent className="h-3 w-3" />
+                              <span>Com.</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Taux de commission plateforme (0-50%)</p>
+                            <p className="text-xs text-muted-foreground mt-1">Mémorisé par plateforme</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          value={commissionInput}
+                          onChange={handleCommissionInputChange}
+                          onBlur={handleCommissionBlur}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleCommissionSave();
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          step="0.01"
+                          min="0"
+                          max="50"
+                          className="w-16 pr-5 text-right h-7 text-xs"
+                        />
+                        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
+                          %
+                        </span>
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div>
-                          <div className="flex items-center gap-2 text-orange-600 font-medium">
-                            <PieChart className="h-4 w-4" />
-                            % Food Cost Brut
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={handleCommissionSave}
+                            >
+                              <Save className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Sauvegarder</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  )}
+                  
+                  {/* Info Tooltip */}
+                  <TooltipProvider>
+                    <Tooltip delayDuration={100}>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="w-80 p-4">
+                        {viewMode === "margin" ? (
+                          <div className="space-y-3">
+                            <div>
+                              <div className="flex items-center gap-2 text-emerald-600 font-medium">
+                                <TrendingUp className="h-4 w-4" />
+                                Marge Brute
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1 font-mono">
+                                = (Prix HT − Food Cost) / Prix HT
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Ce que vous gardez avant les commissions plateforme
+                              </p>
+                            </div>
+                            
+                            <div className="border-t pt-3">
+                              <div className="flex items-center gap-2 text-violet-600 font-medium">
+                                <TrendingDown className="h-4 w-4" />
+                                Marge Nette
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1 font-mono">
+                                = (Prix HT − Commission − Food Cost) / Prix HT
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Ce qui reste vraiment après Uber/Deliveroo
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-sm text-muted-foreground mt-1 font-mono">
-                            = Food Cost HT / Prix HT × 100
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            La règle des 30% : inférieur à 30% du prix HT est optimal
-                          </p>
-                        </div>
-                        
-                        <div className="border-t pt-3">
-                          <div className="flex items-center gap-2 text-red-600 font-medium">
-                            <AlertTriangle className="h-4 w-4" />
-                            % Food Cost Net
+                        ) : (
+                          <div className="space-y-3">
+                            <div>
+                              <div className="flex items-center gap-2 text-orange-600 font-medium">
+                                <PieChart className="h-4 w-4" />
+                                % Food Cost Brut
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1 font-mono">
+                                = Food Cost HT / Prix HT × 100
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                La règle des 30% : inférieur à 30% du prix HT est optimal
+                              </p>
+                            </div>
+                            
+                            <div className="border-t pt-3">
+                              <div className="flex items-center gap-2 text-red-600 font-medium">
+                                <AlertTriangle className="h-4 w-4" />
+                                % Food Cost Net
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1 font-mono">
+                                = Food Cost HT / (Prix HT − Commission) × 100
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                L'impact réel sur ce que vous touchez vraiment
+                              </p>
+                            </div>
+                            
+                            <div className="border-t pt-3 text-xs text-muted-foreground">
+                              <strong>Exemple:</strong> FC 3€, Prix HT 10€, Commission 30%
+                              <br />→ FC Brut = 30%, FC Net = 3€ / 7€ = <strong>42.8%</strong>
+                            </div>
                           </div>
-                          <p className="text-sm text-muted-foreground mt-1 font-mono">
-                            = Food Cost HT / (Prix HT − Commission) × 100
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            L'impact réel sur ce que vous touchez vraiment
-                          </p>
-                        </div>
-                        
-                        <div className="border-t pt-3 text-xs text-muted-foreground">
-                          <strong>Exemple:</strong> FC 3€, Prix HT 10€, Commission 30%
-                          <br />→ FC Brut = 30%, FC Net = 3€ / 7€ = <strong>42.8%</strong>
-                        </div>
-                      </div>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  {/* Divider */}
+                  <div className="h-6 w-px bg-border" />
+
+                  {/* Alerts Toggle */}
+                  <Button
+                    variant={showAlertsOnly ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowAlertsOnly(!showAlertsOnly)}
+                    className="gap-1.5 h-8"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Alertes
+                    {(viewMode === "foodCost" ? fcAlertCount : alertCount) > 0 && (
+                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                        {viewMode === "foodCost" ? fcAlertCount : alertCount}
+                      </Badge>
                     )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                  </Button>
+
+                  {/* Export */}
+                  <Button variant="outline" size="sm" onClick={exportToExcel} className="gap-1.5 h-8">
+                    <Download className="h-3.5 w-3.5" />
+                    Excel
+                  </Button>
+                </div>
+              </div>
             </div>
-
-            {/* Alerts Toggle */}
-            <Button
-              variant={showAlertsOnly ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowAlertsOnly(!showAlertsOnly)}
-              className="gap-2"
-            >
-              <AlertTriangle className="h-4 w-4" />
-              Alertes
-              {(viewMode === "foodCost" ? fcAlertCount : alertCount) > 0 && (
-                <Badge variant="secondary" className="ml-1">
-                  {viewMode === "foodCost" ? fcAlertCount : alertCount}
-                </Badge>
-              )}
-            </Button>
-
-            {/* Export */}
-            <Button variant="outline" size="sm" onClick={exportToExcel} className="gap-2">
-              <Download className="h-4 w-4" />
-              Excel
-            </Button>
           </div>
         </CardContent>
       </Card>
