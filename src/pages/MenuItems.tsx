@@ -76,8 +76,10 @@ import { CsvImportDialog } from "@/components/menu/CsvImportDialog";
 import { MenuItemChangeConfirmDialog } from "@/components/menu/MenuItemChangeConfirmDialog";
 import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
 
-import { FoodCostManager } from "@/components/menu/FoodCostManager";
 import { OfferSimulator } from "@/components/menu/OfferSimulator";
+import jsPDF from "jspdf";
+import * as XLSX from "xlsx";
+import { FileSpreadsheet, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
 import { RestaurantPriceComparison } from "@/components/menu/RestaurantPriceComparison";
 import { ProfitabilityComparison } from "@/components/menu/ProfitabilityComparison";
 
@@ -397,7 +399,11 @@ export default function MenuItems() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<"catalog" | "foodcost" | "simulator" | "prices" | "profitability">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "simulator" | "prices" | "profitability">("catalog");
+  
+  // Inline food cost editing
+  const [editingFoodCostId, setEditingFoodCostId] = useState<string | null>(null);
+  const [editingFoodCostValue, setEditingFoodCostValue] = useState<string>("");
   
   // Restaurant price comparison state (persisted across tabs)
   const [priceComparisonRestaurantIds, setPriceComparisonRestaurantIds] = useState<string[]>([]);
@@ -407,7 +413,6 @@ export default function MenuItems() {
     { value: "catalog", label: "Catalogue", icon: Package, color: "text-emerald-500", bgActive: "bg-emerald-500/15", borderActive: "border-emerald-500/40" },
     { value: "prices", label: "Prix Restaurants", icon: Euro, color: "text-rose-500", bgActive: "bg-rose-500/15", borderActive: "border-rose-500/40" },
     { value: "profitability", label: "Rentabilité", icon: BarChart3, color: "text-violet-500", bgActive: "bg-violet-500/15", borderActive: "border-violet-500/40" },
-    { value: "foodcost", label: "Food Cost", icon: Calculator, color: "text-amber-500", bgActive: "bg-amber-500/15", borderActive: "border-amber-500/40" },
     { value: "simulator", label: "Simulateur", icon: TrendingUp, color: "text-orange-500", bgActive: "bg-orange-500/15", borderActive: "border-orange-500/40" },
   ] as const;
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
@@ -474,8 +479,185 @@ export default function MenuItems() {
     }
   };
 
-  // Filter menu items that have restaurant prices (for Food Cost tab)
-  const menuItemsForFoodCost = menuItems.filter(item => menuItemsWithRestaurantPrices.has(item.id));
+  // Food cost stats
+  const foodCostStats = {
+    withFoodCost: menuItems.filter(item => item.food_cost !== null && item.food_cost > 0).length,
+    withoutFoodCost: menuItems.filter(item => item.food_cost === null || item.food_cost === 0).length,
+    completionRate: menuItems.length > 0 
+      ? (menuItems.filter(item => item.food_cost !== null && item.food_cost > 0).length / menuItems.length) * 100 
+      : 0,
+  };
+
+  // Inline food cost editing handlers
+  const startFoodCostEdit = (item: MenuItem) => {
+    setEditingFoodCostId(item.id);
+    setEditingFoodCostValue(item.food_cost?.toString() || "");
+  };
+
+  const saveFoodCostEdit = async (itemId: string) => {
+    const newValue = editingFoodCostValue ? parseFloat(editingFoodCostValue) : null;
+    
+    const { error } = await supabase
+      .from("menu_items")
+      .update({ food_cost: newValue })
+      .eq("id", itemId);
+
+    if (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder le food cost",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Succès",
+        description: "Food cost mis à jour",
+      });
+      fetchMenuItems();
+    }
+    setEditingFoodCostId(null);
+  };
+
+  const handleFoodCostKeyPress = (e: React.KeyboardEvent, itemId: string) => {
+    if (e.key === "Enter") {
+      saveFoodCostEdit(itemId);
+    } else if (e.key === "Escape") {
+      setEditingFoodCostId(null);
+    }
+  };
+
+  // Export to Excel
+  const exportToExcel = () => {
+    const data = filteredItems.map(item => ({
+      "Produit": item.name,
+      "Catégorie": item.category || "-",
+      "Description": item.description || "-",
+      "Food Cost HT (€)": item.food_cost !== null ? item.food_cost.toFixed(2) : "Non renseigné",
+      "Statut": item.is_active ? "Actif" : "Inactif",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    
+    worksheet["!cols"] = [
+      { wch: 40 },
+      { wch: 25 },
+      { wch: 40 },
+      { wch: 18 },
+      { wch: 10 },
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Catalogue");
+    XLSX.writeFile(workbook, `catalogue_produits_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: "Export réussi",
+      description: "Le fichier Excel a été téléchargé",
+    });
+  };
+
+  // Export to PDF
+  const exportToPdf = () => {
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 15;
+    let yPos = 20;
+
+    // Header
+    pdf.setFillColor(99, 102, 241);
+    pdf.rect(0, 0, pageWidth, 25, "F");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(16);
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Catalogue Produits", margin, 16);
+
+    // Meta info
+    pdf.setFillColor(249, 250, 251);
+    pdf.rect(0, 25, pageWidth, 12, "F");
+    pdf.setTextColor(107, 114, 128);
+    pdf.setFontSize(9);
+    pdf.setFont("helvetica", "normal");
+    const dateStr = new Date().toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+    pdf.text(`Généré le ${dateStr}`, margin, 32);
+    pdf.text(`${filteredItems.length} produits`, pageWidth - margin - 30, 32);
+
+    yPos = 45;
+
+    // Stats
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "bold");
+    pdf.text(`Avec Food Cost: ${foodCostStats.withFoodCost}`, margin, yPos);
+    pdf.text(`À compléter: ${foodCostStats.withoutFoodCost}`, margin + 50, yPos);
+    pdf.text(`Complétion: ${foodCostStats.completionRate.toFixed(0)}%`, margin + 100, yPos);
+
+    yPos += 12;
+
+    // Table header
+    pdf.setFillColor(243, 244, 246);
+    pdf.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+    pdf.setFontSize(9);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(55, 65, 81);
+    pdf.text("Produit", margin + 3, yPos + 5.5);
+    pdf.text("Catégorie", margin + 80, yPos + 5.5);
+    pdf.text("Food Cost HT", margin + 130, yPos + 5.5);
+    pdf.text("Statut", margin + 165, yPos + 5.5);
+
+    yPos += 10;
+
+    // Table rows
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+
+    filteredItems.forEach((item, index) => {
+      if (yPos > 270) {
+        pdf.addPage();
+        yPos = 20;
+      }
+
+      if (index % 2 === 0) {
+        pdf.setFillColor(249, 250, 251);
+        pdf.rect(margin, yPos - 3, pageWidth - margin * 2, 7, "F");
+      }
+
+      pdf.setTextColor(0, 0, 0);
+      const name = item.name.length > 40 ? item.name.substring(0, 37) + "..." : item.name;
+      pdf.text(name, margin + 3, yPos + 2);
+      
+      pdf.setTextColor(107, 114, 128);
+      pdf.text((item.category || "-").substring(0, 20), margin + 80, yPos + 2);
+      
+      if (item.food_cost !== null && item.food_cost > 0) {
+        pdf.setTextColor(16, 185, 129);
+        pdf.text(`${item.food_cost.toFixed(2)}€`, margin + 130, yPos + 2);
+      } else {
+        pdf.setTextColor(245, 158, 11);
+        pdf.text("À compléter", margin + 130, yPos + 2);
+      }
+
+      pdf.setTextColor(item.is_active ? 16 : 107, item.is_active ? 185 : 114, item.is_active ? 129 : 128);
+      pdf.text(item.is_active ? "Actif" : "Inactif", margin + 165, yPos + 2);
+
+      yPos += 7;
+    });
+
+    pdf.save(`catalogue_produits_${new Date().toISOString().split('T')[0]}.pdf`);
+    
+    toast({
+      title: "Export réussi",
+      description: "Le fichier PDF a été téléchargé",
+    });
+  };
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -524,15 +706,6 @@ export default function MenuItems() {
       toast({
         title: "Erreur",
         description: "Le nom du produit est requis",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!formData.price_uber && !formData.price_deliveroo) {
-      toast({
-        title: "Erreur",
-        description: "Au moins un prix (Uber ou Deliveroo) doit être renseigné",
         variant: "destructive",
       });
       return;
@@ -909,7 +1082,7 @@ export default function MenuItems() {
       </motion.div>
 
       {/* Tabs for Catalog / Food Cost / etc. */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "foodcost" | "simulator" | "prices" | "profitability")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "catalog" | "simulator" | "prices" | "profitability")}>
         <TabsList className="h-auto p-1.5 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/40 shadow-lg rounded-xl gap-1">
           {tabConfig.map((tab) => {
             const Icon = tab.icon;
@@ -931,10 +1104,6 @@ export default function MenuItems() {
           })}
         </TabsList>
 
-        <TabsContent value="foodcost" className="mt-6">
-          <FoodCostManager menuItems={menuItemsForFoodCost} onRefresh={fetchMenuItems} />
-        </TabsContent>
-
         <TabsContent value="simulator" className="mt-6">
           <OfferSimulator menuItems={menuItems} />
         </TabsContent>
@@ -952,8 +1121,8 @@ export default function MenuItems() {
 
         <TabsContent value="catalog" className="mt-6 space-y-6">
 
-      {/* Stats Cards - Simplified directory stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      {/* Stats Cards - Directory stats with Food Cost completion */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -970,11 +1139,11 @@ export default function MenuItems() {
                   whileHover={{ scale: 1.15, rotate: 8 }}
                   transition={{ type: "spring", stiffness: 500 }}
                 >
-                  <Package className="h-7 w-7 text-primary" />
+                  <Package className="h-6 w-6 text-primary" />
                 </motion.div>
                 <div>
-                  <p className="text-3xl font-bold tracking-tight">{totalItems}</p>
-                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Produits total</p>
+                  <p className="text-2xl font-bold tracking-tight">{totalItems}</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Produits</p>
                 </div>
               </div>
             </CardContent>
@@ -997,11 +1166,38 @@ export default function MenuItems() {
                   whileHover={{ scale: 1.15, rotate: 8 }}
                   transition={{ type: "spring", stiffness: 500 }}
                 >
-                  <Package className="h-7 w-7 text-emerald-500" />
+                  <CheckCircle2 className="h-6 w-6 text-emerald-500" />
                 </motion.div>
                 <div>
-                  <p className="text-3xl font-bold tracking-tight">{activeItems}</p>
-                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Produits actifs</p>
+                  <p className="text-2xl font-bold tracking-tight">{activeItems}</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Actifs</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+          whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
+        >
+          <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/15 via-violet-500/5 to-transparent" />
+            <div className="absolute inset-0 border border-white/40 rounded-lg" />
+            <CardContent className="pt-6 relative">
+              <div className="flex items-center gap-4">
+                <motion.div 
+                  className="p-3 bg-violet-500/15 backdrop-blur-sm rounded-xl shadow-lg"
+                  whileHover={{ scale: 1.15, rotate: 8 }}
+                  transition={{ type: "spring", stiffness: 500 }}
+                >
+                  <Calculator className="h-6 w-6 text-violet-500" />
+                </motion.div>
+                <div>
+                  <p className="text-2xl font-bold tracking-tight">{foodCostStats.withFoodCost}</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Avec Food Cost</p>
                 </div>
               </div>
             </CardContent>
@@ -1011,7 +1207,7 @@ export default function MenuItems() {
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+          transition={{ delay: 0.25, type: "spring", stiffness: 200 }}
           whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
         >
           <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
@@ -1024,11 +1220,38 @@ export default function MenuItems() {
                   whileHover={{ scale: 1.15, rotate: 8 }}
                   transition={{ type: "spring", stiffness: 500 }}
                 >
-                  <Calculator className="h-7 w-7 text-amber-500" />
+                  <AlertTriangle className="h-6 w-6 text-amber-500" />
                 </motion.div>
                 <div>
-                  <p className="text-3xl font-bold tracking-tight">{existingCategories.length}</p>
-                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Catégories</p>
+                  <p className="text-2xl font-bold tracking-tight">{foodCostStats.withoutFoodCost}</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">À compléter</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+          whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.5 } }}
+        >
+          <Card className="relative overflow-hidden border-0 bg-white/60 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] hover:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.18)] transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-rose-500/15 via-rose-500/5 to-transparent" />
+            <div className="absolute inset-0 border border-white/40 rounded-lg" />
+            <CardContent className="pt-6 relative">
+              <div className="flex items-center gap-4">
+                <motion.div 
+                  className="p-3 bg-rose-500/15 backdrop-blur-sm rounded-xl shadow-lg"
+                  whileHover={{ scale: 1.15, rotate: 8 }}
+                  transition={{ type: "spring", stiffness: 500 }}
+                >
+                  <BarChart3 className="h-6 w-6 text-rose-500" />
+                </motion.div>
+                <div>
+                  <p className="text-2xl font-bold tracking-tight">{foodCostStats.completionRate.toFixed(0)}%</p>
+                  <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Complétion</p>
                 </div>
               </div>
             </CardContent>
@@ -1120,6 +1343,24 @@ export default function MenuItems() {
               )}
             </div>
             <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={exportToExcel}
+                className="gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={exportToPdf}
+                className="gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                PDF
+              </Button>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1286,9 +1527,27 @@ export default function MenuItems() {
                                     <TableCell className="text-muted-foreground max-w-xs truncate">
                                       {item.description || "-"}
                                     </TableCell>
-                                    <TableCell className="text-right font-mono">
-                                      {item.food_cost ? formatPrice(item.food_cost) : (
-                                        <span className="text-muted-foreground">-</span>
+                                    <TableCell 
+                                      className="text-right font-mono cursor-pointer hover:bg-primary/5 transition-colors"
+                                      onClick={() => startFoodCostEdit(item)}
+                                    >
+                                      {editingFoodCostId === item.id ? (
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          value={editingFoodCostValue}
+                                          onChange={(e) => setEditingFoodCostValue(e.target.value)}
+                                          onBlur={() => saveFoodCostEdit(item.id)}
+                                          onKeyDown={(e) => handleFoodCostKeyPress(e, item.id)}
+                                          autoFocus
+                                          className="w-20 h-7 text-right text-sm"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      ) : item.food_cost ? (
+                                        <span className="hover:text-primary">{formatPrice(item.food_cost)}</span>
+                                      ) : (
+                                        <span className="text-amber-500 hover:text-amber-600">À renseigner</span>
                                       )}
                                     </TableCell>
                                     <TableCell className="text-center">
@@ -1397,81 +1656,20 @@ export default function MenuItems() {
                 </SelectContent>
               </Select>
             </div>
-            {/* Platform-specific descriptions */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Description par plateforme</Label>
-              <div className="grid grid-cols-1 gap-3">
-                <div className="grid gap-2">
-                  <div className="flex items-center gap-2">
-                    <UberEatsIcon className="h-4 w-4" />
-                    <Label htmlFor="description_uber" className="text-xs">Description Uber Eats</Label>
-                  </div>
-                  <Textarea
-                    id="description_uber"
-                    value={formData.description_uber}
-                    onChange={(e) => setFormData({ ...formData, description_uber: e.target.value })}
-                    placeholder="Description pour Uber Eats..."
-                    rows={2}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <div className="flex items-center gap-2">
-                    <DeliverooIcon className="h-4 w-4" />
-                    <Label htmlFor="description_deliveroo" className="text-xs">Description Deliveroo</Label>
-                  </div>
-                  <Textarea
-                    id="description_deliveroo"
-                    value={formData.description_deliveroo}
-                    onChange={(e) => setFormData({ ...formData, description_deliveroo: e.target.value })}
-                    placeholder="Description pour Deliveroo..."
-                    rows={2}
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Platform-specific prices */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Prix par plateforme *</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <div className="flex items-center gap-2">
-                    <UberEatsIcon className="h-4 w-4" />
-                    <Label htmlFor="price_uber" className="text-xs">Prix Uber Eats (€)</Label>
-                  </div>
-                  <Input
-                    id="price_uber"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.price_uber}
-                    onChange={(e) => setFormData({ ...formData, price_uber: e.target.value })}
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <div className="flex items-center gap-2">
-                    <DeliverooIcon className="h-4 w-4" />
-                    <Label htmlFor="price_deliveroo" className="text-xs">Prix Deliveroo (€)</Label>
-                  </div>
-                  <Input
-                    id="price_deliveroo"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.price_deliveroo}
-                    onChange={(e) => setFormData({ ...formData, price_deliveroo: e.target.value })}
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Au moins un prix doit être renseigné
-              </p>
+            {/* Description */}
+            <div className="grid gap-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Description du produit..."
+                rows={2}
+              />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="food_cost">Food Cost (€)</Label>
+              <Label htmlFor="food_cost">Food Cost HT (€)</Label>
               <Input
                 id="food_cost"
                 type="number"
@@ -1481,6 +1679,9 @@ export default function MenuItems() {
                 onChange={(e) => setFormData({ ...formData, food_cost: e.target.value })}
                 placeholder="0.00"
               />
+              <p className="text-xs text-muted-foreground">
+                Coût de revient hors taxes du produit
+              </p>
             </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="is_active">Produit actif</Label>
