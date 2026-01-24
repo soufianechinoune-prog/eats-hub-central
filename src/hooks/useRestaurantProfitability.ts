@@ -36,7 +36,8 @@ interface ProfitabilityStats {
 
 export function useRestaurantProfitability(
   selectedRestaurantIds: string[],
-  platform: "uber" | "deliveroo" = "uber"
+  platform: "uber" | "deliveroo" = "uber",
+  commissionRate: number = 30 // Commission rate in %
 ) {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ProductProfitability[]>([]);
@@ -81,10 +82,10 @@ export function useRestaurantProfitability(
           return;
         }
 
-        // Then: Fetch only menu items that have restaurant prices
+        // Then: Fetch only menu items that have restaurant prices (include vat_rate)
         const { data: menuItemsData, error: menuItemsError } = await supabase
           .from("menu_items")
-          .select("id, name, category, food_cost")
+          .select("id, name, category, food_cost, vat_rate")
           .in("id", uniqueMenuItemIds)
           .eq("is_active", true)
           .order("category")
@@ -119,15 +120,25 @@ export function useRestaurantProfitability(
             let marginUber: number | null = null;
             let marginDeliveroo: number | null = null;
 
-            if (item.food_cost !== null && item.food_cost > 0) {
-              // Calculate margin: ((Price - FoodCost) / Price) * 100
+            // Get VAT rate (default 10% if not set)
+            const vatRate = item.vat_rate ?? 10;
+
+            if (item.food_cost !== null && item.food_cost >= 0) {
+              // Calculate NET margin: ((Prix HT - Commission - Food Cost HT) / Prix TTC) * 100
+              // Prix HT = Prix TTC / (1 + TVA%)
+              // Commission = Prix HT * commission%
+              
               if (prices?.priceUber && prices.priceUber > 0) {
-                marginUber = ((prices.priceUber - item.food_cost) / prices.priceUber) * 100;
+                const prixHT = prices.priceUber / (1 + vatRate / 100);
+                const commission = prixHT * (commissionRate / 100);
+                marginUber = ((prixHT - commission - item.food_cost) / prices.priceUber) * 100;
                 margins.push(marginUber);
                 marginDetails.push({ value: marginUber, restaurant: restaurant?.name || restaurantId });
               }
               if (prices?.priceDeliveroo && prices.priceDeliveroo > 0) {
-                marginDeliveroo = ((prices.priceDeliveroo - item.food_cost) / prices.priceDeliveroo) * 100;
+                const prixHT = prices.priceDeliveroo / (1 + vatRate / 100);
+                const commission = prixHT * (commissionRate / 100);
+                marginDeliveroo = ((prixHT - commission - item.food_cost) / prices.priceDeliveroo) * 100;
                 if (platform === "deliveroo") {
                   margins.push(marginDeliveroo);
                   marginDetails.push({ value: marginDeliveroo, restaurant: restaurant?.name || restaurantId });
@@ -181,7 +192,7 @@ export function useRestaurantProfitability(
     }
 
     fetchData();
-  }, [selectedRestaurantIds, platform]);
+  }, [selectedRestaurantIds, platform, commissionRate]);
 
   const stats = useMemo<ProfitabilityStats>(() => {
     const productsWithData = items.filter((i) => i.avgMargin !== null).length;
