@@ -515,24 +515,65 @@ export function ProfitabilityComparison() {
               </SelectContent>
             </Select>
 
-            {/* Margin Type Toggle */}
-            <div className="flex items-center gap-1 border rounded-md p-0.5">
-              <Button
-                variant={marginType === "brut" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setMarginType("brut")}
-                className="h-7 px-3 text-xs"
-              >
-                Brute
-              </Button>
-              <Button
-                variant={marginType === "net" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setMarginType("net")}
-                className="h-7 px-3 text-xs"
-              >
-                Nette
-              </Button>
+            {/* Margin Type Toggle with Info */}
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 border rounded-md p-0.5">
+                <Button
+                  variant={marginType === "brut" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setMarginType("brut")}
+                  className="h-7 px-3 text-xs"
+                >
+                  Brute
+                </Button>
+                <Button
+                  variant={marginType === "net" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setMarginType("net")}
+                  className="h-7 px-3 text-xs"
+                >
+                  Nette
+                </Button>
+              </div>
+              
+              <TooltipProvider>
+                <Tooltip delayDuration={100}>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="w-80 p-4">
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-emerald-600 font-medium">
+                          <TrendingUp className="h-4 w-4" />
+                          Marge Brute
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1 font-mono">
+                          = (Prix HT − Food Cost) / Prix HT
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Ce que vous gardez avant les commissions plateforme
+                        </p>
+                      </div>
+                      
+                      <div className="border-t pt-3">
+                        <div className="flex items-center gap-2 text-violet-600 font-medium">
+                          <TrendingDown className="h-4 w-4" />
+                          Marge Nette
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1 font-mono">
+                          = (Prix HT − Commission − Food Cost) / Prix HT
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Ce qui reste vraiment après Uber/Deliveroo
+                        </p>
+                      </div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* Alerts Toggle */}
