@@ -123,11 +123,6 @@ const analysisItems = [
     icon: Megaphone,
   },
   {
-    title: "Marketing Analytics",
-    url: "/marketing-analytics",
-    icon: Megaphone,
-  },
-  {
     title: "Cartographie",
     url: "/cartography",
     icon: Map,
