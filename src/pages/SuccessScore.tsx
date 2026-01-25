@@ -2,10 +2,8 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { useNavigate } from "react-router-dom";
 import { 
   Award, 
-  Upload, 
   TrendingUp, 
   Star, 
   UtensilsCrossed, 
@@ -19,7 +17,6 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -41,7 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ManualEntryDialog } from "@/components/success-score/ManualEntryDialog";
+
 
 // Tier configuration with colors and objectives
 const TIER_CONFIG = {
@@ -132,7 +129,6 @@ interface SuccessScore {
 }
 
 export default function SuccessScore() {
-  const navigate = useNavigate();
   const [showBenefits, setShowBenefits] = useState(false);
 
   // Fetch latest success scores
@@ -280,7 +276,7 @@ export default function SuccessScore() {
 
   return (
     <TooltipProvider delayDuration={100}>
-      <div className="container mx-auto py-6 space-y-6">
+      <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -293,18 +289,6 @@ export default function SuccessScore() {
             </p>
           </div>
           
-          {/* Actions */}
-          <div className="flex gap-2">
-            <ManualEntryDialog onSuccess={() => refetch()} />
-            <Button 
-              onClick={() => navigate('/report-import?type=success_score')} 
-              variant="outline"
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              Importer CSV
-            </Button>
-          </div>
         </div>
 
       {/* Benefits Accordion */}
@@ -495,7 +479,7 @@ export default function SuccessScore() {
                   <TableHead className="text-center">Notes</TableHead>
                   <TableHead className="text-center">Détails Menu</TableHead>
                   <TableHead className="text-center">CA</TableHead>
-                  <TableHead>Prochain objectif</TableHead>
+                  <TableHead className="text-center">Emballages</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -534,40 +518,10 @@ export default function SuccessScore() {
                           ? `${score.sales_amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
                           : 'Non renseigné'}
                       </TableCell>
-                      <TableCell>
-                        {progress ? (
-                          <div className="space-y-1">
-                            <span className="text-xs text-muted-foreground">
-                              Pour atteindre {TIER_CONFIG[progress.nextTier as keyof typeof TIER_CONFIG]?.label}:
-                            </span>
-                            {/* Afficher les gaps positifs (objectifs non atteints) */}
-                            {progress.gaps.filter(g => g.gap > 0).slice(0, 2).map((gap, i) => (
-                              <div key={i} className="text-xs flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3 text-orange-500" />
-                                <span>{gap.metric}: +{gap.gap.toFixed(1)}{gap.metric === 'Notes' ? '' : '%'}</span>
-                              </div>
-                            ))}
-                            {/* Afficher les métriques manquantes */}
-                            {progress.missingMetrics.length > 0 && (
-                              <div className="text-xs flex items-center gap-1 text-muted-foreground">
-                                <Info className="h-3 w-3" />
-                                <span>Non renseigné: {progress.missingMetrics.join(', ')}</span>
-                              </div>
-                            )}
-                            {/* Si tous les gaps sont atteints et pas de métriques manquantes */}
-                            {progress.gaps.filter(g => g.gap > 0).length === 0 && progress.missingMetrics.length === 0 && (
-                              <div className="text-xs flex items-center gap-1 text-amber-600">
-                                <Info className="h-3 w-3" />
-                                <span>Critères Uber non détaillés</span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-xs flex items-center gap-1 text-emerald-600">
-                            <CheckCircle className="h-3 w-3" />
-                            <span>Niveau maximum atteint</span>
-                          </div>
-                        )}
+                      <TableCell className="text-center">
+                        {score.sustainable_packaging != null 
+                          ? `${score.sustainable_packaging.toFixed(0)}%` 
+                          : 'Non renseigné'}
                       </TableCell>
                     </TableRow>
                   );
