@@ -26,6 +26,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  TooltipProvider,
 } from "@/components/ui/tooltip";
 import {
   Collapsible,
@@ -40,6 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ManualEntryDialog } from "@/components/success-score/ManualEntryDialog";
 
 // Tier configuration with colors and objectives
 const TIER_CONFIG = {
@@ -277,29 +279,33 @@ export default function SuccessScore() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Award className="h-6 w-6 text-primary" />
-            Score de Réussite Uber Eats
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Suivez vos performances et débloquez des avantages
-          </p>
+    <TooltipProvider delayDuration={100}>
+      <div className="container mx-auto py-6 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Award className="h-6 w-6 text-primary" />
+              Score de Réussite Uber Eats
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Suivez vos performances et débloquez des avantages
+            </p>
+          </div>
+          
+          {/* Actions */}
+          <div className="flex gap-2">
+            <ManualEntryDialog onSuccess={() => refetch()} />
+            <Button 
+              onClick={() => navigate('/report-import?type=success_score')} 
+              variant="outline"
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Importer CSV
+            </Button>
+          </div>
         </div>
-        
-        {/* Import Button */}
-        <Button 
-          onClick={() => navigate('/report-import?type=success_score')} 
-          variant="outline"
-          className="gap-2"
-        >
-          <Upload className="h-4 w-4" />
-          Importer des données
-        </Button>
-      </div>
 
       {/* Benefits Accordion */}
       <Collapsible open={showBenefits} onOpenChange={setShowBenefits}>
@@ -365,11 +371,12 @@ export default function SuccessScore() {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between mb-2">
                       <Tooltip>
-                        <TooltipTrigger asChild>
+                        <TooltipTrigger>
                           <Badge className={`${config.color} text-white cursor-help`}>{config.label}</Badge>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom" className="max-w-xs">
-                          <p className="text-sm">{config.description}</p>
+                        <TooltipContent side="bottom" className="max-w-xs p-3">
+                          <p className="font-semibold mb-1">{config.label}</p>
+                          <p className="text-sm text-muted-foreground">{config.description}</p>
                         </TooltipContent>
                       </Tooltip>
                       <span className="text-2xl font-bold">{count}</span>
@@ -568,6 +575,7 @@ export default function SuccessScore() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
