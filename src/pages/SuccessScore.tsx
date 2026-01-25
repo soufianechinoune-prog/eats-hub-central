@@ -175,6 +175,8 @@ export default function SuccessScore() {
     let ratingsCount = 0;
     let totalMenuDetails = 0;
     let menuDetailsCount = 0;
+    let totalPackaging = 0;
+    let packagingCount = 0;
 
     for (const score of latestScores) {
       const tier = score.score_tier as keyof typeof tierCounts;
@@ -194,6 +196,10 @@ export default function SuccessScore() {
         totalMenuDetails += score.menu_details;
         menuDetailsCount++;
       }
+      if (score.sustainable_packaging != null) {
+        totalPackaging += score.sustainable_packaging;
+        packagingCount++;
+      }
     }
 
     return {
@@ -201,6 +207,7 @@ export default function SuccessScore() {
       avgOperationalExcellence: opExCount > 0 ? totalOpEx / opExCount : null,
       avgRatings: ratingsCount > 0 ? totalRatings / ratingsCount : null,
       avgMenuDetails: menuDetailsCount > 0 ? totalMenuDetails / menuDetailsCount : null,
+      avgSustainablePackaging: packagingCount > 0 ? totalPackaging / packagingCount : null,
       totalRestaurants: latestScores.length,
       latestMonth: latestScores[0]?.score_month,
     };
@@ -440,8 +447,12 @@ export default function SuccessScore() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Emballages Durables</p>
-                    <p className="text-2xl font-bold text-muted-foreground">—</p>
-                    <p className="text-xs text-muted-foreground">Non applicable en France</p>
+                    <p className="text-2xl font-bold">
+                      {networkStats.avgSustainablePackaging != null 
+                        ? `${networkStats.avgSustainablePackaging.toFixed(0)}%` 
+                        : '—'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Objectif Excellent: 90%</p>
                   </div>
                 </div>
               </CardContent>
@@ -478,7 +489,6 @@ export default function SuccessScore() {
                   <TableHead className="text-center">Excellence Op.</TableHead>
                   <TableHead className="text-center">Notes</TableHead>
                   <TableHead className="text-center">Détails Menu</TableHead>
-                  <TableHead className="text-center">CA</TableHead>
                   <TableHead className="text-center">Emballages</TableHead>
                 </TableRow>
               </TableHeader>
@@ -512,11 +522,6 @@ export default function SuccessScore() {
                       </TableCell>
                       <TableCell className="text-center">
                         {score.menu_details != null ? `${score.menu_details.toFixed(0)}%` : 'Non renseigné'}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {score.sales_amount != null 
-                          ? `${score.sales_amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
-                          : 'Non renseigné'}
                       </TableCell>
                       <TableCell className="text-center">
                         {score.sustainable_packaging != null 
