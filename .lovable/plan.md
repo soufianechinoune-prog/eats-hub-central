@@ -1,74 +1,134 @@
 
+# Plan : Ajouter le Badge Success Score sur la carte Uber Eats
 
-# Plan : Remplacer tous les "N/A" restants
-
-## Problème
-Les cartes KPI du réseau affichent encore "N/A" au lieu d'un texte plus clair en français.
-
----
-
-## Modifications
-
-### Fichier : `src/pages/SuccessScore.tsx`
-
-#### 1. Excellence Opérationnelle (ligne 384)
-```typescript
-// Avant
-{networkStats.avgOperationalExcellence?.toFixed(1) || 'N/A'}%
-
-// Après
-{networkStats.avgOperationalExcellence != null 
-  ? `${networkStats.avgOperationalExcellence.toFixed(1)}%` 
-  : '—'}
-```
-
-#### 2. Notes Clients (ligne 401)
-```typescript
-// Avant
-{networkStats.avgRatings?.toFixed(2) || 'N/A'}
-
-// Après
-{networkStats.avgRatings?.toFixed(2) || '—'}
-```
-
-#### 3. Détails Menu (ligne 418)
-```typescript
-// Avant
-{networkStats.avgMenuDetails?.toFixed(0) || 'N/A'}%
-
-// Après
-{networkStats.avgMenuDetails != null 
-  ? `${networkStats.avgMenuDetails.toFixed(0)}%` 
-  : '—'}
-```
-
-#### 4. Emballages Durables (ligne 434)
-```typescript
-// Avant
-<p className="text-2xl font-bold">N/A</p>
-<p className="text-xs text-muted-foreground">Non applicable en France</p>
-
-// Après
-<p className="text-2xl font-bold text-muted-foreground">—</p>
-<p className="text-xs text-muted-foreground">Non applicable en France</p>
-```
+## Objectif
+Afficher le badge Success Score (Excellent, Très Bon, Bon, Correct, Insuffisant) directement sur la vignette "Uber Eats" de la page Overview, car ce score est spécifique à cette plateforme.
 
 ---
 
-## Légende des remplacements
+## Approche
 
-| Ancien | Nouveau | Signification |
-|--------|---------|---------------|
-| `N/A` | `—` | Donnée non disponible ou non applicable |
-| `N/A%` | `—` | Évite l'affichage confus "N/A%" |
+### 1. Récupérer le Success Score réseau
 
-Le tiret `—` est plus visuel et ne nécessite pas de traduction.
+Ajouter une requête dans la page Overview pour récupérer les scores du mois le plus récent :
+
+```typescript
+// Fetch latest Success Score for network overview
+const { data: successScoreData } = useQuery({
+  queryKey: ["network-success-score"],
+  queryFn: async () => {
+    // Get the most recent month available
+    const { data: scores } = await supabase
+      .from("success_scores")
+      .select("score_tier, restaurant_id")
+      .order("score_month", { ascending: false })
+      .limit(100);
+    
+    if (!scores || scores.length === 0) return null;
+    
+    // Count by tier to find the dominant one
+    const tierCounts: Record<string, number> = {};
+    scores.forEach(s => {
+      if (s.score_tier) {
+        tierCounts[s.score_tier] = (tierCounts[s.score_tier] || 0) + 1;
+      }
+    });
+    
+    // Find the most common tier
+    const dominantTier = Object.entries(tierCounts)
+      .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    
+    return {
+      dominantTier,
+      tierCounts,
+      total: scores.length
+    };
+  },
+});
+```
+
+### 2. Configurer les badges (réutiliser la config de SuccessScore.tsx)
+
+```typescript
+const TIER_BADGE_CONFIG: Record<string, { label: string; color: string }> = {
+  Excellent: { label: 'Excellent', color: 'bg-emerald-500' },
+  Great: { label: 'Très Bon', color: 'bg-blue-500' },
+  Good: { label: 'Bon', color: 'bg-amber-500' },
+  Fair: { label: 'Correct', color: 'bg-orange-500' },
+  Poor: { label: 'Insuffisant', color: 'bg-red-500' },
+};
+```
+
+### 3. Afficher le badge dans le header de la carte Uber Eats
+
+Modifier la carte Uber Eats (lignes 962-985) pour ajouter le badge à côté du titre :
+
+```text
+┌─────────────────────────────────────────┐
+│ [🍔]  Uber Eats          [Correct]     │
+│       Semaine précédente                │
+├─────────────────────────────────────────┤
+│ ⭐ Note moyenne                   4.5/5 │
+│ ⏱  Temps préparation            8 min  │
+│ ...                                     │
+└─────────────────────────────────────────┘
+```
+
+Le badge sera cliquable et redirigera vers la page `/success-score`.
 
 ---
 
-## Fichier modifié
+## Modifications techniques
 
-| Fichier | Lignes |
-|---------|--------|
-| `src/pages/SuccessScore.tsx` | 384, 401, 418, 434 |
+### Fichier : `src/pages/Overview.tsx`
 
+| Section | Modification |
+|---------|--------------|
+| Imports | Ajouter `Badge` de `@/components/ui/badge` |
+| Requêtes | Ajouter `useQuery` pour récupérer `success_scores` |
+| Config | Ajouter `TIER_BADGE_CONFIG` pour les couleurs |
+| Carte Uber Eats | Ajouter le badge cliquable dans le `CardHeader` |
+
+### Code du badge dans la carte
+
+```typescript
+{/* Uber Eats Card Header */}
+<div className="flex items-center justify-between">
+  <div className="flex items-center gap-3">
+    <div className="h-12 w-12 rounded-xl bg-uber/10 flex items-center justify-center">
+      <UberEatsLogo size={24} />
+    </div>
+    <div>
+      <CardTitle className="text-xl">Uber Eats</CardTitle>
+      <p className="text-xs text-muted-foreground mt-0.5">{getPeriodLabel()}</p>
+    </div>
+  </div>
+  
+  {/* Success Score Badge */}
+  {successScoreData?.dominantTier && (
+    <Badge 
+      className={`${TIER_BADGE_CONFIG[successScoreData.dominantTier]?.color} text-white cursor-pointer hover:opacity-80`}
+      onClick={() => navigate('/success-score')}
+    >
+      {TIER_BADGE_CONFIG[successScoreData.dominantTier]?.label}
+    </Badge>
+  )}
+</div>
+```
+
+---
+
+## Résultat visuel attendu
+
+La carte Uber Eats affichera :
+- Le logo et titre à gauche
+- Un badge coloré à droite (ex: badge orange "Correct")
+- Un clic sur le badge navigue vers `/success-score`
+
+---
+
+## Récapitulatif
+
+| Fichier | Modification |
+|---------|--------------|
+| `src/pages/Overview.tsx` | Ajouter requête Success Score + badge dans carte Uber Eats |
