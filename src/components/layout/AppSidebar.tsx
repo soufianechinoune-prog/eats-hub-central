@@ -26,6 +26,7 @@ import {
   ClipboardCheck,
   ShoppingBag,
   Megaphone,
+  Award,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -114,6 +115,11 @@ const analysisItems = [
     title: "Actions & Events",
     url: "/actions",
     icon: Zap,
+  },
+  {
+    title: "Score de Réussite",
+    url: "/success-score",
+    icon: Award,
   },
   {
     title: "Marketing Analytics",

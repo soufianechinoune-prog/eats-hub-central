@@ -2669,6 +2669,59 @@ export type Database = {
         }
         Relationships: []
       }
+      success_scores: {
+        Row: {
+          created_at: string
+          currency_code: string | null
+          id: string
+          menu_details: number | null
+          operational_excellence: number | null
+          ratings: number | null
+          restaurant_id: string
+          sales_amount: number | null
+          score_month: string
+          score_tier: string
+          sustainable_packaging: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency_code?: string | null
+          id?: string
+          menu_details?: number | null
+          operational_excellence?: number | null
+          ratings?: number | null
+          restaurant_id: string
+          sales_amount?: number | null
+          score_month: string
+          score_tier: string
+          sustainable_packaging?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency_code?: string | null
+          id?: string
+          menu_details?: number | null
+          operational_excellence?: number | null
+          ratings?: number | null
+          restaurant_id?: string
+          sales_amount?: number | null
+          score_month?: string
+          score_tier?: string
+          sustainable_packaging?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "success_scores_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       uber_connections: {
         Row: {
           access_token: string | null
