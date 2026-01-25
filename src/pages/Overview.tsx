@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext, PeriodMode } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Star, Clock, TrendingDown, TrendingUp, Percent, PauseCircle, Award, FileDown, FileSpreadsheet, ChevronRight, RefreshCw, Truck } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +16,15 @@ import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
+
+// Success Score tier configuration
+const TIER_BADGE_CONFIG: Record<string, { label: string; color: string }> = {
+  Excellent: { label: 'Excellent', color: 'bg-emerald-500' },
+  Great: { label: 'Très Bon', color: 'bg-blue-500' },
+  Good: { label: 'Bon', color: 'bg-amber-500' },
+  Fair: { label: 'Correct', color: 'bg-orange-500' },
+  Poor: { label: 'Insuffisant', color: 'bg-red-500' },
+};
 // Build timestamp for cache verification
 const BUILD_TIMESTAMP = new Date().toISOString();
 // Formater les minutes en "X min Y s" (ex: 4.5 → "4 min 30 s")
@@ -47,6 +57,33 @@ const Overview = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { exportComprehensivePdf, exportComprehensiveExcel, isExporting } = useOverviewExport();
+  
+  // Fetch latest Success Score for network overview (Uber Eats only)
+  const { data: successScoreData } = useQuery({
+    queryKey: ["network-success-score"],
+    queryFn: async () => {
+      const { data: scores } = await supabase
+        .from("success_scores")
+        .select("score_tier")
+        .order("score_month", { ascending: false })
+        .limit(100);
+      
+      if (!scores || scores.length === 0) return null;
+      
+      // Count by tier to find the dominant one
+      const tierCounts: Record<string, number> = {};
+      scores.forEach(s => {
+        if (s.score_tier) {
+          tierCounts[s.score_tier] = (tierCounts[s.score_tier] || 0) + 1;
+        }
+      });
+      
+      const dominantTier = Object.entries(tierCounts)
+        .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+      
+      return { dominantTier };
+    },
+  });
   
   // Analytics context for navigation to Finances
   const {
@@ -972,6 +1009,16 @@ const Overview = () => {
                       <p className="text-xs text-muted-foreground mt-0.5">{getPeriodLabel()}</p>
                     </div>
                   </div>
+                  
+                  {/* Success Score Badge */}
+                  {successScoreData?.dominantTier && TIER_BADGE_CONFIG[successScoreData.dominantTier] && (
+                    <Badge 
+                      className={`${TIER_BADGE_CONFIG[successScoreData.dominantTier].color} text-white cursor-pointer hover:opacity-80 transition-opacity`}
+                      onClick={() => navigate('/success-score')}
+                    >
+                      {TIER_BADGE_CONFIG[successScoreData.dominantTier].label}
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
