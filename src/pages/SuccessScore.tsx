@@ -49,6 +49,7 @@ const TIER_CONFIG = {
     bgLight: 'bg-emerald-50 dark:bg-emerald-950/30',
     order: 1,
     label: 'Excellent',
+    description: 'Le niveau le plus élevé ! Votre restaurant fait partie des meilleurs et bénéficie de tous les avantages Uber Eats.',
     benefits: [
       'Crédits publicitaires gratuits',
       'Offres cofinancées',
@@ -62,6 +63,7 @@ const TIER_CONFIG = {
     bgLight: 'bg-blue-50 dark:bg-blue-950/30',
     order: 2,
     label: 'Très Bon',
+    description: 'Excellentes performances ! Vous bénéficiez du badge Top Eats et d\'une visibilité accrue dans l\'app.',
     benefits: [
       'Réduction sur les frais d\'offre',
       'Badge Top Eats in-app',
@@ -75,6 +77,7 @@ const TIER_CONFIG = {
     bgLight: 'bg-amber-50 dark:bg-amber-950/30',
     order: 3,
     label: 'Bon',
+    description: 'Bonnes performances ! Vous êtes mis en avant dans les carousels et pouvez bénéficier de réductions.',
     benefits: [
       'Placement dans les carousels',
       'Réduction sur les frais d\'offre (selon marché)',
@@ -86,6 +89,7 @@ const TIER_CONFIG = {
     bgLight: 'bg-orange-50 dark:bg-orange-950/30',
     order: 4,
     label: 'Correct',
+    description: 'Niveau standard. Vous avez accès aux outils marketing de base. Améliorez vos métriques pour débloquer plus d\'avantages.',
     benefits: [
       'Accès aux publicités',
       'Accès aux offres promotionnelles',
@@ -98,6 +102,7 @@ const TIER_CONFIG = {
     bgLight: 'bg-red-50 dark:bg-red-950/30',
     order: 5,
     label: 'Insuffisant',
+    description: 'Performances en dessous des attentes. Concentrez-vous sur l\'excellence opérationnelle pour progresser.',
     benefits: ['Aucun avantage']
   },
 };
@@ -359,7 +364,14 @@ export default function SuccessScore() {
                 <Card key={tier} className={`${config.bgLight} border-none`}>
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between mb-2">
-                      <Badge className={`${config.color} text-white`}>{config.label}</Badge>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge className={`${config.color} text-white cursor-help`}>{config.label}</Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-xs">
+                          <p className="text-sm">{config.description}</p>
+                        </TooltipContent>
+                      </Tooltip>
                       <span className="text-2xl font-bold">{count}</span>
                     </div>
                     <Progress value={percentage} className="h-2" />
