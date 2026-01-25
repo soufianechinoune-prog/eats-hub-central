@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import ImportHistory from "@/components/reports/ImportHistory";
 import BulkImportTab from "@/components/reports/BulkImportTab";
+import { SuccessScorePreviewEditor } from "@/components/success-score/SuccessScorePreviewEditor";
 import { useQuery } from "@tanstack/react-query";
 
 // Report types organized by theme
@@ -1355,32 +1356,52 @@ export default function ReportImport() {
                   </Badge>
                 </div>
 
-                <div className="border rounded-lg overflow-auto max-h-[400px]">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-background">
-                      <TableRow>
-                        {headers.map((header, idx) => (
-                          <TableHead key={idx} className="whitespace-nowrap text-xs">
-                            {header.length > 25 ? header.slice(0, 25) + "..." : header}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {previewData.map((row, rowIdx) => (
-                        <TableRow key={rowIdx}>
-                          {headers.map((header, cellIdx) => (
-                            <TableCell key={cellIdx} className="text-xs whitespace-nowrap">
-                              {(row[header] || "").length > 30
-                                ? (row[header] || "").slice(0, 30) + "..."
-                                : row[header] || "-"}
-                            </TableCell>
+                {/* Success Score: show editable preview */}
+                {reportType === "success_score" ? (
+                  <SuccessScorePreviewEditor
+                    data={previewData}
+                    headers={headers}
+                    onDataChange={(newData) => {
+                      setPreviewData(newData);
+                      // Rebuild CSV content from edited data
+                      const headerLine = headers.join(",");
+                      const dataLines = newData.map(row => 
+                        headers.map(h => {
+                          const val = row[h] || "";
+                          return val.includes(",") ? `"${val}"` : val;
+                        }).join(",")
+                      );
+                      setCsvContent([headerLine, ...dataLines].join("\n"));
+                    }}
+                  />
+                ) : (
+                  <div className="border rounded-lg overflow-auto max-h-[400px]">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-background">
+                        <TableRow>
+                          {headers.map((header, idx) => (
+                            <TableHead key={idx} className="whitespace-nowrap text-xs">
+                              {header.length > 25 ? header.slice(0, 25) + "..." : header}
+                            </TableHead>
                           ))}
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {previewData.map((row, rowIdx) => (
+                          <TableRow key={rowIdx}>
+                            {headers.map((header, cellIdx) => (
+                              <TableCell key={cellIdx} className="text-xs whitespace-nowrap">
+                                {(row[header] || "").length > 30
+                                  ? (row[header] || "").slice(0, 30) + "..."
+                                  : row[header] || "-"}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-3">
                   <Button variant="outline" onClick={resetImport}>
