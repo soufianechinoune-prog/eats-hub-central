@@ -1,83 +1,109 @@
 
-# Plan : Améliorer le tooltip pour afficher le détail du calcul Net
+# Plan : Déplacer l'import Score de Réussite vers la page Import centralisée
 
-## Problème
+## Objectif
 
-Le tooltip en mode "% Food Cost" + "Net" n'indique pas que la commission a été retirée pour calculer le ratio. L'utilisateur voit un pourcentage plus élevé sans comprendre pourquoi.
+Intégrer l'import du fichier CSV "Score de Réussite" (quality-score-stores_X.csv) dans la page `/report-import` existante, au lieu d'avoir un formulaire d'import séparé sur la page `/success-score`.
 
-## Solution
+---
 
-Ajouter dans le tooltip (quand `marginType === "net"`) :
-- **Commission HT** : Prix TTC × Taux% (ex: 7,90€ × 23,75% = 1,88€)
-- **Revenu Net HT** : Prix HT - Commission (ex: 7,18€ - 1,88€ = 5,30€)
-- Modifier le libellé final pour clarifier : "% Food Cost (Net)" au lieu de "% Food Cost"
+## Modifications à effectuer
 
-## Modification
+### 1. Configuration du type de rapport
 
-**Fichier** : `src/components/menu/ProfitabilityComparison.tsx`
+**Fichier** : `src/lib/reportImportConfig.ts`
 
-**Lignes 970-982** - Tooltip du mode Food Cost :
+Ajouter un nouveau type de rapport :
 
-```tsx
-// AVANT
-<TooltipContent>
-  <div className="text-xs space-y-1">
-    <div>Prix TTC: {price !== null ? `${price.toFixed(2)}€` : "—"}</div>
-    {prixHT !== null && (
-      <div>Prix HT: {prixHT.toFixed(2)}€ <span className="text-muted-foreground">(TVA {vatRate}%)</span></div>
-    )}
-    <div>Food Cost HT: {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}</div>
-    {fcPercent !== null && (
-      <div className="border-t pt-1 mt-1">
-        % Food Cost: {fcPercent.toFixed(1)}%
-      </div>
-    )}
-  </div>
-</TooltipContent>
-
-// APRÈS
-<TooltipContent>
-  <div className="text-xs space-y-1">
-    <div>Prix TTC: {price !== null ? `${price.toFixed(2)}€` : "—"}</div>
-    {prixHT !== null && (
-      <div>Prix HT: {prixHT.toFixed(2)}€ <span className="text-muted-foreground">(TVA {vatRate}%)</span></div>
-    )}
-    {marginType === "net" && price !== null && prixHT !== null && (
-      <>
-        <div>Commission: {(price * commissionRate / 100).toFixed(2)}€ <span className="text-muted-foreground">({commissionRate}%)</span></div>
-        <div className="font-medium">Revenu Net HT: {(prixHT - price * commissionRate / 100).toFixed(2)}€</div>
-      </>
-    )}
-    <div>Food Cost HT: {item.foodCost !== null ? `${item.foodCost.toFixed(2)}€` : "—"}</div>
-    {fcPercent !== null && (
-      <div className="border-t pt-1 mt-1 font-medium">
-        % Food Cost {marginType === "net" ? "(Net)" : "(Brut)"}: {fcPercent.toFixed(1)}%
-      </div>
-    )}
-  </div>
-</TooltipContent>
+```typescript
+success_score: {
+  label: "Score de Réussite",
+  description: "Indicateurs mensuels de performance Uber Eats",
+  requiresRestaurant: false,  // Le CSV contient plusieurs restaurants
+  edgeFunctionName: "parse-success-score",
+  targetTables: ["success_scores"],
+  requiredColumns: ["Store name", "Status", "Operational excellence"],
+}
 ```
 
-## Résultat attendu
+---
 
-Le tooltip affichera pour Tower (7,90€ TTC, TVA 10%, Taux 23,75%) :
+### 2. Thème de rapport dans ReportImport.tsx
 
-```text
-Prix TTC: 7,90€
-Prix HT: 7,18€ (TVA 10%)
-Commission: 1,88€ (23,75%)
-Revenu Net HT: 5,30€
-Food Cost HT: 1,63€
-─────────────────
-% Food Cost (Net): 30,7%
+**Fichier** : `src/pages/ReportImport.tsx`
+
+Ajouter dans un thème existant (ex: "Pilotage") ou créer un nouveau thème "Performance" :
+
+```typescript
+{
+  id: "performance",
+  label: "Performance",
+  icon: Award,
+  types: [
+    { 
+      value: "success_score", 
+      label: "Score de Réussite", 
+      description: "Indicateurs mensuels Uber Eats (Excellence opé., Notes, Menu)", 
+      icon: Award 
+    },
+  ]
+}
 ```
 
-Formule visible : **1,63 / 5,30 = 30,7%**
+---
 
-## Résumé
+### 3. Gestion spéciale pour le mois du score
 
-| Élément | Changement |
-|---------|------------|
-| Fichier | `src/components/menu/ProfitabilityComparison.tsx` |
-| Lignes | 970-982 |
-| Ajouts | Commission HT, Revenu Net HT, libellé "(Net)" ou "(Brut)" |
+Le fichier CSV ne contient pas de date - il faut demander à l'utilisateur de sélectionner le mois du score.
+
+**Modifications UI** :
+
+Quand `reportType === "success_score"` :
+- Afficher un sélecteur de mois (type `<input type="month">`) en plus du fichier
+- Passer `scoreMonth` au edge function lors de l'import
+
+---
+
+### 4. Détection automatique du type
+
+Ajouter dans la fonction `detectReportType()` :
+
+```typescript
+// Success Score
+if (headerLine.includes("Store name") && 
+    headerLine.includes("Operational excellence") && 
+    headerLine.includes("Status")) {
+  return "success_score";
+}
+```
+
+---
+
+### 5. Simplifier la page SuccessScore
+
+**Fichier** : `src/pages/SuccessScore.tsx`
+
+Retirer complètement la section d'import (Card avec sélecteur de mois + input file + bouton Importer).
+
+Ajouter un bouton "Importer des données" qui redirige vers `/report-import?type=success_score`.
+
+---
+
+## Récapitulatif des fichiers
+
+| Fichier | Action |
+|---------|--------|
+| `src/lib/reportImportConfig.ts` | Ajouter config `success_score` |
+| `src/pages/ReportImport.tsx` | Ajouter thème + type + sélecteur mois + détection auto |
+| `src/pages/SuccessScore.tsx` | Supprimer l'import, ajouter lien vers ReportImport |
+
+---
+
+## Flux utilisateur après modification
+
+1. L'utilisateur va sur `/report-import`
+2. Il sélectionne "Score de Réussite" (ou le système le détecte automatiquement)
+3. Il choisit le mois du score (sélecteur de mois)
+4. Il dépose le fichier CSV
+5. L'import est traité par `parse-success-score`
+6. Il peut ensuite visualiser les résultats sur `/success-score`
