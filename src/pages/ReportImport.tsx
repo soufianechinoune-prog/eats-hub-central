@@ -708,6 +708,7 @@ export default function ReportImport() {
         order_accuracy_summary: "parse-order-accuracy-summary",
         item_issues_leaderboard: "parse-item-issues-leaderboard",
         conversion_funnel: "parse-conversion-report",
+        success_score: "parse-success-score",
       };
       const functionName = functionMap[reportType] || "parse-payment-report";
       
@@ -722,6 +723,11 @@ export default function ReportImport() {
       const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"];
       if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
         body.restaurantId = selectedRestaurantId;
+      }
+
+      // Add scoreMonth for success_score
+      if (reportType === "success_score" && scoreMonth) {
+        body.scoreMonth = scoreMonth;
       }
 
       const { data, error } = await supabase.functions.invoke(functionName, { body });
