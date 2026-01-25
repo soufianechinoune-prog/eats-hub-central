@@ -1,109 +1,60 @@
 
-# Plan : Déplacer l'import Score de Réussite vers la page Import centralisée
+# Plan : Corriger la détection du rapport Success Score
 
-## Objectif
+## Problème identifié
 
-Intégrer l'import du fichier CSV "Score de Réussite" (quality-score-stores_X.csv) dans la page `/report-import` existante, au lieu d'avoir un formulaire d'import séparé sur la page `/success-score`.
+Le fichier CSV "quality-score-stores.csv" n'est pas reconnu car :
+
+1. **Manque la détection d'en-tête** : La fonction `parsePreview()` vérifie les en-têtes de tous les types de rapport SAUF le Success Score. Elle ne cherche jamais les colonnes "Store name", "Status", "Operational excellence".
+
+2. **BOM UTF-8** : Le fichier commence par un BOM (`﻿Store name`) qui peut interférer avec la comparaison de chaînes.
 
 ---
 
-## Modifications à effectuer
+## Correction à apporter
 
-### 1. Configuration du type de rapport
+### Fichier : `src/pages/ReportImport.tsx`
 
-**Fichier** : `src/lib/reportImportConfig.ts`
+#### 1. Ajouter la détection d'en-tête Success Score dans `parsePreview()`
 
-Ajouter un nouveau type de rapport :
+Après la ligne 595 (vérification payout summary), ajouter :
 
 ```typescript
-success_score: {
-  label: "Score de Réussite",
-  description: "Indicateurs mensuels de performance Uber Eats",
-  requiresRestaurant: false,  // Le CSV contient plusieurs restaurants
-  edgeFunctionName: "parse-success-score",
-  targetTables: ["success_scores"],
-  requiredColumns: ["Store name", "Status", "Operational excellence"],
+// Check for Success Score headers
+if (lines[i].includes("Store name") && 
+    lines[i].includes("Operational excellence") && 
+    lines[i].includes("Status")) {
+  headerRowIndex = i;
+  break;
+}
+```
+
+#### 2. Nettoyer le BOM UTF-8 en début de fichier
+
+Au début de `parsePreview()` (ligne 505-506), ajouter le nettoyage du BOM :
+
+```typescript
+const parsePreview = (content: string) => {
+  // Remove BOM if present
+  const cleanedContent = content.replace(/^\uFEFF/, '');
+  const lines = cleanedContent.split("\n").filter((line) => line.trim());
+  // ...
 }
 ```
 
 ---
 
-### 2. Thème de rapport dans ReportImport.tsx
+## Résumé des modifications
 
-**Fichier** : `src/pages/ReportImport.tsx`
-
-Ajouter dans un thème existant (ex: "Pilotage") ou créer un nouveau thème "Performance" :
-
-```typescript
-{
-  id: "performance",
-  label: "Performance",
-  icon: Award,
-  types: [
-    { 
-      value: "success_score", 
-      label: "Score de Réussite", 
-      description: "Indicateurs mensuels Uber Eats (Excellence opé., Notes, Menu)", 
-      icon: Award 
-    },
-  ]
-}
-```
+| Fichier | Modification |
+|---------|--------------|
+| `src/pages/ReportImport.tsx` | Ajouter nettoyage BOM + détection en-têtes Success Score dans `parsePreview()` |
 
 ---
 
-### 3. Gestion spéciale pour le mois du score
+## Résultat attendu
 
-Le fichier CSV ne contient pas de date - il faut demander à l'utilisateur de sélectionner le mois du score.
-
-**Modifications UI** :
-
-Quand `reportType === "success_score"` :
-- Afficher un sélecteur de mois (type `<input type="month">`) en plus du fichier
-- Passer `scoreMonth` au edge function lors de l'import
-
----
-
-### 4. Détection automatique du type
-
-Ajouter dans la fonction `detectReportType()` :
-
-```typescript
-// Success Score
-if (headerLine.includes("Store name") && 
-    headerLine.includes("Operational excellence") && 
-    headerLine.includes("Status")) {
-  return "success_score";
-}
-```
-
----
-
-### 5. Simplifier la page SuccessScore
-
-**Fichier** : `src/pages/SuccessScore.tsx`
-
-Retirer complètement la section d'import (Card avec sélecteur de mois + input file + bouton Importer).
-
-Ajouter un bouton "Importer des données" qui redirige vers `/report-import?type=success_score`.
-
----
-
-## Récapitulatif des fichiers
-
-| Fichier | Action |
-|---------|--------|
-| `src/lib/reportImportConfig.ts` | Ajouter config `success_score` |
-| `src/pages/ReportImport.tsx` | Ajouter thème + type + sélecteur mois + détection auto |
-| `src/pages/SuccessScore.tsx` | Supprimer l'import, ajouter lien vers ReportImport |
-
----
-
-## Flux utilisateur après modification
-
-1. L'utilisateur va sur `/report-import`
-2. Il sélectionne "Score de Réussite" (ou le système le détecte automatiquement)
-3. Il choisit le mois du score (sélecteur de mois)
-4. Il dépose le fichier CSV
-5. L'import est traité par `parse-success-score`
-6. Il peut ensuite visualiser les résultats sur `/success-score`
+Après correction, le fichier `quality-score-stores.csv` sera automatiquement :
+1. Reconnu comme un rapport "Score de Réussite"
+2. Parsé correctement pour l'aperçu
+3. Importable via le workflow standard
