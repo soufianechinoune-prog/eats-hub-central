@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle, Trash2, Layers } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle, Trash2, Layers, Award } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,14 @@ const REPORT_THEMES = [
       { value: "inaccurate_orders", label: "Commandes incorrectes (détail)", description: "Détail des erreurs par commande (inaccurate_orders_v3_xxx.csv)", icon: AlertTriangle },
       { value: "order_accuracy_summary", label: "Résumé commandes incorrectes", description: "Données agrégées jour/mois (order-accuracy-inaccurate-issues-summary)", icon: AlertTriangle },
       { value: "item_issues_leaderboard", label: "Top articles problématiques", description: "Classement des produits avec erreurs (item-issues-leaderboard)", icon: AlertTriangle },
+    ]
+  },
+  {
+    id: "performance",
+    label: "Performance",
+    icon: Award,
+    types: [
+      { value: "success_score", label: "Score de Réussite", description: "Indicateurs mensuels Uber Eats (Excellence opé., Notes, Menu)", icon: Award },
     ]
   }
 ];
@@ -158,6 +166,13 @@ export default function ReportImport() {
   
   // Delete existing data option
   const [deleteExisting, setDeleteExisting] = useState(false);
+  
+  // Score month for success_score report type
+  const [scoreMonth, setScoreMonth] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  });
 
   // Fetch restaurants for selector
   const { data: restaurants = [] } = useQuery({
@@ -442,6 +457,12 @@ export default function ReportImport() {
     if ((headerLine.includes("Utilisateurs ayant visité") || headerLine.includes("Utilisateurs ayant visite")) &&
         (headerLine.includes("menu a été consulté") || headerLine.includes("menu consulté") || headerLine.includes("Plat ajouté"))) {
       return "conversion_funnel";
+    }
+    // Success Score
+    if (headerLine.includes("Store name") && 
+        headerLine.includes("Operational excellence") && 
+        headerLine.includes("Status")) {
+      return "success_score";
     }
     // Helper: Check for item-level columns
     const hasItemColumns = 
@@ -799,6 +820,7 @@ export default function ReportImport() {
         order_accuracy_summary: "parse-order-accuracy-summary",
         item_issues_leaderboard: "parse-item-issues-leaderboard",
         conversion_funnel: "parse-conversion-report",
+        success_score: "parse-success-score",
       };
       const functionName = functionMap[reportType] || "parse-payment-report";
       
@@ -818,6 +840,11 @@ export default function ReportImport() {
       // Add deleteExisting option for order_accuracy_summary
       if (reportType === "order_accuracy_summary" && deleteExisting) {
         body.deleteExisting = true;
+      }
+      
+      // Add scoreMonth for success_score
+      if (reportType === "success_score") {
+        body.scoreMonth = scoreMonth;
       }
 
       const { data, error } = await supabase.functions.invoke(functionName, { body });
@@ -845,7 +872,9 @@ export default function ReportImport() {
                     ? `${importData.stats?.inserted || 0} erreurs de commande importées`
                     : reportType === "conversion_funnel"
                       ? `${importData.stats?.inserted || 0} jours de conversion importés`
-                      : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
+                      : reportType === "success_score"
+                        ? `${importData.stats?.inserted || 0} restaurants ajoutés, ${importData.stats?.updated || 0} mis à jour`
+                        : `${importData.stats?.inserted || 0} commandes insérées, ${importData.stats?.updated || 0} mises à jour`;
         toast({
           title: "Import réussi",
           description: statsMessage,
@@ -1120,6 +1149,22 @@ export default function ReportImport() {
                     </div>
                   )}
 
+                  {/* Month selector for success_score */}
+                  {reportType === "success_score" && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Mois du score *</label>
+                      <input
+                        type="month"
+                        value={scoreMonth.slice(0, 7)}
+                        onChange={(e) => setScoreMonth(e.target.value + '-01')}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Le fichier CSV ne contient pas de date. Sélectionnez le mois du score à importer.
+                      </p>
+                    </div>
+                  )}
+
                   {reportType === "sales_over_time" ? (
                     <Alert className="bg-primary/5 border-primary/20">
                       <TrendingUp className="h-4 w-4 text-primary" />
@@ -1155,6 +1200,14 @@ export default function ReportImport() {
                       <AlertDescription>
                         Fichier user-conversion*.csv - Visites, vues menu, ajouts panier et commandes. 
                         Importez plusieurs fichiers (max 10) en une seule fois pour gagner du temps.
+                      </AlertDescription>
+                    </Alert>
+                  ) : reportType === "success_score" ? (
+                    <Alert className="bg-amber-500/10 border-amber-500/20">
+                      <Award className="h-4 w-4 text-amber-500" />
+                      <AlertTitle className="text-amber-600">Score de Réussite</AlertTitle>
+                      <AlertDescription>
+                        Fichier quality-score-stores*.csv - Indicateurs mensuels Uber Eats : Excellence opérationnelle, Notes, Détails menu et Emballages durables.
                       </AlertDescription>
                     </Alert>
                   ) : (

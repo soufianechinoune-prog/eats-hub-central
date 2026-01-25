@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfMonth, subMonths } from "date-fns";
+import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
 import { 
   Award, 
   Upload, 
@@ -10,9 +11,8 @@ import {
   UtensilsCrossed, 
   Leaf, 
   Settings2,
-  AlertTriangle,
   CheckCircle,
-  XCircle,
+  AlertTriangle,
   Info,
   ChevronDown,
   ChevronUp
@@ -22,9 +22,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
 import {
   Tooltip,
   TooltipContent,
@@ -128,10 +125,7 @@ interface SuccessScore {
 }
 
 export default function SuccessScore() {
-  const { toast } = useToast();
-  const [file, setFile] = useState<File | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [scoreMonth, setScoreMonth] = useState(format(startOfMonth(subMonths(new Date(), 1)), 'yyyy-MM-dd'));
+  const navigate = useNavigate();
   const [showBenefits, setShowBenefits] = useState(false);
 
   // Fetch latest success scores
@@ -209,59 +203,6 @@ export default function SuccessScore() {
     };
   }, [latestScores]);
 
-  // Handle file upload
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile && selectedFile.type === 'text/csv') {
-      setFile(selectedFile);
-    } else {
-      toast({
-        title: "Format invalide",
-        description: "Veuillez sélectionner un fichier CSV",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Import CSV
-  const handleImport = async () => {
-    if (!file) return;
-
-    setImporting(true);
-    try {
-      const csvContent = await file.text();
-      
-      const response = await supabase.functions.invoke('parse-success-score', {
-        body: { csvContent, scoreMonth },
-      });
-
-      if (response.error) throw response.error;
-
-      const result = response.data;
-      
-      toast({
-        title: "Import réussi",
-        description: `${result.insertedCount} ajoutés, ${result.updatedCount} mis à jour. ${result.unmatchedStores?.length || 0} non reconnus.`,
-      });
-
-      if (result.unmatchedStores?.length > 0) {
-        console.log("Restaurants non reconnus:", result.unmatchedStores);
-      }
-
-      setFile(null);
-      refetch();
-    } catch (error: any) {
-      console.error("Import error:", error);
-      toast({
-        title: "Erreur d'import",
-        description: error.message || "Impossible d'importer le fichier",
-        variant: "destructive",
-      });
-    } finally {
-      setImporting(false);
-    }
-  };
-
   // Get progress to next tier
   const getProgressToNextTier = (score: SuccessScore) => {
     const currentTier = score.score_tier as keyof typeof TIER_OBJECTIVES;
@@ -328,39 +269,15 @@ export default function SuccessScore() {
           </p>
         </div>
         
-        {/* Import Section */}
-        <Card className="p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="month">Mois du score</Label>
-              <Input
-                id="month"
-                type="month"
-                value={scoreMonth.slice(0, 7)}
-                onChange={(e) => setScoreMonth(e.target.value + '-01')}
-                className="w-40"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="csv">Fichier CSV</Label>
-              <Input
-                id="csv"
-                type="file"
-                accept=".csv"
-                onChange={handleFileChange}
-                className="w-56"
-              />
-            </div>
-            <Button 
-              onClick={handleImport} 
-              disabled={!file || importing}
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              {importing ? 'Import...' : 'Importer'}
-            </Button>
-          </div>
-        </Card>
+        {/* Import Button */}
+        <Button 
+          onClick={() => navigate('/report-import?type=success_score')} 
+          variant="outline"
+          className="gap-2"
+        >
+          <Upload className="h-4 w-4" />
+          Importer des données
+        </Button>
       </div>
 
       {/* Benefits Accordion */}
