@@ -13,10 +13,13 @@ import {
   AlertTriangle,
   Info,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  FileDown,
+  FileSpreadsheet
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -38,7 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
+import { useSuccessScoreExport } from "@/hooks/useSuccessScoreExport";
 
 // Tier configuration with colors and objectives
 const TIER_CONFIG = {
@@ -130,6 +133,7 @@ interface SuccessScore {
 
 export default function SuccessScore() {
   const [showBenefits, setShowBenefits] = useState(false);
+  const { exportToPdf, exportToExcel, isExporting } = useSuccessScoreExport();
 
   // Fetch latest success scores
   const { data: scores, isLoading, refetch } = useQuery({
@@ -296,6 +300,59 @@ export default function SuccessScore() {
             </p>
           </div>
           
+          {/* Export buttons */}
+          <div className="flex gap-2">
+            <Button
+              onClick={() => {
+                if (!networkStats || !latestScores.length) return;
+                exportToPdf({
+                  scores: latestScores.map(s => ({
+                    restaurantName: s.restaurants?.name || 'Restaurant inconnu',
+                    scoreTier: s.score_tier,
+                    operationalExcellence: s.operational_excellence,
+                    ratings: s.ratings,
+                    menuDetails: s.menu_details,
+                    sustainablePackaging: s.sustainable_packaging,
+                  })),
+                  networkStats: {
+                    ...networkStats,
+                    tierCounts: networkStats.tierCounts,
+                  },
+                });
+              }}
+              disabled={isExporting || !latestScores.length}
+              variant="outline"
+              className="gap-2"
+            >
+              <FileDown className="h-4 w-4" />
+              PDF
+            </Button>
+            <Button
+              onClick={() => {
+                if (!networkStats || !latestScores.length) return;
+                exportToExcel({
+                  scores: latestScores.map(s => ({
+                    restaurantName: s.restaurants?.name || 'Restaurant inconnu',
+                    scoreTier: s.score_tier,
+                    operationalExcellence: s.operational_excellence,
+                    ratings: s.ratings,
+                    menuDetails: s.menu_details,
+                    sustainablePackaging: s.sustainable_packaging,
+                  })),
+                  networkStats: {
+                    ...networkStats,
+                    tierCounts: networkStats.tierCounts,
+                  },
+                });
+              }}
+              disabled={isExporting || !latestScores.length}
+              variant="outline"
+              className="gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Excel
+            </Button>
+          </div>
         </div>
 
       {/* Benefits Accordion */}
