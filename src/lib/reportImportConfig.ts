@@ -140,6 +140,15 @@ export const REPORT_TYPE_CONFIG: Record<string, ReportTypeConfig> = {
     targetTables: ["product_issues_ranking"],
     requiredColumns: ["Articles incorrects", "Problème avec le plat"],
   },
+  
+  success_score: {
+    label: "Score de Réussite",
+    description: "Indicateurs mensuels de performance Uber Eats",
+    requiresRestaurant: false,
+    edgeFunctionName: "parse-success-score",
+    targetTables: ["success_scores"],
+    requiredColumns: ["Store name", "Status", "Operational excellence"],
+  },
 };
 
 /**
