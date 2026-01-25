@@ -40,6 +40,7 @@ import InaccurateOrdersComparison from "./pages/InaccurateOrdersComparison";
 
 import ItemSales from "./pages/ItemSales";
 import MarketingAnalytics from "./pages/MarketingAnalytics";
+import SuccessScore from "./pages/SuccessScore";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 
 const queryClient = new QueryClient({
@@ -283,6 +284,14 @@ const App = () => {
               />
               <Route path="/item-sales" element={<ItemSales />} />
               <Route path="/marketing-analytics" element={<MarketingAnalytics />} />
+              <Route
+                path="/success-score"
+                element={
+                  <AppLayout>
+                    <SuccessScore />
+                  </AppLayout>
+                }
+              />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
