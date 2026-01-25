@@ -1,111 +1,154 @@
 
+# Plan : Saisie manuelle des données Success Score + Corrections
 
-# Plan : Ajouter le Badge Success Score sur la carte Uber Eats
+## Problèmes identifiés
 
-## Contexte
-Le plan a été approuvé précédemment mais n'a pas été implémenté. Voici les modifications à effectuer.
+### 1. Tooltips non visibles
+Les tooltips ont été ajoutés au code mais peuvent ne pas apparaître correctement. Il faut vérifier que les styles sont corrects.
 
----
-
-## Modifications à apporter
-
-### Fichier : `src/pages/Overview.tsx`
-
-#### 1. Ajouter l'import du Badge
-```typescript
-import { Badge } from "@/components/ui/badge";
-```
-
-#### 2. Ajouter la configuration des tiers
-```typescript
-const TIER_BADGE_CONFIG: Record<string, { label: string; color: string }> = {
-  Excellent: { label: 'Excellent', color: 'bg-emerald-500' },
-  Great: { label: 'Très Bon', color: 'bg-blue-500' },
-  Good: { label: 'Bon', color: 'bg-amber-500' },
-  Fair: { label: 'Correct', color: 'bg-orange-500' },
-  Poor: { label: 'Insuffisant', color: 'bg-red-500' },
-};
-```
-
-#### 3. Ajouter la requête pour récupérer le Success Score
-```typescript
-const { data: successScoreData } = useQuery({
-  queryKey: ["network-success-score"],
-  queryFn: async () => {
-    const { data: scores } = await supabase
-      .from("success_scores")
-      .select("score_tier")
-      .order("score_month", { ascending: false })
-      .limit(100);
-    
-    if (!scores || scores.length === 0) return null;
-    
-    // Compter par tier pour trouver le dominant
-    const tierCounts: Record<string, number> = {};
-    scores.forEach(s => {
-      if (s.score_tier) {
-        tierCounts[s.score_tier] = (tierCounts[s.score_tier] || 0) + 1;
-      }
-    });
-    
-    const dominantTier = Object.entries(tierCounts)
-      .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-    
-    return { dominantTier };
-  },
-});
-```
-
-#### 4. Modifier le header de la carte Uber Eats (lignes 964-975)
-```typescript
-<CardHeader className="pb-4">
-  <div className="flex items-center justify-between">
-    <div className="flex items-center gap-3">
-      <div className="h-12 w-12 rounded-xl bg-uber/10 flex items-center justify-center">
-        <UberEatsLogo size={24} />
-      </div>
-      <div>
-        <CardTitle className="text-xl">Uber Eats</CardTitle>
-        <p className="text-xs text-muted-foreground mt-0.5">{getPeriodLabel()}</p>
-      </div>
-    </div>
-    
-    {/* Success Score Badge */}
-    {successScoreData?.dominantTier && TIER_BADGE_CONFIG[successScoreData.dominantTier] && (
-      <Badge 
-        className={`${TIER_BADGE_CONFIG[successScoreData.dominantTier].color} text-white cursor-pointer hover:opacity-80 transition-opacity`}
-        onClick={() => navigate('/success-score')}
-      >
-        {TIER_BADGE_CONFIG[successScoreData.dominantTier].label}
-      </Badge>
-    )}
-  </div>
-</CardHeader>
-```
+### 2. Données détaillées manquantes
+Le CSV exporté par Uber ne contient que le statut (tier) et l'excellence opérationnelle. Les autres métriques (Notes, Détails Menu, Emballages) sont uniquement visibles dans l'interface Uber Eats et doivent être saisies manuellement.
 
 ---
 
-## Résultat visuel attendu
+## Solution proposée
+
+### Nouvelle fonctionnalité : Formulaire de saisie manuelle
+
+Ajouter un mode de saisie manuelle sur la page `/report-import` ou directement sur `/success-score` pour permettre d'entrer les données par restaurant.
+
+### Architecture
 
 ```text
-┌─────────────────────────────────────────┐
-│ [🍔]  Uber Eats              [Correct] │
-│       Semaine précédente                │
-├─────────────────────────────────────────┤
-│ ⭐ Note moyenne                   4.5/5 │
-│ ⏱  Temps préparation            8 min  │
-│ ...                                     │
-└─────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│              Score de Réussite - Import des données           │
+├───────────────────────────────────────────────────────────────┤
+│  [Onglet CSV]  [Onglet Saisie Manuelle]                       │
+├───────────────────────────────────────────────────────────────┤
+│                                                               │
+│  Mois concerné :  [Janvier 2026 ▼]                           │
+│                                                               │
+│  Restaurant :     [Chicken Street - Juvisy ▼]                │
+│                                                               │
+│  ┌─────────────────┬─────────────────────────┐               │
+│  │ Niveau          │ [Correct ▼]             │               │
+│  ├─────────────────┼─────────────────────────┤               │
+│  │ Excellence Op.  │ [97.0] %                │               │
+│  ├─────────────────┼─────────────────────────┤               │
+│  │ Détails Menu    │ [81] %                  │               │
+│  ├─────────────────┼─────────────────────────┤               │
+│  │ Note            │ [4.4]                   │               │
+│  ├─────────────────┼─────────────────────────┤               │
+│  │ Emballages      │ [100] %                 │               │
+│  ├─────────────────┼─────────────────────────┤               │
+│  │ CA mensuel      │ [119084] €              │               │
+│  └─────────────────┴─────────────────────────┘               │
+│                                                               │
+│  [Enregistrer] [Enregistrer et suivant →]                    │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
 ```
-
-- Badge coloré selon le niveau dominant du réseau
-- Cliquable : redirige vers `/success-score`
 
 ---
 
-## Fichier modifié
+## Fichiers à modifier
 
-| Fichier | Modifications |
-|---------|---------------|
-| `src/pages/Overview.tsx` | Import Badge + Config tiers + Query + Affichage badge |
+### 1. `src/pages/SuccessScore.tsx`
 
+**Corrections tooltips :**
+- Vérifier que les tooltips utilisent `asChild` correctement
+- S'assurer que le délai d'apparition n'est pas trop long
+
+**Ajout bouton saisie manuelle :**
+- Ajouter un bouton "Saisie manuelle" à côté de "Importer des données"
+- Ouvre un Dialog/Sheet pour saisir les données d'un restaurant
+
+### 2. Nouveau composant : `src/components/success-score/ManualEntryDialog.tsx`
+
+Formulaire de saisie avec :
+- Sélecteur de mois
+- Sélecteur de restaurant
+- Champs pour chaque métrique :
+  - Niveau (select : Excellent, Très Bon, Bon, Correct, Insuffisant)
+  - Excellence Opérationnelle (number, 0-100)
+  - Détails Menu (number, 0-100)
+  - Note (number, 0-5, step 0.1)
+  - Emballages durables (number, 0-100)
+  - CA mensuel (number)
+- Boutons : Enregistrer / Enregistrer et suivant
+
+### 3. Base de données
+
+La table `success_scores` a déjà toutes les colonnes nécessaires :
+- `operational_excellence` (numeric)
+- `menu_details` (numeric)
+- `ratings` (numeric)
+- `sustainable_packaging` (numeric)
+- `sales_amount` (numeric)
+
+Aucune migration nécessaire.
+
+---
+
+## Détails techniques
+
+### Composant ManualEntryDialog
+
+```typescript
+interface ManualEntryFormData {
+  restaurantId: string;
+  scoreMonth: string;
+  scoreTier: 'Excellent' | 'Great' | 'Good' | 'Fair' | 'Poor';
+  operationalExcellence: number | null;
+  menuDetails: number | null;
+  ratings: number | null;
+  sustainablePackaging: number | null;
+  salesAmount: number | null;
+}
+```
+
+### Logique d'enregistrement
+
+```typescript
+// Upsert: update si existe, sinon insert
+const { error } = await supabase
+  .from('success_scores')
+  .upsert({
+    restaurant_id: formData.restaurantId,
+    score_month: formData.scoreMonth,
+    score_tier: formData.scoreTier,
+    operational_excellence: formData.operationalExcellence,
+    menu_details: formData.menuDetails,
+    ratings: formData.ratings,
+    sustainable_packaging: formData.sustainablePackaging,
+    sales_amount: formData.salesAmount,
+  }, {
+    onConflict: 'restaurant_id,score_month'
+  });
+```
+
+### Workflow utilisateur
+
+1. Clic sur "Saisie manuelle" sur la page Success Score
+2. Dialog s'ouvre avec le mois actuel pré-sélectionné
+3. Sélection du restaurant
+4. Saisie des valeurs depuis le screenshot Uber
+5. "Enregistrer et suivant" → garde le dialog ouvert, passe au restaurant suivant
+6. "Enregistrer" → ferme et rafraîchit la page
+
+---
+
+## Récapitulatif des modifications
+
+| Fichier | Modification |
+|---------|--------------|
+| `src/pages/SuccessScore.tsx` | Fix tooltips + ajout bouton saisie manuelle |
+| `src/components/success-score/ManualEntryDialog.tsx` | Nouveau composant formulaire |
+
+---
+
+## Résultat attendu
+
+- Tooltips visibles au survol des badges de niveau
+- Bouton "Saisie manuelle" permettant d'ajouter les données détaillées par restaurant
+- Possibilité de compléter les données CSV avec les métriques manquantes (Notes, Menu, Emballages)
