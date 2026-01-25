@@ -503,7 +503,9 @@ export default function ReportImport() {
   };
 
   const parsePreview = (content: string) => {
-    const lines = content.split("\n").filter((line) => line.trim());
+    // Remove BOM if present
+    const cleanedContent = content.replace(/^\uFEFF/, '');
+    const lines = cleanedContent.split("\n").filter((line) => line.trim());
     if (lines.length < 2) {
       toast({
         title: "Fichier invalide",
@@ -590,6 +592,13 @@ export default function ReportImport() {
       }
       // Check for payout summary headers
       if (lines[i].includes("Identifiant de versement") || lines[i].includes("Date de versement")) {
+        headerRowIndex = i;
+        break;
+      }
+      // Check for Success Score headers
+      if (lines[i].includes("Store name") && 
+          lines[i].includes("Operational excellence") && 
+          lines[i].includes("Status")) {
         headerRowIndex = i;
         break;
       }
