@@ -142,6 +142,7 @@ serve(async (req) => {
     const scoreMonthDate = scoreMonth || new Date().toISOString().slice(0, 7) + '-01';
     const matched: Array<{
       restaurant_id: string;
+      restaurant_name: string;
       score_month: string;
       score_tier: string;
       operational_excellence: number | null;
@@ -187,6 +188,7 @@ serve(async (req) => {
       if (match) {
         matched.push({
           restaurant_id: match.id,
+          restaurant_name: match.name,
           score_month: scoreMonthDate,
           score_tier: mapStatus(row.status),
           operational_excellence: row.operationalExcellence,
@@ -239,9 +241,11 @@ serve(async (req) => {
           updatedCount++;
         }
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { restaurant_name, ...recordToInsert } = record;
         const { error: insertError } = await supabase
           .from('success_scores')
-          .insert(record);
+          .insert(recordToInsert);
 
         if (insertError) {
           console.error("Insert error:", insertError);
@@ -255,12 +259,21 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        totalRows: parsedRows.length,
-        matchedCount: matched.length,
-        insertedCount,
-        updatedCount,
-        errorCount,
-        unmatchedStores: unmatched,
+        stats: {
+          totalRows: parsedRows.length,
+          inserted: insertedCount,
+          updated: updatedCount,
+          skipped: unmatched.length,
+          errors: errorCount,
+        },
+        validation: {
+          restaurants: matched.map(m => ({
+            id: m.restaurant_id,
+            name: m.restaurant_name,
+            orderCount: 1,
+          })),
+          unmatchedStores: unmatched,
+        },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
