@@ -215,35 +215,51 @@ export default function SuccessScore() {
     const objectives = TIER_OBJECTIVES[nextTier];
     
     const gaps: { metric: string; current: number | null; target: number; gap: number }[] = [];
+    const missingMetrics: string[] = [];
     
-    if (objectives.operationalExcellence && score.operational_excellence != null) {
-      gaps.push({
-        metric: 'Excellence Opérationnelle',
-        current: score.operational_excellence,
-        target: objectives.operationalExcellence,
-        gap: objectives.operationalExcellence - score.operational_excellence,
-      });
+    // Check operational excellence
+    if (objectives.operationalExcellence) {
+      if (score.operational_excellence != null) {
+        gaps.push({
+          metric: 'Excellence Op.',
+          current: score.operational_excellence,
+          target: objectives.operationalExcellence,
+          gap: objectives.operationalExcellence - score.operational_excellence,
+        });
+      } else {
+        missingMetrics.push('Excellence Op.');
+      }
     }
     
-    if (objectives.menuDetails && score.menu_details != null) {
-      gaps.push({
-        metric: 'Détails Menu',
-        current: score.menu_details,
-        target: objectives.menuDetails,
-        gap: objectives.menuDetails - score.menu_details,
-      });
+    // Check menu details
+    if (objectives.menuDetails) {
+      if (score.menu_details != null) {
+        gaps.push({
+          metric: 'Détails Menu',
+          current: score.menu_details,
+          target: objectives.menuDetails,
+          gap: objectives.menuDetails - score.menu_details,
+        });
+      } else {
+        missingMetrics.push('Détails Menu');
+      }
     }
     
-    if (objectives.ratings && score.ratings != null) {
-      gaps.push({
-        metric: 'Notes',
-        current: score.ratings,
-        target: objectives.ratings,
-        gap: objectives.ratings - score.ratings,
-      });
+    // Check ratings
+    if (objectives.ratings) {
+      if (score.ratings != null) {
+        gaps.push({
+          metric: 'Notes',
+          current: score.ratings,
+          target: objectives.ratings,
+          gap: objectives.ratings - score.ratings,
+        });
+      } else {
+        missingMetrics.push('Notes');
+      }
     }
     
-    return { nextTier, gaps };
+    return { nextTier, gaps, missingMetrics };
   };
 
   const getTierBadge = (tier: string) => {
@@ -453,6 +469,7 @@ export default function SuccessScore() {
                   <TableHead className="text-center">Excellence Op.</TableHead>
                   <TableHead className="text-center">Notes</TableHead>
                   <TableHead className="text-center">Détails Menu</TableHead>
+                  <TableHead className="text-center">CA</TableHead>
                   <TableHead>Prochain objectif</TableHead>
                 </TableRow>
               </TableHeader>
@@ -473,7 +490,7 @@ export default function SuccessScore() {
                         <Tooltip>
                           <TooltipTrigger>
                             <span className={score.operational_excellence != null && score.operational_excellence >= 98.4 ? 'text-green-600 font-semibold' : 'text-orange-600'}>
-                              {score.operational_excellence?.toFixed(1) || 'N/A'}%
+                              {score.operational_excellence != null ? `${score.operational_excellence.toFixed(1)}%` : 'Non renseigné'}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -482,10 +499,15 @@ export default function SuccessScore() {
                         </Tooltip>
                       </TableCell>
                       <TableCell className="text-center">
-                        {score.ratings?.toFixed(2) || 'N/A'}
+                        {score.ratings != null ? score.ratings.toFixed(2) : 'Non renseigné'}
                       </TableCell>
                       <TableCell className="text-center">
-                        {score.menu_details?.toFixed(0) || 'N/A'}%
+                        {score.menu_details != null ? `${score.menu_details.toFixed(0)}%` : 'Non renseigné'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {score.sales_amount != null 
+                          ? `${score.sales_amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
+                          : 'Non renseigné'}
                       </TableCell>
                       <TableCell>
                         {progress ? (
@@ -493,16 +515,25 @@ export default function SuccessScore() {
                             <span className="text-xs text-muted-foreground">
                               Pour atteindre {TIER_CONFIG[progress.nextTier as keyof typeof TIER_CONFIG]?.label}:
                             </span>
+                            {/* Afficher les gaps positifs (objectifs non atteints) */}
                             {progress.gaps.filter(g => g.gap > 0).slice(0, 2).map((gap, i) => (
                               <div key={i} className="text-xs flex items-center gap-1">
                                 <AlertTriangle className="h-3 w-3 text-orange-500" />
                                 <span>{gap.metric}: +{gap.gap.toFixed(1)}{gap.metric === 'Notes' ? '' : '%'}</span>
                               </div>
                             ))}
-                            {progress.gaps.filter(g => g.gap > 0).length === 0 && (
-                              <div className="text-xs flex items-center gap-1 text-green-600">
-                                <CheckCircle className="h-3 w-3" />
-                                <span>Tous les objectifs atteints!</span>
+                            {/* Afficher les métriques manquantes */}
+                            {progress.missingMetrics.length > 0 && (
+                              <div className="text-xs flex items-center gap-1 text-muted-foreground">
+                                <Info className="h-3 w-3" />
+                                <span>Non renseigné: {progress.missingMetrics.join(', ')}</span>
+                              </div>
+                            )}
+                            {/* Si tous les gaps sont atteints et pas de métriques manquantes */}
+                            {progress.gaps.filter(g => g.gap > 0).length === 0 && progress.missingMetrics.length === 0 && (
+                              <div className="text-xs flex items-center gap-1 text-amber-600">
+                                <Info className="h-3 w-3" />
+                                <span>Critères Uber non détaillés</span>
                               </div>
                             )}
                           </div>
