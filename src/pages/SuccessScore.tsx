@@ -381,7 +381,9 @@ export default function SuccessScore() {
                   <div>
                     <p className="text-sm text-muted-foreground">Excellence Opérationnelle</p>
                     <p className="text-2xl font-bold">
-                      {networkStats.avgOperationalExcellence?.toFixed(1) || 'N/A'}%
+                      {networkStats.avgOperationalExcellence != null 
+                        ? `${networkStats.avgOperationalExcellence.toFixed(1)}%` 
+                        : '—'}
                     </p>
                     <p className="text-xs text-muted-foreground">Objectif Bon: 98.4%</p>
                   </div>
@@ -398,7 +400,7 @@ export default function SuccessScore() {
                   <div>
                     <p className="text-sm text-muted-foreground">Notes Clients</p>
                     <p className="text-2xl font-bold">
-                      {networkStats.avgRatings?.toFixed(2) || 'N/A'}
+                      {networkStats.avgRatings?.toFixed(2) || '—'}
                     </p>
                     <p className="text-xs text-muted-foreground">Objectif Très Bon: 4.5</p>
                   </div>
@@ -415,7 +417,9 @@ export default function SuccessScore() {
                   <div>
                     <p className="text-sm text-muted-foreground">Détails Menu</p>
                     <p className="text-2xl font-bold">
-                      {networkStats.avgMenuDetails?.toFixed(0) || 'N/A'}%
+                      {networkStats.avgMenuDetails != null 
+                        ? `${networkStats.avgMenuDetails.toFixed(0)}%` 
+                        : '—'}
                     </p>
                     <p className="text-xs text-muted-foreground">Objectif Très Bon: 80%</p>
                   </div>
@@ -431,7 +435,7 @@ export default function SuccessScore() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Emballages Durables</p>
-                    <p className="text-2xl font-bold">N/A</p>
+                    <p className="text-2xl font-bold text-muted-foreground">—</p>
                     <p className="text-xs text-muted-foreground">Non applicable en France</p>
                   </div>
                 </div>
