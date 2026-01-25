@@ -371,8 +371,10 @@ export default function SuccessScore() {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between mb-2">
                       <Tooltip>
-                        <TooltipTrigger>
-                          <Badge className={`${config.color} text-white cursor-help`}>{config.label}</Badge>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help">
+                            <Badge className={`${config.color} text-white`}>{config.label}</Badge>
+                          </span>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="max-w-xs p-3">
                           <p className="font-semibold mb-1">{config.label}</p>
@@ -511,8 +513,8 @@ export default function SuccessScore() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Tooltip>
-                          <TooltipTrigger>
-                            <span className={score.operational_excellence != null && score.operational_excellence >= 98.4 ? 'text-green-600 font-semibold' : 'text-orange-600'}>
+                          <TooltipTrigger asChild>
+                            <span className={`${score.operational_excellence != null && score.operational_excellence >= 98.4 ? 'text-green-600 font-semibold' : 'text-orange-600'} cursor-help`}>
                               {score.operational_excellence != null ? `${score.operational_excellence.toFixed(1)}%` : 'Non renseigné'}
                             </span>
                           </TooltipTrigger>
