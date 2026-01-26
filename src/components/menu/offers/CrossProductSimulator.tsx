@@ -103,7 +103,6 @@ interface EnrichedMenuItem {
 
 interface CrossProductSimulatorProps {
   menuItems: MenuItem[];
-  onBack: () => void;
   platform: Platform;
   commission: number;
   onCommissionChange: (value: number) => void;
@@ -127,7 +126,7 @@ const SALES_PERIOD_LABELS: Record<SalesPeriod, string> = {
   "all": "Tout l'historique",
 };
 
-export function CrossProductSimulator({ menuItems, onBack, platform, commission, onCommissionChange, restaurantIds, enrichedMenuItems }: CrossProductSimulatorProps) {
+export function CrossProductSimulator({ menuItems, platform, commission, onCommissionChange, restaurantIds, enrichedMenuItems }: CrossProductSimulatorProps) {
   const config = PLATFORM_CONFIG[platform];
   const isUber = platform === "uber";
   const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
@@ -492,43 +491,6 @@ export function CrossProductSimulator({ menuItems, onBack, platform, commission,
 
   return (
     <div className="space-y-6">
-      {/* Header with Back Button */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <Card className="border-0 bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-transparent backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]">
-          <div className="absolute inset-0 border border-violet-500/30 rounded-lg pointer-events-none" />
-          <CardHeader className="relative">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onBack}
-                className="shrink-0"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Retour
-              </Button>
-              <div className="h-8 w-px bg-border" />
-              <motion.div 
-                className="p-3 bg-violet-500/15 backdrop-blur-sm rounded-xl shadow-lg"
-                whileHover={{ scale: 1.1, rotate: 5 }}
-              >
-                <Package className="h-6 w-6 text-violet-500" />
-              </motion.div>
-              <div>
-                <CardTitle className="text-xl">1 acheté = 1 autre article offert</CardTitle>
-                <CardDescription>
-                  Le client achète un produit A et reçoit un produit B gratuit
-                </CardDescription>
-              </div>
-              <Badge className="ml-auto bg-violet-500 text-white">+45% ventes</Badge>
-            </div>
-          </CardHeader>
-        </Card>
-      </motion.div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Configuration Panel */}
         <motion.div
