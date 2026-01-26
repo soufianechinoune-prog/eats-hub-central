@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OfferTypeSelector, OfferType } from "./offers/OfferTypeSelector";
 import { BogoSimulator } from "./offers/BogoSimulator";
+import { BogoSimulatorUber } from "./offers/BogoSimulatorUber";
 import { CrossProductSimulator } from "./offers/CrossProductSimulator";
 import { PercentDiscountSimulator } from "./offers/PercentDiscountSimulator";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
@@ -51,7 +52,18 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
 
   // Render the appropriate simulator based on selection
   const renderSimulator = () => {
-    if (selectedOfferType === "bogo") {
+    // For Uber BOGO, use the new Uber-style interface
+    if (selectedOfferType === "bogo" && selectedPlatform === "uber") {
+      return (
+        <BogoSimulatorUber 
+          menuItems={menuItems} 
+          onBack={handleBack} 
+        />
+      );
+    }
+
+    // For Deliveroo BOGO, use the existing simulator
+    if (selectedOfferType === "bogo" && selectedPlatform === "deliveroo") {
       return (
         <BogoSimulator 
           menuItems={menuItems} 
