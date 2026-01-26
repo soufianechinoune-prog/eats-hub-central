@@ -69,6 +69,7 @@ import {
   X,
   CalendarPlus,
   Wallet,
+  Store,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,12 +88,34 @@ interface MenuItem {
   is_active: boolean;
 }
 
+interface EnrichedMenuItemPrice {
+  restaurantId: string;
+  restaurantName: string;
+  price: number | null;
+  catalogPrice: number | null;
+  usedPrice: number | null;
+  hasDifference: boolean;
+}
+
+interface EnrichedMenuItem {
+  id: string;
+  name: string;
+  category: string | null;
+  food_cost: number | null;
+  is_active: boolean;
+  price_uber: number | null;
+  price_deliveroo: number | null;
+  restaurantPrices: EnrichedMenuItemPrice[];
+}
+
 interface BogoSimulatorProps {
   menuItems: MenuItem[];
   onBack: () => void;
   platform: Platform;
   commission: number;
   onCommissionChange: (value: number) => void;
+  restaurantIds: string[];
+  enrichedMenuItems: EnrichedMenuItem[];
 }
 
 type SortCriteria = "score" | "margin_percent" | "sales" | "margin_euro";
@@ -111,7 +134,7 @@ const PLATFORM_CONFIG = {
   deliveroo: { defaultCommission: 25, defaultOfferFee: 0, color: "cyan", name: "Deliveroo" },
 };
 
-export function BogoSimulator({ menuItems, onBack, platform, commission, onCommissionChange }: BogoSimulatorProps) {
+export function BogoSimulator({ menuItems, onBack, platform, commission, onCommissionChange, restaurantIds, enrichedMenuItems }: BogoSimulatorProps) {
   const config = PLATFORM_CONFIG[platform];
   const isUber = platform === "uber";
   const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
@@ -451,6 +474,94 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
       borderColor: "border-red-500/30",
     };
   }, [simulation]);
+
+  // Calculate results per restaurant when restaurants are selected
+  const restaurantResults = useMemo(() => {
+    if (restaurantIds.length === 0 || !selectedProductId) return [];
+    
+    const enrichedProduct = enrichedMenuItems.find(p => p.id === selectedProductId);
+    if (!enrichedProduct || !enrichedProduct.food_cost) return [];
+    
+    const foodCost = enrichedProduct.food_cost;
+    const commissionRate = commission / 100;
+    const fundingValue = parseFloat(platformFunding) || 0;
+    const platformContribution = fundingType === "percent" 
+      ? (foodCost * fundingValue / 100) 
+      : fundingValue;
+
+    return enrichedProduct.restaurantPrices.map(rp => {
+      const price = rp.usedPrice;
+      if (!price) {
+        return {
+          restaurantId: rp.restaurantId,
+          restaurantName: rp.restaurantName,
+          price: null,
+          priceSource: rp.price !== null ? "restaurant" as const : "catalog" as const,
+          hasDifference: rp.hasDifference,
+          foodCost,
+          netMarginPerUnit: 0,
+          netMarginBogo: 0,
+          marginPercentBogo: 0,
+          breakevenIncreasePercent: null,
+          recommendation: "not_recommended" as const,
+        };
+      }
+      
+      const netMarginPerUnit = price - (price * commissionRate) - foodCost;
+      const netMarginBogo = price - (price * commissionRate) - offerFee - (foodCost * 2) + platformContribution;
+      const marginPercentBogo = (netMarginBogo / price) * 100;
+      const breakevenMultiplier = netMarginBogo > 0 ? netMarginPerUnit / netMarginBogo : null;
+      const breakevenIncreasePercent = breakevenMultiplier ? (breakevenMultiplier - 1) * 100 : null;
+      
+      let recommendation: "recommended" | "moderate" | "not_recommended";
+      if (netMarginBogo <= 0) {
+        recommendation = "not_recommended";
+      } else if (breakevenIncreasePercent !== null && breakevenIncreasePercent <= 80) {
+        recommendation = "recommended";
+      } else if (breakevenIncreasePercent !== null && breakevenIncreasePercent <= 150) {
+        recommendation = "moderate";
+      } else {
+        recommendation = "not_recommended";
+      }
+      
+      return {
+        restaurantId: rp.restaurantId,
+        restaurantName: rp.restaurantName,
+        price,
+        priceSource: rp.price !== null ? "restaurant" as const : "catalog" as const,
+        hasDifference: rp.hasDifference,
+        foodCost,
+        netMarginPerUnit,
+        netMarginBogo,
+        marginPercentBogo,
+        breakevenIncreasePercent,
+        recommendation,
+      };
+    }).sort((a, b) => b.netMarginBogo - a.netMarginBogo);
+  }, [selectedProductId, enrichedMenuItems, restaurantIds, commission, offerFee, platformFunding, fundingType]);
+
+  // Helper to get recommendation styling
+  const getRecommendationStyle = (rec: "recommended" | "moderate" | "not_recommended") => {
+    switch (rec) {
+      case "recommended":
+        return "border-emerald-500/30 bg-emerald-500/5";
+      case "moderate":
+        return "border-amber-500/30 bg-amber-500/5";
+      default:
+        return "border-red-500/30 bg-red-500/5";
+    }
+  };
+  
+  const getRecommendationBadge = (rec: "recommended" | "moderate" | "not_recommended") => {
+    switch (rec) {
+      case "recommended":
+        return <Badge className="bg-emerald-500 text-white">Go</Badge>;
+      case "moderate":
+        return <Badge className="bg-amber-500 text-white">Risqué</Badge>;
+      default:
+        return <Badge variant="destructive">Stop</Badge>;
+    }
+  };
 
   // Get sales badge info
   const getSalesBadge = (sales: number) => {
@@ -871,6 +982,72 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
                 </Card>
               </motion.div>
             </div>
+          )}
+
+          {/* Restaurant-Specific Results */}
+          {restaurantResults.length > 0 && selectedProduct && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35 }}
+            >
+              <Card className="border-0 bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]">
+                <div className="absolute inset-0 border border-white/30 rounded-lg pointer-events-none" />
+                <CardHeader className="relative">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Store className="h-5 w-5 text-primary" />
+                    Résultats par Restaurant
+                  </CardTitle>
+                  <CardDescription>
+                    Rentabilité calculée avec les prix spécifiques de chaque établissement
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="relative space-y-3">
+                  {restaurantResults.map((result) => (
+                    <motion.div
+                      key={result.restaurantId}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className={`p-4 rounded-lg border ${getRecommendationStyle(result.recommendation)}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{result.restaurantName}</span>
+                          {result.priceSource === "catalog" && (
+                            <Badge variant="outline" className="text-xs">Catalogue</Badge>
+                          )}
+                          {result.hasDifference && (
+                            <Badge variant="secondary" className="text-xs">Prix différent</Badge>
+                          )}
+                        </div>
+                        <span className="font-mono font-semibold">
+                          {result.price?.toFixed(2) ?? "N/A"}€
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground block text-xs">Marge BOGO</span>
+                          <span className={`font-mono font-semibold ${result.netMarginBogo >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {result.netMarginBogo > 0 ? "+" : ""}{result.netMarginBogo.toFixed(2)}€
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-xs">Seuil</span>
+                          <span className="font-mono font-semibold">
+                            {result.breakevenIncreasePercent !== null 
+                              ? `+${result.breakevenIncreasePercent.toFixed(0)}%` 
+                              : "N/A"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-end">
+                          {getRecommendationBadge(result.recommendation)}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </CardContent>
+              </Card>
+            </motion.div>
           )}
 
           {/* Empty State */}

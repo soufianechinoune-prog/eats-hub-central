@@ -42,6 +42,7 @@ import {
   Minus as MinusIcon,
   ShoppingBag,
   Sparkles,
+  Store,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 
@@ -57,12 +58,34 @@ interface MenuItem {
   is_active: boolean;
 }
 
+interface EnrichedMenuItemPrice {
+  restaurantId: string;
+  restaurantName: string;
+  price: number | null;
+  catalogPrice: number | null;
+  usedPrice: number | null;
+  hasDifference: boolean;
+}
+
+interface EnrichedMenuItem {
+  id: string;
+  name: string;
+  category: string | null;
+  food_cost: number | null;
+  is_active: boolean;
+  price_uber: number | null;
+  price_deliveroo: number | null;
+  restaurantPrices: EnrichedMenuItemPrice[];
+}
+
 interface PercentDiscountSimulatorProps {
   menuItems: MenuItem[];
   onBack: () => void;
   platform: Platform;
   commission: number;
   onCommissionChange: (value: number) => void;
+  restaurantIds: string[];
+  enrichedMenuItems: EnrichedMenuItem[];
 }
 
 const discountOptions = [10, 15, 20, 25, 30, 40, 50];
@@ -74,7 +97,7 @@ const PLATFORM_CONFIG = {
   deliveroo: { defaultCommission: 25, defaultOfferFee: 0, color: "emerald", name: "Deliveroo" },
 };
 
-export function PercentDiscountSimulator({ menuItems, onBack, platform, commission, onCommissionChange }: PercentDiscountSimulatorProps) {
+export function PercentDiscountSimulator({ menuItems, onBack, platform, commission, onCommissionChange, restaurantIds, enrichedMenuItems }: PercentDiscountSimulatorProps) {
   const config = PLATFORM_CONFIG[platform];
   const isUber = platform === "uber";
   const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
