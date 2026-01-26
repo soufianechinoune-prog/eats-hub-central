@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Info } from "lucide-react";
+import chickenStreetPromo from "@/assets/chicken-street-promo.jpg";
 
 interface BogoImpactPanelProps {
   restaurantCount: number;
@@ -15,7 +16,7 @@ export function BogoImpactPanel({
 }: BogoImpactPanelProps) {
   return (
     <div className="space-y-6">
-      {/* Mobile Mockup */}
+      {/* Mobile Mockup with Chicken Street image */}
       <div className="bg-muted/50 rounded-3xl p-4 border border-border">
         <div className="bg-background rounded-2xl overflow-hidden shadow-lg">
           {/* Status bar mockup */}
@@ -24,28 +25,28 @@ export function BogoImpactPanel({
           </div>
           
           {/* App content mockup */}
-          <div className="p-4 space-y-3">
-            {/* Search bar */}
-            <div className="h-10 bg-muted rounded-lg" />
-            
-            {/* Restaurant card */}
-            <div className="bg-muted/50 rounded-xl p-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="w-16 h-16 bg-muted rounded-lg" />
-                <div className="flex-1 space-y-1">
-                  <div className="h-4 bg-muted rounded w-3/4" />
-                  <div className="h-3 bg-muted/70 rounded w-1/2" />
-                  <Badge className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.5">
-                    Un acheté = un offert
-                  </Badge>
-                </div>
-              </div>
+          <div className="p-3 space-y-3">
+            {/* Restaurant card with promo image */}
+            <div className="relative rounded-xl overflow-hidden">
+              <img 
+                src={chickenStreetPromo} 
+                alt="Chicken Street - Naan & Fried Chicken"
+                className="w-full h-32 object-cover"
+              />
+              <Badge className="absolute bottom-2 left-2 bg-emerald-500 text-white text-[10px] px-2 py-1">
+                Un acheté = un offert
+              </Badge>
+            </div>
+
+            {/* Restaurant info */}
+            <div className="space-y-1">
+              <div className="h-4 bg-muted rounded w-3/4" />
+              <div className="h-3 bg-muted/70 rounded w-1/2" />
             </div>
 
             {/* More cards placeholder */}
-            <div className="space-y-2 opacity-50">
-              <div className="h-20 bg-muted/30 rounded-xl" />
-              <div className="h-20 bg-muted/30 rounded-xl" />
+            <div className="space-y-2 opacity-40">
+              <div className="h-16 bg-muted/30 rounded-xl" />
             </div>
           </div>
 

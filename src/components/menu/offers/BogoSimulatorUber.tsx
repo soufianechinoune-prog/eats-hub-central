@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2, Check } from "lucide-react";
+import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BogoAudienceSelector, AudienceType } from "./BogoAudienceSelector";
 import { BogoDurationSelector, DurationType, CustomSchedule } from "./BogoDurationSelector";
 import { BogoImpactPanel } from "./BogoImpactPanel";
+import { RestaurantMultiSelector } from "./RestaurantMultiSelector";
 
 interface MenuItem {
   id: string;
@@ -30,6 +31,8 @@ interface MenuItem {
 interface Restaurant {
   id: string;
   name: string;
+  address?: string | null;
+  is_pinned?: boolean;
 }
 
 interface BogoSimulatorUberProps {
@@ -53,15 +56,14 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
     timeSlots: [{ startTime: "11:00", endTime: "22:00" }],
   });
   const [weeklyBudget, setWeeklyBudget] = useState<string>("");
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [openSections, setOpenSections] = useState<string[]>(["etablissements"]);
 
-  // Fetch restaurants
+  // Fetch restaurants with is_pinned
   useEffect(() => {
     const fetchRestaurants = async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name")
+        .select("id, name, address, is_pinned")
         .order("name");
       
       if (!error && data) {
@@ -89,11 +91,9 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
     return grouped;
   }, [eligibleItems]);
 
-  // Toggle restaurant selection
-  const toggleRestaurant = (id: string) => {
-    setSelectedRestaurantIds((prev) =>
-      prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]
-    );
+  // Toggle restaurant selection (for multiselect)
+  const handleRestaurantSelectionChange = (ids: string[]) => {
+    setSelectedRestaurantIds(ids);
   };
 
   // Toggle item selection
@@ -115,8 +115,8 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
     }
   };
 
-  // Form validation
-  const isFormValid = selectedItemIds.length > 0 && acceptedTerms;
+  // Form validation - only items required now (no terms)
+  const isFormValid = selectedItemIds.length > 0;
 
   // Handle create offer
   const handleCreateOffer = () => {
@@ -178,20 +178,11 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="pb-4">
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {restaurants.map((restaurant) => (
-                      <label
-                        key={restaurant.id}
-                        className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                      >
-                        <Checkbox
-                          checked={selectedRestaurantIds.includes(restaurant.id)}
-                          onCheckedChange={() => toggleRestaurant(restaurant.id)}
-                        />
-                        <span>{restaurant.name}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <RestaurantMultiSelector
+                    restaurants={restaurants}
+                    selectedIds={selectedRestaurantIds}
+                    onSelectionChange={handleRestaurantSelectionChange}
+                  />
                 </AccordionContent>
               </AccordionItem>
 
@@ -370,22 +361,8 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
               </AccordionItem>
             </Accordion>
 
-            {/* Footer - Terms & Create Button */}
-            <div className="bg-background rounded-lg border p-4 mt-4 space-y-4">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <Checkbox
-                  checked={acceptedTerms}
-                  onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
-                  className="mt-0.5"
-                />
-                <span className="text-sm">
-                  J'accepte les{" "}
-                  <button className="text-primary underline underline-offset-2">
-                    Conditions générales
-                  </button>
-                </span>
-              </label>
-
+            {/* Footer - Create Button (no terms) */}
+            <div className="bg-background rounded-lg border p-4 mt-4">
               <Button
                 onClick={handleCreateOffer}
                 disabled={!isFormValid}

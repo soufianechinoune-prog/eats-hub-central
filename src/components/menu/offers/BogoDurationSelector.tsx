@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format, addMonths, addYears } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -146,22 +146,44 @@ export function BogoDurationSelector({
         Sélectionnez la période durant laquelle vous proposerez votre offre.
       </p>
 
-      <ToggleGroup
-        type="single"
-        value={durationType}
-        onValueChange={(v) => v && onDurationTypeChange(v as DurationType)}
-        className="justify-start"
-      >
-        <ToggleGroupItem value="1year" className="px-4">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onDurationTypeChange("1year")}
+          className={cn(
+            "px-4 py-2 rounded-full text-sm font-medium transition-colors",
+            durationType === "1year"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          )}
+        >
           1 an
-        </ToggleGroupItem>
-        <ToggleGroupItem value="6months" className="px-4">
+        </button>
+        <button
+          type="button"
+          onClick={() => onDurationTypeChange("6months")}
+          className={cn(
+            "px-4 py-2 rounded-full text-sm font-medium transition-colors",
+            durationType === "6months"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          )}
+        >
           6 mois
-        </ToggleGroupItem>
-        <ToggleGroupItem value="custom" className="px-4">
+        </button>
+        <button
+          type="button"
+          onClick={() => onDurationTypeChange("custom")}
+          className={cn(
+            "px-4 py-2 rounded-full text-sm font-medium transition-colors",
+            durationType === "custom"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          )}
+        >
           Personnalisé
-        </ToggleGroupItem>
-      </ToggleGroup>
+        </button>
+      </div>
 
       <div className="text-sm text-muted-foreground">
         Fin prévue : <span className="font-medium text-foreground">{format(getEndDate(), "d MMMM yyyy", { locale: fr })}</span>
