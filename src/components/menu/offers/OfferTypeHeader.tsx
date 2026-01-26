@@ -94,6 +94,7 @@ export function OfferTypeHeader({ selectedType, onTypeChange, platform }: OfferT
       <SelectContent 
         align="start" 
         sideOffset={4}
+        viewportClassName="p-0"
         className="w-[var(--radix-select-trigger-width)] p-0 border-0 shadow-lg rounded-lg overflow-hidden"
       >
         {OFFER_TYPES.map((offer, index) => {
