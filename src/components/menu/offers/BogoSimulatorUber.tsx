@@ -28,6 +28,7 @@ interface MenuItem {
   price_deliveroo: number | null;
   food_cost: number | null;
   is_active: boolean;
+  vat_rate: number | null;
 }
 
 interface Restaurant {
@@ -105,6 +106,21 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
     });
     return grouped;
   }, [filteredItems]);
+
+  // Calculate average HT price of selected items
+  const averageHtPrice = useMemo(() => {
+    const selectedItems = menuItems.filter(item => selectedItemIds.includes(item.id));
+    if (selectedItems.length === 0) return 0;
+    
+    const total = selectedItems.reduce((sum, item) => {
+      if (!item.price_uber) return sum;
+      const vatRate = item.vat_rate ?? 10; // Default 10%
+      const priceHt = item.price_uber / (1 + vatRate / 100);
+      return sum + priceHt;
+    }, 0);
+    
+    return total / selectedItems.length;
+  }, [menuItems, selectedItemIds]);
 
   // Toggle restaurant selection (for multiselect)
   const handleRestaurantSelectionChange = (ids: string[]) => {
@@ -480,6 +496,7 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
                 offerFeeWaived={offerFeeWaived}
                 cofinancingType={cofinancingType}
                 cofinancingValue={parseFloat(cofinancingValue) || 0}
+                averageHtPrice={averageHtPrice}
               />
             </div>
           </div>

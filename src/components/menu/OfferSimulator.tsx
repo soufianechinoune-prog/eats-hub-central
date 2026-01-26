@@ -17,6 +17,7 @@ interface MenuItem {
   price_deliveroo: number | null;
   food_cost: number | null;
   is_active: boolean;
+  vat_rate: number | null;
 }
 
 interface OfferSimulatorProps {
