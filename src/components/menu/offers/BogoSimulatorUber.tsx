@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2, Search, Calculator } from "lucide-react";
+import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2, Search, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ import { BogoAudienceSelector, AudienceType } from "./BogoAudienceSelector";
 import { BogoDurationSelector, DurationType, CustomSchedule } from "./BogoDurationSelector";
 import { BogoImpactPanel } from "./BogoImpactPanel";
 import { RestaurantMultiSelector } from "./RestaurantMultiSelector";
-import { BogoProjectionDialog } from "./BogoProjectionDialog";
+import { BogoHistoryInsightsDialog } from "./BogoHistoryInsightsDialog";
 
 interface MenuItem {
   id: string;
@@ -156,8 +156,8 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
     return menuItems.filter(item => selectedItemIds.includes(item.id));
   }, [menuItems, selectedItemIds]);
 
-  // Handle show projection
-  const handleShowProjection = () => {
+  // Handle show history insights
+  const handleShowHistoryInsights = () => {
     setShowProjection(true);
   };
 
@@ -469,16 +469,16 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
               </AccordionItem>
             </Accordion>
 
-            {/* Footer - Create Button (no terms) */}
+            {/* Footer - History Button */}
             <div className="bg-background rounded-lg border p-4 mt-4">
               <Button
-                onClick={handleShowProjection}
+                onClick={handleShowHistoryInsights}
                 disabled={!isFormValid}
                 className="w-full bg-foreground text-background hover:bg-foreground/90"
                 size="lg"
               >
-                <Calculator className="h-4 w-4 mr-2" />
-                Simuler l'impact
+                <Award className="h-4 w-4 mr-2" />
+                Historique des offres similaires
               </Button>
             </div>
           </div>
@@ -500,17 +500,13 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
         </div>
       </div>
 
-      {/* Projection Dialog */}
-      <BogoProjectionDialog
+      {/* History Insights Dialog */}
+      <BogoHistoryInsightsDialog
         open={showProjection}
         onOpenChange={setShowProjection}
         selectedItems={selectedItems}
         selectedRestaurantIds={selectedRestaurantIds}
         audience={audience}
-        cofinancingType={cofinancingType}
-        cofinancingValue={parseFloat(cofinancingValue) || 0}
-        offerFeeWaived={offerFeeWaived}
-        averageHtPrice={averageHtPrice}
       />
     </div>
   );
