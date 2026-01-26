@@ -2864,22 +2864,6 @@ export type Database = {
       }
     }
     Functions: {
-      get_bogo_historical_sales: {
-        Args: {
-          p_item_names: string[]
-          p_period_days: number
-          p_restaurant_ids: string[]
-          p_start_date: string
-        }
-        Returns: {
-          avg_per_day: number
-          avg_sales_per_day: number
-          matched_items_count: number
-          period_days: number
-          total_quantity: number
-          total_sales: number
-        }[]
-      }
       get_daily_revenue_from_orders: {
         Args: {
           p_end_date: string

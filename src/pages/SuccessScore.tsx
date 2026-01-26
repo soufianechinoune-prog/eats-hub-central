@@ -2,8 +2,10 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
 import { 
   Award, 
+  Upload, 
   TrendingUp, 
   Star, 
   UtensilsCrossed, 
@@ -13,9 +15,7 @@ import {
   AlertTriangle,
   Info,
   ChevronDown,
-  ChevronUp,
-  FileDown,
-  FileSpreadsheet
+  ChevronUp
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useSuccessScoreExport } from "@/hooks/useSuccessScoreExport";
+import { ManualEntryDialog } from "@/components/success-score/ManualEntryDialog";
 
 // Tier configuration with colors and objectives
 const TIER_CONFIG = {
@@ -132,8 +132,8 @@ interface SuccessScore {
 }
 
 export default function SuccessScore() {
+  const navigate = useNavigate();
   const [showBenefits, setShowBenefits] = useState(false);
-  const { exportToPdf, exportToExcel, isExporting } = useSuccessScoreExport();
 
   // Fetch latest success scores
   const { data: scores, isLoading, refetch } = useQuery({
@@ -179,8 +179,6 @@ export default function SuccessScore() {
     let ratingsCount = 0;
     let totalMenuDetails = 0;
     let menuDetailsCount = 0;
-    let totalPackaging = 0;
-    let packagingCount = 0;
 
     for (const score of latestScores) {
       const tier = score.score_tier as keyof typeof tierCounts;
@@ -200,10 +198,6 @@ export default function SuccessScore() {
         totalMenuDetails += score.menu_details;
         menuDetailsCount++;
       }
-      if (score.sustainable_packaging != null) {
-        totalPackaging += score.sustainable_packaging;
-        packagingCount++;
-      }
     }
 
     return {
@@ -211,7 +205,6 @@ export default function SuccessScore() {
       avgOperationalExcellence: opExCount > 0 ? totalOpEx / opExCount : null,
       avgRatings: ratingsCount > 0 ? totalRatings / ratingsCount : null,
       avgMenuDetails: menuDetailsCount > 0 ? totalMenuDetails / menuDetailsCount : null,
-      avgSustainablePackaging: packagingCount > 0 ? totalPackaging / packagingCount : null,
       totalRestaurants: latestScores.length,
       latestMonth: latestScores[0]?.score_month,
     };
@@ -287,7 +280,7 @@ export default function SuccessScore() {
 
   return (
     <TooltipProvider delayDuration={100}>
-      <div className="space-y-6">
+      <div className="container mx-auto py-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -300,57 +293,16 @@ export default function SuccessScore() {
             </p>
           </div>
           
-          {/* Export buttons */}
+          {/* Actions */}
           <div className="flex gap-2">
-            <Button
-              onClick={() => {
-                if (!networkStats || !latestScores.length) return;
-                exportToPdf({
-                  scores: latestScores.map(s => ({
-                    restaurantName: s.restaurants?.name || 'Restaurant inconnu',
-                    scoreTier: s.score_tier,
-                    operationalExcellence: s.operational_excellence,
-                    ratings: s.ratings,
-                    menuDetails: s.menu_details,
-                    sustainablePackaging: s.sustainable_packaging,
-                  })),
-                  networkStats: {
-                    ...networkStats,
-                    tierCounts: networkStats.tierCounts,
-                  },
-                });
-              }}
-              disabled={isExporting || !latestScores.length}
+            <ManualEntryDialog onSuccess={() => refetch()} />
+            <Button 
+              onClick={() => navigate('/report-import?type=success_score')} 
               variant="outline"
               className="gap-2"
             >
-              <FileDown className="h-4 w-4" />
-              PDF
-            </Button>
-            <Button
-              onClick={() => {
-                if (!networkStats || !latestScores.length) return;
-                exportToExcel({
-                  scores: latestScores.map(s => ({
-                    restaurantName: s.restaurants?.name || 'Restaurant inconnu',
-                    scoreTier: s.score_tier,
-                    operationalExcellence: s.operational_excellence,
-                    ratings: s.ratings,
-                    menuDetails: s.menu_details,
-                    sustainablePackaging: s.sustainable_packaging,
-                  })),
-                  networkStats: {
-                    ...networkStats,
-                    tierCounts: networkStats.tierCounts,
-                  },
-                });
-              }}
-              disabled={isExporting || !latestScores.length}
-              variant="outline"
-              className="gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Excel
+              <Upload className="h-4 w-4" />
+              Importer CSV
             </Button>
           </div>
         </div>
@@ -504,12 +456,8 @@ export default function SuccessScore() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Emballages Durables</p>
-                    <p className="text-2xl font-bold">
-                      {networkStats.avgSustainablePackaging != null 
-                        ? `${networkStats.avgSustainablePackaging.toFixed(0)}%` 
-                        : '—'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Objectif Excellent: 90%</p>
+                    <p className="text-2xl font-bold text-muted-foreground">—</p>
+                    <p className="text-xs text-muted-foreground">Non applicable en France</p>
                   </div>
                 </div>
               </CardContent>
@@ -546,7 +494,8 @@ export default function SuccessScore() {
                   <TableHead className="text-center">Excellence Op.</TableHead>
                   <TableHead className="text-center">Notes</TableHead>
                   <TableHead className="text-center">Détails Menu</TableHead>
-                  <TableHead className="text-center">Emballages</TableHead>
+                  <TableHead className="text-center">CA</TableHead>
+                  <TableHead>Prochain objectif</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -581,9 +530,44 @@ export default function SuccessScore() {
                         {score.menu_details != null ? `${score.menu_details.toFixed(0)}%` : 'Non renseigné'}
                       </TableCell>
                       <TableCell className="text-center">
-                        {score.sustainable_packaging != null 
-                          ? `${score.sustainable_packaging.toFixed(0)}%` 
+                        {score.sales_amount != null 
+                          ? `${score.sales_amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
                           : 'Non renseigné'}
+                      </TableCell>
+                      <TableCell>
+                        {progress ? (
+                          <div className="space-y-1">
+                            <span className="text-xs text-muted-foreground">
+                              Pour atteindre {TIER_CONFIG[progress.nextTier as keyof typeof TIER_CONFIG]?.label}:
+                            </span>
+                            {/* Afficher les gaps positifs (objectifs non atteints) */}
+                            {progress.gaps.filter(g => g.gap > 0).slice(0, 2).map((gap, i) => (
+                              <div key={i} className="text-xs flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3 text-orange-500" />
+                                <span>{gap.metric}: +{gap.gap.toFixed(1)}{gap.metric === 'Notes' ? '' : '%'}</span>
+                              </div>
+                            ))}
+                            {/* Afficher les métriques manquantes */}
+                            {progress.missingMetrics.length > 0 && (
+                              <div className="text-xs flex items-center gap-1 text-muted-foreground">
+                                <Info className="h-3 w-3" />
+                                <span>Non renseigné: {progress.missingMetrics.join(', ')}</span>
+                              </div>
+                            )}
+                            {/* Si tous les gaps sont atteints et pas de métriques manquantes */}
+                            {progress.gaps.filter(g => g.gap > 0).length === 0 && progress.missingMetrics.length === 0 && (
+                              <div className="text-xs flex items-center gap-1 text-amber-600">
+                                <Info className="h-3 w-3" />
+                                <span>Critères Uber non détaillés</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-xs flex items-center gap-1 text-emerald-600">
+                            <CheckCircle className="h-3 w-3" />
+                            <span>Niveau maximum atteint</span>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

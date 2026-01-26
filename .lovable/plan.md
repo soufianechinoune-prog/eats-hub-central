@@ -1,236 +1,192 @@
 
-# Révision du simulateur BOGO : Approche en 2 étapes
+# Plan de correction : Tooltips invisibles et formulaire de saisie manuelle
 
-## Vision utilisateur
+## Problèmes identifiés
 
-Au lieu d'un popup complexe avec des projections incertaines, on simplifie le flux :
+Après analyse du code, j'ai identifié les problèmes suivants :
 
-### Étape 1 : Afficher les marges des produits sélectionnés (inline)
+### 1. **Tooltips non fonctionnels**
 
-Dans le simulateur, dès qu'un article est sélectionné, afficher directement ses informations financières :
+**Cause** : Dans `src/pages/SuccessScore.tsx`, les `TooltipTrigger` n'utilisent pas la prop `asChild`. Sans cette prop, le TooltipTrigger crée un élément wrapper qui peut bloquer les événements de survol.
 
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  📦 Articles sélectionnés                                           │
-│                                                                     │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ Naan TENDERS                                                   │  │
-│  │ Prix TTC: 14,90 €  •  Food Cost: 3,80 €  •  TVA: 10%          │  │
-│  │                                                                │  │
-│  │  Marge Brute     Marge Nette (30%)    % Food Cost             │  │
-│  │  ┌─────────┐     ┌─────────┐          ┌─────────┐             │  │
-│  │  │  67,3%  │     │  27,4%  │          │  28,0%  │             │  │
-│  │  │   ✅    │     │   ⚠️    │          │   ✅    │             │  │
-│  │  └─────────┘     └─────────┘          └─────────┘             │  │
-│  │                                                                │  │
-│  │  💡 En BOGO, votre food cost double (7,60 €)                  │  │
-│  │     → Marge Brute BOGO estimée: 43,8%                         │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-│  [ Voir l'historique des offres BOGO → ]                           │
-└─────────────────────────────────────────────────────────────────────┘
+**Localisation** :
+- Lignes 373-381 : Badges de tier dans la distribution réseau
+- Lignes 513-522 : Metric "Excellence Opérationnelle" dans le tableau
+
+**Code actuel (problématique)** :
+```typescript
+<Tooltip>
+  <TooltipTrigger>
+    <Badge className={`${config.color} text-white cursor-help`}>{config.label}</Badge>
+  </TooltipTrigger>
+  <TooltipContent>...</TooltipContent>
+</Tooltip>
 ```
 
-### Étape 2 : Redirection vers l'historique des offres
-
-Au clic sur "Voir l'historique des offres BOGO", navigation vers `/marketing-analytics` avec les filtres pré-appliqués :
-
+**Solution** : Ajouter `asChild` au TooltipTrigger :
+```typescript
+<Tooltip>
+  <TooltipTrigger asChild>
+    <Badge className={`${config.color} text-white cursor-help`}>{config.label}</Badge>
+  </TooltipTrigger>
+  <TooltipContent>...</TooltipContent>
+</Tooltip>
 ```
-/marketing-analytics?type=1+acheté+%3D+1+offert&restaurant=CHICKEN+STREET+JUVISY
-```
 
-L'utilisateur arrive sur la page "Marketing Analytics" avec :
-- Onglet "Offres" actif par défaut
-- Filtre "Type" pré-sélectionné sur "1 acheté = 1 offert"
-- Filtre "Restaurant" pré-sélectionné (si un seul restaurant choisi dans le simulateur)
+### 2. **Formulaire de saisie manuelle**
 
-Là, il peut analyser lui-même les offres passées et se faire sa propre idée.
+Le formulaire **est déjà implémenté** dans `src/components/success-score/ManualEntryDialog.tsx` et le bouton est bien présent sur la page Success Score.
+
+**Fonctionnement attendu** :
+1. Cliquer sur le bouton "Saisie manuelle" (avec icône crayon) en haut à droite de la page
+2. Un dialog s'ouvre avec le formulaire
+3. L'utilisateur peut :
+   - Sélectionner le mois concerné
+   - Choisir le restaurant
+   - Saisir le niveau (Excellent, Très Bon, Bon, Correct, Insuffisant)
+   - Entrer les métriques : Excellence Op., Détails Menu, Note, Emballages, CA
+4. Boutons d'action :
+   - "Enregistrer" : sauvegarde et ferme
+   - "Enregistrer et suivant" : sauvegarde et passe au restaurant suivant
+
+**Champs disponibles dans le formulaire** :
+- **Mois concerné** : sélecteur de mois
+- **Restaurant** : dropdown avec liste des restaurants
+- **Niveau** : dropdown (Excellent, Très Bon, Bon, Correct, Insuffisant)
+- **Excellence Op. (%)** : nombre 0-100, step 0.1
+- **Détails Menu (%)** : nombre 0-100
+- **Note (/5)** : nombre 0-5, step 0.01
+- **Emballages (%)** : nombre 0-100
+- **CA mensuel (€)** : nombre
 
 ---
 
-## Modifications techniques
+## Modifications à apporter
 
-### 1. Créer un composant `BogoMarginPreview.tsx`
+### Fichier : `src/pages/SuccessScore.tsx`
 
-Nouveau composant qui affiche les marges des articles sélectionnés :
+#### 1. Corriger les tooltips des badges de tier (lignes 373-381)
 
+**Avant** :
 ```typescript
-interface BogoMarginPreviewProps {
-  selectedItems: MenuItem[];
-  selectedRestaurantIds: string[];
-  commissionRate: number;
-  onViewHistory: () => void;
-}
-
-export function BogoMarginPreview({ ... }: BogoMarginPreviewProps) {
-  // Calcul des marges pour chaque article
-  // - Prix HT = Prix TTC / (1 + TVA%)
-  // - Marge Brute = (Prix HT - Food Cost) / Prix HT
-  // - Marge Nette = (Prix HT - Commission - Food Cost) / Prix HT
-  // - % Food Cost = Food Cost / Prix HT (ou Net selon toggle)
-  // - Impact BOGO = Food Cost x 2 pour calculer nouvelle marge
-  
-  return (
-    <Card className="bg-gradient-to-br from-amber-500/5 to-amber-500/10 border-amber-500/20">
-      {/* Pour chaque article sélectionné */}
-      <div className="space-y-4">
-        {selectedItems.map(item => (
-          <BogoMarginCard 
-            key={item.id}
-            item={item}
-            commissionRate={commissionRate}
-          />
-        ))}
-      </div>
-      
-      {/* Bouton pour voir l'historique */}
-      <Button onClick={onViewHistory}>
-        <History className="h-4 w-4 mr-2" />
-        Voir l'historique des offres BOGO
-        <ArrowRight className="h-4 w-4 ml-2" />
-      </Button>
-    </Card>
-  );
-}
+<Tooltip>
+  <TooltipTrigger>
+    <Badge className={`${config.color} text-white cursor-help`}>{config.label}</Badge>
+  </TooltipTrigger>
+  <TooltipContent side="bottom" className="max-w-xs p-3">
+    <p className="font-semibold mb-1">{config.label}</p>
+    <p className="text-sm text-muted-foreground">{config.description}</p>
+  </TooltipContent>
+</Tooltip>
 ```
 
-### 2. Modifier `BogoSimulatorUber.tsx`
-
-Remplacer le bouton "Historique des offres similaires" par le composant `BogoMarginPreview` qui s'affiche dès qu'un article est sélectionné :
-
+**Après** :
 ```typescript
-// Après la section des articles sélectionnés
-{selectedItems.length > 0 && (
-  <BogoMarginPreview
-    selectedItems={selectedItems}
-    selectedRestaurantIds={selectedRestaurantIds}
-    commissionRate={27} // ou configurable
-    onViewHistory={handleNavigateToHistory}
-  />
-)}
-
-const handleNavigateToHistory = () => {
-  const params = new URLSearchParams();
-  params.set("type", "1 acheté = 1 offert");
-  params.set("tab", "offers");
-  
-  if (selectedRestaurantIds.length === 1) {
-    const restaurant = restaurants.find(r => r.id === selectedRestaurantIds[0]);
-    if (restaurant) params.set("restaurant", restaurant.name);
-  }
-  
-  navigate(`/marketing-analytics?${params.toString()}`);
-};
+<Tooltip>
+  <TooltipTrigger asChild>
+    <span className="cursor-help">
+      <Badge className={`${config.color} text-white`}>{config.label}</Badge>
+    </span>
+  </TooltipTrigger>
+  <TooltipContent side="bottom" className="max-w-xs p-3">
+    <p className="font-semibold mb-1">{config.label}</p>
+    <p className="text-sm text-muted-foreground">{config.description}</p>
+  </TooltipContent>
+</Tooltip>
 ```
 
-### 3. Modifier `MarketingAnalytics.tsx`
+**Note** : On enveloppe le Badge dans un `<span>` car les Badges sont des `<div>` et les tooltips fonctionnent mieux avec des éléments inline ou interactifs.
 
-Ajouter la lecture des query params pour pré-sélectionner l'onglet et passer les filtres :
+#### 2. Corriger le tooltip de l'Excellence Opérationnelle (lignes 513-522)
 
+**Avant** :
 ```typescript
-import { useSearchParams } from "react-router-dom";
-
-export default function MarketingAnalytics() {
-  const [searchParams] = useSearchParams();
-  const tabFromUrl = searchParams.get("tab") || "offers";
-  const typeFromUrl = searchParams.get("type");
-  const restaurantFromUrl = searchParams.get("restaurant");
-  
-  const [activeTab, setActiveTab] = useState(tabFromUrl);
-
-  return (
-    // ...
-    <OffersOverview
-      offers={campaignData?.offers || []}
-      stats={...}
-      initialFilterType={typeFromUrl}
-      initialFilterRestaurant={restaurantFromUrl}
-    />
-  );
-}
+<Tooltip>
+  <TooltipTrigger>
+    <span className={...}>
+      {score.operational_excellence != null ? ... : 'Non renseigné'}
+    </span>
+  </TooltipTrigger>
+  <TooltipContent>
+    <p>Objectif "Bon": ≥ 98.4%</p>
+  </TooltipContent>
+</Tooltip>
 ```
 
-### 4. Modifier `OffersOverview.tsx`
-
-Accepter les filtres initiaux en props :
-
+**Après** :
 ```typescript
-interface OffersOverviewProps {
-  offers: OffersCampaign[];
-  stats: { ... };
-  initialFilterType?: string | null;
-  initialFilterRestaurant?: string | null;
-}
-
-export function OffersOverview({ 
-  offers, 
-  stats, 
-  initialFilterType,
-  initialFilterRestaurant 
-}: OffersOverviewProps) {
-  const [filterType, setFilterType] = useState<string>(
-    initialFilterType || "all"
-  );
-  const [filterRestaurant, setFilterRestaurant] = useState<string>(
-    initialFilterRestaurant || "all"
-  );
-  // ...
-}
+<Tooltip>
+  <TooltipTrigger asChild>
+    <span className={`${score.operational_excellence != null && score.operational_excellence >= 98.4 ? 'text-green-600 font-semibold' : 'text-orange-600'} cursor-help`}>
+      {score.operational_excellence != null ? `${score.operational_excellence.toFixed(1)}%` : 'Non renseigné'}
+    </span>
+  </TooltipTrigger>
+  <TooltipContent>
+    <p>Objectif "Bon": ≥ 98.4%</p>
+  </TooltipContent>
+</Tooltip>
 ```
 
-### 5. Supprimer les fichiers obsolètes
+#### 3. Améliorer la visibilité du bouton "Saisie manuelle"
 
-- `src/components/menu/offers/BogoHistoryInsightsDialog.tsx` (plus utilisé)
-- `src/components/menu/offers/BogoProjectionDialog.tsx` (plus utilisé)
-- `src/hooks/useBogoOfferHistory.ts` (plus utilisé)
+Le bouton est déjà présent, mais pour le rendre plus visible, on peut :
+- Ajouter une couleur de fond (variant="default" au lieu de "outline")
+- Ou garder le outline mais avec une bordure plus visible
+
+**Option recommandée** : Mettre le bouton "Saisie manuelle" en variant="default" pour qu'il soit plus visible :
+
+```typescript
+{/* Ligne 298 - ManualEntryDialog rend déjà le bouton */}
+```
+
+**Dans ManualEntryDialog.tsx** (ligne 160), modifier :
+```typescript
+<DialogTrigger asChild>
+  <Button variant="default" className="gap-2">  {/* Changé de "outline" à "default" */}
+    <Pencil className="h-4 w-4" />
+    Saisie manuelle
+  </Button>
+</DialogTrigger>
+```
 
 ---
 
-## Résumé des fichiers
+## Workflow pour l'utilisateur après corrections
 
-| Fichier | Action |
-|---------|--------|
-| `src/components/menu/offers/BogoMarginPreview.tsx` | Créer - Affiche les marges des articles sélectionnés |
-| `src/components/menu/offers/BogoSimulatorUber.tsx` | Modifier - Intégrer BogoMarginPreview + navigation |
-| `src/pages/MarketingAnalytics.tsx` | Modifier - Lire les query params URL |
-| `src/components/marketing/OffersOverview.tsx` | Modifier - Accepter filtres initiaux en props |
-| `src/components/menu/offers/BogoHistoryInsightsDialog.tsx` | Supprimer |
-| `src/components/menu/offers/BogoProjectionDialog.tsx` | Supprimer |
-| `src/hooks/useBogoOfferHistory.ts` | Supprimer |
+### Pour utiliser les tooltips :
+1. Survoler les badges colorés (Excellent, Très Bon, etc.) dans la section "Réseau"
+2. Un tooltip apparaît avec la description du niveau et les avantages
+3. Survoler "Excellence Op." dans le tableau pour voir l'objectif
 
----
-
-## Avantages de cette approche
-
-| Aspect | Bénéfice |
-|--------|----------|
-| **Fiabilité** | Les marges affichées sont calculées avec les vraies formules (pas de projection) |
-| **Réutilisation** | On exploite le tableau "Historique des offres" déjà fonctionnel avec 88 offres |
-| **Autonomie utilisateur** | L'utilisateur analyse lui-même les données, se fait sa propre opinion |
-| **Simplicité code** | Moins de composants, pas de dialog, pas de fuzzy matching complexe |
-| **Transparence** | L'utilisateur voit exactement les marges avant/après BOGO |
+### Pour la saisie manuelle :
+1. Cliquer sur le bouton **"Saisie manuelle"** en haut à droite (à côté de "Importer CSV")
+2. Le dialog s'ouvre
+3. Remplir le formulaire :
+   - Sélectionner le mois
+   - Choisir le restaurant
+   - Entrer le niveau (Status)
+   - Saisir les métriques depuis les screenshots Uber Eats
+4. Cliquer sur "Enregistrer et suivant" pour passer au restaurant suivant, ou "Enregistrer" pour fermer
 
 ---
 
-## Formules utilisées pour les marges
+## Résumé des fichiers à modifier
 
-Les calculs s'appuient sur la logique déjà validée dans `useRestaurantProfitability.ts` :
+| Fichier | Modifications |
+|---------|---------------|
+| `src/pages/SuccessScore.tsx` | Ajouter `asChild` aux TooltipTrigger (2 endroits) + wrapper span pour badges |
+| `src/components/success-score/ManualEntryDialog.tsx` | Changer variant du bouton de "outline" à "default" pour plus de visibilité |
 
-```typescript
-// Prix HT
-const prixHT = prixTTC / (1 + vatRate / 100);
+---
 
-// Marge Brute %
-const margeBrute = ((prixHT - foodCost) / prixHT) * 100;
+## Tests à effectuer après les modifications
 
-// Marge Nette % (commission sur TTC)
-const commissionHT = prixTTC * (commissionRate / 100);
-const margeNette = ((prixHT - commissionHT - foodCost) / prixHT) * 100;
+1. **Tooltips** :
+   - Survoler les badges de tier → tooltip doit apparaître instantanément
+   - Survoler "Excellence Op." dans le tableau → tooltip avec objectif
 
-// % Food Cost
-const foodCostPercent = (foodCost / prixHT) * 100;
-
-// Impact BOGO : on "offre" un article, donc food cost x 2
-const foodCostBogo = foodCost * 2;
-const margeBruteBogo = ((prixHT - foodCostBogo) / prixHT) * 100;
-```
+2. **Formulaire** :
+   - Cliquer sur "Saisie manuelle" → dialog s'ouvre
+   - Sélectionner un restaurant → les données existantes se chargent si disponibles
+   - Saisir/modifier les valeurs → enregistrement fonctionne
+   - "Enregistrer et suivant" → passe au restaurant suivant

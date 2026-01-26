@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -18,12 +17,7 @@ import { RestaurantCampaignComparison } from "@/components/marketing/RestaurantC
 import { Link } from "react-router-dom";
 
 export default function MarketingAnalytics() {
-  const [searchParams] = useSearchParams();
-  const tabFromUrl = searchParams.get("tab") || "offers";
-  const typeFromUrl = searchParams.get("type");
-  const restaurantFromUrl = searchParams.get("restaurant");
-  
-  const [activeTab, setActiveTab] = useState(tabFromUrl);
+  const [activeTab, setActiveTab] = useState("offers");
 
   // Fetch restaurants for filtering
   const { data: restaurants } = useQuery({
@@ -199,8 +193,6 @@ export default function MarketingAnalytics() {
                     campaignCount: 0,
                     byType: {},
                   }}
-                  initialFilterType={typeFromUrl}
-                  initialFilterRestaurant={restaurantFromUrl}
                 />
               </TabsContent>
 

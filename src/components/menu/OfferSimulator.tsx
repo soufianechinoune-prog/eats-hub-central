@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OfferTypeSelector, OfferType } from "./offers/OfferTypeSelector";
 import { BogoSimulator } from "./offers/BogoSimulator";
-import { BogoSimulatorUber } from "./offers/BogoSimulatorUber";
 import { CrossProductSimulator } from "./offers/CrossProductSimulator";
 import { PercentDiscountSimulator } from "./offers/PercentDiscountSimulator";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
@@ -17,7 +16,6 @@ interface MenuItem {
   price_deliveroo: number | null;
   food_cost: number | null;
   is_active: boolean;
-  vat_rate: number | null;
 }
 
 interface OfferSimulatorProps {
@@ -53,18 +51,7 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
 
   // Render the appropriate simulator based on selection
   const renderSimulator = () => {
-    // For Uber BOGO, use the new Uber-style interface
-    if (selectedOfferType === "bogo" && selectedPlatform === "uber") {
-      return (
-        <BogoSimulatorUber 
-          menuItems={menuItems} 
-          onBack={handleBack} 
-        />
-      );
-    }
-
-    // For Deliveroo BOGO, use the existing simulator
-    if (selectedOfferType === "bogo" && selectedPlatform === "deliveroo") {
+    if (selectedOfferType === "bogo") {
       return (
         <BogoSimulator 
           menuItems={menuItems} 
