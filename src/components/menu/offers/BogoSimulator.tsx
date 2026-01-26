@@ -726,15 +726,29 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
                   />
                   <div className="relative w-24">
                     <Input
-                      type="number"
-                      step="0.01"
-                      min={15}
-                      max={isUber ? 30 : 35}
+                      type="text"
+                      inputMode="decimal"
                       value={commission}
                       onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        if (!isNaN(val) && val >= 15 && val <= (isUber ? 30 : 35)) {
-                          onCommissionChange(val);
+                        const rawValue = e.target.value.replace(',', '.');
+                        if (rawValue === '' || rawValue === '.') {
+                          onCommissionChange(15);
+                          return;
+                        }
+                        const val = parseFloat(rawValue);
+                        if (!isNaN(val)) {
+                          const maxVal = isUber ? 30 : 35;
+                          onCommissionChange(Math.min(Math.max(val, 0), maxVal));
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const rawValue = e.target.value.replace(',', '.');
+                        const val = parseFloat(rawValue);
+                        const maxVal = isUber ? 30 : 35;
+                        if (isNaN(val) || val < 15) {
+                          onCommissionChange(15);
+                        } else if (val > maxVal) {
+                          onCommissionChange(maxVal);
                         }
                       }}
                       className="pr-7 text-right font-mono bg-white/60 dark:bg-white/5 border-primary/30"
