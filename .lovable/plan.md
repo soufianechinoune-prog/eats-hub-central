@@ -1,242 +1,176 @@
 
-# Plan de correction : Historique des ventes dans BogoProjectionDialog
 
-## Diagnostic du problème
+# Révision du Simulateur BOGO : De la projection à l'analyse rétrospective
 
-Après analyse approfondie, j'ai identifié plusieurs problèmes dans `BogoProjectionDialog.tsx` :
+## Problème actuel
 
-### 1. **CA généré toujours à 0,00 €**
-- ✅ Les données `sales_incl_vat` existent bien dans la BDD (14 297 items sur 15 019 ont des valeurs positives)
-- ✅ Test SQL direct confirme : pour "Naan Tender" sur 30j, il y a ~5 000 unités vendues pour ~42 000 € de CA
-- ❌ **Problème** : La requête Supabase avec jointure implicite ne récupère pas correctement les données
+Le simulateur tente de prédire l'impact futur en croisant des ventes d'articles historiques avec des projections de volume. Cette approche est :
+- **Peu fiable** : les données matchent mal (fuzzy matching complexe)
+- **Trompeuse** : affiche des valeurs qui peuvent être fausses
+- **Inutile** : tu as déjà les vraies données d'offres passées !
 
-### 2. **Quantité constante (332 unités) quelle que soit la période**
-- ❌ **Problème** : Le filtre de date via `.gte("order_datetime", startDate)` ne s'applique pas correctement dans le contexte de la jointure
-- ❌ **Problème secondaire** : Le cache React Query pourrait ne pas se rafraîchir correctement lors du changement de période
+## Nouvelle approche : Exploiter l'historique réel des offres
 
-### 3. **Problème de jointure Supabase**
-La requête actuelle :
-```typescript
-supabase
-  .from("orders")
-  .select(`
-    order_datetime,
-    restaurant_id,
-    order_items (
-      item_title,
-      quantity,
-      sales_incl_vat
-    )
-  `)
-```
+Tu as **46 offres BOGO** avec des données réelles :
+- Dates, durée, articles concernés
+- CA généré : jusqu'à 17 787 € pour la meilleure
+- Nombre de commandes : jusqu'à 619
+- Nouveaux clients : jusqu'à 196
+- Audience ciblée (Tous, Nouveaux, Uber One)
 
-Cette syntaxe avec jointure implicite peut avoir des limitations avec les filtres et l'agrégation de données.
+Cette data existe, il faut simplement la présenter intelligemment dans le simulateur.
 
 ---
 
-## Solution proposée
+## Modifications proposées
 
-### Approche 1 : Requête RPC dédiée (recommandée)
+### 1. Remplacer le popup "Projection" par "Historique des offres similaires"
 
-Créer une fonction PostgreSQL qui effectue l'agrégation côté serveur, garantissant performance et précision.
+Quand l'utilisateur clique sur "Simuler l'impact" :
 
-**Avantages** :
-- Agrégation efficace côté BDD
-- Pas de limite des 1000 lignes Supabase
-- Matching avec ILIKE natif PostgreSQL
-- Filtres de date garantis
+**Au lieu de :** projections incertaines basées sur ventes d'articles
 
-**Fonction SQL** :
+**Afficher :** les offres BOGO passées sur les mêmes articles
+
+```text
+┌───────────────────────────────────────────────────────────────┐
+│  📊 Offres similaires passées                                 │
+│                                                               │
+│  3 offres BOGO trouvées pour "Naan TENDERS"                   │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ 🥇 Déc 2025 • Nouveaux clients • 11 937 € • 458 cmd    │  │
+│  │     ⭐⭐⭐⭐⭐ Excellent (354 nouveaux clients)          │  │
+│  │     📝 "Très bon ROI sur nouveaux clients"              │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ 🥈 Oct 2025 • Tous les clients • 11 042 € • 364 cmd    │  │
+│  │     ⭐⭐⭐⭐ Bon                                         │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ 🥉 Jan 2026 • Tous les clients • 6 957 € • 280 cmd     │  │
+│  │     ⭐⭐⭐ Correct                                       │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                                                               │
+│  💡 Conseil : Les offres "Nouveaux clients" ont généré       │
+│     +97% de nouveaux clients vs "Tous les clients"           │
+│                                                               │
+│  [ Ajouter une note ]  [ Voir toutes les offres BOGO ]       │
+└───────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 2. Système de notation automatique
+
+Calculer un score de rentabilité pour chaque offre passée basé sur :
+
+| Critère | Poids | Calcul |
+|---------|-------|--------|
+| CA généré | 30% | Comparé à la moyenne des offres similaires |
+| Commandes | 20% | Volume de commandes générées |
+| Nouveaux clients | 25% | Capacité d'acquisition |
+| Durée/efficacité | 15% | CA par jour d'offre |
+| Cofinancement Uber | 10% | % financé par Uber |
+
+Score affiché : ⭐⭐⭐⭐⭐ (1-5 étoiles) + label (Excellent/Bon/Correct/Faible/Mauvais)
+
+---
+
+### 3. Permettre d'ajouter des notes/commentaires
+
+Enrichir `restaurant_actions.change_context` avec :
+
+```typescript
+// Nouvelles propriétés dans change_context
+{
+  ...existing,
+  user_rating: 4,           // Note manuelle 1-5
+  user_comment: "Très bon ROI, à refaire en période creuse",
+  learnings: [
+    "Mieux cibler nouveaux clients",
+    "Durée idéale : 5-7 jours"
+  ]
+}
+```
+
+UI dans le popup : bouton "Ajouter une note" ouvre un mini-formulaire.
+
+---
+
+### 4. Insights automatiques
+
+Comparer les offres passées pour générer des recommandations :
+
+```text
+💡 Insights basés sur ton historique :
+
+• Les BOGO sur "Naan TENDERS" génèrent en moyenne 9 600 € / campagne
+• Audience "Nouveaux clients" : +97% de nouveaux clients vs "Tous"
+• Meilleure période : fin de mois (26-31)
+• Durée optimale observée : 5-6 jours
+```
+
+---
+
+## Fichiers à modifier
+
+| Fichier | Modification |
+|---------|--------------|
+| `src/components/menu/offers/BogoProjectionDialog.tsx` | Refactoring complet → devient `BogoHistoryInsightsDialog.tsx` |
+| `src/components/menu/offers/BogoSimulatorUber.tsx` | Bouton "Historique des offres similaires" au lieu de "Simuler l'impact" |
+| `src/hooks/useOfferHistory.ts` | Nouveau hook pour récupérer les offres passées matchées par article |
+| `supabase/migrations/` | (Optionnel) Ajouter index sur `change_context->'articles'` pour performance |
+
+---
+
+## Logique de matching des offres
+
+Pour trouver les offres "similaires" à la configuration actuelle :
+
 ```sql
-CREATE OR REPLACE FUNCTION get_bogo_historical_sales(
-  p_item_ids TEXT[],
-  p_restaurant_ids UUID[],
-  p_start_date TIMESTAMPTZ,
-  p_period_days INTEGER
-) RETURNS TABLE (
-  total_quantity BIGINT,
-  total_sales NUMERIC,
-  avg_per_day NUMERIC,
-  avg_sales_per_day NUMERIC,
-  matched_items_count BIGINT,
-  period_days INTEGER
-) AS $$
-BEGIN
-  RETURN QUERY
-  WITH matched_items AS (
-    SELECT DISTINCT oi.id, oi.quantity, oi.sales_incl_vat, oi.item_title
-    FROM order_items oi
-    JOIN orders o ON oi.order_id = o.id
-    JOIN menu_items mi ON mi.id = ANY(p_item_ids)
-    WHERE 
-      (p_start_date IS NULL OR o.order_datetime >= p_start_date)
-      AND (CARDINALITY(p_restaurant_ids) = 0 OR o.restaurant_id = ANY(p_restaurant_ids))
-      AND (
-        LOWER(REGEXP_REPLACE(oi.item_title, '[^a-zA-Z0-9 ]', '', 'g')) 
-        ILIKE '%' || LOWER(REGEXP_REPLACE(mi.name, '[^a-zA-Z0-9 ]', '', 'g')) || '%'
-        OR
-        LOWER(REGEXP_REPLACE(mi.name, '[^a-zA-Z0-9 ]', '', 'g')) 
-        ILIKE '%' || LOWER(REGEXP_REPLACE(oi.item_title, '[^a-zA-Z0-9 ]', '', 'g')) || '%'
-      )
-  )
-  SELECT 
-    COALESCE(SUM(quantity), 0)::BIGINT as total_quantity,
-    COALESCE(SUM(sales_incl_vat), 0)::NUMERIC as total_sales,
-    (COALESCE(SUM(quantity), 0) / NULLIF(p_period_days, 0))::NUMERIC as avg_per_day,
-    (COALESCE(SUM(sales_incl_vat), 0) / NULLIF(p_period_days, 0))::NUMERIC as avg_sales_per_day,
-    COUNT(DISTINCT item_title)::BIGINT as matched_items_count,
-    p_period_days as period_days;
-END;
-$$ LANGUAGE plpgsql STABLE;
+-- Requête pour trouver les BOGO passés sur les mêmes articles
+SELECT 
+  id,
+  start_date,
+  end_date,
+  change_context->>'audience' as audience,
+  change_context->>'sales_eur' as sales,
+  change_context->>'orders' as orders,
+  change_context->>'new_customers' as new_customers,
+  change_context->>'articles' as articles
+FROM restaurant_actions
+WHERE 
+  category = 'promotions'
+  AND action_type = '1 acheté = 1 offert'
+  AND change_context->'articles' ?| ARRAY['Naan TENDERS', 'NAAN TENDER']
+ORDER BY start_date DESC
+LIMIT 10
 ```
 
-**Appel TypeScript** :
-```typescript
-const { data, error } = await supabase.rpc('get_bogo_historical_sales', {
-  p_item_ids: selectedItems.map(i => i.id),
-  p_restaurant_ids: selectedRestaurantIds,
-  p_start_date: startDate,
-  p_period_days: getPeriodDays(salesPeriod)
-});
-```
+Le matching utilise les noms d'articles stockés dans `change_context->'articles'`.
 
 ---
 
-### Approche 2 : Requête client simplifiée (alternative)
+## Avantages de cette approche
 
-Si on préfère rester côté client, améliorer la requête actuelle :
-
-**Modifications** :
-1. Ajouter un log de debug pour voir ce qui est récupéré
-2. Améliorer le matching avec une fonction plus permissive
-3. Gérer explicitement les cas où `sales_incl_vat` est NULL
-4. Ajouter un indicateur de debug dans l'UI
-
-```typescript
-// Debug logs
-console.log('🔍 Fetching sales data:', {
-  selectedItems: selectedItems.map(i => i.name),
-  restaurants: selectedRestaurantIds.length,
-  period: salesPeriod,
-  startDate
-});
-
-const { data: orders, error } = await query;
-
-console.log('📊 Query result:', {
-  ordersCount: orders?.length,
-  itemsCount: allItems.length,
-  sampleItems: allItems.slice(0, 3)
-});
-
-// Matching amélioré
-const normalizeForMatch = (str: string) => {
-  return str
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "");
-};
-
-// Dans la boucle de matching
-allItems.forEach(row => {
-  if (!row.item_title) return;
-  
-  const normalizedTitle = normalizeForMatch(row.item_title);
-  
-  for (const item of selectedItems) {
-    const normalizedItem = normalizeForMatch(item.name);
-    
-    // Match si l'un contient l'autre (au moins 80% de correspondance)
-    if (normalizedTitle.includes(normalizedItem) || normalizedItem.includes(normalizedTitle)) {
-      const qty = row.quantity || 0;
-      const sales = row.sales_incl_vat || 0;
-      
-      if (qty > 0 || sales > 0) { // Ne compter que les lignes avec données
-        totalQuantity += qty;
-        totalSales += sales;
-        matchedItemNames.add(row.item_title);
-      }
-      break;
-    }
-  }
-});
-```
-
----
-
-### Approche 3 : Affichage debug pour l'utilisateur
-
-Ajouter une section "Données de debug" temporaire dans le dialog :
-
-```typescript
-{import.meta.env.DEV && (
-  <Card className="bg-slate-900/50 border-slate-700">
-    <CardContent className="pt-4 space-y-2">
-      <p className="text-xs font-mono text-slate-400">🔧 Debug Info</p>
-      <div className="text-xs font-mono space-y-1 text-slate-300">
-        <div>Restaurants sélectionnés: {selectedRestaurantIds.length}</div>
-        <div>Articles sélectionnés: {selectedItems.map(i => i.name).join(', ')}</div>
-        <div>Période: {salesPeriod} (depuis {startDate || 'début'})</div>
-        <div>Commandes récupérées: {orders?.length || 0}</div>
-        <div>Items aplatis: {allItems.length}</div>
-        <div>Items matchés: {matchedItemNames.size}</div>
-      </div>
-    </CardContent>
-  </Card>
-)}
-```
-
----
-
-## Plan d'action recommandé
-
-### Étape 1 : Diagnostic immédiat (5 min)
-1. Ajouter les logs de debug dans `BogoProjectionDialog.tsx`
-2. Ajouter la section debug UI
-3. Tester avec un article connu (ex: "Naan Tender")
-4. Observer les logs navigateur pour comprendre ce qui est récupéré
-
-### Étape 2 : Correction rapide (10 min)
-1. Améliorer la fonction de matching (normalisation plus agressive)
-2. Ajouter une vérification : ignorer les lignes avec `sales_incl_vat = 0`
-3. S'assurer que le `queryKey` de React Query inclut bien tous les paramètres
-
-### Étape 3 : Solution robuste (20 min)
-1. Créer la fonction RPC `get_bogo_historical_sales`
-2. Remplacer l'appel Supabase client par l'appel RPC
-3. Supprimer la logique de matching côté client
-4. Valider avec différentes périodes et restaurants
+| Avant (projections) | Après (historique réel) |
+|---------------------|-------------------------|
+| ❌ Données approximatives | ✅ Données réelles d'Uber |
+| ❌ Fuzzy matching complexe | ✅ Matching exact sur les offres |
+| ❌ "Pas d'historique" fréquent | ✅ 46+ offres BOGO disponibles |
+| ❌ Projections peu fiables | ✅ CA/commandes vérifiés |
+| ❌ Pas d'apprentissage | ✅ Notes et learnings capitalisés |
 
 ---
 
 ## Résultat attendu
 
-Après correction :
-- ✅ CA généré affiche les vraies valeurs (ex: 13 128,37 € pour un restaurant sur 30j)
-- ✅ La quantité change selon la période sélectionnée
-- ✅ Le matching des articles fonctionne avec les variations de noms
-- ✅ Les projections de ROI sont basées sur des données réelles
-- ✅ Message clair si aucune donnée n'est trouvée (au lieu de valeurs erronées)
-
----
-
-## Technique : Détails de la fonction RPC
-
-La fonction RPC proposée :
-- **Utilise ILIKE natif** : Plus performant que le matching JavaScript
-- **Normalise les noms** : Supprime accents, emojis, caractères spéciaux
-- **Fuzzy matching bidirectionnel** : item contient title OU title contient item
-- **Agrégation pure SQL** : Pas de limite Supabase, pas de parsing JS
-- **Gestion des NULL** : COALESCE garantit 0 au lieu de NULL
-
-**Test manuel de la fonction** :
-```sql
-SELECT * FROM get_bogo_historical_sales(
-  ARRAY['uuid-item-1', 'uuid-item-2']::TEXT[],
-  ARRAY['uuid-resto-1']::UUID[],
-  NOW() - INTERVAL '30 days',
-  30
-);
-```
+1. **Fiabilité** : Les chiffres affichés sont vrais (importés d'Uber)
+2. **Actionnable** : Voir ce qui a marché permet de décider
+3. **Capitalisation** : Notes et commentaires pour apprendre
+4. **Intelligence** : Insights automatiques basés sur l'historique
+5. **Simplicité** : Plus de fuzzy matching complexe côté ventes
 
