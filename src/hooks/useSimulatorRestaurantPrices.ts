@@ -29,6 +29,7 @@ export interface EnrichedMenuItem {
   name: string;
   category: string | null;
   food_cost: number | null;
+  vat_rate: number | null;
   is_active: boolean;
   price_uber: number | null;
   price_deliveroo: number | null;
@@ -43,6 +44,7 @@ interface MenuItem {
   price_uber: number | null;
   price_deliveroo: number | null;
   food_cost: number | null;
+  vat_rate: number | null;
   is_active: boolean;
 }
 
@@ -146,6 +148,7 @@ export function useSimulatorRestaurantPrices(
         name: item.name,
         category: item.category,
         food_cost: item.food_cost,
+        vat_rate: item.vat_rate,
         is_active: item.is_active,
         price_uber: item.price_uber,
         price_deliveroo: item.price_deliveroo,
