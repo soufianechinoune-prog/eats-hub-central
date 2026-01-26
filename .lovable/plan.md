@@ -1,151 +1,189 @@
 
+# Plan : Amélioration de la récupération de données dans BogoProjectionDialog
 
-# Plan : Affichage du montant en euros du cofinancement
+## Contexte
 
-## Objectif
-Afficher le montant en euros correspondant au pourcentage de cofinancement dans le panneau de droite (BogoImpactPanel), basé sur le prix HT moyen des articles sélectionnés.
+Le message "Pas d'historique de ventes" apparaît car la requête actuelle ne trouve pas les données. Deux problèmes :
+1. Pas de filtre par restaurant sélectionné
+2. Correspondance exacte par `item_title` ne fonctionne pas (variations de noms)
+3. Période fixe de 30 jours sans possibilité de choix
 
-Par exemple : si le cofinancement est de 12% et que le prix HT moyen des articles est de 8,50 €, afficher "12% du prix HT (≈ 1,02 €)"
+## Modifications a effectuer
+
+### 1. Ajouter un sélecteur de période de référence
+
+Dans `BogoProjectionDialog.tsx`, ajouter un état et un sélecteur UI pour la période :
+
+```typescript
+type SalesPeriod = "30days" | "90days" | "year" | "all";
+
+const SALES_PERIOD_LABELS: Record<SalesPeriod, string> = {
+  "30days": "30 derniers jours",
+  "90days": "90 derniers jours",
+  "year": "Cette année",
+  "all": "Tout l'historique",
+};
+
+const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("90days");
+```
+
+Composant UI : Select avec les 4 options, placé dans l'en-tête du dialog ou juste avant la section historique.
 
 ---
 
-## Modifications techniques
+### 2. Corriger la requête pour utiliser le pattern qui fonctionne
 
-### 1. Ajouter `vat_rate` aux interfaces MenuItem
-
-**Fichier : `src/components/menu/OfferSimulator.tsx`** (ligne 12-20)
+Remplacer la requête actuelle par le pattern éprouvé :
 
 ```typescript
-interface MenuItem {
-  id: string;
-  name: string;
-  category: string | null;
-  price_uber: number | null;
-  price_deliveroo: number | null;
-  food_cost: number | null;
-  is_active: boolean;
-  vat_rate: number | null;  // AJOUT
+// Calculer la date de début selon la période
+const getStartDate = (period: SalesPeriod): string | null => {
+  const now = new Date();
+  switch (period) {
+    case "30days": return subDays(now, 30).toISOString();
+    case "90days": return subDays(now, 90).toISOString();
+    case "year": return startOfYear(now).toISOString();
+    default: return null; // "all" = pas de filtre
+  }
+};
+
+// Requête via la jointure orders -> order_items
+const startDate = getStartDate(salesPeriod);
+
+let query = supabase
+  .from("orders")
+  .select(`
+    order_datetime,
+    restaurant_id,
+    order_items (
+      item_title,
+      quantity,
+      sales_incl_vat
+    )
+  `);
+
+// Filtre par date si applicable
+if (startDate) {
+  query = query.gte("order_datetime", startDate);
 }
-```
 
-**Fichier : `src/components/menu/offers/BogoSimulatorUber.tsx`** (ligne 23-31)
-
-```typescript
-interface MenuItem {
-  id: string;
-  name: string;
-  category: string | null;
-  price_uber: number | null;
-  price_deliveroo: number | null;
-  food_cost: number | null;
-  is_active: boolean;
-  vat_rate: number | null;  // AJOUT
+// Filtre par restaurants sélectionnés
+if (selectedRestaurantIds.length > 0) {
+  query = query.in("restaurant_id", selectedRestaurantIds);
 }
+
+const { data: orders, error } = await query;
+
+// Flatten et agréger
+const allItems = orders?.flatMap(o => o.order_items || []) || [];
 ```
 
 ---
 
-### 2. Calculer le prix HT moyen des articles sélectionnés
+### 3. Ajouter le fuzzy matching pour les noms d'articles
 
-**Fichier : `src/components/menu/offers/BogoSimulatorUber.tsx`**
-
-Ajouter un `useMemo` pour calculer le prix HT moyen :
+Importer et utiliser `normalizeName` comme dans les autres simulateurs :
 
 ```typescript
-const averageHtPrice = useMemo(() => {
-  const selectedItems = menuItems.filter(item => selectedItemIds.includes(item.id));
-  if (selectedItems.length === 0) return 0;
+import { normalizeName } from "@/lib/fuzzyMatch";
+
+// Créer un map des noms normalisés vers les items sélectionnés
+const normalizedToItem = new Map<string, MenuItem>();
+selectedItems.forEach(item => {
+  normalizedToItem.set(normalizeName(item.name), item);
+});
+
+// Matcher les order_items
+allItems.forEach(row => {
+  const normalizedTitle = normalizeName(row.item_title);
   
-  const total = selectedItems.reduce((sum, item) => {
-    if (!item.price_uber) return sum;
-    const vatRate = item.vat_rate ?? 10; // Défaut 10%
-    const priceHt = item.price_uber / (1 + vatRate / 100);
-    return sum + priceHt;
-  }, 0);
+  // Exact match
+  if (normalizedToItem.has(normalizedTitle)) {
+    // Ajouter aux stats
+    return;
+  }
   
-  return total / selectedItems.length;
-}, [menuItems, selectedItemIds]);
+  // Fuzzy match : inclus/inclut
+  for (const [normalized, item] of normalizedToItem) {
+    if (normalizedTitle.includes(normalized) || normalized.includes(normalizedTitle)) {
+      // Ajouter aux stats
+      break;
+    }
+  }
+});
 ```
 
 ---
 
-### 3. Passer le prix HT moyen au BogoImpactPanel
+### 4. Passer les restaurants sélectionnés au dialog
 
-**Fichier : `src/components/menu/offers/BogoSimulatorUber.tsx`**
+Dans `BogoSimulatorUber.tsx`, s'assurer que `selectedRestaurantIds` est bien passé :
 
 ```typescript
-<BogoImpactPanel
-  restaurantCount={selectedRestaurantIds.length}
-  selectedItemsCount={selectedItemIds.length}
-  offerFee={OFFER_FEE}
-  offerFeeWaived={offerFeeWaived}
-  cofinancingType={cofinancingType}
-  cofinancingValue={parseFloat(cofinancingValue) || 0}
-  averageHtPrice={averageHtPrice}  // AJOUT
+<BogoProjectionDialog
+  open={showProjection}
+  onOpenChange={setShowProjection}
+  selectedItems={selectedItemsForProjection}
+  selectedRestaurantIds={selectedRestaurantIds}  // Déjà passé
+  ...
 />
 ```
 
 ---
 
-### 4. Afficher le montant en euros dans BogoImpactPanel
+### 5. UI pour le sélecteur de période dans le dialog
 
-**Fichier : `src/components/menu/offers/BogoImpactPanel.tsx`**
+Ajouter dans la section historique de ventes :
 
-Ajouter la prop et calculer le montant :
-
-```typescript
-interface BogoImpactPanelProps {
-  restaurantCount: number;
-  selectedItemsCount: number;
-  offerFee: number;
-  offerFeeWaived?: boolean;
-  cofinancingType?: "percent" | "amount";
-  cofinancingValue?: number;
-  averageHtPrice?: number;  // AJOUT
-}
-```
-
-Modifier l'affichage du cofinancement (ligne 153-161) :
-
-```typescript
-{cofinancingValue > 0 && (
-  <div className="space-y-2">
-    <p className="text-sm text-muted-foreground">Cofinancement</p>
-    <p className="text-lg font-semibold text-primary">
-      {cofinancingType === "percent"
-        ? `${cofinancingValue}% du prix HT`
-        : `${cofinancingValue.toFixed(2).replace(".", ",")} € par article`}
-    </p>
-    {/* AJOUT : Montant en euros pour le pourcentage */}
-    {cofinancingType === "percent" && averageHtPrice > 0 && (
-      <p className="text-sm text-muted-foreground">
-        ≈ {((cofinancingValue / 100) * averageHtPrice).toFixed(2).replace(".", ",")} € 
-        / article (moy.)
-      </p>
-    )}
-  </div>
-)}
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  📦 Historique de ventes                                    │
+│                                                             │
+│  Période de référence : [Select: 90 derniers jours ▼]       │
+│                                                             │
+│  ┌─────────────────────┬─────────────────────┐              │
+│  │ Quantité vendue     │ CA généré           │              │
+│  │ 247 unités          │ 2 098,50 €          │              │
+│  │ ~8,2 / jour         │ ~69,95 € / jour     │              │
+│  └─────────────────────┴─────────────────────┘              │
+│                                                             │
+│  📍 Données basées sur 2 restaurants sélectionnés           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Résumé des modifications
+### 6. Afficher le contexte des données
+
+Sous les statistiques, indiquer :
+- Le nombre de jours de la période
+- Le nombre de restaurants pris en compte
+- Le nombre d'articles matchés
+
+```typescript
+<p className="text-xs text-muted-foreground">
+  Basé sur {selectedRestaurantIds.length > 0 
+    ? `${selectedRestaurantIds.length} restaurant(s)` 
+    : "tous les restaurants"} 
+  • {selectedItems.length} article(s)
+</p>
+```
+
+---
+
+## Résumé des fichiers modifiés
 
 | Fichier | Modification |
 |---------|--------------|
-| `src/components/menu/OfferSimulator.tsx` | Ajout `vat_rate` à l'interface |
-| `src/components/menu/offers/BogoSimulatorUber.tsx` | Ajout `vat_rate` à l'interface + calcul `averageHtPrice` + passage prop |
-| `src/components/menu/offers/BogoImpactPanel.tsx` | Ajout prop `averageHtPrice` + affichage montant euros |
+| `src/components/menu/offers/BogoProjectionDialog.tsx` | Sélecteur de période + requête corrigée + fuzzy matching + affichage contexte |
 
 ---
 
 ## Résultat attendu
 
-Quand l'utilisateur sélectionne un cofinancement de 12% et des articles avec un prix HT moyen de 8,50 € :
+Au lieu de "Pas d'historique de ventes", l'utilisateur verra :
 
-```text
-Cofinancement
-12% du prix HT
-≈ 1,02 € / article (moy.)
-```
-
+- Un sélecteur pour choisir 30j / 90j / année / tout
+- Les vraies stats de ventes pour les articles sélectionnés
+- Le contexte (restaurants, période) clairement affiché
+- Les projections basées sur les données réelles
