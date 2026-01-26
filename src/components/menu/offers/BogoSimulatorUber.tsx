@@ -6,6 +6,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Accordion,
   AccordionContent,
@@ -58,6 +60,9 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
   const [weeklyBudget, setWeeklyBudget] = useState<string>("");
   const [articleSearch, setArticleSearch] = useState<string>("");
   const [openSections, setOpenSections] = useState<string[]>(["etablissements"]);
+  const [offerFeeWaived, setOfferFeeWaived] = useState<boolean>(false);
+  const [cofinancingType, setCofinancingType] = useState<"percent" | "amount">("percent");
+  const [cofinancingValue, setCofinancingValue] = useState<string>("");
 
   // Fetch restaurants with is_pinned
   useEffect(() => {
@@ -137,6 +142,9 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
       durationType,
       customSchedule,
       weeklyBudget,
+      offerFeeWaived,
+      cofinancingType,
+      cofinancingValue: parseFloat(cofinancingValue) || 0,
     });
     // TODO: Save to restaurant_actions
   };
@@ -369,15 +377,82 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
                     <div className="text-left">
                       <p className="font-medium">Paramètres avancés</p>
                       <p className="text-sm text-muted-foreground font-normal">
-                        Commission, cofinancement
+                        {offerFeeWaived && cofinancingValue
+                          ? `Frais offerts, Cofin. ${cofinancingValue}${cofinancingType === "percent" ? "%" : "€"}`
+                          : offerFeeWaived
+                          ? "Frais offerts"
+                          : cofinancingValue
+                          ? `Cofin. ${cofinancingValue}${cofinancingType === "percent" ? "%" : "€"}`
+                          : "Commission, cofinancement"}
                       </p>
                     </div>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="pb-4">
-                  <p className="text-sm text-muted-foreground">
-                    Les paramètres avancés de simulation de marge seront disponibles prochainement.
-                  </p>
+                <AccordionContent className="pb-4 space-y-6">
+                  {/* Frais d'utilisation d'offres */}
+                  <div className="space-y-3">
+                    <p className="font-medium text-sm">Frais d'utilisation d'offres</p>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <div className="space-y-1">
+                        <Label htmlFor="offer-fee-waived" className="font-normal">
+                          Frais offerts par Uber
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Les frais de 0,89 € HT par commande ne vous seront pas facturés
+                        </p>
+                      </div>
+                      <Switch
+                        id="offer-fee-waived"
+                        checked={offerFeeWaived}
+                        onCheckedChange={setOfferFeeWaived}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Séparateur */}
+                  <div className="border-t" />
+
+                  {/* Cofinancement */}
+                  <div className="space-y-3">
+                    <p className="font-medium text-sm">Cofinancement</p>
+                    <RadioGroup
+                      value={cofinancingType}
+                      onValueChange={(val) => setCofinancingType(val as "percent" | "amount")}
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="percent" id="cofin-percent" />
+                        <Label htmlFor="cofin-percent" className="font-normal cursor-pointer">
+                          Pourcentage
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="amount" id="cofin-amount" />
+                        <Label htmlFor="cofin-amount" className="font-normal cursor-pointer">
+                          Montant fixe
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        value={cofinancingValue}
+                        onChange={(e) => setCofinancingValue(e.target.value)}
+                        className="max-w-[120px]"
+                        min="0"
+                        step={cofinancingType === "percent" ? "1" : "0.01"}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {cofinancingType === "percent" ? "%" : "€"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {cofinancingType === "percent"
+                        ? "Le pourcentage est calculé sur le prix HT de l'article"
+                        : "Montant fixe déduit du coût de l'offre par article"}
+                    </p>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -402,6 +477,9 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
                 restaurantCount={selectedRestaurantIds.length}
                 selectedItemsCount={selectedItemIds.length}
                 offerFee={OFFER_FEE}
+                offerFeeWaived={offerFeeWaived}
+                cofinancingType={cofinancingType}
+                cofinancingValue={parseFloat(cofinancingValue) || 0}
               />
             </div>
           </div>
