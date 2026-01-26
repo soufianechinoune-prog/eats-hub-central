@@ -1,18 +1,24 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Info, Search, Bell, ShoppingCart, Heart, ChevronDown } from "lucide-react";
+import { Info, Search, Bell, ShoppingCart, Heart, ChevronDown, Check } from "lucide-react";
 import chickenStreetPromo from "@/assets/chicken-street-promo.jpg";
 
 interface BogoImpactPanelProps {
   restaurantCount: number;
   selectedItemsCount: number;
   offerFee: number;
+  offerFeeWaived?: boolean;
+  cofinancingType?: "percent" | "amount";
+  cofinancingValue?: number;
 }
 
 export function BogoImpactPanel({
   restaurantCount,
   selectedItemsCount,
   offerFee,
+  offerFeeWaived = false,
+  cofinancingType = "percent",
+  cofinancingValue = 0,
 }: BogoImpactPanelProps) {
   return (
     <div className="space-y-6">
@@ -126,10 +132,34 @@ export function BogoImpactPanel({
         <p className="text-sm text-muted-foreground">
           Frais d'utilisation de l'offre (hors taxes)
         </p>
-        <p className="text-lg font-semibold">
-          {offerFee.toFixed(2).replace(".", ",")} € par commande
-        </p>
+        {offerFeeWaived ? (
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="bg-primary/10 text-primary">
+              <Check className="h-3 w-3 mr-1" />
+              Frais offerts
+            </Badge>
+            <span className="text-sm text-muted-foreground line-through">
+              {offerFee.toFixed(2).replace(".", ",")} €
+            </span>
+          </div>
+        ) : (
+          <p className="text-lg font-semibold">
+            {offerFee.toFixed(2).replace(".", ",")} € par commande
+          </p>
+        )}
       </div>
+
+      {/* Cofinancement Information */}
+      {cofinancingValue > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">Cofinancement</p>
+          <p className="text-lg font-semibold text-primary">
+            {cofinancingType === "percent"
+              ? `${cofinancingValue}% du prix HT`
+              : `${cofinancingValue.toFixed(2).replace(".", ",")} € par article`}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
