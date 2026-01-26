@@ -66,6 +66,8 @@ interface OffersOverviewProps {
     campaignCount: number;
     byType: Record<string, { count: number; sales: number; orders: number; newCustomers: number }>;
   };
+  initialFilterType?: string | null;
+  initialFilterRestaurant?: string | null;
 }
 
 const COLORS = [
@@ -76,13 +78,13 @@ const COLORS = [
   "hsl(var(--chart-5))",
 ];
 
-export function OffersOverview({ offers, stats }: OffersOverviewProps) {
+export function OffersOverview({ offers, stats, initialFilterType, initialFilterRestaurant }: OffersOverviewProps) {
   const [editingFunding, setEditingFunding] = useState<string | null>(null);
   const [fundingValue, setFundingValue] = useState<string>("");
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [filterType, setFilterType] = useState<string>("all");
-  const [filterRestaurant, setFilterRestaurant] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>(initialFilterType || "all");
+  const [filterRestaurant, setFilterRestaurant] = useState<string>(initialFilterRestaurant || "all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPeriod, setFilterPeriod] = useState<PeriodFilter>("all");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();

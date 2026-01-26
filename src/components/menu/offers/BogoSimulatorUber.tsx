@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
-import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2, Search, Award } from "lucide-react";
+import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -19,7 +18,7 @@ import { BogoAudienceSelector, AudienceType } from "./BogoAudienceSelector";
 import { BogoDurationSelector, DurationType, CustomSchedule } from "./BogoDurationSelector";
 import { BogoImpactPanel } from "./BogoImpactPanel";
 import { RestaurantMultiSelector } from "./RestaurantMultiSelector";
-import { BogoHistoryInsightsDialog } from "./BogoHistoryInsightsDialog";
+import { BogoMarginPreview } from "./BogoMarginPreview";
 
 interface MenuItem {
   id: string;
@@ -65,7 +64,6 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
   const [offerFeeWaived, setOfferFeeWaived] = useState<boolean>(false);
   const [cofinancingType, setCofinancingType] = useState<"percent" | "amount">("percent");
   const [cofinancingValue, setCofinancingValue] = useState<string>("");
-  const [showProjection, setShowProjection] = useState<boolean>(false);
 
   // Fetch restaurants with is_pinned
   useEffect(() => {
@@ -155,11 +153,6 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
   const selectedItems = useMemo(() => {
     return menuItems.filter(item => selectedItemIds.includes(item.id));
   }, [menuItems, selectedItemIds]);
-
-  // Handle show history insights
-  const handleShowHistoryInsights = () => {
-    setShowProjection(true);
-  };
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -469,18 +462,17 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
               </AccordionItem>
             </Accordion>
 
-            {/* Footer - History Button */}
-            <div className="bg-background rounded-lg border p-4 mt-4">
-              <Button
-                onClick={handleShowHistoryInsights}
-                disabled={!isFormValid}
-                className="w-full bg-foreground text-background hover:bg-foreground/90"
-                size="lg"
-              >
-                <Award className="h-4 w-4 mr-2" />
-                Historique des offres similaires
-              </Button>
-            </div>
+            {/* Margin Preview - shows when items are selected */}
+            {selectedItems.length > 0 && (
+              <div className="mt-4">
+                <BogoMarginPreview
+                  selectedItems={selectedItems}
+                  selectedRestaurantIds={selectedRestaurantIds}
+                  restaurants={restaurants}
+                  commissionRate={27}
+                />
+              </div>
+            )}
           </div>
 
           {/* Right Column - Preview & Impact (40%) */}
@@ -499,15 +491,6 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
           </div>
         </div>
       </div>
-
-      {/* History Insights Dialog */}
-      <BogoHistoryInsightsDialog
-        open={showProjection}
-        onOpenChange={setShowProjection}
-        selectedItems={selectedItems}
-        selectedRestaurantIds={selectedRestaurantIds}
-        audience={audience}
-      />
     </div>
   );
 }
