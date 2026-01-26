@@ -162,6 +162,7 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
   const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("30days");
   const [maxPriceValue, setMaxPriceValue] = useState(20);
   const [minMarginPercent, setMinMarginPercent] = useState(0);
+  const [productSearchQuery, setProductSearchQuery] = useState("");
 
   // Get start date based on period selection
   const getStartDate = (period: SalesPeriod): string | null => {
@@ -265,10 +266,19 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
   const priceField = isUber ? 'price_uber' : 'price_deliveroo';
   
   const eligibleProducts = useMemo(() => {
-    return menuItems.filter(
+    const filtered = menuItems.filter(
       item => (isUber ? item.price_uber : item.price_deliveroo) && item.food_cost && item.food_cost > 0 && item.is_active
     );
-  }, [menuItems, isUber]);
+    // Sort by popularity (sales volume) descending
+    return filtered.sort((a, b) => (salesData[b.id] || 0) - (salesData[a.id] || 0));
+  }, [menuItems, isUber, salesData]);
+
+  // Filtered products for dropdown with search
+  const filteredProductsForDropdown = useMemo(() => {
+    if (!productSearchQuery.trim()) return eligibleProducts;
+    const query = productSearchQuery.toLowerCase().trim();
+    return eligibleProducts.filter(p => p.name.toLowerCase().includes(query));
+  }, [eligibleProducts, productSearchQuery]);
 
   const selectedProduct = useMemo(() => {
     return eligibleProducts.find(p => p.id === selectedProductId);
@@ -628,17 +638,39 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
                   <SelectTrigger className="bg-white/60 dark:bg-white/5 border-orange-500/30">
                     <SelectValue placeholder="Sélectionner un produit" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {eligibleProducts.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        <div className="flex items-center justify-between gap-4 w-full">
-                          <span>{product.name}</span>
-                          <span className="text-muted-foreground text-sm">
-                            {product.price_uber?.toFixed(2)}€
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="max-h-[350px]">
+                    <div className="p-2 sticky top-0 bg-background z-10 border-b">
+                      <Input
+                        placeholder="Rechercher un produit..."
+                        value={productSearchQuery}
+                        onChange={(e) => setProductSearchQuery(e.target.value)}
+                        className="h-8"
+                      />
+                    </div>
+                    {filteredProductsForDropdown.length === 0 ? (
+                      <div className="py-6 text-center text-sm text-muted-foreground">
+                        Aucun produit trouvé
+                      </div>
+                    ) : (
+                      filteredProductsForDropdown.map((product) => {
+                        const sales = salesData[product.id] || 0;
+                        const price = isUber ? product.price_uber : product.price_deliveroo;
+                        return (
+                          <SelectItem key={product.id} value={product.id}>
+                            <div className="flex items-center justify-between gap-4 w-full">
+                              <div className="flex items-center gap-2">
+                                <span>{product.name}</span>
+                                {sales > 10 && <Flame className="h-3.5 w-3.5 text-orange-500" />}
+                              </div>
+                              <div className="flex items-center gap-3 text-sm">
+                                <span className="text-muted-foreground">{sales} ventes</span>
+                                <span className="font-medium">{price?.toFixed(2)}€</span>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        );
+                      })
+                    )}
                   </SelectContent>
                 </Select>
               </div>
