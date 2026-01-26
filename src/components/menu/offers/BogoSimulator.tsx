@@ -112,7 +112,6 @@ interface EnrichedMenuItem {
 
 interface BogoSimulatorProps {
   menuItems: MenuItem[];
-  onBack: () => void;
   platform: Platform;
   commission: number;
   onCommissionChange: (value: number) => void;
@@ -136,7 +135,7 @@ const PLATFORM_CONFIG = {
   deliveroo: { defaultCommission: 25, defaultOfferFee: 0, color: "cyan", name: "Deliveroo" },
 };
 
-export function BogoSimulator({ menuItems, onBack, platform, commission, onCommissionChange, restaurantIds, enrichedMenuItems }: BogoSimulatorProps) {
+export function BogoSimulator({ menuItems, platform, commission, onCommissionChange, restaurantIds, enrichedMenuItems }: BogoSimulatorProps) {
   const config = PLATFORM_CONFIG[platform];
   const isUber = platform === "uber";
   const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
@@ -594,43 +593,6 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
   return (
     <>
     <div className="space-y-6">
-      {/* Header with Back Button */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <Card className="border-0 bg-gradient-to-br from-orange-500/10 via-orange-500/5 to-transparent backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]">
-          <div className="absolute inset-0 border border-orange-500/30 rounded-lg pointer-events-none" />
-          <CardHeader className="relative">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onBack}
-                className="shrink-0"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Retour
-              </Button>
-              <div className="h-8 w-px bg-border" />
-              <motion.div 
-                className="p-3 bg-orange-500/15 backdrop-blur-sm rounded-xl shadow-lg"
-                whileHover={{ scale: 1.1, rotate: 5 }}
-              >
-                <Gift className="h-6 w-6 text-orange-500" />
-              </motion.div>
-              <div>
-                <CardTitle className="text-xl">1 acheté = 1 offert (BOGO)</CardTitle>
-                <CardDescription>
-                  Calculez la rentabilité des offres "1 acheté = 1 offert" sur Uber Eats
-                </CardDescription>
-              </div>
-              <Badge className="ml-auto bg-orange-500 text-white">+74% ventes</Badge>
-            </div>
-          </CardHeader>
-        </Card>
-      </motion.div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Configuration Panel */}
         <motion.div

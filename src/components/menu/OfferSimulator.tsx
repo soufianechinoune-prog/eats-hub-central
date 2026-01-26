@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { OfferTypeSelector, OfferType } from "./offers/OfferTypeSelector";
+import { OfferTypeHeader, OfferType } from "./offers/OfferTypeHeader";
 import { BogoSimulator } from "./offers/BogoSimulator";
 import { CrossProductSimulator } from "./offers/CrossProductSimulator";
 import { PercentDiscountSimulator } from "./offers/PercentDiscountSimulator";
@@ -35,7 +35,7 @@ const DEFAULT_COMMISSIONS = {
 
 export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>("uber");
-  const [selectedOfferType, setSelectedOfferType] = useState<OfferType | null>(null);
+  const [selectedOfferType, setSelectedOfferType] = useState<OfferType>("bogo");
   const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
   
   // Persist commission values per platform
@@ -58,56 +58,27 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
     selectedPlatform
   );
 
-  const handleBack = () => {
-    setSelectedOfferType(null);
-  };
-
   // Render the appropriate simulator based on selection
   const renderSimulator = () => {
-    if (selectedOfferType === "bogo") {
-      return (
-        <BogoSimulator 
-          menuItems={menuItems} 
-          onBack={handleBack} 
-          platform={selectedPlatform}
-          commission={currentCommission}
-          onCommissionChange={setCurrentCommission}
-          restaurantIds={selectedRestaurantIds}
-          enrichedMenuItems={enrichedMenuItems}
-        />
-      );
-    }
+    const commonProps = {
+      menuItems,
+      platform: selectedPlatform,
+      commission: currentCommission,
+      onCommissionChange: setCurrentCommission,
+      restaurantIds: selectedRestaurantIds,
+      enrichedMenuItems,
+    };
 
-    if (selectedOfferType === "cross_product") {
-      return (
-        <CrossProductSimulator 
-          menuItems={menuItems} 
-          onBack={handleBack} 
-          platform={selectedPlatform}
-          commission={currentCommission}
-          onCommissionChange={setCurrentCommission}
-          restaurantIds={selectedRestaurantIds}
-          enrichedMenuItems={enrichedMenuItems}
-        />
-      );
+    switch (selectedOfferType) {
+      case "bogo":
+        return <BogoSimulator {...commonProps} />;
+      case "cross_product":
+        return <CrossProductSimulator {...commonProps} />;
+      case "percent_discount":
+        return <PercentDiscountSimulator {...commonProps} />;
+      default:
+        return <BogoSimulator {...commonProps} />;
     }
-
-    if (selectedOfferType === "percent_discount") {
-      return (
-        <PercentDiscountSimulator 
-          menuItems={menuItems} 
-          onBack={handleBack} 
-          platform={selectedPlatform}
-          commission={currentCommission}
-          onCommissionChange={setCurrentCommission}
-          restaurantIds={selectedRestaurantIds}
-          enrichedMenuItems={enrichedMenuItems}
-        />
-      );
-    }
-
-    // Default: show the offer type selector
-    return <OfferTypeSelector onSelectOffer={setSelectedOfferType} platform={selectedPlatform} />;
   };
 
   return (
@@ -138,7 +109,7 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
       </Card>
 
       {/* Platform Tabs */}
-      <Tabs value={selectedPlatform} onValueChange={(v) => { setSelectedPlatform(v as Platform); setSelectedOfferType(null); }}>
+      <Tabs value={selectedPlatform} onValueChange={(v) => setSelectedPlatform(v as Platform)}>
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="uber" className="flex items-center gap-2 data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-600">
             <UberEatsIcon className="h-4 w-4" />
@@ -150,11 +121,21 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="uber" className="mt-4">
+        <TabsContent value="uber" className="mt-4 space-y-4">
+          <OfferTypeHeader
+            selectedType={selectedOfferType}
+            onTypeChange={setSelectedOfferType}
+            platform="uber"
+          />
           {renderSimulator()}
         </TabsContent>
         
-        <TabsContent value="deliveroo" className="mt-4">
+        <TabsContent value="deliveroo" className="mt-4 space-y-4">
+          <OfferTypeHeader
+            selectedType={selectedOfferType}
+            onTypeChange={setSelectedOfferType}
+            platform="deliveroo"
+          />
           {renderSimulator()}
         </TabsContent>
       </Tabs>
