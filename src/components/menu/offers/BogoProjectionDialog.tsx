@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { subDays, startOfYear } from "date-fns";
+import { subDays, startOfYear, differenceInDays } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +35,6 @@ import {
   Calendar,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeName } from "@/lib/fuzzyMatch";
 
 interface MenuItem {
   id: string;
@@ -69,12 +68,12 @@ const SALES_PERIOD_LABELS: Record<SalesPeriod, string> = {
 const OFFER_FEE = 0.89;
 const ESTIMATED_VOLUME_INCREASE = 0.30;
 
-const getStartDate = (period: SalesPeriod): string | null => {
+const getStartDate = (period: SalesPeriod): Date | null => {
   const now = new Date();
   switch (period) {
-    case "30days": return subDays(now, 30).toISOString();
-    case "90days": return subDays(now, 90).toISOString();
-    case "year": return startOfYear(now).toISOString();
+    case "30days": return subDays(now, 30);
+    case "90days": return subDays(now, 90);
+    case "year": return startOfYear(now);
     default: return null;
   }
 };
@@ -84,7 +83,7 @@ const getPeriodDays = (period: SalesPeriod): number => {
   switch (period) {
     case "30days": return 30;
     case "90days": return 90;
-    case "year": return Math.ceil((now.getTime() - startOfYear(now).getTime()) / (1000 * 60 * 60 * 24));
+    case "year": return differenceInDays(now, startOfYear(now)) + 1;
     default: return 365; // Fallback for "all"
   }
 };
@@ -102,95 +101,58 @@ export function BogoProjectionDialog({
 }: BogoProjectionDialogProps) {
   const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("90days");
 
-  // Fetch historical sales for selected items
+  // Fetch historical sales using RPC for accurate server-side aggregation
   const { data: historicalSales, isLoading } = useQuery({
-    queryKey: ["bogo-historical-sales", selectedItems.map((i) => i.id), selectedRestaurantIds, salesPeriod],
+    queryKey: ["bogo-historical-sales-rpc", selectedItems.map((i) => i.name), selectedRestaurantIds, salesPeriod],
     queryFn: async () => {
       if (selectedItems.length === 0) return null;
 
       const startDate = getStartDate(salesPeriod);
+      const periodDays = getPeriodDays(salesPeriod);
+      const itemNames = selectedItems.map(item => item.name);
 
-      // Build query with orders -> order_items join
-      let query = supabase
-        .from("orders")
-        .select(`
-          order_datetime,
-          restaurant_id,
-          order_items (
-            item_title,
-            quantity,
-            sales_incl_vat
-          )
-        `);
+      console.log('🔍 BOGO RPC Call:', {
+        itemNames,
+        restaurantIds: selectedRestaurantIds,
+        startDate: startDate?.toISOString() || null,
+        periodDays
+      });
 
-      // Filter by date if applicable
-      if (startDate) {
-        query = query.gte("order_datetime", startDate);
-      }
-
-      // Filter by selected restaurants
-      if (selectedRestaurantIds.length > 0) {
-        query = query.in("restaurant_id", selectedRestaurantIds);
-      }
-
-      const { data: orders, error } = await query;
+      const { data, error } = await supabase.rpc('get_bogo_historical_sales', {
+        p_item_names: itemNames,
+        p_restaurant_ids: selectedRestaurantIds,
+        p_start_date: startDate?.toISOString() || null,
+        p_period_days: periodDays
+      });
 
       if (error) {
-        console.error("Error fetching historical sales:", error);
+        console.error("Error fetching historical sales via RPC:", error);
         return null;
       }
 
-      // Flatten all order items
-      const allItems = orders?.flatMap(o => o.order_items || []) || [];
+      console.log('📊 BOGO RPC Result:', data);
 
-      // Create normalized name map for matching
-      const normalizedToItem = new Map<string, MenuItem>();
-      selectedItems.forEach(item => {
-        normalizedToItem.set(normalizeName(item.name), item);
-      });
-
-      // Match and aggregate
-      let totalQuantity = 0;
-      let totalSales = 0;
-      let matchedItemsCount = 0;
-      const matchedItemNames = new Set<string>();
-
-      allItems.forEach(row => {
-        if (!row.item_title) return;
-        
-        const normalizedTitle = normalizeName(row.item_title);
-        let matched = false;
-
-        // Exact match first
-        if (normalizedToItem.has(normalizedTitle)) {
-          matched = true;
-        } else {
-          // Fuzzy match: contains
-          for (const [normalized] of normalizedToItem) {
-            if (normalizedTitle.includes(normalized) || normalized.includes(normalizedTitle)) {
-              matched = true;
-              break;
-            }
-          }
-        }
-
-        if (matched) {
-          totalQuantity += row.quantity || 0;
-          totalSales += row.sales_incl_vat || 0;
-          matchedItemNames.add(row.item_title);
-        }
-      });
-
-      matchedItemsCount = matchedItemNames.size;
-      const periodDays = getPeriodDays(salesPeriod);
+      // RPC returns an array with a single row
+      const result = Array.isArray(data) ? data[0] : data;
+      
+      if (!result) {
+        return {
+          totalQuantity: 0,
+          totalSales: 0,
+          avgPerDay: 0,
+          avgSalesPerDay: 0,
+          matchedItemsCount: 0,
+          periodDays,
+        };
+      }
 
       return {
-        totalQuantity,
-        totalSales,
-        avgPerDay: totalQuantity / periodDays,
-        avgSalesPerDay: totalSales / periodDays,
-        matchedItemsCount,
-        periodDays,
+        totalQuantity: Number(result.total_quantity) || 0,
+        totalSales: Number(result.total_sales) || 0,
+        avgPerDay: Number(result.avg_per_day) || 0,
+        avgSalesPerDay: Number(result.avg_sales_per_day) || 0,
+        matchedItemsCount: Number(result.matched_items_count) || 0,
+        periodDays: Number(result.period_days) || periodDays,
       };
     },
     enabled: open && selectedItems.length > 0,
