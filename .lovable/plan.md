@@ -1,49 +1,78 @@
 
-# Plan : Paramètres avancés pour le simulateur BOGO
+
+# Plan : Affichage du montant en euros du cofinancement
 
 ## Objectif
-Enrichir la section "Paramètres avancés" du simulateur BOGO Uber avec deux options de configuration importantes :
-1. **Frais d'utilisation d'offres** : possibilité d'indiquer si ces frais (0,89 €) sont offerts par Uber ou non
-2. **Cofinancement** : option pour saisir un cofinancement en pourcentage (calculé sur le HT du prix article) ou en euros
+Afficher le montant en euros correspondant au pourcentage de cofinancement dans le panneau de droite (BogoImpactPanel), basé sur le prix HT moyen des articles sélectionnés.
 
----
-
-## Fonctionnalités à implémenter
-
-### 1. Frais d'utilisation d'offres
-- Switch/toggle pour indiquer si les frais sont offerts par Uber
-- Label clair : "Frais d'utilisation offerts par Uber"
-- Cela permettra de tracer et différencier les offres avec/sans frais
-
-### 2. Cofinancement
-- Sélecteur de type : pourcentage (%) ou montant fixe (€)
-- Champ de saisie pour le montant
-- Note explicative : "Le pourcentage est calculé sur le prix HT de l'article"
-- Affichage dynamique du résultat dans le panneau de droite
+Par exemple : si le cofinancement est de 12% et que le prix HT moyen des articles est de 8,50 €, afficher "12% du prix HT (≈ 1,02 €)"
 
 ---
 
 ## Modifications techniques
 
-### Fichier : `src/components/menu/offers/BogoSimulatorUber.tsx`
+### 1. Ajouter `vat_rate` aux interfaces MenuItem
 
-**Nouveaux états à ajouter :**
+**Fichier : `src/components/menu/OfferSimulator.tsx`** (ligne 12-20)
+
 ```typescript
-const [offerFeeWaived, setOfferFeeWaived] = useState<boolean>(false);
-const [cofinancingType, setCofinancingType] = useState<"percent" | "amount">("percent");
-const [cofinancingValue, setCofinancingValue] = useState<string>("");
+interface MenuItem {
+  id: string;
+  name: string;
+  category: string | null;
+  price_uber: number | null;
+  price_deliveroo: number | null;
+  food_cost: number | null;
+  is_active: boolean;
+  vat_rate: number | null;  // AJOUT
+}
 ```
 
-**Modification de la section "Paramètres avancés" (AccordionContent) :**
-- Remplacer le texte placeholder par les deux options de configuration
-- Ajouter un Switch pour les frais offerts
-- Ajouter un RadioGroup ou boutons pour le type de cofinancement
-- Ajouter un Input pour la valeur du cofinancement
+**Fichier : `src/components/menu/offers/BogoSimulatorUber.tsx`** (ligne 23-31)
 
-**Mise à jour du résumé dans l'AccordionTrigger :**
-- Afficher dynamiquement l'état des paramètres (ex: "Frais offerts, Cofin. 50%")
+```typescript
+interface MenuItem {
+  id: string;
+  name: string;
+  category: string | null;
+  price_uber: number | null;
+  price_deliveroo: number | null;
+  food_cost: number | null;
+  is_active: boolean;
+  vat_rate: number | null;  // AJOUT
+}
+```
 
-**Passage des nouvelles props à BogoImpactPanel :**
+---
+
+### 2. Calculer le prix HT moyen des articles sélectionnés
+
+**Fichier : `src/components/menu/offers/BogoSimulatorUber.tsx`**
+
+Ajouter un `useMemo` pour calculer le prix HT moyen :
+
+```typescript
+const averageHtPrice = useMemo(() => {
+  const selectedItems = menuItems.filter(item => selectedItemIds.includes(item.id));
+  if (selectedItems.length === 0) return 0;
+  
+  const total = selectedItems.reduce((sum, item) => {
+    if (!item.price_uber) return sum;
+    const vatRate = item.vat_rate ?? 10; // Défaut 10%
+    const priceHt = item.price_uber / (1 + vatRate / 100);
+    return sum + priceHt;
+  }, 0);
+  
+  return total / selectedItems.length;
+}, [menuItems, selectedItemIds]);
+```
+
+---
+
+### 3. Passer le prix HT moyen au BogoImpactPanel
+
+**Fichier : `src/components/menu/offers/BogoSimulatorUber.tsx`**
+
 ```typescript
 <BogoImpactPanel
   restaurantCount={selectedRestaurantIds.length}
@@ -52,12 +81,18 @@ const [cofinancingValue, setCofinancingValue] = useState<string>("");
   offerFeeWaived={offerFeeWaived}
   cofinancingType={cofinancingType}
   cofinancingValue={parseFloat(cofinancingValue) || 0}
+  averageHtPrice={averageHtPrice}  // AJOUT
 />
 ```
 
-### Fichier : `src/components/menu/offers/BogoImpactPanel.tsx`
+---
 
-**Nouvelles props :**
+### 4. Afficher le montant en euros dans BogoImpactPanel
+
+**Fichier : `src/components/menu/offers/BogoImpactPanel.tsx`**
+
+Ajouter la prop et calculer le montant :
+
 ```typescript
 interface BogoImpactPanelProps {
   restaurantCount: number;
@@ -66,81 +101,51 @@ interface BogoImpactPanelProps {
   offerFeeWaived?: boolean;
   cofinancingType?: "percent" | "amount";
   cofinancingValue?: number;
+  averageHtPrice?: number;  // AJOUT
 }
 ```
 
-**Affichage conditionnel des frais :**
-- Si `offerFeeWaived = true` : afficher "Frais offerts" avec un style barré ou badge vert
-- Sinon : afficher le montant normal "0,89 € par commande"
-
-**Affichage du cofinancement :**
-- Nouvelle section sous les frais
-- Affichage selon le type : "Cofinancement : 50% du HT" ou "Cofinancement : 2,50 € par article"
-
----
-
-## Interface utilisateur prévue
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│ ⚙️ Paramètres avancés                                    │
-│    Commission, cofinancement                             │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│ Frais d'utilisation d'offres                            │
-│ ┌──────────────────────────────────────────────┐        │
-│ │  Frais offerts par Uber          [Toggle]    │        │
-│ └──────────────────────────────────────────────┘        │
-│ Les frais de 0,89 € HT par commande utilisant cette    │
-│ offre ne vous seront pas facturés.                      │
-│                                                          │
-│ ──────────────────────────────────────────────          │
-│                                                          │
-│ Cofinancement                                            │
-│ ┌──────────────────────────────────────────────┐        │
-│ │  [● Pourcentage]    [○ Montant fixe]         │        │
-│ └──────────────────────────────────────────────┘        │
-│                                                          │
-│ ┌────────┐                                              │
-│ │   50   │ %                                            │
-│ └────────┘                                              │
-│ Le pourcentage est calculé sur le prix HT de l'article │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## Données incluses dans handleCreateOffer
+Modifier l'affichage du cofinancement (ligne 153-161) :
 
 ```typescript
-console.log("Creating offer:", {
-  restaurants: selectedRestaurantIds,
-  items: selectedItemIds,
-  audience,
-  durationType,
-  customSchedule,
-  weeklyBudget,
-  // Nouveaux champs
-  offerFeeWaived,
-  cofinancingType,
-  cofinancingValue: parseFloat(cofinancingValue) || 0,
-});
+{cofinancingValue > 0 && (
+  <div className="space-y-2">
+    <p className="text-sm text-muted-foreground">Cofinancement</p>
+    <p className="text-lg font-semibold text-primary">
+      {cofinancingType === "percent"
+        ? `${cofinancingValue}% du prix HT`
+        : `${cofinancingValue.toFixed(2).replace(".", ",")} € par article`}
+    </p>
+    {/* AJOUT : Montant en euros pour le pourcentage */}
+    {cofinancingType === "percent" && averageHtPrice > 0 && (
+      <p className="text-sm text-muted-foreground">
+        ≈ {((cofinancingValue / 100) * averageHtPrice).toFixed(2).replace(".", ",")} € 
+        / article (moy.)
+      </p>
+    )}
+  </div>
+)}
 ```
 
 ---
 
-## Résumé des fichiers modifiés
+## Résumé des modifications
 
-| Fichier | Modifications |
-|---------|---------------|
-| `src/components/menu/offers/BogoSimulatorUber.tsx` | Ajout états, section avancée complète, props |
-| `src/components/menu/offers/BogoImpactPanel.tsx` | Nouvelles props, affichage conditionnel frais et cofin. |
+| Fichier | Modification |
+|---------|--------------|
+| `src/components/menu/OfferSimulator.tsx` | Ajout `vat_rate` à l'interface |
+| `src/components/menu/offers/BogoSimulatorUber.tsx` | Ajout `vat_rate` à l'interface + calcul `averageHtPrice` + passage prop |
+| `src/components/menu/offers/BogoImpactPanel.tsx` | Ajout prop `averageHtPrice` + affichage montant euros |
 
 ---
 
-## Points d'attention
+## Résultat attendu
 
-1. **Calcul du cofinancement %** : S'applique sur le prix HT = `price_uber / (1 + vat_rate/100)`
-2. **Traçabilité** : Ces paramètres seront sauvegardés dans `restaurant_actions` lors de la création
-3. **Validation** : Le champ cofinancement accepte uniquement des valeurs numériques positives
+Quand l'utilisateur sélectionne un cofinancement de 12% et des articles avec un prix HT moyen de 8,50 € :
+
+```text
+Cofinancement
+12% du prix HT
+≈ 1,02 € / article (moy.)
+```
+
