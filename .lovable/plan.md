@@ -1,176 +1,236 @@
 
+# Révision du simulateur BOGO : Approche en 2 étapes
 
-# Révision du Simulateur BOGO : De la projection à l'analyse rétrospective
+## Vision utilisateur
 
-## Problème actuel
+Au lieu d'un popup complexe avec des projections incertaines, on simplifie le flux :
 
-Le simulateur tente de prédire l'impact futur en croisant des ventes d'articles historiques avec des projections de volume. Cette approche est :
-- **Peu fiable** : les données matchent mal (fuzzy matching complexe)
-- **Trompeuse** : affiche des valeurs qui peuvent être fausses
-- **Inutile** : tu as déjà les vraies données d'offres passées !
+### Étape 1 : Afficher les marges des produits sélectionnés (inline)
 
-## Nouvelle approche : Exploiter l'historique réel des offres
-
-Tu as **46 offres BOGO** avec des données réelles :
-- Dates, durée, articles concernés
-- CA généré : jusqu'à 17 787 € pour la meilleure
-- Nombre de commandes : jusqu'à 619
-- Nouveaux clients : jusqu'à 196
-- Audience ciblée (Tous, Nouveaux, Uber One)
-
-Cette data existe, il faut simplement la présenter intelligemment dans le simulateur.
-
----
-
-## Modifications proposées
-
-### 1. Remplacer le popup "Projection" par "Historique des offres similaires"
-
-Quand l'utilisateur clique sur "Simuler l'impact" :
-
-**Au lieu de :** projections incertaines basées sur ventes d'articles
-
-**Afficher :** les offres BOGO passées sur les mêmes articles
+Dans le simulateur, dès qu'un article est sélectionné, afficher directement ses informations financières :
 
 ```text
-┌───────────────────────────────────────────────────────────────┐
-│  📊 Offres similaires passées                                 │
-│                                                               │
-│  3 offres BOGO trouvées pour "Naan TENDERS"                   │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │ 🥇 Déc 2025 • Nouveaux clients • 11 937 € • 458 cmd    │  │
-│  │     ⭐⭐⭐⭐⭐ Excellent (354 nouveaux clients)          │  │
-│  │     📝 "Très bon ROI sur nouveaux clients"              │  │
-│  └─────────────────────────────────────────────────────────┘  │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │ 🥈 Oct 2025 • Tous les clients • 11 042 € • 364 cmd    │  │
-│  │     ⭐⭐⭐⭐ Bon                                         │  │
-│  └─────────────────────────────────────────────────────────┘  │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │ 🥉 Jan 2026 • Tous les clients • 6 957 € • 280 cmd     │  │
-│  │     ⭐⭐⭐ Correct                                       │  │
-│  └─────────────────────────────────────────────────────────┘  │
-│                                                               │
-│  💡 Conseil : Les offres "Nouveaux clients" ont généré       │
-│     +97% de nouveaux clients vs "Tous les clients"           │
-│                                                               │
-│  [ Ajouter une note ]  [ Voir toutes les offres BOGO ]       │
-└───────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  📦 Articles sélectionnés                                           │
+│                                                                     │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │ Naan TENDERS                                                   │  │
+│  │ Prix TTC: 14,90 €  •  Food Cost: 3,80 €  •  TVA: 10%          │  │
+│  │                                                                │  │
+│  │  Marge Brute     Marge Nette (30%)    % Food Cost             │  │
+│  │  ┌─────────┐     ┌─────────┐          ┌─────────┐             │  │
+│  │  │  67,3%  │     │  27,4%  │          │  28,0%  │             │  │
+│  │  │   ✅    │     │   ⚠️    │          │   ✅    │             │  │
+│  │  └─────────┘     └─────────┘          └─────────┘             │  │
+│  │                                                                │  │
+│  │  💡 En BOGO, votre food cost double (7,60 €)                  │  │
+│  │     → Marge Brute BOGO estimée: 43,8%                         │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  [ Voir l'historique des offres BOGO → ]                           │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
+### Étape 2 : Redirection vers l'historique des offres
+
+Au clic sur "Voir l'historique des offres BOGO", navigation vers `/marketing-analytics` avec les filtres pré-appliqués :
+
+```
+/marketing-analytics?type=1+acheté+%3D+1+offert&restaurant=CHICKEN+STREET+JUVISY
+```
+
+L'utilisateur arrive sur la page "Marketing Analytics" avec :
+- Onglet "Offres" actif par défaut
+- Filtre "Type" pré-sélectionné sur "1 acheté = 1 offert"
+- Filtre "Restaurant" pré-sélectionné (si un seul restaurant choisi dans le simulateur)
+
+Là, il peut analyser lui-même les offres passées et se faire sa propre idée.
+
 ---
 
-### 2. Système de notation automatique
+## Modifications techniques
 
-Calculer un score de rentabilité pour chaque offre passée basé sur :
+### 1. Créer un composant `BogoMarginPreview.tsx`
 
-| Critère | Poids | Calcul |
-|---------|-------|--------|
-| CA généré | 30% | Comparé à la moyenne des offres similaires |
-| Commandes | 20% | Volume de commandes générées |
-| Nouveaux clients | 25% | Capacité d'acquisition |
-| Durée/efficacité | 15% | CA par jour d'offre |
-| Cofinancement Uber | 10% | % financé par Uber |
-
-Score affiché : ⭐⭐⭐⭐⭐ (1-5 étoiles) + label (Excellent/Bon/Correct/Faible/Mauvais)
-
----
-
-### 3. Permettre d'ajouter des notes/commentaires
-
-Enrichir `restaurant_actions.change_context` avec :
+Nouveau composant qui affiche les marges des articles sélectionnés :
 
 ```typescript
-// Nouvelles propriétés dans change_context
-{
-  ...existing,
-  user_rating: 4,           // Note manuelle 1-5
-  user_comment: "Très bon ROI, à refaire en période creuse",
-  learnings: [
-    "Mieux cibler nouveaux clients",
-    "Durée idéale : 5-7 jours"
-  ]
+interface BogoMarginPreviewProps {
+  selectedItems: MenuItem[];
+  selectedRestaurantIds: string[];
+  commissionRate: number;
+  onViewHistory: () => void;
+}
+
+export function BogoMarginPreview({ ... }: BogoMarginPreviewProps) {
+  // Calcul des marges pour chaque article
+  // - Prix HT = Prix TTC / (1 + TVA%)
+  // - Marge Brute = (Prix HT - Food Cost) / Prix HT
+  // - Marge Nette = (Prix HT - Commission - Food Cost) / Prix HT
+  // - % Food Cost = Food Cost / Prix HT (ou Net selon toggle)
+  // - Impact BOGO = Food Cost x 2 pour calculer nouvelle marge
+  
+  return (
+    <Card className="bg-gradient-to-br from-amber-500/5 to-amber-500/10 border-amber-500/20">
+      {/* Pour chaque article sélectionné */}
+      <div className="space-y-4">
+        {selectedItems.map(item => (
+          <BogoMarginCard 
+            key={item.id}
+            item={item}
+            commissionRate={commissionRate}
+          />
+        ))}
+      </div>
+      
+      {/* Bouton pour voir l'historique */}
+      <Button onClick={onViewHistory}>
+        <History className="h-4 w-4 mr-2" />
+        Voir l'historique des offres BOGO
+        <ArrowRight className="h-4 w-4 ml-2" />
+      </Button>
+    </Card>
+  );
 }
 ```
 
-UI dans le popup : bouton "Ajouter une note" ouvre un mini-formulaire.
+### 2. Modifier `BogoSimulatorUber.tsx`
 
----
+Remplacer le bouton "Historique des offres similaires" par le composant `BogoMarginPreview` qui s'affiche dès qu'un article est sélectionné :
 
-### 4. Insights automatiques
+```typescript
+// Après la section des articles sélectionnés
+{selectedItems.length > 0 && (
+  <BogoMarginPreview
+    selectedItems={selectedItems}
+    selectedRestaurantIds={selectedRestaurantIds}
+    commissionRate={27} // ou configurable
+    onViewHistory={handleNavigateToHistory}
+  />
+)}
 
-Comparer les offres passées pour générer des recommandations :
-
-```text
-💡 Insights basés sur ton historique :
-
-• Les BOGO sur "Naan TENDERS" génèrent en moyenne 9 600 € / campagne
-• Audience "Nouveaux clients" : +97% de nouveaux clients vs "Tous"
-• Meilleure période : fin de mois (26-31)
-• Durée optimale observée : 5-6 jours
+const handleNavigateToHistory = () => {
+  const params = new URLSearchParams();
+  params.set("type", "1 acheté = 1 offert");
+  params.set("tab", "offers");
+  
+  if (selectedRestaurantIds.length === 1) {
+    const restaurant = restaurants.find(r => r.id === selectedRestaurantIds[0]);
+    if (restaurant) params.set("restaurant", restaurant.name);
+  }
+  
+  navigate(`/marketing-analytics?${params.toString()}`);
+};
 ```
 
----
+### 3. Modifier `MarketingAnalytics.tsx`
 
-## Fichiers à modifier
+Ajouter la lecture des query params pour pré-sélectionner l'onglet et passer les filtres :
 
-| Fichier | Modification |
-|---------|--------------|
-| `src/components/menu/offers/BogoProjectionDialog.tsx` | Refactoring complet → devient `BogoHistoryInsightsDialog.tsx` |
-| `src/components/menu/offers/BogoSimulatorUber.tsx` | Bouton "Historique des offres similaires" au lieu de "Simuler l'impact" |
-| `src/hooks/useOfferHistory.ts` | Nouveau hook pour récupérer les offres passées matchées par article |
-| `supabase/migrations/` | (Optionnel) Ajouter index sur `change_context->'articles'` pour performance |
+```typescript
+import { useSearchParams } from "react-router-dom";
 
----
+export default function MarketingAnalytics() {
+  const [searchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab") || "offers";
+  const typeFromUrl = searchParams.get("type");
+  const restaurantFromUrl = searchParams.get("restaurant");
+  
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
 
-## Logique de matching des offres
-
-Pour trouver les offres "similaires" à la configuration actuelle :
-
-```sql
--- Requête pour trouver les BOGO passés sur les mêmes articles
-SELECT 
-  id,
-  start_date,
-  end_date,
-  change_context->>'audience' as audience,
-  change_context->>'sales_eur' as sales,
-  change_context->>'orders' as orders,
-  change_context->>'new_customers' as new_customers,
-  change_context->>'articles' as articles
-FROM restaurant_actions
-WHERE 
-  category = 'promotions'
-  AND action_type = '1 acheté = 1 offert'
-  AND change_context->'articles' ?| ARRAY['Naan TENDERS', 'NAAN TENDER']
-ORDER BY start_date DESC
-LIMIT 10
+  return (
+    // ...
+    <OffersOverview
+      offers={campaignData?.offers || []}
+      stats={...}
+      initialFilterType={typeFromUrl}
+      initialFilterRestaurant={restaurantFromUrl}
+    />
+  );
+}
 ```
 
-Le matching utilise les noms d'articles stockés dans `change_context->'articles'`.
+### 4. Modifier `OffersOverview.tsx`
+
+Accepter les filtres initiaux en props :
+
+```typescript
+interface OffersOverviewProps {
+  offers: OffersCampaign[];
+  stats: { ... };
+  initialFilterType?: string | null;
+  initialFilterRestaurant?: string | null;
+}
+
+export function OffersOverview({ 
+  offers, 
+  stats, 
+  initialFilterType,
+  initialFilterRestaurant 
+}: OffersOverviewProps) {
+  const [filterType, setFilterType] = useState<string>(
+    initialFilterType || "all"
+  );
+  const [filterRestaurant, setFilterRestaurant] = useState<string>(
+    initialFilterRestaurant || "all"
+  );
+  // ...
+}
+```
+
+### 5. Supprimer les fichiers obsolètes
+
+- `src/components/menu/offers/BogoHistoryInsightsDialog.tsx` (plus utilisé)
+- `src/components/menu/offers/BogoProjectionDialog.tsx` (plus utilisé)
+- `src/hooks/useBogoOfferHistory.ts` (plus utilisé)
+
+---
+
+## Résumé des fichiers
+
+| Fichier | Action |
+|---------|--------|
+| `src/components/menu/offers/BogoMarginPreview.tsx` | Créer - Affiche les marges des articles sélectionnés |
+| `src/components/menu/offers/BogoSimulatorUber.tsx` | Modifier - Intégrer BogoMarginPreview + navigation |
+| `src/pages/MarketingAnalytics.tsx` | Modifier - Lire les query params URL |
+| `src/components/marketing/OffersOverview.tsx` | Modifier - Accepter filtres initiaux en props |
+| `src/components/menu/offers/BogoHistoryInsightsDialog.tsx` | Supprimer |
+| `src/components/menu/offers/BogoProjectionDialog.tsx` | Supprimer |
+| `src/hooks/useBogoOfferHistory.ts` | Supprimer |
 
 ---
 
 ## Avantages de cette approche
 
-| Avant (projections) | Après (historique réel) |
-|---------------------|-------------------------|
-| ❌ Données approximatives | ✅ Données réelles d'Uber |
-| ❌ Fuzzy matching complexe | ✅ Matching exact sur les offres |
-| ❌ "Pas d'historique" fréquent | ✅ 46+ offres BOGO disponibles |
-| ❌ Projections peu fiables | ✅ CA/commandes vérifiés |
-| ❌ Pas d'apprentissage | ✅ Notes et learnings capitalisés |
+| Aspect | Bénéfice |
+|--------|----------|
+| **Fiabilité** | Les marges affichées sont calculées avec les vraies formules (pas de projection) |
+| **Réutilisation** | On exploite le tableau "Historique des offres" déjà fonctionnel avec 88 offres |
+| **Autonomie utilisateur** | L'utilisateur analyse lui-même les données, se fait sa propre opinion |
+| **Simplicité code** | Moins de composants, pas de dialog, pas de fuzzy matching complexe |
+| **Transparence** | L'utilisateur voit exactement les marges avant/après BOGO |
 
 ---
 
-## Résultat attendu
+## Formules utilisées pour les marges
 
-1. **Fiabilité** : Les chiffres affichés sont vrais (importés d'Uber)
-2. **Actionnable** : Voir ce qui a marché permet de décider
-3. **Capitalisation** : Notes et commentaires pour apprendre
-4. **Intelligence** : Insights automatiques basés sur l'historique
-5. **Simplicité** : Plus de fuzzy matching complexe côté ventes
+Les calculs s'appuient sur la logique déjà validée dans `useRestaurantProfitability.ts` :
 
+```typescript
+// Prix HT
+const prixHT = prixTTC / (1 + vatRate / 100);
+
+// Marge Brute %
+const margeBrute = ((prixHT - foodCost) / prixHT) * 100;
+
+// Marge Nette % (commission sur TTC)
+const commissionHT = prixTTC * (commissionRate / 100);
+const margeNette = ((prixHT - commissionHT - foodCost) / prixHT) * 100;
+
+// % Food Cost
+const foodCostPercent = (foodCost / prixHT) * 100;
+
+// Impact BOGO : on "offre" un article, donc food cost x 2
+const foodCostBogo = foodCost * 2;
+const margeBruteBogo = ((prixHT - foodCostBogo) / prixHT) * 100;
+```
