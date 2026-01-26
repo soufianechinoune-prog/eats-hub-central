@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2 } from "lucide-react";
+import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,7 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
     timeSlots: [{ startTime: "11:00", endTime: "22:00" }],
   });
   const [weeklyBudget, setWeeklyBudget] = useState<string>("");
+  const [articleSearch, setArticleSearch] = useState<string>("");
   const [openSections, setOpenSections] = useState<string[]>(["etablissements"]);
 
   // Fetch restaurants with is_pinned
@@ -80,16 +81,25 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
     );
   }, [menuItems]);
 
+  // Filter items by search
+  const filteredItems = useMemo(() => {
+    if (!articleSearch.trim()) return eligibleItems;
+    const searchLower = articleSearch.toLowerCase();
+    return eligibleItems.filter((item) =>
+      item.name.toLowerCase().includes(searchLower)
+    );
+  }, [eligibleItems, articleSearch]);
+
   // Group items by category
   const itemsByCategory = useMemo(() => {
     const grouped: Record<string, MenuItem[]> = {};
-    eligibleItems.forEach((item) => {
+    filteredItems.forEach((item) => {
       const cat = item.category || "Autres";
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(item);
     });
     return grouped;
-  }, [eligibleItems]);
+  }, [filteredItems]);
 
   // Toggle restaurant selection (for multiselect)
   const handleRestaurantSelectionChange = (ids: string[]) => {
@@ -206,6 +216,17 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="pb-4">
+                  {/* Search field */}
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Rechercher des articles"
+                      value={articleSearch}
+                      onChange={(e) => setArticleSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
                   <div className="space-y-4 max-h-80 overflow-y-auto">
                     {Object.entries(itemsByCategory).map(([category, items]) => {
                       const categoryItemIds = items.map((i) => i.id);
