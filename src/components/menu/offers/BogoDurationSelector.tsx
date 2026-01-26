@@ -59,10 +59,23 @@ const DAYS = [
   { value: 6, label: "Sam", fullLabel: "Samedi" },
 ];
 
-const HOURS = Array.from({ length: 24 }, (_, i) => {
+// Start hours: 0:00 to 23:00
+const START_HOURS = Array.from({ length: 24 }, (_, i) => {
   const hour = i.toString().padStart(2, "0");
   return { value: `${hour}:00`, label: `${hour}:00` };
 });
+
+// End hours: 0:00 to 23:00 + next day hours until 3:00 AM
+const END_HOURS = [
+  ...Array.from({ length: 24 }, (_, i) => {
+    const hour = i.toString().padStart(2, "0");
+    return { value: `${hour}:00`, label: `${hour}:00`, nextDay: false };
+  }),
+  { value: "24:00", label: "00:00 (+1 jour)", nextDay: true },
+  { value: "25:00", label: "01:00 (+1 jour)", nextDay: true },
+  { value: "26:00", label: "02:00 (+1 jour)", nextDay: true },
+  { value: "27:00", label: "03:00 (+1 jour)", nextDay: true },
+];
 
 export function BogoDurationSelector({
   durationType,
@@ -329,11 +342,11 @@ export function BogoDurationSelector({
                     value={slot.startTime}
                     onValueChange={(v) => handleTimeSlotChange(index, "startTime", v)}
                   >
-                    <SelectTrigger className="w-[100px]">
+                    <SelectTrigger className="w-[120px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {HOURS.map((h) => (
+                      {START_HOURS.map((h) => (
                         <SelectItem key={h.value} value={h.value}>
                           {h.label}
                         </SelectItem>
@@ -345,11 +358,13 @@ export function BogoDurationSelector({
                     value={slot.endTime}
                     onValueChange={(v) => handleTimeSlotChange(index, "endTime", v)}
                   >
-                    <SelectTrigger className="w-[100px]">
-                      <SelectValue />
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue>
+                        {END_HOURS.find(h => h.value === slot.endTime)?.label || slot.endTime}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {HOURS.map((h) => (
+                      {END_HOURS.map((h) => (
                         <SelectItem key={h.value} value={h.value}>
                           {h.label}
                         </SelectItem>
