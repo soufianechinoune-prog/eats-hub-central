@@ -185,7 +185,7 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
         // Use RPC to aggregate server-side (bypasses 1000 row limit)
         const { data, error } = await supabase.rpc("get_product_sales_for_period", {
           p_start_date: startDate,
-          p_restaurant_ids: null // All restaurants for network-wide popularity
+          p_restaurant_ids: restaurantIds.length > 0 ? restaurantIds : null
         });
         
         if (error) throw error;
@@ -242,7 +242,7 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
     };
     
     fetchSalesData();
-  }, [menuItems, salesPeriod]);
+  }, [menuItems, salesPeriod, restaurantIds]);
 
   // Use platform-specific price field
   const priceField = isUber ? 'price_uber' : 'price_deliveroo';
