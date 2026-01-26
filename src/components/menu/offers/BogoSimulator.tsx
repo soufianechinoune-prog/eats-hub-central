@@ -714,22 +714,46 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
                   <span className="flex items-center gap-2">
                     Commission {config.name}
                   </span>
-                  <Badge variant="outline" className="font-mono">{commission}%</Badge>
                 </Label>
-                <Slider
-                  value={[commission]}
-                  onValueChange={([value]) => onCommissionChange(value)}
-                  min={15}
-                  max={isUber ? 30 : 35}
-                  step={1}
-                  className="w-full"
-                />
+                <div className="flex items-center gap-3">
+                  <Slider
+                    value={[commission]}
+                    onValueChange={([value]) => onCommissionChange(value)}
+                    min={15}
+                    max={isUber ? 30 : 35}
+                    step={0.25}
+                    className="flex-1"
+                  />
+                  <div className="relative w-24">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={15}
+                      max={isUber ? 30 : 35}
+                      value={commission}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val) && val >= 15 && val <= (isUber ? 30 : 35)) {
+                          onCommissionChange(val);
+                        }
+                      }}
+                      className="pr-7 text-right font-mono bg-white/60 dark:bg-white/5 border-primary/30"
+                    />
+                    <Percent className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                </div>
               </div>
 
-              {/* Offer Fee */}
+              {/* Offer Fee with toggle */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  Frais d'utilisation de l'offre
+                <Label className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    Frais d'utilisation de l'offre
+                  </span>
+                  <Switch
+                    checked={offerFee > 0}
+                    onCheckedChange={(checked) => setOfferFee(checked ? config.defaultOfferFee : 0)}
+                  />
                 </Label>
                 <div className="relative">
                   <Input
@@ -737,10 +761,14 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
                     step="0.01"
                     value={offerFee}
                     onChange={(e) => setOfferFee(parseFloat(e.target.value) || 0)}
-                    className="bg-white/60 dark:bg-white/5 border-primary/30 pr-8"
+                    disabled={offerFee === 0}
+                    className={`bg-white/60 dark:bg-white/5 border-primary/30 pr-8 ${offerFee === 0 ? 'opacity-50' : ''}`}
                   />
                   <Euro className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>
+                {offerFee === 0 && (
+                  <p className="text-xs text-muted-foreground">Frais offerts par la plateforme</p>
+                )}
               </div>
 
               {/* Platform Funding */}
