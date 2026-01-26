@@ -76,6 +76,7 @@ interface MenuItem {
   price_uber: number | null;
   price_deliveroo: number | null;
   food_cost: number | null;
+  vat_rate: number | null;
   is_active: boolean;
 }
 
@@ -93,6 +94,7 @@ interface EnrichedMenuItem {
   name: string;
   category: string | null;
   food_cost: number | null;
+  vat_rate: number | null;
   is_active: boolean;
   price_uber: number | null;
   price_deliveroo: number | null;

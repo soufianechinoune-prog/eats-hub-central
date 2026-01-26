@@ -85,6 +85,7 @@ interface MenuItem {
   price_uber: number | null;
   price_deliveroo: number | null;
   food_cost: number | null;
+  vat_rate: number | null;
   is_active: boolean;
 }
 
@@ -102,6 +103,7 @@ interface EnrichedMenuItem {
   name: string;
   category: string | null;
   food_cost: number | null;
+  vat_rate: number | null;
   is_active: boolean;
   price_uber: number | null;
   price_deliveroo: number | null;
@@ -282,11 +284,15 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
     const price = productPrice;
     const foodCost = selectedProduct.food_cost;
     const commissionRate = commission / 100;
+    
+    // Get VAT rate from selected product (default 10%)
+    const vatRate = selectedProduct.vat_rate ?? 10;
+    const priceHT = price / (1 + vatRate / 100);
 
-    // Calculate platform contribution (funding)
+    // Calculate platform contribution (funding) on HT price per Uber rules
     const fundingValue = parseFloat(platformFunding) || 0;
     const platformContribution = fundingType === "percent" 
-      ? (foodCost * fundingValue / 100) 
+      ? (priceHT * fundingValue / 100) 
       : fundingValue;
 
     const netMarginPerUnit = price - (price * commissionRate) - foodCost;
@@ -305,6 +311,8 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
 
     return {
       price,
+      priceHT,
+      vatRate,
       foodCost,
       netMarginPerUnit,
       marginPercentWithoutOffer,
@@ -483,11 +491,9 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
     if (!enrichedProduct || !enrichedProduct.food_cost) return [];
     
     const foodCost = enrichedProduct.food_cost;
+    const vatRate = enrichedProduct.vat_rate ?? 10;
     const commissionRate = commission / 100;
     const fundingValue = parseFloat(platformFunding) || 0;
-    const platformContribution = fundingType === "percent" 
-      ? (foodCost * fundingValue / 100) 
-      : fundingValue;
 
     return enrichedProduct.restaurantPrices.map(rp => {
       const price = rp.usedPrice;
@@ -507,6 +513,12 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
         };
       }
       
+      // Calculate platform contribution on HT price for this restaurant
+      const priceHT = price / (1 + vatRate / 100);
+      const platformContribution = fundingType === "percent" 
+        ? (priceHT * fundingValue / 100) 
+        : fundingValue;
+        
       const netMarginPerUnit = price - (price * commissionRate) - foodCost;
       const netMarginBogo = price - (price * commissionRate) - offerFee - (foodCost * 2) + platformContribution;
       const marginPercentBogo = (netMarginBogo / price) * 100;
@@ -670,16 +682,22 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
               </div>
 
               {/* Product Info Display */}
-              {selectedProduct && (
+              {selectedProduct && simulation && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   className="p-4 rounded-lg bg-muted/30 border border-border/50 space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Prix Uber</span>
+                    <span className="text-sm text-muted-foreground">Prix Uber TTC</span>
                     <span className="font-mono font-semibold text-orange-600">
                       {selectedProduct.price_uber?.toFixed(2)}€
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Prix HT (TVA {simulation.vatRate}%)</span>
+                    <span className="font-mono">
+                      {simulation.priceHT.toFixed(2)}€
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -797,7 +815,12 @@ export function BogoSimulator({ menuItems, onBack, platform, commission, onCommi
                 {platformFunding && parseFloat(platformFunding) > 0 && simulation && (
                   <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-500/10 px-3 py-1.5 rounded-lg">
                     <Sparkles className="h-3.5 w-3.5" />
-                    +{simulation.platformContribution?.toFixed(2)}€ de contribution plateforme
+                    <span>
+                      +{simulation.platformContribution?.toFixed(2)}€ de contribution plateforme
+                      <span className="text-emerald-500/70 ml-1">
+                        ({platformFunding}% du prix HT ≈ {simulation.priceHT.toFixed(2)}€)
+                      </span>
+                    </span>
                   </div>
                 )}
               </div>
