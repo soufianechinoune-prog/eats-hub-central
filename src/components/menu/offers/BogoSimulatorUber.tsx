@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2, Search } from "lucide-react";
+import { ArrowLeft, Store, Tag, Target, Settings2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/accordion";
 import { supabase } from "@/integrations/supabase/client";
 import { BogoAudienceSelector, AudienceType } from "./BogoAudienceSelector";
-import { BogoDurationSelector, DurationType, CustomSchedule } from "./BogoDurationSelector";
 import { BogoImpactPanel } from "./BogoImpactPanel";
 import { RestaurantMultiSelector } from "./RestaurantMultiSelector";
 import { BogoMarginPreview } from "./BogoMarginPreview";
@@ -51,14 +50,6 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
   const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [audience, setAudience] = useState<AudienceType>("all");
-  const [durationType, setDurationType] = useState<DurationType>("1year");
-  const [customSchedule, setCustomSchedule] = useState<CustomSchedule>({
-    startDate: new Date(),
-    endDate: undefined,
-    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-    timeSlots: [{ startTime: "11:00", endTime: "22:00", daysOfWeek: [0, 1, 2, 3, 4, 5, 6] }],
-  });
-  const [weeklyBudget, setWeeklyBudget] = useState<string>("");
   const [articleSearch, setArticleSearch] = useState<string>("");
   const [openSections, setOpenSections] = useState<string[]>(["etablissements"]);
   const [offerFeeWaived, setOfferFeeWaived] = useState<boolean>(false);
@@ -313,68 +304,8 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
                 </AccordionContent>
               </AccordionItem>
 
-              {/* 4. Durée */}
-              <AccordionItem value="duree" className="bg-background rounded-lg border px-4">
-                <AccordionTrigger className="hover:no-underline py-4">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-muted-foreground" />
-                    <div className="text-left">
-                      <p className="font-medium">Durée</p>
-                      <p className="text-sm text-muted-foreground font-normal">
-                        {durationType === "1year" && "1 an"}
-                        {durationType === "6months" && "6 mois"}
-                        {durationType === "custom" && "Personnalisé"}
-                      </p>
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
-                  <BogoDurationSelector
-                    durationType={durationType}
-                    onDurationTypeChange={setDurationType}
-                    customSchedule={customSchedule}
-                    onCustomScheduleChange={setCustomSchedule}
-                  />
-                </AccordionContent>
-              </AccordionItem>
 
-              {/* 5. Dépenses hebdomadaires */}
-              <AccordionItem value="budget" className="bg-background rounded-lg border px-4">
-                <AccordionTrigger className="hover:no-underline py-4">
-                  <div className="flex items-center gap-3">
-                    <Wallet className="h-5 w-5 text-muted-foreground" />
-                    <div className="text-left">
-                      <p className="font-medium">Dépenses hebdomadaires</p>
-                      <p className="text-sm text-muted-foreground font-normal">
-                        {weeklyBudget ? `${weeklyBudget} € / semaine` : "Aucune limite"}
-                      </p>
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Vous ne payez que lorsque les clients passent commande. Si vous le souhaitez, vous pouvez également définir un plafond de dépense maximal.
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">EUR</span>
-                      <Input
-                        type="number"
-                        placeholder="Saisissez un budget"
-                        value={weeklyBudget}
-                        onChange={(e) => setWeeklyBudget(e.target.value)}
-                        className="max-w-[200px]"
-                      />
-                      <span className="text-sm text-muted-foreground">/ semaine</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Les dépenses hebdomadaires sont réinitialisées tous les lundis matin.
-                    </p>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* 6. Paramètres avancés */}
+              {/* 4. Paramètres avancés */}
               <AccordionItem value="advanced" className="bg-background rounded-lg border px-4">
                 <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex items-center gap-3">
