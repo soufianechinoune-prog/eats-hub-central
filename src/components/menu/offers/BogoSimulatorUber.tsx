@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2, Search } from "lucide-react";
+import { ArrowLeft, Store, Tag, Target, Calendar, Wallet, Settings2, Search, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { BogoAudienceSelector, AudienceType } from "./BogoAudienceSelector";
 import { BogoDurationSelector, DurationType, CustomSchedule } from "./BogoDurationSelector";
 import { BogoImpactPanel } from "./BogoImpactPanel";
 import { RestaurantMultiSelector } from "./RestaurantMultiSelector";
+import { BogoProjectionDialog } from "./BogoProjectionDialog";
 
 interface MenuItem {
   id: string;
@@ -64,6 +65,7 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
   const [offerFeeWaived, setOfferFeeWaived] = useState<boolean>(false);
   const [cofinancingType, setCofinancingType] = useState<"percent" | "amount">("percent");
   const [cofinancingValue, setCofinancingValue] = useState<string>("");
+  const [showProjection, setShowProjection] = useState<boolean>(false);
 
   // Fetch restaurants with is_pinned
   useEffect(() => {
@@ -149,20 +151,14 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
   // Form validation - only items required now (no terms)
   const isFormValid = selectedItemIds.length > 0;
 
-  // Handle create offer
-  const handleCreateOffer = () => {
-    console.log("Creating offer:", {
-      restaurants: selectedRestaurantIds,
-      items: selectedItemIds,
-      audience,
-      durationType,
-      customSchedule,
-      weeklyBudget,
-      offerFeeWaived,
-      cofinancingType,
-      cofinancingValue: parseFloat(cofinancingValue) || 0,
-    });
-    // TODO: Save to restaurant_actions
+  // Get selected items with their data
+  const selectedItems = useMemo(() => {
+    return menuItems.filter(item => selectedItemIds.includes(item.id));
+  }, [menuItems, selectedItemIds]);
+
+  // Handle show projection
+  const handleShowProjection = () => {
+    setShowProjection(true);
   };
 
   return (
@@ -476,12 +472,13 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
             {/* Footer - Create Button (no terms) */}
             <div className="bg-background rounded-lg border p-4 mt-4">
               <Button
-                onClick={handleCreateOffer}
+                onClick={handleShowProjection}
                 disabled={!isFormValid}
                 className="w-full bg-foreground text-background hover:bg-foreground/90"
                 size="lg"
               >
-                Créez une offre
+                <Calculator className="h-4 w-4 mr-2" />
+                Simuler l'impact
               </Button>
             </div>
           </div>
@@ -502,6 +499,19 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
           </div>
         </div>
       </div>
+
+      {/* Projection Dialog */}
+      <BogoProjectionDialog
+        open={showProjection}
+        onOpenChange={setShowProjection}
+        selectedItems={selectedItems}
+        selectedRestaurantIds={selectedRestaurantIds}
+        audience={audience}
+        cofinancingType={cofinancingType}
+        cofinancingValue={parseFloat(cofinancingValue) || 0}
+        offerFeeWaived={offerFeeWaived}
+        averageHtPrice={averageHtPrice}
+      />
     </div>
   );
 }
