@@ -113,22 +113,6 @@ export function BogoImpactPanel({
         )}
       </p>
 
-      {/* Impact Stats */}
-      <Card className="p-4 bg-primary/5 border-primary/20">
-        <div className="text-center space-y-2">
-          <p className="text-2xl font-bold text-foreground">
-            Jusqu'à <span className="text-primary">63 %</span> de ventes en plus
-          </p>
-          <p className="text-sm text-muted-foreground">
-            par rapport aux établissements qui ne proposent pas cette offre
-          </p>
-          <button className="text-sm text-primary underline underline-offset-2 inline-flex items-center gap-1">
-            <Info className="h-3 w-3" />
-            Comment ce chiffre est-il calculé ?
-          </button>
-        </div>
-      </Card>
-
       {/* Fee Information */}
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">
@@ -162,7 +146,7 @@ export function BogoImpactPanel({
           </p>
           {cofinancingType === "percent" && averageHtPrice > 0 && (
             <p className="text-sm text-muted-foreground">
-              ≈ {((cofinancingValue / 100) * averageHtPrice).toFixed(2).replace(".", ",")} € / article (moy.)
+              ≈ {((cofinancingValue / 100) * averageHtPrice).toFixed(2).replace(".", ",")} € TTC / article (moy.)
             </p>
           )}
         </div>
