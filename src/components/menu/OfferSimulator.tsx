@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OfferTypeSelector, OfferType } from "./offers/OfferTypeSelector";
 import { BogoSimulator } from "./offers/BogoSimulator";
 import { CrossProductSimulator } from "./offers/CrossProductSimulator";
 import { PercentDiscountSimulator } from "./offers/PercentDiscountSimulator";
+import { RestaurantSelector } from "./RestaurantSelector";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
+import { useSimulatorRestaurantPrices } from "@/hooks/useSimulatorRestaurantPrices";
+import { Store } from "lucide-react";
 
 export type Platform = "uber" | "deliveroo";
 
@@ -31,6 +35,7 @@ const DEFAULT_COMMISSIONS = {
 export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>("uber");
   const [selectedOfferType, setSelectedOfferType] = useState<OfferType | null>(null);
+  const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
   
   // Persist commission values per platform
   const [uberCommission, setUberCommission] = useState<number>(DEFAULT_COMMISSIONS.uber);
@@ -44,6 +49,13 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
       setDeliverooCommission(value);
     }
   };
+
+  // Fetch restaurants and enriched prices
+  const { restaurants, enrichedMenuItems } = useSimulatorRestaurantPrices(
+    menuItems,
+    selectedRestaurantIds,
+    selectedPlatform
+  );
 
   const handleBack = () => {
     setSelectedOfferType(null);
@@ -59,6 +71,8 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
           platform={selectedPlatform}
           commission={currentCommission}
           onCommissionChange={setCurrentCommission}
+          restaurantIds={selectedRestaurantIds}
+          enrichedMenuItems={enrichedMenuItems}
         />
       );
     }
@@ -71,6 +85,8 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
           platform={selectedPlatform}
           commission={currentCommission}
           onCommissionChange={setCurrentCommission}
+          restaurantIds={selectedRestaurantIds}
+          enrichedMenuItems={enrichedMenuItems}
         />
       );
     }
@@ -83,6 +99,8 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
           platform={selectedPlatform}
           commission={currentCommission}
           onCommissionChange={setCurrentCommission}
+          restaurantIds={selectedRestaurantIds}
+          enrichedMenuItems={enrichedMenuItems}
         />
       );
     }
@@ -93,6 +111,31 @@ export function OfferSimulator({ menuItems }: OfferSimulatorProps) {
 
   return (
     <div className="space-y-4">
+      {/* Restaurant Selector */}
+      <Card className="border-0 bg-white/70 dark:bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)]">
+        <div className="absolute inset-0 border border-white/30 rounded-lg pointer-events-none" />
+        <CardHeader className="relative pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Store className="h-4 w-4 text-primary" />
+            Restaurants concernés
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="relative pt-0">
+          <RestaurantSelector
+            restaurants={restaurants}
+            selectedIds={selectedRestaurantIds}
+            onSelectionChange={setSelectedRestaurantIds}
+            maxSelection={6}
+            placeholder="Sélectionnez des restaurants pour voir les résultats par établissement..."
+          />
+          {selectedRestaurantIds.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Sans sélection, les calculs utilisent les prix du catalogue global.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Platform Tabs */}
       <Tabs value={selectedPlatform} onValueChange={(v) => { setSelectedPlatform(v as Platform); setSelectedOfferType(null); }}>
         <TabsList className="grid w-full max-w-md grid-cols-2">

@@ -59,6 +59,7 @@ import {
   Percent,
   CalendarPlus,
   Wallet,
+  Store,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
@@ -78,12 +79,34 @@ interface MenuItem {
   is_active: boolean;
 }
 
+interface EnrichedMenuItemPrice {
+  restaurantId: string;
+  restaurantName: string;
+  price: number | null;
+  catalogPrice: number | null;
+  usedPrice: number | null;
+  hasDifference: boolean;
+}
+
+interface EnrichedMenuItem {
+  id: string;
+  name: string;
+  category: string | null;
+  food_cost: number | null;
+  is_active: boolean;
+  price_uber: number | null;
+  price_deliveroo: number | null;
+  restaurantPrices: EnrichedMenuItemPrice[];
+}
+
 interface CrossProductSimulatorProps {
   menuItems: MenuItem[];
   onBack: () => void;
   platform: Platform;
   commission: number;
   onCommissionChange: (value: number) => void;
+  restaurantIds: string[];
+  enrichedMenuItems: EnrichedMenuItem[];
 }
 
 // Platform-specific defaults
@@ -102,7 +125,7 @@ const SALES_PERIOD_LABELS: Record<SalesPeriod, string> = {
   "all": "Tout l'historique",
 };
 
-export function CrossProductSimulator({ menuItems, onBack, platform, commission, onCommissionChange }: CrossProductSimulatorProps) {
+export function CrossProductSimulator({ menuItems, onBack, platform, commission, onCommissionChange, restaurantIds, enrichedMenuItems }: CrossProductSimulatorProps) {
   const config = PLATFORM_CONFIG[platform];
   const isUber = platform === "uber";
   const PlatformIcon = isUber ? UberEatsIcon : DeliverooIcon;
