@@ -14,7 +14,7 @@ const AUDIENCES = {
   all: {
     title: "Tous les clients",
     description: null,
-    badge: "Recommandé",
+    badge: null,
   },
   new: {
     title: "Uniquement pour les nouveaux clients",
