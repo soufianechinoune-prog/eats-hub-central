@@ -1,0 +1,449 @@
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Euro,
+  Package,
+  Users,
+  ArrowRight,
+  Sparkles,
+  Calculator,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+
+interface MenuItem {
+  id: string;
+  name: string;
+  price_uber: number | null;
+  food_cost: number | null;
+  vat_rate: number | null;
+}
+
+interface BogoProjectionDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  selectedItems: MenuItem[];
+  selectedRestaurantIds: string[];
+  audience: string;
+  cofinancingType: "percent" | "amount";
+  cofinancingValue: number;
+  offerFeeWaived: boolean;
+  averageHtPrice: number;
+}
+
+const OFFER_FEE = 0.89;
+const ESTIMATED_VOLUME_INCREASE = 0.30; // 30% volume increase estimate
+
+export function BogoProjectionDialog({
+  open,
+  onOpenChange,
+  selectedItems,
+  selectedRestaurantIds,
+  audience,
+  cofinancingType,
+  cofinancingValue,
+  offerFeeWaived,
+  averageHtPrice,
+}: BogoProjectionDialogProps) {
+  // Fetch historical sales for selected items (last 30 days)
+  const { data: historicalSales, isLoading } = useQuery({
+    queryKey: ["bogo-historical-sales", selectedItems.map((i) => i.id)],
+    queryFn: async () => {
+      if (selectedItems.length === 0) return null;
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const itemNames = selectedItems.map((i) => i.name);
+
+      // Query order_items for sales data
+      const { data, error } = await supabase
+        .from("order_items")
+        .select("item_title, quantity, sales_incl_vat, created_at")
+        .in("item_title", itemNames)
+        .gte("created_at", thirtyDaysAgo.toISOString());
+
+      if (error) {
+        console.error("Error fetching historical sales:", error);
+        return null;
+      }
+
+      // Aggregate data
+      const totalQuantity = (data || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+      const totalSales = (data || []).reduce((sum, item) => sum + (item.sales_incl_vat || 0), 0);
+
+      return {
+        totalQuantity,
+        totalSales,
+        avgPerDay: totalQuantity / 30,
+        avgSalesPerDay: totalSales / 30,
+        itemCount: data?.length || 0,
+      };
+    },
+    enabled: open && selectedItems.length > 0,
+  });
+
+  // Calculate costs and projections
+  const calculations = useMemo(() => {
+    if (!selectedItems.length) return null;
+
+    // Average price calculations
+    const avgTtcPrice =
+      selectedItems.reduce((sum, item) => sum + (item.price_uber || 0), 0) /
+      selectedItems.length;
+    const avgFoodCost =
+      selectedItems.reduce((sum, item) => sum + (item.food_cost || 0), 0) /
+      selectedItems.length;
+
+    // For BOGO: customer pays for 1, gets 2 - so effective price per item = TTC/2
+    const effectivePricePerItem = avgTtcPrice; // Customer pays full price for 1 item
+
+    // Cost per BOGO order
+    const foodCostBogo = avgFoodCost * 2; // 2 items produced
+
+    // Co-financing from Uber
+    const cofinancingPerItem =
+      cofinancingType === "percent"
+        ? (cofinancingValue / 100) * averageHtPrice
+        : cofinancingValue;
+
+    // Offer fee
+    const offerFee = offerFeeWaived ? 0 : OFFER_FEE;
+
+    // Net cost of the BOGO offer per order
+    // Revenue = 1 item TTC
+    // Costs = 2x food cost + offer fee - cofinancing
+    const netCostPerOrder = foodCostBogo + offerFee - cofinancingPerItem;
+    const revenuePerOrder = avgTtcPrice;
+
+    // Margin with BOGO
+    const marginWithBogo = revenuePerOrder - netCostPerOrder;
+    const marginPercent = revenuePerOrder > 0 ? (marginWithBogo / revenuePerOrder) * 100 : 0;
+
+    // Normal margin (selling 1 item)
+    const normalMargin = avgTtcPrice - avgFoodCost;
+    const normalMarginPercent = avgTtcPrice > 0 ? (normalMargin / avgTtcPrice) * 100 : 0;
+
+    // Estimated additional volume
+    const currentDailySales = historicalSales?.avgPerDay || 5; // Default assumption
+    const estimatedAdditionalOrders = currentDailySales * ESTIMATED_VOLUME_INCREASE * 30;
+
+    // ROI estimation (30 days)
+    const additionalRevenue = estimatedAdditionalOrders * revenuePerOrder;
+    const additionalCost = estimatedAdditionalOrders * netCostPerOrder;
+    const estimatedNetGain = additionalRevenue - additionalCost;
+
+    // Recommendation score
+    let recommendation: "go" | "risque" | "stop";
+    let recommendationLabel: string;
+
+    if (marginPercent >= 15 && estimatedNetGain > 0) {
+      recommendation = "go";
+      recommendationLabel = "Offre rentable";
+    } else if (marginPercent >= 5 || estimatedNetGain > -50) {
+      recommendation = "risque";
+      recommendationLabel = "À surveiller";
+    } else {
+      recommendation = "stop";
+      recommendationLabel = "Non recommandé";
+    }
+
+    return {
+      avgTtcPrice,
+      avgFoodCost,
+      foodCostBogo,
+      cofinancingPerItem,
+      offerFee,
+      netCostPerOrder,
+      revenuePerOrder,
+      marginWithBogo,
+      marginPercent,
+      normalMargin,
+      normalMarginPercent,
+      estimatedAdditionalOrders,
+      additionalRevenue,
+      estimatedNetGain,
+      recommendation,
+      recommendationLabel,
+    };
+  }, [selectedItems, cofinancingType, cofinancingValue, averageHtPrice, offerFeeWaived, historicalSales]);
+
+  const formatCurrency = (value: number) =>
+    value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+
+  const formatPercent = (value: number) =>
+    value.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %";
+
+  if (!calculations) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-3 text-xl">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Calculator className="h-5 w-5 text-primary" />
+            </div>
+            Projection financière BOGO
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6 pt-2">
+          {/* Recommendation Badge */}
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="flex justify-center"
+          >
+            <Badge
+              variant="outline"
+              className={`px-6 py-3 text-lg font-semibold ${
+                calculations.recommendation === "go"
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
+                  : calculations.recommendation === "risque"
+                  ? "border-amber-500 bg-amber-500/10 text-amber-600"
+                  : "border-destructive bg-destructive/10 text-destructive"
+              }`}
+            >
+              {calculations.recommendation === "go" && <CheckCircle2 className="h-5 w-5 mr-2" />}
+              {calculations.recommendation === "risque" && <AlertTriangle className="h-5 w-5 mr-2" />}
+              {calculations.recommendation === "stop" && <XCircle className="h-5 w-5 mr-2" />}
+              {calculations.recommendationLabel}
+            </Badge>
+          </motion.div>
+
+          {/* Summary KPIs */}
+          <div className="grid grid-cols-3 gap-4">
+            <Card className="bg-muted/30">
+              <CardContent className="pt-4 text-center">
+                <p className="text-sm text-muted-foreground">Marge / commande BOGO</p>
+                <p className={`text-2xl font-bold ${calculations.marginWithBogo >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                  {formatCurrency(calculations.marginWithBogo)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  soit {formatPercent(calculations.marginPercent)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="pt-4 text-center">
+                <p className="text-sm text-muted-foreground">Gain estimé (30j)</p>
+                <p className={`text-2xl font-bold ${calculations.estimatedNetGain >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                  {calculations.estimatedNetGain >= 0 ? "+" : ""}{formatCurrency(calculations.estimatedNetGain)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  +{Math.round(calculations.estimatedAdditionalOrders)} commandes
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="pt-4 text-center">
+                <p className="text-sm text-muted-foreground">vs Marge normale</p>
+                {calculations.marginPercent < calculations.normalMarginPercent ? (
+                  <div className="flex items-center justify-center gap-1 text-destructive">
+                    <TrendingDown className="h-5 w-5" />
+                    <span className="text-2xl font-bold">
+                      -{formatPercent(calculations.normalMarginPercent - calculations.marginPercent)}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-1 text-emerald-600">
+                    <TrendingUp className="h-5 w-5" />
+                    <span className="text-2xl font-bold">+{formatPercent(calculations.marginPercent - calculations.normalMarginPercent)}</span>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Normale: {formatPercent(calculations.normalMarginPercent)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Separator />
+
+          {/* Cost Breakdown */}
+          <div className="space-y-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Euro className="h-4 w-4 text-muted-foreground" />
+              Décomposition des coûts par commande BOGO
+            </h3>
+
+            <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm">Prix TTC (1 article vendu)</span>
+                <span className="font-medium text-emerald-600">+{formatCurrency(calculations.revenuePerOrder)}</span>
+              </div>
+
+              <Separator />
+
+              <div className="flex justify-between items-center text-destructive">
+                <span className="text-sm">Food Cost (2 articles produits)</span>
+                <span className="font-medium">-{formatCurrency(calculations.foodCostBogo)}</span>
+              </div>
+
+              {calculations.offerFee > 0 && (
+                <div className="flex justify-between items-center text-destructive">
+                  <span className="text-sm">Frais d'offre</span>
+                  <span className="font-medium">-{formatCurrency(calculations.offerFee)}</span>
+                </div>
+              )}
+
+              {calculations.cofinancingPerItem > 0 && (
+                <div className="flex justify-between items-center text-emerald-600">
+                  <span className="text-sm">Cofinancement Uber</span>
+                  <span className="font-medium">+{formatCurrency(calculations.cofinancingPerItem)}</span>
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="flex justify-between items-center font-semibold">
+                <span>Marge nette BOGO</span>
+                <span className={calculations.marginWithBogo >= 0 ? "text-emerald-600" : "text-destructive"}>
+                  {formatCurrency(calculations.marginWithBogo)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Historical Sales Context */}
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          ) : historicalSales && historicalSales.totalQuantity > 0 ? (
+            <div className="space-y-3">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Package className="h-4 w-4 text-muted-foreground" />
+                Historique de ventes (30 derniers jours)
+              </h3>
+
+              <Card className="bg-blue-500/5 border-blue-500/20">
+                <CardContent className="pt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Quantité vendue</p>
+                      <p className="text-xl font-bold">{historicalSales.totalQuantity} unités</p>
+                      <p className="text-xs text-muted-foreground">
+                        ~{historicalSales.avgPerDay.toFixed(1)} / jour
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">CA généré</p>
+                      <p className="text-xl font-bold">{formatCurrency(historicalSales.totalSales)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ~{formatCurrency(historicalSales.avgSalesPerDay)} / jour
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <Card className="bg-amber-500/5 border-amber-500/20">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-600">Pas d'historique de ventes</p>
+                    <p className="text-sm text-muted-foreground">
+                      Les projections sont basées sur des estimations moyennes. Importez vos rapports de commandes pour des analyses plus précises.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Audience Impact */}
+          <div className="space-y-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              Impact audience
+            </h3>
+            <Card className="bg-muted/30">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">
+                      {audience === "all" && "Tous les clients"}
+                      {audience === "new" && "Nouveaux clients uniquement"}
+                      {audience === "returning" && "Clients fidèles"}
+                      {audience === "inactive" && "Clients inactifs"}
+                      {audience === "uberOne" && "Membres Uber One"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {audience === "new" && "Coût d'acquisition plus élevé, mais potentiel de fidélisation"}
+                      {audience === "returning" && "Meilleur ROI, clients déjà conquis"}
+                      {audience === "inactive" && "Réactivation à coût modéré"}
+                      {audience === "uberOne" && "Volume élevé, clients premium"}
+                      {audience === "all" && "Volume maximal, ciblage large"}
+                    </p>
+                  </div>
+                  <Sparkles className="h-8 w-8 text-primary/30" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Selected Items Summary */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-sm text-muted-foreground">
+              {selectedItems.length} article{selectedItems.length > 1 ? "s" : ""} sélectionné{selectedItems.length > 1 ? "s" : ""}
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {selectedItems.slice(0, 5).map((item) => (
+                <Badge key={item.id} variant="secondary" className="text-xs">
+                  {item.name}
+                </Badge>
+              ))}
+              {selectedItems.length > 5 && (
+                <Badge variant="outline" className="text-xs">
+                  +{selectedItems.length - 5} autres
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Modifier la simulation
+            </Button>
+            <Button
+              onClick={() => {
+                // Could navigate to Marketing Analytics or close
+                onOpenChange(false);
+              }}
+              className="gap-2"
+            >
+              Compris
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
