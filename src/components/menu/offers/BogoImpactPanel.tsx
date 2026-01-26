@@ -10,6 +10,7 @@ interface BogoImpactPanelProps {
   offerFeeWaived?: boolean;
   cofinancingType?: "percent" | "amount";
   cofinancingValue?: number;
+  averageHtPrice?: number;
 }
 
 export function BogoImpactPanel({
@@ -19,6 +20,7 @@ export function BogoImpactPanel({
   offerFeeWaived = false,
   cofinancingType = "percent",
   cofinancingValue = 0,
+  averageHtPrice = 0,
 }: BogoImpactPanelProps) {
   return (
     <div className="space-y-6">
@@ -158,6 +160,11 @@ export function BogoImpactPanel({
               ? `${cofinancingValue}% du prix HT`
               : `${cofinancingValue.toFixed(2).replace(".", ",")} € par article`}
           </p>
+          {cofinancingType === "percent" && averageHtPrice > 0 && (
+            <p className="text-sm text-muted-foreground">
+              ≈ {((cofinancingValue / 100) * averageHtPrice).toFixed(2).replace(".", ",")} € / article (moy.)
+            </p>
+          )}
         </div>
       )}
     </div>
