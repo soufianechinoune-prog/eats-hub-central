@@ -53,7 +53,7 @@ export function BogoSimulatorUber({ menuItems, onBack }: BogoSimulatorUberProps)
     startDate: new Date(),
     endDate: undefined,
     daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-    timeSlots: [{ startTime: "11:00", endTime: "22:00" }],
+    timeSlots: [{ startTime: "11:00", endTime: "22:00", daysOfWeek: [0, 1, 2, 3, 4, 5, 6] }],
   });
   const [weeklyBudget, setWeeklyBudget] = useState<string>("");
   const [articleSearch, setArticleSearch] = useState<string>("");

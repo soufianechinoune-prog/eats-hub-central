@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Clock, Plus } from "lucide-react";
+import { CalendarIcon, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type DurationType = "1year" | "6months" | "custom";
@@ -33,12 +33,13 @@ export type DurationType = "1year" | "6months" | "custom";
 export interface TimeSlot {
   startTime: string;
   endTime: string;
+  daysOfWeek: number[]; // Each slot has its own days
 }
 
 export interface CustomSchedule {
   startDate: Date | undefined;
   endDate: Date | undefined;
-  daysOfWeek: number[]; // 0=Sun, 1=Mon, ..., 6=Sat
+  daysOfWeek: number[]; // Legacy - keeping for compatibility
   timeSlots: TimeSlot[];
 }
 
@@ -50,13 +51,13 @@ interface BogoDurationSelectorProps {
 }
 
 const DAYS = [
-  { value: 0, label: "Dim", fullLabel: "Dimanche" },
-  { value: 1, label: "Lun", fullLabel: "Lundi" },
-  { value: 2, label: "Mar", fullLabel: "Mardi" },
-  { value: 3, label: "Mer", fullLabel: "Mercredi" },
-  { value: 4, label: "Jeu", fullLabel: "Jeudi" },
-  { value: 5, label: "Ven", fullLabel: "Vendredi" },
-  { value: 6, label: "Sam", fullLabel: "Samedi" },
+  { value: 0, label: "Sun" },
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
 ];
 
 // Start hours: 0:00 to 23:00
@@ -87,7 +88,12 @@ export function BogoDurationSelector({
   const [tempSchedule, setTempSchedule] = useState<CustomSchedule>(customSchedule);
 
   const handleOpenScheduleDialog = () => {
-    setTempSchedule({ ...customSchedule });
+    // Migrate old format to new format if needed
+    const migratedSlots = customSchedule.timeSlots.map(slot => ({
+      ...slot,
+      daysOfWeek: slot.daysOfWeek || customSchedule.daysOfWeek || [0, 1, 2, 3, 4, 5, 6],
+    }));
+    setTempSchedule({ ...customSchedule, timeSlots: migratedSlots });
     setShowScheduleDialog(true);
   };
 
@@ -96,33 +102,52 @@ export function BogoDurationSelector({
     setShowScheduleDialog(false);
   };
 
-  const handleDayToggle = (dayValue: number) => {
-    const newDays = tempSchedule.daysOfWeek.includes(dayValue)
-      ? tempSchedule.daysOfWeek.filter((d) => d !== dayValue)
-      : [...tempSchedule.daysOfWeek, dayValue];
-    setTempSchedule({ ...tempSchedule, daysOfWeek: newDays });
+  const handleSlotDayToggle = (slotIndex: number, dayValue: number) => {
+    const newSlots = [...tempSchedule.timeSlots];
+    const currentDays = newSlots[slotIndex].daysOfWeek || [];
+    newSlots[slotIndex] = {
+      ...newSlots[slotIndex],
+      daysOfWeek: currentDays.includes(dayValue)
+        ? currentDays.filter((d) => d !== dayValue)
+        : [...currentDays, dayValue],
+    };
+    setTempSchedule({ ...tempSchedule, timeSlots: newSlots });
   };
 
-  const handleWeekdaysToggle = (checked: boolean) => {
+  const handleSlotWeekdaysToggle = (slotIndex: number, checked: boolean) => {
+    const newSlots = [...tempSchedule.timeSlots];
+    const currentDays = newSlots[slotIndex].daysOfWeek || [];
     if (checked) {
       const weekdays = [1, 2, 3, 4, 5];
-      const newDays = [...new Set([...tempSchedule.daysOfWeek, ...weekdays])];
-      setTempSchedule({ ...tempSchedule, daysOfWeek: newDays });
+      newSlots[slotIndex] = {
+        ...newSlots[slotIndex],
+        daysOfWeek: [...new Set([...currentDays, ...weekdays])],
+      };
     } else {
-      const newDays = tempSchedule.daysOfWeek.filter((d) => ![1, 2, 3, 4, 5].includes(d));
-      setTempSchedule({ ...tempSchedule, daysOfWeek: newDays });
+      newSlots[slotIndex] = {
+        ...newSlots[slotIndex],
+        daysOfWeek: currentDays.filter((d) => ![1, 2, 3, 4, 5].includes(d)),
+      };
     }
+    setTempSchedule({ ...tempSchedule, timeSlots: newSlots });
   };
 
-  const handleWeekendToggle = (checked: boolean) => {
+  const handleSlotWeekendToggle = (slotIndex: number, checked: boolean) => {
+    const newSlots = [...tempSchedule.timeSlots];
+    const currentDays = newSlots[slotIndex].daysOfWeek || [];
     if (checked) {
       const weekend = [0, 6];
-      const newDays = [...new Set([...tempSchedule.daysOfWeek, ...weekend])];
-      setTempSchedule({ ...tempSchedule, daysOfWeek: newDays });
+      newSlots[slotIndex] = {
+        ...newSlots[slotIndex],
+        daysOfWeek: [...new Set([...currentDays, ...weekend])],
+      };
     } else {
-      const newDays = tempSchedule.daysOfWeek.filter((d) => ![0, 6].includes(d));
-      setTempSchedule({ ...tempSchedule, daysOfWeek: newDays });
+      newSlots[slotIndex] = {
+        ...newSlots[slotIndex],
+        daysOfWeek: currentDays.filter((d) => ![0, 6].includes(d)),
+      };
     }
+    setTempSchedule({ ...tempSchedule, timeSlots: newSlots });
   };
 
   const handleTimeSlotChange = (index: number, field: "startTime" | "endTime", value: string) => {
@@ -134,13 +159,21 @@ export function BogoDurationSelector({
   const handleAddTimeSlot = () => {
     setTempSchedule({
       ...tempSchedule,
-      timeSlots: [...tempSchedule.timeSlots, { startTime: "11:00", endTime: "22:00" }],
+      timeSlots: [
+        ...tempSchedule.timeSlots,
+        { startTime: "11:00", endTime: "22:00", daysOfWeek: [0, 1, 2, 3, 4, 5, 6] },
+      ],
     });
   };
 
   const handleRemoveTimeSlot = (index: number) => {
     const newSlots = tempSchedule.timeSlots.filter((_, i) => i !== index);
-    setTempSchedule({ ...tempSchedule, timeSlots: newSlots.length > 0 ? newSlots : [{ startTime: "11:00", endTime: "22:00" }] });
+    setTempSchedule({
+      ...tempSchedule,
+      timeSlots: newSlots.length > 0 
+        ? newSlots 
+        : [{ startTime: "11:00", endTime: "22:00", daysOfWeek: [0, 1, 2, 3, 4, 5, 6] }],
+    });
   };
 
   const getEndDate = () => {
@@ -149,9 +182,6 @@ export function BogoDurationSelector({
     if (durationType === "6months") return addMonths(now, 6);
     return customSchedule.endDate || addYears(now, 1);
   };
-
-  const isWeekdaysSelected = [1, 2, 3, 4, 5].every((d) => tempSchedule.daysOfWeek.includes(d));
-  const isWeekendSelected = [0, 6].every((d) => tempSchedule.daysOfWeek.includes(d));
 
   return (
     <div className="space-y-4">
@@ -188,8 +218,12 @@ export function BogoDurationSelector({
           type="button"
           onClick={() => {
             onDurationTypeChange("custom");
-            // Open the dialog when clicking on Personnalisé
-            setTempSchedule({ ...customSchedule });
+            // Migrate old format to new format if needed
+            const migratedSlots = customSchedule.timeSlots.map(slot => ({
+              ...slot,
+              daysOfWeek: slot.daysOfWeek || customSchedule.daysOfWeek || [0, 1, 2, 3, 4, 5, 6],
+            }));
+            setTempSchedule({ ...customSchedule, timeSlots: migratedSlots });
             setShowScheduleDialog(true);
           }}
           className={cn(
@@ -217,7 +251,7 @@ export function BogoDurationSelector({
 
       {/* Custom Schedule Dialog */}
       <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Planning personnalisé</DialogTitle>
           </DialogHeader>
@@ -284,111 +318,118 @@ export function BogoDurationSelector({
               </div>
             </div>
 
-            {/* Days of Week */}
-            <div className="space-y-3">
-              <Label>Jours de disponibilité</Label>
-              <div className="flex gap-2">
-                {DAYS.map((day) => (
-                  <button
-                    key={day.value}
-                    type="button"
-                    onClick={() => handleDayToggle(day.value)}
-                    className={cn(
-                      "w-10 h-10 rounded-full text-sm font-medium transition-colors",
-                      tempSchedule.daysOfWeek.includes(day.value)
-                        ? "bg-foreground text-background"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
-                    )}
-                  >
-                    {day.label}
-                  </button>
-                ))}
-              </div>
+            {/* Time Slots - Each with its own days */}
+            <div className="space-y-6">
+              {tempSchedule.timeSlots.map((slot, index) => {
+                const slotDays = slot.daysOfWeek || [];
+                const isWeekdaysSelected = [1, 2, 3, 4, 5].every((d) => slotDays.includes(d));
+                const isWeekendSelected = [0, 6].every((d) => slotDays.includes(d));
 
-              <div className="flex gap-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="weekdays"
-                    checked={isWeekdaysSelected}
-                    onCheckedChange={handleWeekdaysToggle}
-                  />
-                  <Label htmlFor="weekdays" className="text-sm cursor-pointer">
-                    En semaine
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="weekend"
-                    checked={isWeekendSelected}
-                    onCheckedChange={handleWeekendToggle}
-                  />
-                  <Label htmlFor="weekend" className="text-sm cursor-pointer">
-                    Le week-end
-                  </Label>
-                </div>
-              </div>
-            </div>
+                return (
+                  <div key={index} className="space-y-4 pb-4 border-b last:border-b-0">
+                    {/* Days of Week for this slot */}
+                    <div className="space-y-3">
+                      <Label>Jours de disponibilité</Label>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {DAYS.map((day) => (
+                          <button
+                            key={day.value}
+                            type="button"
+                            onClick={() => handleSlotDayToggle(index, day.value)}
+                            className={cn(
+                              "w-12 h-10 rounded-md text-sm font-medium transition-colors border-2",
+                              slotDays.includes(day.value)
+                                ? "bg-foreground text-background border-foreground"
+                                : "bg-background text-foreground border-foreground hover:bg-muted"
+                            )}
+                          >
+                            {day.label}
+                          </button>
+                        ))}
+                      </div>
 
-            {/* Time Slots */}
-            <div className="space-y-3">
-              <Label className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Plages horaires
-              </Label>
-              
-              {tempSchedule.timeSlots.map((slot, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <Select
-                    value={slot.startTime}
-                    onValueChange={(v) => handleTimeSlotChange(index, "startTime", v)}
-                  >
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {START_HOURS.map((h) => (
-                        <SelectItem key={h.value} value={h.value}>
-                          {h.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-muted-foreground">à</span>
-                  <Select
-                    value={slot.endTime}
-                    onValueChange={(v) => handleTimeSlotChange(index, "endTime", v)}
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue>
-                        {END_HOURS.find(h => h.value === slot.endTime)?.label || slot.endTime}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {END_HOURS.map((h) => (
-                        <SelectItem key={h.value} value={h.value}>
-                          {h.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {tempSchedule.timeSlots.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                      <div className="flex gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`weekdays-${index}`}
+                            checked={isWeekdaysSelected}
+                            onCheckedChange={(checked) => handleSlotWeekdaysToggle(index, !!checked)}
+                          />
+                          <Label htmlFor={`weekdays-${index}`} className="text-sm cursor-pointer">
+                            En semaine
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`weekend-${index}`}
+                            checked={isWeekendSelected}
+                            onCheckedChange={(checked) => handleSlotWeekendToggle(index, !!checked)}
+                          />
+                          <Label htmlFor={`weekend-${index}`} className="text-sm cursor-pointer">
+                            Le week-end
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Time selection for this slot */}
+                    <div className="space-y-2">
+                      <Label>Heure de début</Label>
+                      <Select
+                        value={slot.startTime}
+                        onValueChange={(v) => handleTimeSlotChange(index, "startTime", v)}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {START_HOURS.map((h) => (
+                            <SelectItem key={h.value} value={h.value}>
+                              {h.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Heure de fin</Label>
+                      <Select
+                        value={slot.endTime}
+                        onValueChange={(v) => handleTimeSlotChange(index, "endTime", v)}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue>
+                            {END_HOURS.find(h => h.value === slot.endTime)?.label || slot.endTime}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {END_HOURS.map((h) => (
+                            <SelectItem key={h.value} value={h.value}>
+                              {h.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Remove slot link */}
+                    <button
+                      type="button"
                       onClick={() => handleRemoveTimeSlot(index)}
-                      className="text-muted-foreground hover:text-destructive"
+                      className="text-sm text-destructive hover:text-destructive/80 hover:underline"
                     >
-                      ×
-                    </Button>
-                  )}
-                </div>
-              ))}
+                      Supprimer la plage horaire
+                    </button>
+                  </div>
+                );
+              })}
 
               <button
                 onClick={handleAddTimeSlot}
-                className="text-sm text-primary hover:underline flex items-center gap-1"
+                className="text-sm text-foreground hover:underline flex items-center gap-1 font-medium"
               >
-                <Plus className="h-3 w-3" />
+                <Plus className="h-4 w-4" />
                 Ajouter une autre plage horaire
               </button>
             </div>
