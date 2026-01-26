@@ -95,7 +95,7 @@ export function OfferTypeHeader({ selectedType, onTypeChange, platform }: OfferT
         align="start" 
         sideOffset={4}
         viewportClassName="p-0"
-        className="w-[var(--radix-select-trigger-width)] p-0 border-0 shadow-lg rounded-lg overflow-hidden bg-transparent"
+        className="w-[var(--radix-select-trigger-width)] p-0 border-0 shadow-lg rounded-lg overflow-hidden bg-background"
       >
         {OFFER_TYPES.map((offer, index) => {
           const offerColors = colorClasses[offer.color];
