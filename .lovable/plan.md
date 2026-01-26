@@ -1,265 +1,151 @@
 
+# Correction du calcul du cofinancement Uber et affichage Prix HT
 
-# Plan : Simulateur Multi-Restaurant avec Prix Réels
+## Problème identifié
 
-## Contexte
+Actuellement, le cofinancement Uber est calculé sur le **Food Cost**, ce qui est incorrect.
 
-Actuellement, le simulateur d'offres (BOGO, Cross-Product, etc.) utilise les prix du **catalogue global** (`menu_items`), mais les prix réels varient par restaurant dans la table `restaurant_menu_prices`.
-
-**Exemple concret de la base de données :**
-| Produit | Catalogue | Antony | Athis | Bonneuil | Juvisy |
-|---------|-----------|--------|-------|----------|--------|
-| Frites | 3,75 € | 3,57 € | 3,75 € | 3,75 € | 3,75 € |
-| Burger Dynamite | - | 12,14 € | 10,70 € | 11,36 € | 10,70 € |
-
-## Solution proposée
-
-Ajouter un **sélecteur de restaurants** au simulateur et afficher les **résultats par restaurant** avec leurs prix réels.
-
-### Architecture visuelle
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                    1 acheté = 1 offert (BOGO)                        │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  NOUVEAU : Restaurants concernés                                    │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │ [Antony ×] [Athis ×] [Juvisy ×]                    [▼]     │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  Configuration                    │   Résultats par Restaurant      │
-│  ┌───────────────────────────┐   │   ┌─────────────────────────┐   │
-│  │ Produit: [Menu Naan  ▼]   │   │   │ ANTONY      14,50€      │   │
-│  │ Commission: [27%     ━━]  │   │   │ Marge BOGO: +2,15€      │   │
-│  │ Frais: [0,89€         ]   │   │   │ Seuil: +68%  ✅ Go      │   │
-│  │ ...                       │   │   ├─────────────────────────┤   │
-│  └───────────────────────────┘   │   │ ATHIS       13,90€      │   │
-│                                   │   │ Marge BOGO: +1,85€      │   │
-│                                   │   │ Seuil: +82%  ⚠️ Risqué  │   │
-│                                   │   ├─────────────────────────┤   │
-│                                   │   │ JUVISY      13,90€      │   │
-│                                   │   │ Marge BOGO: +1,85€      │   │
-│                                   │   │ Seuil: +82%  ⚠️ Risqué  │   │
-│                                   │   └─────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
+**Logique actuelle (incorrecte)** :
+```typescript
+platformContribution = foodCost * fundingValue / 100
 ```
+
+**Logique correcte selon Uber** :
+Le cofinancement Uber est calculé sur le **Prix HT** du produit :
+```
+Prix HT = Prix TTC / (1 + TVA%)
+Cofinancement TTC = Prix HT × Pourcentage cofinancement
+```
+
+**Exemple concret** :
+- Prix Uber TTC : 8,50 €
+- TVA : 10%
+- Prix HT : 8,50 / 1,10 = 7,727 €
+- Cofinancement à 15% : 7,727 × 15% = **1,16 € TTC**
 
 ---
 
-## Fichiers à modifier/créer
+## Modifications à apporter
 
-### 1. Nouveau hook : `src/hooks/useSimulatorRestaurantPrices.ts`
+### 1. Récupérer le taux de TVA du produit
 
-Ce hook enrichit les `menuItems` avec les prix spécifiques aux restaurants sélectionnés.
+Les `menu_items` ont une colonne `vat_rate` (par défaut 10%). Le hook `useSimulatorRestaurantPrices` et le composant doivent avoir accès à cette donnée.
 
-**Fonction :**
-- Entrée : `menuItems[]`, `restaurantIds[]`, `platform`
-- Sortie : `enrichedItems[]` avec structure :
-  ```typescript
-  interface EnrichedMenuItem {
-    id: string;
-    name: string;
-    category: string | null;
-    food_cost: number | null;
-    is_active: boolean;
-    // Prix par restaurant
-    prices: {
-      restaurantId: string;
-      restaurantName: string;
-      price: number | null;      // Prix spécifique
-      catalogPrice: number | null; // Prix catalogue (fallback)
-      usedPrice: number | null;   // Prix utilisé (spécifique ou fallback)
-      hasDifference: boolean;
-    }[];
-  }
-  ```
+**Fichier** : `src/hooks/useSimulatorRestaurantPrices.ts`
+- Ajouter `vat_rate` au type `EnrichedMenuItem`
 
-### 2. Modifier : `src/components/menu/OfferSimulator.tsx`
+**Fichier** : `src/components/menu/offers/BogoSimulator.tsx`
+- Récupérer `vat_rate` depuis les `menuItems`
 
-**Ajouts :**
-- State `selectedRestaurantIds: string[]`
-- Charger la liste des restaurants via query Supabase
-- Ajouter le composant `RestaurantSelector` en haut du simulateur
-- Passer `restaurantIds` aux simulateurs enfants
+### 2. Corriger le calcul du cofinancement
 
-### 3. Modifier : `src/components/menu/offers/BogoSimulator.tsx`
+**Fichier** : `src/components/menu/offers/BogoSimulator.tsx`
 
-**Modifications majeures :**
-
-1. **Nouvelles props :**
-   ```typescript
-   interface BogoSimulatorProps {
-     menuItems: MenuItem[];
-     restaurantIds: string[];  // NOUVEAU
-     onBack: () => void;
-     platform: Platform;
-     commission: number;
-     onCommissionChange: (value: number) => void;
-   }
-   ```
-
-2. **Calcul par restaurant :**
-   - Pour chaque restaurant sélectionné, calculer :
-     - Prix réel du produit
-     - Marge BOGO
-     - Seuil de rentabilité
-     - Recommandation (Go/Risqué/Stop)
-
-3. **Nouvelle section "Résultats par Restaurant" :**
-   - Afficher les résultats sous forme de cartes par restaurant
-   - Code couleur selon la rentabilité
-   - Afficher le delta de prix vs catalogue si différent
-
-4. **Classement intelligent adapté :**
-   - Le classement BOGO affiche les résultats **groupés par restaurant** ou **comparatifs**
-
-### 4. Appliquer aux autres simulateurs
-
-Mêmes modifications pour :
-- `CrossProductSimulator.tsx`
-- `PercentDiscountSimulator.tsx`
-
----
-
-## Détails techniques
-
-### Logique de sélection des prix
-
+**Formule actuelle (lignes 287-290)** :
 ```typescript
-function getRestaurantPrice(
-  menuItemId: string, 
-  restaurantId: string,
-  platform: Platform,
-  restaurantMenuPrices: RestaurantMenuPrice[],
-  catalogPrice: number | null
-): number | null {
-  // Chercher le prix spécifique au restaurant
-  const restaurantPrice = restaurantMenuPrices.find(
-    rmp => rmp.menu_item_id === menuItemId && rmp.restaurant_id === restaurantId
-  );
-  
-  if (restaurantPrice) {
-    const price = platform === "uber" 
-      ? restaurantPrice.price_uber 
-      : restaurantPrice.price_deliveroo;
-    if (price !== null) return price;
-  }
-  
-  // Fallback sur le catalogue
-  return catalogPrice;
-}
+const platformContribution = fundingType === "percent" 
+  ? (foodCost * fundingValue / 100) 
+  : fundingValue;
 ```
 
-### Calcul des résultats par restaurant
-
+**Formule corrigée** :
 ```typescript
-interface RestaurantSimulationResult {
-  restaurantId: string;
-  restaurantName: string;
-  price: number;
-  priceSource: "restaurant" | "catalog";
-  foodCost: number;
-  netMarginPerUnit: number;
-  netMarginBogo: number;
-  marginPercentBogo: number;
-  breakevenIncreasePercent: number | null;
-  recommendation: "recommended" | "moderate" | "not_recommended";
-}
+// Calcul du prix HT
+const vatRate = selectedProduct.vat_rate ?? 10;
+const priceHT = price / (1 + vatRate / 100);
 
-// Pour chaque restaurant sélectionné
-const results: RestaurantSimulationResult[] = restaurantIds.map(restId => {
-  const price = getRestaurantPrice(productId, restId, platform, prices, catalogPrice);
-  // ... calculs de marge et recommandation
-  return { restaurantId: restId, ... };
-});
+// Le cofinancement est calculé sur le prix HT (résultat en TTC)
+const platformContribution = fundingType === "percent" 
+  ? (priceHT * fundingValue / 100) 
+  : fundingValue;
 ```
 
-### Affichage multi-restaurant
+### 3. Afficher le Prix HT dans la fiche produit
 
-Nouvelle section dans le panneau de résultats :
+**Fichier** : `src/components/menu/offers/BogoSimulator.tsx`
+
+Ajouter une ligne "Prix HT" dans la section d'affichage du produit sélectionné (après "Prix Uber") :
 
 ```tsx
-{/* Résultats par Restaurant */}
-<Card>
-  <CardHeader>
-    <CardTitle className="flex items-center gap-2">
-      <Store className="h-5 w-5" />
-      Résultats par Restaurant
-    </CardTitle>
-  </CardHeader>
-  <CardContent>
-    <div className="space-y-3">
-      {restaurantResults.map(result => (
-        <div key={result.restaurantId} className={`p-4 rounded-lg border ${getRecommendationStyle(result.recommendation)}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="font-semibold">{result.restaurantName}</span>
-              {result.priceSource === "catalog" && (
-                <Badge variant="outline" className="ml-2 text-xs">Prix catalogue</Badge>
-              )}
-            </div>
-            <span className="font-mono">{result.price.toFixed(2)}€</span>
-          </div>
-          <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
-            <div>
-              <span className="text-muted-foreground">Marge BOGO</span>
-              <div className={getMarginColor(result.netMarginBogo)}>
-                {result.netMarginBogo > 0 ? "+" : ""}{result.netMarginBogo.toFixed(2)}€
-              </div>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Seuil</span>
-              <div>+{result.breakevenIncreasePercent?.toFixed(0)}%</div>
-            </div>
-            <div className="flex items-center justify-end">
-              {getRecommendationBadge(result.recommendation)}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  </CardContent>
-</Card>
+{/* Affichage actuel */}
+<div className="flex items-center justify-between">
+  <span className="text-sm text-muted-foreground">Prix Uber</span>
+  <span className="font-mono font-semibold text-orange-600">
+    {selectedProduct.price_uber?.toFixed(2)}€
+  </span>
+</div>
+
+{/* NOUVEAU: Prix HT */}
+<div className="flex items-center justify-between">
+  <span className="text-sm text-muted-foreground">Prix HT (TVA {vatRate}%)</span>
+  <span className="font-mono">
+    {priceHT.toFixed(2)}€
+  </span>
+</div>
+```
+
+### 4. Améliorer le message de contribution plateforme
+
+Afficher le détail du calcul pour plus de transparence :
+
+```tsx
+{platformFunding && parseFloat(platformFunding) > 0 && simulation && (
+  <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-500/10 px-3 py-1.5 rounded-lg">
+    <Sparkles className="h-3.5 w-3.5" />
+    <span>
+      +{simulation.platformContribution?.toFixed(2)}€ de contribution plateforme
+      <span className="text-emerald-500/70 ml-1">
+        ({platformFunding}% du prix HT ≈ {priceHT.toFixed(2)}€)
+      </span>
+    </span>
+  </div>
+)}
 ```
 
 ---
 
-## Comportement UX
+## Modifications dans le multi-restaurant (restaurantResults)
 
-### Sans restaurant sélectionné
-- Le simulateur utilise les prix du **catalogue global** (comportement actuel)
-- Message : "Sélectionnez des restaurants pour voir les résultats par établissement"
+Appliquer la même correction dans le calcul par restaurant (lignes 487-490) :
 
-### Avec restaurants sélectionnés
-- Afficher les **résultats par restaurant** avec leurs prix réels
-- Indicateur visuel si le prix diffère du catalogue
-- Vue comparative pour identifier les restaurants les plus/moins rentables
+```typescript
+// Pour chaque restaurant, récupérer le prix et calculer le cofinancement sur le HT
+const vatRate = enrichedProduct.vat_rate ?? 10;
+const priceHT = price / (1 + vatRate / 100);
 
-### Classement intelligent multi-restaurant
-- Le tableau de classement peut afficher :
-  - **Vue globale** : moyenne des résultats sur les restaurants sélectionnés
-  - **Vue détaillée** : résultats par restaurant (accordéon)
+const platformContribution = fundingType === "percent" 
+  ? (priceHT * fundingValue / 100) 
+  : fundingValue;
+```
 
 ---
 
-## Résumé des modifications
+## Résumé des fichiers à modifier
 
-| Fichier | Type | Description |
-|---------|------|-------------|
-| `src/hooks/useSimulatorRestaurantPrices.ts` | Nouveau | Hook pour charger les prix par restaurant |
-| `src/components/menu/OfferSimulator.tsx` | Modifier | Ajouter sélecteur de restaurants |
-| `src/components/menu/offers/BogoSimulator.tsx` | Modifier | Calculs et affichage multi-restaurant |
-| `src/components/menu/offers/CrossProductSimulator.tsx` | Modifier | Idem |
-| `src/components/menu/offers/PercentDiscountSimulator.tsx` | Modifier | Idem |
+| Fichier | Modifications |
+|---------|---------------|
+| `src/hooks/useSimulatorRestaurantPrices.ts` | Ajouter `vat_rate` à `EnrichedMenuItem` |
+| `src/components/menu/offers/BogoSimulator.tsx` | 1. Corriger calcul cofinancement (2 endroits) 2. Ajouter affichage Prix HT 3. Améliorer message contribution |
+| `src/components/menu/offers/CrossProductSimulator.tsx` | Mêmes corrections si cofinancement utilisé |
+| `src/components/menu/offers/PercentDiscountSimulator.tsx` | Mêmes corrections si cofinancement utilisé |
 
 ---
 
 ## Résultat attendu
 
-1. **Sélection de restaurants** en haut du simulateur (réutilise le composant existant)
-2. **Prix réels** utilisés pour les calculs (depuis `restaurant_menu_prices`)
-3. **Résultats comparatifs** par restaurant avec indicateurs visuels
-4. **Identification rapide** des restaurants où l'offre est rentable vs risquée
-5. **Fallback intelligent** vers les prix catalogue si aucun prix spécifique n'existe
+### Dans la fiche produit :
+```
+Prix Uber              8.50€ TTC
+Prix HT (TVA 10%)      7.73€
+Food Cost              2.01€
+Ventes                 49
+Catégorie              Burgers
+```
 
+### Message de contribution :
+```
++1.16€ de contribution plateforme (15% du prix HT ≈ 7.73€)
+```
+
+### Calcul de marge corrigé :
+Le cofinancement est désormais basé sur le prix HT, reflétant la réalité comptable d'Uber Eats.
