@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { subDays, startOfYear } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
@@ -24,8 +32,10 @@ import {
   ArrowRight,
   Sparkles,
   Calculator,
+  Calendar,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeName } from "@/lib/fuzzyMatch";
 
 interface MenuItem {
   id: string;
@@ -47,8 +57,37 @@ interface BogoProjectionDialogProps {
   averageHtPrice: number;
 }
 
+type SalesPeriod = "30days" | "90days" | "year" | "all";
+
+const SALES_PERIOD_LABELS: Record<SalesPeriod, string> = {
+  "30days": "30 derniers jours",
+  "90days": "90 derniers jours",
+  "year": "Cette année",
+  "all": "Tout l'historique",
+};
+
 const OFFER_FEE = 0.89;
-const ESTIMATED_VOLUME_INCREASE = 0.30; // 30% volume increase estimate
+const ESTIMATED_VOLUME_INCREASE = 0.30;
+
+const getStartDate = (period: SalesPeriod): string | null => {
+  const now = new Date();
+  switch (period) {
+    case "30days": return subDays(now, 30).toISOString();
+    case "90days": return subDays(now, 90).toISOString();
+    case "year": return startOfYear(now).toISOString();
+    default: return null;
+  }
+};
+
+const getPeriodDays = (period: SalesPeriod): number => {
+  const now = new Date();
+  switch (period) {
+    case "30days": return 30;
+    case "90days": return 90;
+    case "year": return Math.ceil((now.getTime() - startOfYear(now).getTime()) / (1000 * 60 * 60 * 24));
+    default: return 365; // Fallback for "all"
+  }
+};
 
 export function BogoProjectionDialog({
   open,
@@ -61,44 +100,101 @@ export function BogoProjectionDialog({
   offerFeeWaived,
   averageHtPrice,
 }: BogoProjectionDialogProps) {
-  // Fetch historical sales for selected items (last 30 days)
+  const [salesPeriod, setSalesPeriod] = useState<SalesPeriod>("90days");
+
+  // Fetch historical sales for selected items
   const { data: historicalSales, isLoading } = useQuery({
-    queryKey: ["bogo-historical-sales", selectedItems.map((i) => i.id)],
+    queryKey: ["bogo-historical-sales", selectedItems.map((i) => i.id), selectedRestaurantIds, salesPeriod],
     queryFn: async () => {
       if (selectedItems.length === 0) return null;
 
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const startDate = getStartDate(salesPeriod);
 
-      const itemNames = selectedItems.map((i) => i.name);
+      // Build query with orders -> order_items join
+      let query = supabase
+        .from("orders")
+        .select(`
+          order_datetime,
+          restaurant_id,
+          order_items (
+            item_title,
+            quantity,
+            sales_incl_vat
+          )
+        `);
 
-      // Query order_items for sales data
-      const { data, error } = await supabase
-        .from("order_items")
-        .select("item_title, quantity, sales_incl_vat, created_at")
-        .in("item_title", itemNames)
-        .gte("created_at", thirtyDaysAgo.toISOString());
+      // Filter by date if applicable
+      if (startDate) {
+        query = query.gte("order_datetime", startDate);
+      }
+
+      // Filter by selected restaurants
+      if (selectedRestaurantIds.length > 0) {
+        query = query.in("restaurant_id", selectedRestaurantIds);
+      }
+
+      const { data: orders, error } = await query;
 
       if (error) {
         console.error("Error fetching historical sales:", error);
         return null;
       }
 
-      // Aggregate data
-      const totalQuantity = (data || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
-      const totalSales = (data || []).reduce((sum, item) => sum + (item.sales_incl_vat || 0), 0);
+      // Flatten all order items
+      const allItems = orders?.flatMap(o => o.order_items || []) || [];
+
+      // Create normalized name map for matching
+      const normalizedToItem = new Map<string, MenuItem>();
+      selectedItems.forEach(item => {
+        normalizedToItem.set(normalizeName(item.name), item);
+      });
+
+      // Match and aggregate
+      let totalQuantity = 0;
+      let totalSales = 0;
+      let matchedItemsCount = 0;
+      const matchedItemNames = new Set<string>();
+
+      allItems.forEach(row => {
+        if (!row.item_title) return;
+        
+        const normalizedTitle = normalizeName(row.item_title);
+        let matched = false;
+
+        // Exact match first
+        if (normalizedToItem.has(normalizedTitle)) {
+          matched = true;
+        } else {
+          // Fuzzy match: contains
+          for (const [normalized] of normalizedToItem) {
+            if (normalizedTitle.includes(normalized) || normalized.includes(normalizedTitle)) {
+              matched = true;
+              break;
+            }
+          }
+        }
+
+        if (matched) {
+          totalQuantity += row.quantity || 0;
+          totalSales += row.sales_incl_vat || 0;
+          matchedItemNames.add(row.item_title);
+        }
+      });
+
+      matchedItemsCount = matchedItemNames.size;
+      const periodDays = getPeriodDays(salesPeriod);
 
       return {
         totalQuantity,
         totalSales,
-        avgPerDay: totalQuantity / 30,
-        avgSalesPerDay: totalSales / 30,
-        itemCount: data?.length || 0,
+        avgPerDay: totalQuantity / periodDays,
+        avgSalesPerDay: totalSales / periodDays,
+        matchedItemsCount,
+        periodDays,
       };
     },
     enabled: open && selectedItems.length > 0,
   });
-
   // Calculate costs and projections
   const calculations = useMemo(() => {
     if (!selectedItems.length) return null;
@@ -325,19 +421,31 @@ export function BogoProjectionDialog({
           </div>
 
           {/* Historical Sales Context */}
-          {isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          ) : historicalSales && historicalSales.totalQuantity > 0 ? (
-            <div className="space-y-3">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
               <h3 className="font-semibold flex items-center gap-2">
                 <Package className="h-4 w-4 text-muted-foreground" />
-                Historique de ventes (30 derniers jours)
+                Historique de ventes
               </h3>
+              <Select value={salesPeriod} onValueChange={(v) => setSalesPeriod(v as SalesPeriod)}>
+                <SelectTrigger className="w-[180px] h-8">
+                  <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SALES_PERIOD_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <Card className="bg-blue-500/5 border-blue-500/20">
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ) : historicalSales && historicalSales.totalQuantity > 0 ? (
+              <Card className="bg-primary/5 border-primary/20">
                 <CardContent className="pt-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -355,24 +463,32 @@ export function BogoProjectionDialog({
                       </p>
                     </div>
                   </div>
+                  <Separator className="my-3" />
+                  <p className="text-xs text-muted-foreground">
+                    Basé sur {selectedRestaurantIds.length > 0 
+                      ? `${selectedRestaurantIds.length} restaurant(s)` 
+                      : "tous les restaurants"} 
+                    {" "}• {historicalSales.matchedItemsCount} article(s) matchés • {historicalSales.periodDays} jours
+                  </p>
                 </CardContent>
               </Card>
-            </div>
-          ) : (
-            <Card className="bg-amber-500/5 border-amber-500/20">
-              <CardContent className="pt-4">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-amber-600">Pas d'historique de ventes</p>
-                    <p className="text-sm text-muted-foreground">
-                      Les projections sont basées sur des estimations moyennes. Importez vos rapports de commandes pour des analyses plus précises.
-                    </p>
+            ) : (
+              <Card className="bg-amber-500/5 border-amber-500/20">
+                <CardContent className="pt-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-amber-600">Pas d'historique de ventes</p>
+                      <p className="text-sm text-muted-foreground">
+                        Aucune vente trouvée pour ces articles sur la période sélectionnée. 
+                        Essayez d'élargir la période ou vérifiez que les données de commandes sont importées.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           {/* Audience Impact */}
           <div className="space-y-3">
