@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Info } from "lucide-react";
+import { Info, Search, Bell, ShoppingCart, Heart, ChevronDown } from "lucide-react";
 import chickenStreetPromo from "@/assets/chicken-street-promo.jpg";
 
 interface BogoImpactPanelProps {
@@ -16,42 +16,81 @@ export function BogoImpactPanel({
 }: BogoImpactPanelProps) {
   return (
     <div className="space-y-6">
-      {/* Mobile Mockup with Chicken Street image */}
-      <div className="bg-muted/50 rounded-3xl p-4 border border-border">
-        <div className="bg-background rounded-2xl overflow-hidden shadow-lg">
-          {/* Status bar mockup */}
-          <div className="h-6 bg-muted/30 flex items-center justify-center">
-            <div className="w-20 h-1 bg-foreground/20 rounded-full" />
+      {/* iPhone Mockup - Uber Eats style */}
+      <div className="flex justify-center">
+        <div className="relative w-[280px]">
+          {/* iPhone Frame */}
+          <div className="bg-foreground rounded-[40px] p-2 shadow-2xl">
+            <div className="bg-background rounded-[32px] overflow-hidden">
+              {/* Notch / Dynamic Island */}
+              <div className="h-8 bg-background flex items-center justify-center relative">
+                <div className="w-24 h-6 bg-foreground rounded-full" />
+              </div>
+              
+              {/* App Header */}
+              <div className="px-4 py-2 flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <div className="w-20 h-4 bg-muted rounded" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Search className="h-5 w-5 text-foreground" />
+                  <Bell className="h-5 w-5 text-foreground" />
+                  <ShoppingCart className="h-5 w-5 text-foreground" />
+                </div>
+              </div>
+
+              {/* Quick Filters */}
+              <div className="px-4 py-2 flex gap-2">
+                <div className="w-16 h-8 bg-muted rounded-lg" />
+                <div className="w-20 h-8 bg-muted rounded-lg" />
+              </div>
+
+              {/* Search placeholder */}
+              <div className="px-4 py-2 flex gap-2">
+                <div className="flex-1 h-6 bg-muted/50 rounded" />
+                <div className="w-8 h-6 bg-muted/50 rounded-full" />
+              </div>
+              <div className="px-4 pb-2">
+                <div className="w-32 h-4 bg-muted/50 rounded" />
+              </div>
+
+              {/* Section Title */}
+              <div className="px-4 pt-2 pb-3">
+                <p className="font-semibold text-sm">Tous les établissements</p>
+              </div>
+
+              {/* Restaurant Card with Promo */}
+              <div className="px-4 pb-3">
+                <div className="relative rounded-xl overflow-hidden">
+                  {/* Badge on image */}
+                  <Badge className="absolute top-2 left-2 z-10 bg-[#C8102E] hover:bg-[#C8102E] text-white text-[10px] px-2 py-1 font-medium">
+                    Un acheté = un offert
+                  </Badge>
+                  <img 
+                    src={chickenStreetPromo} 
+                    alt="Chicken Street"
+                    className="w-full h-28 object-cover"
+                  />
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="font-medium text-sm">Chicken Street - Juvisy</p>
+                  <Heart className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="w-24 h-3 bg-muted/50 rounded mt-1" />
+              </div>
+
+              {/* Another card placeholder */}
+              <div className="px-4 pb-4">
+                <div className="w-full h-16 bg-muted/30 rounded-xl" />
+              </div>
+
+              {/* Home indicator */}
+              <div className="flex justify-center pb-2">
+                <div className="w-32 h-1 bg-foreground/20 rounded-full" />
+              </div>
+            </div>
           </div>
-          
-          {/* App content mockup */}
-          <div className="p-3 space-y-3">
-            {/* Restaurant card with promo image */}
-            <div className="relative rounded-xl overflow-hidden">
-              <img 
-                src={chickenStreetPromo} 
-                alt="Chicken Street - Naan & Fried Chicken"
-                className="w-full h-32 object-cover"
-              />
-              <Badge className="absolute bottom-2 left-2 bg-emerald-500 text-white text-[10px] px-2 py-1">
-                Un acheté = un offert
-              </Badge>
-            </div>
-
-            {/* Restaurant info */}
-            <div className="space-y-1">
-              <div className="h-4 bg-muted rounded w-3/4" />
-              <div className="h-3 bg-muted/70 rounded w-1/2" />
-            </div>
-
-            {/* More cards placeholder */}
-            <div className="space-y-2 opacity-40">
-              <div className="h-16 bg-muted/30 rounded-xl" />
-            </div>
-          </div>
-
-          {/* Bottom bar */}
-          <div className="h-5 bg-muted/30" />
         </div>
       </div>
 
@@ -67,10 +106,10 @@ export function BogoImpactPanel({
       </p>
 
       {/* Impact Stats */}
-      <Card className="p-4 bg-emerald-500/10 border-emerald-500/30">
+      <Card className="p-4 bg-primary/5 border-primary/20">
         <div className="text-center space-y-2">
           <p className="text-2xl font-bold text-foreground">
-            Jusqu'à <span className="text-emerald-600">63 %</span> de ventes en plus
+            Jusqu'à <span className="text-primary">63 %</span> de ventes en plus
           </p>
           <p className="text-sm text-muted-foreground">
             par rapport aux établissements qui ne proposent pas cette offre
