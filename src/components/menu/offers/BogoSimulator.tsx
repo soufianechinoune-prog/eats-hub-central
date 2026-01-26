@@ -182,34 +182,15 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
       try {
         const startDate = getStartDate(salesPeriod);
         
-        let allItems: Array<{ item_title: string; quantity: number }> = [];
+        // Use RPC to aggregate server-side (bypasses 1000 row limit)
+        const { data, error } = await supabase.rpc("get_product_sales_for_period", {
+          p_start_date: startDate,
+          p_restaurant_ids: null // All restaurants for network-wide popularity
+        });
         
-        if (startDate) {
-          // Fetch via orders join to filter by date
-          const { data, error } = await supabase
-            .from("orders")
-            .select(`
-              order_datetime,
-              order_items (
-                item_title,
-                quantity
-              )
-            `)
-            .gte("order_datetime", startDate);
-          
-          if (error) throw error;
-          
-          // Flatten results
-          allItems = data?.flatMap(order => order.order_items || []) || [];
-        } else {
-          // Fetch all order_items without date filter
-          const { data, error } = await supabase
-            .from("order_items")
-            .select("item_title, quantity");
-          
-          if (error) throw error;
-          allItems = data || [];
-        }
+        if (error) throw error;
+        
+        const allItems: Array<{ item_title: string; total_quantity: number }> = data || [];
         
         // Aggregate sales by normalized item name
         const salesMap: Record<string, number> = {};
@@ -221,14 +202,15 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
           normalizedToOriginal[normalized] = item.id;
         });
         
-        // Count sales
+        // Count sales - RPC returns pre-aggregated data with total_quantity
         allItems.forEach(row => {
           const normalizedTitle = normalizeName(row.item_title);
+          const quantity = row.total_quantity || 1;
           
           // Try exact match first
           if (normalizedToOriginal[normalizedTitle]) {
             const menuItemId = normalizedToOriginal[normalizedTitle];
-            salesMap[menuItemId] = (salesMap[menuItemId] || 0) + (row.quantity || 1);
+            salesMap[menuItemId] = (salesMap[menuItemId] || 0) + quantity;
           } else {
             // Fuzzy match: find best matching menu item
             let bestMatch: string | null = null;
@@ -245,7 +227,7 @@ export function BogoSimulator({ menuItems, platform, commission, onCommissionCha
             }
             
             if (bestMatch) {
-              salesMap[bestMatch] = (salesMap[bestMatch] || 0) + (row.quantity || 1);
+              salesMap[bestMatch] = (salesMap[bestMatch] || 0) + quantity;
             }
           }
         });

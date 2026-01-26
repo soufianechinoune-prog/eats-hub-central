@@ -3014,6 +3014,13 @@ export type Database = {
           weekday_orders: number
         }[]
       }
+      get_product_sales_for_period: {
+        Args: { p_restaurant_ids?: string[]; p_start_date?: string }
+        Returns: {
+          item_title: string
+          total_quantity: number
+        }[]
+      }
       get_products_by_time_slot: {
         Args: {
           p_end_date: string
