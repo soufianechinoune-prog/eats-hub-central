@@ -93,29 +93,34 @@ export function OfferTypeHeader({ selectedType, onTypeChange, platform }: OfferT
       
       <SelectContent 
         align="start" 
-        className="w-[var(--radix-select-trigger-width)] p-0 border-0 shadow-lg rounded-lg overflow-hidden bg-background"
+        sideOffset={4}
+        className="w-[var(--radix-select-trigger-width)] p-0 border-0 shadow-lg rounded-lg overflow-hidden"
       >
-        {OFFER_TYPES.map((offer) => {
+        {OFFER_TYPES.map((offer, index) => {
           const offerColors = colorClasses[offer.color];
           const isSelected = offer.id === selectedType;
+          const isFirst = index === 0;
+          const isLast = index === OFFER_TYPES.length - 1;
           
           return (
             <SelectItem 
               key={offer.id} 
               value={offer.id} 
-              className={`p-0 cursor-pointer focus:bg-transparent data-[highlighted]:bg-transparent [&>span:first-child]:hidden`}
+              className="p-0 cursor-pointer focus:bg-transparent data-[highlighted]:bg-transparent [&>span:first-child]:hidden w-full"
             >
-              <div className={`w-full px-4 py-4 sm:px-6 ${offerColors.bg} ${isSelected ? 'ring-2 ring-inset ring-primary/50' : ''} hover:brightness-95 transition-all`}>
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 ${offerColors.bg} backdrop-blur-sm rounded-xl`}>
-                    <offer.icon className={`h-5 w-5 ${offerColors.text}`} />
-                  </div>
-                  
-                  <div className="flex-1">
-                    <div className="font-semibold">{offer.title}</div>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      {offer.description}
-                    </p>
+              <div className={`w-full relative ${offerColors.bg} border ${offerColors.border} ${isFirst ? 'rounded-t-lg' : ''} ${isLast ? 'rounded-b-lg' : ''} ${!isLast ? 'border-b-0' : ''} ${isSelected ? 'ring-2 ring-inset ring-primary/50' : ''} hover:brightness-95 transition-all`}>
+                <div className="px-4 py-4 sm:px-6">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 ${offerColors.bg} backdrop-blur-sm rounded-xl`}>
+                      <offer.icon className={`h-5 w-5 ${offerColors.text}`} />
+                    </div>
+                    
+                    <div className="flex-1">
+                      <div className="font-semibold">{offer.title}</div>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {offer.description}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
