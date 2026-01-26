@@ -173,7 +173,12 @@ export function BogoDurationSelector({
         </button>
         <button
           type="button"
-          onClick={() => onDurationTypeChange("custom")}
+          onClick={() => {
+            onDurationTypeChange("custom");
+            // Open the dialog when clicking on Personnalisé
+            setTempSchedule({ ...customSchedule });
+            setShowScheduleDialog(true);
+          }}
           className={cn(
             "px-4 py-2 rounded-full text-sm font-medium transition-colors",
             durationType === "custom"
