@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { useUberOneStats } from "@/hooks/useUberOneStats";
+import { useUberOneStats, SIGNIFICANCE_THRESHOLD } from "@/hooks/useUberOneStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Users, TrendingUp, TrendingDown, Minus, Crown, BarChart3, LineChartIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Users, TrendingUp, TrendingDown, Minus, Crown, BarChart3, LineChartIcon, AlertTriangle } from "lucide-react";
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, startOfWeek } from "date-fns";
 import {
   LineChart,
@@ -425,6 +426,15 @@ export function UberOneAnalysis() {
               <CardTitle className="text-lg">Comparaison par restaurant</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Alert if majority of restaurants have insufficient data */}
+              {byRestaurant.filter(r => !r.isSignificant).length > byRestaurant.length / 2 && (
+                <Alert variant="default" className="mb-4">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Données insuffisantes sur cette période (&lt;{SIGNIFICANCE_THRESHOLD} commandes). Les pourcentages peuvent être peu représentatifs.
+                  </AlertDescription>
+                </Alert>
+              )}
               <ChartContainer config={restaurantChartConfig} className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -453,7 +463,7 @@ export function UberOneAnalysis() {
                       content={
                         <ChartTooltipContent
                           formatter={(value, name, props) => [
-                            `${Number(value).toFixed(1)}% (${props.payload.uberOneCount} / ${props.payload.totalOrders})`,
+                            `${Number(value).toFixed(1)}% (${props.payload.uberOneCount} / ${props.payload.totalOrders})${!props.payload.isSignificant ? " ⚠️" : ""}`,
                             "% Uber One",
                           ]}
                         />
@@ -463,7 +473,11 @@ export function UberOneAnalysis() {
                       {byRestaurant.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={index === 0 ? "hsl(var(--chart-1))" : "hsl(var(--chart-1) / 0.7)"}
+                          fill={
+                            entry.isSignificant
+                              ? (index === 0 ? "hsl(var(--chart-1))" : "hsl(var(--chart-1) / 0.7)")
+                              : "hsl(var(--muted-foreground) / 0.4)"
+                          }
                         />
                       ))}
                       <LabelList

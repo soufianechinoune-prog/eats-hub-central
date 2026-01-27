@@ -25,6 +25,9 @@ export interface UberOneEvolutionByRestaurant {
   [restaurantId: string]: number | string | null; // restaurantId -> uberOnePercent (null if no data)
 }
 
+// Minimum orders threshold for statistical significance
+export const SIGNIFICANCE_THRESHOLD = 10;
+
 export interface UberOneByRestaurant {
   restaurantId: string;
   restaurantName: string;
@@ -32,6 +35,7 @@ export interface UberOneByRestaurant {
   uberOneCount: number;
   nonUberOneCount: number;
   totalOrders: number;
+  isSignificant: boolean; // true if totalOrders >= SIGNIFICANCE_THRESHOLD
 }
 
 export interface UberOneComparison {
@@ -323,6 +327,7 @@ export function useUberOneStats({
           uberOneCount: data.uberOne,
           nonUberOneCount: data.nonUberOne,
           totalOrders: total,
+          isSignificant: total >= SIGNIFICANCE_THRESHOLD,
         };
       })
       .sort((a, b) => b.uberOnePercent - a.uberOnePercent);
