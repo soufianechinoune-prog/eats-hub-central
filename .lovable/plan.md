@@ -1,66 +1,97 @@
 
-# Correction du filtre restaurants dans les données de ventes
 
-## Problème
+# Correction de l'affichage Uber One - Seuil de significativité
 
-Le nombre de ventes affiché (3921 pour "Naan TENDERS") est identique quel que soit le restaurant sélectionné car l'appel RPC ignore le filtre restaurant.
+## Analyse du problème
 
-| Sélection | Attendu | Affiché |
-|-----------|---------|---------|
-| Bonneuil seul | ~800 ventes | 3921 |
-| Athis-Mons + Bonneuil | ~1600 ventes | 3921 |
-| Tout le réseau | 3921 ventes | 3921 |
+L'affichage "100% Uber One" pour Antony est techniquement correct mais trompeur. Voici ce qui se passe :
 
-**Cause :** Ligne 188 de `BogoSimulator.tsx` passe `p_restaurant_ids: null` au lieu de `restaurantIds`.
+1. **Données limitées** : Les données order_history s'arrêtent au 18 janvier 2026
+2. **Période sans données** : Si l'utilisateur sélectionne "Semaine précédente" (20-26 janvier), il n'y a quasiment pas de données
+3. **Échantillon trop petit** : Avec seulement quelques commandes, les pourcentages peuvent être extrêmes (ex: 2 commandes Uber One = 100%)
 
----
+## Solution proposée
 
-## Solution
+Ajouter un seuil de significativité pour éviter d'afficher des pourcentages trompeurs basés sur des échantillons trop petits.
 
-Passer les `restaurantIds` sélectionnés à la fonction RPC pour filtrer les ventes par restaurant.
+### Modifications
 
----
+#### 1. Fichier `src/hooks/useUberOneStats.ts`
 
-## Modifications
+Ajouter un indicateur de significativité aux données par restaurant :
 
-### Fichier : `src/components/menu/offers/BogoSimulator.tsx`
+```typescript
+// Dans l'interface UberOneByRestaurant
+export interface UberOneByRestaurant {
+  // ... existing fields
+  isSignificant: boolean; // true if totalOrders >= SIGNIFICANCE_THRESHOLD
+}
 
-**1. Modifier l'appel RPC (ligne 186-189)**
+// Ajouter une constante pour le seuil
+const SIGNIFICANCE_THRESHOLD = 10; // Minimum 10 commandes pour être significatif
 
-```tsx
-// Avant (BUG)
-const { data, error } = await supabase.rpc("get_product_sales_for_period", {
-  p_start_date: startDate,
-  p_restaurant_ids: null // All restaurants for network-wide popularity
-});
-
-// Après (CORRIGÉ)
-const { data, error } = await supabase.rpc("get_product_sales_for_period", {
-  p_start_date: startDate,
-  p_restaurant_ids: restaurantIds.length > 0 ? restaurantIds : null
-});
+// Dans le calcul byRestaurant (lignes 316-329)
+return {
+  restaurantId,
+  restaurantName: restaurantMap[restaurantId] || "Inconnu",
+  uberOnePercent: total > 0 ? (data.uberOne / total) * 100 : 0,
+  uberOneCount: data.uberOne,
+  nonUberOneCount: data.nonUberOne,
+  totalOrders: total,
+  isSignificant: total >= SIGNIFICANCE_THRESHOLD, // NEW
+};
 ```
 
-**2. Ajouter `restaurantIds` aux dépendances du useEffect**
+#### 2. Fichier `src/components/analytics/UberOneAnalysis.tsx`
 
-Le hook `useEffect` doit se re-exécuter quand les restaurants sélectionnés changent :
+Ajouter un indicateur visuel pour les échantillons non significatifs :
+
+- Afficher un badge d'avertissement sur les restaurants avec peu de données
+- Utiliser une couleur différente (gris/hachuré) pour les barres non significatives
+- Ajouter un tooltip explicatif
 
 ```tsx
-// Avant
-}, [salesPeriod, menuItems]);
-
-// Après  
-}, [salesPeriod, menuItems, restaurantIds]);
+// Dans le graphique Comparaison par restaurant
+<Bar dataKey="uberOnePercent" radius={[0, 4, 4, 0]} maxBarSize={35}>
+  {byRestaurant.map((entry, index) => (
+    <Cell
+      key={`cell-${index}`}
+      fill={
+        entry.isSignificant 
+          ? (index === 0 ? "hsl(var(--chart-1))" : "hsl(var(--chart-1) / 0.7)")
+          : "hsl(var(--muted))" // Grisé si non significatif
+      }
+    />
+  ))}
+</Bar>
 ```
 
----
+#### 3. Message d'avertissement global
+
+Si la majorité des restaurants ont des échantillons non significatifs, afficher une alerte :
+
+```tsx
+// Avant le graphique
+{byRestaurant.filter(r => !r.isSignificant).length > byRestaurant.length / 2 && (
+  <Alert variant="default" className="mb-4">
+    <AlertTriangle className="h-4 w-4" />
+    <AlertDescription>
+      Données insuffisantes sur cette période. Les pourcentages peuvent être peu représentatifs.
+    </AlertDescription>
+  </Alert>
+)}
+```
+
+## Résumé des fichiers à modifier
+
+| Fichier | Modification |
+|---------|--------------|
+| `src/hooks/useUberOneStats.ts` | Ajouter `isSignificant` et `SIGNIFICANCE_THRESHOLD` |
+| `src/components/analytics/UberOneAnalysis.tsx` | Indicateur visuel + message d'avertissement |
 
 ## Résultat attendu
 
-| Sélection | Ventes affichées |
-|-----------|------------------|
-| Bonneuil seul | ~800-1000 |
-| Athis-Mons + Bonneuil | ~1600-2000 |
-| Tout le réseau (aucune sélection) | ~3921 |
+- Les restaurants avec moins de 10 commandes seront affichés en gris
+- Un message d'avertissement apparaîtra si les données sont insuffisantes
+- L'utilisateur comprendra que le 100% est dû à un échantillon trop petit
 
-Les chiffres de ventes refléteront désormais les performances réelles de chaque restaurant.
