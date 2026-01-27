@@ -166,21 +166,45 @@ export function useNetworkStats({
     enabled: restaurantIds.length > 0,
   });
 
-  // Fetch payouts for profitability
-  const { data: payoutsData, isLoading: payoutsLoading } = useQuery({
-    queryKey: ["network-stats-payouts", restaurantIds, startDateStr, endDateStr],
+  // Fetch orders for profitability (aligned with Finances page - uses order_datetime, not payout_date)
+  const { data: ordersPayoutData, isLoading: ordersPayoutLoading } = useQuery({
+    queryKey: ["network-stats-orders-payout", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (restaurantIds.length === 0) return [];
       
-      const { data, error } = await supabase
-        .from("payouts")
-        .select("restaurant_id, sales_incl_vat, net_payout, item_promo_incl_vat, meal_voucher_amount")
-        .gte("payout_date", startDateStr)
-        .lte("payout_date", endDateStr)
-        .in("restaurant_id", restaurantIds);
+      // Pagination to bypass 1000-row limit
+      const PAGE_SIZE = 1000;
+      let allData: Array<{
+        restaurant_id: string;
+        sales_incl_vat: number | null;
+        net_payout: number | null;
+        item_promo_incl_vat: number | null;
+        meal_voucher_amount: number | null;
+      }> = [];
+      let offset = 0;
+      let hasMore = true;
 
-      if (error) throw error;
-      return data || [];
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("orders")
+          .select("restaurant_id, sales_incl_vat, net_payout, item_promo_incl_vat, meal_voucher_amount")
+          .gte("order_datetime", `${startDateStr}T00:00:00`)
+          .lte("order_datetime", `${endDateStr}T23:59:59`)
+          .in("restaurant_id", restaurantIds)
+          .order("order_datetime", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          hasMore = data.length === PAGE_SIZE;
+          offset += PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      return allData;
     },
     enabled: restaurantIds.length > 0,
   });
@@ -289,26 +313,26 @@ export function useNetworkStats({
             restoReviews.length
           : null;
 
-      // Profitability & Net Payout (same formula as ProfitabilityComparisonChart)
-      const restoPayouts = payoutsData?.filter((p) => p.restaurant_id === resto.id) || [];
+      // Profitability & Net Payout from orders (consistent with Finances page)
+      const restoOrders = ordersPayoutData?.filter((o) => o.restaurant_id === resto.id) || [];
       let profitability: number | null = null;
       let netPayout = 0;
       
-      if (restoPayouts.length > 0) {
-        const totalSales = restoPayouts.reduce(
-          (sum, p) => sum + Math.max(0, Number(p.sales_incl_vat || 0)),
+      if (restoOrders.length > 0) {
+        const totalSales = restoOrders.reduce(
+          (sum, o) => sum + Math.max(0, Number(o.sales_incl_vat || 0)),
           0
         );
-        const totalPromo = restoPayouts.reduce(
-          (sum, p) => sum + Math.abs(Number(p.item_promo_incl_vat || 0)),
+        const totalPromo = restoOrders.reduce(
+          (sum, o) => sum + Math.abs(Number(o.item_promo_incl_vat || 0)),
           0
         );
-        const totalNetPayoutRaw = restoPayouts.reduce(
-          (sum, p) => sum + Number(p.net_payout || 0),
+        const totalNetPayoutRaw = restoOrders.reduce(
+          (sum, o) => sum + Number(o.net_payout || 0),
           0
         );
-        const totalMealVoucher = restoPayouts.reduce(
-          (sum, p) => sum + Number(p.meal_voucher_amount || 0),
+        const totalMealVoucher = restoOrders.reduce(
+          (sum, o) => sum + Number(o.meal_voucher_amount || 0),
           0
         );
         
@@ -414,7 +438,7 @@ export function useNetworkStats({
     salesData,
     prevSalesData,
     reviewsData,
-    payoutsData,
+    ordersPayoutData,
     orderHistoryData,
     accuracyData,
     availabilityData,
@@ -512,7 +536,7 @@ export function useNetworkStats({
   const isLoading =
     salesLoading ||
     reviewsLoading ||
-    payoutsLoading ||
+    ordersPayoutLoading ||
     historyLoading ||
     accuracyLoading ||
     availabilityLoading;
