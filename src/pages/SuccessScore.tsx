@@ -15,7 +15,8 @@ import {
   AlertTriangle,
   Info,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Calendar
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -216,6 +217,79 @@ export default function SuccessScore() {
       latestMonth: latestScores[0]?.score_month,
     };
   }, [latestScores]);
+
+  // Monthly history aggregation
+  const monthlyHistory = useMemo(() => {
+    if (!scores?.length) return [];
+    
+    // Group by score_month
+    const byMonth = new Map<string, SuccessScore[]>();
+    for (const score of scores) {
+      const existing = byMonth.get(score.score_month) || [];
+      existing.push(score);
+      byMonth.set(score.score_month, existing);
+    }
+    
+    // Calculate stats for each month
+    return Array.from(byMonth.entries())
+      .sort((a, b) => b[0].localeCompare(a[0])) // Most recent first
+      .map(([month, monthScores]) => {
+        const tierCounts: Record<string, number> = {
+          Excellent: 0,
+          Great: 0,
+          Good: 0,
+          Fair: 0,
+          Poor: 0,
+        };
+        
+        let totalOpEx = 0, opExCount = 0;
+        let totalRatings = 0, ratingsCount = 0;
+        let totalMenu = 0, menuCount = 0;
+        let totalPackaging = 0, packagingCount = 0;
+        let totalSales = 0;
+        
+        for (const score of monthScores) {
+          const tier = score.score_tier as keyof typeof tierCounts;
+          if (tierCounts[tier] !== undefined) tierCounts[tier]++;
+          
+          if (score.operational_excellence != null) {
+            totalOpEx += score.operational_excellence;
+            opExCount++;
+          }
+          if (score.ratings != null) {
+            totalRatings += score.ratings;
+            ratingsCount++;
+          }
+          if (score.menu_details != null) {
+            totalMenu += score.menu_details;
+            menuCount++;
+          }
+          if (score.sustainable_packaging != null) {
+            totalPackaging += score.sustainable_packaging;
+            packagingCount++;
+          }
+          if (score.sales_amount != null) {
+            totalSales += score.sales_amount;
+          }
+        }
+        
+        // Find dominant tier
+        const dominantTier = Object.entries(tierCounts)
+          .sort((a, b) => b[1] - a[1])[0][0];
+        
+        return {
+          month,
+          restaurantCount: monthScores.length,
+          dominantTier,
+          tierCounts,
+          avgOpEx: opExCount > 0 ? totalOpEx / opExCount : null,
+          avgRatings: ratingsCount > 0 ? totalRatings / ratingsCount : null,
+          avgMenu: menuCount > 0 ? totalMenu / menuCount : null,
+          avgPackaging: packagingCount > 0 ? totalPackaging / packagingCount : null,
+          totalSales,
+        };
+      });
+  }, [scores]);
 
   // Get progress to next tier
   const getProgressToNextTier = (score: SuccessScore) => {
@@ -562,6 +636,71 @@ export default function SuccessScore() {
           )}
         </CardContent>
       </Card>
+
+      {/* Monthly History */}
+      {monthlyHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Historique mensuel
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mois</TableHead>
+                  <TableHead className="text-center">Score dominant</TableHead>
+                  <TableHead className="text-center">Excellence Op.</TableHead>
+                  <TableHead className="text-center">Notes</TableHead>
+                  <TableHead className="text-center">Menu</TableHead>
+                  <TableHead className="text-center">Emballage</TableHead>
+                  <TableHead className="text-right">CA total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {monthlyHistory.map((row) => {
+                  const tierConfig = TIER_CONFIG[row.dominantTier as keyof typeof TIER_CONFIG] || TIER_CONFIG.Fair;
+                  
+                  return (
+                    <TableRow key={row.month}>
+                      <TableCell className="font-medium">
+                        {format(new Date(row.month), 'MMMM yyyy', { locale: fr })}
+                        <span className="text-xs text-muted-foreground ml-2">
+                          ({row.restaurantCount} resto{row.restaurantCount > 1 ? 's' : ''})
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge className={`${tierConfig.color} text-white`}>
+                          {tierConfig.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {row.avgOpEx != null ? `${row.avgOpEx.toFixed(1)}%` : '—'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {row.avgRatings != null ? row.avgRatings.toFixed(2) : '—'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {row.avgMenu != null ? `${row.avgMenu.toFixed(0)}%` : '—'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {row.avgPackaging != null ? `${row.avgPackaging.toFixed(0)}%` : '—'}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {row.totalSales > 0 
+                          ? `${row.totalSales.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
       </div>
     </TooltipProvider>
   );
