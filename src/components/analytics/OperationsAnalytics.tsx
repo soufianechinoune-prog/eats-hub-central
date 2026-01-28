@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -99,32 +100,18 @@ export function OperationsAnalytics() {
     localStorage.setItem("operations-active-tab", activeTab);
   }, [activeTab]);
 
-  // Calculate date range based on period mode
-  const dateRange = useMemo(() => {
-    const usesContextRange =
-      (periodMode === "range" ||
-        periodMode === "previous_week" ||
-        periodMode === "7d" ||
-        periodMode === "30d" ||
-        periodMode === "current_month") &&
-      contextDateRange?.from &&
-      contextDateRange?.to;
+  // Calculate date range using centralized hook (fixes "previous_week" bug)
+  const { startDate, endDate } = useDataGranularity({
+    periodMode,
+    selectedYear,
+    selectedMonth,
+    dateRange: contextDateRange,
+  });
 
-    if (usesContextRange) {
-      return { start: contextDateRange!.from!, end: contextDateRange!.to! };
-    }
-
-    if (periodMode === "month") {
-      const start = startOfMonth(new Date(selectedYear, selectedMonth - 1));
-      const end = endOfMonth(new Date(selectedYear, selectedMonth - 1));
-      return { start, end };
-    }
-
-    // Year view
-    const start = new Date(selectedYear, 0, 1);
-    const end = new Date(selectedYear, 11, 31);
-    return { start, end };
-  }, [selectedYear, selectedMonth, periodMode, contextDateRange]);
+  const dateRange = useMemo(() => ({
+    start: startDate,
+    end: endDate,
+  }), [startDate, endDate]);
 
   // Fetch availability data with pagination to overcome 1000 row limit
   const { data: availabilityData, isLoading } = useQuery({
