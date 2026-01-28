@@ -1,103 +1,92 @@
 
+# Correction du bug "Semaine précédente" - Operations Analytics
 
-# Ajout d'un Historique Mensuel - Score de Réussite
+## Problème identifié
 
-## Objectif
+Le bouton "Semaine précédente" affiche les données de l'année entière au lieu de la semaine sélectionnée.
 
-Ajouter une section "Historique" en bas de la page `/success-score` qui affiche l'évolution des scores mois par mois, permettant de visualiser la progression du réseau et de chaque restaurant.
+**Comparaison des screenshots :**
+| Mode | Enregistrements | Erreurs | Commandes |
+|------|-----------------|---------|-----------|
+| Plage manuelle 19/01-25/01 | 10 | 26 | 724 |
+| "Semaine précédente" | 70 | 176 | 3721 |
 
-## Données disponibles
+## Cause technique
 
-La base de données contient actuellement :
-- Janvier 2026 (données les plus récentes)
-- Décembre 2025
+Dans `OperationsAnalytics.tsx`, le calcul de `dateRange` utilise `contextDateRange` du contexte global. Or, quand on sélectionne un mode rapide comme "Semaine précédente" :
 
-## Proposition de design
+- `periodMode` → devient `"previous_week"` (correct)
+- `contextDateRange` → **reste `undefined`** (le context ne met pas automatiquement à jour ces dates)
 
-### Option A : Tableau d'historique compact (recommandé)
+Le code tombe alors dans le fallback qui retourne l'année entière :
+```typescript
+// Fallback actuel - retourne toute l'année!
+const start = new Date(selectedYear, 0, 1);
+const end = new Date(selectedYear, 11, 31);
+```
 
-Une nouvelle Card en bas de page avec un tableau montrant :
+## Solution proposée
 
-| Mois | Score dominant | Excellence Op. | Notes | Menu | Emballage | CA total |
-|------|----------------|----------------|-------|------|-----------|----------|
-| Janvier 2026 | Correct (4) | 97.4% | 4.35 | 79% | 33% | 527 124 € |
-| Décembre 2025 | Correct (4) | 97.2% | 4.28 | 75% | 100% | 489 000 € |
+Utiliser le hook `useDataGranularity` existant qui calcule CORRECTEMENT les dates pour tous les modes (y compris `previous_week`, `7d`, `30d`, etc.) au lieu de dépendre de `contextDateRange`.
 
-**Avantages :**
-- Vue synthétique de l'évolution réseau
-- Permet de comparer rapidement les mois
-- Affiche les moyennes réseau par mois
+## Modifications
 
-### Option B : Tableau par restaurant (plus détaillé)
+### Fichier : `src/components/analytics/OperationsAnalytics.tsx`
 
-Un tableau expansible avec les lignes par mois, et pour chaque mois un sous-tableau des restaurants.
+1. **Importer le hook `useDataGranularity`**
 
-## Modifications techniques
+2. **Remplacer le calcul manuel de `dateRange`** par l'utilisation du hook :
+   - Avant : logique conditionnelle avec fallback bugué
+   - Après : utilisation de `startDate` et `endDate` du hook qui gère tous les modes
 
-### Fichier : `src/pages/SuccessScore.tsx`
+3. **Simplifier le passage des props à `OrderAccuracyDashboard`** :
+   - Le `dateRange` sera toujours calculé correctement, peu importe le mode
 
-1. **Nouveau useMemo `monthlyHistory`** : Grouper tous les scores par mois et calculer les agrégats (tier dominant, moyennes, CA total)
+### Changement de code (approximatif)
 
-2. **Nouvelle section Card "Historique"** : Tableau avec les colonnes :
-   - Mois (format "Janvier 2026")
-   - Score dominant (badge du tier avec le plus de restaurants)
-   - Excellence Op. moyenne
-   - Notes moyenne
-   - Détails Menu moyen
-   - Emballage moyen
-   - CA total réseau
-
-3. **Import Calendar icon** : Pour l'en-tête de la section
-
-### Structure du code
-
-```tsx
-// Nouveau useMemo pour l'historique
-const monthlyHistory = useMemo(() => {
-  if (!scores?.length) return [];
-  
-  // Grouper par score_month
-  const byMonth = new Map<string, SuccessScore[]>();
-  for (const score of scores) {
-    const existing = byMonth.get(score.score_month) || [];
-    existing.push(score);
-    byMonth.set(score.score_month, existing);
+```typescript
+// AVANT (bugué)
+const dateRange = useMemo(() => {
+  const usesContextRange = (periodMode === "previous_week" || ...) &&
+    contextDateRange?.from && contextDateRange?.to;
+  if (usesContextRange) {
+    return { start: contextDateRange!.from!, end: contextDateRange!.to! };
   }
-  
-  // Calculer les stats pour chaque mois
-  return Array.from(byMonth.entries())
-    .sort((a, b) => b[0].localeCompare(a[0])) // Plus récent en premier
-    .map(([month, monthScores]) => {
-      // Calcul tier dominant, moyennes, CA total...
-      return { month, tierCounts, avgOpEx, avgRatings, avgMenu, avgPackaging, totalSales };
-    });
-}, [scores]);
+  // Fallback année entière - BUG!
+  return { start: new Date(selectedYear, 0, 1), end: new Date(selectedYear, 11, 31) };
+}, [...]);
+
+// APRÈS (corrigé)
+const { startDate, endDate } = useDataGranularity({
+  periodMode,
+  selectedYear,
+  selectedMonth,
+  dateRange: contextDateRange,
+});
+
+const dateRange = useMemo(() => ({
+  start: startDate,
+  end: endDate,
+}), [startDate, endDate]);
 ```
 
 ## Résultat attendu
 
-Une nouvelle section en bas de page :
+Après correction, avec le même restaurant et la même semaine :
+- "Semaine précédente" affichera **les mêmes données** que la sélection manuelle de la même période
+- Nombre d'enregistrements cohérent (~10 pour une semaine)
+- KPIs identiques entre les deux méthodes de sélection
 
-```text
-┌────────────────────────────────────────────────────────────────────┐
-│ 📅 Historique mensuel                                              │
-├────────────────────────────────────────────────────────────────────┤
-│ Mois           │ Score   │ Excel. │ Notes │ Menu │ Emb. │ CA      │
-│────────────────│─────────│────────│───────│──────│──────│─────────│
-│ Janvier 2026   │ Correct │ 97.4%  │ 4.35  │ 79%  │ 33%  │ 527k €  │
-│ Décembre 2025  │ Correct │ 97.2%  │ 4.28  │ 75%  │ 100% │ 489k €  │
-└────────────────────────────────────────────────────────────────────┘
-```
-
-## Fichier modifié
+## Fichiers modifiés
 
 | Fichier | Modifications |
 |---------|---------------|
-| `src/pages/SuccessScore.tsx` | Import Calendar, nouveau useMemo `monthlyHistory`, nouvelle Card "Historique" en fin de page |
+| `src/components/analytics/OperationsAnalytics.tsx` | Import `useDataGranularity`, remplacer le calcul de `dateRange` |
 
-## Extensions possibles (futures)
+## Tests de validation
 
-- Cliquer sur un mois pour afficher le détail par restaurant de ce mois
-- Graphique d'évolution des métriques (sparklines)
-- Export PDF de l'historique
-
+1. Sélectionner "CHICKEN STREET ATHIS-MONS" uniquement
+2. Choisir "Semaine précédente" (qui correspond au 20/01-26/01)
+3. Aller dans l'onglet "Erreurs"
+4. Comparer avec une sélection manuelle de la même période
+5. Les deux doivent afficher les mêmes KPIs (même nombre d'erreurs, même taux)
