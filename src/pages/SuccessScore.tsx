@@ -505,8 +505,8 @@ export default function SuccessScore() {
                   <TableHead className="text-center">Excellence Op.</TableHead>
                   <TableHead className="text-center">Notes</TableHead>
                   <TableHead className="text-center">Détails Menu</TableHead>
-                  <TableHead className="text-center">CA</TableHead>
                   <TableHead className="text-center">Emballage</TableHead>
+                  <TableHead className="text-center">CA</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -541,11 +541,6 @@ export default function SuccessScore() {
                         {score.menu_details != null ? `${score.menu_details.toFixed(0)}%` : 'Non renseigné'}
                       </TableCell>
                       <TableCell className="text-center">
-                        {score.sales_amount != null 
-                          ? `${score.sales_amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
-                          : 'Non renseigné'}
-                      </TableCell>
-                      <TableCell className="text-center">
                         <span className={score.sustainable_packaging != null && score.sustainable_packaging >= 90 
                           ? 'text-green-600 font-semibold' 
                           : 'text-muted-foreground'}>
@@ -553,6 +548,11 @@ export default function SuccessScore() {
                             ? `${score.sustainable_packaging.toFixed(0)}%` 
                             : '—'}
                         </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {score.sales_amount != null 
+                          ? `${score.sales_amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
+                          : 'Non renseigné'}
                       </TableCell>
                     </TableRow>
                   );
