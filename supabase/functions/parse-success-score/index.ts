@@ -18,6 +18,33 @@ interface SuccessScoreRow {
   sales: number;
 }
 
+// Parse CSV line handling quoted fields with commas inside
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        // Escaped quote
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
 // Map English status to database values
 function mapStatus(status: string): string {
   const statusMap: Record<string, string> = {
@@ -54,7 +81,7 @@ serve(async (req) => {
       );
     }
 
-    // Parse CSV
+    // Parse CSV using proper quote-aware function
     const lines = csvContent.split('\n').filter((line: string) => line.trim());
     if (lines.length < 2) {
       return new Response(
@@ -63,8 +90,10 @@ serve(async (req) => {
       );
     }
 
-    const headers = lines[0].split(',').map((h: string) => h.trim().toLowerCase());
+    // Use parseCSVLine for headers
+    const headers = parseCSVLine(lines[0]).map((h: string) => h.trim().toLowerCase());
     console.log("CSV Headers:", headers);
+    console.log("Header count:", headers.length);
     
     // Map headers (handle variations)
     const storeNameIdx = headers.findIndex((h: string) => h.includes('store name') || h.includes('nom') || h.includes('restaurant'));
@@ -77,6 +106,8 @@ serve(async (req) => {
     const currencyIdx = headers.findIndex((h: string) => h.includes('currency') || h.includes('devise'));
     const salesIdx = headers.findIndex((h: string) => h === 'sales' || h.includes('ventes') || h.includes('ca'));
 
+    console.log("Column indices - storeName:", storeNameIdx, "status:", statusIdx, "ratings:", ratingsIdx, "sustainable:", sustainableIdx, "sales:", salesIdx);
+
     if (storeNameIdx === -1 || statusIdx === -1) {
       return new Response(
         JSON.stringify({ error: "Required columns not found: Store name and Status" }),
@@ -84,20 +115,31 @@ serve(async (req) => {
       );
     }
 
-    // Parse data rows
+    // Parse data rows using parseCSVLine
     const parsedRows: SuccessScoreRow[] = [];
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map((v: string) => v.trim());
+      const values = parseCSVLine(lines[i]);
       if (values.length < 2) continue;
       
+      // Robust number parsing: handles comma decimal, spaces, NBSP
       const parseNumber = (idx: number): number | null => {
         if (idx === -1) return null;
         const val = values[idx];
         if (!val || val === 'NA' || val === 'N/A' || val === '') return null;
-        const num = parseFloat(val.replace(',', '.'));
+        // Replace comma with dot, remove spaces and NBSP
+        const cleaned = val.replace(',', '.').replace(/\s/g, '').replace(/\u00A0/g, '');
+        const num = parseFloat(cleaned);
         return isNaN(num) ? null : num;
       };
 
+      // Log first 3 rows for debugging
+      if (i <= 3) {
+        console.log(`Row ${i} values count: ${values.length}`);
+        console.log(`Row ${i} sample - storeName: "${values[storeNameIdx]}", status: "${values[statusIdx]}", ratings: "${ratingsIdx !== -1 ? values[ratingsIdx] : 'N/A'}", sustainable: "${sustainableIdx !== -1 ? values[sustainableIdx] : 'N/A'}", sales: "${salesIdx !== -1 ? values[salesIdx] : 'N/A'}"`);
+      }
+
+      const salesValue = parseNumber(salesIdx);
+      
       parsedRows.push({
         storeName: values[storeNameIdx] || '',
         status: values[statusIdx] || 'Fair',
@@ -107,7 +149,7 @@ serve(async (req) => {
         menuMarkup: parseNumber(menuMarkupIdx),
         sustainablePackaging: parseNumber(sustainableIdx),
         currencyCode: currencyIdx !== -1 ? values[currencyIdx] || 'EUR' : 'EUR',
-        sales: parseNumber(salesIdx) || 0,
+        sales: salesValue ?? 0,
       });
     }
 
