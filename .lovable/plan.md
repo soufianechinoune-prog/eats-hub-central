@@ -1,92 +1,165 @@
 
-# Correction du bug "Semaine précédente" - Operations Analytics
+# Refonte de la Messagerie - Phase 1 : Rapports IA Automatisés
 
-## Problème identifié
+## Vision globale
 
-Le bouton "Semaine précédente" affiche les données de l'année entière au lieu de la semaine sélectionnée.
+Transformer les rapports WhatsApp actuels (KPIs bruts) en **messages d'analyse intelligents** comme ceux que tu envoies manuellement, avec :
+- Analyse des causes des problèmes (pourquoi le taux d'erreur est haut)
+- Recommandations personnalisées
+- Contexte business (offres en cours, périodes à venir)
+- Ton humain et motivant
 
-**Comparaison des screenshots :**
-| Mode | Enregistrements | Erreurs | Commandes |
-|------|-----------------|---------|-----------|
-| Plage manuelle 19/01-25/01 | 10 | 26 | 724 |
-| "Semaine précédente" | 70 | 176 | 3721 |
+## Architecture actuelle
 
-## Cause technique
+| Composant | État | Fichier |
+|-----------|------|---------|
+| Edge function `generate-weekly-report` | Génère les KPIs bruts | `supabase/functions/generate-weekly-report/index.ts` |
+| Composant `WeeklyReports` | Templates + envoi manuel | `src/components/messaging/WeeklyReports.tsx` |
+| Edge function `ai-advisor` | Déjà connecté à Lovable AI | `supabase/functions/ai-advisor/index.ts` |
+| Table `order_errors` | Contient `error_category`, `item_title` | Base de données |
 
-Dans `OperationsAnalytics.tsx`, le calcul de `dateRange` utilise `contextDateRange` du contexte global. Or, quand on sélectionne un mode rapide comme "Semaine précédente" :
+## Plan d'implémentation par étapes
 
-- `periodMode` → devient `"previous_week"` (correct)
-- `contextDateRange` → **reste `undefined`** (le context ne met pas automatiquement à jour ces dates)
+### Étape 1 : Créer une edge function `generate-ai-report`
 
-Le code tombe alors dans le fallback qui retourne l'année entière :
-```typescript
-// Fallback actuel - retourne toute l'année!
-const start = new Date(selectedYear, 0, 1);
-const end = new Date(selectedYear, 11, 31);
+Cette nouvelle fonction génère un message complet enrichi par IA pour chaque restaurant.
+
+**Données collectées :**
+- KPIs de la semaine (existant)
+- Répartition des erreurs par catégorie (`order_errors`)
+- Produits les plus mentionnés dans les erreurs
+- Comparaison semaine précédente
+- Offres marketing actives (`restaurant_actions`)
+
+**Prompt IA (inspiré de tes messages) :**
+```text
+Tu es un conseiller bienveillant pour restaurateurs. Génère un rapport WhatsApp personnalisé.
+
+DONNÉES RESTAURANT:
+- Nom: {restaurant_name}
+- Prénom manager: {prenom}
+- Note moyenne: 4.1 → 4.4 ✅ (vs 4.1 semaine précédente)
+- Taux d'erreur: 2% → 4% ❌
+- Répartition erreurs:
+  • Articles manquants: 41%
+  • Personnalisations manquantes: 23%
+  • Mauvaise commande: 18%
+  • Article incorrect: 18%
+- Produits problématiques: Naan Tenders (12 erreurs), Frites (5), Boissons (4)
+- Offre active: "1 acheté = 1 offert Naan Tenders" (Deliveroo)
+- Prochaine période: Ramadan dans ~30 jours
+
+RÈGLES:
+- Commence par saluer avec le prénom
+- Utilise ✅/❌ pour les indicateurs
+- Analyse les CAUSES des erreurs (lier aux offres si pertinent)
+- Donne des recommandations concrètes (double-check, vigilance)
+- Mentionne le contexte business à venir
+- Termine par une formule positive "🤲 Qu'Allah nous accorde la réussite !" 
+- Format WhatsApp (pas de markdown lourd, utilise emojis)
+- Maximum 400 mots
 ```
 
-## Solution proposée
+**Output attendu :**
+```text
+Bonjour Ayoub ! 👋
 
-Utiliser le hook `useDataGranularity` existant qui calcule CORRECTEMENT les dates pour tous les modes (y compris `previous_week`, `7d`, `30d`, etc.) au lieu de dépendre de `contextDateRange`.
+✅ Notes : vert → 4,4 (vs 4,1 la semaine dernière)
+❌ Erreurs : rouge → 4% (vs 2% la semaine dernière)
 
-## Modifications
+Du coup focus sur les "erreurs", histoire de mettre le doigt exactement sur ce qui a bloqué...
 
-### Fichier : `src/components/analytics/OperationsAnalytics.tsx`
+⚫️ Causes principales des réclamations
+• Articles manquants : 41%
+• Personnalisations manquantes : 23%
+...
 
-1. **Importer le hook `useDataGranularity`**
+[Analyse contextuelle des offres, recommandations]
 
-2. **Remplacer le calcul manuel de `dateRange`** par l'utilisation du hook :
-   - Avant : logique conditionnelle avec fallback bugué
-   - Après : utilisation de `startDate` et `endDate` du hook qui gère tous les modes
-
-3. **Simplifier le passage des props à `OrderAccuracyDashboard`** :
-   - Le `dateRange` sera toujours calculé correctement, peu importe le mode
-
-### Changement de code (approximatif)
-
-```typescript
-// AVANT (bugué)
-const dateRange = useMemo(() => {
-  const usesContextRange = (periodMode === "previous_week" || ...) &&
-    contextDateRange?.from && contextDateRange?.to;
-  if (usesContextRange) {
-    return { start: contextDateRange!.from!, end: contextDateRange!.to! };
-  }
-  // Fallback année entière - BUG!
-  return { start: new Date(selectedYear, 0, 1), end: new Date(selectedYear, 11, 31) };
-}, [...]);
-
-// APRÈS (corrigé)
-const { startDate, endDate } = useDataGranularity({
-  periodMode,
-  selectedYear,
-  selectedMonth,
-  dateRange: contextDateRange,
-});
-
-const dateRange = useMemo(() => ({
-  start: startDate,
-  end: endDate,
-}), [startDate, endDate]);
+🤲 Qu'Allah nous accorde la réussite !
 ```
 
-## Résultat attendu
+### Étape 2 : Adapter le frontend WeeklyReports
 
-Après correction, avec le même restaurant et la même semaine :
-- "Semaine précédente" affichera **les mêmes données** que la sélection manuelle de la même période
-- Nombre d'enregistrements cohérent (~10 pour une semaine)
-- KPIs identiques entre les deux méthodes de sélection
+**Nouveau bouton "Générer avec IA"** à côté de "Générer les rapports" :
+- Appelle `generate-ai-report` au lieu de `generate-weekly-report`
+- Affiche un indicateur de génération (streaming ou loader)
+- Permet toujours l'édition manuelle après génération
 
-## Fichiers modifiés
+**Workflow utilisateur simplifié :**
+```text
+1. Sélectionner le template de base (choix du "ton"/contexte)
+2. Cliquer "Générer avec IA"
+3. Messages personnalisés générés pour chaque restaurant
+4. Valider/Éditer individuellement si besoin
+5. Envoyer en batch
+```
+
+### Étape 3 : Améliorer la clarté de l'interface
+
+**Regrouper "Composer" et "Envois"** en un seul onglet :
+- Section haute : sélection destinataires + composition
+- Section basse : messages en attente + historique
+
+**Simplifier le tab "Rapports"** :
+- Mode principal : "1-Click Report" (sélection template → génération IA → validation → envoi)
+- Mode avancé accessible via toggle
+
+## Modifications techniques détaillées
+
+### Fichiers à créer
+
+| Fichier | Description |
+|---------|-------------|
+| `supabase/functions/generate-ai-report/index.ts` | Edge function pour génération IA des rapports |
+
+### Fichiers à modifier
 
 | Fichier | Modifications |
 |---------|---------------|
-| `src/components/analytics/OperationsAnalytics.tsx` | Import `useDataGranularity`, remplacer le calcul de `dateRange` |
+| `src/components/messaging/WeeklyReports.tsx` | Ajouter bouton "Générer avec IA", intégrer appel à la nouvelle function |
+| `supabase/config.toml` | Ajouter la nouvelle edge function |
 
-## Tests de validation
+### Structure de la nouvelle edge function
 
-1. Sélectionner "CHICKEN STREET ATHIS-MONS" uniquement
-2. Choisir "Semaine précédente" (qui correspond au 20/01-26/01)
-3. Aller dans l'onglet "Erreurs"
-4. Comparer avec une sélection manuelle de la même période
-5. Les deux doivent afficher les mêmes KPIs (même nombre d'erreurs, même taux)
+```typescript
+// supabase/functions/generate-ai-report/index.ts
+
+interface ReportRequest {
+  restaurant_ids: string[];
+  start_date: string;
+  end_date: string;
+  template_context?: {
+    tone: "standard" | "congratulations" | "alert";
+    include_recommendations: boolean;
+    include_error_analysis: boolean;
+    closing_message?: string;
+  };
+}
+
+// 1. Collecter les KPIs (comme generate-weekly-report)
+// 2. Récupérer la répartition des erreurs par catégorie
+// 3. Identifier les produits problématiques
+// 4. Récupérer les offres actives
+// 5. Construire le prompt avec tout le contexte
+// 6. Appeler Lovable AI (google/gemini-2.5-flash)
+// 7. Retourner le message généré par restaurant
+```
+
+## Phases futures (hors scope actuel)
+
+- **Phase 2** : Automatisation complète (envoi sans validation)
+- **Phase 3** : Alertes temps réel (taux d'erreur > seuil)
+- **Phase 4** : Réponses chatbot automatiques
+
+## Résultat attendu
+
+Après cette phase :
+1. Tu peux générer des rapports **qualitatifs** en 1 clic
+2. L'IA analyse les données et écrit comme toi (style, ton, emojis)
+3. Tu gardes le contrôle avec validation avant envoi
+4. L'interface est plus claire et efficace
+
+---
+
+**Souhaites-tu que je commence par l'implémentation de l'edge function `generate-ai-report` ?**
