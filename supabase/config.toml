@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.fetch-weather-data]
 verify_jwt = false
+
+[functions.generate-ai-report]
+verify_jwt = false

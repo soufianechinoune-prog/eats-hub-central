@@ -56,6 +56,7 @@ import {
   Repeat,
   Bell,
   BellOff,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, subWeeks } from "date-fns";
@@ -240,6 +241,7 @@ export default function WeeklyReports() {
   const [isSending, setIsSending] = useState(false);
   const [generatedKPIs, setGeneratedKPIs] = useState<WeeklyKPIs[]>([]);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   // Get last week's date range
   const lastWeek = useMemo(() => {
@@ -403,7 +405,7 @@ export default function WeeklyReports() {
     return intro + lines.join("\n") + template.outro_template;
   };
 
-  // Generate KPIs for all restaurants
+  // Generate KPIs for all restaurants (basic mode)
   const generateReports = async () => {
     if (!selectedTemplate) {
       toast.error("Sélectionnez un template d'abord");
@@ -446,6 +448,60 @@ export default function WeeklyReports() {
       toast.error("Erreur lors de la génération des rapports");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // Generate AI-enriched reports
+  const generateAIReports = async () => {
+    if (!selectedTemplate) {
+      toast.error("Sélectionnez un template d'abord");
+      return;
+    }
+
+    setIsGeneratingAI(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-ai-report", {
+        body: {
+          restaurant_ids: restaurants.map(r => r.id),
+          start_date: format(lastWeek.start, "yyyy-MM-dd"),
+          end_date: format(lastWeek.end, "yyyy-MM-dd"),
+          template_context: {
+            tone: "standard",
+            include_recommendations: true,
+            include_error_analysis: true,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      const reports = data.reports || [];
+      
+      // Map AI reports to match WeeklyKPIs format
+      const kpis: WeeklyKPIs[] = reports.map((r: any) => r.kpis);
+      setGeneratedKPIs(kpis);
+      
+      const newSelected = new Set<string>();
+      const newMessages: Record<string, string> = {};
+      
+      reports.forEach((report: any) => {
+        if (report.manager_whatsapp) {
+          newSelected.add(report.restaurant_id);
+          newMessages[report.restaurant_id] = report.generated_message;
+        }
+      });
+      
+      setSelectedReports(newSelected);
+      setEditedMessages(newMessages);
+      setActiveTab("send");
+      
+      toast.success(`${reports.length} rapport(s) IA générés`);
+    } catch (err) {
+      console.error("Error generating AI reports:", err);
+      toast.error("Erreur lors de la génération IA");
+    } finally {
+      setIsGeneratingAI(false);
     }
   };
 
@@ -739,9 +795,9 @@ export default function WeeklyReports() {
             </motion.div>
           </div>
 
-          {/* Generate button - Premium style */}
+          {/* Generate buttons - Premium style */}
           <Card className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-primary/20">
-            <CardContent className="py-5 flex items-center justify-between">
+            <CardContent className="py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Send className="h-5 w-5 text-primary" />
@@ -753,19 +809,34 @@ export default function WeeklyReports() {
                   </p>
                 </div>
               </div>
-              <Button
-                onClick={generateReports}
-                disabled={isGenerating || loadingRestaurants || restaurants.length === 0 || !selectedTemplate}
-                size="lg"
-                className="gap-2 shadow-lg"
-              >
-                {isGenerating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <PlayCircle className="h-4 w-4" />
-                )}
-                Générer les rapports
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={generateReports}
+                  disabled={isGenerating || isGeneratingAI || loadingRestaurants || restaurants.length === 0 || !selectedTemplate}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <PlayCircle className="h-4 w-4" />
+                  )}
+                  Rapport simple
+                </Button>
+                <Button
+                  onClick={generateAIReports}
+                  disabled={isGenerating || isGeneratingAI || loadingRestaurants || restaurants.length === 0 || !selectedTemplate}
+                  size="lg"
+                  className="gap-2 shadow-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white"
+                >
+                  {isGeneratingAI ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  Générer avec IA
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
