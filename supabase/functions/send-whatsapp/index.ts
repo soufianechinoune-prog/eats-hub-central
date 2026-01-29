@@ -17,12 +17,83 @@ interface SendRequest {
   recipients: Recipient[];
   message: string;
   scheduled_message_id?: string;
-  // Optional: skip campaign creation for 1-to-1 messages
   skip_campaign?: boolean;
-  // Message type for unified history filtering
   message_type?: 'campaign' | 'report' | 'individual' | 'chatbot';
-  // Batch ID for grouping related messages
   batch_id?: string;
+  skip_status_check?: boolean; // For internal calls that already verified status
+}
+
+/**
+ * Normalize a French phone number to the format expected by Ultramsg API (without +)
+ * Handles various input formats:
+ * - "06 12 34 56 78" → "33612345678"
+ * - "+33 6 12 34 56 78" → "33612345678"
+ * - "+330612345678" → "33612345678" (fixes common error)
+ * - "0033612345678" → "33612345678"
+ * - "33612345678" → "33612345678"
+ * - "+330 76 21 16 20 5" → "33762116205" (fixes malformed numbers)
+ */
+function normalizePhoneNumber(phone: string): { normalized: string | null; error: string | null } {
+  // Step 1: Remove all non-digit characters except +
+  let cleaned = phone.replace(/[\s\-\.\(\)]/g, '');
+  
+  // Step 2: Handle 00 prefix (international format)
+  if (cleaned.startsWith('00')) {
+    cleaned = '+' + cleaned.substring(2);
+  }
+  
+  // Step 3: Handle + prefix
+  if (cleaned.startsWith('+')) {
+    cleaned = cleaned.substring(1);
+  }
+  
+  // Step 4: Handle French-specific cases
+  if (cleaned.startsWith('33')) {
+    // Fix +330... or 330... pattern → should be 33 + number without leading 0
+    if (cleaned.startsWith('330') && cleaned.length >= 11) {
+      // 3306... or 3307... etc → remove the extra 0
+      cleaned = '33' + cleaned.substring(3);
+    }
+  } else if (cleaned.startsWith('0') && cleaned.length >= 10) {
+    // French national format: 0612345678 → 33612345678
+    cleaned = '33' + cleaned.substring(1);
+  }
+  
+  // Step 5: Validate length
+  // French numbers should be 11 digits (33 + 9 digits)
+  // Allow some flexibility for international numbers (9-15 digits)
+  if (cleaned.length < 9) {
+    return { normalized: null, error: `Numéro trop court: ${phone}` };
+  }
+  if (cleaned.length > 15) {
+    return { normalized: null, error: `Numéro trop long: ${phone}` };
+  }
+  
+  // Step 6: Validate it contains only digits now
+  if (!/^\d+$/.test(cleaned)) {
+    return { normalized: null, error: `Format invalide: ${phone}` };
+  }
+  
+  return { normalized: cleaned, error: null };
+}
+
+/**
+ * Check if the Ultramsg instance is connected
+ */
+async function checkInstanceStatus(instanceId: string, token: string): Promise<{ connected: boolean; status: string }> {
+  try {
+    const statusUrl = `https://api.ultramsg.com/${instanceId}/instance/status?token=${token}`;
+    const response = await fetch(statusUrl);
+    const data = await response.json();
+    
+    const accountStatus = data?.status?.accountStatus?.status;
+    const isConnected = accountStatus === 'authenticated';
+    
+    return { connected: isConnected, status: accountStatus || 'unknown' };
+  } catch (err) {
+    console.error('Error checking instance status:', err);
+    return { connected: false, status: 'error' };
+  }
 }
 
 serve(async (req) => {
@@ -48,18 +119,15 @@ serve(async (req) => {
       ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
       : null;
 
-    const { recipients, message, scheduled_message_id, skip_campaign, message_type, batch_id: providedBatchId }: SendRequest = await req.json();
-    
-    // Generate batch_id for grouping if multiple recipients and not already provided
-    const batchId = providedBatchId || (recipients.length > 1 ? crypto.randomUUID() : null);
-    
-    // Determine message type based on content or explicit parameter
-    const determineMessageType = (content: string, hasCampaign: boolean): string => {
-      if (message_type) return message_type;
-      if (content.includes('📊') || content.toLowerCase().includes('rapport')) return 'report';
-      if (hasCampaign) return 'campaign';
-      return 'individual';
-    };
+    const { 
+      recipients, 
+      message, 
+      scheduled_message_id, 
+      skip_campaign, 
+      message_type, 
+      batch_id: providedBatchId,
+      skip_status_check 
+    }: SendRequest = await req.json();
 
     if (!recipients || recipients.length === 0) {
       return new Response(
@@ -74,6 +142,36 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Check instance connection status before sending (unless skipped)
+    if (!skip_status_check) {
+      console.log('Checking WhatsApp instance connection...');
+      const instanceStatus = await checkInstanceStatus(INSTANCE_ID, TOKEN);
+      
+      if (!instanceStatus.connected) {
+        console.error(`WhatsApp instance not connected. Status: ${instanceStatus.status}`);
+        return new Response(
+          JSON.stringify({ 
+            error: 'WhatsApp déconnecté. Le téléphone d\'envoi doit être connecté à WhatsApp. Scannez le QR code dans UltraMsg puis réessayez.',
+            status: instanceStatus.status,
+            connected: false
+          }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log('WhatsApp instance connected, proceeding with send...');
+    }
+
+    // Generate batch_id for grouping if multiple recipients and not already provided
+    const batchId = providedBatchId || (recipients.length > 1 ? crypto.randomUUID() : null);
+    
+    // Determine message type based on content or explicit parameter
+    const determineMessageType = (content: string, hasCampaign: boolean): string => {
+      if (message_type) return message_type;
+      if (content.includes('📊') || content.toLowerCase().includes('rapport')) return 'report';
+      if (hasCampaign) return 'campaign';
+      return 'individual';
+    };
 
     console.log(`Sending WhatsApp to ${recipients.length} recipients`);
 
@@ -113,16 +211,42 @@ serve(async (req) => {
         .replace(/{nom}/g, recipient.name?.split(' ').slice(1).join(' ') || '')
         .replace(/{restaurant}/g, recipient.restaurantName || '');
 
-      // Format phone number
-      let phone = recipient.phone.replace(/\s/g, '');
-      if (phone.startsWith('0')) {
-        phone = '33' + phone.substring(1);
-      }
-      if (phone.startsWith('+')) {
-        phone = phone.substring(1);
+      // Normalize phone number with robust validation
+      const { normalized: phone, error: phoneError } = normalizePhoneNumber(recipient.phone);
+      
+      if (phoneError || !phone) {
+        console.error(`Invalid phone number for ${recipient.restaurantName}: ${phoneError}`);
+        failedCount++;
+        
+        // Log failed message to history
+        if (supabase) {
+          const msgType = determineMessageType(personalizedMessage, !!campaignId);
+          await supabase.from('message_history').insert({
+            direction: 'outbound',
+            restaurant_id: recipient.restaurant_id || null,
+            recipient_phone: recipient.phone,
+            recipient_name: recipient.name,
+            restaurant_name: recipient.restaurantName,
+            message_content: personalizedMessage,
+            status: 'failed',
+            error_message: phoneError || 'Invalid phone number',
+            scheduled_message_id: scheduled_message_id || null,
+            campaign_id: campaignId,
+            batch_id: batchId,
+            message_type: msgType,
+          });
+        }
+
+        results.push({
+          phone: recipient.phone,
+          name: recipient.name,
+          success: false,
+          error: phoneError || 'Invalid phone number',
+        });
+        continue;
       }
 
-      console.log(`Sending to ${phone}: ${personalizedMessage.substring(0, 50)}...`);
+      console.log(`Sending to ${phone} (original: ${recipient.phone}): ${personalizedMessage.substring(0, 50)}...`);
 
       try {
         const response = await fetch(`https://api.ultramsg.com/${INSTANCE_ID}/messages/chat`, {
