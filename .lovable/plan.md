@@ -1,165 +1,87 @@
 
-# Refonte de la Messagerie - Phase 1 : Rapports IA Automatisés
+Objectif
+- Faire en sorte que “Envoyé avec succès” corresponde à une vraie délivrabilité WhatsApp, et éviter les cas où l’API répond “sent: true” alors que rien n’apparaît sur le téléphone expéditeur (0033767818586) ni chez le destinataire (0699564000).
 
-## Vision globale
+Constat (à partir des traces)
+- Le navigateur envoie bien des requêtes POST vers la fonction backend “send-whatsapp” et reçoit des réponses 200 avec { success: true, sent: 1, failed: 0 }.
+- Les logs backend indiquent “Message sent successfully …”.
+- Malgré ça, tu ne vois pas le message “en cours d’envoi”/sortant sur le téléphone expéditeur, et tu ne reçois rien sur 0699.
+=> Cela pointe très fortement vers un problème de session/connexion côté outil d’envoi WhatsApp (statut “instance” déconnecté, takeover, session expirée, etc.), car l’API peut accepter la demande mais ne pas pouvoir la relayer au réseau WhatsApp.
 
-Transformer les rapports WhatsApp actuels (KPIs bruts) en **messages d'analyse intelligents** comme ceux que tu envoies manuellement, avec :
-- Analyse des causes des problèmes (pourquoi le taux d'erreur est haut)
-- Recommandations personnalisées
-- Contexte business (offres en cours, périodes à venir)
-- Ton humain et motivant
+Problème supplémentaire détecté (important)
+- Un des numéros destinataires est mal formé dans les données: exemple “+330 76 21 16 20 5”.
+- Le code actuel de send-whatsapp enlève juste les espaces puis:
+  - si ça commence par “0” => préfixe “33”
+  - si ça commence par “+” => enlève “+”
+- Résultat: “+330…” devient “330…” (incorrect). Pour la France, on veut “33” + numéro sans le 0, donc “+33 06…” -> “336…”, mais “+3306…” doit être corrigé en “336…”.
+=> Même si ce n’est pas la cause principale de ton 0699, c’est une source réelle de non-réception pour certains restaurants et il faut la corriger.
 
-## Architecture actuelle
+Ce que je vais implémenter (backend + UI) une fois approuvé
 
-| Composant | État | Fichier |
-|-----------|------|---------|
-| Edge function `generate-weekly-report` | Génère les KPIs bruts | `supabase/functions/generate-weekly-report/index.ts` |
-| Composant `WeeklyReports` | Templates + envoi manuel | `src/components/messaging/WeeklyReports.tsx` |
-| Edge function `ai-advisor` | Déjà connecté à Lovable AI | `supabase/functions/ai-advisor/index.ts` |
-| Table `order_errors` | Contient `error_category`, `item_title` | Base de données |
+1) Ajouter un contrôle de “connexion WhatsApp” avant tout envoi
+- Créer une nouvelle fonction backend “whatsapp-status” (ou équivalent) qui appelle l’endpoint UltraMsg:
+  - GET https://api.ultramsg.com/{INSTANCE_ID}/instance/status?token=...
+  - GET https://api.ultramsg.com/{INSTANCE_ID}/instance/me?token=... (optionnel, pour afficher le numéro connecté)
+- La fonction renverra un JSON simple: { connected: boolean, status: string, me?: { number, name }, raw?: ... }.
 
-## Plan d'implémentation par étapes
+2) Bloquer l’envoi si l’instance n’est pas connectée
+- Modifier la fonction backend “send-whatsapp”:
+  - Avant la boucle d’envoi, appeler instance/status.
+  - Si pas “connected”, retourner une erreur claire (HTTP 503) du type:
+    - “Le téléphone d’envoi WhatsApp est déconnecté. Reconnecte la session (QR) puis réessaie.”
+  - Ça évite le faux positif “sent: true” côté app quand l’instance est en réalité offline/KO.
 
-### Étape 1 : Créer une edge function `generate-ai-report`
+3) Corriger la normalisation des numéros (fiabiliser les envois)
+- Remplacer la logique actuelle par une fonction robuste (FR + général):
+  - Nettoyage: retirer espaces, tirets, parenthèses, points.
+  - Gérer les préfixes:
+    - “00” => convertir en “+”
+    - “+33” suivi de “0” => supprimer le “0” (ex: +3306… => +336…)
+    - “0XXXXXXXXX” => +33XXXXXXXXX
+    - Si déjà “33XXXXXXXXX” (sans +) => ok
+  - Sortie au format attendu par l’API (sans “+” si nécessaire).
+- Ajouter une validation minimale:
+  - si après formatage le numéro est manifestement trop court/long, marquer le destinataire en “failed” immédiatement avec une erreur “numéro invalide” (et ne pas appeler l’API).
 
-Cette nouvelle fonction génère un message complet enrichi par IA pour chaque restaurant.
+4) Ajouter un “Diagnostic” dans /messaging pour rendre le problème visible immédiatement
+Dans l’UI (Messaging > Envoyer et/ou Rapports):
+- Un petit encart “Statut WhatsApp” avec un bouton:
+  - “Vérifier la connexion”
+  - Affiche: Connecté / Déconnecté, et si possible le numéro WhatsApp actuellement connecté côté outil d’envoi.
+- Un bouton “Envoyer un message test” (ex: vers 0699564000) qui:
+  - Appelle d’abord whatsapp-status, puis send-whatsapp si connecté.
+  - Affiche un résultat clair + conserve le détail (id message côté provider, erreur si non connecté, etc.).
 
-**Données collectées :**
-- KPIs de la semaine (existant)
-- Répartition des erreurs par catégorie (`order_errors`)
-- Produits les plus mentionnés dans les erreurs
-- Comparaison semaine précédente
-- Offres marketing actives (`restaurant_actions`)
+5) (Optionnel mais recommandé) Améliorer la preuve de livraison
+- On a déjà un webhook côté backend (ultramsg-webhook) pour les ACK (delivered/read).
+- Je vérifierai que:
+  - Les événements “ack” mettent bien à jour message_history (statuts delivered/read).
+  - L’UI “Envoyés” affiche bien ces statuts.
+- Si les ACK n’arrivent jamais, on ajoutera un polling léger via l’endpoint UltraMsg “messages” filtré par ID (sans spammer, juste pour diagnostics).
 
-**Prompt IA (inspiré de tes messages) :**
-```text
-Tu es un conseiller bienveillant pour restaurateurs. Génère un rapport WhatsApp personnalisé.
+Séquence de test après implémentation
+1. Dans /messaging, cliquer “Vérifier la connexion”.
+   - Si “Déconnecté”: la UI explique quoi faire (reconnecter la session WhatsApp de l’outil).
+2. Cliquer “Envoyer un message test” vers 0699564000.
+3. Vérifier:
+   - Le message apparaît sur le téléphone expéditeur (0033767818586).
+   - Le message arrive sur 0699564000.
+   - Dans l’historique, le statut passe de “sent” à “delivered/read” si l’ACK est actif.
 
-DONNÉES RESTAURANT:
-- Nom: {restaurant_name}
-- Prénom manager: {prenom}
-- Note moyenne: 4.1 → 4.4 ✅ (vs 4.1 semaine précédente)
-- Taux d'erreur: 2% → 4% ❌
-- Répartition erreurs:
-  • Articles manquants: 41%
-  • Personnalisations manquantes: 23%
-  • Mauvaise commande: 18%
-  • Article incorrect: 18%
-- Produits problématiques: Naan Tenders (12 erreurs), Frites (5), Boissons (4)
-- Offre active: "1 acheté = 1 offert Naan Tenders" (Deliveroo)
-- Prochaine période: Ramadan dans ~30 jours
+Risques / limites (transparents)
+- Si l’outil d’envoi WhatsApp est déconnecté côté fournisseur (session expirée / takeover), l’app ne peut pas “réparer” ça toute seule: elle doit le détecter et te guider, puis bloquer l’envoi tant que ce n’est pas reconnecté.
+- La normalisation des numéros corrigera des cas comme “+330 …”, mais il faudra aussi nettoyer les numéros stockés dans les fiches restaurants à terme (on pourra ajouter un nettoyage automatique lors de l’édition).
 
-RÈGLES:
-- Commence par saluer avec le prénom
-- Utilise ✅/❌ pour les indicateurs
-- Analyse les CAUSES des erreurs (lier aux offres si pertinent)
-- Donne des recommandations concrètes (double-check, vigilance)
-- Mentionne le contexte business à venir
-- Termine par une formule positive "🤲 Qu'Allah nous accorde la réussite !" 
-- Format WhatsApp (pas de markdown lourd, utilise emojis)
-- Maximum 400 mots
-```
+Fichiers concernés (technique)
+- Backend:
+  - supabase/functions/send-whatsapp/index.ts (amélioration: status check + normalisation + validation)
+  - Nouvelle fonction: supabase/functions/whatsapp-status/index.ts (statut instance/me)
+- Frontend:
+  - src/components/messaging/UnifiedSendView.tsx (encart statut + test)
+  - src/components/messaging/WeeklyReports.tsx (optionnel: statut avant envoi)
+  - (éventuellement) src/components/messaging/ConversationView.tsx (même logique de blocage/diagnostic)
 
-**Output attendu :**
-```text
-Bonjour Ayoub ! 👋
-
-✅ Notes : vert → 4,4 (vs 4,1 la semaine dernière)
-❌ Erreurs : rouge → 4% (vs 2% la semaine dernière)
-
-Du coup focus sur les "erreurs", histoire de mettre le doigt exactement sur ce qui a bloqué...
-
-⚫️ Causes principales des réclamations
-• Articles manquants : 41%
-• Personnalisations manquantes : 23%
-...
-
-[Analyse contextuelle des offres, recommandations]
-
-🤲 Qu'Allah nous accorde la réussite !
-```
-
-### Étape 2 : Adapter le frontend WeeklyReports
-
-**Nouveau bouton "Générer avec IA"** à côté de "Générer les rapports" :
-- Appelle `generate-ai-report` au lieu de `generate-weekly-report`
-- Affiche un indicateur de génération (streaming ou loader)
-- Permet toujours l'édition manuelle après génération
-
-**Workflow utilisateur simplifié :**
-```text
-1. Sélectionner le template de base (choix du "ton"/contexte)
-2. Cliquer "Générer avec IA"
-3. Messages personnalisés générés pour chaque restaurant
-4. Valider/Éditer individuellement si besoin
-5. Envoyer en batch
-```
-
-### Étape 3 : Améliorer la clarté de l'interface
-
-**Regrouper "Composer" et "Envois"** en un seul onglet :
-- Section haute : sélection destinataires + composition
-- Section basse : messages en attente + historique
-
-**Simplifier le tab "Rapports"** :
-- Mode principal : "1-Click Report" (sélection template → génération IA → validation → envoi)
-- Mode avancé accessible via toggle
-
-## Modifications techniques détaillées
-
-### Fichiers à créer
-
-| Fichier | Description |
-|---------|-------------|
-| `supabase/functions/generate-ai-report/index.ts` | Edge function pour génération IA des rapports |
-
-### Fichiers à modifier
-
-| Fichier | Modifications |
-|---------|---------------|
-| `src/components/messaging/WeeklyReports.tsx` | Ajouter bouton "Générer avec IA", intégrer appel à la nouvelle function |
-| `supabase/config.toml` | Ajouter la nouvelle edge function |
-
-### Structure de la nouvelle edge function
-
-```typescript
-// supabase/functions/generate-ai-report/index.ts
-
-interface ReportRequest {
-  restaurant_ids: string[];
-  start_date: string;
-  end_date: string;
-  template_context?: {
-    tone: "standard" | "congratulations" | "alert";
-    include_recommendations: boolean;
-    include_error_analysis: boolean;
-    closing_message?: string;
-  };
-}
-
-// 1. Collecter les KPIs (comme generate-weekly-report)
-// 2. Récupérer la répartition des erreurs par catégorie
-// 3. Identifier les produits problématiques
-// 4. Récupérer les offres actives
-// 5. Construire le prompt avec tout le contexte
-// 6. Appeler Lovable AI (google/gemini-2.5-flash)
-// 7. Retourner le message généré par restaurant
-```
-
-## Phases futures (hors scope actuel)
-
-- **Phase 2** : Automatisation complète (envoi sans validation)
-- **Phase 3** : Alertes temps réel (taux d'erreur > seuil)
-- **Phase 4** : Réponses chatbot automatiques
-
-## Résultat attendu
-
-Après cette phase :
-1. Tu peux générer des rapports **qualitatifs** en 1 clic
-2. L'IA analyse les données et écrit comme toi (style, ton, emojis)
-3. Tu gardes le contrôle avec validation avant envoi
-4. L'interface est plus claire et efficace
-
----
-
-**Souhaites-tu que je commence par l'implémentation de l'edge function `generate-ai-report` ?**
+Résultat attendu
+- Si tu relances 4 rapports et que l’instance est déconnectée: tu verras immédiatement “Déconnecté” + l’envoi sera bloqué (pas de faux “envoyé”).
+- Si l’instance est connectée: l’envoi doit réapparaître sur le téléphone expéditeur et arriver sur 0699564000.
+- Les numéros mal formatés (ex: +330…) ne partiront plus silencieusement vers un mauvais destinataire.
