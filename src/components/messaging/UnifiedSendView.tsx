@@ -70,6 +70,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import WhatsAppStatusCard from "./WhatsAppStatusCard";
 
 interface Restaurant {
   id: string;
@@ -737,6 +738,9 @@ export default function UnifiedSendView() {
             </div>
           </div>
         </Card>
+
+        {/* WhatsApp Status Card */}
+        <WhatsAppStatusCard />
 
         <AnimatePresence mode="wait">
           {viewMode === "compose" && (
