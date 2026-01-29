@@ -62,7 +62,6 @@ const analyticsSubItems = [
   { title: "Conversion", url: "/analytics/conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics/finances", icon: Wallet },
   { title: "Opérations", url: "/analytics/operations", icon: Settings2 },
-  { title: "Vue d'ensemble", url: "/analytics/overview", icon: Trophy },
   { title: "Avis", url: "/analytics/reviews", icon: Star },
   { title: "Score de Réussite", url: "/success-score", icon: Award },
 ];
