@@ -64,6 +64,7 @@ const analyticsSubItems = [
   { title: "Opérations", url: "/analytics/operations", icon: Settings2 },
   { title: "Vue d'ensemble", url: "/analytics/overview", icon: Trophy },
   { title: "Avis", url: "/analytics/reviews", icon: Star },
+  { title: "Score de Réussite", url: "/success-score", icon: Award },
 ];
 
 // Navigation principale (after Analytics)
@@ -117,11 +118,6 @@ const analysisItems = [
     icon: Zap,
   },
   {
-    title: "Score de Réussite",
-    url: "/success-score",
-    icon: Award,
-  },
-  {
     title: "Marketing Analytics",
     url: "/marketing-analytics",
     icon: Megaphone,
@@ -168,7 +164,8 @@ export function AppSidebar() {
     return location.pathname === "/" || 
            location.pathname.startsWith("/analytics") ||
            location.pathname === "/classements" ||
-           location.pathname === "/item-sales";
+           location.pathname === "/item-sales" ||
+           location.pathname === "/success-score";
   };
   
   const getActiveAnalyticsSubItem = (url: string) => {
