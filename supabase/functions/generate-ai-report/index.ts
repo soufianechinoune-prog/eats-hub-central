@@ -10,11 +10,13 @@ interface ReportRequest {
   restaurant_ids: string[];
   start_date: string;
   end_date: string;
+  report_type?: 'global' | 'errors' | 'reviews' | 'operations' | 'promotions';
   template_context?: {
     tone: "standard" | "congratulations" | "alert";
     include_recommendations: boolean;
     include_error_analysis: boolean;
     closing_message?: string;
+    include_interactive_menu?: boolean;
   };
 }
 
@@ -93,9 +95,9 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { restaurant_ids, start_date, end_date, template_context }: ReportRequest = await req.json();
+    const { restaurant_ids, start_date, end_date, template_context, report_type = 'global' }: ReportRequest = await req.json();
 
-    console.log(`Generating AI reports for ${restaurant_ids.length} restaurants from ${start_date} to ${end_date}`);
+    console.log(`Generating ${report_type} reports for ${restaurant_ids.length} restaurants from ${start_date} to ${end_date}`);
 
     // Calculate previous week for comparison
     const startDateObj = new Date(start_date);
@@ -304,7 +306,30 @@ serve(async (req) => {
         active_offers: activeOffers,
       };
 
-      const generatedMessage = await generateAIMessage(enrichedData, template_context, LOVABLE_API_KEY);
+      let generatedMessage: string;
+      
+      // Generate message based on report type
+      switch (report_type) {
+        case 'errors':
+          generatedMessage = await generateErrorsDetailReport(enrichedData, LOVABLE_API_KEY);
+          break;
+        case 'reviews':
+          generatedMessage = await generateReviewsDetailReport(supabase, restaurantId, start_date, end_date, kpis, LOVABLE_API_KEY);
+          break;
+        case 'operations':
+          generatedMessage = await generateOperationsDetailReport(supabase, restaurantId, start_date, end_date, kpis, LOVABLE_API_KEY);
+          break;
+        case 'promotions':
+          generatedMessage = await generatePromotionsDetailReport(enrichedData, LOVABLE_API_KEY);
+          break;
+        default:
+          // Global report with interactive menu
+          generatedMessage = await generateAIMessage(enrichedData, template_context, LOVABLE_API_KEY);
+          // Add interactive menu if enabled (default: true for global reports)
+          if (template_context?.include_interactive_menu !== false) {
+            generatedMessage += getInteractiveMenu();
+          }
+      }
 
       reports.push({
         restaurant_id: restaurantId,
@@ -315,7 +340,7 @@ serve(async (req) => {
         kpis,
       });
 
-      console.log(`Generated AI report for ${restaurant.name}`);
+      console.log(`Generated ${report_type} report for ${restaurant.name}`);
     }
 
     console.log(`Successfully generated ${reports.length} AI reports`);
@@ -482,6 +507,457 @@ ${ratingEmoji} Notes : ${kpis.average_rating?.toFixed(1) || '--'} (${kpis.review
 ${errorEmoji} Erreurs : ${kpis.error_rate?.toFixed(1) || '--'}% (${kpis.error_count} erreurs)
 
 📦 ${kpis.order_count} commandes | ${kpis.revenue.toFixed(0)}€ CA
+
+🤲 Qu'Allah nous accorde la réussite !`;
+}
+
+// ============ INTERACTIVE MENU ============
+function getInteractiveMenu(): string {
+  return `
+
+────────────────────────
+📋 PLUS DE DÉTAILS ? Réponds :
+1️⃣ Détail erreurs & produits
+2️⃣ Analyse avis clients
+3️⃣ Performance opérationnelle
+4️⃣ Bilan promotions`;
+}
+
+// ============ DETAILED REPORT GENERATORS ============
+
+async function generateErrorsDetailReport(
+  data: EnrichedReportData,
+  apiKey: string
+): Promise<string> {
+  const { kpis, error_breakdown, problematic_products, active_offers } = data;
+
+  // Build error breakdown string
+  const errorBreakdownStr = error_breakdown.length > 0
+    ? error_breakdown.map(e => `• ${e.category}: ${e.percentage}% (${e.count} erreurs)`).join('\n')
+    : 'Aucune erreur cette semaine';
+
+  // Build problematic products string
+  const productsStr = problematic_products.length > 0
+    ? problematic_products.map((p, i) => `${i + 1}. ${p.item_title} (${p.error_count} erreurs)`).join('\n')
+    : 'Aucun produit problématique identifié';
+
+  // Build active offers string
+  const offersStr = active_offers.length > 0
+    ? active_offers.map(o => `"${o.title}" (${o.platform})`).join(', ')
+    : 'Aucune offre active';
+
+  const systemPrompt = `Tu es un conseiller bienveillant pour restaurateurs. Tu génères un rapport WhatsApp DÉTAILLÉ sur les erreurs de commande.
+
+STYLE:
+- Tutoiement, ton chaleureux
+- Emojis WhatsApp
+- Format WhatsApp (pas de markdown lourd)
+- Maximum 300 mots
+- Termine TOUJOURS par: "🤲 Qu'Allah nous accorde la réussite !"
+
+STRUCTURE OBLIGATOIRE:
+1. Titre: 🔍 DÉTAIL ERREURS - [restaurant]
+2. Répartition par catégorie avec ⚫️
+3. Top produits problématiques avec 🔴
+4. Impact financier avec 💰
+5. Conseil actionnable avec 💡`;
+
+  const userPrompt = `Génère le rapport détaillé des erreurs:
+
+RESTAURANT: ${kpis.restaurant_name}
+PRÉNOM MANAGER: ${kpis.manager_first_name}
+
+📊 STATS ERREURS:
+- Taux d'erreur: ${kpis.error_rate?.toFixed(1) || '--'}% (${kpis.error_count} erreurs)
+- Commandes totales: ${kpis.order_count}
+
+⚫️ RÉPARTITION DES ERREURS:
+${errorBreakdownStr}
+
+🔴 PRODUITS PROBLÉMATIQUES:
+${productsStr}
+
+📢 OFFRES ACTIVES (contexte):
+${offersStr}
+
+Génère le rapport détaillé:`;
+
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3-flash-preview',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('AI API error:', response.status);
+      return generateErrorsFallback(kpis, error_breakdown, problematic_products);
+    }
+
+    const result = await response.json();
+    return result.choices?.[0]?.message?.content?.trim() || generateErrorsFallback(kpis, error_breakdown, problematic_products);
+  } catch (error) {
+    console.error('Error calling AI:', error);
+    return generateErrorsFallback(kpis, error_breakdown, problematic_products);
+  }
+}
+
+function generateErrorsFallback(kpis: WeeklyKPIs, errorBreakdown: ErrorBreakdown[], products: ProblematicProduct[]): string {
+  const breakdownStr = errorBreakdown.map(e => `• ${e.category}: ${e.percentage}%`).join('\n');
+  const productsStr = products.slice(0, 3).map(p => `🎯 ${p.item_title} (${p.error_count})`).join('\n');
+
+  return `🔍 DÉTAIL ERREURS - ${kpis.restaurant_name}
+
+⚫️ RÉPARTITION:
+${breakdownStr || '• Aucune erreur'}
+
+🔴 PRODUITS À SURVEILLER:
+${productsStr || 'Aucun'}
+
+💡 Double-check des sacs avant fermeture recommandé.
+
+🤲 Qu'Allah nous accorde la réussite !`;
+}
+
+async function generateReviewsDetailReport(
+  supabase: any,
+  restaurantId: string,
+  startDate: string,
+  endDate: string,
+  kpis: WeeklyKPIs,
+  apiKey: string
+): Promise<string> {
+  // Fetch detailed reviews data
+  const { data: reviews } = await supabase
+    .from('customer_reviews')
+    .select('overall_rating, customer_comment, tags, customer_type')
+    .eq('restaurant_id', restaurantId)
+    .gte('review_date', startDate)
+    .lte('review_date', endDate + 'T23:59:59');
+
+  // Calculate distribution
+  const distribution: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  let newCustomerCount = 0;
+  const allTags: string[] = [];
+  const negativeComments: string[] = [];
+
+  (reviews || []).forEach((r: any) => {
+    if (r.overall_rating) {
+      const rating = Math.round(r.overall_rating);
+      if (distribution[rating] !== undefined) distribution[rating]++;
+    }
+    if (r.customer_type === 'new') newCustomerCount++;
+    if (r.tags) allTags.push(...r.tags);
+    if (r.customer_comment && r.overall_rating && r.overall_rating < 4) {
+      negativeComments.push(r.customer_comment);
+    }
+  });
+
+  const totalReviews = reviews?.length || 0;
+  const newCustomerPercent = totalReviews > 0 ? Math.round((newCustomerCount / totalReviews) * 100) : 0;
+
+  // Top tags
+  const tagCounts: Record<string, number> = {};
+  allTags.forEach(tag => { tagCounts[tag] = (tagCounts[tag] || 0) + 1; });
+  const topTags = Object.entries(tagCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+
+  const systemPrompt = `Tu es un conseiller bienveillant pour restaurateurs. Tu génères un rapport WhatsApp DÉTAILLÉ sur les avis clients.
+
+STYLE:
+- Tutoiement, ton chaleureux
+- Emojis WhatsApp
+- Format WhatsApp (pas de markdown lourd)
+- Maximum 300 mots
+- Termine TOUJOURS par: "🤲 Qu'Allah nous accorde la réussite !"
+
+STRUCTURE OBLIGATOIRE:
+1. Titre: ⭐ ANALYSE AVIS - [restaurant]
+2. Distribution des notes avec 📊
+3. Tags récurrents avec 🏷️ (positifs ✅ et négatifs ❌)
+4. Clientèle avec 👥
+5. Commentaire notable si pertinent avec 💬`;
+
+  const userPrompt = `Génère le rapport détaillé des avis:
+
+RESTAURANT: ${kpis.restaurant_name}
+PRÉNOM MANAGER: ${kpis.manager_first_name}
+
+📊 DISTRIBUTION:
+★★★★★ : ${distribution[5]} avis
+★★★★☆ : ${distribution[4]} avis
+★★★☆☆ : ${distribution[3]} avis
+Moins : ${distribution[2] + distribution[1]} avis
+
+🏷️ TAGS RÉCURRENTS:
+${topTags.map(([tag, count]) => `• ${tag}: ${count}x`).join('\n') || 'Aucun tag'}
+
+👥 CLIENTÈLE:
+- ${newCustomerPercent}% nouveaux clients
+- ${totalReviews} avis cette semaine
+
+💬 COMMENTAIRES NÉGATIFS:
+${negativeComments.slice(0, 2).map(c => `"${c.substring(0, 80)}..."`).join('\n') || 'Aucun'}
+
+Génère le rapport détaillé:`;
+
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3-flash-preview',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      return generateReviewsFallback(kpis, distribution, totalReviews);
+    }
+
+    const result = await response.json();
+    return result.choices?.[0]?.message?.content?.trim() || generateReviewsFallback(kpis, distribution, totalReviews);
+  } catch (error) {
+    console.error('Error calling AI:', error);
+    return generateReviewsFallback(kpis, distribution, totalReviews);
+  }
+}
+
+function generateReviewsFallback(kpis: WeeklyKPIs, distribution: Record<number, number>, total: number): string {
+  return `⭐ ANALYSE AVIS - ${kpis.restaurant_name}
+
+📊 DISTRIBUTION:
+★★★★★ : ${distribution[5]} avis
+★★★★☆ : ${distribution[4]} avis
+★★★☆☆ : ${distribution[3]} avis
+
+📝 ${total} avis au total cette semaine
+
+🤲 Qu'Allah nous accorde la réussite !`;
+}
+
+async function generateOperationsDetailReport(
+  supabase: any,
+  restaurantId: string,
+  startDate: string,
+  endDate: string,
+  kpis: WeeklyKPIs,
+  apiKey: string
+): Promise<string> {
+  // Fetch order history for time analysis
+  const { data: orders } = await supabase
+    .from('order_history')
+    .select('initial_prep_time_minutes, avoidable_wait_time_minutes, order_datetime')
+    .eq('restaurant_id', restaurantId)
+    .gte('order_datetime', startDate)
+    .lte('order_datetime', endDate + 'T23:59:59');
+
+  // Fetch downtime logs
+  const { data: downtimes } = await supabase
+    .from('downtime_logs')
+    .select('duration_minutes, reason')
+    .eq('restaurant_id', restaurantId)
+    .gte('downtime_start', startDate)
+    .lte('downtime_start', endDate + 'T23:59:59');
+
+  // Calculate hourly prep times
+  const hourlyPrepTimes: Record<number, number[]> = {};
+  (orders || []).forEach((o: any) => {
+    if (o.order_datetime && o.initial_prep_time_minutes) {
+      const hour = new Date(o.order_datetime).getHours();
+      if (!hourlyPrepTimes[hour]) hourlyPrepTimes[hour] = [];
+      hourlyPrepTimes[hour].push(o.initial_prep_time_minutes);
+    }
+  });
+
+  // Find worst hours
+  const hourlyAvg = Object.entries(hourlyPrepTimes).map(([hour, times]) => ({
+    hour: parseInt(hour),
+    avg: times.reduce((a, b) => a + b, 0) / times.length
+  })).sort((a, b) => b.avg - a.avg);
+
+  const worstHours = hourlyAvg.slice(0, 3);
+
+  // Calculate downtime stats
+  const totalDowntime = (downtimes || []).reduce((sum: number, d: any) => sum + (d.duration_minutes || 0), 0);
+  const reasons = [...new Set((downtimes || []).map((d: any) => d.reason).filter(Boolean))].slice(0, 2);
+
+  const systemPrompt = `Tu es un conseiller bienveillant pour restaurateurs. Tu génères un rapport WhatsApp DÉTAILLÉ sur la performance opérationnelle.
+
+STYLE:
+- Tutoiement, ton chaleureux
+- Emojis WhatsApp
+- Format WhatsApp (pas de markdown lourd)
+- Maximum 300 mots
+- Termine TOUJOURS par: "🤲 Qu'Allah nous accorde la réussite !"
+
+STRUCTURE OBLIGATOIRE:
+1. Titre: ⏱️ PERFORMANCE OPS - [restaurant]
+2. Temps moyens avec 📊
+3. Créneaux tendus avec 🔥
+4. Temps d'inactivité avec ⏸️
+5. Conseil actionnable avec 💡`;
+
+  const userPrompt = `Génère le rapport détaillé opérationnel:
+
+RESTAURANT: ${kpis.restaurant_name}
+PRÉNOM MANAGER: ${kpis.manager_first_name}
+
+📊 TEMPS MOYENS:
+- Préparation : ${kpis.avg_prep_time ? Math.round(kpis.avg_prep_time) : '--'} min
+- Attente coursier : ${kpis.avg_courier_wait ? Math.round(kpis.avg_courier_wait) : '--'} min
+
+🔥 CRÉNEAUX TENDUS (pire prépa):
+${worstHours.map(h => `• ${h.hour}h-${h.hour + 1}h : ${h.avg.toFixed(1)} min`).join('\n') || 'Données insuffisantes'}
+
+⏸️ TEMPS D'INACTIVITÉ:
+- Total semaine : ${totalDowntime} min
+- Raisons : ${reasons.join(', ') || 'Non renseignées'}
+
+Génère le rapport détaillé:`;
+
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3-flash-preview',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      return generateOperationsFallback(kpis, totalDowntime);
+    }
+
+    const result = await response.json();
+    return result.choices?.[0]?.message?.content?.trim() || generateOperationsFallback(kpis, totalDowntime);
+  } catch (error) {
+    console.error('Error calling AI:', error);
+    return generateOperationsFallback(kpis, totalDowntime);
+  }
+}
+
+function generateOperationsFallback(kpis: WeeklyKPIs, totalDowntime: number): string {
+  return `⏱️ PERFORMANCE OPS - ${kpis.restaurant_name}
+
+📊 TEMPS MOYENS:
+• Préparation : ${kpis.avg_prep_time ? Math.round(kpis.avg_prep_time) : '--'} min
+• Attente coursier : ${kpis.avg_courier_wait ? Math.round(kpis.avg_courier_wait) : '--'} min
+
+⏸️ INACTIVITÉ: ${totalDowntime} min cette semaine
+
+🤲 Qu'Allah nous accorde la réussite !`;
+}
+
+async function generatePromotionsDetailReport(
+  data: EnrichedReportData,
+  apiKey: string
+): Promise<string> {
+  const { kpis, active_offers } = data;
+
+  const offersDetail = active_offers.length > 0
+    ? active_offers.map(o => `• "${o.title}" (${o.platform}) - Type: ${o.action_type || 'promo'}`).join('\n')
+    : 'Aucune offre active cette semaine';
+
+  const systemPrompt = `Tu es un conseiller bienveillant pour restaurateurs. Tu génères un rapport WhatsApp DÉTAILLÉ sur les promotions et leur impact.
+
+STYLE:
+- Tutoiement, ton chaleureux
+- Emojis WhatsApp
+- Format WhatsApp (pas de markdown lourd)
+- Maximum 300 mots
+- Termine TOUJOURS par: "🤲 Qu'Allah nous accorde la réussite !"
+
+STRUCTURE OBLIGATOIRE:
+1. Titre: 📢 BILAN PROMOS - [restaurant]
+2. Offres actives avec 🎯
+3. Impact estimé avec 📊 (si données disponibles)
+4. Alertes si problèmes avec ⚠️
+5. Conseil actionnable avec 💡`;
+
+  const userPrompt = `Génère le rapport détaillé des promotions:
+
+RESTAURANT: ${kpis.restaurant_name}
+PRÉNOM MANAGER: ${kpis.manager_first_name}
+
+🎯 OFFRES ACTIVES:
+${offersDetail}
+
+📊 CONTEXTE PERFORMANCE:
+- Commandes : ${kpis.order_count}
+- CA : ${kpis.revenue.toFixed(0)}€
+- Taux d'erreur : ${kpis.error_rate?.toFixed(1) || '--'}%
+
+Génère le rapport détaillé:`;
+
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3-flash-preview',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      return generatePromotionsFallback(kpis, active_offers);
+    }
+
+    const result = await response.json();
+    return result.choices?.[0]?.message?.content?.trim() || generatePromotionsFallback(kpis, active_offers);
+  } catch (error) {
+    console.error('Error calling AI:', error);
+    return generatePromotionsFallback(kpis, active_offers);
+  }
+}
+
+function generatePromotionsFallback(kpis: WeeklyKPIs, offers: ActiveOffer[]): string {
+  const offersStr = offers.length > 0
+    ? offers.map(o => `• "${o.title}" (${o.platform})`).join('\n')
+    : '• Aucune offre active';
+
+  return `📢 BILAN PROMOS - ${kpis.restaurant_name}
+
+🎯 OFFRES ACTIVES:
+${offersStr}
+
+📊 RÉSULTATS:
+• ${kpis.order_count} commandes cette semaine
+• CA : ${kpis.revenue.toFixed(0)}€
 
 🤲 Qu'Allah nous accorde la réussite !`;
 }

@@ -65,6 +65,33 @@ const isQueryMessage = (message: string): boolean => {
   return queryKeywords.test(message) || questionMark || message.length > 10;
 };
 
+// Check if message is an interactive report menu response (1, 2, 3, 4)
+const isInteractiveMenuResponse = (message: string): { isMenu: boolean; reportType: string | null } => {
+  const trimmed = message.trim();
+  
+  // Match patterns: "1", "1️⃣", "1.", "1-", "1:", "1 ", "1)", etc.
+  const patterns: { regex: RegExp; type: string }[] = [
+    { regex: /^1[️⃣\.\-:\)\s]?$/i, type: 'errors' },
+    { regex: /^2[️⃣\.\-:\)\s]?$/i, type: 'reviews' },
+    { regex: /^3[️⃣\.\-:\)\s]?$/i, type: 'operations' },
+    { regex: /^4[️⃣\.\-:\)\s]?$/i, type: 'promotions' },
+  ];
+  
+  for (const { regex, type } of patterns) {
+    if (regex.test(trimmed)) {
+      return { isMenu: true, reportType: type };
+    }
+  }
+  
+  // Also match text-based responses
+  if (/erreur|détail\s*erreur/i.test(trimmed)) return { isMenu: true, reportType: 'errors' };
+  if (/avis|review|client/i.test(trimmed) && trimmed.length < 20) return { isMenu: true, reportType: 'reviews' };
+  if (/opéra|performance\s*op/i.test(trimmed)) return { isMenu: true, reportType: 'operations' };
+  if (/promo|promotion|offre/i.test(trimmed) && trimmed.length < 20) return { isMenu: true, reportType: 'promotions' };
+  
+  return { isMenu: false, reportType: null };
+};
+
 // Calculate Easter Sunday using the Anonymous Gregorian algorithm
 function calculateEasterDate(year: number): Date {
   const a = year % 19;
@@ -1098,6 +1125,127 @@ async function parseAndSendReport(
   return { modifiedResponse, reportSent };
 }
 
+// Handle interactive report menu responses (1, 2, 3, 4)
+async function handleInteractiveReportRequest(
+  supabase: any,
+  restaurant: any,
+  reportType: string,
+  phone: string,
+  managerFirstName: string
+): Promise<void> {
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+  
+  if (!SUPABASE_URL) {
+    console.error('SUPABASE_URL not configured');
+    await sendWhatsAppReply(phone, "❌ Erreur de configuration. Réessaie plus tard.");
+    return;
+  }
+
+  console.log(`=== INTERACTIVE REPORT REQUEST ===`);
+  console.log(`Restaurant: ${restaurant.name}`);
+  console.log(`Report type: ${reportType}`);
+  console.log(`Phone: ${phone}`);
+
+  // Calculate date range for last 7 days
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 7);
+  
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = endDate.toISOString().split('T')[0];
+
+  // Report type labels for user feedback
+  const reportLabels: Record<string, string> = {
+    errors: 'Détail Erreurs & Produits',
+    reviews: 'Analyse Avis Clients',
+    operations: 'Performance Opérationnelle',
+    promotions: 'Bilan Promotions',
+  };
+
+  const reportLabel = reportLabels[reportType] || 'Rapport détaillé';
+
+  // Send "generating" acknowledgment immediately
+  await sendWhatsAppReply(phone, `⏳ Génération du rapport "${reportLabel}" en cours...`);
+
+  try {
+    // Call the generate-ai-report function with the specific report type
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-ai-report`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        restaurant_ids: [restaurant.id],
+        start_date: startDateStr,
+        end_date: endDateStr,
+        report_type: reportType,
+        template_context: {
+          tone: 'standard',
+          include_recommendations: true,
+          include_error_analysis: true,
+          include_interactive_menu: false, // Don't add menu to detail reports
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Error generating report:', response.status, errorText);
+      await sendWhatsAppReply(phone, `❌ Erreur lors de la génération du rapport. Réessaie plus tard.`);
+      return;
+    }
+
+    const data = await response.json();
+    
+    if (!data.success || !data.reports || data.reports.length === 0) {
+      console.error('No reports generated:', data);
+      await sendWhatsAppReply(phone, `❌ Impossible de générer le rapport. Données insuffisantes.`);
+      return;
+    }
+
+    const report = data.reports[0];
+    const reportMessage = report.generated_message;
+
+    // Send the detailed report
+    const sent = await sendWhatsAppReply(phone, reportMessage);
+
+    if (sent) {
+      console.log(`✓ Interactive report sent: ${reportType}`);
+      
+      // Log to message history
+      await supabase.from('message_history').insert({
+        direction: 'outbound',
+        recipient_phone: phone,
+        recipient_name: managerFirstName,
+        restaurant_id: restaurant.id,
+        restaurant_name: restaurant.name,
+        message_content: reportMessage,
+        message_type: 'report',
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+      });
+
+      // Log to chatbot_interactions
+      await supabase.from('chatbot_interactions').insert({
+        restaurant_id: restaurant.id,
+        manager_phone: phone,
+        manager_name: managerFirstName,
+        query: `[MENU_INTERACTIF:${reportType}]`,
+        response: reportMessage.substring(0, 500),
+        intent: 'interactive_report',
+        detected_entities: { report_type: reportType },
+        was_successful: true,
+      });
+    } else {
+      console.error('Failed to send interactive report');
+    }
+  } catch (error) {
+    console.error('Exception in handleInteractiveReportRequest:', error);
+    await sendWhatsAppReply(phone, `❌ Erreur technique. Réessaie plus tard.`);
+  }
+}
+
 // Main handler for manager queries - NOW SUPPORTS MULTIPLE RESTAURANTS
 async function handleManagerQuery(
   supabase: any,
@@ -1496,6 +1644,29 @@ serve(async (req) => {
         console.error('Error inserting incoming message:', insertError);
       } else {
         console.log('Incoming message saved successfully');
+      }
+
+      // === INTERACTIVE MENU DETECTION ===
+      // Check if this is a response to an interactive report menu (1, 2, 3, 4)
+      const menuResponse = isInteractiveMenuResponse(messageData.body);
+      
+      if (managerRestaurants.length > 0 && menuResponse.isMenu && menuResponse.reportType) {
+        console.log(`Interactive menu response detected: ${menuResponse.reportType}`);
+        const primaryRestaurantForReport = managerRestaurants.find((r: any) => r.is_primary) || managerRestaurants[0];
+        
+        // Handle detailed report generation asynchronously
+        handleInteractiveReportRequest(
+          supabase,
+          primaryRestaurantForReport,
+          menuResponse.reportType,
+          normalizedPhone,
+          manager?.first_name || primaryRestaurantForReport?.manager_first_name || 'Manager'
+        ).catch((err: Error) => console.error('Interactive report error:', err));
+        
+        return new Response(
+          JSON.stringify({ success: true, type: 'interactive_menu_response' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
       // === CHATBOT LOGIC ===
