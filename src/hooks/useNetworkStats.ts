@@ -259,6 +259,7 @@ export function useNetworkStats({
       const { data, error } = await supabase
         .from("daily_order_accuracy")
         .select("restaurant_id, incorrect_orders_count")
+        .eq("period_type", "current")
         .gte("date", startDateStr)
         .lte("date", endDateStr)
         .in("restaurant_id", restaurantIds);
