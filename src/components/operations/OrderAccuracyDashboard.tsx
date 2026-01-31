@@ -79,7 +79,10 @@ export function OrderAccuracyDashboard({
 
   // Calculate actual date range for filtering
   const effectiveDateRange = useMemo(() => {
-    if (periodMode === "range" && dateRange) {
+    // Handle all quick period modes that have a dateRange
+    const isQuickPeriod = ["range", "previous_week", "7d", "30d", "current_month"].includes(periodMode);
+    
+    if (isQuickPeriod && dateRange) {
       return {
         startDate: format(dateRange.start, "yyyy-MM-dd"),
         endDate: format(dateRange.end, "yyyy-MM-dd"),
@@ -93,7 +96,7 @@ export function OrderAccuracyDashboard({
         endDate: format(monthEnd, "yyyy-MM-dd"),
       };
     }
-    // Year mode
+    // Year mode fallback
     return {
       startDate: `${selectedYear}-01-01`,
       endDate: `${selectedYear}-12-31`,
