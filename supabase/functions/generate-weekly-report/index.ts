@@ -98,13 +98,13 @@ serve(async (req) => {
       const orderVariation = prevOrderCount > 0 ? ((orderCount - prevOrderCount) / prevOrderCount) * 100 : null;
       const revenueVariation = prevRevenue > 0 ? ((revenue - prevRevenue) / prevRevenue) * 100 : null;
 
-      // Fetch customer reviews for current week
+      // Fetch customer reviews for current week (use order_date to match dashboard)
       const { data: reviews } = await supabase
         .from('customer_reviews')
         .select('overall_rating, customer_type')
         .eq('restaurant_id', restaurantId)
-        .gte('review_date', start_date)
-        .lte('review_date', end_date + 'T23:59:59');
+        .gte('order_date', start_date)
+        .lte('order_date', end_date);
 
       const reviewCount = reviews?.length || 0;
       const averageRating = reviewCount > 0 && reviews
