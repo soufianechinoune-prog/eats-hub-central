@@ -126,17 +126,17 @@ serve(async (req) => {
 
       // ============ COLLECT KPIs (same as generate-weekly-report) ============
 
-      // Fetch sales data for current week
+      // Fetch sales data for current week (use deduped view to avoid double-counting)
       const { data: currentSales } = await supabase
-        .from('daily_sales_uber')
+        .from('daily_sales_uber_deduped')
         .select('revenue_ttc, order_count')
         .eq('restaurant_id', restaurantId)
         .gte('date', start_date)
         .lte('date', end_date);
 
-      // Fetch sales data for previous week
+      // Fetch sales data for previous week (use deduped view to avoid double-counting)
       const { data: prevSales } = await supabase
-        .from('daily_sales_uber')
+        .from('daily_sales_uber_deduped')
         .select('revenue_ttc, order_count')
         .eq('restaurant_id', restaurantId)
         .gte('date', prevStartStr)
