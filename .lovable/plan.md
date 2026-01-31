@@ -1,73 +1,85 @@
 
-# Correction de la source de données pour les rapports WhatsApp
+# Alignement des sources de données pour les rapports WhatsApp
 
-## Diagnostic confirmé
+## Problème identifié
 
-Le taux d'erreur "vs 1.2% semaine dernière" est **faux** car le rapport utilise `daily_sales_uber` qui contient des **doublons** (2 lignes par jour).
+L'Edge Function affiche **4.39** (38 avis) alors que le dashboard affiche **4.41** (39 avis) pour la même période.
 
-| Métrique | Valeur correcte | Valeur buggée (doublons) |
-|----------|-----------------|--------------------------|
-| Commandes sem. précédente | 431 | 862 (×2) |
-| Erreurs sem. précédente | 13 | 13 |
-| Taux d'erreur | **3.02%** | **1.5%** ≈ 1.2% |
+**Cause** : L'Edge Function filtre par `review_date` tandis que le dashboard filtre par `order_date`.
 
-## Cause racine
+| Critère | Edge Function | Dashboard |
+|---------|---------------|-----------|
+| Colonne de filtre | `review_date` | `order_date` |
+| Résultat 12-18 jan | 38 avis, 4.39 | 39 avis, 4.41 |
 
-Les deux edge functions `generate-weekly-report` et `generate-ai-report` utilisent la table `daily_sales_uber` :
-```typescript
-const { data: currentSales } = await supabase
-  .from('daily_sales_uber')  // ← BUG : contient des doublons
-  .select('revenue_ttc, order_count')
-```
+## Solution en 2 parties
 
-Alors que le dashboard utilise `daily_sales_uber_deduped` (vue SQL dédoublonnée).
+### Partie 1 : Aligner le filtre de date (correction immédiate)
 
-## Solution
+Modifier les Edge Functions pour filtrer par `order_date` comme le fait le dashboard.
 
-Modifier les deux edge functions pour utiliser `daily_sales_uber_deduped` au lieu de `daily_sales_uber`.
+**Fichier** : `supabase/functions/generate-ai-report/index.ts`
 
-### Fichiers à modifier
-
-**1. `supabase/functions/generate-ai-report/index.ts`**
-
-Lignes 130-143 : Remplacer `daily_sales_uber` → `daily_sales_uber_deduped`
+Lignes 158-171 : Changer `review_date` → `order_date`
 
 ```typescript
 // Avant
-const { data: currentSales } = await supabase
-  .from('daily_sales_uber')
-  ...
+const { data: reviews } = await supabase
+  .from('customer_reviews')
+  .select('overall_rating, customer_type')
+  .eq('restaurant_id', restaurantId)
+  .gte('review_date', start_date)    // ← BUG
+  .lte('review_date', end_date + 'T23:59:59');
 
-const { data: prevSales } = await supabase
-  .from('daily_sales_uber')
-  ...
-
-// Après
-const { data: currentSales } = await supabase
-  .from('daily_sales_uber_deduped')
-  ...
-
-const { data: prevSales } = await supabase
-  .from('daily_sales_uber_deduped')
-  ...
+// Après  
+const { data: reviews } = await supabase
+  .from('customer_reviews')
+  .select('overall_rating, customer_type')
+  .eq('restaurant_id', restaurantId)
+  .gte('order_date', start_date)     // ← Aligné avec dashboard
+  .lte('order_date', end_date);      // ← Pas besoin du T23:59:59 pour date simple
 ```
 
-**2. `supabase/functions/generate-weekly-report/index.ts`**
+Même correction pour `prevReviews` (lignes 166-171).
 
-Même modification aux mêmes endroits (requêtes sales pour semaine courante et précédente).
+**Fichier** : `supabase/functions/generate-weekly-report/index.ts`
+
+Appliquer la même modification aux requêtes de reviews.
+
+### Partie 2 : Architecture future (recommandation)
+
+Créer une table `daily_ratings` pré-agrégée par restaurant/date :
+
+```sql
+CREATE TABLE daily_ratings AS
+SELECT 
+  restaurant_id,
+  order_date::date as date,
+  COUNT(*) as review_count,
+  AVG(overall_rating) as average_rating
+FROM customer_reviews
+WHERE order_date IS NOT NULL
+GROUP BY restaurant_id, order_date::date;
+```
+
+Cela permettrait :
+- Cohérence garantie entre dashboard et rapports
+- Performances améliorées (pas de recalcul)
+- Source unique de vérité
+
+Cette partie est optionnelle et peut être implémentée ultérieurement.
+
+## Fichiers à modifier
+
+| Fichier | Modification |
+|---------|--------------|
+| `supabase/functions/generate-ai-report/index.ts` | `review_date` → `order_date` (2 requêtes) |
+| `supabase/functions/generate-weekly-report/index.ts` | `review_date` → `order_date` (2 requêtes) |
 
 ## Résultat attendu
 
-Après correction, le rapport affichera :
-- Semaine actuelle : **2.44%** (9 erreurs / 369 commandes)
-- Semaine précédente : **~3.02%** (13 erreurs / 431 commandes)
+Après correction, les rapports WhatsApp afficheront :
+- **Juvisy semaine 12-18** : 4.41 (39 avis) — identique au dashboard
+- **Semaine précédente** : valeur alignée également
 
-Le message sera : "Erreurs: 2.44% (vs 3.0% semaine dernière)" → amélioration visible !
-
-## Impact collatéral
-
-Cette correction affectera aussi les autres KPIs basés sur le nombre de commandes :
-- Variation du nombre de commandes (actuellement doublé)
-- Variation du CA (actuellement basé sur données doublées)
-
-Tous ces chiffres seront désormais cohérents avec le dashboard.
+Le message passera de "Gros gap vs 4.39" à "Gros gap vs 4.41".
