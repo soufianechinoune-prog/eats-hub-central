@@ -1,87 +1,73 @@
 
-# Modification des sources de données et des libellés pour les temps de préparation
+# Correction de la source de données pour les rapports WhatsApp
 
-## Résumé de la demande
+## Diagnostic confirmé
 
-L'utilisateur veut :
-1. **Dans les rapports WhatsApp** : Le KPI "Temps prep" (actuellement 9 min dans la capture) doit utiliser les données de "Prépa+Livraison" (`total_prep_delivery_time_minutes`) au lieu du temps de prépa initial (`initial_prep_time_minutes`). Le label reste "Temps prep" ou "Temps de préparation"
-2. **Dans les onglets Opérations** : Renommer les 3 onglets de temps :
-   - "Temps de prépa" → "Temps de prépa initial"
-   - "Temps d'attente" → "Temps d'attente du coursier (restaurant)"
-   - "Prépa+Livraison" → "Temps de prépa total"
+Le taux d'erreur "vs 1.2% semaine dernière" est **faux** car le rapport utilise `daily_sales_uber` qui contient des **doublons** (2 lignes par jour).
 
----
+| Métrique | Valeur correcte | Valeur buggée (doublons) |
+|----------|-----------------|--------------------------|
+| Commandes sem. précédente | 431 | 862 (×2) |
+| Erreurs sem. précédente | 13 | 13 |
+| Taux d'erreur | **3.02%** | **1.5%** ≈ 1.2% |
 
-## Partie 1 : Modification des edge functions pour les rapports WhatsApp
+## Cause racine
 
-### 1.1 Fichier `supabase/functions/generate-weekly-report/index.ts`
-
-**Modification de la requête order_history** (lignes 117-132) :
-- Ajouter `total_prep_delivery_time_minutes` à la sélection
-- Utiliser ce champ pour `avg_prep_time` au lieu de `initial_prep_time_minutes`
-
+Les deux edge functions `generate-weekly-report` et `generate-ai-report` utilisent la table `daily_sales_uber` :
 ```typescript
-// Avant (lignes 117-127)
-const { data: orderHistory } = await supabase
-  .from('order_history')
-  .select('initial_prep_time_minutes, avoidable_wait_time_minutes')
-  ...
-
-// Après
-const { data: orderHistory } = await supabase
-  .from('order_history')
-  .select('total_prep_delivery_time_minutes, avoidable_wait_time_minutes')
-  ...
-
-// Calcul (lignes 124-127)
-// Avant
-const validPrepTimes = orderHistory?.filter(o => o.initial_prep_time_minutes !== null) || [];
-const avgPrepTime = validPrepTimes.length > 0
-  ? validPrepTimes.reduce((sum, o) => sum + (o.initial_prep_time_minutes || 0), 0) / validPrepTimes.length
-  : null;
-
-// Après
-const validPrepTimes = orderHistory?.filter(o => o.total_prep_delivery_time_minutes !== null) || [];
-const avgPrepTime = validPrepTimes.length > 0
-  ? validPrepTimes.reduce((sum, o) => sum + (o.total_prep_delivery_time_minutes || 0), 0) / validPrepTimes.length
-  : null;
+const { data: currentSales } = await supabase
+  .from('daily_sales_uber')  // ← BUG : contient des doublons
+  .select('revenue_ttc, order_count')
 ```
 
-### 1.2 Fichier `supabase/functions/generate-ai-report/index.ts`
+Alors que le dashboard utilise `daily_sales_uber_deduped` (vue SQL dédoublonnée).
 
-**Même modification** (lignes 186-197) :
-- Remplacer `initial_prep_time_minutes` par `total_prep_delivery_time_minutes`
+## Solution
 
----
+Modifier les deux edge functions pour utiliser `daily_sales_uber_deduped` au lieu de `daily_sales_uber`.
 
-## Partie 2 : Renommage des onglets Opérations
+### Fichiers à modifier
 
-### 2.1 Fichier `src/components/analytics/OperationsAnalytics.tsx`
+**1. `supabase/functions/generate-ai-report/index.ts`**
 
-**Modification des TabsTrigger** (lignes 563-586) :
+Lignes 130-143 : Remplacer `daily_sales_uber` → `daily_sales_uber_deduped`
 
-| Onglet | Value | Avant | Après (complet) | Après (mobile) |
-|--------|-------|-------|-----------------|----------------|
-| prepTime | Temps de prépa | Temps de prépa initial | Prépa initial |
-| waitTime | Temps d'attente | Temps d'attente du coursier (restaurant) | Attente coursier |
-| totalDelivery | Prépa+Livraison | Temps de prépa total | Prépa total |
+```typescript
+// Avant
+const { data: currentSales } = await supabase
+  .from('daily_sales_uber')
+  ...
 
----
+const { data: prevSales } = await supabase
+  .from('daily_sales_uber')
+  ...
 
-## Fichiers à modifier
+// Après
+const { data: currentSales } = await supabase
+  .from('daily_sales_uber_deduped')
+  ...
 
-| Fichier | Modification |
-|---------|--------------|
-| `supabase/functions/generate-weekly-report/index.ts` | Query + calcul `total_prep_delivery_time_minutes` |
-| `supabase/functions/generate-ai-report/index.ts` | Query + calcul `total_prep_delivery_time_minutes` |
-| `src/components/analytics/OperationsAnalytics.tsx` | Renommage des 3 onglets |
+const { data: prevSales } = await supabase
+  .from('daily_sales_uber_deduped')
+  ...
+```
 
----
+**2. `supabase/functions/generate-weekly-report/index.ts`**
+
+Même modification aux mêmes endroits (requêtes sales pour semaine courante et précédente).
 
 ## Résultat attendu
 
-1. **Rapports WhatsApp** : Le "Temps prep" affichera le temps total (prépa + livraison), typiquement ~15 min au lieu de ~9 min
-2. **Onglets Opérations** :
-   - "Temps de prépa initial" → analyse du temps de préparation en cuisine
-   - "Temps d'attente du coursier (restaurant)" → temps d'attente évitable
-   - "Temps de prépa total" → temps de bout en bout (commande à livraison)
+Après correction, le rapport affichera :
+- Semaine actuelle : **2.44%** (9 erreurs / 369 commandes)
+- Semaine précédente : **~3.02%** (13 erreurs / 431 commandes)
+
+Le message sera : "Erreurs: 2.44% (vs 3.0% semaine dernière)" → amélioration visible !
+
+## Impact collatéral
+
+Cette correction affectera aussi les autres KPIs basés sur le nombre de commandes :
+- Variation du nombre de commandes (actuellement doublé)
+- Variation du CA (actuellement basé sur données doublées)
+
+Tous ces chiffres seront désormais cohérents avec le dashboard.
