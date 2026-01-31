@@ -1001,8 +1001,14 @@ export default function WeeklyReports() {
                                 <Star className="h-3 w-3" />
                                 {kpi.average_rating?.toFixed(2) || "--"}
                               </Badge>
-                              {kpi.error_rate !== null && kpi.error_rate > (selectedTemplate?.objectives.error_rate || 3) && (
-                                <Badge variant="destructive" className="gap-1">
+                              {kpi.error_rate !== null && (
+                                <Badge 
+                                  variant={kpi.error_rate > (selectedTemplate?.objectives.error_rate || 3) ? "destructive" : "outline"}
+                                  className={cn(
+                                    "gap-1",
+                                    kpi.error_rate <= (selectedTemplate?.objectives.error_rate || 3) && "border-green-500/50 text-green-600 dark:text-green-400"
+                                  )}
+                                >
                                   <AlertTriangle className="h-3 w-3" />
                                   {kpi.error_rate.toFixed(1)}%
                                 </Badge>
