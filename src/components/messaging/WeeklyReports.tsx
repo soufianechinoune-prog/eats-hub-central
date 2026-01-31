@@ -1150,77 +1150,132 @@ export default function WeeklyReports() {
                   <p>Aucun rapport envoyé pour le moment</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {reportHistory.map((msg) => (
-                    <Collapsible 
-                      key={msg.id}
-                      open={expandedHistoryMessages.has(msg.id)}
-                      onOpenChange={() => {
-                        const newExpanded = new Set(expandedHistoryMessages);
-                        if (newExpanded.has(msg.id)) {
-                          newExpanded.delete(msg.id);
-                        } else {
-                          newExpanded.add(msg.id);
-                        }
-                        setExpandedHistoryMessages(newExpanded);
-                      }}
-                    >
-                      <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-secondary/30 transition-colors">
-                        {/* Status icon */}
-                        <div className="flex-shrink-0">
-                          {msg.status === 'sent' || msg.status === 'delivered' || msg.status === 'read' ? (
-                            <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                            </div>
-                          ) : msg.status === 'failed' ? (
-                            <div className="h-8 w-8 rounded-full bg-red-500/10 flex items-center justify-center">
-                              <XCircle className="h-4 w-4 text-red-600" />
-                            </div>
-                          ) : (
-                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                              <Clock className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
+                <div className="space-y-3">
+                  {/* Grouped history by date then type */}
+                  {(() => {
+                    // Group by date then by type
+                    const groups: Record<string, Record<string, typeof reportHistory>> = {};
+                    
+                    reportHistory.forEach((msg) => {
+                      const dateKey = format(new Date(msg.created_at), "yyyy-MM-dd");
+                      const typeKey = msg.message_content?.includes('PLUS DE DÉTAILS') 
+                        ? 'Rapport IA' 
+                        : 'Rapport';
+                      
+                      if (!groups[dateKey]) groups[dateKey] = {};
+                      if (!groups[dateKey][typeKey]) groups[dateKey][typeKey] = [];
+                      groups[dateKey][typeKey].push(msg);
+                    });
+                    
+                    // Sort by date descending and format
+                    const groupedHistory = Object.entries(groups)
+                      .sort(([a], [b]) => b.localeCompare(a))
+                      .map(([date, types]) => ({
+                        date,
+                        dateLabel: format(new Date(date), "d MMMM yyyy", { locale: fr }),
+                        types: Object.entries(types).map(([type, messages]) => ({
+                          type,
+                          messages,
+                          count: messages.length
+                        })),
+                        totalCount: Object.values(types).flat().length
+                      }));
 
-                        {/* Main content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium truncate">
-                              {msg.restaurant_name || 'Restaurant'}
-                            </span>
-                            <Badge variant="outline" className="text-xs">
-                              {msg.message_type === 'report' ? 'Rapport' : msg.message_type}
-                            </Badge>
+                    return groupedHistory.map((dateGroup, dateIndex) => (
+                      <Collapsible key={dateGroup.date} defaultOpen={dateIndex === 0}>
+                        {/* Level 1: Date */}
+                        <CollapsibleTrigger className="w-full group">
+                          <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg hover:bg-secondary/70 transition-colors">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">{dateGroup.dateLabel}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary">{dateGroup.totalCount} rapport{dateGroup.totalCount > 1 ? 's' : ''}</Badge>
+                              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                            </div>
                           </div>
-                          <div className="text-sm text-muted-foreground flex items-center gap-2">
-                            <span>{msg.recipient_name || msg.recipient_phone}</span>
-                            <span>•</span>
-                            <span>{format(new Date(msg.created_at), "d MMM yyyy 'à' HH:mm", { locale: fr })}</span>
-                          </div>
-                        </div>
-
-                        {/* Expand button */}
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="sm" className="flex-shrink-0 gap-1">
-                            <Eye className="h-4 w-4" />
-                            <ChevronDown className={cn(
-                              "h-4 w-4 transition-transform",
-                              expandedHistoryMessages.has(msg.id) && "rotate-180"
-                            )} />
-                          </Button>
                         </CollapsibleTrigger>
-                      </div>
-
-                      <CollapsibleContent>
-                        <div className="mt-2 p-4 rounded-lg bg-secondary/30 border">
-                          <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed">
-                            {msg.message_content}
-                          </pre>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  ))}
+                        
+                        <CollapsibleContent className="pl-4 mt-2 space-y-2">
+                          {dateGroup.types.map((typeGroup) => (
+                            <Collapsible key={`${dateGroup.date}-${typeGroup.type}`} defaultOpen>
+                              {/* Level 2: Report type */}
+                              <CollapsibleTrigger className="w-full group">
+                                <div className="flex items-center justify-between p-2 rounded-md hover:bg-secondary/30 transition-colors">
+                                  <div className="flex items-center gap-2">
+                                    {typeGroup.type === 'Rapport IA' ? (
+                                      <Sparkles className="h-4 w-4 text-amber-500" />
+                                    ) : (
+                                      <FileText className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    <span className="text-sm font-medium">{typeGroup.type}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">{typeGroup.count}</Badge>
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                  </div>
+                                </div>
+                              </CollapsibleTrigger>
+                              
+                              <CollapsibleContent className="pl-4 mt-1 space-y-1">
+                                {/* Level 3: Individual reports */}
+                                {typeGroup.messages.map((msg) => (
+                                  <Collapsible 
+                                    key={msg.id}
+                                    open={expandedHistoryMessages.has(msg.id)}
+                                    onOpenChange={() => {
+                                      const newExpanded = new Set(expandedHistoryMessages);
+                                      if (newExpanded.has(msg.id)) {
+                                        newExpanded.delete(msg.id);
+                                      } else {
+                                        newExpanded.add(msg.id);
+                                      }
+                                      setExpandedHistoryMessages(newExpanded);
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/20 transition-colors">
+                                      {/* Status icon */}
+                                      {msg.status === 'sent' || msg.status === 'delivered' || msg.status === 'read' ? (
+                                        <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                                      ) : msg.status === 'failed' ? (
+                                        <XCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                                      ) : (
+                                        <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                      )}
+                                      
+                                      {/* Content */}
+                                      <div className="flex-1 min-w-0 text-sm">
+                                        <span className="font-medium">{msg.restaurant_name || 'Restaurant'}</span>
+                                        <span className="text-muted-foreground"> • {msg.recipient_name || msg.recipient_phone}</span>
+                                        <span className="text-muted-foreground text-xs"> • {format(new Date(msg.created_at), "HH:mm")}</span>
+                                      </div>
+                                      
+                                      {/* View button */}
+                                      <CollapsibleTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="h-7 px-2 gap-1">
+                                          <Eye className="h-3.5 w-3.5" />
+                                          <span className="text-xs">Voir</span>
+                                        </Button>
+                                      </CollapsibleTrigger>
+                                    </div>
+                                    
+                                    <CollapsibleContent>
+                                      <div className="ml-7 mt-1 p-3 rounded-lg bg-secondary/30 border">
+                                        <pre className="whitespace-pre-wrap text-xs font-sans leading-relaxed">
+                                          {msg.message_content}
+                                        </pre>
+                                      </div>
+                                    </CollapsibleContent>
+                                  </Collapsible>
+                                ))}
+                              </CollapsibleContent>
+                            </Collapsible>
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    ));
+                  })()}
                 </div>
               )}
             </CardContent>
