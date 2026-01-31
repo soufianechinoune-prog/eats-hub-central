@@ -201,7 +201,7 @@ serve(async (req) => {
         ? validWaitTimes.reduce((sum, o) => sum + (o.avoidable_wait_time_minutes || 0), 0) / validWaitTimes.length
         : null;
 
-      // Fetch order errors for current week
+      // Fetch order errors for current week (for category breakdown and problematic products only)
       const { data: errors } = await supabase
         .from('order_errors')
         .select('id, error_category, item_title')
@@ -209,19 +209,32 @@ serve(async (req) => {
         .gte('error_date', start_date)
         .lte('error_date', end_date + 'T23:59:59');
 
-      // Fetch order errors for previous week
-      const { data: prevErrors } = await supabase
-        .from('order_errors')
-        .select('id')
+      // Fetch order accuracy from daily aggregated data (same source as dashboard)
+      const { data: accuracyData } = await supabase
+        .from('daily_order_accuracy')
+        .select('incorrect_orders_count')
         .eq('restaurant_id', restaurantId)
-        .gte('error_date', prevStartStr)
-        .lte('error_date', prevEndStr + 'T23:59:59');
+        .eq('period_type', 'current')
+        .gte('date', start_date)
+        .lte('date', end_date);
 
-      const errorCount = errors?.length || 0;
+      const errorCount = accuracyData?.reduce((sum, d) => sum + (d.incorrect_orders_count || 0), 0) || 0;
       const errorRate = orderCount > 0 ? (errorCount / orderCount) * 100 : null;
 
-      const prevErrorCount = prevErrors?.length || 0;
+      // Fetch previous week order accuracy
+      const { data: prevAccuracyData } = await supabase
+        .from('daily_order_accuracy')
+        .select('incorrect_orders_count')
+        .eq('restaurant_id', restaurantId)
+        .eq('period_type', 'current')
+        .gte('date', prevStartStr)
+        .lte('date', prevEndStr);
+
+      const prevErrorCount = prevAccuracyData?.reduce((sum, d) => sum + (d.incorrect_orders_count || 0), 0) || 0;
       const prevErrorRate = prevOrderCount > 0 ? (prevErrorCount / prevOrderCount) * 100 : null;
+
+      console.log(`[${restaurant.name}] Error rates: ${errorCount} errors (${errorRate?.toFixed(1) || '--'}%) vs prev: ${prevErrorCount} (${prevErrorRate?.toFixed(1) || '--'}%)`);
+
 
       // ============ ERROR BREAKDOWN BY CATEGORY ============
       const errorCategoryMap: Record<string, number> = {};
