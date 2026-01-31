@@ -1,171 +1,176 @@
 
+# Réorganisation de l'Historique des Rapports
 
-# Plan : Corrections et Historique des Rapports WhatsApp
+## Objectif
 
-## Problèmes identifiés
+Transformer la liste plate actuelle en une structure hiérarchique :
+1. **Niveau 1 : Date** (groupé par jour)
+2. **Niveau 2 : Type de rapport** (ex: "Rapport IA", "KPIs Hebdo")
+3. **Niveau 3 : Liste déroulante** des rapports individuels
 
-| Problème | Cause | Solution |
-|----------|-------|----------|
-| **Note avec 1 décimale au lieu de 2** | `toFixed(1)` utilisé partout dans `generate-ai-report` et `WeeklyReports.tsx` | Passer à `toFixed(2)` dans le prompt IA et l'affichage UI |
-| **Rapport IA disparaît quand on navigue** | Les rapports générés sont stockés dans le state React local qui se réinitialise à chaque navigation | Persister les rapports "en attente d'envoi" dans une table ou localStorage |
-| **Pas d'historique des rapports envoyés** | L'historique existe dans `message_history` mais aucune UI pour le consulter | Ajouter un onglet "Historique" dans l'interface Rapports |
-| **JUVISY sans commandes ?** | D'après les données, JUVISY a bien 344 commandes. L'image montre aussi 344 commandes. Peut-être un problème temporaire lors de la génération ? | Vérifier la logique de récupération des données |
+## Nouvelle Structure UI
 
----
-
-## Phase 1 : Afficher la note avec 2 décimales
-
-### Fichier `generate-ai-report/index.ts`
-
-Modifier le prompt pour utiliser `.toFixed(2)` au lieu de `.toFixed(1)` pour la note moyenne :
-
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│  📋 Historique des rapports envoyés                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  📅 31 janvier 2026                              [3 rapports]  ▼   │
+│  ├─────────────────────────────────────────────────────────────────│
+│  │  🏷️ Rapport IA                                (3)           ▼   │
+│  │  ├─ ✅ BOURG-EN-BRESSE • Jamel • 09:41         [Voir]           │
+│  │  ├─ ✅ BONNEUIL-SUR-MARNE • Ismael • 09:40     [Voir]           │
+│  │  └─ ✅ JUVISY-SUR-ORGE • Amar AOUS • 09:40     [Voir]           │
+│  │                                                                  │
+│                                                                     │
+│  📅 29 janvier 2026                              [2 rapports]  ▼   │
+│  ├─────────────────────────────────────────────────────────────────│
+│  │  🏷️ Rapport IA                                (2)           ▼   │
+│  │  ├─ ✅ ATHIS-MONS • Younous • 11:43            [Voir]           │
+│  │  └─ ✅ ATHIS-MONS • Younous • 10:42            [Voir]           │
+│  │                                                                  │
+│                                                                     │
+│  📅 18 décembre 2025                             [4 rapports]  ▼   │
+│  ├─────────────────────────────────────────────────────────────────│
+│  │  🏷️ Rapport                                   (4)           ▼   │
+│  │  ├─ ✅ ANTONY • Saleh • 15:56                  [Voir]           │
+│  │  ├─ ✅ JUVISY-SUR-ORGE • Eymen • 15:56         [Voir]           │
+│  │  └─ ...                                                          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
-Ligne 439 actuelle:
-- Note moyenne: ${kpis.average_rating !== null ? kpis.average_rating.toFixed(1) : '--'}
 
-Devient:
-- Note moyenne: ${kpis.average_rating !== null ? kpis.average_rating.toFixed(2) : '--'}
-```
+## Données existantes
 
-Appliquer dans toutes les fonctions de génération de rapport (global, reviews, errors, etc.)
+Les messages stockés dans `message_history` sont déjà typés :
+- `message_type = 'report'` : Tous les rapports
+- Possibilité de distinguer "Rapport IA" vs "Template standard" via un champ additionnel ou le contenu
 
-### Fichier `WeeklyReports.tsx`
+Exemple de données actuelles :
+| Date | Nombre de rapports |
+|------|--------------------|
+| 31 janvier 2026 | 3 |
+| 29 janvier 2026 | 2 |
+| 18 décembre 2025 | 4 |
+| 2 décembre 2025 | 3 |
 
-Modifier l'affichage dans les badges et grilles KPI :
-- Ligne 920 : `.toFixed(1)` → `.toFixed(2)`
-- Ligne 969 : `.toFixed(1)` → `.toFixed(2)`
-- Ligne 1023 : `.toFixed(1)` → `.toFixed(2)`
+## Implémentation Technique
 
----
-
-## Phase 2 : Persister les rapports en cours
-
-### Option A : Stockage localStorage (simple, immédiat)
-
-Sauvegarder `generatedKPIs` et `editedMessages` dans localStorage quand ils changent, et les restaurer au chargement du composant.
-
-Avantages :
-- Rapide à implémenter
-- Pas de modification BDD
-- Persiste même si l'onglet est fermé
-
-### Option B : Table `pending_reports` (plus robuste)
-
-Créer une table pour stocker les rapports générés mais pas encore envoyés.
-
-Je recommande **Option A** pour la simplicité.
-
-### Implémentation (Option A)
+### 1. Grouper les données par date puis type
 
 ```typescript
-// À l'initialisation du composant
-useEffect(() => {
-  const savedKPIs = localStorage.getItem('pending-reports-kpis');
-  const savedMessages = localStorage.getItem('pending-reports-messages');
-  if (savedKPIs) setGeneratedKPIs(JSON.parse(savedKPIs));
-  if (savedMessages) setEditedMessages(JSON.parse(savedMessages));
-}, []);
-
-// Sauvegarder quand les données changent
-useEffect(() => {
-  if (generatedKPIs.length > 0) {
-    localStorage.setItem('pending-reports-kpis', JSON.stringify(generatedKPIs));
-    localStorage.setItem('pending-reports-messages', JSON.stringify(editedMessages));
-  }
-}, [generatedKPIs, editedMessages]);
-
-// Nettoyer après envoi réussi
-const clearPendingReports = () => {
-  localStorage.removeItem('pending-reports-kpis');
-  localStorage.removeItem('pending-reports-messages');
-};
-```
-
----
-
-## Phase 3 : Ajouter un onglet Historique
-
-### Nouvelle UI dans WeeklyReports.tsx
-
-Ajouter un 3ème onglet "Historique" qui affiche les messages envoyés depuis `message_history` :
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Tabs: [Templates] [Envoi (4)] [Historique]                             │
-├─────────────────────────────────────────────────────────────────────────┤
-│  Filtres: [Type de rapport ▼] [Restaurant ▼] [Période ▼]                │
-├─────────────────────────────────────────────────────────────────────────┤
-│  31/01/2026 08:41 | JUVISY | Amar AOUS | ✅ Envoyé | Rapport IA         │
-│  31/01/2026 08:40 | BONNEUIL | Ismael Chinoune | ✅ Envoyé | Rapport IA │
-│  29/01/2026 10:43 | ATHIS-MONS | Younous Chinoune | ✅ Envoyé | Report  │
-│  ...                                                                    │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Structure de la requête
-
-```typescript
-const { data: history } = useQuery({
-  queryKey: ['report-history', filters],
-  queryFn: async () => {
-    let query = supabase
-      .from('message_history')
-      .select('*')
-      .eq('direction', 'outbound')
-      .eq('message_type', 'report')
-      .order('created_at', { ascending: false })
-      .limit(100);
+// Grouper par date
+const groupedHistory = useMemo(() => {
+  const groups: Record<string, Record<string, typeof reportHistory>> = {};
+  
+  reportHistory.forEach((msg) => {
+    const dateKey = format(new Date(msg.created_at), "yyyy-MM-dd");
+    const typeKey = msg.message_type === 'report' 
+      ? (msg.message_content?.includes('PLUS DE DÉTAILS') ? 'Rapport IA' : 'Rapport')
+      : msg.message_type;
     
-    if (filters.restaurantId) {
-      query = query.eq('restaurant_id', filters.restaurantId);
-    }
-    // Autres filtres...
-    
-    return query;
-  }
-});
+    if (!groups[dateKey]) groups[dateKey] = {};
+    if (!groups[dateKey][typeKey]) groups[dateKey][typeKey] = [];
+    groups[dateKey][typeKey].push(msg);
+  });
+  
+  // Trier par date décroissante
+  return Object.entries(groups)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, types]) => ({
+      date,
+      dateLabel: format(new Date(date), "d MMMM yyyy", { locale: fr }),
+      types: Object.entries(types).map(([type, messages]) => ({
+        type,
+        messages,
+        count: messages.length
+      })),
+      totalCount: Object.values(types).flat().length
+    }));
+}, [reportHistory]);
 ```
 
-### Informations à afficher
+### 2. Nouvelle structure de composants Collapsible imbriqués
 
-| Colonne | Champ |
-|---------|-------|
-| Date/Heure | `created_at` |
-| Restaurant | `restaurant_name` |
-| Destinataire | `recipient_name` |
-| Type | `message_type` (+ badge si rapport IA) |
-| Statut | `status` avec icône (✅ sent, ❌ failed) |
-| Actions | Bouton "Voir message" (expand) |
+```tsx
+{groupedHistory.map((dateGroup) => (
+  <Collapsible key={dateGroup.date} defaultOpen>
+    {/* Niveau 1 : Date */}
+    <CollapsibleTrigger className="w-full">
+      <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4" />
+          <span className="font-medium">{dateGroup.dateLabel}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">{dateGroup.totalCount} rapport(s)</Badge>
+          <ChevronDown className="h-4 w-4" />
+        </div>
+      </div>
+    </CollapsibleTrigger>
+    
+    <CollapsibleContent className="pl-4 mt-2 space-y-2">
+      {dateGroup.types.map((typeGroup) => (
+        <Collapsible key={typeGroup.type} defaultOpen>
+          {/* Niveau 2 : Type de rapport */}
+          <CollapsibleTrigger className="w-full">
+            <div className="flex items-center justify-between p-2 rounded-md hover:bg-secondary/30">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span>{typeGroup.type}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{typeGroup.count}</Badge>
+                <ChevronDown className="h-4 w-4" />
+              </div>
+            </div>
+          </CollapsibleTrigger>
+          
+          <CollapsibleContent className="pl-4 mt-1 space-y-1">
+            {/* Niveau 3 : Rapports individuels */}
+            {typeGroup.messages.map((msg) => (
+              <div key={msg.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/20">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <div className="flex-1">
+                  <span className="font-medium">{msg.restaurant_name}</span>
+                  <span className="text-muted-foreground"> • {msg.recipient_name}</span>
+                  <span className="text-muted-foreground text-sm"> • {format(new Date(msg.created_at), "HH:mm")}</span>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => toggleExpand(msg.id)}>
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+      ))}
+    </CollapsibleContent>
+  </Collapsible>
+))}
+```
 
----
+### 3. Distinction des types de rapports
 
-## Fichiers à modifier
+Pour différencier les types dans l'historique :
+
+| Type affiché | Critère de détection |
+|--------------|----------------------|
+| **Rapport IA** | Le contenu contient "PLUS DE DÉTAILS" (menu interactif) |
+| **Rapport** | Autres rapports standards sans menu interactif |
+
+Optionnel : ajouter un champ `template_name` ou `report_subtype` lors de l'enregistrement dans `message_history` pour un tri plus précis.
+
+## Fichier à modifier
 
 | Fichier | Modifications |
 |---------|---------------|
-| `supabase/functions/generate-ai-report/index.ts` | `.toFixed(1)` → `.toFixed(2)` pour les notes |
-| `src/components/messaging/WeeklyReports.tsx` | 1. Affichage note 2 décimales |
-|  | 2. Persistance localStorage |
-|  | 3. Nouvel onglet "Historique" |
+| `src/components/messaging/WeeklyReports.tsx` | 1. Créer `groupedHistory` avec useMemo pour grouper par date/type |
+|  | 2. Remplacer la boucle simple par des Collapsible imbriqués |
+|  | 3. Ajouter les styles visuels pour la hiérarchie |
 
----
+## Avantages
 
-## Résultat attendu
-
-1. **Notes affichées en 2 décimales** : `4.82` au lieu de `4.8`
-2. **Rapports persistants** : Naviguer hors de la page et revenir conserve les rapports générés
-3. **Historique visible** : Onglet dédié pour voir tous les rapports envoyés avec filtres
-
----
-
-## Question sur JUVISY
-
-D'après la base de données et l'image que tu m'as montrée, JUVISY affiche bien **344 commandes** et **4.8 de note**. 
-
-Peux-tu préciser ce qui ne fonctionnait pas exactement ? Était-ce :
-- Un problème lors de la **génération** du rapport IA (le message généré n'incluait pas les commandes) ?
-- Un **affichage vide** temporaire qui s'est corrigé ?
-- Un **autre restaurant** qui avait ce problème ?
-
-Si le problème était dans le message IA généré (pas dans l'affichage UI), je devrai regarder les logs de la fonction `generate-ai-report` pour comprendre.
-
+1. **Lisibilité** : Vue claire des envois par jour
+2. **Navigation rapide** : Replier/déplier les jours non pertinents  
+3. **Organisation** : Distinguer les types de rapports au sein d'une même journée
+4. **Extensible** : Facile d'ajouter de nouveaux types (Alertes, Détails erreurs, etc.)
