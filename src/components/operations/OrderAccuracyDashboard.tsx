@@ -228,7 +228,10 @@ export function OrderAccuracyDashboard({
     },
   });
 
-  // Fetch sales data for error rate calculation
+  // Check if we need daily sales data (for quick periods or range mode)
+  const needsDailySales = ["range", "previous_week", "7d", "30d", "current_month"].includes(periodMode) || !!chartSelectedMonth;
+
+  // Fetch sales data for error rate calculation (monthly RPC for year/month modes)
   const { data: salesData } = useQuery({
     queryKey: ["sales-for-error-rate", restaurantIds, selectedYear, periodMode],
     queryFn: async () => {
@@ -241,21 +244,24 @@ export function OrderAccuracyDashboard({
       if (error) return [];
       return data || [];
     },
-    enabled: periodMode !== "range",
+    // Only use monthly RPC for year/month views, not for quick periods
+    enabled: !needsDailySales && periodMode !== "range",
   });
 
-  // Fetch daily sales data for range mode or drill-down
+  // Fetch daily sales data for range mode, quick periods, or drill-down
   const { data: dailySalesData } = useQuery({
     queryKey: ["daily-sales-for-error-rate", restaurantIds, effectiveDateRange.startDate, effectiveDateRange.endDate, periodMode, chartSelectedMonth],
     queryFn: async () => {
-      // Use effective date range for range mode, or monthly range for drill-down
+      // Use effective date range for quick periods/range mode, or monthly range for drill-down
       let startDate: string;
       let endDate: string;
       
-      if (periodMode === "range") {
+      if (needsDailySales && !chartSelectedMonth) {
+        // Quick periods or range mode - use effective date range
         startDate = effectiveDateRange.startDate;
         endDate = effectiveDateRange.endDate;
       } else if (chartSelectedMonth) {
+        // Drill-down into a specific month
         startDate = `${selectedYear}-${String(chartSelectedMonth).padStart(2, "0")}-01`;
         const lastDay = new Date(selectedYear, chartSelectedMonth, 0).getDate();
         endDate = `${selectedYear}-${String(chartSelectedMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
@@ -273,7 +279,7 @@ export function OrderAccuracyDashboard({
       if (error) return [];
       return data || [];
     },
-    enabled: periodMode === "range" || !!chartSelectedMonth,
+    enabled: needsDailySales || !!chartSelectedMonth,
   });
 
   // Determine which data source to use
@@ -352,8 +358,10 @@ export function OrderAccuracyDashboard({
 
   // Calculate order count from sales data
   const orderCount = useMemo(() => {
-    // For range mode, use daily sales data
-    if (periodMode === "range") {
+    // For quick periods (range, previous_week, 7d, 30d, current_month), use daily sales data
+    const isQuickPeriod = ["range", "previous_week", "7d", "30d", "current_month"].includes(periodMode);
+    
+    if (isQuickPeriod) {
       if (!dailySalesData || dailySalesData.length === 0) return 0;
       return dailySalesData.reduce((sum: number, r: any) => sum + (r.order_count || 0), 0);
     }
