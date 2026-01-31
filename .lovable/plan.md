@@ -1,66 +1,87 @@
 
-# Correction du double comptage des erreurs
+# Modification des sources de données et des libellés pour les temps de préparation
 
-## Diagnostic confirmé
+## Résumé de la demande
 
-Le taux d'erreur affiché (8.3%) est exactement le double du taux réel Uber (4%) parce que le dashboard additionne les lignes `period_type = 'current'` ET `period_type = 'previous'` au lieu de ne compter que `current`.
+L'utilisateur veut :
+1. **Dans les rapports WhatsApp** : Le KPI "Temps prep" (actuellement 9 min dans la capture) doit utiliser les données de "Prépa+Livraison" (`total_prep_delivery_time_minutes`) au lieu du temps de prépa initial (`initial_prep_time_minutes`). Le label reste "Temps prep" ou "Temps de préparation"
+2. **Dans les onglets Opérations** : Renommer les 3 onglets de temps :
+   - "Temps de prépa" → "Temps de prépa initial"
+   - "Temps d'attente" → "Temps d'attente du coursier (restaurant)"
+   - "Prépa+Livraison" → "Temps de prépa total"
 
-| Source | Erreurs | Taux |
-|--------|---------|------|
-| Uber Eats Manager | 23 | 4% |
-| Notre plateforme (buggée) | 46 | 8.3% |
-| Après correction | 23 | ~4% |
+---
 
-## Solution en 2 parties
+## Partie 1 : Modification des edge functions pour les rapports WhatsApp
 
-### Partie 1 : Corriger le dashboard (prioritaire)
+### 1.1 Fichier `supabase/functions/generate-weekly-report/index.ts`
 
-Modifier `src/components/operations/OrderAccuracyDashboard.tsx` pour filtrer sur `period_type = 'current'` dans la requête de récupération des données.
+**Modification de la requête order_history** (lignes 117-132) :
+- Ajouter `total_prep_delivery_time_minutes` à la sélection
+- Utiliser ce champ pour `avg_prep_time` au lieu de `initial_prep_time_minutes`
 
-**Fichier** : `src/components/operations/OrderAccuracyDashboard.tsx`
-
-Ligne 128-133, ajouter le filtre :
 ```typescript
-// Avant
-let query = supabase
-  .from("daily_order_accuracy")
-  .select("*")
-  .gte("date", effectiveDateRange.startDate)
-  .lte("date", effectiveDateRange.endDate)
-  .order("date", { ascending: true });
+// Avant (lignes 117-127)
+const { data: orderHistory } = await supabase
+  .from('order_history')
+  .select('initial_prep_time_minutes, avoidable_wait_time_minutes')
+  ...
 
 // Après
-let query = supabase
-  .from("daily_order_accuracy")
-  .select("*")
-  .eq("period_type", "current")  // NOUVEAU : ne compter que les données courantes
-  .gte("date", effectiveDateRange.startDate)
-  .lte("date", effectiveDateRange.endDate)
-  .order("date", { ascending: true });
+const { data: orderHistory } = await supabase
+  .from('order_history')
+  .select('total_prep_delivery_time_minutes, avoidable_wait_time_minutes')
+  ...
+
+// Calcul (lignes 124-127)
+// Avant
+const validPrepTimes = orderHistory?.filter(o => o.initial_prep_time_minutes !== null) || [];
+const avgPrepTime = validPrepTimes.length > 0
+  ? validPrepTimes.reduce((sum, o) => sum + (o.initial_prep_time_minutes || 0), 0) / validPrepTimes.length
+  : null;
+
+// Après
+const validPrepTimes = orderHistory?.filter(o => o.total_prep_delivery_time_minutes !== null) || [];
+const avgPrepTime = validPrepTimes.length > 0
+  ? validPrepTimes.reduce((sum, o) => sum + (o.total_prep_delivery_time_minutes || 0), 0) / validPrepTimes.length
+  : null;
 ```
 
-### Partie 2 : Nettoyer les doublons en base (optionnel mais recommandé)
+### 1.2 Fichier `supabase/functions/generate-ai-report/index.ts`
 
-Supprimer les lignes `previous` qui sont des doublons des lignes `current` sur les mêmes dates. Ces lignes n'auraient jamais dû exister car le CSV contenait une seule période de données.
+**Même modification** (lignes 186-197) :
+- Remplacer `initial_prep_time_minutes` par `total_prep_delivery_time_minutes`
 
-Requête SQL à exécuter manuellement :
-```sql
-DELETE FROM daily_order_accuracy 
-WHERE period_type = 'previous' 
-  AND date >= '2026-01-12' 
-  AND date <= '2026-01-18';
-```
+---
 
-## Autres composants à vérifier
+## Partie 2 : Renommage des onglets Opérations
 
-Le même filtre `period_type = 'current'` devrait être appliqué partout où on query `daily_order_accuracy` :
+### 2.1 Fichier `src/components/analytics/OperationsAnalytics.tsx`
 
-1. `ErrorRateEvolutionChart.tsx` - si applicable
-2. `useNetworkStats.ts` - hook centralisé
-3. Edge functions (`generate-weekly-report`, `generate-ai-report`) - déjà corrigées
+**Modification des TabsTrigger** (lignes 563-586) :
+
+| Onglet | Value | Avant | Après (complet) | Après (mobile) |
+|--------|-------|-------|-----------------|----------------|
+| prepTime | Temps de prépa | Temps de prépa initial | Prépa initial |
+| waitTime | Temps d'attente | Temps d'attente du coursier (restaurant) | Attente coursier |
+| totalDelivery | Prépa+Livraison | Temps de prépa total | Prépa total |
+
+---
+
+## Fichiers à modifier
+
+| Fichier | Modification |
+|---------|--------------|
+| `supabase/functions/generate-weekly-report/index.ts` | Query + calcul `total_prep_delivery_time_minutes` |
+| `supabase/functions/generate-ai-report/index.ts` | Query + calcul `total_prep_delivery_time_minutes` |
+| `src/components/analytics/OperationsAnalytics.tsx` | Renommage des 3 onglets |
+
+---
 
 ## Résultat attendu
 
-Après correction, le dashboard Opérations affichera :
-- **Bonneuil** : 23 erreurs / ~570 commandes = **~4%** (identique à Uber)
-- Les rapports WhatsApp utiliseront les mêmes chiffres cohérents
+1. **Rapports WhatsApp** : Le "Temps prep" affichera le temps total (prépa + livraison), typiquement ~15 min au lieu de ~9 min
+2. **Onglets Opérations** :
+   - "Temps de prépa initial" → analyse du temps de préparation en cuisine
+   - "Temps d'attente du coursier (restaurant)" → temps d'attente évitable
+   - "Temps de prépa total" → temps de bout en bout (commande à livraison)
