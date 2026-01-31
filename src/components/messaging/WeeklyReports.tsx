@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +57,10 @@ import {
   Bell,
   BellOff,
   Sparkles,
+  History,
+  CheckCircle,
+  XCircle,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, subWeeks } from "date-fns";
@@ -228,7 +232,7 @@ export default function WeeklyReports() {
   const queryClient = useQueryClient();
   
   // State
-  const [activeTab, setActiveTab] = useState<"templates" | "send">("templates");
+  const [activeTab, setActiveTab] = useState<"templates" | "send" | "history">("templates");
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Partial<ReportTemplate> | null>(null);
@@ -242,6 +246,62 @@ export default function WeeklyReports() {
   const [generatedKPIs, setGeneratedKPIs] = useState<WeeklyKPIs[]>([]);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  
+  // History state
+  const [expandedHistoryMessages, setExpandedHistoryMessages] = useState<Set<string>>(new Set());
+
+  // LocalStorage persistence keys
+  const STORAGE_KEYS = {
+    kpis: 'pending-reports-kpis',
+    messages: 'pending-reports-messages',
+    selectedReports: 'pending-reports-selected',
+  };
+
+  // Load persisted reports on mount
+  useEffect(() => {
+    try {
+      const savedKPIs = localStorage.getItem(STORAGE_KEYS.kpis);
+      const savedMessages = localStorage.getItem(STORAGE_KEYS.messages);
+      const savedSelected = localStorage.getItem(STORAGE_KEYS.selectedReports);
+      
+      if (savedKPIs) {
+        const parsed = JSON.parse(savedKPIs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setGeneratedKPIs(parsed);
+        }
+      }
+      if (savedMessages) {
+        const parsed = JSON.parse(savedMessages);
+        if (typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          setEditedMessages(parsed);
+        }
+      }
+      if (savedSelected) {
+        const parsed = JSON.parse(savedSelected);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSelectedReports(new Set(parsed));
+        }
+      }
+    } catch (e) {
+      console.error('Error loading persisted reports:', e);
+    }
+  }, []);
+
+  // Persist reports when they change
+  useEffect(() => {
+    if (generatedKPIs.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.kpis, JSON.stringify(generatedKPIs));
+      localStorage.setItem(STORAGE_KEYS.messages, JSON.stringify(editedMessages));
+      localStorage.setItem(STORAGE_KEYS.selectedReports, JSON.stringify(Array.from(selectedReports)));
+    }
+  }, [generatedKPIs, editedMessages, selectedReports]);
+
+  // Clear persisted data after successful send
+  const clearPersistedReports = () => {
+    localStorage.removeItem(STORAGE_KEYS.kpis);
+    localStorage.removeItem(STORAGE_KEYS.messages);
+    localStorage.removeItem(STORAGE_KEYS.selectedReports);
+  };
 
   // Get last week's date range
   const lastWeek = useMemo(() => {
@@ -285,6 +345,23 @@ export default function WeeklyReports() {
 
       if (error) throw error;
       return data as Restaurant[];
+    },
+  });
+
+  // Fetch report history
+  const { data: reportHistory = [], isLoading: loadingHistory } = useQuery({
+    queryKey: ["report-history"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("message_history")
+        .select("*")
+        .eq("direction", "outbound")
+        .eq("message_type", "report")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -382,7 +459,7 @@ export default function WeeklyReports() {
 
     if (blocks.rating) {
       lines.push("⭐ *NOTE MOYENNE*");
-      lines.push(`• Moyenne : ${kpi.average_rating !== null ? kpi.average_rating.toFixed(1) : "--"} ${getStatusEmoji(kpi.average_rating, objectives.rating)} (${kpi.review_count} avis)`);
+      lines.push(`• Moyenne : ${kpi.average_rating !== null ? kpi.average_rating.toFixed(2) : "--"} ${getStatusEmoji(kpi.average_rating, objectives.rating)} (${kpi.review_count} avis)`);
       lines.push(`   ↳ Objectif : ${objectives.rating}`);
       lines.push("");
     }
@@ -550,6 +627,7 @@ export default function WeeklyReports() {
         setGeneratedKPIs([]);
         setSelectedReports(new Set());
         setEditedMessages({});
+        clearPersistedReports();
         setActiveTab("templates");
         queryClient.invalidateQueries({ queryKey: ["report-history"] });
       } else {
@@ -634,8 +712,8 @@ export default function WeeklyReports() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "templates" | "send")}>
-        <TabsList className="grid w-full max-w-md grid-cols-2 p-1 bg-secondary/50 backdrop-blur-sm">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "templates" | "send" | "history")}>
+        <TabsList className="grid w-full max-w-lg grid-cols-3 p-1 bg-secondary/50 backdrop-blur-sm">
           <TabsTrigger value="templates" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <FileText className="h-4 w-4" />
             Templates
@@ -643,6 +721,10 @@ export default function WeeklyReports() {
           <TabsTrigger value="send" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" disabled={generatedKPIs.length === 0}>
             <Send className="h-4 w-4" />
             Envoi ({generatedKPIs.length})
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <History className="h-4 w-4" />
+            Historique
           </TabsTrigger>
         </TabsList>
 
@@ -917,7 +999,7 @@ export default function WeeklyReports() {
                               </Badge>
                               <Badge variant="outline" className="gap-1">
                                 <Star className="h-3 w-3" />
-                                {kpi.average_rating?.toFixed(1) || "--"}
+                                {kpi.average_rating?.toFixed(2) || "--"}
                               </Badge>
                               {kpi.error_rate !== null && kpi.error_rate > (selectedTemplate?.objectives.error_rate || 3) && (
                                 <Badge variant="destructive" className="gap-1">
@@ -966,7 +1048,7 @@ export default function WeeklyReports() {
                                     Note moyenne
                                   </div>
                                   <div className="font-semibold flex items-center gap-1">
-                                    {kpi.average_rating?.toFixed(1) || "--"}
+                                    {kpi.average_rating?.toFixed(2) || "--"}
                                     <span className="text-xs">{getStatusEmoji(kpi.average_rating, selectedTemplate?.objectives.rating || 4.4)}</span>
                                   </div>
                                 </div>
@@ -1020,7 +1102,7 @@ export default function WeeklyReports() {
                                     panier_moyen: formatCurrency(kpi.average_basket),
                                     variation_cmd: kpi.order_variation !== null ? `${kpi.order_variation >= 0 ? "+" : ""}${kpi.order_variation.toFixed(0)}%` : "--",
                                     variation_ca: kpi.revenue_variation !== null ? `${kpi.revenue_variation >= 0 ? "+" : ""}${kpi.revenue_variation.toFixed(0)}%` : "--",
-                                    note: kpi.average_rating?.toFixed(1) || "--",
+                                    note: kpi.average_rating?.toFixed(2) || "--",
                                     nb_avis: String(kpi.review_count),
                                     emoji_note: getStatusEmoji(kpi.average_rating, selectedTemplate?.objectives.rating || 4.4),
                                     temps_prep: formatDuration(kpi.avg_prep_time),
@@ -1043,6 +1125,106 @@ export default function WeeklyReports() {
               </div>
             </>
           )}
+        </TabsContent>
+
+        {/* History Tab */}
+        <TabsContent value="history" className="space-y-4 mt-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Historique des rapports envoyés
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Les 100 derniers rapports envoyés via WhatsApp
+              </p>
+            </CardHeader>
+            <CardContent>
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : reportHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Aucun rapport envoyé pour le moment</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {reportHistory.map((msg) => (
+                    <Collapsible 
+                      key={msg.id}
+                      open={expandedHistoryMessages.has(msg.id)}
+                      onOpenChange={() => {
+                        const newExpanded = new Set(expandedHistoryMessages);
+                        if (newExpanded.has(msg.id)) {
+                          newExpanded.delete(msg.id);
+                        } else {
+                          newExpanded.add(msg.id);
+                        }
+                        setExpandedHistoryMessages(newExpanded);
+                      }}
+                    >
+                      <div className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-secondary/30 transition-colors">
+                        {/* Status icon */}
+                        <div className="flex-shrink-0">
+                          {msg.status === 'sent' || msg.status === 'delivered' || msg.status === 'read' ? (
+                            <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            </div>
+                          ) : msg.status === 'failed' ? (
+                            <div className="h-8 w-8 rounded-full bg-red-500/10 flex items-center justify-center">
+                              <XCircle className="h-4 w-4 text-red-600" />
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Main content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium truncate">
+                              {msg.restaurant_name || 'Restaurant'}
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {msg.message_type === 'report' ? 'Rapport' : msg.message_type}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground flex items-center gap-2">
+                            <span>{msg.recipient_name || msg.recipient_phone}</span>
+                            <span>•</span>
+                            <span>{format(new Date(msg.created_at), "d MMM yyyy 'à' HH:mm", { locale: fr })}</span>
+                          </div>
+                        </div>
+
+                        {/* Expand button */}
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="flex-shrink-0 gap-1">
+                            <Eye className="h-4 w-4" />
+                            <ChevronDown className={cn(
+                              "h-4 w-4 transition-transform",
+                              expandedHistoryMessages.has(msg.id) && "rotate-180"
+                            )} />
+                          </Button>
+                        </CollapsibleTrigger>
+                      </div>
+
+                      <CollapsibleContent>
+                        <div className="mt-2 p-4 rounded-lg bg-secondary/30 border">
+                          <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed">
+                            {msg.message_content}
+                          </pre>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
       </Tabs>

@@ -436,7 +436,7 @@ PRÉNOM MANAGER: ${kpis.manager_first_name}
 - Commandes: ${kpis.order_count} ${kpis.order_variation !== null ? `(${kpis.order_variation >= 0 ? '+' : ''}${kpis.order_variation.toFixed(0)}% vs semaine précédente)` : ''}
 - CA: ${kpis.revenue.toFixed(0)}€
 - Panier moyen: ${kpis.average_basket.toFixed(1)}€
-- Note moyenne: ${kpis.average_rating !== null ? kpis.average_rating.toFixed(1) : '--'} ${ratingTrend} (${kpis.review_count} avis, vs ${kpis.prev_average_rating?.toFixed(1) || '--'} semaine précédente)
+- Note moyenne: ${kpis.average_rating !== null ? kpis.average_rating.toFixed(2) : '--'} ${ratingTrend} (${kpis.review_count} avis, vs ${kpis.prev_average_rating?.toFixed(2) || '--'} semaine précédente)
 - Taux d'erreur: ${kpis.error_rate !== null ? kpis.error_rate.toFixed(1) : '--'}% ${errorTrend} (${kpis.error_count} erreurs, vs ${kpis.prev_error_rate?.toFixed(1) || '--'}% semaine précédente)
 - Temps prépa moyen: ${kpis.avg_prep_time !== null ? Math.round(kpis.avg_prep_time) : '--'} min
 - Attente coursier: ${kpis.avg_courier_wait !== null ? Math.round(kpis.avg_courier_wait) : '--'} min
@@ -503,7 +503,7 @@ function generateFallbackMessage(kpis: WeeklyKPIs): string {
 
 📊 BILAN SEMAINE - ${kpis.restaurant_name}
 
-${ratingEmoji} Notes : ${kpis.average_rating?.toFixed(1) || '--'} (${kpis.review_count} avis)
+${ratingEmoji} Notes : ${kpis.average_rating?.toFixed(2) || '--'} (${kpis.review_count} avis)
 ${errorEmoji} Erreurs : ${kpis.error_rate?.toFixed(1) || '--'}% (${kpis.error_count} erreurs)
 
 📦 ${kpis.order_count} commandes | ${kpis.revenue.toFixed(0)}€ CA
