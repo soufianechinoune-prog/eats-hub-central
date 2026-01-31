@@ -23,6 +23,8 @@ interface WeeklyKPIs {
   avg_courier_wait: number | null;
   error_rate: number | null;
   error_count: number;
+  prev_error_rate: number | null;
+  prev_error_count: number;
 }
 
 serve(async (req) => {
@@ -129,16 +131,29 @@ serve(async (req) => {
         ? validWaitTimes.reduce((sum, o) => sum + (o.avoidable_wait_time_minutes || 0), 0) / validWaitTimes.length
         : null;
 
-      // Fetch order errors for current week
-      const { data: errors } = await supabase
-        .from('order_errors')
-        .select('id')
+      // Fetch order accuracy from daily aggregated data (same source as dashboard)
+      const { data: accuracyData } = await supabase
+        .from('daily_order_accuracy')
+        .select('incorrect_orders_count')
         .eq('restaurant_id', restaurantId)
-        .gte('error_date', start_date)
-        .lte('error_date', end_date + 'T23:59:59');
+        .eq('period_type', 'current')
+        .gte('date', start_date)
+        .lte('date', end_date);
 
-      const errorCount = errors?.length || 0;
+      const errorCount = accuracyData?.reduce((sum, d) => sum + (d.incorrect_orders_count || 0), 0) || 0;
       const errorRate = orderCount > 0 ? (errorCount / orderCount) * 100 : null;
+
+      // Fetch previous week order accuracy
+      const { data: prevAccuracyData } = await supabase
+        .from('daily_order_accuracy')
+        .select('incorrect_orders_count')
+        .eq('restaurant_id', restaurantId)
+        .eq('period_type', 'current')
+        .gte('date', prevStartStr)
+        .lte('date', prevEndStr);
+
+      const prevErrorCount = prevAccuracyData?.reduce((sum, d) => sum + (d.incorrect_orders_count || 0), 0) || 0;
+      const prevErrorRate = prevOrderCount > 0 ? (prevErrorCount / prevOrderCount) * 100 : null;
 
       reports.push({
         restaurant_id: restaurantId,
@@ -157,9 +172,11 @@ serve(async (req) => {
         avg_courier_wait: avgCourierWait,
         error_rate: errorRate,
         error_count: errorCount,
+        prev_error_rate: prevErrorRate,
+        prev_error_count: prevErrorCount,
       });
 
-      console.log(`Generated report for ${restaurant.name}: ${orderCount} orders, ${revenue.toFixed(2)}€, rating ${averageRating?.toFixed(1) || '--'}`);
+      console.log(`Generated report for ${restaurant.name}: ${orderCount} orders, ${revenue.toFixed(2)}€, errors: ${errorCount} (${errorRate?.toFixed(1) || '--'}%) vs prev: ${prevErrorCount} (${prevErrorRate?.toFixed(1) || '--'}%)`);
     }
 
     console.log(`Successfully generated ${reports.length} reports`);
