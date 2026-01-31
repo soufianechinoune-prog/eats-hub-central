@@ -565,24 +565,24 @@ export function OperationsAnalytics() {
             className="flex items-center gap-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg transition-all duration-200"
           >
             <Clock className="h-4 w-4" />
-            <span className="hidden sm:inline">Temps de prépa</span>
-            <span className="sm:hidden">Prépa</span>
+            <span className="hidden sm:inline">Temps de prépa initial</span>
+            <span className="sm:hidden">Prépa initial</span>
           </TabsTrigger>
           <TabsTrigger 
             value="waitTime" 
             className="flex items-center gap-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg transition-all duration-200"
           >
             <Timer className="h-4 w-4" />
-            <span className="hidden sm:inline">Temps d'attente</span>
-            <span className="sm:hidden">Attente</span>
+            <span className="hidden sm:inline">Temps d'attente du coursier (restaurant)</span>
+            <span className="sm:hidden">Attente coursier</span>
           </TabsTrigger>
           <TabsTrigger 
             value="totalDelivery" 
             className="flex items-center gap-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg transition-all duration-200"
           >
             <Truck className="h-4 w-4" />
-            <span className="hidden sm:inline">Prépa+Livraison</span>
-            <span className="sm:hidden">Total</span>
+            <span className="hidden sm:inline">Temps de prépa total</span>
+            <span className="sm:hidden">Prépa total</span>
           </TabsTrigger>
           <TabsTrigger 
             value="orderErrors" 

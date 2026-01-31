@@ -113,17 +113,17 @@ serve(async (req) => {
       const newCustomerCount = reviews?.filter(r => r.customer_type === 'new')?.length || 0;
       const newCustomerPercent = reviewCount > 0 ? (newCustomerCount / reviewCount) * 100 : null;
 
-      // Fetch order history for prep times
+      // Fetch order history for prep times (use total_prep_delivery_time for "Temps prep" KPI)
       const { data: orderHistory } = await supabase
         .from('order_history')
-        .select('initial_prep_time_minutes, avoidable_wait_time_minutes')
+        .select('total_prep_delivery_time_minutes, avoidable_wait_time_minutes')
         .eq('restaurant_id', restaurantId)
         .gte('order_datetime', start_date)
         .lte('order_datetime', end_date + 'T23:59:59');
 
-      const validPrepTimes = orderHistory?.filter(o => o.initial_prep_time_minutes !== null) || [];
+      const validPrepTimes = orderHistory?.filter(o => o.total_prep_delivery_time_minutes !== null) || [];
       const avgPrepTime = validPrepTimes.length > 0
-        ? validPrepTimes.reduce((sum, o) => sum + (o.initial_prep_time_minutes || 0), 0) / validPrepTimes.length
+        ? validPrepTimes.reduce((sum, o) => sum + (o.total_prep_delivery_time_minutes || 0), 0) / validPrepTimes.length
         : null;
 
       const validWaitTimes = orderHistory?.filter(o => o.avoidable_wait_time_minutes !== null) || [];
