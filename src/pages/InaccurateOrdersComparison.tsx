@@ -63,6 +63,7 @@ const InaccurateOrdersComparison = () => {
       const { data, error } = await supabase
         .from("daily_order_accuracy")
         .select("*")
+        .eq("period_type", "current")
         .in("restaurant_id", pinnedRestaurants.map(r => r.id))
         .gte("date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("date", format(dateRange.end, "yyyy-MM-dd"));

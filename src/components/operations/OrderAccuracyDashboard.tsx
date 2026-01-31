@@ -128,6 +128,7 @@ export function OrderAccuracyDashboard({
       let query = supabase
         .from("daily_order_accuracy")
         .select("*")
+        .eq("period_type", "current")
         .gte("date", effectiveDateRange.startDate)
         .lte("date", effectiveDateRange.endDate)
         .order("date", { ascending: true });
