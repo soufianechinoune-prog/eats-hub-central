@@ -1850,6 +1850,10 @@ export default function RestaurantActions() {
           actions={filteredActions}
           restaurants={restaurants}
           onActionClick={(action) => openEditDialog(action)}
+          onActionDelete={(action) => {
+            setActionToDelete(action);
+            setIsDeleteDialogOpen(true);
+          }}
           onActionDrop={(actionId, actionTitle, originalStart, originalEnd, newStart, newEnd, originalAudience, newAudience) => {
             setPendingDrop({
               actionId,
