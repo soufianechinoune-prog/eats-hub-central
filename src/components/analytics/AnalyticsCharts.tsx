@@ -60,6 +60,7 @@ import { ProfitabilityComparisonChart } from "@/components/compare/Profitability
 import { PromotionEvolutionChart } from "./PromotionEvolutionChart";
 import { CrossDataAnalysisChart } from "./CrossDataAnalysisChart";
 import { useFinancesDrilldown } from "@/hooks/useFinancesDrilldown";
+import { useUberOneStats } from "@/hooks/useUberOneStats";
 import {
   LineChart,
   Line,
@@ -620,6 +621,25 @@ export function AnalyticsCharts({
     granularity: 'daily',
     enabled: viewMode === 'revenue' && restaurantIds.length > 0,
   });
+  
+  // Fetch Uber One stats for the Cross Data Analysis chart
+  const { evolution: uberOneEvolution, isLoading: isUberOneLoading } = useUberOneStats({
+    restaurantIds,
+    startDate: profitStartDate,
+    endDate: profitEndDate,
+    periodMode: granularity === "daily" ? "month" : "year",
+    platform: selectedPlatform,
+  });
+  
+  // Transform Uber One data to match chart format
+  const uberOneDataForChart = useMemo(() => {
+    return uberOneEvolution?.map(e => ({
+      date: e.month, // YYYY-MM-DD or YYYY-MM
+      uberOnePercent: e.uberOnePercent,
+      uberOneCount: e.uberOneCount,
+      totalOrders: e.totalOrders,
+    })) || [];
+  }, [uberOneEvolution]);
   
   // Dynamic labels based on comparison mode
   const currentLabel = comparisonMode === "rollingPeriod" ? "Cette période" : String(selectedYear);
@@ -2991,13 +3011,14 @@ export function AnalyticsCharts({
         />
       )}
 
-      {/* Cross Data Analysis Chart (CA / Promos / Rentabilité) */}
+      {/* Cross Data Analysis Chart (CA / Promos / Rentabilité / Uber One) */}
       {showRevenue && revenueProfitabilityData && revenueProfitabilityData.length > 0 && (
         <CrossDataAnalysisChart
           data={revenueProfitabilityData}
           previousData={revenueProfitabilityPrevData || undefined}
           granularity={granularity}
           isLoading={isProfitabilityLoading}
+          uberOneData={uberOneDataForChart}
         />
       )}
 
