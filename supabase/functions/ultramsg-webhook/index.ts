@@ -1822,41 +1822,24 @@ serve(async (req) => {
         
         let targetRestaurant = null;
         
-        // If manager has multiple restaurants, find context from recent report
+        // Multi-restaurant managers: ALWAYS ask which restaurant
+        // Single-restaurant managers: use their only restaurant directly
         if (managerRestaurants.length > 1) {
-          console.log(`Manager has ${managerRestaurants.length} restaurants, looking for context...`);
-          const recentContext = await getRecentReportContext(supabase, normalizedPhone);
-          
-          if (recentContext) {
-            // Find matching restaurant from manager's list
-            targetRestaurant = managerRestaurants.find(
-              (r: any) => r.id === recentContext.restaurantId
-            );
-            if (targetRestaurant) {
-              console.log(`Using context from recent report: ${recentContext.restaurantName}`);
-            } else {
-              console.log(`Context restaurant ${recentContext.restaurantId} not in manager's list`);
-            }
-          }
-          
-          // If no context found, ask for selection
-          if (!targetRestaurant) {
-            console.log('No recent context found - asking for restaurant selection');
-            await sendRestaurantSelectionPrompt(
-              supabase,
-              normalizedPhone,
-              managerRestaurants.map((r: any) => ({ id: r.id, name: r.name })),
-              menuResponse.reportType,
-              menuResponse.detailLevel,
-              manager?.first_name || 'Manager'
-            );
-            return new Response(
-              JSON.stringify({ success: true, type: 'awaiting_restaurant_selection' }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
+          console.log(`Manager has ${managerRestaurants.length} restaurants - asking for selection`);
+          await sendRestaurantSelectionPrompt(
+            supabase,
+            normalizedPhone,
+            managerRestaurants.map((r: any) => ({ id: r.id, name: r.name })),
+            menuResponse.reportType,
+            menuResponse.detailLevel,
+            manager?.first_name || 'Manager'
+          );
+          return new Response(
+            JSON.stringify({ success: true, type: 'awaiting_restaurant_selection' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         } else {
-          // Single restaurant - use it
+          // Single restaurant - use it directly
           targetRestaurant = managerRestaurants[0];
         }
         
