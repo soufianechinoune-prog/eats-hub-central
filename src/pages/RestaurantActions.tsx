@@ -1854,6 +1854,7 @@ export default function RestaurantActions() {
             setActionToDelete(action);
             setIsDeleteDialogOpen(true);
           }}
+          onCreateAction={openCreateDialog}
           onActionDrop={(actionId, actionTitle, originalStart, originalEnd, newStart, newEnd, originalAudience, newAudience) => {
             setPendingDrop({
               actionId,

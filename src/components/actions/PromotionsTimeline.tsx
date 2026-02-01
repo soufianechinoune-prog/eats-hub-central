@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, useCallback } from "react";
 import { parseISO, startOfYear, endOfYear, differenceInDays, format, eachMonthOfInterval, isBefore, isAfter, addDays, startOfQuarter, endOfQuarter, setMonth } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, CalendarRange, GripVertical, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarRange, GripVertical, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -47,6 +47,7 @@ interface PromotionsTimelineProps {
   restaurants: Restaurant[];
   onActionClick: (action: RestaurantAction) => void;
   onActionDelete?: (action: RestaurantAction) => void;
+  onCreateAction?: () => void;
   onActionDrop?: (
     actionId: string,
     actionTitle: string,
@@ -270,7 +271,7 @@ function TimelineBlock({ action, left, width, borderColor, blockBg, restaurants,
   );
 }
 
-export function PromotionsTimeline({ actions, restaurants, onActionClick, onActionDelete, onActionDrop }: PromotionsTimelineProps) {
+export function PromotionsTimeline({ actions, restaurants, onActionClick, onActionDelete, onCreateAction, onActionDrop }: PromotionsTimelineProps) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [granularity, setGranularity] = useState<"month" | "quarter">("month");
   const [selectedQuarter, setSelectedQuarter] = useState<number | null>(null); // 0-3 for T1-T4, null for full year
@@ -479,6 +480,18 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
               onClick={() => setSelectedQuarter(null)}
             >
               Voir l'année
+            </Button>
+          )}
+          
+          {/* Create action button */}
+          {onCreateAction && (
+            <Button 
+              size="sm" 
+              className="h-8 gap-1.5"
+              onClick={onCreateAction}
+            >
+              <Plus className="h-4 w-4" />
+              Créer
             </Button>
           )}
         </div>
