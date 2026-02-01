@@ -1,163 +1,220 @@
 
-# Ajouter le % Uber One à l'Analyse Croisée
+# Ajout de la multi-sélection pour suppression groupée des actions
 
 ## Objectif
-Permettre de croiser le CA, les promos et la rentabilité avec le **% de clients Uber One** pour identifier les corrélations entre l'adhésion Uber One et les performances commerciales.
+Permettre de sélectionner plusieurs actions dans le tableau et de les supprimer en une seule fois, comme pour la page Restaurants.
 
-## Fonctionnalité
+## Aperçu de l'interface
 
-Un nouveau bouton toggle "% U1" (ou "Uber One") sera ajouté à côté des boutons existants (CA, Promos, Rentabilité). Quand activé, une nouvelle courbe violette affichera l'évolution du pourcentage de commandes Uber One sur l'axe droit (comme la rentabilité).
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ ☑  │ Plateforme │ Catégorie │ Action │ Période │ ... │ Actions │
+├─────────────────────────────────────────────────────────────────┤
+│ ☐  │ Uber       │ Menu      │ ...    │ ...     │ ... │ 🖊️ 🗑️   │
+│ ☑  │ Toutes     │ Menu      │ ...    │ ...     │ ... │ 🖊️ 🗑️   │
+│ ☑  │ Uber       │ Menu      │ ...    │ ...     │ ... │ 🖊️ 🗑️   │
+│ ☐  │ Deliveroo  │ Promo     │ ...    │ ...     │ ... │ 🖊️ 🗑️   │
+└─────────────────────────────────────────────────────────────────┘
 
-**Cas d'usage :**
-- Voir si les jours à forte proportion Uber One ont un CA différent
-- Analyser la corrélation entre promotions et attraction de clients Uber One
-- Identifier si la rentabilité varie selon le % Uber One
-
-## Aperçu visuel
-
-```
-[€ CA] [🎁 Promos] [% Rentabilité] [U1 Uber One] ← Nouveau bouton (violet/mauve)
-
-Graphique:
-- Barres bleues : CA
-- Barres orange : Promos
-- Courbe verte : Rentabilité (%)
-- Courbe violette : % Uber One ← Nouvelle ligne
+                    ┌─────────────────────────────────────────────┐
+                    │  2 actions sélectionnées  │ 🗑️ Supprimer │ ✕ │
+                    └─────────────────────────────────────────────┘
+                                (barre flottante en bas)
 ```
 
 ## Modifications techniques
 
-### 1. CrossDataAnalysisChart.tsx
+### 1. Nouveaux états pour la sélection
 
-**Ajouter une nouvelle métrique :**
 ```typescript
-type MetricKey = "revenue" | "promos" | "profitability" | "uberOne";
+// Dans RestaurantActions.tsx
+const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
+```
 
-const METRIC_CONFIG: Record<MetricKey, { label: string; color: string; icon: typeof Euro }> = {
-  revenue: { label: "CA", color: "hsl(var(--primary))", icon: Euro },
-  promos: { label: "Promos", color: "hsl(25, 95%, 53%)", icon: Gift },
-  profitability: { label: "Rentabilité", color: "hsl(142, 76%, 36%)", icon: Percent },
-  uberOne: { label: "Uber One", color: "hsl(270, 70%, 55%)", icon: Crown }, // Violet/mauve
+### 2. Checkbox dans l'en-tête du tableau (sélection globale)
+
+Ajouter une colonne checkbox en première position du tableau :
+- En-tête : checkbox "tout sélectionner / tout désélectionner" 
+- Si toutes les actions filtrées sont sélectionnées : coché
+- Si certaines mais pas toutes : état indeterminate
+- Sinon : non coché
+
+### 3. Checkbox par ligne
+
+Chaque ligne aura une checkbox permettant de sélectionner/désélectionner l'action individuelle.
+
+### 4. Barre d'actions flottante
+
+Afficher une barre fixe en bas de l'écran quand au moins une action est sélectionnée :
+- Compteur : "X action(s) sélectionnée(s)"
+- Bouton "Supprimer" (rouge)
+- Bouton fermer (X) pour désélectionner tout
+
+### 5. Dialog de confirmation de suppression groupée
+
+Modifier le dialog existant ou en créer un nouveau pour gérer la suppression de plusieurs actions :
+- Titre : "Supprimer X actions ?"
+- Liste des titres des actions à supprimer
+- Appel API avec `supabase.from("restaurant_actions").delete().in("id", selectedIds)`
+
+### 6. Gestion du state après suppression
+
+- Vider la sélection après suppression réussie
+- Rafraîchir la liste des actions
+
+## Code des principales modifications
+
+### Nouveau state
+```typescript
+const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
+const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+```
+
+### Fonctions helpers
+```typescript
+// Toggle une action
+const toggleActionSelection = (actionId: string) => {
+  setSelectedActionIds(prev => {
+    const next = new Set(prev);
+    if (next.has(actionId)) {
+      next.delete(actionId);
+    } else {
+      next.add(actionId);
+    }
+    return next;
+  });
+};
+
+// Sélectionner/désélectionner toutes les actions filtrées
+const toggleAllActions = () => {
+  const allFilteredIds = filteredActions.map(a => a.id);
+  const allSelected = allFilteredIds.every(id => selectedActionIds.has(id));
+  
+  if (allSelected) {
+    setSelectedActionIds(new Set());
+  } else {
+    setSelectedActionIds(new Set(allFilteredIds));
+  }
+};
+
+// Suppression groupée
+const handleBulkDelete = async () => {
+  setIsBulkDeleting(true);
+  const idsToDelete = Array.from(selectedActionIds);
+  
+  const { error } = await supabase
+    .from("restaurant_actions")
+    .delete()
+    .in("id", idsToDelete);
+  
+  if (error) {
+    toast({ title: "Erreur", description: "Impossible de supprimer les actions", variant: "destructive" });
+  } else {
+    toast({ 
+      title: "Succès", 
+      description: `${idsToDelete.length} action${idsToDelete.length > 1 ? 's' : ''} supprimée${idsToDelete.length > 1 ? 's' : ''}` 
+    });
+    setSelectedActionIds(new Set());
+    fetchActions();
+  }
+  
+  setIsBulkDeleting(false);
+  setIsBulkDeleteDialogOpen(false);
 };
 ```
 
-**Nouvelles props :**
-```typescript
-interface CrossDataAnalysisChartProps {
-  data: DailyData[];
-  previousData?: DailyData[];
-  granularity: "daily" | "weekly" | "monthly";
-  isLoading?: boolean;
-  // NEW: Uber One data
-  uberOneData?: Array<{
-    date: string; // ou month selon granularité
-    uberOnePercent: number;
-    uberOneCount: number;
-    totalOrders: number;
-  }>;
-}
+### Nouvelle colonne dans TableHeader
+```tsx
+<TableHead className="w-[40px]">
+  <Checkbox 
+    checked={filteredActions.length > 0 && filteredActions.every(a => selectedActionIds.has(a.id))}
+    onCheckedChange={toggleAllActions}
+    aria-label="Sélectionner tout"
+  />
+</TableHead>
 ```
 
-**Fusionner les données :**
-- Dans le `useMemo` qui prépare `chartData`, joindre les données Uber One par date/mois
-- Ajouter un champ `uberOnePercent` à chaque point de données
-
-**Ajouter la courbe au graphique :**
+### Checkbox dans chaque TableRow
 ```tsx
-{visibleMetrics.has("uberOne") && (
-  <Line
-    yAxisId="right"
-    type="monotone"
-    dataKey="uberOnePercent"
-    name="uberOne"
-    stroke={METRIC_CONFIG.uberOne.color}
-    strokeWidth={2}
-    strokeDasharray="5 5" // Ligne pointillée pour différencier de la rentabilité
-    dot={{ fill: METRIC_CONFIG.uberOne.color, r: 3 }}
-    activeDot={{ r: 5 }}
+<TableCell className="w-[40px]">
+  <Checkbox 
+    checked={selectedActionIds.has(action.id)}
+    onCheckedChange={() => toggleActionSelection(action.id)}
+    aria-label={`Sélectionner ${action.title}`}
   />
+</TableCell>
+```
+
+### Barre flottante (similaire à RestaurantShareActions)
+```tsx
+{selectedActionIds.size > 0 && (
+  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-background border border-border shadow-lg rounded-lg px-4 py-3 flex items-center gap-4 animate-in slide-in-from-bottom-4">
+    <span className="text-sm font-medium">
+      {selectedActionIds.size} action{selectedActionIds.size > 1 ? 's' : ''} sélectionnée{selectedActionIds.size > 1 ? 's' : ''}
+    </span>
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setIsBulkDeleteDialogOpen(true)}
+      className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+    >
+      <Trash2 className="h-4 w-4" />
+      Supprimer
+    </Button>
+    <Button 
+      variant="ghost" 
+      size="icon" 
+      onClick={() => setSelectedActionIds(new Set())} 
+      className="h-8 w-8"
+    >
+      <X className="h-4 w-4" />
+    </Button>
+  </div>
 )}
 ```
 
-**Mettre à jour le Tooltip :**
-Ajouter l'affichage du % Uber One avec le nombre de commandes correspondant.
-
-### 2. AnalyticsCharts.tsx
-
-**Importer et utiliser useUberOneStats :**
-```typescript
-import { useUberOneStats } from "@/hooks/useUberOneStats";
-
-// Dans le composant, ajouter:
-const { evolution: uberOneEvolution, isLoading: isUberOneLoading } = useUberOneStats({
-  restaurantIds,
-  startDate: profitStartDate,
-  endDate: profitEndDate,
-  periodMode: granularity === "daily" ? "month" : "year",
-  platform: selectedPlatform,
-});
-```
-
-**Transformer les données pour correspondre au format attendu :**
-```typescript
-const uberOneDataForChart = useMemo(() => {
-  return uberOneEvolution?.map(e => ({
-    date: e.month, // YYYY-MM-DD ou YYYY-MM
-    uberOnePercent: e.uberOnePercent,
-    uberOneCount: e.uberOneCount,
-    totalOrders: e.totalOrders,
-  })) || [];
-}, [uberOneEvolution]);
-```
-
-**Passer les données au composant :**
+### Dialog de confirmation
 ```tsx
-<CrossDataAnalysisChart
-  data={revenueProfitabilityData}
-  previousData={revenueProfitabilityPrevData || undefined}
-  granularity={granularity}
-  isLoading={isProfitabilityLoading}
-  uberOneData={uberOneDataForChart} // Nouvelle prop
-/>
+<AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>
+        Supprimer {selectedActionIds.size} action{selectedActionIds.size > 1 ? 's' : ''} ?
+      </AlertDialogTitle>
+      <AlertDialogDescription asChild>
+        <div>
+          <p className="mb-2">Cette action est irréversible. Les actions suivantes seront définitivement supprimées :</p>
+          <ul className="list-disc list-inside text-sm space-y-1 max-h-[200px] overflow-y-auto">
+            {actions.filter(a => selectedActionIds.has(a.id)).map(a => (
+              <li key={a.id} className="font-medium">{a.title}</li>
+            ))}
+          </ul>
+        </div>
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel disabled={isBulkDeleting}>Annuler</AlertDialogCancel>
+      <AlertDialogAction
+        onClick={handleBulkDelete}
+        disabled={isBulkDeleting}
+        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+      >
+        {isBulkDeleting ? "Suppression..." : "Supprimer"}
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
 ```
 
-### 3. Insights enrichis
-
-Ajouter un insight sur la corrélation Uber One/CA :
-```tsx
-<Badge variant="outline" className="gap-1">
-  <Crown className="h-3 w-3 text-purple-500" />
-  Moy. Uber One: {avgUberOnePercent.toFixed(1)}%
-</Badge>
-```
-
-Et calculer la différence de CA entre jours à fort/faible % Uber One pour en tirer un insight actionnable.
-
-## Détails d'implémentation
-
-### Source de données
-- Les données Uber One proviennent de la table `order_history` via le hook `useUberOneStats`
-- Le champ `uber_one` (boolean) indique si la commande est Uber One
-- Le hook gère déjà la granularité jour/mois et la pagination
-
-### Axe Y
-- Le % Uber One partagera l'axe droit avec la rentabilité (les deux sont des %)
-- Le domaine dynamique existant s'adaptera automatiquement
-
-### Performance
-- Les données Uber One sont chargées en parallèle des données financières
-- Le cache React Query évite les requêtes redondantes
-
-## Fichiers à modifier
+## Fichiers impactés
 
 | Fichier | Modifications |
 |---------|---------------|
-| `src/components/analytics/CrossDataAnalysisChart.tsx` | Nouveau toggle, nouvelle ligne, fusion des données |
-| `src/components/analytics/AnalyticsCharts.tsx` | Appel à useUberOneStats, passage des données |
+| `src/pages/RestaurantActions.tsx` | Ajout états, checkbox, barre flottante, dialog |
 
-## Résultat attendu
+## Comportements additionnels
 
-L'utilisateur pourra activer/désactiver la courbe "Uber One" indépendamment des autres métriques, permettant des analyses croisées comme :
-- CA + Uber One : impact de l'adhésion sur le volume
-- Promos + Uber One : attraction des membres via les offres
-- Rentabilité + Uber One : marge selon le type de client
+- La sélection se vide automatiquement si les filtres changent et que certaines actions sélectionnées sont filtrées
+- Cliquer sur une ligne (hors checkbox) ne la sélectionne pas (garde le comportement actuel)
+- Le bouton supprimer individuel reste disponible pour chaque ligne
