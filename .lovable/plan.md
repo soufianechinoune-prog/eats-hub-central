@@ -1,92 +1,159 @@
 
-# Interface Unifiée des Rapports WhatsApp
 
-## ✅ Implémenté
+# Enrichissement du Rapport IA Global avec CA, Commandes et Inactivité
 
-### Nouvelle interface à 3 étapes
+## Contexte
 
-1. **Sélection du type de rapport** (6 options)
-   - Rapport IA Global (synthèse intelligente)
-   - Erreurs (taux d'erreur et produits problématiques)
-   - CA & Commandes (ventes et volume)
-   - Notes clients (avis et satisfaction)
-   - Temps opérationnels (préparation et coursier)
-   - Promotions (offres actives et impact)
+Le rapport IA actuel affiche :
+- Notes (vs semaine précédente) ✅
+- Taux d'erreur (vs semaine précédente) ✅
 
-2. **Toggle Basique/Détaillé** pour les templates statistiques
+Mais il manque :
+- **CA** de la semaine vs semaine précédente ❌
+- **Nombre de commandes** de la semaine vs semaine précédente ❌
+- **Temps d'inactivité tablette** de la semaine vs semaine précédente ❌
 
-3. **Sélection des restaurants** avec checkboxes
-   - Tout sélectionner / Tout désélectionner
-   - Affichage du nombre sélectionné
-   - Indication du statut WhatsApp
+Ces données existent déjà dans la base (`daily_sales_uber_deduped` pour CA/commandes, `downtime_logs` pour inactivité) et sont partiellement récupérées mais non affichées.
 
-4. **Génération unifiée**
-   - Un seul bouton "Générer les rapports"
-   - Appelle `generate-ai-report` pour IA Global
-   - Appelle `generate-stat-report` pour les templates stats
+## Modifications à apporter
 
-### Tab "Envoi"
-- Prévisualisation des messages générés
-- Édition possible avant envoi
-- Sélection/désélection individuelle
-- Envoi groupé via WhatsApp
+### 1. Enrichir l'interface `WeeklyKPIs`
 
-### Tab "Historique"
-- Messages groupés par date
-- Statut de livraison (délivré, lu, échec)
-- Contenu du message extensible
+Ajouter les champs pour l'inactivité :
 
-### Templates personnalisés
-- Section repliée pour la gestion des templates legacy
-- Création/modification/suppression de templates
-
-## Architecture technique
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│                    RAPPORTS WHATSAPP                    │
-├─────────────────────────────────────────────────────────┤
-│  [Rapports]  [Envoi (X)]  [Historique]                  │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ┌─ ÉTAPE 1: TYPE DE RAPPORT ───────────────────────┐   │
-│  │ [Rapport IA] [Erreurs] [CA] [Notes] [Temps] [Promo]│  │
-│  │ + Toggle Basique/Détaillé pour stats              │  │
-│  └───────────────────────────────────────────────────┘   │
-│                                                         │
-│  ┌─ ÉTAPE 2: RESTAURANTS ───────────────────────────┐   │
-│  │ [Tout] [Aucun]           X/Y sélectionnés        │   │
-│  │ ☑ Juvisy   ☑ Antony   ☐ Evry   ☑ Massy  ...     │   │
-│  └───────────────────────────────────────────────────┘   │
-│                                                         │
-│  ┌─ ÉTAPE 3: GÉNÉRATION ────────────────────────────┐   │
-│  │ "Rapport IA pour 4 restaurants"                   │   │
-│  │                    [✨ Générer les rapports]      │   │
-│  └───────────────────────────────────────────────────┘   │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+```typescript
+interface WeeklyKPIs {
+  // ... champs existants ...
+  downtime_minutes: number;       // Total minutes inactivité semaine
+  prev_downtime_minutes: number;  // Total minutes inactivité semaine précédente
+  prev_order_count: number;       // Commandes semaine précédente (pour comparaison directe)
+  prev_revenue: number;           // CA semaine précédente (pour comparaison directe)
+}
 ```
 
-## Edge Functions utilisées
+### 2. Récupérer les données d'inactivité dans la boucle principale
 
-| Type de rapport | Edge Function |
-|-----------------|---------------|
-| Rapport IA Global | `generate-ai-report` |
-| Erreurs, CA, Notes, Temps, Promos | `generate-stat-report` |
+Ajouter la requête sur `downtime_logs` pour la semaine courante ET la semaine précédente :
 
-## Réponses WhatsApp interactives
+```typescript
+// Fetch downtime for current week
+const { data: downtimes } = await supabase
+  .from('downtime_logs')
+  .select('duration_minutes')
+  .eq('restaurant_id', restaurantId)
+  .gte('downtime_start', start_date)
+  .lte('downtime_start', end_date + 'T23:59:59');
 
-Le manager peut répondre au rapport IA avec :
-- `1` à `5` → version basique du template correspondant
-- `1+`, `2+`, etc. ou `1 détail` → version détaillée
+// Fetch downtime for previous week
+const { data: prevDowntimes } = await supabase
+  .from('downtime_logs')
+  .select('duration_minutes')
+  .eq('restaurant_id', restaurantId)
+  .gte('downtime_start', prevStartStr)
+  .lte('downtime_start', prevEndStr + 'T23:59:59');
 
-Menu interactif affiché :
+const downtimeMinutes = (downtimes || []).reduce((sum, d) => sum + (d.duration_minutes || 0), 0);
+const prevDowntimeMinutes = (prevDowntimes || []).reduce((sum, d) => sum + (d.duration_minutes || 0), 0);
 ```
-1️⃣ Erreurs
-2️⃣ CA & Commandes  
-3️⃣ Notes clients
-4️⃣ Temps opérationnels
-5️⃣ Promotions
 
-💡 Ajoutez "+" pour la version détaillée (ex: "1+")
+### 3. Enrichir le prompt IA
+
+Modifier `generateAIMessage()` pour inclure les 3 KPIs dans le prompt :
+
+```typescript
+const userPrompt = `Génère un rapport WhatsApp pour ce restaurant:
+
+RESTAURANT: ${kpis.restaurant_name}
+PRÉNOM MANAGER: ${kpis.manager_first_name}
+
+📊 KPIs SEMAINE:
+- CA: ${kpis.revenue.toFixed(0)}€ ${kpis.revenue_variation !== null ? `(${kpis.revenue_variation >= 0 ? '+' : ''}${kpis.revenue_variation.toFixed(0)}% vs ${kpis.prev_revenue.toFixed(0)}€ semaine précédente)` : ''}
+- Commandes: ${kpis.order_count} ${kpis.order_variation !== null ? `(${kpis.order_variation >= 0 ? '+' : ''}${kpis.order_variation.toFixed(0)}% vs ${kpis.prev_order_count} semaine précédente)` : ''}
+- Panier moyen: ${kpis.average_basket.toFixed(1)}€
+- Note moyenne: ${kpis.average_rating !== null ? kpis.average_rating.toFixed(2) : '--'} ${ratingTrend} (vs ${kpis.prev_average_rating?.toFixed(2) || '--'} semaine précédente)
+- Taux d'erreur: ${kpis.error_rate?.toFixed(1) || '--'}% ${errorTrend} (vs ${kpis.prev_error_rate?.toFixed(1) || '--'}% semaine précédente)
+- Inactivité tablette: ${formatDowntime(kpis.downtime_minutes)} ${downtimeTrend} (vs ${formatDowntime(kpis.prev_downtime_minutes)} semaine précédente)
+...`;
 ```
+
+### 4. Mettre à jour le `systemPrompt` pour le rapport global
+
+Enrichir les règles du système pour inclure CA, commandes et inactivité dans le rapport :
+
+```typescript
+RÈGLES:
+1. Commence par saluer avec le prénom
+2. Synthèse rapide avec indicateurs visuels:
+   - ✅/❌ CA : [valeur]€ ([variation]% vs semaine dernière)
+   - ✅/❌ Commandes : [nb] ([variation]% vs semaine dernière)
+   - ✅/❌ Notes : [valeur] (vs [valeur précédente])
+   - ✅/❌ Erreurs : [taux]% (vs [taux précédent]%)
+   - ✅/❌ Inactivité : [Xh Ymin] (vs [Xh Ymin] semaine dernière)
+3. [reste des règles]
+```
+
+### 5. Ajouter la fonction utilitaire `formatDowntime`
+
+```typescript
+function formatDowntime(minutes: number): string {
+  if (minutes === 0) return '0';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours > 0 && mins > 0) return `${hours}h${mins}min`;
+  if (hours > 0) return `${hours}h`;
+  return `${mins}min`;
+}
+```
+
+### 6. Déterminer les indicateurs de tendance
+
+```typescript
+// CA trend
+const caTrend = kpis.revenue_variation !== null
+  ? kpis.revenue_variation >= 0 ? '✅' : '❌'
+  : '➖';
+
+// Commandes trend
+const orderTrend = kpis.order_variation !== null
+  ? kpis.order_variation >= 0 ? '✅' : '❌'
+  : '➖';
+
+// Downtime trend (lower is better)
+const downtimeTrend = kpis.prev_downtime_minutes > 0
+  ? kpis.downtime_minutes <= kpis.prev_downtime_minutes ? '✅' : '❌'
+  : kpis.downtime_minutes === 0 ? '✅' : '➖';
+```
+
+## Fichiers à modifier
+
+| Fichier | Modifications |
+|---------|--------------|
+| `supabase/functions/generate-ai-report/index.ts` | Interface WeeklyKPIs, requêtes downtime, prompt enrichi |
+
+## Résultat attendu
+
+Le rapport IA affichera maintenant :
+
+```
+Salut Amar ! 👋
+
+Al-hamdou liLlah cette semaine on a du vert sur les indicateurs clés ! 🚀
+
+Voici le bilan pour CHICKEN STREET JUVISY-SUR-ORGE :
+
+💰 CA : 8 234€ (+5% vs 7 842€ semaine dernière)
+📦 Commandes : 344 (-3% vs 355 semaine dernière)
+✅ Notes : 4.80 ⭐ (vs 4.41 la semaine dernière) - GROSSE PROGRESSION !
+✅ Erreurs : 2.0% (vs 4.8% la semaine dernière)
+⏸️ Inactivité : 45min (vs 1h20 semaine dernière) ✅
+
+FOCUS SEMAINE 🎯 :
+...
+```
+
+## Impact
+
+- Les managers auront une vision complète des KPIs commerciaux et opérationnels
+- La comparaison semaine/semaine permet d'identifier les tendances
+- Les 3 nouveaux KPIs (CA, commandes, inactivité) complètent les notes et erreurs déjà présents
+
