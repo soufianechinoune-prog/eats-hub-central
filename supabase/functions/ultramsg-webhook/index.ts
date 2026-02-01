@@ -140,6 +140,82 @@ async function getRecentReportContext(
   return null;
 }
 
+// Get pending restaurant selection prompt (if user is responding to a selection question)
+async function getPendingRestaurantSelection(
+  supabase: any, 
+  phone: string
+): Promise<{
+  reportType: string;
+  detailLevel: 'basic' | 'detailed';
+} | null> {
+  // Find recent restaurant_selection prompt (last 5 minutes)
+  const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  
+  // Normalize phone for matching
+  const normalizedPhone = normalizePhoneNumber(phone);
+  const phoneLast9 = normalizedPhone.slice(-9);
+  
+  const { data: recentSelections, error } = await supabase
+    .from('message_history')
+    .select('message_content, recipient_phone, created_at')
+    .eq('direction', 'outbound')
+    .eq('message_type', 'restaurant_selection')
+    .gte('created_at', cutoff)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  
+  if (error || !recentSelections?.length) {
+    console.log('No pending restaurant selection found');
+    return null;
+  }
+  
+  // Find matching selection prompt by phone number
+  const pendingSelection = recentSelections.find((sel: any) => {
+    if (!sel.recipient_phone) return false;
+    const selPhone = normalizePhoneNumber(sel.recipient_phone);
+    return selPhone === normalizedPhone || 
+           selPhone.endsWith(phoneLast9) || 
+           normalizedPhone.endsWith(selPhone.slice(-9));
+  });
+  
+  if (!pendingSelection) {
+    console.log('No pending selection for this phone');
+    return null;
+  }
+  
+  console.log('Found pending restaurant selection prompt:', pendingSelection.message_content.substring(0, 100));
+  
+  // Parse the report type from the message content
+  // The message contains: "...rapport "CA & Commandes" ?"
+  const reportTypeMatch = pendingSelection.message_content.match(/rapport "([^"]+)"/);
+  if (!reportTypeMatch) {
+    console.log('Could not parse report type from selection prompt');
+    return null;
+  }
+  
+  // Map back to report type key
+  const labelToType: Record<string, string> = {
+    'Erreurs': 'errors',
+    'CA & Commandes': 'revenue',
+    'Notes clients': 'rating',
+    'Temps opérationnels': 'operations',
+    'Promotions': 'promotions'
+  };
+  
+  const reportType = labelToType[reportTypeMatch[1]];
+  if (!reportType) {
+    console.log('Unknown report type label:', reportTypeMatch[1]);
+    return null;
+  }
+  
+  console.log(`Pending selection found: reportType=${reportType}`);
+  
+  return {
+    reportType,
+    detailLevel: 'basic', // Default to basic for selection responses
+  };
+}
+
 // Send restaurant selection prompt for multi-restaurant managers
 async function sendRestaurantSelectionPrompt(
   supabase: any,
@@ -1813,8 +1889,51 @@ serve(async (req) => {
         console.log('Incoming message saved successfully');
       }
 
+      // === RESTAURANT SELECTION RESPONSE DETECTION ===
+      // Check FIRST if the user is responding to a pending restaurant selection
+      const selectionNumber = parseInt(messageData.body.trim());
+      if (!isNaN(selectionNumber) && selectionNumber >= 1 && selectionNumber <= 9 && managerRestaurants.length > 1) {
+        const pendingSelection = await getPendingRestaurantSelection(supabase, normalizedPhone);
+        
+        if (pendingSelection) {
+          // This is a response to restaurant selection, not a menu choice
+          const selectedIndex = selectionNumber - 1;
+          
+          if (selectedIndex >= 0 && selectedIndex < managerRestaurants.length) {
+            const selectedRestaurant = managerRestaurants[selectedIndex];
+            console.log(`Restaurant selection response: User chose ${selectedRestaurant.name} (index ${selectedIndex})`);
+            
+            // Generate the report for the selected restaurant
+            handleInteractiveReportRequest(
+              supabase,
+              selectedRestaurant,
+              pendingSelection.reportType,
+              pendingSelection.detailLevel,
+              normalizedPhone,
+              manager?.first_name || selectedRestaurant?.manager_first_name || 'Manager'
+            ).catch((err: Error) => console.error('Selection report error:', err));
+            
+            return new Response(
+              JSON.stringify({ success: true, type: 'restaurant_selection_response' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          } else {
+            // Invalid selection number
+            console.log(`Invalid selection: ${selectionNumber} (max: ${managerRestaurants.length})`);
+            await sendWhatsAppReply(normalizedPhone, 
+              `❌ Numéro invalide. Réponds avec un numéro entre 1 et ${managerRestaurants.length}.`
+            );
+            return new Response(
+              JSON.stringify({ success: true, type: 'invalid_selection' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+      }
+
       // === INTERACTIVE MENU DETECTION ===
       // Check if this is a response to an interactive report menu (1, 2, 3, 4)
+      // Only reaches here if NOT responding to a pending selection
       const menuResponse = isInteractiveMenuResponse(messageData.body);
       
       if (managerRestaurants.length > 0 && menuResponse.isMenu && menuResponse.reportType) {
