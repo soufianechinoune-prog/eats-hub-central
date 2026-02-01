@@ -1,85 +1,162 @@
 
-# Alignement des sources de données pour les rapports WhatsApp
 
-## Problème identifié
+# Refonte des Templates de Rapports WhatsApp
 
-L'Edge Function affiche **4.39** (38 avis) alors que le dashboard affiche **4.41** (39 avis) pour la même période.
+## Vue d'ensemble
 
-**Cause** : L'Edge Function filtre par `review_date` tandis que le dashboard filtre par `order_date`.
+L'objectif est de créer un système de templates structuré et prévisible :
 
-| Critère | Edge Function | Dashboard |
-|---------|---------------|-----------|
-| Colonne de filtre | `review_date` | `order_date` |
-| Résultat 12-18 jan | 38 avis, 4.39 | 39 avis, 4.41 |
+1. **Rapport IA** : Synthèse hebdomadaire générée par l'IA (envoi automatique ou manuel)
+2. **Templates statistiques** : Rapports ciblés sur des KPIs spécifiques, disponibles en version basique ou détaillée
 
-## Solution en 2 parties
+## Fonctionnement
 
-### Partie 1 : Aligner le filtre de date (correction immédiate)
+Le manager reçoit le rapport IA global chaque semaine. Il peut ensuite :
+- Répondre avec un numéro (1-5) pour recevoir un template spécifique
+- Répondre avec "1+" ou "1 détail" pour la version détaillée
 
-Modifier les Edge Functions pour filtrer par `order_date` comme le fait le dashboard.
+Toi, depuis l'interface, tu peux :
+- Envoyer le rapport IA global
+- Choisir et envoyer directement un template spécifique (basique ou détaillé)
 
-**Fichier** : `supabase/functions/generate-ai-report/index.ts`
+## Templates à implémenter
 
-Lignes 158-171 : Changer `review_date` → `order_date`
+### Template 0 : Rapport IA Global (existant)
+- Synthèse intelligente de la semaine
+- Analyse contextuelle des performances
+- Menu interactif pour demander les détails
 
-```typescript
-// Avant
-const { data: reviews } = await supabase
-  .from('customer_reviews')
-  .select('overall_rating, customer_type')
-  .eq('restaurant_id', restaurantId)
-  .gte('review_date', start_date)    // ← BUG
-  .lte('review_date', end_date + 'T23:59:59');
+### Template 1 : Taux d'erreur
 
-// Après  
-const { data: reviews } = await supabase
-  .from('customer_reviews')
-  .select('overall_rating, customer_type')
-  .eq('restaurant_id', restaurantId)
-  .gte('order_date', start_date)     // ← Aligné avec dashboard
-  .lte('order_date', end_date);      // ← Pas besoin du T23:59:59 pour date simple
-```
+**Version Basique :**
+- Taux d'erreur actuel (%)
+- Nombre d'erreurs
+- Évolution vs semaine précédente
 
-Même correction pour `prevReviews` (lignes 166-171).
+**Version Détaillée :**
+- Tout ce qui est dans Basique
+- Breakdown par catégorie (manquants, incorrects, qualité)
+- Top 5 produits problématiques
+- Corrélation avec promotions actives
 
-**Fichier** : `supabase/functions/generate-weekly-report/index.ts`
+### Template 2 : CA et Commandes
 
-Appliquer la même modification aux requêtes de reviews.
+**Version Basique :**
+- Chiffre d'affaires TTC
+- Nombre de commandes
+- Panier moyen
+- Variation vs semaine précédente
 
-### Partie 2 : Architecture future (recommandation)
+**Version Détaillée :**
+- Tout ce qui est dans Basique
+- Répartition par jour de la semaine
+- Meilleur/pire jour
+- Comparaison mois glissant
 
-Créer une table `daily_ratings` pré-agrégée par restaurant/date :
+### Template 3 : Note moyenne
+
+**Version Basique :**
+- Note moyenne (sur 5)
+- Nombre d'avis reçus
+- Évolution vs semaine précédente
+
+**Version Détaillée :**
+- Tout ce qui est dans Basique
+- Répartition nouveaux clients vs fidèles
+- Top 3 tags négatifs fréquents
+- Produits les mieux/moins bien notés
+
+### Template 4 : Temps opérationnels
+
+**Version Basique :**
+- Temps de préparation total moyen
+- Temps d'attente coursier moyen
+- Statut vs objectifs
+
+**Version Détaillée :**
+- Tout ce qui est dans Basique
+- Breakdown par créneau horaire (midi/soir)
+- Pics de lenteur identifiés
+- Comparaison aux autres restaurants du réseau
+
+### Template 5 : Promotions
+
+**Version Basique :**
+- Liste des offres actives sur la période
+- Volume de commandes impacté
+
+**Version Détaillée :**
+- Tout ce qui est dans Basique
+- Impact sur le panier moyen
+- Rentabilité estimée par offre
+- Recommandations d'optimisation
+
+## Modifications techniques
+
+### 1. Base de données
+
+Créer une nouvelle structure pour les templates statistiques :
 
 ```sql
-CREATE TABLE daily_ratings AS
-SELECT 
-  restaurant_id,
-  order_date::date as date,
-  COUNT(*) as review_count,
-  AVG(overall_rating) as average_rating
-FROM customer_reviews
-WHERE order_date IS NOT NULL
-GROUP BY restaurant_id, order_date::date;
+-- Ajouter une colonne template_type à report_templates
+-- Valeurs : 'ai_global', 'errors', 'revenue', 'rating', 'operations', 'promotions'
+
+-- Ajouter une colonne detail_level
+-- Valeurs : 'basic', 'detailed'
 ```
 
-Cela permettrait :
-- Cohérence garantie entre dashboard et rapports
-- Performances améliorées (pas de recalcul)
-- Source unique de vérité
+### 2. Edge function generate-ai-report
 
-Cette partie est optionnelle et peut être implémentée ultérieurement.
+Modifier pour accepter :
+- `template_type` : 'ai_global' | 'errors' | 'revenue' | 'rating' | 'operations' | 'promotions'
+- `detail_level` : 'basic' | 'detailed'
 
-## Fichiers à modifier
+Ajouter des fonctions de génération pour chaque type de template.
 
-| Fichier | Modification |
-|---------|--------------|
-| `supabase/functions/generate-ai-report/index.ts` | `review_date` → `order_date` (2 requêtes) |
-| `supabase/functions/generate-weekly-report/index.ts` | `review_date` → `order_date` (2 requêtes) |
+### 3. Webhook ultramsg
 
-## Résultat attendu
+Modifier pour détecter les réponses du type :
+- "1", "2", "3", "4", "5" → version basique
+- "1+", "2+", etc. ou "1 détail", "2 détail" → version détaillée
 
-Après correction, les rapports WhatsApp afficheront :
-- **Juvisy semaine 12-18** : 4.41 (39 avis) — identique au dashboard
-- **Semaine précédente** : valeur alignée également
+### 4. Interface UI (WeeklyReports.tsx)
 
-Le message passera de "Gros gap vs 4.39" à "Gros gap vs 4.41".
+Ajouter :
+- Sélection du type de template
+- Toggle basique/détaillé
+- Preview du contenu attendu
+
+## Sources de données par template
+
+| Template | Tables/Vues utilisées |
+|----------|----------------------|
+| Erreurs | `daily_order_accuracy`, `order_errors` |
+| CA | `daily_sales_uber_deduped` |
+| Notes | `customer_reviews` |
+| Temps | `order_history` |
+| Promotions | `restaurant_actions`, `order_items` |
+
+Toutes les données sont pré-calculées dans la base pour garantir la cohérence avec le dashboard.
+
+## Menu interactif (fin du rapport IA)
+
+```
+━━━━━━━━━━━━━━━━━━━━━━
+📋 Répondez avec un numéro pour plus de détails :
+1️⃣ Erreurs
+2️⃣ CA & Commandes  
+3️⃣ Notes clients
+4️⃣ Temps opérationnels
+5️⃣ Promotions
+
+💡 Ajoutez "+" pour la version détaillée (ex: "1+")
+━━━━━━━━━━━━━━━━━━━━━━
+```
+
+## Prochaines étapes
+
+1. Valider la liste des templates et leur contenu
+2. Implémenter les fonctions de génération pour chaque template
+3. Mettre à jour le webhook pour gérer les réponses
+4. Ajouter l'interface de sélection dans la UI
+
