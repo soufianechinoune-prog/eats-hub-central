@@ -95,27 +95,48 @@ async function getRecentReportContext(
 ): Promise<{ restaurantId: string; restaurantName: string } | null> {
   const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
   
-  const { data: recentReport } = await supabase
+  // Normalize the phone number for comparison (remove spaces, dashes, etc.)
+  const normalizedPhone = normalizePhoneNumber(phone);
+  const phoneLast9 = normalizedPhone.slice(-9);
+  
+  console.log(`Looking for recent report context for phone: ${normalizedPhone} (last 9: ${phoneLast9})`);
+  
+  // Search for recent outbound messages (report or individual type) with restaurant context
+  // Use phone pattern matching since formats may vary in the database
+  const { data: recentReports, error } = await supabase
     .from('message_history')
-    .select('restaurant_id, restaurant_name')
+    .select('restaurant_id, restaurant_name, recipient_phone, message_type')
     .eq('direction', 'outbound')
-    .eq('message_type', 'report')
-    .eq('recipient_phone', phone)
+    .in('message_type', ['report', 'individual'])
     .not('restaurant_id', 'is', null)
     .gte('created_at', cutoff)
     .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(20);
   
-  if (recentReport?.restaurant_id) {
-    console.log(`Found recent report context: ${recentReport.restaurant_name} (${recentReport.restaurant_id})`);
+  if (error) {
+    console.error('Error fetching recent report context:', error);
+    return null;
+  }
+  
+  // Find matching record by normalized phone number
+  const matchingReport = recentReports?.find((report: any) => {
+    if (!report.recipient_phone) return false;
+    const reportPhone = normalizePhoneNumber(report.recipient_phone);
+    // Match by full normalized phone or last 9 digits
+    return reportPhone === normalizedPhone || 
+           reportPhone.endsWith(phoneLast9) || 
+           normalizedPhone.endsWith(reportPhone.slice(-9));
+  });
+  
+  if (matchingReport?.restaurant_id) {
+    console.log(`Found recent report context: ${matchingReport.restaurant_name} (${matchingReport.restaurant_id}) via ${matchingReport.message_type}`);
     return {
-      restaurantId: recentReport.restaurant_id,
-      restaurantName: recentReport.restaurant_name || ''
+      restaurantId: matchingReport.restaurant_id,
+      restaurantName: matchingReport.restaurant_name || ''
     };
   }
   
-  console.log('No recent report context found within', hours, 'hours');
+  console.log('No recent report context found within', hours, 'hours for', normalizedPhone);
   return null;
 }
 
