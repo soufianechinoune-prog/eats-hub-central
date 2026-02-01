@@ -1,152 +1,178 @@
 
-# Correction : Gérer les réponses à la sélection de restaurant
+# Stocker et réutiliser les dates du rapport IA initial
 
 ## Problème identifié
 
-Le flux actuel :
-1. Gérant envoie "2" → Système détecte menu option 2 (CA) → Envoie prompt de sélection restaurant
-2. Gérant répond "3" → Système détecte menu option 3 (Notes) → Envoie ENCORE prompt de sélection restaurant
+Quand un rapport IA est généré depuis l'interface (avec les dates du 19-25 janvier sélectionnées), ces dates ne sont **pas stockées** dans `message_history`. 
 
-Le problème : le système ne distingue pas entre :
-- "3" = réponse au menu principal (demande rapport Notes)
-- "3" = réponse à la sélection de restaurant (choix Antony)
+Ensuite, quand le gérant répond "2" pour demander le rapport CA, le webhook `ultramsg-webhook` appelle `generate-stat-report` avec des dates calculées à partir de `new Date()` (aujourd'hui), ce qui donne des données incorrectes.
 
 ## Solution
 
-**Ajouter une vérification AVANT la détection de menu interactif** :
-1. Chercher si un prompt de sélection (`message_type: 'restaurant_selection'`) a été envoyé récemment (5 minutes)
-2. Si oui ET que le message est un numéro simple (1-9) → c'est une réponse de sélection
-3. Utiliser le restaurant correspondant et générer le rapport demandé
+Stocker les dates (`start_date`, `end_date`) dans le message original, puis les réutiliser pour les sous-rapports.
 
 ## Modifications techniques
 
-### Fichier : `supabase/functions/ultramsg-webhook/index.ts`
+### 1. Ajouter les colonnes de dates à `message_history`
 
-**1. Nouvelle fonction pour récupérer la sélection en attente :**
+```sql
+ALTER TABLE message_history 
+ADD COLUMN IF NOT EXISTS report_start_date DATE,
+ADD COLUMN IF NOT EXISTS report_end_date DATE;
+```
 
+### 2. Modifier `send-whatsapp` pour accepter et stocker les dates
+
+**Fichier : `supabase/functions/send-whatsapp/index.ts`**
+
+Ajouter au type `SendRequest` :
 ```typescript
-async function getPendingRestaurantSelection(
-  supabase: any, 
-  phone: string
-): Promise<{
-  reportType: string;
-  detailLevel: 'basic' | 'detailed';
-  restaurants: Array<{ id: string; name: string }>;
-} | null> {
-  // Find recent restaurant_selection prompt (last 5 minutes)
-  const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+interface SendRequest {
+  // ... existing fields ...
+  report_start_date?: string;  // NEW
+  report_end_date?: string;    // NEW
+}
+```
+
+Modifier l'insertion dans `message_history` pour inclure ces dates :
+```typescript
+await supabase.from('message_history').insert({
+  // ... existing fields ...
+  report_start_date: report_start_date || null,
+  report_end_date: report_end_date || null,
+});
+```
+
+### 3. Modifier `WeeklyReports.tsx` pour passer les dates lors de l'envoi
+
+**Fichier : `src/components/messaging/WeeklyReports.tsx`**
+
+Dans la fonction `sendReports`, ajouter les dates au body :
+```typescript
+const { error } = await supabase.functions.invoke("send-whatsapp", {
+  body: {
+    recipients: [...],
+    message,
+    skip_campaign: false,
+    report_start_date: format(lastWeek.start, "yyyy-MM-dd"),  // NEW
+    report_end_date: format(lastWeek.end, "yyyy-MM-dd"),      // NEW
+  },
+});
+```
+
+### 4. Modifier le webhook pour récupérer les dates du rapport original
+
+**Fichier : `supabase/functions/ultramsg-webhook/index.ts`**
+
+Créer une nouvelle fonction :
+```typescript
+async function getReportDatesFromOriginal(
+  supabase: any,
+  phone: string,
+  restaurantId: string
+): Promise<{ startDate: string; endDate: string } | null> {
+  const normalizedPhone = normalizePhoneNumber(phone);
+  const phoneLast9 = normalizedPhone.slice(-9);
   
-  const { data: pendingSelection } = await supabase
+  // Find the most recent AI report sent to this phone for this restaurant
+  const { data: originalReport } = await supabase
     .from('message_history')
-    .select('message_content, created_at')
+    .select('report_start_date, report_end_date')
     .eq('direction', 'outbound')
-    .eq('message_type', 'restaurant_selection')
-    .eq('recipient_phone', phone)
-    .gte('created_at', cutoff)
+    .eq('message_type', 'report')
+    .eq('restaurant_id', restaurantId)
+    .or(`recipient_phone.eq.${normalizedPhone},recipient_phone.ilike.%${phoneLast9}`)
+    .not('report_start_date', 'is', null)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   
-  if (!pendingSelection) return null;
-  
-  // Parse the report type from the message content
-  // The message contains: "...rapport "CA & Commandes" ?"
-  const reportTypeMatch = pendingSelection.message_content.match(/rapport "([^"]+)"/);
-  if (!reportTypeMatch) return null;
-  
-  // Map back to report type key
-  const labelToType: Record<string, string> = {
-    'Erreurs': 'errors',
-    'CA & Commandes': 'revenue',
-    'Notes clients': 'rating',
-    'Temps opérationnels': 'operations',
-    'Promotions': 'promotions'
-  };
-  
-  const reportType = labelToType[reportTypeMatch[1]];
-  if (!reportType) return null;
+  if (!originalReport?.report_start_date) return null;
   
   return {
-    reportType,
-    detailLevel: 'basic', // Default to basic for selection responses
+    startDate: originalReport.report_start_date,
+    endDate: originalReport.report_end_date
   };
 }
 ```
 
-**2. Modifier le flux principal (avant la détection de menu) :**
+### 5. Utiliser ces dates dans `handleInteractiveReportRequest`
 
+**Fichier : `supabase/functions/ultramsg-webhook/index.ts`**
+
+Modifier l'appel à `generate-stat-report` :
 ```typescript
-// === RESTAURANT SELECTION RESPONSE DETECTION ===
-// Check FIRST if the user is responding to a pending restaurant selection
-const selectionNumber = parseInt(messageData.body.trim());
-if (!isNaN(selectionNumber) && selectionNumber >= 1 && selectionNumber <= 9) {
-  const pendingSelection = await getPendingRestaurantSelection(supabase, normalizedPhone);
+async function handleInteractiveReportRequest(
+  supabase: any,
+  restaurant: any,
+  reportType: string,
+  detailLevel: 'basic' | 'detailed',
+  phone: string,
+  managerFirstName: string
+): Promise<void> {
+  // Get dates from the original AI report
+  const reportDates = await getReportDatesFromOriginal(supabase, phone, restaurant.id);
   
-  if (pendingSelection && managerRestaurants.length > 1) {
-    // This is a response to restaurant selection, not a menu choice
-    const selectedIndex = selectionNumber - 1;
-    
-    if (selectedIndex >= 0 && selectedIndex < managerRestaurants.length) {
-      const selectedRestaurant = managerRestaurants[selectedIndex];
-      console.log(`Restaurant selection: User chose ${selectedRestaurant.name}`);
-      
-      // Generate the report for the selected restaurant
-      handleInteractiveReportRequest(
-        supabase,
-        selectedRestaurant,
-        pendingSelection.reportType,
-        pendingSelection.detailLevel,
-        normalizedPhone,
-        manager?.first_name || selectedRestaurant?.manager_first_name || 'Manager'
-      ).catch((err: Error) => console.error('Selection report error:', err));
-      
-      return new Response(
-        JSON.stringify({ success: true, type: 'restaurant_selection_response' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
-      // Invalid selection number
-      await sendWhatsAppReply(normalizedPhone, 
-        `❌ Numéro invalide. Réponds avec un numéro entre 1 et ${managerRestaurants.length}.`
-      );
-      return new Response(
-        JSON.stringify({ success: true, type: 'invalid_selection' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+  let startDateStr: string;
+  let endDateStr: string;
+  
+  if (reportDates) {
+    // Use dates from original report
+    startDateStr = reportDates.startDate;
+    endDateStr = reportDates.endDate;
+    console.log(`Using dates from original report: ${startDateStr} to ${endDateStr}`);
+  } else {
+    // Fallback: calculate from latest available data
+    const latestDate = await getLatestDataDate(supabase, restaurant.id);
+    if (!latestDate) {
+      await sendWhatsAppReply(phone, `❌ Aucune donnée disponible pour ${restaurant.name}.`);
+      return;
     }
+    const end = new Date(latestDate);
+    const start = new Date(latestDate);
+    start.setDate(start.getDate() - 6);
+    startDateStr = start.toISOString().split('T')[0];
+    endDateStr = end.toISOString().split('T')[0];
   }
+  
+  // Call generate-stat-report with the correct dates
+  const { data, error } = await supabase.functions.invoke("generate-stat-report", {
+    body: {
+      restaurant_id: restaurant.id,
+      start_date: startDateStr,
+      end_date: endDateStr,
+      template_type: reportType,
+      detail_level: detailLevel,
+    },
+  });
+  // ...
 }
-
-// === INTERACTIVE MENU DETECTION (existing code) ===
-// Only reaches here if NOT responding to a pending selection
-const menuResponse = isInteractiveMenuResponse(messageData.body);
-// ... rest of existing code
 ```
 
-**3. Stocker le type de rapport dans le prompt :**
+## Flux corrigé
 
-Modifier `sendRestaurantSelectionPrompt` pour stocker `reportType` et `detailLevel` en metadata (optionnel, le parsing du message fonctionne aussi).
-
-## Nouveau flux utilisateur
-
-```
-[Système] → Rapports IA pour Athis-Mons, Antony, Bonneuil
-[Gérant]  → "2"
-[Système] → Vérifie: pas de sélection en attente → Menu option 2 (CA)
-[Système] → "Tu gères plusieurs restaurants. Lequel ? 1. Bourg-En-Bresse, 2. Athis-Mons, 3. Antony..."
-[Gérant]  → "3"
-[Système] → Vérifie: sélection en attente trouvée (CA) → Index 2 = Antony
-[Système] → Rapport CA Antony ✅
+```text
+1. UI: Sélection semaine 19-25 janvier + génération rapport IA
+2. UI → send-whatsapp: Envoi avec report_start_date="2026-01-19", report_end_date="2026-01-25"
+3. message_history: Stocke les dates avec le message
+4. Gérant répond "2"
+5. webhook → getReportDatesFromOriginal: Récupère start=19 jan, end=25 jan
+6. webhook → generate-stat-report: Appelle avec les bonnes dates
+7. Résultat: Rapport CA avec les vraies données de la semaine 19-25 janvier ✅
 ```
 
 ## Fichiers à modifier
 
 | Fichier | Modifications |
 |---------|--------------|
-| `supabase/functions/ultramsg-webhook/index.ts` | Ajouter `getPendingRestaurantSelection`, insérer vérification avant menu detection |
+| Migration SQL | Ajouter colonnes `report_start_date`, `report_end_date` |
+| `supabase/functions/send-whatsapp/index.ts` | Accepter et stocker les dates |
+| `src/components/messaging/WeeklyReports.tsx` | Passer les dates lors de l'envoi |
+| `supabase/functions/ultramsg-webhook/index.ts` | Récupérer et utiliser les dates du rapport original |
 
-## Considérations
+## Avantages
 
-- **Fenêtre de 5 minutes** : si le gérant répond après 5 min, on traite comme une nouvelle demande
-- **Priorité claire** : sélection en attente > menu interactif > chatbot
-- **Gestion d'erreur** : si numéro hors plage, message d'erreur explicite
+- Les sous-rapports utilisent **exactement** la même période que le rapport IA initial
+- La comparaison S vs S-1 est **cohérente** (semaine 12-18 jan pour la comparaison)
+- Pas de question supplémentaire au gérant
+- Fonctionne même si les données ne sont pas à jour dans la base
