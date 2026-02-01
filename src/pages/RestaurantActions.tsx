@@ -278,6 +278,8 @@ export default function RestaurantActions() {
     originalEndDate: Date | null;
     newStartDate: Date;
     newEndDate: Date | null;
+    originalAudience?: string | null;
+    newAudience?: string | null;
   } | null>(null);
   
   // Undo state for drag & drop
@@ -1848,7 +1850,7 @@ export default function RestaurantActions() {
           actions={filteredActions}
           restaurants={restaurants}
           onActionClick={(action) => openEditDialog(action)}
-          onActionDrop={(actionId, actionTitle, originalStart, originalEnd, newStart, newEnd) => {
+          onActionDrop={(actionId, actionTitle, originalStart, originalEnd, newStart, newEnd, originalAudience, newAudience) => {
             setPendingDrop({
               actionId,
               actionTitle,
@@ -1856,6 +1858,8 @@ export default function RestaurantActions() {
               originalEndDate: originalEnd,
               newStartDate: newStart,
               newEndDate: newEnd,
+              originalAudience,
+              newAudience,
             });
           }}
         />
@@ -3289,6 +3293,19 @@ export default function RestaurantActions() {
                   </p>
                 </div>
               </div>
+              {pendingDrop?.newAudience && pendingDrop?.originalAudience && pendingDrop.newAudience !== pendingDrop.originalAudience && (
+                <div className="flex items-center justify-between gap-3 p-3 bg-muted rounded-lg text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs">Audience</p>
+                    <p className="font-medium">{pendingDrop.originalAudience}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <div className="text-right">
+                    <p className="text-muted-foreground text-xs">Nouvelle audience</p>
+                    <p className="font-medium text-primary">{pendingDrop.newAudience}</p>
+                  </div>
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -3312,6 +3329,16 @@ export default function RestaurantActions() {
                 };
                 if (pendingDrop.newEndDate) {
                   updateData.end_date = format(pendingDrop.newEndDate, "yyyy-MM-dd");
+                }
+
+                // Optional audience update (timeline vertical drop)
+                if (pendingDrop.newAudience && pendingDrop.originalAudience && pendingDrop.newAudience !== pendingDrop.originalAudience) {
+                  const action = actions.find((a) => a.id === pendingDrop.actionId);
+                  const existingContext = (action?.change_context ?? {}) as any;
+                  updateData.change_context = {
+                    ...existingContext,
+                    audience: pendingDrop.newAudience,
+                  };
                 }
                 
                 const { error } = await supabase

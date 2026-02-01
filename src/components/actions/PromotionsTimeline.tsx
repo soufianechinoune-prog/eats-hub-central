@@ -46,7 +46,16 @@ interface PromotionsTimelineProps {
   actions: RestaurantAction[];
   restaurants: Restaurant[];
   onActionClick: (action: RestaurantAction) => void;
-  onActionDrop?: (actionId: string, actionTitle: string, originalStart: Date, originalEnd: Date | null, newStart: Date, newEnd: Date | null) => void;
+  onActionDrop?: (
+    actionId: string,
+    actionTitle: string,
+    originalStart: Date,
+    originalEnd: Date | null,
+    newStart: Date,
+    newEnd: Date | null,
+    originalAudience?: string | null,
+    newAudience?: string | null
+  ) => void;
 }
 
 interface TimelineRow {
@@ -222,6 +231,7 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
   // Drag state
   const [draggingAction, setDraggingAction] = useState<RestaurantAction | null>(null);
   const [dragTargetDate, setDragTargetDate] = useState<Date | null>(null);
+  const [dragTargetAudience, setDragTargetAudience] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -279,6 +289,19 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
     return addDays(viewStart, Math.max(0, Math.min(dayOffset, totalDays)));
   }, [viewStart, viewEnd]);
 
+  // Detect which audience row the mouse is over
+  const getAudienceFromPosition = useCallback((clientY: number): string | null => {
+    if (!gridRef.current) return null;
+    const rows = Array.from(gridRef.current.querySelectorAll<HTMLElement>("[data-timeline-row]"));
+    for (const rowEl of rows) {
+      const rect = rowEl.getBoundingClientRect();
+      if (clientY >= rect.top && clientY <= rect.bottom) {
+        return rowEl.getAttribute("data-audience");
+      }
+    }
+    return null;
+  }, []);
+
   // Handle drag move
   const handleDragMove = useCallback((e: React.MouseEvent) => {
     if (!draggingAction) return;
@@ -286,7 +309,10 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
     setDragPosition({ x: e.clientX, y: e.clientY });
     const targetDate = getDateFromPosition(e.clientX);
     setDragTargetDate(targetDate);
-  }, [draggingAction, getDateFromPosition]);
+
+    const targetAudience = getAudienceFromPosition(e.clientY);
+    setDragTargetAudience(targetAudience);
+  }, [draggingAction, getDateFromPosition, getAudienceFromPosition]);
 
   // Handle drag end
   const handleDragEnd = useCallback(() => {
@@ -298,23 +324,29 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
       const duration = originalEnd ? differenceInDays(originalEnd, originalStart) : 0;
       const newEnd = duration > 0 ? addDays(dragTargetDate, duration) : null;
       
-      // Only trigger if date actually changed
-      if (dragTargetDate.getTime() !== originalStart.getTime()) {
+      const originalAudience = ((draggingAction.change_context as any)?.audience as string | undefined) ?? "Tous les clients";
+      const newAudience = dragTargetAudience ?? originalAudience;
+
+      // Trigger if date OR audience changed
+      if (dragTargetDate.getTime() !== originalStart.getTime() || newAudience !== originalAudience) {
         onActionDrop(
           draggingAction.id,
           draggingAction.title,
           originalStart,
           originalEnd,
           dragTargetDate,
-          newEnd
+          newEnd,
+          originalAudience,
+          newAudience
         );
       }
     }
     
     setDraggingAction(null);
     setDragTargetDate(null);
+    setDragTargetAudience(null);
     setDragPosition(null);
-  }, [draggingAction, dragTargetDate, onActionDrop]);
+  }, [draggingAction, dragTargetDate, dragTargetAudience, onActionDrop]);
 
   // Handle quarter button click
   const handleQuarterClick = (quarterIndex: number) => {
@@ -440,8 +472,18 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
               return !isAfter(start, viewEnd) && !isBefore(end, viewStart);
             });
             
+            const isDropTargetRow = draggingAction && dragTargetAudience === row.audience;
+
             return (
-              <div key={row.audience} className="flex border-b min-h-[80px]">
+              <div
+                key={row.audience}
+                data-timeline-row
+                data-audience={row.audience}
+                className={cn(
+                  "flex border-b min-h-[80px]",
+                  isDropTargetRow && "bg-muted/20"
+                )}
+              >
                 {/* Audience label */}
                 <div 
                   className={cn("w-40 flex-shrink-0 border-r p-3 font-medium text-sm flex items-center", row.bgClass)}
