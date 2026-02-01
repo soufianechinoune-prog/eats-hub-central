@@ -724,6 +724,8 @@ export default function WeeklyReports() {
             }],
             message,
             skip_campaign: false,
+            report_start_date: format(lastWeek.start, "yyyy-MM-dd"),
+            report_end_date: format(lastWeek.end, "yyyy-MM-dd"),
           },
         });
 
