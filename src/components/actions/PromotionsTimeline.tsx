@@ -62,39 +62,44 @@ interface PromotionsTimelineProps {
 interface TimelineRow {
   audience: string;
   label: string;
-  color: string;
-  bgClass: string;
-  borderClass: string;
+  labelBg: string;
+  labelText: string;
+  blockBorder: string;
+  blockBg: string;
 }
 
 const AUDIENCE_ROWS: TimelineRow[] = [
   { 
     audience: "Tous les clients", 
     label: "Tous clients", 
-    color: "hsl(var(--muted-foreground))",
-    bgClass: "bg-muted/50",
-    borderClass: "border-muted-foreground/30"
+    labelBg: "#5B9BD5",
+    labelText: "white",
+    blockBorder: "#5B9BD5",
+    blockBg: "#E8F1FA"
   },
   { 
     audience: "Uniquement pour les nouveaux clients", 
     label: "Nouveaux clients", 
-    color: "hsl(142 76% 36%)",
-    bgClass: "bg-emerald-100 dark:bg-emerald-900/30",
-    borderClass: "border-emerald-400"
+    labelBg: "#70AD47",
+    labelText: "white",
+    blockBorder: "#70AD47",
+    blockBg: "#EBF4E6"
   },
   { 
     audience: "Réservé aux membres Uber One", 
     label: "Clients Uber One", 
-    color: "hsl(45 93% 47%)",
-    bgClass: "bg-amber-100 dark:bg-amber-900/30",
-    borderClass: "border-amber-400"
+    labelBg: "#FFC000",
+    labelText: "white",
+    blockBorder: "#C69500",
+    blockBg: "#FFF8E1"
   },
   { 
     audience: "Audience personnalisée", 
     label: "Clients inactifs", 
-    color: "hsl(25 95% 53%)",
-    bgClass: "bg-orange-100 dark:bg-orange-900/30",
-    borderClass: "border-orange-400"
+    labelBg: "#F4B183",
+    labelText: "white",
+    blockBorder: "#E07B39",
+    blockBg: "#FDF2EB"
   },
 ];
 
@@ -129,7 +134,8 @@ interface TimelineBlockProps {
   action: RestaurantAction;
   left: number;
   width: number;
-  borderClass: string;
+  borderColor: string;
+  blockBg: string;
   restaurants: Restaurant[];
   onClick: () => void;
   onDelete?: () => void;
@@ -137,7 +143,7 @@ interface TimelineBlockProps {
   isDragging?: boolean;
 }
 
-function TimelineBlock({ action, left, width, borderClass, restaurants, onClick, onDelete, onDragStart, isDragging }: TimelineBlockProps) {
+function TimelineBlock({ action, left, width, borderColor, blockBg, restaurants, onClick, onDelete, onDragStart, isDragging }: TimelineBlockProps) {
   const isNational = !action.restaurant_ids?.length && !action.restaurant_id;
   
   // Get restaurant names
@@ -156,9 +162,11 @@ function TimelineBlock({ action, left, width, borderClass, restaurants, onClick,
     return "";
   }, [action, restaurants, isNational]);
 
-  const endDateFormatted = action.end_date 
-    ? format(parseISO(action.end_date), "d MMM", { locale: fr })
-    : format(parseISO(action.start_date), "d MMM", { locale: fr });
+  const startDate = parseISO(action.start_date);
+  const endDate = action.end_date ? parseISO(action.end_date) : startDate;
+  
+  const coFunding = (action.change_context as any)?.coFundingPercent;
+  const coFundingNote = (action.change_context as any)?.coFundingNote;
 
   return (
     <TooltipProvider>
@@ -166,35 +174,36 @@ function TimelineBlock({ action, left, width, borderClass, restaurants, onClick,
         <TooltipTrigger asChild>
           <div
             className={cn(
-              "absolute top-2 bottom-2 rounded-md border-2 px-2 py-1",
-              "cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] hover:z-20",
-              "flex flex-col justify-center text-xs overflow-hidden group",
-              "bg-card dark:bg-card",
-              borderClass,
+              "absolute top-2 bottom-2 rounded-md border-l-4 px-3 py-2",
+              "cursor-pointer hover:shadow-lg transition-all hover:scale-[1.01] hover:z-20",
+              "flex flex-col text-xs overflow-hidden group",
               isDragging && "opacity-50 cursor-grabbing"
             )}
             style={{ 
               left: `${left}%`, 
               width: `${width}%`,
-              minWidth: "60px"
+              minWidth: "100px",
+              borderLeftColor: borderColor,
+              backgroundColor: blockBg,
             }}
             onClick={onClick}
           >
             {/* Drag handle */}
             <div 
-              className="absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center cursor-grab opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-muted/80 to-transparent"
+              className="absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center cursor-grab opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ backgroundColor: `${borderColor}20` }}
               onMouseDown={(e) => {
                 e.stopPropagation();
                 onDragStart?.(e);
               }}
             >
-              <GripVertical className="h-3 w-3 text-muted-foreground" />
+              <GripVertical className="h-3 w-3" style={{ color: borderColor }} />
             </div>
             
             {/* Delete button */}
             {onDelete && (
               <button
-                className="absolute right-1 top-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-destructive/10 hover:bg-destructive/20 text-destructive"
+                className="absolute right-1 top-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-destructive/10 hover:bg-destructive/20 text-destructive z-10"
                 onClick={(e) => {
                   e.stopPropagation();
                   onDelete();
@@ -205,15 +214,36 @@ function TimelineBlock({ action, left, width, borderClass, restaurants, onClick,
               </button>
             )}
             
+            {/* National badge */}
             {isNational && (
-              <span className="text-[9px] text-muted-foreground absolute top-0.5 right-6 uppercase tracking-wide">
-                national
+              <span className="absolute top-1 right-6 text-[9px] italic text-gray-500">
+                planning national
               </span>
             )}
-            <span className="font-medium truncate pr-6">{action.title}</span>
-            <span className="text-muted-foreground text-[10px] truncate">
-              Du {format(parseISO(action.start_date), "d", { locale: fr })} au {endDateFormatted}
+            
+            {/* Date range */}
+            <span className="text-[10px] text-gray-600 text-center mb-0.5">
+              Du {format(startDate, "dd", { locale: fr })} au {format(endDate, "dd", { locale: fr })}
             </span>
+            
+            {/* Title */}
+            <span className="font-bold text-sm text-center text-gray-800 leading-tight">
+              {action.title}
+            </span>
+            
+            {/* Description */}
+            {action.description && (
+              <span className="text-[11px] text-center text-gray-600 mt-1 line-clamp-2">
+                {action.description}
+              </span>
+            )}
+            
+            {/* Co-funding note */}
+            {(coFunding || coFundingNote) && (
+              <span className="text-[9px] uppercase tracking-wide text-gray-500 italic mt-auto pt-1 text-center">
+                {coFundingNote || `FINANCEMENT ${coFunding}% UBER EATS`}
+              </span>
+            )}
           </div>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[280px]">
@@ -221,8 +251,8 @@ function TimelineBlock({ action, left, width, borderClass, restaurants, onClick,
             <p className="font-semibold">{action.title}</p>
             <p className="text-xs text-muted-foreground">{action.action_type}</p>
             <p className="text-xs">
-              {format(parseISO(action.start_date), "d MMMM yyyy", { locale: fr })}
-              {action.end_date && ` → ${format(parseISO(action.end_date), "d MMMM yyyy", { locale: fr })}`}
+              {format(startDate, "d MMMM yyyy", { locale: fr })}
+              {action.end_date && ` → ${format(endDate, "d MMMM yyyy", { locale: fr })}`}
             </p>
             <p className="text-xs text-muted-foreground">{restaurantNames}</p>
             {action.impact_value && (
@@ -461,21 +491,36 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
         onMouseUp={handleDragEnd}
         onMouseLeave={handleDragEnd}
       >
-        {/* Period headers */}
-        <div className="flex border-b sticky top-0 bg-background z-10">
-          <div className="w-40 flex-shrink-0 border-r p-2 font-medium text-sm flex items-center gap-2">
-            <CalendarRange className="h-4 w-4 text-muted-foreground" />
+        {/* Period headers - chevron style */}
+        <div className="flex sticky top-0 bg-background z-10">
+          <div 
+            className="w-40 flex-shrink-0 p-2 font-medium text-sm flex items-center gap-2 text-white"
+            style={{ backgroundColor: "#4A5568" }}
+          >
+            <CalendarRange className="h-4 w-4" />
             Audience
           </div>
-          {periods.map((period, i) => (
-            <div 
-              key={i} 
-              className="flex-1 text-center p-2 border-r text-sm font-medium capitalize"
-              style={{ minWidth: selectedQuarter !== null ? "150px" : "80px" }}
-            >
-              {period.label}
-            </div>
-          ))}
+          <div className="flex flex-1">
+            {periods.map((period, i) => (
+              <div 
+                key={i} 
+                className="flex-1 flex items-center justify-center text-white text-sm font-medium capitalize relative"
+                style={{ 
+                  minWidth: selectedQuarter !== null ? "150px" : "80px",
+                  backgroundColor: "#6B7280",
+                  clipPath: i < periods.length - 1 
+                    ? "polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)" 
+                    : undefined,
+                  marginRight: i < periods.length - 1 ? "-8px" : "0",
+                  paddingRight: i < periods.length - 1 ? "20px" : "0",
+                  height: "40px",
+                  zIndex: periods.length - i
+                }}
+              >
+                {period.label}
+              </div>
+            ))}
+          </div>
         </div>
         
         {/* Timeline content with ref for drag calculations */}
@@ -497,18 +542,21 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
                 data-timeline-row
                 data-audience={row.audience}
                 className={cn(
-                  "flex border-b min-h-[80px]",
-                  isDropTargetRow && "bg-muted/20"
+                  "flex border-b min-h-[120px]",
+                  isDropTargetRow && "bg-blue-50/50"
                 )}
               >
-                {/* Audience label */}
+                {/* Audience label - solid color style */}
                 <div 
-                  className={cn("w-40 flex-shrink-0 border-r p-3 font-medium text-sm flex items-center", row.bgClass)}
-                  style={{ borderLeftWidth: 4, borderLeftColor: row.color }}
+                  className="w-40 flex-shrink-0 p-3 font-medium text-sm flex items-center justify-between"
+                  style={{ 
+                    backgroundColor: row.labelBg,
+                    color: row.labelText
+                  }}
                 >
-                  {row.label}
+                  <span>{row.label}</span>
                   {visibleActions.length > 0 && (
-                    <span className="ml-auto text-xs text-muted-foreground">
+                    <span className="text-xs opacity-80">
                       ({visibleActions.length})
                     </span>
                   )}
@@ -547,7 +595,8 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
                         action={action}
                         left={pos.left}
                         width={pos.width}
-                        borderClass={row.borderClass}
+                        borderColor={row.blockBorder}
+                        blockBg={row.blockBg}
                         restaurants={restaurants}
                         onClick={() => !isDragging && onActionClick(action)}
                         onDelete={onActionDelete ? () => onActionDelete(action) : undefined}
