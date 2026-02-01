@@ -1,220 +1,340 @@
 
-# Ajout de la multi-sélection pour suppression groupée des actions
+
+# Frise Temporelle des Promotions (Style Plan Marketing)
 
 ## Objectif
-Permettre de sélectionner plusieurs actions dans le tableau et de les supprimer en une seule fois, comme pour la page Restaurants.
+Créer une vue "timeline/Gantt" pour visualiser les promotions par segment d'audience et par mois, comme le plan marketing que tu as partagé.
 
 ## Aperçu de l'interface
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ ☑  │ Plateforme │ Catégorie │ Action │ Période │ ... │ Actions │
-├─────────────────────────────────────────────────────────────────┤
-│ ☐  │ Uber       │ Menu      │ ...    │ ...     │ ... │ 🖊️ 🗑️   │
-│ ☑  │ Toutes     │ Menu      │ ...    │ ...     │ ... │ 🖊️ 🗑️   │
-│ ☑  │ Uber       │ Menu      │ ...    │ ...     │ ... │ 🖊️ 🗑️   │
-│ ☐  │ Deliveroo  │ Promo     │ ...    │ ...     │ ... │ 🖊️ 🗑️   │
-└─────────────────────────────────────────────────────────────────┘
-
-                    ┌─────────────────────────────────────────────┐
-                    │  2 actions sélectionnées  │ 🗑️ Supprimer │ ✕ │
-                    └─────────────────────────────────────────────┘
-                                (barre flottante en bas)
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  [◀ 2025]  [T1] [T2] [T3] [T4]  [2026 ▶]           [Mois ▼] [Trimestre ▼]    │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                    │ Janvier      │ Février      │ Mars         │           │
+│                    │──────────────│──────────────│──────────────│           │
+├────────────────────┼──────────────┼──────────────┼──────────────┼───────────┤
+│ Tous clients       │ [███ Naan    │ [████████ ST │              │           │
+│                    │   TENDERS]   │  VALENTIN ♡] │              │           │
+├────────────────────┼──────────────┼──────────────┼──────────────┼───────────┤
+│ Nouveaux clients   │              │ [███████████ -20% Menus ███████████]    │
+│                    │              │                                         │
+├────────────────────┼──────────────┼──────────────┼──────────────┼───────────┤
+│ Uber One           │ [██ BOGO ██] │ [██ BOGO ██] │ [██ BOGO ██] │           │
+│                    │              │              │              │           │
+├────────────────────┼──────────────┼──────────────┼──────────────┼───────────┤
+│ Clients inactifs   │              │ [███ 1+1    │              │           │
+│                    │              │     Burger] │              │           │
+└────────────────────┴──────────────┴──────────────┴──────────────┴───────────┘
 ```
+
+## Fonctionnalités
+
+### 1. Navigation temporelle
+- Sélecteur d'année (2025, 2026...)
+- Vue par mois (12 colonnes) ou par trimestre (4 colonnes)
+- Boutons précédent/suivant pour changer d'année
+- Boutons de raccourci trimestres (T1, T2, T3, T4) pour zoomer
+
+### 2. Lignes par audience
+Les audiences seront affichées dans cet ordre :
+- **Tous les clients** (vert/bleu-gris comme dans ton image)
+- **Nouveaux clients** (vert clair)
+- **Uber One** (jaune/doré)
+- **Clients inactifs** (orange/pêche)
+
+### 3. Blocs d'offres
+Chaque offre sera représentée par un bloc horizontal :
+- Position : alignée sur la période (start_date → end_date)
+- Largeur : proportionnelle à la durée
+- Contenu : titre de l'offre, dates "Du X au Y"
+- Couleur de bordure : selon le type (BOGO, remise %, etc.)
+- Badge "planning national" si offre nationale
+- Indicateur de financement Uber si applicable
+
+### 4. Interactions
+- **Survol** : tooltip avec détails complets (restaurant, dates, résultats)
+- **Clic** : ouvre le formulaire de modification
+- **Filtre restaurant** : afficher uniquement les promos d'un restaurant
 
 ## Modifications techniques
 
-### 1. Nouveaux états pour la sélection
+### Nouveau composant : `PromotionsTimeline.tsx`
+
+```typescript
+// src/components/actions/PromotionsTimeline.tsx
+
+interface TimelineRow {
+  audience: string;
+  label: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+}
+
+const AUDIENCE_ROWS: TimelineRow[] = [
+  { 
+    audience: "Tous les clients", 
+    label: "Tous clients", 
+    color: "#94a3b8",       // slate-400
+    bgColor: "bg-slate-100",
+    borderColor: "border-slate-300"
+  },
+  { 
+    audience: "Uniquement pour les nouveaux clients", 
+    label: "Nouveaux clients", 
+    color: "#86efac",       // green-300
+    bgColor: "bg-green-100",
+    borderColor: "border-green-300"
+  },
+  { 
+    audience: "Réservé aux membres Uber One", 
+    label: "Clients Uber One", 
+    color: "#fcd34d",       // amber-300
+    bgColor: "bg-amber-100",
+    borderColor: "border-amber-300"
+  },
+  { 
+    audience: "Audience personnalisée", 
+    label: "Clients inactifs", 
+    color: "#fdba74",       // orange-300
+    bgColor: "bg-orange-100",
+    borderColor: "border-orange-300"
+  },
+];
+```
+
+### Calcul de position des blocs
+
+```typescript
+// Calculer la position horizontale d'un bloc sur le timeline
+function getBlockPosition(
+  startDate: Date,
+  endDate: Date | null,
+  viewStart: Date, // 1er janvier de l'année
+  viewEnd: Date,   // 31 décembre de l'année
+  containerWidth: number
+): { left: number; width: number; visible: boolean } {
+  const totalDays = differenceInDays(viewEnd, viewStart);
+  const blockStart = max([startDate, viewStart]);
+  const blockEnd = min([endDate || startDate, viewEnd]);
+  
+  if (blockEnd < viewStart || blockStart > viewEnd) {
+    return { left: 0, width: 0, visible: false };
+  }
+  
+  const leftDays = differenceInDays(blockStart, viewStart);
+  const durationDays = differenceInDays(blockEnd, blockStart) + 1;
+  
+  return {
+    left: (leftDays / totalDays) * 100,
+    width: Math.max((durationDays / totalDays) * 100, 2), // min 2% pour être visible
+    visible: true
+  };
+}
+```
+
+### Intégration dans RestaurantActions.tsx
+
+Ajouter un nouveau mode de vue "timeline" :
 
 ```typescript
 // Dans RestaurantActions.tsx
-const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
+const [viewMode, setViewMode] = useState<"list" | "calendar" | "timeline">("list");
 ```
 
-### 2. Checkbox dans l'en-tête du tableau (sélection globale)
+Ajouter un bouton dans le sélecteur de vue :
 
-Ajouter une colonne checkbox en première position du tableau :
-- En-tête : checkbox "tout sélectionner / tout désélectionner" 
-- Si toutes les actions filtrées sont sélectionnées : coché
-- Si certaines mais pas toutes : état indeterminate
-- Sinon : non coché
-
-### 3. Checkbox par ligne
-
-Chaque ligne aura une checkbox permettant de sélectionner/désélectionner l'action individuelle.
-
-### 4. Barre d'actions flottante
-
-Afficher une barre fixe en bas de l'écran quand au moins une action est sélectionnée :
-- Compteur : "X action(s) sélectionnée(s)"
-- Bouton "Supprimer" (rouge)
-- Bouton fermer (X) pour désélectionner tout
-
-### 5. Dialog de confirmation de suppression groupée
-
-Modifier le dialog existant ou en créer un nouveau pour gérer la suppression de plusieurs actions :
-- Titre : "Supprimer X actions ?"
-- Liste des titres des actions à supprimer
-- Appel API avec `supabase.from("restaurant_actions").delete().in("id", selectedIds)`
-
-### 6. Gestion du state après suppression
-
-- Vider la sélection après suppression réussie
-- Rafraîchir la liste des actions
-
-## Code des principales modifications
-
-### Nouveau state
-```typescript
-const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
-const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
-const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+```tsx
+<Button
+  variant={viewMode === "timeline" ? "secondary" : "ghost"}
+  size="sm"
+  className="h-7 text-xs gap-1"
+  onClick={() => setViewMode("timeline")}
+>
+  <CalendarRange className="h-4 w-4" />
+  Frise
+</Button>
 ```
 
-### Fonctions helpers
+### Filtrage des promotions
+
 ```typescript
-// Toggle une action
-const toggleActionSelection = (actionId: string) => {
-  setSelectedActionIds(prev => {
-    const next = new Set(prev);
-    if (next.has(actionId)) {
-      next.delete(actionId);
-    } else {
-      next.add(actionId);
-    }
-    return next;
+// Filtrer les actions pour n'afficher que les promotions
+const promotionActions = useMemo(() => {
+  return actions.filter(a => a.category === "promotions");
+}, [actions]);
+
+// Grouper par audience
+const actionsByAudience = useMemo(() => {
+  const groups: Record<string, RestaurantAction[]> = {};
+  
+  AUDIENCE_ROWS.forEach(row => {
+    groups[row.audience] = promotionActions.filter(
+      a => (a.change_context as any)?.audience === row.audience
+    );
   });
-};
-
-// Sélectionner/désélectionner toutes les actions filtrées
-const toggleAllActions = () => {
-  const allFilteredIds = filteredActions.map(a => a.id);
-  const allSelected = allFilteredIds.every(id => selectedActionIds.has(id));
   
-  if (allSelected) {
-    setSelectedActionIds(new Set());
-  } else {
-    setSelectedActionIds(new Set(allFilteredIds));
-  }
-};
-
-// Suppression groupée
-const handleBulkDelete = async () => {
-  setIsBulkDeleting(true);
-  const idsToDelete = Array.from(selectedActionIds);
-  
-  const { error } = await supabase
-    .from("restaurant_actions")
-    .delete()
-    .in("id", idsToDelete);
-  
-  if (error) {
-    toast({ title: "Erreur", description: "Impossible de supprimer les actions", variant: "destructive" });
-  } else {
-    toast({ 
-      title: "Succès", 
-      description: `${idsToDelete.length} action${idsToDelete.length > 1 ? 's' : ''} supprimée${idsToDelete.length > 1 ? 's' : ''}` 
-    });
-    setSelectedActionIds(new Set());
-    fetchActions();
-  }
-  
-  setIsBulkDeleting(false);
-  setIsBulkDeleteDialogOpen(false);
-};
+  return groups;
+}, [promotionActions]);
 ```
 
-### Nouvelle colonne dans TableHeader
-```tsx
-<TableHead className="w-[40px]">
-  <Checkbox 
-    checked={filteredActions.length > 0 && filteredActions.every(a => selectedActionIds.has(a.id))}
-    onCheckedChange={toggleAllActions}
-    aria-label="Sélectionner tout"
-  />
-</TableHead>
-```
+## Structure du composant
 
-### Checkbox dans chaque TableRow
 ```tsx
-<TableCell className="w-[40px]">
-  <Checkbox 
-    checked={selectedActionIds.has(action.id)}
-    onCheckedChange={() => toggleActionSelection(action.id)}
-    aria-label={`Sélectionner ${action.title}`}
-  />
-</TableCell>
-```
-
-### Barre flottante (similaire à RestaurantShareActions)
-```tsx
-{selectedActionIds.size > 0 && (
-  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-background border border-border shadow-lg rounded-lg px-4 py-3 flex items-center gap-4 animate-in slide-in-from-bottom-4">
-    <span className="text-sm font-medium">
-      {selectedActionIds.size} action{selectedActionIds.size > 1 ? 's' : ''} sélectionnée{selectedActionIds.size > 1 ? 's' : ''}
-    </span>
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => setIsBulkDeleteDialogOpen(true)}
-      className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-    >
-      <Trash2 className="h-4 w-4" />
-      Supprimer
-    </Button>
-    <Button 
-      variant="ghost" 
-      size="icon" 
-      onClick={() => setSelectedActionIds(new Set())} 
-      className="h-8 w-8"
-    >
-      <X className="h-4 w-4" />
-    </Button>
+<div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+  {/* En-tête avec navigation */}
+  <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" size="icon" onClick={() => setYear(y => y - 1)}>
+        <ChevronLeft />
+      </Button>
+      <span className="font-semibold text-lg">{year}</span>
+      <Button variant="ghost" size="icon" onClick={() => setYear(y => y + 1)}>
+        <ChevronRight />
+      </Button>
+    </div>
+    
+    {/* Raccourcis trimestres */}
+    <div className="flex gap-1">
+      {["T1", "T2", "T3", "T4"].map((q, i) => (
+        <Button key={q} variant="outline" size="sm" onClick={() => scrollToQuarter(i)}>
+          {q}
+        </Button>
+      ))}
+    </div>
+    
+    {/* Granularité */}
+    <Select value={granularity} onValueChange={setGranularity}>
+      <SelectTrigger className="w-32">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="month">Par mois</SelectItem>
+        <SelectItem value="quarter">Par trimestre</SelectItem>
+      </SelectContent>
+    </Select>
   </div>
-)}
-```
-
-### Dialog de confirmation
-```tsx
-<AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
-  <AlertDialogContent>
-    <AlertDialogHeader>
-      <AlertDialogTitle>
-        Supprimer {selectedActionIds.size} action{selectedActionIds.size > 1 ? 's' : ''} ?
-      </AlertDialogTitle>
-      <AlertDialogDescription asChild>
-        <div>
-          <p className="mb-2">Cette action est irréversible. Les actions suivantes seront définitivement supprimées :</p>
-          <ul className="list-disc list-inside text-sm space-y-1 max-h-[200px] overflow-y-auto">
-            {actions.filter(a => selectedActionIds.has(a.id)).map(a => (
-              <li key={a.id} className="font-medium">{a.title}</li>
-            ))}
-          </ul>
+  
+  {/* Grille Timeline */}
+  <div className="relative">
+    {/* En-tête des mois */}
+    <div className="flex border-b sticky top-0 bg-background z-10">
+      <div className="w-40 flex-shrink-0 border-r p-2 font-medium text-sm">
+        Audience
+      </div>
+      {months.map(month => (
+        <div 
+          key={month} 
+          className="flex-1 text-center p-2 border-r text-sm font-medium"
+        >
+          {format(month, "MMMM", { locale: fr })}
         </div>
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-    <AlertDialogFooter>
-      <AlertDialogCancel disabled={isBulkDeleting}>Annuler</AlertDialogCancel>
-      <AlertDialogAction
-        onClick={handleBulkDelete}
-        disabled={isBulkDeleting}
-        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-      >
-        {isBulkDeleting ? "Suppression..." : "Supprimer"}
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
+      ))}
+    </div>
+    
+    {/* Lignes par audience */}
+    {AUDIENCE_ROWS.map(row => (
+      <div key={row.audience} className="flex border-b min-h-[80px]">
+        {/* Label audience */}
+        <div 
+          className={cn("w-40 flex-shrink-0 border-r p-3 font-medium text-sm", row.bgColor)}
+          style={{ borderLeftWidth: 4, borderLeftColor: row.color }}
+        >
+          {row.label}
+        </div>
+        
+        {/* Zone des blocs */}
+        <div className="flex-1 relative">
+          {/* Grille des mois (lignes verticales) */}
+          {months.map((_, i) => (
+            <div 
+              key={i}
+              className="absolute top-0 bottom-0 border-r border-dashed"
+              style={{ left: `${(i + 1) * (100 / 12)}%` }}
+            />
+          ))}
+          
+          {/* Blocs d'offres */}
+          {actionsByAudience[row.audience]?.map(action => {
+            const pos = getBlockPosition(
+              parseISO(action.start_date),
+              action.end_date ? parseISO(action.end_date) : null,
+              startOfYear(year),
+              endOfYear(year)
+            );
+            
+            if (!pos.visible) return null;
+            
+            return (
+              <TimelineBlock
+                key={action.id}
+                action={action}
+                left={pos.left}
+                width={pos.width}
+                borderColor={row.borderColor}
+                onClick={() => openEditDialog(action)}
+              />
+            );
+          })}
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
 ```
 
-## Fichiers impactés
+### Composant TimelineBlock
 
-| Fichier | Modifications |
-|---------|---------------|
-| `src/pages/RestaurantActions.tsx` | Ajout états, checkbox, barre flottante, dialog |
+```tsx
+function TimelineBlock({ action, left, width, borderColor, onClick }) {
+  const isNational = !action.restaurant_ids?.length && !action.restaurant_id;
+  
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          className={cn(
+            "absolute top-2 bottom-2 rounded-md border-2 px-2 py-1",
+            "cursor-pointer hover:shadow-lg transition-shadow",
+            "flex flex-col justify-center text-xs",
+            borderColor,
+            "bg-white dark:bg-slate-800"
+          )}
+          style={{ left: `${left}%`, width: `${width}%` }}
+          onClick={onClick}
+        >
+          {isNational && (
+            <span className="text-[10px] text-muted-foreground absolute top-0.5 right-1">
+              national
+            </span>
+          )}
+          <span className="font-medium truncate">{action.title}</span>
+          <span className="text-muted-foreground text-[10px] truncate">
+            Du {format(parseISO(action.start_date), "d", { locale: fr })} au{" "}
+            {format(parseISO(action.end_date || action.start_date), "d MMM", { locale: fr })}
+          </span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        {/* Détails complets de l'offre */}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+```
 
-## Comportements additionnels
+## Fichiers à créer/modifier
 
-- La sélection se vide automatiquement si les filtres changent et que certaines actions sélectionnées sont filtrées
-- Cliquer sur une ligne (hors checkbox) ne la sélectionne pas (garde le comportement actuel)
-- Le bouton supprimer individuel reste disponible pour chaque ligne
+| Fichier | Action |
+|---------|--------|
+| `src/components/actions/PromotionsTimeline.tsx` | **Créer** - Nouveau composant timeline |
+| `src/pages/RestaurantActions.tsx` | **Modifier** - Ajouter mode "timeline" et bouton de vue |
+
+## Améliorations futures possibles
+
+1. **Drag & drop** pour déplacer les offres sur la timeline
+2. **Mode création** : cliquer sur une cellule pour créer une nouvelle offre
+3. **Export PDF** du plan marketing
+4. **Comparaison N-1** : afficher les offres de l'année précédente en filigrane
+
