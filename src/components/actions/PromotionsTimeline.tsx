@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, useCallback } from "react";
 import { parseISO, startOfYear, endOfYear, differenceInDays, format, eachMonthOfInterval, isBefore, isAfter, addDays, startOfQuarter, endOfQuarter, setMonth } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, CalendarRange, GripVertical } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarRange, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -46,6 +46,7 @@ interface PromotionsTimelineProps {
   actions: RestaurantAction[];
   restaurants: Restaurant[];
   onActionClick: (action: RestaurantAction) => void;
+  onActionDelete?: (action: RestaurantAction) => void;
   onActionDrop?: (
     actionId: string,
     actionTitle: string,
@@ -131,11 +132,12 @@ interface TimelineBlockProps {
   borderClass: string;
   restaurants: Restaurant[];
   onClick: () => void;
+  onDelete?: () => void;
   onDragStart?: (e: React.MouseEvent) => void;
   isDragging?: boolean;
 }
 
-function TimelineBlock({ action, left, width, borderClass, restaurants, onClick, onDragStart, isDragging }: TimelineBlockProps) {
+function TimelineBlock({ action, left, width, borderClass, restaurants, onClick, onDelete, onDragStart, isDragging }: TimelineBlockProps) {
   const isNational = !action.restaurant_ids?.length && !action.restaurant_id;
   
   // Get restaurant names
@@ -188,12 +190,27 @@ function TimelineBlock({ action, left, width, borderClass, restaurants, onClick,
             >
               <GripVertical className="h-3 w-3 text-muted-foreground" />
             </div>
+            
+            {/* Delete button */}
+            {onDelete && (
+              <button
+                className="absolute right-1 top-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-destructive/10 hover:bg-destructive/20 text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                title="Supprimer"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+            
             {isNational && (
-              <span className="text-[9px] text-muted-foreground absolute top-0.5 right-1 uppercase tracking-wide">
+              <span className="text-[9px] text-muted-foreground absolute top-0.5 right-6 uppercase tracking-wide">
                 national
               </span>
             )}
-            <span className="font-medium truncate pr-1">{action.title}</span>
+            <span className="font-medium truncate pr-6">{action.title}</span>
             <span className="text-muted-foreground text-[10px] truncate">
               Du {format(parseISO(action.start_date), "d", { locale: fr })} au {endDateFormatted}
             </span>
@@ -223,7 +240,7 @@ function TimelineBlock({ action, left, width, borderClass, restaurants, onClick,
   );
 }
 
-export function PromotionsTimeline({ actions, restaurants, onActionClick, onActionDrop }: PromotionsTimelineProps) {
+export function PromotionsTimeline({ actions, restaurants, onActionClick, onActionDelete, onActionDrop }: PromotionsTimelineProps) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [granularity, setGranularity] = useState<"month" | "quarter">("month");
   const [selectedQuarter, setSelectedQuarter] = useState<number | null>(null); // 0-3 for T1-T4, null for full year
@@ -533,6 +550,7 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
                         borderClass={row.borderClass}
                         restaurants={restaurants}
                         onClick={() => !isDragging && onActionClick(action)}
+                        onDelete={onActionDelete ? () => onActionDelete(action) : undefined}
                         onDragStart={(e) => handleDragStart(e, action)}
                         isDragging={isDragging}
                       />
