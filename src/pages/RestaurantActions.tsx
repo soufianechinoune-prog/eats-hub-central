@@ -63,6 +63,7 @@ import {
   Settings,
   Calendar,
   CalendarIcon,
+  CalendarRange,
   ArrowRight,
   Filter,
   Clock,
@@ -82,6 +83,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { ActionsCalendar } from "@/components/actions/ActionsCalendar";
+import { PromotionsTimeline } from "@/components/actions/PromotionsTimeline";
 import { UberEatsIcon, DeliverooIcon, UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -226,8 +228,8 @@ export default function RestaurantActions() {
   const highlightedActionId = searchParams.get("highlight");
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
   
-  // View mode: list or calendar
-  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  // View mode: list, calendar, or timeline
+  const [viewMode, setViewMode] = useState<"list" | "calendar" | "timeline">("list");
   
   // Page-level scope filter
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
@@ -879,6 +881,15 @@ export default function RestaurantActions() {
             >
               <LayoutGrid className="h-4 w-4" />
               <span className="hidden sm:inline">Calendrier</span>
+            </Button>
+            <Button
+              variant={viewMode === "timeline" ? "secondary" : "ghost"}
+              size="sm"
+              className="gap-1.5 h-8"
+              onClick={() => setViewMode("timeline")}
+            >
+              <CalendarRange className="h-4 w-4" />
+              <span className="hidden sm:inline">Frise</span>
             </Button>
           </div>
           <Button onClick={() => openCreateDialog()} className="gap-2">
@@ -1828,6 +1839,15 @@ export default function RestaurantActions() {
               newEndDate,
             });
           }}
+        />
+      )}
+
+      {/* Timeline View */}
+      {viewMode === "timeline" && (
+        <PromotionsTimeline
+          actions={filteredActions}
+          restaurants={restaurants}
+          onActionClick={(action) => openEditDialog(action)}
         />
       )}
 
