@@ -65,6 +65,108 @@ const isQueryMessage = (message: string): boolean => {
   return queryKeywords.test(message) || questionMark || message.length > 10;
 };
 
+// Extract city name from full restaurant name (e.g., "CHICKEN STREET ATHIS-MONS" → "Athis-Mons")
+const extractCityName = (fullName: string): string => {
+  let cityPart = fullName
+    .replace(/^CHICKEN STREET\s*/i, "")
+    .replace(/^CS\s*/i, "")
+    .trim();
+  
+  if (!cityPart) return fullName;
+  
+  // Handle compound names with "-SUR-" pattern (keep first part only)
+  if (cityPart.toUpperCase().includes("-SUR-")) {
+    cityPart = cityPart.split("-SUR-")[0];
+  }
+  
+  // Capitalize properly: "ANTONY" → "Antony", "ATHIS-MONS" → "Athis-Mons"
+  return cityPart
+    .toLowerCase()
+    .split("-")
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("-");
+};
+
+// Get recent report context for multi-restaurant managers
+async function getRecentReportContext(
+  supabase: any,
+  phone: string,
+  hours: number = 24
+): Promise<{ restaurantId: string; restaurantName: string } | null> {
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  
+  const { data: recentReport } = await supabase
+    .from('message_history')
+    .select('restaurant_id, restaurant_name')
+    .eq('direction', 'outbound')
+    .eq('message_type', 'report')
+    .eq('recipient_phone', phone)
+    .not('restaurant_id', 'is', null)
+    .gte('created_at', cutoff)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  
+  if (recentReport?.restaurant_id) {
+    console.log(`Found recent report context: ${recentReport.restaurant_name} (${recentReport.restaurant_id})`);
+    return {
+      restaurantId: recentReport.restaurant_id,
+      restaurantName: recentReport.restaurant_name || ''
+    };
+  }
+  
+  console.log('No recent report context found within', hours, 'hours');
+  return null;
+}
+
+// Send restaurant selection prompt for multi-restaurant managers
+async function sendRestaurantSelectionPrompt(
+  supabase: any,
+  phone: string,
+  restaurants: Array<{ id: string; name: string }>,
+  reportType: string,
+  detailLevel: string,
+  managerName: string
+): Promise<void> {
+  const restaurantList = restaurants.map((r, index) => {
+    const cityName = extractCityName(r.name);
+    return `${index + 1}. ${cityName}`;
+  }).join('\n');
+  
+  const reportTypeLabels: Record<string, string> = {
+    errors: 'Erreurs',
+    revenue: 'CA & Commandes',
+    rating: 'Notes clients',
+    operations: 'Temps opérationnels',
+    promotions: 'Promotions'
+  };
+  
+  const reportLabel = reportTypeLabels[reportType] || reportType;
+  
+  const message = `Salut ${managerName} ! 👋
+
+Tu gères plusieurs restaurants. Pour quel établissement veux-tu le rapport "${reportLabel}" ?
+
+${restaurantList}
+
+💡 Réponds avec le numéro correspondant (ex: "1" pour ${extractCityName(restaurants[0].name)})`;
+
+  // Store pending selection context in message_history for later retrieval
+  await supabase.from('message_history').insert({
+    direction: 'outbound',
+    recipient_phone: phone,
+    recipient_name: managerName,
+    message_content: message,
+    message_type: 'restaurant_selection',
+    status: 'pending',
+    created_at: new Date().toISOString(),
+  });
+
+  // Send via Ultramsg
+  await sendWhatsAppReply(phone, message);
+  console.log('Restaurant selection prompt sent to', phone);
+}
+
 // Check if message is an interactive report menu response (1-5 for basic, 1+ for detailed)
 const isInteractiveMenuResponse = (message: string): { isMenu: boolean; reportType: string | null; detailLevel: 'basic' | 'detailed' } => {
   const trimmed = message.trim().toLowerCase();
@@ -1696,16 +1798,55 @@ serve(async (req) => {
       
       if (managerRestaurants.length > 0 && menuResponse.isMenu && menuResponse.reportType) {
         console.log(`Interactive menu response detected: ${menuResponse.reportType} (${menuResponse.detailLevel})`);
-        const primaryRestaurantForReport = managerRestaurants.find((r: any) => r.is_primary) || managerRestaurants[0];
+        
+        let targetRestaurant = null;
+        
+        // If manager has multiple restaurants, find context from recent report
+        if (managerRestaurants.length > 1) {
+          console.log(`Manager has ${managerRestaurants.length} restaurants, looking for context...`);
+          const recentContext = await getRecentReportContext(supabase, normalizedPhone);
+          
+          if (recentContext) {
+            // Find matching restaurant from manager's list
+            targetRestaurant = managerRestaurants.find(
+              (r: any) => r.id === recentContext.restaurantId
+            );
+            if (targetRestaurant) {
+              console.log(`Using context from recent report: ${recentContext.restaurantName}`);
+            } else {
+              console.log(`Context restaurant ${recentContext.restaurantId} not in manager's list`);
+            }
+          }
+          
+          // If no context found, ask for selection
+          if (!targetRestaurant) {
+            console.log('No recent context found - asking for restaurant selection');
+            await sendRestaurantSelectionPrompt(
+              supabase,
+              normalizedPhone,
+              managerRestaurants.map((r: any) => ({ id: r.id, name: r.name })),
+              menuResponse.reportType,
+              menuResponse.detailLevel,
+              manager?.first_name || 'Manager'
+            );
+            return new Response(
+              JSON.stringify({ success: true, type: 'awaiting_restaurant_selection' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        } else {
+          // Single restaurant - use it
+          targetRestaurant = managerRestaurants[0];
+        }
         
         // Handle report generation asynchronously
         handleInteractiveReportRequest(
           supabase,
-          primaryRestaurantForReport,
+          targetRestaurant,
           menuResponse.reportType,
           menuResponse.detailLevel,
           normalizedPhone,
-          manager?.first_name || primaryRestaurantForReport?.manager_first_name || 'Manager'
+          manager?.first_name || targetRestaurant?.manager_first_name || 'Manager'
         ).catch((err: Error) => console.error('Interactive report error:', err));
         
         return new Response(
