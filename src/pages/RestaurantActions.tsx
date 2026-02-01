@@ -263,6 +263,11 @@ export default function RestaurantActions() {
   const [editingAction, setEditingAction] = useState<RestaurantAction | null>(null);
   const [actionToDelete, setActionToDelete] = useState<RestaurantAction | null>(null);
   
+  // Bulk selection states
+  const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  
   // Drag & drop confirmation state
   const [pendingDrop, setPendingDrop] = useState<{
     actionId: string;
@@ -666,6 +671,54 @@ export default function RestaurantActions() {
     fetchActions();
   };
 
+  // Bulk selection helpers
+  const toggleActionSelection = (actionId: string) => {
+    setSelectedActionIds(prev => {
+      const next = new Set(prev);
+      if (next.has(actionId)) {
+        next.delete(actionId);
+      } else {
+        next.add(actionId);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllActions = () => {
+    const allFilteredIds = filteredActions.map(a => a.id);
+    const allSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => selectedActionIds.has(id));
+    
+    if (allSelected) {
+      setSelectedActionIds(new Set());
+    } else {
+      setSelectedActionIds(new Set(allFilteredIds));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setIsBulkDeleting(true);
+    const idsToDelete = Array.from(selectedActionIds);
+    
+    const { error } = await supabase
+      .from("restaurant_actions")
+      .delete()
+      .in("id", idsToDelete);
+    
+    if (error) {
+      toast({ title: "Erreur", description: "Impossible de supprimer les actions", variant: "destructive" });
+    } else {
+      toast({ 
+        title: "Succès", 
+        description: `${idsToDelete.length} action${idsToDelete.length > 1 ? 's' : ''} supprimée${idsToDelete.length > 1 ? 's' : ''}` 
+      });
+      setSelectedActionIds(new Set());
+      fetchActions();
+    }
+    
+    setIsBulkDeleting(false);
+    setIsBulkDeleteDialogOpen(false);
+  };
+
   // Helper pour déterminer le statut d'une action
   const getActionStatus = (action: RestaurantAction): "en_cours" | "programmee" | "terminee" => {
     const now = new Date();
@@ -733,6 +786,10 @@ export default function RestaurantActions() {
       return actionDate <= endDateFilter;
     });
   
+  // Check if all filtered actions are selected
+  const allFilteredSelected = filteredActions.length > 0 && filteredActions.every(a => selectedActionIds.has(a.id));
+  const someFilteredSelected = filteredActions.some(a => selectedActionIds.has(a.id)) && !allFilteredSelected;
+
   // Récupérer tous les types d'action uniques
   const uniqueActionTypes = [...new Set(scopedActions.map(a => a.action_type))].sort();
 
@@ -1800,6 +1857,18 @@ export default function RestaurantActions() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox 
+                        checked={allFilteredSelected}
+                        ref={(el) => {
+                          if (el) {
+                            (el as any).indeterminate = someFilteredSelected;
+                          }
+                        }}
+                        onCheckedChange={toggleAllActions}
+                        aria-label="Sélectionner tout"
+                      />
+                    </TableHead>
                     <TableHead className="w-[90px]">Plateforme</TableHead>
                     <TableHead className="w-[100px]">Catégorie</TableHead>
                     <TableHead className="min-w-[200px]">Action</TableHead>
@@ -1830,9 +1899,17 @@ export default function RestaurantActions() {
                         }}
                         className={cn(
                           "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
-                          isHighlighted && "bg-primary/10 animate-pulse ring-2 ring-primary ring-inset"
+                          isHighlighted && "bg-primary/10 animate-pulse ring-2 ring-primary ring-inset",
+                          selectedActionIds.has(action.id) && "bg-muted/30"
                         )}
                       >
+                        <TableCell className="w-[40px]">
+                          <Checkbox 
+                            checked={selectedActionIds.has(action.id)}
+                            onCheckedChange={() => toggleActionSelection(action.id)}
+                            aria-label={`Sélectionner ${action.title}`}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className={cn(
                             "inline-flex items-center gap-1.5 px-2 py-1 rounded",
@@ -3097,7 +3174,70 @@ export default function RestaurantActions() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Drag & Drop Confirmation */}
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Supprimer {selectedActionIds.size} action{selectedActionIds.size > 1 ? 's' : ''} ?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="mb-2">Cette action est irréversible. Les actions suivantes seront définitivement supprimées :</p>
+                <ul className="list-disc list-inside text-sm space-y-1 max-h-[200px] overflow-y-auto">
+                  {actions.filter(a => selectedActionIds.has(a.id)).map(a => (
+                    <li key={a.id} className="font-medium">{a.title}</li>
+                  ))}
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isBulkDeleting ? "Suppression..." : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Floating Action Bar for Bulk Selection */}
+      <AnimatePresence>
+        {selectedActionIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-background border border-border shadow-lg rounded-lg px-4 py-3 flex items-center gap-4"
+          >
+            <span className="text-sm font-medium">
+              {selectedActionIds.size} action{selectedActionIds.size > 1 ? 's' : ''} sélectionnée{selectedActionIds.size > 1 ? 's' : ''}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBulkDeleteDialogOpen(true)}
+              className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-4 w-4" />
+              Supprimer
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setSelectedActionIds(new Set())} 
+              className="h-8 w-8"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AlertDialog open={!!pendingDrop} onOpenChange={(open) => !open && setPendingDrop(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
