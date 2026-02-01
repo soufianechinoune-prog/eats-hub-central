@@ -1,11 +1,23 @@
 import { format, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
-import { CalendarEvent } from "./CalendarEventBar";
 import { cn } from "@/lib/utils";
 import { ArrowRight, Calendar } from "lucide-react";
 
+// Simplified event type for drag preview - works for both calendar and timeline
+interface DragPreviewEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  color: {
+    bg: string;
+    border: string;
+    text: string;
+  };
+}
+
 interface DragPreviewProps {
-  event: CalendarEvent | null;
+  event: DragPreviewEvent | null;
   targetDate: Date | null;
   position: { x: number; y: number } | null;
 }

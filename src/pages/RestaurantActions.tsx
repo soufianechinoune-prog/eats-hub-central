@@ -1848,6 +1848,16 @@ export default function RestaurantActions() {
           actions={filteredActions}
           restaurants={restaurants}
           onActionClick={(action) => openEditDialog(action)}
+          onActionDrop={(actionId, actionTitle, originalStart, originalEnd, newStart, newEnd) => {
+            setPendingDrop({
+              actionId,
+              actionTitle,
+              originalDate: originalStart,
+              originalEndDate: originalEnd,
+              newStartDate: newStart,
+              newEndDate: newEnd,
+            });
+          }}
         />
       )}
 

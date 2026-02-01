@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
-import { parseISO, startOfYear, endOfYear, differenceInDays, format, eachMonthOfInterval, isBefore, isAfter } from "date-fns";
+import { useMemo, useState, useRef, useCallback } from "react";
+import { parseISO, startOfYear, endOfYear, differenceInDays, format, eachMonthOfInterval, isBefore, isAfter, addDays, startOfQuarter, endOfQuarter, setMonth } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarRange, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -17,6 +17,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { DragPreview } from "./DragPreview";
 
 interface RestaurantAction {
   id: string;
@@ -45,6 +46,7 @@ interface PromotionsTimelineProps {
   actions: RestaurantAction[];
   restaurants: Restaurant[];
   onActionClick: (action: RestaurantAction) => void;
+  onActionDrop?: (actionId: string, actionTitle: string, originalStart: Date, originalEnd: Date | null, newStart: Date, newEnd: Date | null) => void;
 }
 
 interface TimelineRow {
@@ -120,9 +122,11 @@ interface TimelineBlockProps {
   borderClass: string;
   restaurants: Restaurant[];
   onClick: () => void;
+  onDragStart?: (e: React.MouseEvent) => void;
+  isDragging?: boolean;
 }
 
-function TimelineBlock({ action, left, width, borderClass, restaurants, onClick }: TimelineBlockProps) {
+function TimelineBlock({ action, left, width, borderClass, restaurants, onClick, onDragStart, isDragging }: TimelineBlockProps) {
   const isNational = !action.restaurant_ids?.length && !action.restaurant_id;
   
   // Get restaurant names
@@ -153,9 +157,10 @@ function TimelineBlock({ action, left, width, borderClass, restaurants, onClick 
             className={cn(
               "absolute top-2 bottom-2 rounded-md border-2 px-2 py-1",
               "cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] hover:z-20",
-              "flex flex-col justify-center text-xs overflow-hidden",
+              "flex flex-col justify-center text-xs overflow-hidden group",
               "bg-card dark:bg-card",
-              borderClass
+              borderClass,
+              isDragging && "opacity-50 cursor-grabbing"
             )}
             style={{ 
               left: `${left}%`, 
@@ -164,6 +169,16 @@ function TimelineBlock({ action, left, width, borderClass, restaurants, onClick 
             }}
             onClick={onClick}
           >
+            {/* Drag handle */}
+            <div 
+              className="absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center cursor-grab opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-muted/80 to-transparent"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                onDragStart?.(e);
+              }}
+            >
+              <GripVertical className="h-3 w-3 text-muted-foreground" />
+            </div>
             {isNational && (
               <span className="text-[9px] text-muted-foreground absolute top-0.5 right-1 uppercase tracking-wide">
                 national
@@ -199,32 +214,112 @@ function TimelineBlock({ action, left, width, borderClass, restaurants, onClick 
   );
 }
 
-export function PromotionsTimeline({ actions, restaurants, onActionClick }: PromotionsTimelineProps) {
+export function PromotionsTimeline({ actions, restaurants, onActionClick, onActionDrop }: PromotionsTimelineProps) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [granularity, setGranularity] = useState<"month" | "quarter">("month");
+  const [selectedQuarter, setSelectedQuarter] = useState<number | null>(null); // 0-3 for T1-T4, null for full year
+  
+  // Drag state
+  const [draggingAction, setDraggingAction] = useState<RestaurantAction | null>(null);
+  const [dragTargetDate, setDragTargetDate] = useState<Date | null>(null);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   // Filter only promotion actions
   const promotionActions = useMemo(() => {
     return actions.filter(a => a.category === "promotions");
   }, [actions]);
 
-  // View date range
-  const viewStart = useMemo(() => startOfYear(new Date(year, 0, 1)), [year]);
-  const viewEnd = useMemo(() => endOfYear(new Date(year, 0, 1)), [year]);
+  // View date range - either full year or a specific quarter
+  const viewStart = useMemo(() => {
+    if (selectedQuarter !== null) {
+      // T1: Jan 1, T2: Apr 1, T3: Jul 1, T4: Oct 1
+      return new Date(year, selectedQuarter * 3, 1);
+    }
+    return startOfYear(new Date(year, 0, 1));
+  }, [year, selectedQuarter]);
+  
+  const viewEnd = useMemo(() => {
+    if (selectedQuarter !== null) {
+      return endOfQuarter(viewStart);
+    }
+    return endOfYear(new Date(year, 0, 1));
+  }, [year, selectedQuarter, viewStart]);
 
-  // Get months or quarters for headers
+  // Get months for headers - when quarter selected, show only those 3 months
   const periods = useMemo(() => {
     const months = eachMonthOfInterval({ start: viewStart, end: viewEnd });
-    if (granularity === "quarter") {
-      return [
-        { label: "T1", months: months.slice(0, 3) },
-        { label: "T2", months: months.slice(3, 6) },
-        { label: "T3", months: months.slice(6, 9) },
-        { label: "T4", months: months.slice(9, 12) },
-      ];
+    // Always show months in current view (whether full year or single quarter)
+    return months.map(m => ({ label: format(m, "MMMM", { locale: fr }), months: [m] }));
+  }, [viewStart, viewEnd]);
+
+  // Handle drag start
+  const handleDragStart = useCallback((e: React.MouseEvent, action: RestaurantAction) => {
+    e.preventDefault();
+    setDraggingAction(action);
+    setDragPosition({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  // Calculate date from mouse position on grid
+  const getDateFromPosition = useCallback((clientX: number): Date | null => {
+    if (!gridRef.current) return null;
+    
+    const rect = gridRef.current.getBoundingClientRect();
+    const relativeX = clientX - rect.left;
+    const percentage = relativeX / rect.width;
+    
+    const totalDays = differenceInDays(viewEnd, viewStart);
+    const dayOffset = Math.round(percentage * totalDays);
+    
+    return addDays(viewStart, Math.max(0, Math.min(dayOffset, totalDays)));
+  }, [viewStart, viewEnd]);
+
+  // Handle drag move
+  const handleDragMove = useCallback((e: React.MouseEvent) => {
+    if (!draggingAction) return;
+    
+    setDragPosition({ x: e.clientX, y: e.clientY });
+    const targetDate = getDateFromPosition(e.clientX);
+    setDragTargetDate(targetDate);
+  }, [draggingAction, getDateFromPosition]);
+
+  // Handle drag end
+  const handleDragEnd = useCallback(() => {
+    if (draggingAction && dragTargetDate && onActionDrop) {
+      const originalStart = parseISO(draggingAction.start_date);
+      const originalEnd = draggingAction.end_date ? parseISO(draggingAction.end_date) : null;
+      
+      // Calculate new dates preserving duration
+      const duration = originalEnd ? differenceInDays(originalEnd, originalStart) : 0;
+      const newEnd = duration > 0 ? addDays(dragTargetDate, duration) : null;
+      
+      // Only trigger if date actually changed
+      if (dragTargetDate.getTime() !== originalStart.getTime()) {
+        onActionDrop(
+          draggingAction.id,
+          draggingAction.title,
+          originalStart,
+          originalEnd,
+          dragTargetDate,
+          newEnd
+        );
+      }
     }
-    return months.map(m => ({ label: format(m, "MMM", { locale: fr }), months: [m] }));
-  }, [viewStart, viewEnd, granularity]);
+    
+    setDraggingAction(null);
+    setDragTargetDate(null);
+    setDragPosition(null);
+  }, [draggingAction, dragTargetDate, onActionDrop]);
+
+  // Handle quarter button click
+  const handleQuarterClick = (quarterIndex: number) => {
+    if (selectedQuarter === quarterIndex) {
+      // If clicking the same quarter, go back to full year view
+      setSelectedQuarter(null);
+    } else {
+      setSelectedQuarter(quarterIndex);
+    }
+  };
 
   // Group actions by audience
   const actionsByAudience = useMemo(() => {
@@ -251,33 +346,34 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick }: Prom
     }).length;
   }, [promotionActions, viewStart, viewEnd]);
 
-  const columnCount = granularity === "quarter" ? 4 : 12;
+  const columnCount = selectedQuarter !== null ? 3 : 12;
 
   return (
     <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
       {/* Header with navigation */}
       <div className="flex items-center justify-between p-4 border-b bg-muted/30 flex-wrap gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setYear(y => y - 1)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setYear(y => y - 1); setSelectedQuarter(null); }}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="font-semibold text-lg min-w-[60px] text-center">{year}</span>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setYear(y => y + 1)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setYear(y => y + 1); setSelectedQuarter(null); }}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
         
-        {/* Quick quarter shortcuts */}
+        {/* Quick quarter shortcuts - click to zoom into that quarter */}
         <div className="flex gap-1">
-          {["T1", "T2", "T3", "T4"].map((q) => (
+          {["T1", "T2", "T3", "T4"].map((q, index) => (
             <Button 
               key={q} 
-              variant="outline" 
+              variant={selectedQuarter === index ? "secondary" : "outline"} 
               size="sm" 
-              className="h-7 text-xs px-3"
-              onClick={() => {
-                setGranularity("quarter");
-              }}
+              className={cn(
+                "h-7 text-xs px-3",
+                selectedQuarter === index && "ring-2 ring-primary/50"
+              )}
+              onClick={() => handleQuarterClick(index)}
             >
               {q}
             </Button>
@@ -287,23 +383,30 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick }: Prom
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">
             {yearPromoCount} promotion{yearPromoCount > 1 ? "s" : ""} en {year}
+            {selectedQuarter !== null && ` (T${selectedQuarter + 1})`}
           </span>
           
-          {/* Granularity selector */}
-          <Select value={granularity} onValueChange={(v) => setGranularity(v as "month" | "quarter")}>
-            <SelectTrigger className="w-[130px] h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="month">Par mois</SelectItem>
-              <SelectItem value="quarter">Par trimestre</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* View reset button when in quarter mode */}
+          {selectedQuarter !== null && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 text-xs"
+              onClick={() => setSelectedQuarter(null)}
+            >
+              Voir l'année
+            </Button>
+          )}
         </div>
       </div>
       
       {/* Timeline Grid */}
-      <div className="relative overflow-x-auto">
+      <div 
+        className="relative overflow-x-auto"
+        onMouseMove={handleDragMove}
+        onMouseUp={handleDragEnd}
+        onMouseLeave={handleDragEnd}
+      >
         {/* Period headers */}
         <div className="flex border-b sticky top-0 bg-background z-10">
           <div className="w-40 flex-shrink-0 border-r p-2 font-medium text-sm flex items-center gap-2">
@@ -314,7 +417,7 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick }: Prom
             <div 
               key={i} 
               className="flex-1 text-center p-2 border-r text-sm font-medium capitalize"
-              style={{ minWidth: granularity === "month" ? "80px" : "120px" }}
+              style={{ minWidth: selectedQuarter !== null ? "150px" : "80px" }}
             >
               {period.label}
             </div>
@@ -346,7 +449,11 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick }: Prom
               </div>
               
               {/* Blocks area */}
-              <div className="flex-1 relative" style={{ minWidth: `${columnCount * (granularity === "month" ? 80 : 120)}px` }}>
+              <div 
+                ref={gridRef}
+                className="flex-1 relative" 
+                style={{ minWidth: `${columnCount * (selectedQuarter !== null ? 150 : 80)}px` }}
+              >
                 {/* Grid lines */}
                 {periods.map((_, i) => (
                   <div 
@@ -367,6 +474,8 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick }: Prom
                   
                   if (!pos.visible) return null;
                   
+                  const isDragging = draggingAction?.id === action.id;
+                  
                   return (
                     <TimelineBlock
                       key={action.id}
@@ -375,7 +484,9 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick }: Prom
                       width={pos.width}
                       borderClass={row.borderClass}
                       restaurants={restaurants}
-                      onClick={() => onActionClick(action)}
+                      onClick={() => !isDragging && onActionClick(action)}
+                      onDragStart={(e) => handleDragStart(e, action)}
+                      isDragging={isDragging}
                     />
                   );
                 })}
@@ -388,9 +499,25 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick }: Prom
         {yearPromoCount === 0 && (
           <div className="flex items-center justify-center py-12 text-muted-foreground">
             Aucune promotion enregistrée pour {year}
+            {selectedQuarter !== null && ` (T${selectedQuarter + 1})`}
           </div>
         )}
       </div>
+      
+      {/* Drag preview */}
+      {draggingAction && (
+        <DragPreview
+          event={{
+            id: draggingAction.id,
+            title: draggingAction.title,
+            start: parseISO(draggingAction.start_date),
+            end: draggingAction.end_date ? parseISO(draggingAction.end_date) : parseISO(draggingAction.start_date),
+            color: { bg: "bg-card", border: "border-primary", text: "text-foreground" }
+          }}
+          targetDate={dragTargetDate}
+          position={dragPosition}
+        />
+      )}
     </div>
   );
 }
