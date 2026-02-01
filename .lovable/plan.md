@@ -1,169 +1,156 @@
 
 
-# Refonte des Templates de Rapports WhatsApp
+# Refonte de l'interface des Rapports WhatsApp
 
-## Vue d'ensemble
+## Objectif
 
-L'objectif est de créer un système de templates structuré et prévisible :
+Unifier l'expérience d'envoi pour tous les types de rapports (IA global + templates statistiques) avec une interface cohérente permettant :
 
-1. **Rapport IA** : Synthèse hebdomadaire générée par l'IA (envoi automatique ou manuel)
-2. **Templates statistiques** : Rapports ciblés sur des KPIs spécifiques, disponibles en version basique ou détaillée
+1. Sélection du type de rapport
+2. Sélection des restaurants destinataires  
+3. Génération et prévisualisation
+4. Envoi avec édition possible
+5. Historique consolidé
 
-## Fonctionnement
+## Architecture proposée
 
-Le manager reçoit le rapport IA global chaque semaine. Il peut ensuite :
-- Répondre avec un numéro (1-5) pour recevoir un template spécifique
-- Répondre avec "1+" ou "1 détail" pour la version détaillée
+```text
+┌─────────────────────────────────────────────────────────┐
+│                    RAPPORTS WHATSAPP                    │
+├─────────────────────────────────────────────────────────┤
+│  [Templates]  [Envoi (X)]  [Historique]                 │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ SÉLECTION DU TYPE DE RAPPORT                    │    │
+│  │ ┌──────────┐ ┌──────────┐ ┌──────────┐ ...     │    │
+│  │ │ Rapport  │ │ Erreurs  │ │ CA       │         │    │
+│  │ │ IA Global│ │          │ │          │         │    │
+│  │ └──────────┘ └──────────┘ └──────────┘         │    │
+│  │ (+ toggle Basique/Détaillé pour templates stat) │    │
+│  └─────────────────────────────────────────────────┘    │
+│                                                         │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ RESTAURANTS ÉPINGLÉS                            │    │
+│  │ ☑ Juvisy   ☐ Antony   ☑ Evry   ...             │    │
+│  │                                                  │    │
+│  │        [Générer les rapports]                    │    │
+│  └─────────────────────────────────────────────────┘    │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
 
-Toi, depuis l'interface, tu peux :
-- Envoyer le rapport IA global
-- Choisir et envoyer directement un template spécifique (basique ou détaillé)
+## Changements prévus
 
-## Templates à implémenter
+### 1. Nouvelle section "Type de rapport"
 
-### Template 0 : Rapport IA Global (existant)
-- Synthèse intelligente de la semaine
-- Analyse contextuelle des performances
-- Menu interactif pour demander les détails
+Remplacer la section templates par une sélection de type :
 
-### Template 1 : Taux d'erreur
+| Type | Description | Source |
+|------|-------------|--------|
+| Rapport IA Global | Synthèse intelligente avec menu interactif | `generate-ai-report` |
+| Erreurs | Stats erreurs basique/détaillé | `generate-stat-report` |
+| CA & Commandes | Stats ventes basique/détaillé | `generate-stat-report` |
+| Notes | Stats avis basique/détaillé | `generate-stat-report` |
+| Temps opérationnels | Stats temps basique/détaillé | `generate-stat-report` |
+| Promotions | Stats promos basique/détaillé | `generate-stat-report` |
 
-**Version Basique :**
-- Taux d'erreur actuel (%)
-- Nombre d'erreurs
-- Évolution vs semaine précédente
+### 2. Sélection des restaurants
 
-**Version Détaillée :**
-- Tout ce qui est dans Basique
-- Breakdown par catégorie (manquants, incorrects, qualité)
-- Top 5 produits problématiques
-- Corrélation avec promotions actives
+Au lieu de générer automatiquement pour tous les restaurants épinglés :
+- Afficher une liste avec checkboxes
+- Permettre de sélectionner/désélectionner individuellement
+- Ajouter "Tout sélectionner" / "Tout désélectionner"
 
-### Template 2 : CA et Commandes
+### 3. Flux de génération unifié
 
-**Version Basique :**
-- Chiffre d'affaires TTC
-- Nombre de commandes
-- Panier moyen
-- Variation vs semaine précédente
+Quel que soit le type sélectionné :
+1. Clic sur "Générer" → appelle la bonne Edge Function
+2. Affiche la prévisualisation par restaurant
+3. Permet l'édition du message
+4. Envoie via WhatsApp
 
-**Version Détaillée :**
-- Tout ce qui est dans Basique
-- Répartition par jour de la semaine
-- Meilleur/pire jour
-- Comparaison mois glissant
+### 4. Historique enrichi
 
-### Template 3 : Note moyenne
-
-**Version Basique :**
-- Note moyenne (sur 5)
-- Nombre d'avis reçus
-- Évolution vs semaine précédente
-
-**Version Détaillée :**
-- Tout ce qui est dans Basique
-- Répartition nouveaux clients vs fidèles
-- Top 3 tags négatifs fréquents
-- Produits les mieux/moins bien notés
-
-### Template 4 : Temps opérationnels
-
-**Version Basique :**
-- Temps de préparation total moyen
-- Temps d'attente coursier moyen
-- Statut vs objectifs
-
-**Version Détaillée :**
-- Tout ce qui est dans Basique
-- Breakdown par créneau horaire (midi/soir)
-- Pics de lenteur identifiés
-- Comparaison aux autres restaurants du réseau
-
-### Template 5 : Promotions
-
-**Version Basique :**
-- Liste des offres actives sur la période
-- Volume de commandes impacté
-
-**Version Détaillée :**
-- Tout ce qui est dans Basique
-- Impact sur le panier moyen
-- Rentabilité estimée par offre
-- Recommandations d'optimisation
+Ajouter le type de rapport dans l'historique :
+- "Rapport IA" 
+- "Erreurs (basique)"
+- "CA (détaillé)"
+- etc.
 
 ## Modifications techniques
 
-### 1. Base de données
+### Fichier : `src/components/messaging/WeeklyReports.tsx`
 
-Créer une nouvelle structure pour les templates statistiques :
+**Nouveaux états :**
 
-```sql
--- Ajouter une colonne template_type à report_templates
--- Valeurs : 'ai_global', 'errors', 'revenue', 'rating', 'operations', 'promotions'
+```typescript
+// Type de rapport sélectionné
+const [reportType, setReportType] = useState<
+  "ai_global" | "errors" | "revenue" | "rating" | "operations" | "promotions"
+>("ai_global");
 
--- Ajouter une colonne detail_level
--- Valeurs : 'basic', 'detailed'
+// Niveau de détail (pour templates stat)
+const [detailLevel, setDetailLevel] = useState<"basic" | "detailed">("basic");
+
+// Restaurants sélectionnés pour envoi (avant génération)
+const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<Set<string>>(new Set());
 ```
 
-### 2. Edge function generate-ai-report
+**Nouvelle section "Sélection du type" :**
 
-Modifier pour accepter :
-- `template_type` : 'ai_global' | 'errors' | 'revenue' | 'rating' | 'operations' | 'promotions'
-- `detail_level` : 'basic' | 'detailed'
+- Grille de cartes pour choisir le type (comme les templates actuels)
+- Pour les types stats, afficher un toggle basique/détaillé
+- Carte "Rapport IA" mise en avant avec icône Sparkles
 
-Ajouter des fonctions de génération pour chaque type de template.
+**Section "Restaurants épinglés" modifiée :**
 
-### 3. Webhook ultramsg
+- Liste avec checkboxes pour chaque restaurant
+- Indication du nombre sélectionné
+- Bouton unique "Générer les rapports"
 
-Modifier pour détecter les réponses du type :
-- "1", "2", "3", "4", "5" → version basique
-- "1+", "2+", etc. ou "1 détail", "2 détail" → version détaillée
+**Fonction generateReports modifiée :**
 
-### 4. Interface UI (WeeklyReports.tsx)
-
-Ajouter :
-- Sélection du type de template
-- Toggle basique/détaillé
-- Preview du contenu attendu
-
-## Sources de données par template
-
-| Template | Tables/Vues utilisées |
-|----------|----------------------|
-| Erreurs | `daily_order_accuracy`, `order_errors` |
-| CA | `daily_sales_uber_deduped` |
-| Notes | `customer_reviews` |
-| Temps | `order_history` |
-| Promotions | `restaurant_actions`, `order_items` |
-
-Toutes les données sont pré-calculées dans la base pour garantir la cohérence avec le dashboard.
-
-## Menu interactif (fin du rapport IA)
-
-```
-━━━━━━━━━━━━━━━━━━━━━━
-📋 Répondez avec un numéro pour plus de détails :
-1️⃣ Erreurs
-2️⃣ CA & Commandes  
-3️⃣ Notes clients
-4️⃣ Temps opérationnels
-5️⃣ Promotions
-
-💡 Ajoutez "+" pour la version détaillée (ex: "1+")
-━━━━━━━━━━━━━━━━━━━━━━
+```typescript
+const generateReports = async () => {
+  const restaurantIds = Array.from(selectedRestaurantIds);
+  
+  if (reportType === "ai_global") {
+    // Utilise generate-ai-report comme aujourd'hui
+    await supabase.functions.invoke("generate-ai-report", { ... });
+  } else {
+    // Utilise generate-stat-report pour chaque restaurant
+    for (const id of restaurantIds) {
+      await supabase.functions.invoke("generate-stat-report", {
+        body: {
+          restaurant_id: id,
+          template_type: reportType,
+          detail_level: detailLevel,
+          ...
+        }
+      });
+    }
+  }
+};
 ```
 
-## Prochaines étapes
+### Fichier : `.lovable/plan.md`
 
-1. ✅ Valider la liste des templates et leur contenu
-2. ✅ Implémenter les fonctions de génération pour chaque template (`generate-stat-report`)
-3. ✅ Mettre à jour le webhook pour gérer les réponses (1-5, 1+ pour détaillé)
-4. ✅ Ajouter l'interface de sélection dans la UI
+Mettre à jour le plan avec les modifications UI effectuées.
 
-## Implémentation réalisée
+## Résultat attendu
 
-- **Edge function `generate-stat-report`** : Génère les 5 templates (erreurs, CA, notes, temps, promos) en version basique ou détaillée
-- **Webhook ultramsg** : Détecte les réponses 1-5 (basique) et 1+ (détaillé), utilise la nouvelle fonction
-- **Menu interactif mis à jour** : Affiche les 5 options avec l'indication "+ pour détaillé"
-- **UI WeeklyReports** : Section "Envoyer un rapport statistique" pour envoi direct depuis l'interface
+1. Interface unifiée pour tous les types de rapports
+2. Sélection flexible des restaurants
+3. Même qualité visuelle pour rapports IA et stats
+4. Historique consolidé avec distinction du type
+5. Le manager peut toujours demander via WhatsApp (1-5, 1+)
+
+## Ordre d'implémentation
+
+1. Ajouter la section "Type de rapport" avec les 6 options
+2. Modifier la section restaurants pour permettre la sélection
+3. Adapter la fonction de génération pour supporter les deux modes
+4. Enrichir l'historique avec le type de rapport
+5. Supprimer l'ancienne section "Envoyer un rapport statistique"
 
