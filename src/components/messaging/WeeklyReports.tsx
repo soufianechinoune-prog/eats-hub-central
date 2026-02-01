@@ -247,6 +247,14 @@ export default function WeeklyReports() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   
+  // Stat template state (for direct sending)
+  const [selectedStatTemplate, setSelectedStatTemplate] = useState<string | null>(null);
+  const [statDetailLevel, setStatDetailLevel] = useState<"basic" | "detailed">("basic");
+  const [selectedStatRestaurant, setSelectedStatRestaurant] = useState<string | null>(null);
+  const [isSendingStatReport, setIsSendingStatReport] = useState(false);
+  const [statReportPreview, setStatReportPreview] = useState<string | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  
   // History state
   const [expandedHistoryMessages, setExpandedHistoryMessages] = useState<Set<string>>(new Set());
 
@@ -698,6 +706,98 @@ export default function WeeklyReports() {
     setEditedMessages(prev => ({ ...prev, [kpi.restaurant_id]: message }));
   };
 
+  // Stat template types for direct sending
+  const statTemplateOptions = [
+    { id: "errors", label: "Taux d'erreur", icon: AlertTriangle, color: "text-red-500" },
+    { id: "revenue", label: "CA & Commandes", icon: ShoppingCart, color: "text-blue-500" },
+    { id: "rating", label: "Note moyenne", icon: Star, color: "text-yellow-500" },
+    { id: "operations", label: "Temps opérationnels", icon: Clock, color: "text-purple-500" },
+    { id: "promotions", label: "Promotions", icon: Zap, color: "text-pink-500" },
+  ];
+
+  // Generate and send a stat template directly
+  const sendStatReport = async () => {
+    if (!selectedStatTemplate || !selectedStatRestaurant) {
+      toast.error("Sélectionnez un restaurant et un type de rapport");
+      return;
+    }
+
+    const restaurant = restaurants.find(r => r.id === selectedStatRestaurant);
+    if (!restaurant?.manager_whatsapp) {
+      toast.error("Ce restaurant n'a pas de WhatsApp configuré");
+      return;
+    }
+
+    setIsSendingStatReport(true);
+    try {
+      // Generate the report
+      const { data, error } = await supabase.functions.invoke("generate-stat-report", {
+        body: {
+          restaurant_id: selectedStatRestaurant,
+          start_date: format(lastWeek.start, "yyyy-MM-dd"),
+          end_date: format(lastWeek.end, "yyyy-MM-dd"),
+          template_type: selectedStatTemplate,
+          detail_level: statDetailLevel,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.report?.generated_message) throw new Error("Pas de message généré");
+
+      // Send via WhatsApp
+      const { error: sendError } = await supabase.functions.invoke("send-whatsapp", {
+        body: {
+          recipients: [{
+            restaurant_id: selectedStatRestaurant,
+            phone: restaurant.manager_whatsapp,
+            name: `${restaurant.manager_first_name || ""} ${restaurant.manager_last_name || ""}`.trim(),
+            restaurantName: restaurant.name,
+          }],
+          message: data.report.generated_message,
+          skip_campaign: false,
+        },
+      });
+
+      if (sendError) throw sendError;
+
+      toast.success(`Rapport "${statTemplateOptions.find(t => t.id === selectedStatTemplate)?.label}" envoyé !`);
+      queryClient.invalidateQueries({ queryKey: ["report-history"] });
+      setSelectedStatTemplate(null);
+      setStatReportPreview(null);
+    } catch (err) {
+      console.error("Error sending stat report:", err);
+      toast.error("Erreur lors de l'envoi du rapport");
+    } finally {
+      setIsSendingStatReport(false);
+    }
+  };
+
+  // Preview stat report
+  const previewStatReport = async () => {
+    if (!selectedStatTemplate || !selectedStatRestaurant) return;
+
+    setIsLoadingPreview(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-stat-report", {
+        body: {
+          restaurant_id: selectedStatRestaurant,
+          start_date: format(lastWeek.start, "yyyy-MM-dd"),
+          end_date: format(lastWeek.end, "yyyy-MM-dd"),
+          template_type: selectedStatTemplate,
+          detail_level: statDetailLevel,
+        },
+      });
+
+      if (error) throw error;
+      setStatReportPreview(data?.report?.generated_message || "Erreur de génération");
+    } catch (err) {
+      console.error("Error previewing stat report:", err);
+      setStatReportPreview("Erreur lors de la prévisualisation");
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Premium Header */}
@@ -919,6 +1019,109 @@ export default function WeeklyReports() {
                   Générer avec IA
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Stat Templates - Direct Send Section */}
+          <Separator className="my-6" />
+          <Card className="border-dashed">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Envoyer un rapport statistique
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Envoyez directement un rapport spécifique à un restaurant
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                {/* Restaurant selector */}
+                <div className="space-y-2">
+                  <Label>Restaurant</Label>
+                  <Select value={selectedStatRestaurant || ""} onValueChange={setSelectedStatRestaurant}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir un restaurant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {restaurants.filter(r => r.manager_whatsapp).map(r => (
+                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Template type selector */}
+                <div className="space-y-2">
+                  <Label>Type de rapport</Label>
+                  <Select value={selectedStatTemplate || ""} onValueChange={setSelectedStatTemplate}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir un template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statTemplateOptions.map(t => (
+                        <SelectItem key={t.id} value={t.id}>
+                          <span className="flex items-center gap-2">
+                            <t.icon className={cn("h-4 w-4", t.color)} />
+                            {t.label}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Detail level toggle */}
+                <div className="space-y-2">
+                  <Label>Niveau de détail</Label>
+                  <div className="flex items-center gap-3 h-10">
+                    <Button
+                      variant={statDetailLevel === "basic" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setStatDetailLevel("basic")}
+                      className="flex-1"
+                    >
+                      Basique
+                    </Button>
+                    <Button
+                      variant={statDetailLevel === "detailed" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setStatDetailLevel("detailed")}
+                      className="flex-1"
+                    >
+                      Détaillé
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview & Send buttons */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={previewStatReport}
+                  disabled={!selectedStatTemplate || !selectedStatRestaurant || isLoadingPreview}
+                >
+                  {isLoadingPreview ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+                  Prévisualiser
+                </Button>
+                <Button
+                  onClick={sendStatReport}
+                  disabled={!selectedStatTemplate || !selectedStatRestaurant || isSendingStatReport}
+                  className="gap-2"
+                >
+                  {isSendingStatReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Envoyer
+                </Button>
+              </div>
+
+              {/* Preview area */}
+              {statReportPreview && (
+                <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+                  <Label className="mb-2 block">Prévisualisation</Label>
+                  <pre className="whitespace-pre-wrap text-sm font-mono">{statReportPreview}</pre>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
