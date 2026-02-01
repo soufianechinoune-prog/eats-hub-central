@@ -61,6 +61,8 @@ import {
   CheckCircle,
   XCircle,
   MessageSquare,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, subWeeks } from "date-fns";
@@ -132,6 +134,68 @@ interface WeeklyKPIs {
   error_rate: number | null;
   error_count: number;
 }
+
+// Report type options
+type ReportType = "ai_global" | "errors" | "revenue" | "rating" | "operations" | "promotions";
+type DetailLevel = "basic" | "detailed";
+
+const REPORT_TYPE_OPTIONS: {
+  id: ReportType;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  gradient: string;
+  color: string;
+}[] = [
+  {
+    id: "ai_global",
+    label: "Rapport IA",
+    description: "Synthèse intelligente avec analyse contextuelle",
+    icon: <Sparkles className="h-6 w-6" />,
+    gradient: "from-violet-500/20 to-indigo-500/20",
+    color: "text-violet-500",
+  },
+  {
+    id: "errors",
+    label: "Erreurs",
+    description: "Taux d'erreur et produits problématiques",
+    icon: <AlertTriangle className="h-6 w-6" />,
+    gradient: "from-red-500/20 to-orange-500/20",
+    color: "text-red-500",
+  },
+  {
+    id: "revenue",
+    label: "CA & Commandes",
+    description: "Chiffre d'affaires, volume et panier moyen",
+    icon: <ShoppingCart className="h-6 w-6" />,
+    gradient: "from-blue-500/20 to-cyan-500/20",
+    color: "text-blue-500",
+  },
+  {
+    id: "rating",
+    label: "Notes clients",
+    description: "Avis, satisfaction et feedback",
+    icon: <Star className="h-6 w-6" />,
+    gradient: "from-yellow-500/20 to-amber-500/20",
+    color: "text-yellow-500",
+  },
+  {
+    id: "operations",
+    label: "Temps opérationnels",
+    description: "Préparation et attente coursier",
+    icon: <Clock className="h-6 w-6" />,
+    gradient: "from-purple-500/20 to-pink-500/20",
+    color: "text-purple-500",
+  },
+  {
+    id: "promotions",
+    label: "Promotions",
+    description: "Offres actives et leur impact",
+    icon: <Zap className="h-6 w-6" />,
+    gradient: "from-pink-500/20 to-rose-500/20",
+    color: "text-pink-500",
+  },
+];
 
 // Icon mapping with gradient colors
 const templateStyles: Record<string, { icon: React.ReactNode; gradient: string; color: string }> = {
@@ -228,6 +292,22 @@ const getFrequencyLabel = (frequency: string, day: number | null, dayOfMonth: nu
   }
 };
 
+const getReportTypeLabel = (type: ReportType, level: DetailLevel): string => {
+  const option = REPORT_TYPE_OPTIONS.find(o => o.id === type);
+  if (!option) return "Rapport";
+  if (type === "ai_global") return "Rapport IA";
+  return `${option.label} (${level === "basic" ? "basique" : "détaillé"})`;
+};
+
+// Extract short name for display
+const getShortName = (name: string) => {
+  const cleaned = name.replace(/^CHICKEN STREET\s*/i, "");
+  if (cleaned.length > 15) {
+    return cleaned.split(/[-\s]/)[0];
+  }
+  return cleaned;
+};
+
 export default function WeeklyReports() {
   const queryClient = useQueryClient();
   
@@ -238,6 +318,11 @@ export default function WeeklyReports() {
   const [editingTemplate, setEditingTemplate] = useState<Partial<ReportTemplate> | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   
+  // Unified report selection state
+  const [reportType, setReportType] = useState<ReportType>("ai_global");
+  const [detailLevel, setDetailLevel] = useState<DetailLevel>("basic");
+  const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<Set<string>>(new Set());
+  
   // Send state
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
   const [editedMessages, setEditedMessages] = useState<Record<string, string>>({});
@@ -245,15 +330,6 @@ export default function WeeklyReports() {
   const [isSending, setIsSending] = useState(false);
   const [generatedKPIs, setGeneratedKPIs] = useState<WeeklyKPIs[]>([]);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  
-  // Stat template state (for direct sending)
-  const [selectedStatTemplate, setSelectedStatTemplate] = useState<string | null>(null);
-  const [statDetailLevel, setStatDetailLevel] = useState<"basic" | "detailed">("basic");
-  const [selectedStatRestaurant, setSelectedStatRestaurant] = useState<string | null>(null);
-  const [isSendingStatReport, setIsSendingStatReport] = useState(false);
-  const [statReportPreview, setStatReportPreview] = useState<string | null>(null);
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   
   // History state
   const [expandedHistoryMessages, setExpandedHistoryMessages] = useState<Set<string>>(new Set());
@@ -319,7 +395,7 @@ export default function WeeklyReports() {
     return { start, end };
   }, []);
 
-  // Fetch templates
+  // Fetch templates (for legacy template editor)
   const { data: templates = [], isLoading: loadingTemplates } = useQuery({
     queryKey: ["report-templates"],
     queryFn: async () => {
@@ -355,6 +431,14 @@ export default function WeeklyReports() {
       return data as Restaurant[];
     },
   });
+
+  // Auto-select all restaurants with WhatsApp on load
+  useEffect(() => {
+    if (restaurants.length > 0 && selectedRestaurantIds.size === 0) {
+      const withWhatsApp = restaurants.filter(r => r.manager_whatsapp).map(r => r.id);
+      setSelectedRestaurantIds(new Set(withWhatsApp));
+    }
+  }, [restaurants]);
 
   // Fetch report history
   const { data: reportHistory = [], isLoading: loadingHistory } = useQuery({
@@ -443,7 +527,7 @@ export default function WeeklyReports() {
     },
   });
 
-  // Generate message based on template
+  // Generate message based on template (for legacy mode)
   const generateMessage = (kpi: WeeklyKPIs, template: ReportTemplate): string => {
     const dateStart = format(lastWeek.start, "d MMMM", { locale: fr });
     const dateEnd = format(lastWeek.end, "d MMMM", { locale: fr });
@@ -490,103 +574,120 @@ export default function WeeklyReports() {
     return intro + lines.join("\n") + template.outro_template;
   };
 
-  // Generate KPIs for all restaurants (basic mode)
-  const generateReports = async () => {
-    if (!selectedTemplate) {
-      toast.error("Sélectionnez un template d'abord");
+  // Unified generate reports function
+  const generateUnifiedReports = async () => {
+    const restaurantIds = Array.from(selectedRestaurantIds);
+    
+    if (restaurantIds.length === 0) {
+      toast.error("Sélectionnez au moins un restaurant");
       return;
     }
 
     setIsGenerating(true);
-    
+
     try {
-      const { data, error } = await supabase.functions.invoke("generate-weekly-report", {
-        body: {
-          restaurant_ids: restaurants.map(r => r.id),
-          start_date: format(lastWeek.start, "yyyy-MM-dd"),
-          end_date: format(lastWeek.end, "yyyy-MM-dd"),
-        },
-      });
+      if (reportType === "ai_global") {
+        // Use generate-ai-report for AI global
+        const { data, error } = await supabase.functions.invoke("generate-ai-report", {
+          body: {
+            restaurant_ids: restaurantIds,
+            start_date: format(lastWeek.start, "yyyy-MM-dd"),
+            end_date: format(lastWeek.end, "yyyy-MM-dd"),
+            template_context: {
+              tone: "standard",
+              include_recommendations: true,
+              include_error_analysis: true,
+            },
+          },
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const kpis: WeeklyKPIs[] = data.reports || [];
-      setGeneratedKPIs(kpis);
-      
-      const newSelected = new Set<string>();
-      const newMessages: Record<string, string> = {};
-      
-      kpis.forEach(kpi => {
-        if (kpi.manager_whatsapp) {
-          newSelected.add(kpi.restaurant_id);
-          newMessages[kpi.restaurant_id] = generateMessage(kpi, selectedTemplate);
+        const reports = data.reports || [];
+        const kpis: WeeklyKPIs[] = reports.map((r: any) => r.kpis);
+        setGeneratedKPIs(kpis);
+        
+        const newSelected = new Set<string>();
+        const newMessages: Record<string, string> = {};
+        
+        reports.forEach((report: any) => {
+          if (report.manager_whatsapp) {
+            newSelected.add(report.restaurant_id);
+            newMessages[report.restaurant_id] = report.generated_message;
+          }
+        });
+        
+        setSelectedReports(newSelected);
+        setEditedMessages(newMessages);
+        setActiveTab("send");
+        
+        toast.success(`${reports.length} rapport(s) IA générés`);
+      } else {
+        // Use generate-stat-report for specific templates
+        const newMessages: Record<string, string> = {};
+        const kpis: WeeklyKPIs[] = [];
+        const newSelected = new Set<string>();
+        let successCount = 0;
+
+        for (const restaurantId of restaurantIds) {
+          const restaurant = restaurants.find(r => r.id === restaurantId);
+          if (!restaurant?.manager_whatsapp) continue;
+
+          try {
+            const { data, error } = await supabase.functions.invoke("generate-stat-report", {
+              body: {
+                restaurant_id: restaurantId,
+                start_date: format(lastWeek.start, "yyyy-MM-dd"),
+                end_date: format(lastWeek.end, "yyyy-MM-dd"),
+                template_type: reportType,
+                detail_level: detailLevel,
+              },
+            });
+
+            if (error) throw error;
+            if (!data?.report?.generated_message) continue;
+
+            newMessages[restaurantId] = data.report.generated_message;
+            newSelected.add(restaurantId);
+            
+            // Create a minimal KPI object for display
+            kpis.push({
+              restaurant_id: restaurantId,
+              restaurant_name: restaurant.name,
+              manager_name: `${restaurant.manager_first_name || ""} ${restaurant.manager_last_name || ""}`.trim() || "Manager",
+              manager_whatsapp: restaurant.manager_whatsapp,
+              order_count: 0,
+              revenue: 0,
+              average_basket: 0,
+              order_variation: null,
+              revenue_variation: null,
+              average_rating: null,
+              review_count: 0,
+              new_customer_percent: null,
+              avg_prep_time: null,
+              avg_courier_wait: null,
+              error_rate: null,
+              error_count: 0,
+            });
+
+            successCount++;
+          } catch (err) {
+            console.error(`Error generating report for ${restaurant.name}:`, err);
+          }
         }
-      });
-      
-      setSelectedReports(newSelected);
-      setEditedMessages(newMessages);
-      setActiveTab("send");
-      
-      toast.success(`${kpis.length} rapport(s) générés`);
+
+        setGeneratedKPIs(kpis);
+        setSelectedReports(newSelected);
+        setEditedMessages(newMessages);
+        setActiveTab("send");
+        
+        toast.success(`${successCount} rapport(s) "${getReportTypeLabel(reportType, detailLevel)}" générés`);
+      }
     } catch (err) {
       console.error("Error generating reports:", err);
       toast.error("Erreur lors de la génération des rapports");
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  // Generate AI-enriched reports
-  const generateAIReports = async () => {
-    if (!selectedTemplate) {
-      toast.error("Sélectionnez un template d'abord");
-      return;
-    }
-
-    setIsGeneratingAI(true);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-ai-report", {
-        body: {
-          restaurant_ids: restaurants.map(r => r.id),
-          start_date: format(lastWeek.start, "yyyy-MM-dd"),
-          end_date: format(lastWeek.end, "yyyy-MM-dd"),
-          template_context: {
-            tone: "standard",
-            include_recommendations: true,
-            include_error_analysis: true,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      const reports = data.reports || [];
-      
-      // Map AI reports to match WeeklyKPIs format
-      const kpis: WeeklyKPIs[] = reports.map((r: any) => r.kpis);
-      setGeneratedKPIs(kpis);
-      
-      const newSelected = new Set<string>();
-      const newMessages: Record<string, string> = {};
-      
-      reports.forEach((report: any) => {
-        if (report.manager_whatsapp) {
-          newSelected.add(report.restaurant_id);
-          newMessages[report.restaurant_id] = report.generated_message;
-        }
-      });
-      
-      setSelectedReports(newSelected);
-      setEditedMessages(newMessages);
-      setActiveTab("send");
-      
-      toast.success(`${reports.length} rapport(s) IA générés`);
-    } catch (err) {
-      console.error("Error generating AI reports:", err);
-      toast.error("Erreur lors de la génération IA");
-    } finally {
-      setIsGeneratingAI(false);
     }
   };
 
@@ -606,8 +707,13 @@ export default function WeeklyReports() {
       let failedCount = 0;
 
       for (const kpi of toSend) {
-        const message = editedMessages[kpi.restaurant_id] || generateMessage(kpi, selectedTemplate!);
+        const message = editedMessages[kpi.restaurant_id] || "";
         
+        if (!message) {
+          failedCount++;
+          continue;
+        }
+
         const { error } = await supabase.functions.invoke("send-whatsapp", {
           body: {
             recipients: [{
@@ -649,7 +755,29 @@ export default function WeeklyReports() {
     }
   };
 
-  // Handlers
+  // Restaurant selection handlers
+  const toggleRestaurantSelection = (id: string) => {
+    setSelectedRestaurantIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllRestaurants = () => {
+    const withWhatsApp = restaurants.filter(r => r.manager_whatsapp).map(r => r.id);
+    setSelectedRestaurantIds(new Set(withWhatsApp));
+  };
+
+  const deselectAllRestaurants = () => {
+    setSelectedRestaurantIds(new Set());
+  };
+
+  // Handlers for legacy template editor
   const openNewTemplate = () => {
     setIsCreatingNew(true);
     setEditingTemplate({
@@ -700,103 +828,11 @@ export default function WeeklyReports() {
     setEditedMessages(prev => ({ ...prev, [restaurantId]: message }));
   };
 
-  const regenerateMessage = (kpi: WeeklyKPIs) => {
-    if (!selectedTemplate) return;
-    const message = generateMessage(kpi, selectedTemplate);
-    setEditedMessages(prev => ({ ...prev, [kpi.restaurant_id]: message }));
-  };
-
-  // Stat template types for direct sending
-  const statTemplateOptions = [
-    { id: "errors", label: "Taux d'erreur", icon: AlertTriangle, color: "text-red-500" },
-    { id: "revenue", label: "CA & Commandes", icon: ShoppingCart, color: "text-blue-500" },
-    { id: "rating", label: "Note moyenne", icon: Star, color: "text-yellow-500" },
-    { id: "operations", label: "Temps opérationnels", icon: Clock, color: "text-purple-500" },
-    { id: "promotions", label: "Promotions", icon: Zap, color: "text-pink-500" },
-  ];
-
-  // Generate and send a stat template directly
-  const sendStatReport = async () => {
-    if (!selectedStatTemplate || !selectedStatRestaurant) {
-      toast.error("Sélectionnez un restaurant et un type de rapport");
-      return;
-    }
-
-    const restaurant = restaurants.find(r => r.id === selectedStatRestaurant);
-    if (!restaurant?.manager_whatsapp) {
-      toast.error("Ce restaurant n'a pas de WhatsApp configuré");
-      return;
-    }
-
-    setIsSendingStatReport(true);
-    try {
-      // Generate the report
-      const { data, error } = await supabase.functions.invoke("generate-stat-report", {
-        body: {
-          restaurant_id: selectedStatRestaurant,
-          start_date: format(lastWeek.start, "yyyy-MM-dd"),
-          end_date: format(lastWeek.end, "yyyy-MM-dd"),
-          template_type: selectedStatTemplate,
-          detail_level: statDetailLevel,
-        },
-      });
-
-      if (error) throw error;
-      if (!data?.report?.generated_message) throw new Error("Pas de message généré");
-
-      // Send via WhatsApp
-      const { error: sendError } = await supabase.functions.invoke("send-whatsapp", {
-        body: {
-          recipients: [{
-            restaurant_id: selectedStatRestaurant,
-            phone: restaurant.manager_whatsapp,
-            name: `${restaurant.manager_first_name || ""} ${restaurant.manager_last_name || ""}`.trim(),
-            restaurantName: restaurant.name,
-          }],
-          message: data.report.generated_message,
-          skip_campaign: false,
-        },
-      });
-
-      if (sendError) throw sendError;
-
-      toast.success(`Rapport "${statTemplateOptions.find(t => t.id === selectedStatTemplate)?.label}" envoyé !`);
-      queryClient.invalidateQueries({ queryKey: ["report-history"] });
-      setSelectedStatTemplate(null);
-      setStatReportPreview(null);
-    } catch (err) {
-      console.error("Error sending stat report:", err);
-      toast.error("Erreur lors de l'envoi du rapport");
-    } finally {
-      setIsSendingStatReport(false);
-    }
-  };
-
-  // Preview stat report
-  const previewStatReport = async () => {
-    if (!selectedStatTemplate || !selectedStatRestaurant) return;
-
-    setIsLoadingPreview(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-stat-report", {
-        body: {
-          restaurant_id: selectedStatRestaurant,
-          start_date: format(lastWeek.start, "yyyy-MM-dd"),
-          end_date: format(lastWeek.end, "yyyy-MM-dd"),
-          template_type: selectedStatTemplate,
-          detail_level: statDetailLevel,
-        },
-      });
-
-      if (error) throw error;
-      setStatReportPreview(data?.report?.generated_message || "Erreur de génération");
-    } catch (err) {
-      console.error("Error previewing stat report:", err);
-      setStatReportPreview("Erreur lors de la prévisualisation");
-    } finally {
-      setIsLoadingPreview(false);
-    }
-  };
+  // Count restaurants with WhatsApp
+  const restaurantsWithWhatsApp = restaurants.filter(r => r.manager_whatsapp);
+  const selectedCount = Array.from(selectedRestaurantIds).filter(id => 
+    restaurantsWithWhatsApp.some(r => r.id === id)
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -816,7 +852,7 @@ export default function WeeklyReports() {
         <TabsList className="grid w-full max-w-lg grid-cols-3 p-1 bg-secondary/50 backdrop-blur-sm">
           <TabsTrigger value="templates" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <FileText className="h-4 w-4" />
-            Templates
+            Rapports
           </TabsTrigger>
           <TabsTrigger value="send" className="gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm" disabled={generatedKPIs.length === 0}>
             <Send className="h-4 w-4" />
@@ -828,302 +864,293 @@ export default function WeeklyReports() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Templates Tab */}
+        {/* Templates Tab - Unified Report Selection */}
         <TabsContent value="templates" className="space-y-6 mt-6">
-          {/* Template Grid - Premium Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {templates.map((template) => {
-              const style = templateStyles[template.icon] || templateStyles.FileText;
-              const isSelected = selectedTemplate?.id === template.id;
-              
-              return (
-                <motion.div
-                  key={template.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Card
-                    className={cn(
-                      "cursor-pointer transition-all duration-300 backdrop-blur-xl border-2 overflow-hidden",
-                      "bg-gradient-to-br",
-                      style.gradient,
-                      isSelected 
-                        ? "ring-2 ring-primary border-primary/50 shadow-lg shadow-primary/10" 
-                        : "border-border/50 hover:border-primary/30 hover:shadow-md"
-                    )}
-                    onClick={() => setSelectedTemplate(template)}
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "h-12 w-12 rounded-xl flex items-center justify-center transition-colors",
-                            "bg-background/80 backdrop-blur-sm",
-                            style.color
-                          )}>
-                            {style.icon}
-                          </div>
-                          <div>
-                            <CardTitle className="text-base flex items-center gap-2">
-                              {template.name}
-                              {template.is_default && (
-                                <Badge variant="secondary" className="text-xs font-normal">Défaut</Badge>
-                              )}
-                            </CardTitle>
-                            <p className="text-xs text-muted-foreground mt-0.5">{template.description}</p>
-                          </div>
-                        </div>
-                        {isSelected && (
-                          <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
-                            <Check className="h-4 w-4 text-primary-foreground" />
-                          </div>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-3">
-                      {/* Data blocks badges */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {template.data_blocks.orders_revenue && (
-                          <Badge variant="outline" className="text-xs gap-1 bg-background/50">
-                            <ShoppingCart className="h-3 w-3" /> CA
-                          </Badge>
-                        )}
-                        {template.data_blocks.rating && (
-                          <Badge variant="outline" className="text-xs gap-1 bg-background/50">
-                            <Star className="h-3 w-3" /> Note
-                          </Badge>
-                        )}
-                        {template.data_blocks.operations && (
-                          <Badge variant="outline" className="text-xs gap-1 bg-background/50">
-                            <Clock className="h-3 w-3" /> Temps
-                          </Badge>
-                        )}
-                        {template.data_blocks.errors && (
-                          <Badge variant="outline" className="text-xs gap-1 bg-background/50">
-                            <AlertTriangle className="h-3 w-3" /> Erreurs
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Schedule info */}
-                      {template.is_scheduled && (
-                        <div className="flex items-center gap-2">
-                          <Badge className={cn(
-                            "text-xs gap-1.5",
-                            template.requires_validation 
-                              ? "bg-amber-500/10 text-amber-600 border-amber-500/30" 
-                              : "bg-green-500/10 text-green-600 border-green-500/30"
-                          )}>
-                            {template.requires_validation ? <Bell className="h-3 w-3" /> : <BellOff className="h-3 w-3" />}
-                            {FREQUENCIES.find(f => f.value === template.schedule_frequency)?.label}
-                            {" • "}
-                            {getFrequencyLabel(template.schedule_frequency, template.schedule_day, template.schedule_day_of_month)}
-                            {" à "}
-                            {template.schedule_time?.slice(0, 5)}
-                          </Badge>
-                        </div>
-                      )}
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 pt-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 gap-1.5 text-xs"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditTemplate(template);
-                          }}
-                        >
-                          <Edit3 className="h-3.5 w-3.5" />
-                          Modifier
-                        </Button>
-                        {!template.is_default && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm("Supprimer ce template ?")) {
-                                deleteTemplateMutation.mutate(template.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-
-            {/* Add new template card */}
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Card
-                className="cursor-pointer border-2 border-dashed transition-all hover:border-primary hover:bg-primary/5 min-h-[200px] flex items-center justify-center"
-                onClick={openNewTemplate}
-              >
-                <CardContent className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                  <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                    <Plus className="h-7 w-7 text-primary" />
-                  </div>
-                  <p className="font-medium text-foreground">Créer un template</p>
-                  <p className="text-xs mt-1">Personnalisez vos rapports</p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-
-          {/* Generate buttons - Premium style */}
-          <Card className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-primary/20">
-            <CardContent className="py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Send className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">{restaurants.length} restaurant(s) épinglé(s)</p>
-                  <p className="text-sm text-muted-foreground">
-                    {restaurants.filter(r => r.manager_whatsapp).length} avec WhatsApp configuré
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <Button
-                  onClick={generateReports}
-                  disabled={isGenerating || isGeneratingAI || loadingRestaurants || restaurants.length === 0 || !selectedTemplate}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  {isGenerating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <PlayCircle className="h-4 w-4" />
-                  )}
-                  Rapport simple
-                </Button>
-                <Button
-                  onClick={generateAIReports}
-                  disabled={isGenerating || isGeneratingAI || loadingRestaurants || restaurants.length === 0 || !selectedTemplate}
-                  size="lg"
-                  className="gap-2 shadow-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white"
-                >
-                  {isGeneratingAI ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
-                  Générer avec IA
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Stat Templates - Direct Send Section */}
-          <Separator className="my-6" />
-          <Card className="border-dashed">
-            <CardHeader>
+          {/* Step 1: Report Type Selection */}
+          <Card>
+            <CardHeader className="pb-4">
               <CardTitle className="text-lg flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                Envoyer un rapport statistique
+                <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-sm flex items-center justify-center font-bold">1</span>
+                Choisir le type de rapport
               </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Envoyez directement un rapport spécifique à un restaurant
-              </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
-                {/* Restaurant selector */}
-                <div className="space-y-2">
-                  <Label>Restaurant</Label>
-                  <Select value={selectedStatRestaurant || ""} onValueChange={setSelectedStatRestaurant}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choisir un restaurant" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {restaurants.filter(r => r.manager_whatsapp).map(r => (
-                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Report type grid */}
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {REPORT_TYPE_OPTIONS.map((option) => {
+                  const isSelected = reportType === option.id;
+                  
+                  return (
+                    <motion.div
+                      key={option.id}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Card
+                        className={cn(
+                          "cursor-pointer transition-all duration-300 backdrop-blur-xl border-2 overflow-hidden",
+                          "bg-gradient-to-br",
+                          option.gradient,
+                          isSelected 
+                            ? "ring-2 ring-primary border-primary/50 shadow-lg shadow-primary/10" 
+                            : "border-border/50 hover:border-primary/30 hover:shadow-md"
+                        )}
+                        onClick={() => setReportType(option.id)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className={cn(
+                              "h-12 w-12 rounded-xl flex items-center justify-center transition-colors shrink-0",
+                              "bg-background/80 backdrop-blur-sm",
+                              option.color
+                            )}>
+                              {option.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-sm">{option.label}</h3>
+                                {isSelected && (
+                                  <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                                    <Check className="h-3 w-3 text-primary-foreground" />
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                                {option.description}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </div>
 
-                {/* Template type selector */}
-                <div className="space-y-2">
-                  <Label>Type de rapport</Label>
-                  <Select value={selectedStatTemplate || ""} onValueChange={setSelectedStatTemplate}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choisir un template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statTemplateOptions.map(t => (
-                        <SelectItem key={t.id} value={t.id}>
-                          <span className="flex items-center gap-2">
-                            <t.icon className={cn("h-4 w-4", t.color)} />
-                            {t.label}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Detail level toggle */}
-                <div className="space-y-2">
-                  <Label>Niveau de détail</Label>
-                  <div className="flex items-center gap-3 h-10">
+              {/* Detail level toggle (only for non-AI reports) */}
+              {reportType !== "ai_global" && (
+                <div className="flex items-center gap-4 pt-2">
+                  <Label className="text-sm text-muted-foreground">Niveau de détail :</Label>
+                  <div className="flex items-center gap-2 bg-secondary/50 rounded-lg p-1">
                     <Button
-                      variant={statDetailLevel === "basic" ? "default" : "outline"}
+                      variant={detailLevel === "basic" ? "default" : "ghost"}
                       size="sm"
-                      onClick={() => setStatDetailLevel("basic")}
-                      className="flex-1"
+                      onClick={() => setDetailLevel("basic")}
+                      className="h-8 px-4"
                     >
                       Basique
                     </Button>
                     <Button
-                      variant={statDetailLevel === "detailed" ? "default" : "outline"}
+                      variant={detailLevel === "detailed" ? "default" : "ghost"}
                       size="sm"
-                      onClick={() => setStatDetailLevel("detailed")}
-                      className="flex-1"
+                      onClick={() => setDetailLevel("detailed")}
+                      className="h-8 px-4"
                     >
                       Détaillé
                     </Button>
                   </div>
                 </div>
-              </div>
+              )}
+            </CardContent>
+          </Card>
 
-              {/* Preview & Send buttons */}
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={previewStatReport}
-                  disabled={!selectedStatTemplate || !selectedStatRestaurant || isLoadingPreview}
-                >
-                  {isLoadingPreview ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-                  Prévisualiser
-                </Button>
-                <Button
-                  onClick={sendStatReport}
-                  disabled={!selectedStatTemplate || !selectedStatRestaurant || isSendingStatReport}
-                  className="gap-2"
-                >
-                  {isSendingStatReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Envoyer
-                </Button>
+          {/* Step 2: Restaurant Selection */}
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-sm flex items-center justify-center font-bold">2</span>
+                  Sélectionner les restaurants
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={selectAllRestaurants}
+                    className="h-8 text-xs gap-1"
+                  >
+                    <CheckSquare className="h-3.5 w-3.5" />
+                    Tout sélectionner
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={deselectAllRestaurants}
+                    className="h-8 text-xs gap-1"
+                  >
+                    <Square className="h-3.5 w-3.5" />
+                    Tout désélectionner
+                  </Button>
+                </div>
               </div>
-
-              {/* Preview area */}
-              {statReportPreview && (
-                <div className="mt-4 p-4 bg-muted/50 rounded-lg">
-                  <Label className="mb-2 block">Prévisualisation</Label>
-                  <pre className="whitespace-pre-wrap text-sm font-mono">{statReportPreview}</pre>
+              <p className="text-sm text-muted-foreground">
+                {selectedCount} restaurant{selectedCount > 1 ? "s" : ""} sélectionné{selectedCount > 1 ? "s" : ""} sur {restaurantsWithWhatsApp.length}
+              </p>
+            </CardHeader>
+            <CardContent>
+              {loadingRestaurants ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : restaurantsWithWhatsApp.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>Aucun restaurant épinglé avec WhatsApp configuré</p>
+                </div>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {restaurants.map((restaurant) => {
+                    const hasWhatsApp = !!restaurant.manager_whatsapp;
+                    const isSelected = selectedRestaurantIds.has(restaurant.id);
+                    
+                    return (
+                      <div
+                        key={restaurant.id}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer",
+                          !hasWhatsApp && "opacity-50 cursor-not-allowed",
+                          isSelected 
+                            ? "bg-primary/5 border-primary/30" 
+                            : "hover:bg-secondary/50 border-border"
+                        )}
+                        onClick={() => hasWhatsApp && toggleRestaurantSelection(restaurant.id)}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          disabled={!hasWhatsApp}
+                          onCheckedChange={() => hasWhatsApp && toggleRestaurantSelection(restaurant.id)}
+                          className="pointer-events-none"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {getShortName(restaurant.name)}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {restaurant.manager_first_name} {restaurant.manager_last_name}
+                            {!hasWhatsApp && " (pas de WhatsApp)"}
+                          </p>
+                        </div>
+                        {hasWhatsApp && (
+                          <Badge variant="outline" className="shrink-0 text-xs bg-[#25D366]/10 text-[#25D366] border-[#25D366]/30">
+                            <MessageSquare className="h-3 w-3 mr-1" />
+                            OK
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Step 3: Generate Button */}
+          <Card className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-primary/20">
+            <CardContent className="py-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold">Prêt à générer</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {getReportTypeLabel(reportType, detailLevel)} pour {selectedCount} restaurant{selectedCount > 1 ? "s" : ""}
+                  </p>
+                </div>
+                <Button
+                  onClick={generateUnifiedReports}
+                  disabled={isGenerating || selectedCount === 0}
+                  size="lg"
+                  className={cn(
+                    "gap-2 shadow-lg",
+                    reportType === "ai_global" 
+                      ? "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white"
+                      : ""
+                  )}
+                >
+                  {isGenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : reportType === "ai_global" ? (
+                    <Sparkles className="h-4 w-4" />
+                  ) : (
+                    <PlayCircle className="h-4 w-4" />
+                  )}
+                  Générer les rapports
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Legacy Template Management (collapsed) */}
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="w-full justify-between text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Gérer les templates personnalisés
+                </span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {templates.map((template) => {
+                  const style = templateStyles[template.icon] || templateStyles.FileText;
+                  
+                  return (
+                    <Card key={template.id} className="border-dashed">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center bg-secondary/50", style.color)}>
+                            {style.icon}
+                          </div>
+                          <div>
+                            <CardTitle className="text-sm">{template.name}</CardTitle>
+                            <p className="text-xs text-muted-foreground">{template.description}</p>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => openEditTemplate(template)}
+                          >
+                            <Edit3 className="h-3 w-3 mr-1" />
+                            Modifier
+                          </Button>
+                          {!template.is_default && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs text-destructive hover:text-destructive"
+                              onClick={() => {
+                                if (confirm("Supprimer ce template ?")) {
+                                  deleteTemplateMutation.mutate(template.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+                <Card 
+                  className="border-dashed cursor-pointer hover:bg-secondary/30 transition-colors"
+                  onClick={openNewTemplate}
+                >
+                  <CardContent className="flex items-center justify-center h-full py-8">
+                    <div className="text-center text-muted-foreground">
+                      <Plus className="h-8 w-8 mx-auto mb-2" />
+                      <p className="text-sm">Nouveau template</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </TabsContent>
 
         {/* Send Tab */}
@@ -1196,26 +1223,6 @@ export default function WeeklyReports() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="gap-1">
-                                <ShoppingCart className="h-3 w-3" />
-                                {kpi.order_count}
-                              </Badge>
-                              <Badge variant="outline" className="gap-1">
-                                <Star className="h-3 w-3" />
-                                {kpi.average_rating?.toFixed(2) || "--"}
-                              </Badge>
-                              {kpi.error_rate !== null && (
-                                <Badge 
-                                  variant={kpi.error_rate > (selectedTemplate?.objectives.error_rate || 3) ? "destructive" : "outline"}
-                                  className={cn(
-                                    "gap-1",
-                                    kpi.error_rate <= (selectedTemplate?.objectives.error_rate || 3) && "border-green-500/50 text-green-600 dark:text-green-400"
-                                  )}
-                                >
-                                  <AlertTriangle className="h-3 w-3" />
-                                  {kpi.error_rate.toFixed(1)}%
-                                </Badge>
-                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1237,91 +1244,16 @@ export default function WeeklyReports() {
                             <CardContent className="pt-0">
                               <Separator className="mb-4" />
                               
-                              {/* KPI Summary Grid */}
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                                <div className="p-3 rounded-lg bg-secondary/50">
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                    <ShoppingCart className="h-3 w-3" />
-                                    Commandes
-                                  </div>
-                                  <div className="font-semibold">{kpi.order_count}</div>
-                                  {kpi.order_variation !== null && (
-                                    <div className={cn("text-xs", kpi.order_variation >= 0 ? "text-green-600" : "text-red-600")}>
-                                      {kpi.order_variation >= 0 ? "+" : ""}{kpi.order_variation.toFixed(0)}%
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="p-3 rounded-lg bg-secondary/50">
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                    <Star className="h-3 w-3" />
-                                    Note moyenne
-                                  </div>
-                                  <div className="font-semibold flex items-center gap-1">
-                                    {kpi.average_rating?.toFixed(2) || "--"}
-                                    <span className="text-xs">{getStatusEmoji(kpi.average_rating, selectedTemplate?.objectives.rating || 4.4)}</span>
-                                  </div>
-                                </div>
-                                <div className="p-3 rounded-lg bg-secondary/50">
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                    <Clock className="h-3 w-3" />
-                                    Temps prep
-                                  </div>
-                                  <div className="font-semibold flex items-center gap-1">
-                                    {formatDuration(kpi.avg_prep_time)}
-                                    <span className="text-xs">{getStatusEmoji(kpi.avg_prep_time, selectedTemplate?.objectives.prep_time || 20, true)}</span>
-                                  </div>
-                                </div>
-                                <div className="p-3 rounded-lg bg-secondary/50">
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    Erreurs
-                                  </div>
-                                  <div className="font-semibold flex items-center gap-1">
-                                    {formatPercent(kpi.error_rate)}
-                                    <span className="text-xs">{getStatusEmoji(kpi.error_rate, selectedTemplate?.objectives.error_rate || 3, true)}</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Editable message with visual editor */}
+                              {/* Editable message */}
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                   <Label className="text-sm">Message à envoyer</Label>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => regenerateMessage(kpi)}
-                                    className="h-7 text-xs gap-1"
-                                  >
-                                    <RefreshCw className="h-3 w-3" />
-                                    Régénérer
-                                  </Button>
                                 </div>
-                                <MessageTemplateEditor
-                                  value={editedMessages[kpi.restaurant_id] || (selectedTemplate ? generateMessage(kpi, selectedTemplate) : "")}
-                                  onChange={(msg) => updateMessage(kpi.restaurant_id, msg)}
+                                <Textarea
+                                  value={editedMessages[kpi.restaurant_id] || ""}
+                                  onChange={(e) => updateMessage(kpi.restaurant_id, e.target.value)}
                                   disabled={!kpi.manager_whatsapp}
-                                  previewData={{
-                                    prenom: kpi.manager_name.split(" ")[0] || "",
-                                    restaurant: kpi.restaurant_name,
-                                    date_debut: format(lastWeek.start, "d MMMM", { locale: fr }),
-                                    date_fin: format(lastWeek.end, "d MMMM", { locale: fr }),
-                                    commandes: String(kpi.order_count),
-                                    ca: formatCurrency(kpi.revenue),
-                                    panier_moyen: formatCurrency(kpi.average_basket),
-                                    variation_cmd: kpi.order_variation !== null ? `${kpi.order_variation >= 0 ? "+" : ""}${kpi.order_variation.toFixed(0)}%` : "--",
-                                    variation_ca: kpi.revenue_variation !== null ? `${kpi.revenue_variation >= 0 ? "+" : ""}${kpi.revenue_variation.toFixed(0)}%` : "--",
-                                    note: kpi.average_rating?.toFixed(2) || "--",
-                                    nb_avis: String(kpi.review_count),
-                                    emoji_note: getStatusEmoji(kpi.average_rating, selectedTemplate?.objectives.rating || 4.4),
-                                    temps_prep: formatDuration(kpi.avg_prep_time),
-                                    temps_coursier: formatDuration(kpi.avg_courier_wait),
-                                    emoji_temps: getStatusEmoji(kpi.avg_prep_time, selectedTemplate?.objectives.prep_time || 20, true),
-                                    taux_erreur: formatPercent(kpi.error_rate),
-                                    nb_erreurs: String(kpi.error_count),
-                                    emoji_erreur: getStatusEmoji(kpi.error_rate, selectedTemplate?.objectives.error_rate || 3, true),
-                                  }}
-                                  minHeight="150px"
+                                  className="min-h-[200px] font-mono text-sm"
                                 />
                               </div>
                             </CardContent>
@@ -1338,164 +1270,116 @@ export default function WeeklyReports() {
 
         {/* History Tab */}
         <TabsContent value="history" className="space-y-4 mt-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <History className="h-5 w-5" />
-                Historique des rapports envoyés
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Les 100 derniers rapports envoyés via WhatsApp
-              </p>
-            </CardHeader>
-            <CardContent>
-              {loadingHistory ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : reportHistory.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucun rapport envoyé pour le moment</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Grouped history by date then type */}
-                  {(() => {
-                    // Group by date then by type
-                    const groups: Record<string, Record<string, typeof reportHistory>> = {};
-                    
-                    reportHistory.forEach((msg) => {
-                      const dateKey = format(new Date(msg.created_at), "yyyy-MM-dd");
-                      const typeKey = msg.message_content?.includes('PLUS DE DÉTAILS') 
-                        ? 'Rapport IA' 
-                        : 'Rapport';
-                      
-                      if (!groups[dateKey]) groups[dateKey] = {};
-                      if (!groups[dateKey][typeKey]) groups[dateKey][typeKey] = [];
-                      groups[dateKey][typeKey].push(msg);
-                    });
-                    
-                    // Sort by date descending and format
-                    const groupedHistory = Object.entries(groups)
-                      .sort(([a], [b]) => b.localeCompare(a))
-                      .map(([date, types]) => ({
-                        date,
-                        dateLabel: format(new Date(date), "d MMMM yyyy", { locale: fr }),
-                        types: Object.entries(types).map(([type, messages]) => ({
-                          type,
-                          messages,
-                          count: messages.length
-                        })),
-                        totalCount: Object.values(types).flat().length
-                      }));
-
-                    return groupedHistory.map((dateGroup, dateIndex) => (
-                      <Collapsible key={dateGroup.date} defaultOpen={dateIndex === 0}>
-                        {/* Level 1: Date */}
-                        <CollapsibleTrigger className="w-full group">
-                          <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg hover:bg-secondary/70 transition-colors">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium">{dateGroup.dateLabel}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary">{dateGroup.totalCount} rapport{dateGroup.totalCount > 1 ? 's' : ''}</Badge>
-                              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+          {loadingHistory ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : reportHistory.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <History className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                <h3 className="font-semibold text-lg">Aucun historique</h3>
+                <p className="text-muted-foreground text-sm">
+                  Les rapports envoyés apparaîtront ici
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {/* Group by date */}
+              {Object.entries(
+                reportHistory.reduce((acc, msg) => {
+                  const date = format(new Date(msg.created_at), "yyyy-MM-dd");
+                  if (!acc[date]) acc[date] = [];
+                  acc[date].push(msg);
+                  return acc;
+                }, {} as Record<string, typeof reportHistory>)
+              ).map(([date, messages]) => (
+                <Collapsible key={date} defaultOpen={date === format(new Date(), "yyyy-MM-dd")}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="w-full justify-between mb-2">
+                      <span className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        {format(new Date(date), "EEEE d MMMM yyyy", { locale: fr })}
+                        <Badge variant="secondary" className="ml-2">{messages.length}</Badge>
+                      </span>
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2">
+                    {messages.map((msg) => (
+                      <Card key={msg.id} className="border-l-4 border-l-[#25D366]">
+                        <CardContent className="py-3">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-sm">
+                                  {msg.restaurant_name || msg.recipient_name || "Restaurant"}
+                                </span>
+                                <Badge 
+                                  variant={msg.status === "delivered" || msg.status === "read" ? "outline" : "secondary"}
+                                  className={cn(
+                                    "text-xs",
+                                    msg.status === "delivered" && "border-green-500/30 text-green-600",
+                                    msg.status === "read" && "border-blue-500/30 text-blue-600",
+                                    msg.status === "failed" && "border-red-500/30 text-red-600"
+                                  )}
+                                >
+                                  {msg.status === "delivered" && <CheckCircle className="h-3 w-3 mr-1" />}
+                                  {msg.status === "read" && <Eye className="h-3 w-3 mr-1" />}
+                                  {msg.status === "failed" && <XCircle className="h-3 w-3 mr-1" />}
+                                  {msg.status === "delivered" ? "Délivré" : 
+                                   msg.status === "read" ? "Lu" : 
+                                   msg.status === "failed" ? "Échec" : msg.status}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {format(new Date(msg.created_at), "HH:mm", { locale: fr })}
+                                {msg.recipient_phone && ` • ${msg.recipient_phone}`}
+                              </p>
+                              
+                              {/* Expandable message content */}
+                              <Collapsible 
+                                open={expandedHistoryMessages.has(msg.id)}
+                                onOpenChange={(open) => {
+                                  setExpandedHistoryMessages(prev => {
+                                    const newSet = new Set(prev);
+                                    if (open) {
+                                      newSet.add(msg.id);
+                                    } else {
+                                      newSet.delete(msg.id);
+                                    }
+                                    return newSet;
+                                  });
+                                }}
+                              >
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="link" size="sm" className="h-auto p-0 text-xs mt-1">
+                                    {expandedHistoryMessages.has(msg.id) ? "Masquer" : "Voir le message"}
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <pre className="mt-2 p-3 bg-secondary/50 rounded-lg text-xs whitespace-pre-wrap font-mono max-h-60 overflow-auto">
+                                    {msg.message_content}
+                                  </pre>
+                                </CollapsibleContent>
+                              </Collapsible>
                             </div>
                           </div>
-                        </CollapsibleTrigger>
-                        
-                        <CollapsibleContent className="pl-4 mt-2 space-y-2">
-                          {dateGroup.types.map((typeGroup) => (
-                            <Collapsible key={`${dateGroup.date}-${typeGroup.type}`} defaultOpen>
-                              {/* Level 2: Report type */}
-                              <CollapsibleTrigger className="w-full group">
-                                <div className="flex items-center justify-between p-2 rounded-md hover:bg-secondary/30 transition-colors">
-                                  <div className="flex items-center gap-2">
-                                    {typeGroup.type === 'Rapport IA' ? (
-                                      <Sparkles className="h-4 w-4 text-amber-500" />
-                                    ) : (
-                                      <FileText className="h-4 w-4 text-muted-foreground" />
-                                    )}
-                                    <span className="text-sm font-medium">{typeGroup.type}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-xs">{typeGroup.count}</Badge>
-                                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-                                  </div>
-                                </div>
-                              </CollapsibleTrigger>
-                              
-                              <CollapsibleContent className="pl-4 mt-1 space-y-1">
-                                {/* Level 3: Individual reports */}
-                                {typeGroup.messages.map((msg) => (
-                                  <Collapsible 
-                                    key={msg.id}
-                                    open={expandedHistoryMessages.has(msg.id)}
-                                    onOpenChange={() => {
-                                      const newExpanded = new Set(expandedHistoryMessages);
-                                      if (newExpanded.has(msg.id)) {
-                                        newExpanded.delete(msg.id);
-                                      } else {
-                                        newExpanded.add(msg.id);
-                                      }
-                                      setExpandedHistoryMessages(newExpanded);
-                                    }}
-                                  >
-                                    <div className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/20 transition-colors">
-                                      {/* Status icon */}
-                                      {msg.status === 'sent' || msg.status === 'delivered' || msg.status === 'read' ? (
-                                        <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
-                                      ) : msg.status === 'failed' ? (
-                                        <XCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
-                                      ) : (
-                                        <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                      )}
-                                      
-                                      {/* Content */}
-                                      <div className="flex-1 min-w-0 text-sm">
-                                        <span className="font-medium">{msg.restaurant_name || 'Restaurant'}</span>
-                                        <span className="text-muted-foreground"> • {msg.recipient_name || msg.recipient_phone}</span>
-                                        <span className="text-muted-foreground text-xs"> • {format(new Date(msg.created_at), "HH:mm")}</span>
-                                      </div>
-                                      
-                                      {/* View button */}
-                                      <CollapsibleTrigger asChild>
-                                        <Button variant="ghost" size="sm" className="h-7 px-2 gap-1">
-                                          <Eye className="h-3.5 w-3.5" />
-                                          <span className="text-xs">Voir</span>
-                                        </Button>
-                                      </CollapsibleTrigger>
-                                    </div>
-                                    
-                                    <CollapsibleContent>
-                                      <div className="ml-7 mt-1 p-3 rounded-lg bg-secondary/30 border">
-                                        <pre className="whitespace-pre-wrap text-xs font-sans leading-relaxed">
-                                          {msg.message_content}
-                                        </pre>
-                                      </div>
-                                    </CollapsibleContent>
-                                  </Collapsible>
-                                ))}
-                              </CollapsibleContent>
-                            </Collapsible>
-                          ))}
-                        </CollapsibleContent>
-                      </Collapsible>
-                    ));
-                  })()}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+            </div>
+          )}
         </TabsContent>
-
       </Tabs>
 
       {/* Template Editor Dialog */}
       <Dialog open={showTemplateEditor} onOpenChange={setShowTemplateEditor}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {isCreatingNew ? <Plus className="h-5 w-5" /> : <Edit3 className="h-5 w-5" />}
@@ -1508,15 +1392,11 @@ export default function WeeklyReports() {
 
           {editingTemplate && (
             <Tabs defaultValue="general" className="mt-4">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="general">Général</TabsTrigger>
                 <TabsTrigger value="content">Contenu</TabsTrigger>
                 <TabsTrigger value="objectives">Objectifs</TabsTrigger>
                 <TabsTrigger value="schedule">Programmation</TabsTrigger>
-                <TabsTrigger value="preview" className="gap-1.5">
-                  <Eye className="h-3.5 w-3.5" />
-                  Aperçu
-                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="general" className="space-y-4 mt-4">
@@ -1561,42 +1441,24 @@ export default function WeeklyReports() {
 
                 <div className="space-y-2">
                   <Label>Message d'introduction</Label>
-                  <MessageTemplateEditor
+                  <Textarea
                     value={editingTemplate.intro_template || ""}
-                    onChange={(value) => setEditingTemplate(prev => ({ ...prev!, intro_template: value }))}
-                    previewData={{
-                      prenom: "Jean",
-                      restaurant: "Chicken Street Antony",
-                      date_debut: format(lastWeek.start, "d MMMM", { locale: fr }),
-                      date_fin: format(lastWeek.end, "d MMMM", { locale: fr }),
-                      commandes: "142",
-                      ca: "2 847 €",
-                      panier_moyen: "20,05 €",
-                      variation_ca: "+8,5%",
-                      note: "4.6",
-                      nb_avis: "23",
-                      emoji_note: "✅",
-                      temps_prep: "12 min",
-                      temps_coursier: "4 min",
-                      emoji_temps: "✅",
-                      taux_erreur: "2.1%",
-                      nb_erreurs: "3",
-                      emoji_erreur: "✅"
-                    }}
-                    minHeight="120px"
+                    onChange={(e) => setEditingTemplate(prev => ({ ...prev!, intro_template: e.target.value }))}
+                    placeholder="📊 Bonjour {prenom}..."
+                    className="min-h-[100px]"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Variables disponibles : {"{prenom}"}, {"{date_debut}"}, {"{date_fin}"}
+                  </p>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Message de conclusion</Label>
-                  <MessageTemplateEditor
+                  <Textarea
                     value={editingTemplate.outro_template || ""}
-                    onChange={(value) => setEditingTemplate(prev => ({ ...prev!, outro_template: value }))}
-                    previewData={{
-                      prenom: "Jean",
-                      restaurant: "Chicken Street Antony"
-                    }}
-                    minHeight="80px"
+                    onChange={(e) => setEditingTemplate(prev => ({ ...prev!, outro_template: e.target.value }))}
+                    placeholder="💪 Bonne continuation !"
+                    className="min-h-[80px]"
                   />
                 </div>
               </TabsContent>
@@ -1757,7 +1619,6 @@ export default function WeeklyReports() {
 
                 {editingTemplate.is_scheduled && (
                   <div className="space-y-4 p-4 rounded-lg bg-secondary/30">
-                    {/* Frequency selection */}
                     <div className="space-y-3">
                       <Label>Fréquence d'envoi</Label>
                       <div className="grid gap-3 sm:grid-cols-3">
@@ -1785,7 +1646,6 @@ export default function WeeklyReports() {
                       </div>
                     </div>
 
-                    {/* Day selection based on frequency */}
                     <div className="grid gap-4 sm:grid-cols-2">
                       {editingTemplate.schedule_frequency === "weekly" && (
                         <div className="space-y-2">
@@ -1839,7 +1699,6 @@ export default function WeeklyReports() {
                       </div>
                     </div>
 
-                    {/* Validation toggle */}
                     <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                       <div className="flex items-center gap-3">
                         {editingTemplate.requires_validation ? (
@@ -1851,9 +1710,8 @@ export default function WeeklyReports() {
                           <Label className="text-base">Validation requise</Label>
                           <p className="text-sm text-muted-foreground">
                             {editingTemplate.requires_validation 
-                              ? "Vous recevrez une notification pour valider avant envoi"
-                              : "Les rapports seront envoyés automatiquement"
-                            }
+                              ? "Vous devrez valider avant l'envoi" 
+                              : "Envoi automatique sans validation"}
                           </p>
                         </div>
                       </div>
@@ -1865,96 +1723,6 @@ export default function WeeklyReports() {
                   </div>
                 )}
               </TabsContent>
-
-              <TabsContent value="preview" className="mt-4">
-                {/* Full message preview */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Eye className="h-4 w-4" />
-                    <span>Aperçu du message complet tel qu'il sera envoyé</span>
-                  </div>
-                  
-                  {/* WhatsApp-style full preview */}
-                  <div className="rounded-xl bg-[#0b141a] overflow-hidden border border-border/30">
-                    {/* Chat header */}
-                    <div className="flex items-center gap-3 px-4 py-3 bg-[#1f2c34] border-b border-white/5">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-base">
-                        J
-                      </div>
-                      <div>
-                        <div className="font-medium text-white text-sm">Jean Dupont</div>
-                        <div className="text-[11px] text-white/50">Manager • Chicken Street Antony</div>
-                      </div>
-                    </div>
-                    
-                    {/* Message bubble with full generated content */}
-                    <div className="p-4 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.02%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')]">
-                      <div className="max-w-[90%] ml-auto">
-                        <div className="bg-[#005c4b] rounded-xl rounded-tr-sm p-4 shadow-lg">
-                          <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
-                            {(() => {
-                              // Generate full preview message
-                              const dateStart = format(lastWeek.start, "d MMMM", { locale: fr });
-                              const dateEnd = format(lastWeek.end, "d MMMM", { locale: fr });
-                              const objectives = editingTemplate?.objectives || DEFAULT_OBJECTIVES;
-                              const blocks = editingTemplate?.data_blocks || DEFAULT_DATA_BLOCKS;
-                              
-                              let intro = (editingTemplate?.intro_template || "")
-                                .replace(/{prenom}/g, "Jean")
-                                .replace(/{restaurant}/g, "Chicken Street Antony")
-                                .replace(/{date_debut}/g, dateStart)
-                                .replace(/{date_fin}/g, dateEnd);
-                              
-                              const lines: string[] = [];
-                              
-                              if (blocks.orders_revenue) {
-                                lines.push("📦 *COMMANDES & CA*");
-                                lines.push("• Commandes : 142 (+12%)");
-                                lines.push("• Chiffre d'affaires : 2 847 € (+8%)");
-                                lines.push("• Panier moyen : 20,05 €");
-                                lines.push("");
-                              }
-                              
-                              if (blocks.rating) {
-                                lines.push("⭐ *NOTE MOYENNE*");
-                                lines.push(`• Moyenne : 4.6 ✅ (23 avis)`);
-                                lines.push(`   ↳ Objectif : ${objectives.rating}`);
-                                lines.push("");
-                              }
-                              
-                              if (blocks.operations) {
-                                lines.push("⏱️ *TEMPS OPÉRATIONNELS*");
-                                lines.push(`• Temps de préparation : 12 min ✅`);
-                                lines.push(`   ↳ Objectif : -${objectives.prep_time} min`);
-                                lines.push(`• Temps d'attente coursier : 4 min ✅`);
-                                lines.push(`   ↳ Objectif : -${objectives.courier_wait} min`);
-                                lines.push("");
-                              }
-                              
-                              if (blocks.errors) {
-                                lines.push("❌ *TAUX D'ERREUR*");
-                                lines.push(`• Pourcentage d'erreurs : 2.1% ✅ (3 erreurs)`);
-                                lines.push(`   ↳ Objectif : -${objectives.error_rate}%`);
-                              }
-                              
-                              return intro + lines.join("\n") + (editingTemplate?.outro_template || "");
-                            })()}
-                          </p>
-                          <div className="flex items-center justify-end gap-1 mt-3 text-[10px] text-white/60">
-                            <span>Dimanche 12:00</span>
-                            <Check className="h-3.5 w-3.5 text-white/40" />
-                            <Check className="h-3.5 w-3.5 text-sky-400 -ml-2" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <p className="text-xs text-muted-foreground text-center">
-                    Les valeurs affichées sont des exemples. Le message réel utilisera les données de chaque restaurant.
-                  </p>
-                </div>
-              </TabsContent>
             </Tabs>
           )}
 
@@ -1964,9 +1732,11 @@ export default function WeeklyReports() {
             </Button>
             <Button
               onClick={() => editingTemplate && saveTemplateMutation.mutate(editingTemplate)}
-              disabled={saveTemplateMutation.isPending || !editingTemplate?.name}
+              disabled={!editingTemplate?.name || saveTemplateMutation.isPending}
             >
-              {saveTemplateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {saveTemplateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
               Sauvegarder
             </Button>
           </DialogFooter>
