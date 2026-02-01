@@ -1370,6 +1370,66 @@ async function parseAndSendReport(
   return { modifiedResponse, reportSent };
 }
 
+// Get report dates from the original AI report sent to this phone/restaurant
+async function getReportDatesFromOriginal(
+  supabase: any,
+  phone: string,
+  restaurantId: string
+): Promise<{ startDate: string; endDate: string } | null> {
+  const normalizedPhone = normalizePhoneNumber(phone);
+  const phoneLast9 = normalizedPhone.slice(-9);
+  
+  // Find the most recent AI report sent to this phone for this restaurant with stored dates
+  const { data: originalReport, error } = await supabase
+    .from('message_history')
+    .select('report_start_date, report_end_date')
+    .eq('direction', 'outbound')
+    .eq('message_type', 'report')
+    .eq('restaurant_id', restaurantId)
+    .or(`recipient_phone.eq.${normalizedPhone},recipient_phone.ilike.%${phoneLast9}`)
+    .not('report_start_date', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  
+  if (error) {
+    console.error('Error fetching original report dates:', error);
+    return null;
+  }
+  
+  if (!originalReport?.report_start_date) {
+    console.log('No original report with dates found for', restaurantId);
+    return null;
+  }
+  
+  console.log(`Found original report dates: ${originalReport.report_start_date} to ${originalReport.report_end_date}`);
+  return {
+    startDate: originalReport.report_start_date,
+    endDate: originalReport.report_end_date
+  };
+}
+
+// Get the latest date with available data for a restaurant
+async function getLatestDataDate(
+  supabase: any,
+  restaurantId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('daily_sales_uber_deduped')
+    .select('date')
+    .eq('restaurant_id', restaurantId)
+    .order('date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  
+  if (error || !data) {
+    console.log('No data found for restaurant', restaurantId);
+    return null;
+  }
+  
+  return data.date;
+}
+
 // Handle interactive report menu responses (1-5 for basic, 1+ for detailed)
 async function handleInteractiveReportRequest(
   supabase: any,
@@ -1393,13 +1453,31 @@ async function handleInteractiveReportRequest(
   console.log(`Detail level: ${detailLevel}`);
   console.log(`Phone: ${phone}`);
 
-  // Calculate date range for last 7 days
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - 7);
+  // Try to get dates from the original AI report sent to this manager
+  const reportDates = await getReportDatesFromOriginal(supabase, phone, restaurant.id);
   
-  const startDateStr = startDate.toISOString().split('T')[0];
-  const endDateStr = endDate.toISOString().split('T')[0];
+  let startDateStr: string;
+  let endDateStr: string;
+  
+  if (reportDates) {
+    // Use dates from original report - ensures coherent S vs S-1 comparison
+    startDateStr = reportDates.startDate;
+    endDateStr = reportDates.endDate;
+    console.log(`Using dates from original report: ${startDateStr} to ${endDateStr}`);
+  } else {
+    // Fallback: calculate from latest available data (not today)
+    const latestDate = await getLatestDataDate(supabase, restaurant.id);
+    if (!latestDate) {
+      await sendWhatsAppReply(phone, `❌ Aucune donnée disponible pour ${restaurant.name}.`);
+      return;
+    }
+    const end = new Date(latestDate + 'T12:00:00');
+    const start = new Date(latestDate + 'T12:00:00');
+    start.setDate(start.getDate() - 6); // 7 days total
+    startDateStr = start.toISOString().split('T')[0];
+    endDateStr = end.toISOString().split('T')[0];
+    console.log(`Using fallback dates from latest data: ${startDateStr} to ${endDateStr}`);
+  }
 
   // Report type labels for user feedback
   const reportLabels: Record<string, string> = {
@@ -1456,7 +1534,7 @@ async function handleInteractiveReportRequest(
     if (sent) {
       console.log(`✓ Interactive report sent: ${reportType} (${detailLevel})`);
       
-      // Log to message history
+      // Log to message history (include report dates for future sub-reports)
       await supabase.from('message_history').insert({
         direction: 'outbound',
         recipient_phone: phone,
@@ -1467,6 +1545,8 @@ async function handleInteractiveReportRequest(
         message_type: 'report',
         status: 'sent',
         sent_at: new Date().toISOString(),
+        report_start_date: startDateStr,
+        report_end_date: endDateStr,
       });
 
       // Log to chatbot_interactions
@@ -1477,7 +1557,7 @@ async function handleInteractiveReportRequest(
         query: `[MENU_INTERACTIF:${reportType}:${detailLevel}]`,
         response: reportMessage.substring(0, 500),
         intent: 'interactive_report',
-        detected_entities: { report_type: reportType, detail_level: detailLevel },
+        detected_entities: { report_type: reportType, detail_level: detailLevel, start_date: startDateStr, end_date: endDateStr },
         was_successful: true,
       });
     } else {

@@ -959,6 +959,8 @@ export type Database = {
           read_at: string | null
           recipient_name: string | null
           recipient_phone: string
+          report_end_date: string | null
+          report_start_date: string | null
           restaurant_id: string | null
           restaurant_name: string | null
           scheduled_message_id: string | null
@@ -984,6 +986,8 @@ export type Database = {
           read_at?: string | null
           recipient_name?: string | null
           recipient_phone: string
+          report_end_date?: string | null
+          report_start_date?: string | null
           restaurant_id?: string | null
           restaurant_name?: string | null
           scheduled_message_id?: string | null
@@ -1009,6 +1013,8 @@ export type Database = {
           read_at?: string | null
           recipient_name?: string | null
           recipient_phone?: string
+          report_end_date?: string | null
+          report_start_date?: string | null
           restaurant_id?: string | null
           restaurant_name?: string | null
           scheduled_message_id?: string | null

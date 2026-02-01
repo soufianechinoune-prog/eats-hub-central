@@ -21,6 +21,8 @@ interface SendRequest {
   message_type?: 'campaign' | 'report' | 'individual' | 'chatbot';
   batch_id?: string;
   skip_status_check?: boolean; // For internal calls that already verified status
+  report_start_date?: string; // For tracking report date context
+  report_end_date?: string;   // For tracking report date context
 }
 
 /**
@@ -126,7 +128,9 @@ serve(async (req) => {
       skip_campaign, 
       message_type, 
       batch_id: providedBatchId,
-      skip_status_check 
+      skip_status_check,
+      report_start_date,
+      report_end_date,
     }: SendRequest = await req.json();
 
     if (!recipients || recipients.length === 0) {
@@ -218,23 +222,25 @@ serve(async (req) => {
         console.error(`Invalid phone number for ${recipient.restaurantName}: ${phoneError}`);
         failedCount++;
         
-        // Log failed message to history
-        if (supabase) {
-          const msgType = determineMessageType(personalizedMessage, !!campaignId);
-          await supabase.from('message_history').insert({
-            direction: 'outbound',
-            restaurant_id: recipient.restaurant_id || null,
-            recipient_phone: recipient.phone,
-            recipient_name: recipient.name,
-            restaurant_name: recipient.restaurantName,
-            message_content: personalizedMessage,
-            status: 'failed',
-            error_message: phoneError || 'Invalid phone number',
-            scheduled_message_id: scheduled_message_id || null,
-            campaign_id: campaignId,
-            batch_id: batchId,
-            message_type: msgType,
-          });
+          // Log failed message to history with report dates
+          if (supabase) {
+            const msgType = determineMessageType(personalizedMessage, !!campaignId);
+            await supabase.from('message_history').insert({
+              direction: 'outbound',
+              restaurant_id: recipient.restaurant_id || null,
+              recipient_phone: recipient.phone,
+              recipient_name: recipient.name,
+              restaurant_name: recipient.restaurantName,
+              message_content: personalizedMessage,
+              status: 'failed',
+              error_message: phoneError || 'Invalid phone number',
+              scheduled_message_id: scheduled_message_id || null,
+              campaign_id: campaignId,
+              batch_id: batchId,
+              message_type: msgType,
+              report_start_date: report_start_date || null,
+              report_end_date: report_end_date || null,
+            });
         }
 
         results.push({
@@ -267,7 +273,7 @@ serve(async (req) => {
           console.log(`Message sent successfully to ${phone}, ID: ${data.id}`);
           sentCount++;
           
-          // Log to message_history with campaign_id, batch_id, and message_type
+          // Log to message_history with campaign_id, batch_id, message_type, and report dates
           if (supabase) {
             const msgType = determineMessageType(personalizedMessage, !!campaignId);
             await supabase.from('message_history').insert({
@@ -284,6 +290,8 @@ serve(async (req) => {
               campaign_id: campaignId,
               batch_id: batchId,
               message_type: msgType,
+              report_start_date: report_start_date || null,
+              report_end_date: report_end_date || null,
             });
           }
 
@@ -297,7 +305,7 @@ serve(async (req) => {
           console.error(`Failed to send to ${phone}:`, data);
           failedCount++;
           
-          // Log failed message to history with campaign_id, batch_id, and message_type
+          // Log failed message to history with campaign_id, batch_id, message_type, and report dates
           if (supabase) {
             const msgType = determineMessageType(personalizedMessage, !!campaignId);
             await supabase.from('message_history').insert({
@@ -313,6 +321,8 @@ serve(async (req) => {
               campaign_id: campaignId,
               batch_id: batchId,
               message_type: msgType,
+              report_start_date: report_start_date || null,
+              report_end_date: report_end_date || null,
             });
           }
 
@@ -328,7 +338,7 @@ serve(async (req) => {
         console.error(`Error sending to ${phone}:`, errorMessage);
         failedCount++;
         
-        // Log error to history with campaign_id, batch_id, and message_type
+        // Log error to history with campaign_id, batch_id, message_type, and report dates
         if (supabase) {
           const msgType = determineMessageType(personalizedMessage, !!campaignId);
           await supabase.from('message_history').insert({
@@ -344,6 +354,8 @@ serve(async (req) => {
             campaign_id: campaignId,
             batch_id: batchId,
             message_type: msgType,
+            report_start_date: report_start_date || null,
+            report_end_date: report_end_date || null,
           });
         }
 
