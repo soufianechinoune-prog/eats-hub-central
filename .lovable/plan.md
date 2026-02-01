@@ -1,203 +1,103 @@
 
 
-# Gestion du Contexte Multi-Restaurant dans les Réponses WhatsApp
+# Simplification : Toujours demander le restaurant pour les gérants multi-sites
 
-## Problème identifié
+## Problème actuel
 
-Jamel gère 5 restaurants et son restaurant "primaire" est Bourg-en-Bresse. Quand il reçoit un rapport pour Athis-Mons et répond "2", le système répond avec les données de Bourg-en-Bresse car il utilise `primaryRestaurant` par défaut.
+La logique actuelle essaie d'être "intelligente" :
+1. Si plusieurs restaurants → cherche le contexte du dernier rapport envoyé
+2. Si contexte trouvé → utilise ce restaurant
+3. Si pas de contexte → demande de choisir
 
-## Solution
+**Mais c'est un mauvais comportement !** Quand tu as reçu 3 rapports (Antony, Athis-Mons, Bonneuil) et que tu réponds "2", le système ne devrait pas deviner. Il devrait te demander.
 
-Implémenter un système de **contexte de conversation** qui :
+## Solution proposée
 
-1. Récupère le dernier rapport envoyé à ce numéro
-2. Si trouvé → utilise ce restaurant pour la réponse
-3. Si le gérant gère plusieurs restaurants et aucun contexte récent → demande de choisir
+**Supprimer la logique de contexte** et toujours demander quand le gérant a plusieurs restaurants :
 
-## Logique de détection du contexte
-
-Quand un message interactif (1-5) est reçu :
-
-1. Chercher le dernier message sortant de type `report` envoyé à ce numéro dans les dernières 24h
-2. Si trouvé → extraire le `restaurant_id` de ce message → utiliser pour le rapport statistique
-3. Si non trouvé et plusieurs restaurants → envoyer un message de clarification avec la liste des restaurants
+```text
+Gérant avec 1 restaurant → Génère directement le rapport
+Gérant avec N restaurants → Toujours demande lequel
+```
 
 ## Modifications techniques
 
 ### Fichier : `supabase/functions/ultramsg-webhook/index.ts`
 
-**Nouvelle fonction pour récupérer le contexte :**
+**Simplifier la logique (lignes 1820-1862) :**
 
+Avant (complexe) :
 ```typescript
-async function getRecentReportContext(
-  supabase: any, 
-  phone: string, 
-  hours: number = 24
-): Promise<{ restaurantId: string; restaurantName: string } | null> {
-  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-  
-  const { data: recentReport } = await supabase
-    .from('message_history')
-    .select('restaurant_id, restaurant_name')
-    .eq('direction', 'outbound')
-    .eq('message_type', 'report')
-    .eq('recipient_phone', phone)
-    .not('restaurant_id', 'is', null)
-    .gte('created_at', cutoff)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  
-  if (recentReport?.restaurant_id) {
-    return {
-      restaurantId: recentReport.restaurant_id,
-      restaurantName: recentReport.restaurant_name
-    };
+if (managerRestaurants.length > 1) {
+  const recentContext = await getRecentReportContext(supabase, normalizedPhone);
+  if (recentContext) {
+    targetRestaurant = managerRestaurants.find(...);
   }
-  return null;
+  if (!targetRestaurant) {
+    await sendRestaurantSelectionPrompt(...);
+  }
 }
 ```
 
-**Nouvelle fonction pour demander clarification :**
-
+Après (simple) :
 ```typescript
-async function sendRestaurantSelectionPrompt(
-  supabase: any,
-  phone: string,
-  restaurants: Array<{ id: string; name: string }>,
-  reportType: string,
-  detailLevel: string,
-  managerName: string
-) {
-  // Extraire les noms de ville
-  const restaurantList = restaurants.map((r, index) => {
-    const cityName = extractCityName(r.name);
-    return `${index + 1}. ${cityName}`;
-  }).join('\n');
-  
-  const message = `Salut ${managerName} ! 👋
-
-Tu gères plusieurs restaurants. Pour quel établissement veux-tu le rapport ?
-
-${restaurantList}
-
-💡 Réponds avec le numéro correspondant (ex: "1" pour ${extractCityName(restaurants[0].name)})`;
-
-  // Envoyer le message via Ultramsg
-  await sendWhatsAppMessage(supabase, phone, message);
-  
-  // Stocker le contexte d'attente de sélection
-  // On pourra utiliser un cache temporaire ou une table dédiée
-}
-```
-
-**Modification de la logique existante (lignes 1697-1715) :**
-
-```typescript
-if (managerRestaurants.length > 0 && menuResponse.isMenu && menuResponse.reportType) {
-  console.log(`Interactive menu response detected: ${menuResponse.reportType} (${menuResponse.detailLevel})`);
-  
-  let targetRestaurant = null;
-  
-  // Si le gérant a plusieurs restaurants, chercher le contexte du dernier rapport
-  if (managerRestaurants.length > 1) {
-    const recentContext = await getRecentReportContext(supabase, normalizedPhone);
-    
-    if (recentContext) {
-      // Trouver le restaurant correspondant
-      targetRestaurant = managerRestaurants.find(
-        (r: any) => r.id === recentContext.restaurantId
-      );
-      if (targetRestaurant) {
-        console.log(`Using context from recent report: ${recentContext.restaurantName}`);
-      }
-    }
-    
-    // Si toujours pas de contexte, demander clarification
-    if (!targetRestaurant) {
-      console.log('Multiple restaurants, no recent context - asking for selection');
-      await sendRestaurantSelectionPrompt(
-        supabase,
-        normalizedPhone,
-        managerRestaurants,
-        menuResponse.reportType,
-        menuResponse.detailLevel,
-        manager?.first_name || 'Manager'
-      );
-      return new Response(
-        JSON.stringify({ success: true, type: 'awaiting_restaurant_selection' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-  } else {
-    // Un seul restaurant - utiliser celui-là
-    targetRestaurant = managerRestaurants[0];
-  }
-  
-  // Générer le rapport pour le restaurant cible
-  handleInteractiveReportRequest(
+if (managerRestaurants.length > 1) {
+  // Toujours demander pour un gérant multi-restaurants
+  await sendRestaurantSelectionPrompt(
     supabase,
-    targetRestaurant,
+    normalizedPhone,
+    managerRestaurants.map((r: any) => ({ id: r.id, name: r.name })),
     menuResponse.reportType,
     menuResponse.detailLevel,
-    normalizedPhone,
-    manager?.first_name || targetRestaurant?.manager_first_name || 'Manager'
-  ).catch((err: Error) => console.error('Interactive report error:', err));
-  
+    manager?.first_name || 'Manager'
+  );
   return new Response(
-    JSON.stringify({ success: true, type: 'interactive_menu_response' }),
+    JSON.stringify({ success: true, type: 'awaiting_restaurant_selection' }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
+} else {
+  // Un seul restaurant - utiliser celui-là
+  targetRestaurant = managerRestaurants[0];
 }
 ```
 
-**Gestion de la réponse à la sélection de restaurant :**
+### Optionnel : Supprimer `getRecentReportContext`
 
-Ajouter une nouvelle détection pour les réponses numériques qui correspondent à une sélection de restaurant (après avoir demandé clarification).
+Cette fonction devient inutile avec la nouvelle logique. On peut la supprimer ou la garder pour un usage futur.
 
-## Flux utilisateur amélioré
+## Nouveau flux utilisateur
 
-### Cas 1 : Contexte récent trouvé
+### Gérant avec 1 restaurant
+```
+[Gérant]  → "2"
+[Système] → Rapport CA (son unique restaurant) ✅
+```
+
+### Gérant avec plusieurs restaurants
 ```
 [Système] → Rapport Athis-Mons
-[Gérant]  → "2"
-[Système] → Rapport CA Athis-Mons ✅
-```
-
-### Cas 2 : Pas de contexte récent
-```
+[Système] → Rapport Antony
+[Système] → Rapport Bonneuil
 [Gérant]  → "2"
 [Système] → "Tu gères plusieurs restaurants. Lequel ?
               1. Athis-Mons
               2. Juvisy
               3. Antony
-              4. Bourg-en-Bresse
-              5. Bonneuil"
-[Gérant]  → "1"
-[Système] → Rapport CA Athis-Mons ✅
-```
-
-### Cas 3 : Gérant avec 1 seul restaurant
-```
-[Gérant]  → "2"
-[Système] → Rapport CA (son unique restaurant) ✅
+              4. Bonneuil
+              5. Bourg-en-Bresse"
+[Gérant]  → "3"
+[Système] → Rapport CA Antony ✅
 ```
 
 ## Fichiers à modifier
 
 | Fichier | Modifications |
 |---------|--------------|
-| `supabase/functions/ultramsg-webhook/index.ts` | Nouvelle fonction `getRecentReportContext`, `sendRestaurantSelectionPrompt`, et modification de la logique de détection du menu interactif |
-| `src/lib/restaurantUtils.ts` | Réutilisation de `extractCityName` (déjà existant) |
-
-## Considérations techniques
-
-1. **Fenêtre de contexte** : 24h semble raisonnable. Au-delà, on demande clarification.
-2. **Pas de table supplémentaire** : On utilise `message_history` existante pour le contexte.
-3. **Performance** : Une seule requête supplémentaire pour récupérer le contexte.
-4. **Dépendance** : Réutilise la fonction `extractCityName` pour afficher les noms courts dans la liste.
+| `supabase/functions/ultramsg-webhook/index.ts` | Supprimer la logique de contexte, toujours demander pour multi-restaurants |
 
 ## Résultat attendu
 
-Les gérants multi-restaurants recevront les rapports statistiques pour le bon restaurant basé sur le contexte de leur dernière interaction, ou seront guidés pour choisir si aucun contexte n'est disponible.
+- Plus de confusion sur "quel restaurant"
+- Comportement prévisible et clair
+- Le gérant choisit toujours explicitement quand il a plusieurs restaurants
 
