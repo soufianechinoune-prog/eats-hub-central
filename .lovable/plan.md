@@ -155,8 +155,15 @@ Toutes les données sont pré-calculées dans la base pour garantir la cohérenc
 
 ## Prochaines étapes
 
-1. Valider la liste des templates et leur contenu
-2. Implémenter les fonctions de génération pour chaque template
-3. Mettre à jour le webhook pour gérer les réponses
-4. Ajouter l'interface de sélection dans la UI
+1. ✅ Valider la liste des templates et leur contenu
+2. ✅ Implémenter les fonctions de génération pour chaque template (`generate-stat-report`)
+3. ✅ Mettre à jour le webhook pour gérer les réponses (1-5, 1+ pour détaillé)
+4. ✅ Ajouter l'interface de sélection dans la UI
+
+## Implémentation réalisée
+
+- **Edge function `generate-stat-report`** : Génère les 5 templates (erreurs, CA, notes, temps, promos) en version basique ou détaillée
+- **Webhook ultramsg** : Détecte les réponses 1-5 (basique) et 1+ (détaillé), utilise la nouvelle fonction
+- **Menu interactif mis à jour** : Affiche les 5 options avec l'indication "+ pour détaillé"
+- **UI WeeklyReports** : Section "Envoyer un rapport statistique" pour envoi direct depuis l'interface
 

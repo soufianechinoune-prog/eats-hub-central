@@ -528,12 +528,16 @@ ${errorEmoji} Erreurs : ${kpis.error_rate?.toFixed(1) || '--'}% (${kpis.error_co
 function getInteractiveMenu(): string {
   return `
 
-────────────────────────
-📋 PLUS DE DÉTAILS ? Réponds :
-1️⃣ Détail erreurs & produits
-2️⃣ Analyse avis clients
-3️⃣ Performance opérationnelle
-4️⃣ Bilan promotions`;
+━━━━━━━━━━━━━━━━━━━━━━
+📋 Répondez avec un numéro pour plus de détails :
+1️⃣ Erreurs
+2️⃣ CA & Commandes
+3️⃣ Notes clients
+4️⃣ Temps opérationnels
+5️⃣ Promotions
+
+💡 Ajoutez "+" pour la version détaillée (ex: "1+")
+━━━━━━━━━━━━━━━━━━━━━━`;
 }
 
 // ============ DETAILED REPORT GENERATORS ============

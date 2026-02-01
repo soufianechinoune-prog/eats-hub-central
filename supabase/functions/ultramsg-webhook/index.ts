@@ -65,31 +65,77 @@ const isQueryMessage = (message: string): boolean => {
   return queryKeywords.test(message) || questionMark || message.length > 10;
 };
 
-// Check if message is an interactive report menu response (1, 2, 3, 4)
-const isInteractiveMenuResponse = (message: string): { isMenu: boolean; reportType: string | null } => {
-  const trimmed = message.trim();
+// Check if message is an interactive report menu response (1-5 for basic, 1+ for detailed)
+const isInteractiveMenuResponse = (message: string): { isMenu: boolean; reportType: string | null; detailLevel: 'basic' | 'detailed' } => {
+  const trimmed = message.trim().toLowerCase();
   
-  // Match patterns: "1", "1️⃣", "1.", "1-", "1:", "1 ", "1)", etc.
-  const patterns: { regex: RegExp; type: string }[] = [
-    { regex: /^1[️⃣\.\-:\)\s]?$/i, type: 'errors' },
-    { regex: /^2[️⃣\.\-:\)\s]?$/i, type: 'reviews' },
-    { regex: /^3[️⃣\.\-:\)\s]?$/i, type: 'operations' },
-    { regex: /^4[️⃣\.\-:\)\s]?$/i, type: 'promotions' },
+  // Template type mapping
+  const templateTypes: Record<number, string> = {
+    1: 'errors',
+    2: 'revenue',
+    3: 'rating',
+    4: 'operations',
+    5: 'promotions',
+  };
+  
+  // Check for detailed version first: "1+", "1 +", "1détail", "1 détail", "1 detail", etc.
+  const detailedPatterns = [
+    /^([1-5])\s*\+$/,                    // "1+"
+    /^([1-5])\s+\+$/,                    // "1 +"
+    /^([1-5])\s*d[ée]tail/i,             // "1détail", "1 détail"
+    /^([1-5])\s*details?/i,              // "1detail", "1 details"
+    /^([1-5])[️⃣]?\s*\+$/,               // "1️⃣+"
   ];
   
-  for (const { regex, type } of patterns) {
-    if (regex.test(trimmed)) {
-      return { isMenu: true, reportType: type };
+  for (const pattern of detailedPatterns) {
+    const match = trimmed.match(pattern);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (templateTypes[num]) {
+        return { isMenu: true, reportType: templateTypes[num], detailLevel: 'detailed' };
+      }
     }
   }
   
-  // Also match text-based responses
-  if (/erreur|détail\s*erreur/i.test(trimmed)) return { isMenu: true, reportType: 'errors' };
-  if (/avis|review|client/i.test(trimmed) && trimmed.length < 20) return { isMenu: true, reportType: 'reviews' };
-  if (/opéra|performance\s*op/i.test(trimmed)) return { isMenu: true, reportType: 'operations' };
-  if (/promo|promotion|offre/i.test(trimmed) && trimmed.length < 20) return { isMenu: true, reportType: 'promotions' };
+  // Check for basic version: "1", "1️⃣", "1.", "1-", etc.
+  const basicPatterns = [
+    /^([1-5])[️⃣\.\-:\)\s]?$/,           // "1", "1.", "1-", "1:"
+    /^([1-5])$/,                         // just the number
+  ];
   
-  return { isMenu: false, reportType: null };
+  for (const pattern of basicPatterns) {
+    const match = trimmed.match(pattern);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (templateTypes[num]) {
+        return { isMenu: true, reportType: templateTypes[num], detailLevel: 'basic' };
+      }
+    }
+  }
+  
+  // Also match text-based responses (default to basic)
+  if (/erreur|détail\s*erreur/i.test(trimmed)) {
+    const isDetailed = /\+|détaillé|complet/i.test(trimmed);
+    return { isMenu: true, reportType: 'errors', detailLevel: isDetailed ? 'detailed' : 'basic' };
+  }
+  if (/^ca\b|chiffre|revenue|commande/i.test(trimmed) && trimmed.length < 25) {
+    const isDetailed = /\+|détaillé|complet/i.test(trimmed);
+    return { isMenu: true, reportType: 'revenue', detailLevel: isDetailed ? 'detailed' : 'basic' };
+  }
+  if (/note|avis|rating|client/i.test(trimmed) && trimmed.length < 25) {
+    const isDetailed = /\+|détaillé|complet/i.test(trimmed);
+    return { isMenu: true, reportType: 'rating', detailLevel: isDetailed ? 'detailed' : 'basic' };
+  }
+  if (/opéra|temps|prépa|attente/i.test(trimmed) && trimmed.length < 25) {
+    const isDetailed = /\+|détaillé|complet/i.test(trimmed);
+    return { isMenu: true, reportType: 'operations', detailLevel: isDetailed ? 'detailed' : 'basic' };
+  }
+  if (/promo|promotion|offre/i.test(trimmed) && trimmed.length < 25) {
+    const isDetailed = /\+|détaillé|complet/i.test(trimmed);
+    return { isMenu: true, reportType: 'promotions', detailLevel: isDetailed ? 'detailed' : 'basic' };
+  }
+  
+  return { isMenu: false, reportType: null, detailLevel: 'basic' };
 };
 
 // Calculate Easter Sunday using the Anonymous Gregorian algorithm
@@ -1125,11 +1171,12 @@ async function parseAndSendReport(
   return { modifiedResponse, reportSent };
 }
 
-// Handle interactive report menu responses (1, 2, 3, 4)
+// Handle interactive report menu responses (1-5 for basic, 1+ for detailed)
 async function handleInteractiveReportRequest(
   supabase: any,
   restaurant: any,
   reportType: string,
+  detailLevel: 'basic' | 'detailed',
   phone: string,
   managerFirstName: string
 ): Promise<void> {
@@ -1144,6 +1191,7 @@ async function handleInteractiveReportRequest(
   console.log(`=== INTERACTIVE REPORT REQUEST ===`);
   console.log(`Restaurant: ${restaurant.name}`);
   console.log(`Report type: ${reportType}`);
+  console.log(`Detail level: ${detailLevel}`);
   console.log(`Phone: ${phone}`);
 
   // Calculate date range for last 7 days
@@ -1156,62 +1204,58 @@ async function handleInteractiveReportRequest(
 
   // Report type labels for user feedback
   const reportLabels: Record<string, string> = {
-    errors: 'Détail Erreurs & Produits',
-    reviews: 'Analyse Avis Clients',
-    operations: 'Performance Opérationnelle',
-    promotions: 'Bilan Promotions',
+    errors: 'Taux d\'erreur',
+    revenue: 'CA & Commandes',
+    rating: 'Note moyenne',
+    operations: 'Temps opérationnels',
+    promotions: 'Promotions',
   };
 
-  const reportLabel = reportLabels[reportType] || 'Rapport détaillé';
+  const reportLabel = reportLabels[reportType] || 'Rapport';
+  const levelLabel = detailLevel === 'detailed' ? ' (détaillé)' : '';
 
   // Send "generating" acknowledgment immediately
-  await sendWhatsAppReply(phone, `⏳ Génération du rapport "${reportLabel}" en cours...`);
+  await sendWhatsAppReply(phone, `⏳ Génération du rapport "${reportLabel}${levelLabel}" en cours...`);
 
   try {
-    // Call the generate-ai-report function with the specific report type
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-ai-report`, {
+    // Call the generate-stat-report function with the specific report type and detail level
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-stat-report`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
       },
       body: JSON.stringify({
-        restaurant_ids: [restaurant.id],
+        restaurant_id: restaurant.id,
         start_date: startDateStr,
         end_date: endDateStr,
-        report_type: reportType,
-        template_context: {
-          tone: 'standard',
-          include_recommendations: true,
-          include_error_analysis: true,
-          include_interactive_menu: false, // Don't add menu to detail reports
-        },
+        template_type: reportType,
+        detail_level: detailLevel,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Error generating report:', response.status, errorText);
+      console.error('Error generating stat report:', response.status, errorText);
       await sendWhatsAppReply(phone, `❌ Erreur lors de la génération du rapport. Réessaie plus tard.`);
       return;
     }
 
     const data = await response.json();
     
-    if (!data.success || !data.reports || data.reports.length === 0) {
-      console.error('No reports generated:', data);
+    if (!data.success || !data.report) {
+      console.error('No report generated:', data);
       await sendWhatsAppReply(phone, `❌ Impossible de générer le rapport. Données insuffisantes.`);
       return;
     }
 
-    const report = data.reports[0];
-    const reportMessage = report.generated_message;
+    const reportMessage = data.report.generated_message;
 
-    // Send the detailed report
+    // Send the report
     const sent = await sendWhatsAppReply(phone, reportMessage);
 
     if (sent) {
-      console.log(`✓ Interactive report sent: ${reportType}`);
+      console.log(`✓ Interactive report sent: ${reportType} (${detailLevel})`);
       
       // Log to message history
       await supabase.from('message_history').insert({
@@ -1231,10 +1275,10 @@ async function handleInteractiveReportRequest(
         restaurant_id: restaurant.id,
         manager_phone: phone,
         manager_name: managerFirstName,
-        query: `[MENU_INTERACTIF:${reportType}]`,
+        query: `[MENU_INTERACTIF:${reportType}:${detailLevel}]`,
         response: reportMessage.substring(0, 500),
         intent: 'interactive_report',
-        detected_entities: { report_type: reportType },
+        detected_entities: { report_type: reportType, detail_level: detailLevel },
         was_successful: true,
       });
     } else {
@@ -1651,14 +1695,15 @@ serve(async (req) => {
       const menuResponse = isInteractiveMenuResponse(messageData.body);
       
       if (managerRestaurants.length > 0 && menuResponse.isMenu && menuResponse.reportType) {
-        console.log(`Interactive menu response detected: ${menuResponse.reportType}`);
+        console.log(`Interactive menu response detected: ${menuResponse.reportType} (${menuResponse.detailLevel})`);
         const primaryRestaurantForReport = managerRestaurants.find((r: any) => r.is_primary) || managerRestaurants[0];
         
-        // Handle detailed report generation asynchronously
+        // Handle report generation asynchronously
         handleInteractiveReportRequest(
           supabase,
           primaryRestaurantForReport,
           menuResponse.reportType,
+          menuResponse.detailLevel,
           normalizedPhone,
           manager?.first_name || primaryRestaurantForReport?.manager_first_name || 'Manager'
         ).catch((err: Error) => console.error('Interactive report error:', err));
