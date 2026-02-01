@@ -31,6 +31,8 @@ interface WeeklyKPIs {
   average_basket: number;
   order_variation: number | null;
   revenue_variation: number | null;
+  prev_order_count: number;      // For direct comparison display
+  prev_revenue: number;          // For direct comparison display
   average_rating: number | null;
   prev_average_rating: number | null;
   review_count: number;
@@ -40,6 +42,8 @@ interface WeeklyKPIs {
   error_rate: number | null;
   prev_error_rate: number | null;
   error_count: number;
+  downtime_minutes: number;      // Total inactivity minutes current week
+  prev_downtime_minutes: number; // Total inactivity minutes previous week
 }
 
 interface ErrorBreakdown {
@@ -235,6 +239,28 @@ serve(async (req) => {
 
       console.log(`[${restaurant.name}] Error rates: ${errorCount} errors (${errorRate?.toFixed(1) || '--'}%) vs prev: ${prevErrorCount} (${prevErrorRate?.toFixed(1) || '--'}%)`);
 
+      // ============ FETCH DOWNTIME DATA ============
+      // Current week downtime
+      const { data: downtimes } = await supabase
+        .from('downtime_logs')
+        .select('duration_minutes')
+        .eq('restaurant_id', restaurantId)
+        .gte('downtime_start', start_date)
+        .lte('downtime_start', end_date + 'T23:59:59');
+
+      // Previous week downtime
+      const { data: prevDowntimes } = await supabase
+        .from('downtime_logs')
+        .select('duration_minutes')
+        .eq('restaurant_id', restaurantId)
+        .gte('downtime_start', prevStartStr)
+        .lte('downtime_start', prevEndStr + 'T23:59:59');
+
+      const downtimeMinutes = (downtimes || []).reduce((sum, d) => sum + (d.duration_minutes || 0), 0);
+      const prevDowntimeMinutes = (prevDowntimes || []).reduce((sum, d) => sum + (d.duration_minutes || 0), 0);
+
+      console.log(`[${restaurant.name}] Downtime: ${downtimeMinutes}min vs prev: ${prevDowntimeMinutes}min`);
+
 
       // ============ ERROR BREAKDOWN BY CATEGORY ============
       const errorCategoryMap: Record<string, number> = {};
@@ -300,6 +326,8 @@ serve(async (req) => {
         average_basket: averageBasket,
         order_variation: orderVariation,
         revenue_variation: revenueVariation,
+        prev_order_count: prevOrderCount,
+        prev_revenue: prevRevenue,
         average_rating: averageRating,
         prev_average_rating: prevAverageRating,
         review_count: reviewCount,
@@ -309,6 +337,8 @@ serve(async (req) => {
         error_rate: errorRate,
         prev_error_rate: prevErrorRate,
         error_count: errorCount,
+        downtime_minutes: downtimeMinutes,
+        prev_downtime_minutes: prevDowntimeMinutes,
       };
 
       // ============ GENERATE AI MESSAGE ============
@@ -373,6 +403,16 @@ serve(async (req) => {
   }
 });
 
+// ============ UTILITY FUNCTIONS ============
+function formatDowntime(minutes: number): string {
+  if (minutes === 0) return '0';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours > 0 && mins > 0) return `${hours}h${mins}min`;
+  if (hours > 0) return `${hours}h`;
+  return `${mins}min`;
+}
+
 async function generateAIMessage(
   data: EnrichedReportData, 
   templateContext: ReportRequest['template_context'],
@@ -381,7 +421,15 @@ async function generateAIMessage(
   const { kpis, error_breakdown, problematic_products, active_offers } = data;
   const tone = templateContext?.tone || 'standard';
 
-  // Determine if performance is good or needs attention
+  // Determine trends for all KPIs
+  const caTrend = kpis.revenue_variation !== null
+    ? kpis.revenue_variation >= 0 ? '✅' : '❌'
+    : '➖';
+
+  const orderTrend = kpis.order_variation !== null
+    ? kpis.order_variation >= 0 ? '✅' : '❌'
+    : '➖';
+
   const ratingTrend = kpis.average_rating !== null && kpis.prev_average_rating !== null
     ? kpis.average_rating >= kpis.prev_average_rating ? '✅' : '❌'
     : '➖';
@@ -389,6 +437,11 @@ async function generateAIMessage(
   const errorTrend = kpis.error_rate !== null && kpis.prev_error_rate !== null
     ? kpis.error_rate <= kpis.prev_error_rate ? '✅' : '❌'
     : '➖';
+
+  // Downtime trend (lower is better)
+  const downtimeTrend = kpis.prev_downtime_minutes > 0
+    ? kpis.downtime_minutes <= kpis.prev_downtime_minutes ? '✅' : '❌'
+    : kpis.downtime_minutes === 0 ? '✅' : '➖';
 
   // Build error breakdown string
   const errorBreakdownStr = error_breakdown.length > 0
@@ -417,10 +470,10 @@ async function generateAIMessage(
 
 STYLE D'ÉCRITURE:
 - Tutoiement, ton chaleureux et professionnel
-- Utilise des emojis WhatsApp: ✅ ❌ ⚫️ 👋 🚀 🎯 📦 ⭐ 👊
+- Utilise des emojis WhatsApp: ✅ ❌ ⚫️ 👋 🚀 🎯 📦 ⭐ 👊 💰 ⏸️
 - Format WhatsApp: pas de markdown lourd (pas de **bold**, utilise des majuscules ou emojis)
 - Phrases courtes et percutantes
-- Maximum 400 mots
+- Maximum 450 mots
 
 EXEMPLES DE TON À REPRODUIRE:
 - "Rien à dire pour [restaurant] à part : RESPECT 👊"
@@ -430,9 +483,12 @@ EXEMPLES DE TON À REPRODUIRE:
 
 RÈGLES:
 1. Commence par saluer avec le prénom: "Bonjour [prénom] ! 👋" ou "Salut [prénom] !"
-2. Synthèse rapide avec indicateurs visuels:
-   - "${ratingTrend} Notes : [valeur actuelle] (vs [valeur précédente] semaine dernière)"
-   - "${errorTrend} Erreurs : [taux actuel]% (vs [taux précédent]% semaine dernière)"
+2. Synthèse rapide avec indicateurs visuels OBLIGATOIRES (dans cet ordre):
+   - ${caTrend} CA : [valeur]€ ([variation]% vs [valeur précédente]€ semaine dernière)
+   - ${orderTrend} Commandes : [nb] ([variation]% vs [nb précédent] semaine dernière)
+   - ${ratingTrend} Notes : [valeur actuelle] (vs [valeur précédente] semaine dernière)
+   - ${errorTrend} Erreurs : [taux actuel]% (vs [taux précédent]% semaine dernière)
+   - ${downtimeTrend} Inactivité tablette : [durée actuelle] (vs [durée précédente] semaine dernière)
 3. Si erreurs > 2%, analyse les CAUSES en liant aux offres actives si pertinent
 4. Identifie les produits problématiques et explique pourquoi (ex: "l'opé 1+1 sur ce produit complexifie les tickets")
 5. Donne des recommandations concrètes: "double-check avant fermeture du sac", "vigilance sur [produit]"
@@ -445,12 +501,13 @@ RÈGLES:
 RESTAURANT: ${kpis.restaurant_name}
 PRÉNOM MANAGER: ${kpis.manager_first_name}
 
-📊 KPIs SEMAINE:
-- Commandes: ${kpis.order_count} ${kpis.order_variation !== null ? `(${kpis.order_variation >= 0 ? '+' : ''}${kpis.order_variation.toFixed(0)}% vs semaine précédente)` : ''}
-- CA: ${kpis.revenue.toFixed(0)}€
+📊 KPIs SEMAINE (AFFICHE TOUS CES INDICATEURS):
+- 💰 CA: ${kpis.revenue.toFixed(0)}€ ${kpis.revenue_variation !== null ? `(${kpis.revenue_variation >= 0 ? '+' : ''}${kpis.revenue_variation.toFixed(0)}% vs ${kpis.prev_revenue.toFixed(0)}€ semaine précédente)` : ''}
+- 📦 Commandes: ${kpis.order_count} ${kpis.order_variation !== null ? `(${kpis.order_variation >= 0 ? '+' : ''}${kpis.order_variation.toFixed(0)}% vs ${kpis.prev_order_count} semaine précédente)` : ''}
 - Panier moyen: ${kpis.average_basket.toFixed(1)}€
-- Note moyenne: ${kpis.average_rating !== null ? kpis.average_rating.toFixed(2) : '--'} ${ratingTrend} (${kpis.review_count} avis, vs ${kpis.prev_average_rating?.toFixed(2) || '--'} semaine précédente)
-- Taux d'erreur: ${kpis.error_rate !== null ? kpis.error_rate.toFixed(1) : '--'}% ${errorTrend} (${kpis.error_count} erreurs, vs ${kpis.prev_error_rate?.toFixed(1) || '--'}% semaine précédente)
+- ⭐ Note moyenne: ${kpis.average_rating !== null ? kpis.average_rating.toFixed(2) : '--'} ${ratingTrend} (${kpis.review_count} avis, vs ${kpis.prev_average_rating?.toFixed(2) || '--'} semaine précédente)
+- ❌ Taux d'erreur: ${kpis.error_rate !== null ? kpis.error_rate.toFixed(1) : '--'}% ${errorTrend} (${kpis.error_count} erreurs, vs ${kpis.prev_error_rate?.toFixed(1) || '--'}% semaine précédente)
+- ⏸️ Inactivité tablette: ${formatDowntime(kpis.downtime_minutes)} ${downtimeTrend} (vs ${formatDowntime(kpis.prev_downtime_minutes)} semaine précédente)
 - Temps prépa moyen: ${kpis.avg_prep_time !== null ? Math.round(kpis.avg_prep_time) : '--'} min
 - Attente coursier: ${kpis.avg_courier_wait !== null ? Math.round(kpis.avg_courier_wait) : '--'} min
 
@@ -509,17 +566,21 @@ Génère maintenant le message WhatsApp personnalisé:`;
 }
 
 function generateFallbackMessage(kpis: WeeklyKPIs): string {
+  const caEmoji = kpis.revenue_variation !== null && kpis.revenue_variation >= 0 ? '✅' : '❌';
+  const orderEmoji = kpis.order_variation !== null && kpis.order_variation >= 0 ? '✅' : '❌';
   const ratingEmoji = kpis.average_rating !== null && kpis.average_rating >= 4.4 ? '✅' : '❌';
   const errorEmoji = kpis.error_rate !== null && kpis.error_rate <= 3 ? '✅' : '❌';
+  const downtimeEmoji = kpis.downtime_minutes <= kpis.prev_downtime_minutes ? '✅' : '❌';
 
   return `Bonjour ${kpis.manager_first_name} ! 👋
 
 📊 BILAN SEMAINE - ${kpis.restaurant_name}
 
+${caEmoji} CA : ${kpis.revenue.toFixed(0)}€ ${kpis.revenue_variation !== null ? `(${kpis.revenue_variation >= 0 ? '+' : ''}${kpis.revenue_variation.toFixed(0)}% vs ${kpis.prev_revenue.toFixed(0)}€)` : ''}
+${orderEmoji} Commandes : ${kpis.order_count} ${kpis.order_variation !== null ? `(${kpis.order_variation >= 0 ? '+' : ''}${kpis.order_variation.toFixed(0)}% vs ${kpis.prev_order_count})` : ''}
 ${ratingEmoji} Notes : ${kpis.average_rating?.toFixed(2) || '--'} (${kpis.review_count} avis)
 ${errorEmoji} Erreurs : ${kpis.error_rate?.toFixed(1) || '--'}% (${kpis.error_count} erreurs)
-
-📦 ${kpis.order_count} commandes | ${kpis.revenue.toFixed(0)}€ CA
+${downtimeEmoji} Inactivité : ${formatDowntime(kpis.downtime_minutes)} (vs ${formatDowntime(kpis.prev_downtime_minutes)})
 
 🤲 Qu'Allah nous accorde la réussite !`;
 }
