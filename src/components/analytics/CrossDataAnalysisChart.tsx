@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, Percent, Gift, Euro, Info, TrendingUp, TrendingDown } from "lucide-react";
+import { BarChart3, Percent, Gift, Euro, Info, TrendingUp, TrendingDown, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ComposedChart,
@@ -29,19 +29,28 @@ interface DailyData {
   order_count?: number;
 }
 
+export interface UberOneChartData {
+  date: string;
+  uberOnePercent: number;
+  uberOneCount: number;
+  totalOrders: number;
+}
+
 interface CrossDataAnalysisChartProps {
   data: DailyData[];
   previousData?: DailyData[];
   granularity: "daily" | "weekly" | "monthly";
   isLoading?: boolean;
+  uberOneData?: UberOneChartData[];
 }
 
-type MetricKey = "revenue" | "promos" | "profitability";
+type MetricKey = "revenue" | "promos" | "profitability" | "uberOne";
 
 const METRIC_CONFIG: Record<MetricKey, { label: string; color: string; icon: typeof Euro }> = {
   revenue: { label: "CA", color: "hsl(var(--primary))", icon: Euro },
   promos: { label: "Promos", color: "hsl(25, 95%, 53%)", icon: Gift },
   profitability: { label: "Rentabilité", color: "hsl(142, 76%, 36%)", icon: Percent },
+  uberOne: { label: "Uber One", color: "hsl(270, 70%, 55%)", icon: Crown },
 };
 
 const CHART_ANIMATION_DURATION = 500;
@@ -52,6 +61,7 @@ export function CrossDataAnalysisChart({
   previousData,
   granularity,
   isLoading = false,
+  uberOneData,
 }: CrossDataAnalysisChartProps) {
   const { profitabilityBase } = useAnalyticsContext();
   const [visibleMetrics, setVisibleMetrics] = useState<Set<MetricKey>>(
@@ -86,6 +96,9 @@ export function CrossDataAnalysisChart({
       mealVoucher: number;
       profitability: number;
       orders: number;
+      uberOnePercent: number;
+      uberOneCount: number;
+      uberOneTotalOrders: number;
     }> = {};
 
     data.forEach((item) => {
@@ -120,6 +133,9 @@ export function CrossDataAnalysisChart({
           mealVoucher: 0,
           profitability: 0,
           orders: 0,
+          uberOnePercent: 0,
+          uberOneCount: 0,
+          uberOneTotalOrders: 0,
         };
       }
       
@@ -141,18 +157,45 @@ export function CrossDataAnalysisChart({
       item.profitability = base > 0 ? (payout / base) * 100 : 0;
     });
 
-    return Object.values(aggregated).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  }, [data, granularity, profitabilityBase]);
+    // Merge Uber One data
+    if (uberOneData && uberOneData.length > 0) {
+      uberOneData.forEach((u1) => {
+        // Find matching key based on granularity
+        let matchKey: string;
+        if (granularity === "daily") {
+          matchKey = u1.date;
+        } else if (granularity === "weekly") {
+          const date = parseISO(u1.date + (u1.date.length === 7 ? "-01" : ""));
+          const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+          matchKey = format(weekStart, "yyyy-MM-dd");
+        } else {
+          // Monthly: date is YYYY-MM
+          matchKey = u1.date.length === 7 ? u1.date : u1.date.slice(0, 7);
+        }
 
-  // Calculate dynamic Y-axis bounds for profitability
-  const profitabilityDomain = useMemo(() => {
+        if (aggregated[matchKey]) {
+          aggregated[matchKey].uberOnePercent = u1.uberOnePercent;
+          aggregated[matchKey].uberOneCount = u1.uberOneCount;
+          aggregated[matchKey].uberOneTotalOrders = u1.totalOrders;
+        }
+      });
+    }
+
+    return Object.values(aggregated).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  }, [data, granularity, profitabilityBase, uberOneData]);
+
+  // Calculate dynamic Y-axis bounds for percentage metrics (profitability + uberOne)
+  const percentageDomain = useMemo(() => {
     if (!chartData.length) return [0, 100];
     
-    const values = chartData.map(d => d.profitability).filter(v => v > 0);
-    if (!values.length) return [0, 100];
+    const profitValues = chartData.map(d => d.profitability).filter(v => v > 0);
+    const u1Values = chartData.map(d => d.uberOnePercent).filter(v => v > 0);
+    const allValues = [...profitValues, ...u1Values];
     
-    const min = Math.min(...values);
-    const max = Math.max(...values);
+    if (!allValues.length) return [0, 100];
+    
+    const min = Math.min(...allValues);
+    const max = Math.max(...allValues);
     
     // Round to nearest 10 with 5-point margin
     const lowerBound = Math.max(0, Math.floor((min - 5) / 10) * 10);
@@ -183,12 +226,19 @@ export function CrossDataAnalysisChart({
 
     const profitDelta = avgProfitHighPromo - avgProfitLowPromo;
 
+    // Calculate average Uber One %
+    const u1Points = chartData.filter(d => d.uberOnePercent > 0);
+    const avgUberOnePercent = u1Points.length > 0
+      ? u1Points.reduce((sum, d) => sum + d.uberOnePercent, 0) / u1Points.length
+      : 0;
+
     return {
       totalRevenue,
       totalPromos,
       avgProfitability,
       promoImpact,
       profitDelta,
+      avgUberOnePercent,
     };
   }, [chartData]);
 
@@ -289,6 +339,12 @@ export function CrossDataAnalysisChart({
                 {insights.profitDelta < 0 ? "" : "+"}
                 {insights.profitDelta.toFixed(1)} pts rentab. avec fortes promos
               </Badge>
+              {insights.avgUberOnePercent > 0 && (
+                <Badge variant="outline" className="gap-1">
+                  <Crown className="h-3 w-3 text-purple-500" />
+                  Moy. Uber One: {insights.avgUberOnePercent.toFixed(1)}%
+                </Badge>
+              )}
               <span className="text-xs text-muted-foreground ml-auto">
                 Base : {profitabilityBase === "net" ? "CA effectif (Net)" : "CA déclaré (Brut)"}
               </span>
@@ -314,14 +370,14 @@ export function CrossDataAnalysisChart({
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k€`}
                 />
               )}
-              {/* Right axis for percentage (Profitability) - dynamic scale */}
-              {visibleMetrics.has("profitability") && (
+              {/* Right axis for percentage (Profitability + Uber One) - dynamic scale */}
+              {(visibleMetrics.has("profitability") || visibleMetrics.has("uberOne")) && (
                 <YAxis 
                   yAxisId="right"
                   orientation="right"
                   className="text-xs"
                   unit="%"
-                  domain={profitabilityDomain}
+                  domain={percentageDomain}
                 />
               )}
               <Tooltip
@@ -382,6 +438,23 @@ export function CrossDataAnalysisChart({
                             </span>
                           </p>
                         )}
+                        {visibleMetrics.has("uberOne") && data?.uberOnePercent > 0 && (
+                          <p className="flex justify-between gap-4 pt-1 border-t border-border mt-1">
+                            <span className="flex items-center gap-1.5">
+                              <span 
+                                className="w-2.5 h-2.5 rounded-sm" 
+                                style={{ backgroundColor: METRIC_CONFIG.uberOne.color }}
+                              />
+                              Uber One :
+                            </span>
+                            <span className="font-medium text-purple-600">
+                              {data?.uberOnePercent?.toFixed(1)}%
+                              <span className="text-xs text-muted-foreground ml-1">
+                                ({data?.uberOneCount}/{data?.uberOneTotalOrders})
+                              </span>
+                            </span>
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground pt-1">
                           {data?.orders} commandes
                         </p>
@@ -396,6 +469,7 @@ export function CrossDataAnalysisChart({
                   if (value === "revenue") return "Chiffre d'affaires";
                   if (value === "promos") return "Promotions";
                   if (value === "profitability") return "Rentabilité (%)";
+                  if (value === "uberOne") return "Uber One (%)";
                   return value;
                 }}
               />
@@ -437,6 +511,23 @@ export function CrossDataAnalysisChart({
                   strokeWidth={3}
                   dot={{ fill: METRIC_CONFIG.profitability.color, r: 4, strokeWidth: 2, stroke: "#fff" }}
                   activeDot={{ r: 6, strokeWidth: 2 }}
+                  animationDuration={CHART_ANIMATION_DURATION}
+                  animationEasing={CHART_ANIMATION_EASING}
+                />
+              )}
+              
+              {/* Uber One line (dashed) */}
+              {visibleMetrics.has("uberOne") && (
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="uberOnePercent"
+                  name="uberOne"
+                  stroke={METRIC_CONFIG.uberOne.color}
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ fill: METRIC_CONFIG.uberOne.color, r: 3 }}
+                  activeDot={{ r: 5 }}
                   animationDuration={CHART_ANIMATION_DURATION}
                   animationEasing={CHART_ANIMATION_EASING}
                 />
