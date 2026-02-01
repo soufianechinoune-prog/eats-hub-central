@@ -265,8 +265,13 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
     if (!gridRef.current) return null;
     
     const rect = gridRef.current.getBoundingClientRect();
-    const relativeX = clientX - rect.left;
-    const percentage = relativeX / rect.width;
+    // Account for the 160px (w-40) audience label column
+    const labelWidth = 160;
+    const gridLeft = rect.left + labelWidth;
+    const gridWidth = rect.width - labelWidth;
+    
+    const relativeX = clientX - gridLeft;
+    const percentage = Math.max(0, Math.min(1, relativeX / gridWidth));
     
     const totalDays = differenceInDays(viewEnd, viewStart);
     const dayOffset = Math.round(percentage * totalDays);
@@ -424,76 +429,78 @@ export function PromotionsTimeline({ actions, restaurants, onActionClick, onActi
           ))}
         </div>
         
-        {/* Rows by audience */}
-        {AUDIENCE_ROWS.map(row => {
-          const rowActions = actionsByAudience[row.audience] || [];
-          const visibleActions = rowActions.filter(a => {
-            const start = parseISO(a.start_date);
-            const end = a.end_date ? parseISO(a.end_date) : start;
-            return !isAfter(start, viewEnd) && !isBefore(end, viewStart);
-          });
-          
-          return (
-            <div key={row.audience} className="flex border-b min-h-[80px]">
-              {/* Audience label */}
-              <div 
-                className={cn("w-40 flex-shrink-0 border-r p-3 font-medium text-sm flex items-center", row.bgClass)}
-                style={{ borderLeftWidth: 4, borderLeftColor: row.color }}
-              >
-                {row.label}
-                {visibleActions.length > 0 && (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    ({visibleActions.length})
-                  </span>
-                )}
-              </div>
-              
-              {/* Blocks area */}
-              <div 
-                ref={gridRef}
-                className="flex-1 relative" 
-                style={{ minWidth: `${columnCount * (selectedQuarter !== null ? 150 : 80)}px` }}
-              >
-                {/* Grid lines */}
-                {periods.map((_, i) => (
-                  <div 
-                    key={i}
-                    className="absolute top-0 bottom-0 border-r border-dashed border-border/50"
-                    style={{ left: `${((i + 1) / columnCount) * 100}%` }}
-                  />
-                ))}
+        {/* Timeline content with ref for drag calculations */}
+        <div ref={gridRef} className="flex-1">
+          {/* Rows by audience */}
+          {AUDIENCE_ROWS.map(row => {
+            const rowActions = actionsByAudience[row.audience] || [];
+            const visibleActions = rowActions.filter(a => {
+              const start = parseISO(a.start_date);
+              const end = a.end_date ? parseISO(a.end_date) : start;
+              return !isAfter(start, viewEnd) && !isBefore(end, viewStart);
+            });
+            
+            return (
+              <div key={row.audience} className="flex border-b min-h-[80px]">
+                {/* Audience label */}
+                <div 
+                  className={cn("w-40 flex-shrink-0 border-r p-3 font-medium text-sm flex items-center", row.bgClass)}
+                  style={{ borderLeftWidth: 4, borderLeftColor: row.color }}
+                >
+                  {row.label}
+                  {visibleActions.length > 0 && (
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      ({visibleActions.length})
+                    </span>
+                  )}
+                </div>
                 
-                {/* Action blocks */}
-                {visibleActions.map(action => {
-                  const pos = getBlockPosition(
-                    parseISO(action.start_date),
-                    action.end_date ? parseISO(action.end_date) : null,
-                    viewStart,
-                    viewEnd
-                  );
-                  
-                  if (!pos.visible) return null;
-                  
-                  const isDragging = draggingAction?.id === action.id;
-                  
-                  return (
-                    <TimelineBlock
-                      key={action.id}
-                      action={action}
-                      left={pos.left}
-                      width={pos.width}
-                      borderClass={row.borderClass}
-                      restaurants={restaurants}
-                      onClick={() => !isDragging && onActionClick(action)}
-                      onDragStart={(e) => handleDragStart(e, action)}
-                      isDragging={isDragging}
+                {/* Blocks area */}
+                <div 
+                  className="flex-1 relative" 
+                  style={{ minWidth: `${columnCount * (selectedQuarter !== null ? 150 : 80)}px` }}
+                >
+                  {/* Grid lines */}
+                  {periods.map((_, i) => (
+                    <div 
+                      key={i}
+                      className="absolute top-0 bottom-0 border-r border-dashed border-border/50"
+                      style={{ left: `${((i + 1) / columnCount) * 100}%` }}
                     />
-                  );
-                })}
+                  ))}
+                  
+                  {/* Action blocks */}
+                  {visibleActions.map(action => {
+                    const pos = getBlockPosition(
+                      parseISO(action.start_date),
+                      action.end_date ? parseISO(action.end_date) : null,
+                      viewStart,
+                      viewEnd
+                    );
+                    
+                    if (!pos.visible) return null;
+                    
+                    const isDragging = draggingAction?.id === action.id;
+                    
+                    return (
+                      <TimelineBlock
+                        key={action.id}
+                        action={action}
+                        left={pos.left}
+                        width={pos.width}
+                        borderClass={row.borderClass}
+                        restaurants={restaurants}
+                        onClick={() => !isDragging && onActionClick(action)}
+                        onDragStart={(e) => handleDragStart(e, action)}
+                        isDragging={isDragging}
+                      />
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
         
         {/* Empty state */}
         {yearPromoCount === 0 && (
