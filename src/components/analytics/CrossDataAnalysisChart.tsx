@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, Percent, Gift, Euro, Info, TrendingUp, TrendingDown, Crown } from "lucide-react";
+import { BarChart3, Percent, Gift, Euro, Info, TrendingUp, TrendingDown, Crown, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ComposedChart,
@@ -44,13 +44,14 @@ interface CrossDataAnalysisChartProps {
   uberOneData?: UberOneChartData[];
 }
 
-type MetricKey = "revenue" | "promos" | "profitability" | "uberOne";
+type MetricKey = "revenue" | "promos" | "profitability" | "uberOne" | "payout";
 
 const METRIC_CONFIG: Record<MetricKey, { label: string; color: string; icon: typeof Euro }> = {
   revenue: { label: "CA", color: "hsl(var(--primary))", icon: Euro },
   promos: { label: "Promos", color: "hsl(25, 95%, 53%)", icon: Gift },
   profitability: { label: "Rentabilité", color: "hsl(142, 76%, 36%)", icon: Percent },
   uberOne: { label: "Uber One", color: "hsl(270, 70%, 55%)", icon: Crown },
+  payout: { label: "Versement", color: "hsl(200, 80%, 50%)", icon: Wallet },
 };
 
 const CHART_ANIMATION_DURATION = 500;
@@ -94,6 +95,7 @@ export function CrossDataAnalysisChart({
       promos: number;
       netPayout: number;
       mealVoucher: number;
+      payout: number;
       profitability: number;
       orders: number;
       uberOnePercent: number;
@@ -131,6 +133,7 @@ export function CrossDataAnalysisChart({
           promos: 0, 
           netPayout: 0, 
           mealVoucher: 0,
+          payout: 0,
           profitability: 0,
           orders: 0,
           uberOnePercent: 0,
@@ -146,15 +149,16 @@ export function CrossDataAnalysisChart({
       aggregated[key].orders += item.order_count || 1;
     });
 
-    // Calculate profitability for each period
+    // Calculate profitability and payout for each period
     Object.values(aggregated).forEach((item) => {
-      const payout = item.netPayout + item.mealVoucher;
+      const payoutAmount = item.netPayout + item.mealVoucher;
+      item.payout = payoutAmount;
       // Use profitabilityBase from context
       const base = profitabilityBase === "net" 
         ? item.revenue - item.promos  // CA effectif (Net)
         : item.revenue;               // CA déclaré (Brut)
       
-      item.profitability = base > 0 ? (payout / base) * 100 : 0;
+      item.profitability = base > 0 ? (payoutAmount / base) * 100 : 0;
     });
 
     // Merge Uber One data
@@ -210,6 +214,7 @@ export function CrossDataAnalysisChart({
 
     const totalRevenue = chartData.reduce((sum, d) => sum + d.revenue, 0);
     const totalPromos = chartData.reduce((sum, d) => sum + d.promos, 0);
+    const totalPayout = chartData.reduce((sum, d) => sum + d.payout, 0);
     const avgProfitability = chartData.reduce((sum, d) => sum + d.profitability, 0) / chartData.length;
     const promoImpact = totalRevenue > 0 ? (totalPromos / totalRevenue) * 100 : 0;
 
@@ -235,6 +240,7 @@ export function CrossDataAnalysisChart({
     return {
       totalRevenue,
       totalPromos,
+      totalPayout,
       avgProfitability,
       promoImpact,
       profitDelta,
@@ -345,6 +351,12 @@ export function CrossDataAnalysisChart({
                   Moy. Uber One: {insights.avgUberOnePercent.toFixed(1)}%
                 </Badge>
               )}
+              {visibleMetrics.has("payout") && insights.totalPayout > 0 && (
+                <Badge variant="outline" className="gap-1">
+                  <Wallet className="h-3 w-3 text-cyan-500" />
+                  Versement = {insights.totalPayout.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €
+                </Badge>
+              )}
               <span className="text-xs text-muted-foreground ml-auto">
                 Base : {profitabilityBase === "net" ? "CA effectif (Net)" : "CA déclaré (Brut)"}
               </span>
@@ -362,8 +374,8 @@ export function CrossDataAnalysisChart({
                 className="text-xs"
                 tick={{ fontSize: 11 }}
               />
-              {/* Left axis for monetary values (CA + Promos) */}
-              {(visibleMetrics.has("revenue") || visibleMetrics.has("promos")) && (
+              {/* Left axis for monetary values (CA + Promos + Payout) */}
+              {(visibleMetrics.has("revenue") || visibleMetrics.has("promos") || visibleMetrics.has("payout")) && (
                 <YAxis 
                   yAxisId="left"
                   className="text-xs"
@@ -438,6 +450,20 @@ export function CrossDataAnalysisChart({
                             </span>
                           </p>
                         )}
+                        {visibleMetrics.has("payout") && (
+                          <p className="flex justify-between gap-4">
+                            <span className="flex items-center gap-1.5">
+                              <span 
+                                className="w-2.5 h-2.5 rounded-sm" 
+                                style={{ backgroundColor: METRIC_CONFIG.payout.color }}
+                              />
+                              Versement :
+                            </span>
+                            <span className="font-medium text-cyan-600">
+                              {data?.payout?.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €
+                            </span>
+                          </p>
+                        )}
                         {visibleMetrics.has("uberOne") && data?.uberOnePercent > 0 && (
                           <p className="flex justify-between gap-4 pt-1 border-t border-border mt-1">
                             <span className="flex items-center gap-1.5">
@@ -470,6 +496,7 @@ export function CrossDataAnalysisChart({
                   if (value === "promos") return "Promotions";
                   if (value === "profitability") return "Rentabilité (%)";
                   if (value === "uberOne") return "Uber One (%)";
+                  if (value === "payout") return "Versement Net";
                   return value;
                 }}
               />
@@ -494,6 +521,20 @@ export function CrossDataAnalysisChart({
                   dataKey="promos"
                   name="promos"
                   fill={METRIC_CONFIG.promos.color}
+                  radius={[4, 4, 0, 0]}
+                  animationDuration={CHART_ANIMATION_DURATION}
+                  animationEasing={CHART_ANIMATION_EASING}
+                />
+              )}
+              
+              {/* Payout bars */}
+              {visibleMetrics.has("payout") && (
+                <Bar
+                  yAxisId="left"
+                  dataKey="payout"
+                  name="payout"
+                  fill={METRIC_CONFIG.payout.color}
+                  fillOpacity={0.7}
                   radius={[4, 4, 0, 0]}
                   animationDuration={CHART_ANIMATION_DURATION}
                   animationEasing={CHART_ANIMATION_EASING}
