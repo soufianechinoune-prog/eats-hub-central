@@ -1,113 +1,172 @@
 
 
-# Ajout de la métrique "Versement Net" dans l'Analyse Croisée
+# Ajout d'un Sélecteur de Période pour les Rapports WhatsApp
 
-## Contexte
+## Contexte du problème
 
-Les données de versement net (`net_payout + meal_voucher_amount`) sont **déjà disponibles** dans le flux de données :
-- `useFinancesDrilldown` → retourne `net_payout`, `meal_voucher_amount`, `total_payout`
-- `CrossDataAnalysisChart` → reçoit ces données et calcule déjà `netPayout + mealVoucher` pour la rentabilité
+Actuellement, les rapports sont générés automatiquement sur "la semaine dernière" calculée par le système. Mais les données importées peuvent ne pas être à jour jusqu'à cette date. Tu as besoin de pouvoir **choisir manuellement la période** car tu sais exactement jusqu'à quelles dates les données sont disponibles.
 
-Aucun nouveau fetch n'est nécessaire !
+## Solution proposée
 
-## Modifications
+Ajouter un **sélecteur de période interactif** dans l'en-tête de la page "Rapports WhatsApp", juste à côté du texte "Semaine du X au Y".
+
+## Interface utilisateur
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ Rapports WhatsApp                                                   │
+│ Période: [📅 20 janv. - 26 janv. 2026 ▼]  [◀ Semaine préc.] [Suiv. ▶]│
+├─────────────────────────────────────────────────────────────────────┤
+```
+
+### Fonctionnalités du sélecteur
+
+1. **Mode Semaine (par défaut)** : Navigation par semaine complète (lundi-dimanche)
+2. **Mode Plage personnalisée** : Sélection libre de dates début/fin
+3. **Boutons de navigation** : Semaine précédente / Semaine suivante
+4. **Raccourcis rapides** : "Semaine dernière", "Semaine -2", "Mois en cours"
+
+## Modifications techniques
 
 | Fichier | Action |
 |---------|--------|
-| `src/components/analytics/CrossDataAnalysisChart.tsx` | Ajouter une 5ème métrique "Versement" |
+| `src/components/messaging/WeeklyReports.tsx` | Ajouter le sélecteur de période dans l'en-tête |
 
-## Détails techniques
+### Détails d'implémentation
 
-### 1. Nouvelle métrique dans la configuration
+#### 1. Nouveaux états pour la période
 
 ```typescript
-type MetricKey = "revenue" | "promos" | "profitability" | "uberOne" | "payout";
+// Remplacer le useMemo lastWeek fixe par des états contrôlables
+const [periodStart, setPeriodStart] = useState<Date>(() => {
+  const now = new Date();
+  return startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+});
+const [periodEnd, setPeriodEnd] = useState<Date>(() => {
+  const now = new Date();
+  return endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+});
+```
 
-const METRIC_CONFIG: Record<MetricKey, { label: string; color: string; icon: typeof Euro }> = {
-  revenue: { label: "CA", color: "hsl(var(--primary))", icon: Euro },
-  promos: { label: "Promos", color: "hsl(25, 95%, 53%)", icon: Gift },
-  profitability: { label: "Rentabilité", color: "hsl(142, 76%, 36%)", icon: Percent },
-  uberOne: { label: "Uber One", color: "hsl(270, 70%, 55%)", icon: Crown },
-  payout: { label: "Versement", color: "hsl(200, 80%, 50%)", icon: Wallet },  // Nouveau - bleu cyan
+#### 2. Composant de sélection de période
+
+```typescript
+// Dans l'en-tête, après le titre
+<Popover>
+  <PopoverTrigger asChild>
+    <Button variant="outline" className="gap-2">
+      <CalendarDays className="h-4 w-4" />
+      {format(periodStart, "d MMM", { locale: fr })} - {format(periodEnd, "d MMM yyyy", { locale: fr })}
+      <ChevronDown className="h-4 w-4" />
+    </Button>
+  </PopoverTrigger>
+  <PopoverContent className="w-auto p-4" align="start">
+    {/* Raccourcis rapides */}
+    <div className="flex flex-wrap gap-2 mb-4">
+      <Button size="sm" variant="outline" onClick={() => setWeekOffset(-1)}>
+        Semaine -1
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => setWeekOffset(-2)}>
+        Semaine -2
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => setWeekOffset(-3)}>
+        Semaine -3
+      </Button>
+    </div>
+    
+    {/* Calendrier avec sélection de plage */}
+    <Calendar
+      mode="range"
+      selected={{ from: periodStart, to: periodEnd }}
+      onSelect={(range) => {
+        if (range?.from) setPeriodStart(range.from);
+        if (range?.to) setPeriodEnd(range.to);
+      }}
+      locale={fr}
+    />
+  </PopoverContent>
+</Popover>
+
+{/* Navigation semaine */}
+<div className="flex items-center gap-1">
+  <Button variant="ghost" size="icon" onClick={() => navigateWeek(-1)}>
+    <ChevronLeft className="h-4 w-4" />
+  </Button>
+  <Button variant="ghost" size="icon" onClick={() => navigateWeek(1)}>
+    <ChevronRight className="h-4 w-4" />
+  </Button>
+</div>
+```
+
+#### 3. Fonctions de navigation
+
+```typescript
+const navigateWeek = (offset: number) => {
+  setPeriodStart(prev => {
+    const newStart = new Date(prev);
+    newStart.setDate(newStart.getDate() + (offset * 7));
+    return startOfWeek(newStart, { weekStartsOn: 1 });
+  });
+  setPeriodEnd(prev => {
+    const newEnd = new Date(prev);
+    newEnd.setDate(newEnd.getDate() + (offset * 7));
+    return endOfWeek(newEnd, { weekStartsOn: 1 });
+  });
+};
+
+const setWeekOffset = (weeksBack: number) => {
+  const targetWeek = subWeeks(new Date(), Math.abs(weeksBack));
+  setPeriodStart(startOfWeek(targetWeek, { weekStartsOn: 1 }));
+  setPeriodEnd(endOfWeek(targetWeek, { weekStartsOn: 1 }));
 };
 ```
 
-### 2. Données déjà agrégées
+#### 4. Mise à jour des appels API
 
-Le `chartData` calcule déjà :
-```typescript
-aggregated[key].netPayout += item.net_payout || 0;
-aggregated[key].mealVoucher += item.meal_voucher_amount || 0;
-// → On ajoute: aggregated[key].payout = netPayout + mealVoucher
-```
-
-### 3. Affichage sur le graphique
-
-Le versement sera affiché comme une **barre** (même axe que CA et Promos) car c'est une valeur monétaire :
+Remplacer toutes les références à `lastWeek.start` et `lastWeek.end` par `periodStart` et `periodEnd` :
 
 ```typescript
-{visibleMetrics.has("payout") && (
-  <Bar
-    yAxisId="left"
-    dataKey="payout"
-    name="Versement"
-    fill="hsl(200, 80%, 50%)"
-    // Opacité légère pour ne pas surcharger
-    fillOpacity={0.7}
-  />
-)}
-```
+// Dans generateUnifiedReports()
+start_date: format(periodStart, "yyyy-MM-dd"),
+end_date: format(periodEnd, "yyyy-MM-dd"),
 
-### 4. Tooltip enrichi
+// Dans sendReports()
+report_start_date: format(periodStart, "yyyy-MM-dd"),
+report_end_date: format(periodEnd, "yyyy-MM-dd"),
 
-Ajout dans le tooltip :
-```typescript
-{visibleMetrics.has("payout") && (
-  <p className="flex justify-between gap-4">
-    <span className="flex items-center gap-1.5">
-      <span className="w-2.5 h-2.5 rounded-sm bg-cyan-500" />
-      Versement :
-    </span>
-    <span className="font-medium text-cyan-600">
-      {data?.payout?.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €
-    </span>
-  </p>
-)}
-```
-
-### 5. Insights actualisés
-
-Ajouter le versement total dans les badges d'insight :
-```typescript
-{visibleMetrics.has("payout") && (
-  <Badge variant="outline" className="gap-1">
-    <Wallet className="h-3 w-3 text-cyan-500" />
-    Versement = {insights.totalPayout.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €
-  </Badge>
-)}
+// Dans generateMessage()
+const dateStart = format(periodStart, "d MMMM", { locale: fr });
+const dateEnd = format(periodEnd, "d MMMM", { locale: fr });
 ```
 
 ## Résultat visuel
 
+L'en-tête de la page affichera :
+
 ```text
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Analyse Croisée CA / Promos / Rentabilité                          │
-│                           [€ CA] [Promos] [% Rentab] [Uber One] [💰 Versement] │
-├─────────────────────────────────────────────────────────────────────┤
-│ Insight: Promos = 16%  │ -14 pts rentab │ Moy Uber One: 66% │ Versement = 45 230 € │
-├─────────────────────────────────────────────────────────────────────┤
+│ Rapports WhatsApp                                [◀] [📅 20-26 jan. 2026 ▼] [▶]│
 │                                                                     │
-│   ████  ████  ████                (CA bleu + Versement cyan)        │
-│   ████  ████  ████                                                  │
-│   ▓▓▓▓  ▓▓▓▓  ▓▓▓▓  ← Promos orange                                │
-│                       ~~~~~ ← Ligne rentabilité verte               │
+│ [Rapports] [Envoi (0)] [Historique]                                │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+En cliquant sur le bouton date, un popover s'ouvre avec :
+- Des raccourcis "Semaine -1", "Semaine -2", "Semaine -3"
+- Un calendrier pour sélection libre
+
 ## Avantages
 
-- **Pas de fetch additionnel** : données déjà présentes
-- **Cohérence** : utilise la formule standard `net_payout + meal_voucher_amount`
-- **Clarté** : permet de visualiser l'écart entre CA et versement réel
-- **Flexibilité** : toggle indépendant pour afficher/masquer
+- Tu peux choisir exactement la période pour laquelle tu as des données
+- Navigation rapide entre les semaines avec les flèches
+- Raccourcis pour aller directement à S-1, S-2, S-3
+- Possibilité de sélectionner une plage personnalisée (pas forcément une semaine complète)
+- L'IA générera des rapports sur les bonnes données
+
+## Dépendances
+
+Utilise les composants déjà présents dans le projet :
+- `Calendar` (react-day-picker)
+- `Popover` (@radix-ui/react-popover)
+- `Button` (composant UI existant)
 
