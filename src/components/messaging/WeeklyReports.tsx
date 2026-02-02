@@ -421,10 +421,15 @@ export default function WeeklyReports() {
   };
 
   const handleDateRangeSelect = (range: DateRange | undefined) => {
-    if (range?.from) setPeriodStart(range.from);
+    if (range?.from) {
+      setPeriodStart(range.from);
+    }
     if (range?.to) {
       setPeriodEnd(range.to);
-      setPeriodPopoverOpen(false);
+      // Only close if from and to are different (complete range selection)
+      if (range.from && range.to && range.from.getTime() !== range.to.getTime()) {
+        setPeriodPopoverOpen(false);
+      }
     }
   };
 
@@ -904,40 +909,28 @@ export default function WeeklyReports() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-4" align="end">
-              {/* Quick selection buttons */}
+              {/* Quick selection buttons with clear labels */}
               <div className="flex flex-wrap gap-2 mb-4">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setWeekOffset(1)}
-                  className="text-xs"
-                >
-                  S-1
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setWeekOffset(2)}
-                  className="text-xs"
-                >
-                  S-2
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setWeekOffset(3)}
-                  className="text-xs"
-                >
-                  S-3
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setWeekOffset(4)}
-                  className="text-xs"
-                >
-                  S-4
-                </Button>
+                {[1, 2, 3, 4].map((offset) => {
+                  const weekStart = startOfWeek(subWeeks(new Date(), offset), { weekStartsOn: 1 });
+                  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+                  const isSelected = periodStart.getTime() === weekStart.getTime() && periodEnd.getTime() === weekEnd.getTime();
+                  
+                  return (
+                    <Button
+                      key={offset}
+                      size="sm"
+                      variant={isSelected ? "default" : "outline"}
+                      onClick={() => setWeekOffset(offset)}
+                      className="text-xs flex-col h-auto py-2 min-w-[70px]"
+                    >
+                      <span className="font-medium">Sem. -{offset}</span>
+                      <span className={cn("text-[10px]", isSelected ? "opacity-80" : "opacity-60")}>
+                        {format(weekStart, "d", { locale: fr })}-{format(weekEnd, "d MMM", { locale: fr })}
+                      </span>
+                    </Button>
+                  );
+                })}
               </div>
               
               {/* Calendar for custom range */}
@@ -950,6 +943,17 @@ export default function WeeklyReports() {
                 disabled={{ after: new Date() }}
                 className="pointer-events-auto"
               />
+              
+              {/* Validation button */}
+              <div className="flex justify-end mt-3 pt-3 border-t">
+                <Button
+                  size="sm"
+                  onClick={() => setPeriodPopoverOpen(false)}
+                  className="text-xs"
+                >
+                  Valider la période
+                </Button>
+              </div>
             </PopoverContent>
           </Popover>
           
