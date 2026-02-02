@@ -41,6 +41,8 @@ import {
   Eye,
   RefreshCw,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Star,
   Clock,
   AlertTriangle,
@@ -64,8 +66,15 @@ import {
   CheckSquare,
   Square,
 } from "lucide-react";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
-import { format, startOfWeek, endOfWeek, subWeeks } from "date-fns";
+import { format, startOfWeek, endOfWeek, subWeeks, addWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -334,6 +343,17 @@ export default function WeeklyReports() {
   // History state
   const [expandedHistoryMessages, setExpandedHistoryMessages] = useState<Set<string>>(new Set());
 
+  // Period selection state (replaces fixed lastWeek)
+  const [periodStart, setPeriodStart] = useState<Date>(() => {
+    const now = new Date();
+    return startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+  });
+  const [periodEnd, setPeriodEnd] = useState<Date>(() => {
+    const now = new Date();
+    return endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+  });
+  const [periodPopoverOpen, setPeriodPopoverOpen] = useState(false);
+
   // LocalStorage persistence keys
   const STORAGE_KEYS = {
     kpis: 'pending-reports-kpis',
@@ -387,13 +407,26 @@ export default function WeeklyReports() {
     localStorage.removeItem(STORAGE_KEYS.selectedReports);
   };
 
-  // Get last week's date range
-  const lastWeek = useMemo(() => {
-    const now = new Date();
-    const start = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
-    const end = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
-    return { start, end };
-  }, []);
+  // Week navigation helpers
+  const navigateWeek = (offset: number) => {
+    setPeriodStart(prev => startOfWeek(addWeeks(prev, offset), { weekStartsOn: 1 }));
+    setPeriodEnd(prev => endOfWeek(addWeeks(prev, offset), { weekStartsOn: 1 }));
+  };
+
+  const setWeekOffset = (weeksBack: number) => {
+    const targetWeek = subWeeks(new Date(), Math.abs(weeksBack));
+    setPeriodStart(startOfWeek(targetWeek, { weekStartsOn: 1 }));
+    setPeriodEnd(endOfWeek(targetWeek, { weekStartsOn: 1 }));
+    setPeriodPopoverOpen(false);
+  };
+
+  const handleDateRangeSelect = (range: DateRange | undefined) => {
+    if (range?.from) setPeriodStart(range.from);
+    if (range?.to) {
+      setPeriodEnd(range.to);
+      setPeriodPopoverOpen(false);
+    }
+  };
 
   // Fetch templates (for legacy template editor)
   const { data: templates = [], isLoading: loadingTemplates } = useQuery({
@@ -529,8 +562,8 @@ export default function WeeklyReports() {
 
   // Generate message based on template (for legacy mode)
   const generateMessage = (kpi: WeeklyKPIs, template: ReportTemplate): string => {
-    const dateStart = format(lastWeek.start, "d MMMM", { locale: fr });
-    const dateEnd = format(lastWeek.end, "d MMMM", { locale: fr });
+    const dateStart = format(periodStart, "d MMMM", { locale: fr });
+    const dateEnd = format(periodEnd, "d MMMM", { locale: fr });
     const objectives = template.objectives;
     const blocks = template.data_blocks;
 
@@ -591,8 +624,8 @@ export default function WeeklyReports() {
         const { data, error } = await supabase.functions.invoke("generate-ai-report", {
           body: {
             restaurant_ids: restaurantIds,
-            start_date: format(lastWeek.start, "yyyy-MM-dd"),
-            end_date: format(lastWeek.end, "yyyy-MM-dd"),
+            start_date: format(periodStart, "yyyy-MM-dd"),
+            end_date: format(periodEnd, "yyyy-MM-dd"),
             template_context: {
               tone: "standard",
               include_recommendations: true,
@@ -637,8 +670,8 @@ export default function WeeklyReports() {
             const { data, error } = await supabase.functions.invoke("generate-stat-report", {
               body: {
                 restaurant_id: restaurantId,
-                start_date: format(lastWeek.start, "yyyy-MM-dd"),
-                end_date: format(lastWeek.end, "yyyy-MM-dd"),
+                start_date: format(periodStart, "yyyy-MM-dd"),
+                end_date: format(periodEnd, "yyyy-MM-dd"),
                 template_type: reportType,
                 detail_level: detailLevel,
               },
@@ -724,8 +757,8 @@ export default function WeeklyReports() {
             }],
             message,
             skip_campaign: false,
-            report_start_date: format(lastWeek.start, "yyyy-MM-dd"),
-            report_end_date: format(lastWeek.end, "yyyy-MM-dd"),
+            report_start_date: format(periodStart, "yyyy-MM-dd"),
+            report_end_date: format(periodEnd, "yyyy-MM-dd"),
           },
         });
 
@@ -838,15 +871,98 @@ export default function WeeklyReports() {
 
   return (
     <div className="space-y-6">
-      {/* Premium Header */}
-      <div className="flex items-center justify-between">
+      {/* Premium Header with Period Selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
             Rapports WhatsApp
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Semaine du {format(lastWeek.start, "d MMMM", { locale: fr })} au {format(lastWeek.end, "d MMMM yyyy", { locale: fr })}
-          </p>
+        </div>
+        
+        {/* Period Selector */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigateWeek(-1)}
+            className="h-9 w-9"
+            title="Semaine précédente"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          
+          <Popover open={periodPopoverOpen} onOpenChange={setPeriodPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="gap-2 min-w-[200px] justify-between">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">
+                    {format(periodStart, "d MMM", { locale: fr })} - {format(periodEnd, "d MMM yyyy", { locale: fr })}
+                  </span>
+                </div>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-4" align="end">
+              {/* Quick selection buttons */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setWeekOffset(1)}
+                  className="text-xs"
+                >
+                  S-1
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setWeekOffset(2)}
+                  className="text-xs"
+                >
+                  S-2
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setWeekOffset(3)}
+                  className="text-xs"
+                >
+                  S-3
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setWeekOffset(4)}
+                  className="text-xs"
+                >
+                  S-4
+                </Button>
+              </div>
+              
+              {/* Calendar for custom range */}
+              <CalendarComponent
+                mode="range"
+                selected={{ from: periodStart, to: periodEnd }}
+                onSelect={handleDateRangeSelect}
+                locale={fr}
+                numberOfMonths={1}
+                disabled={{ after: new Date() }}
+                className="pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigateWeek(1)}
+            className="h-9 w-9"
+            title="Semaine suivante"
+            disabled={periodEnd >= new Date()}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
