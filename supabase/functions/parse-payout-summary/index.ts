@@ -28,6 +28,8 @@ const COLUMN_MAPPING: Record<string, string> = {
   'TVA sur les ajustements liés à des erreurs de commande': 'vat_refund',
   'Ajustements liés à des erreurs de commande (TVA incluse)': 'refund_incl_vat',
   'Ajustements liés à des erreurs de commande (TVA incluses)': 'refund_incl_vat',
+  // English variant found in mixed-language Uber exports
+  'Order Error Adjustments (incl. VAT)': 'refund_incl_vat',
   // OLD format: "Promotion sur les plats/articles"
   'Promotion sur les plats/articles (hors TVA)': 'item_promo_excl_vat',
   'TVA 1 sur les offres sur les articles': 'vat_1_item_promo',
