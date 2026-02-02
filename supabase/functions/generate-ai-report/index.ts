@@ -367,7 +367,7 @@ serve(async (req) => {
           break;
         default:
           // Global report with interactive menu
-          generatedMessage = await generateAIMessage(enrichedData, template_context, LOVABLE_API_KEY);
+          generatedMessage = await generateAIMessage(enrichedData, template_context, LOVABLE_API_KEY, start_date, end_date);
           // Add interactive menu if enabled (default: true for global reports)
           if (template_context?.include_interactive_menu !== false) {
             generatedMessage += getInteractiveMenu();
@@ -413,13 +413,34 @@ function formatDowntime(minutes: number): string {
   return `${mins}min`;
 }
 
+function formatPeriodDates(startDate: Date, endDate: Date): string {
+  const months = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const startDay = startDate.getDate();
+  const endDay = endDate.getDate();
+  const startMonth = months[startDate.getMonth()];
+  const endMonth = months[endDate.getMonth()];
+  const endYear = endDate.getFullYear();
+  
+  if (startDate.getMonth() === endDate.getMonth()) {
+    return `du ${startDay} au ${endDay} ${endMonth} ${endYear}`;
+  }
+  return `du ${startDay} ${startMonth} au ${endDay} ${endMonth} ${endYear}`;
+}
+
 async function generateAIMessage(
   data: EnrichedReportData, 
   templateContext: ReportRequest['template_context'],
-  apiKey: string
+  apiKey: string,
+  startDate: string,
+  endDate: string
 ): Promise<string> {
   const { kpis, error_breakdown, problematic_products, active_offers } = data;
   const tone = templateContext?.tone || 'standard';
+
+  // Format period dates for display
+  const startDateObj = new Date(startDate);
+  const endDateObj = new Date(endDate);
+  const periodStr = formatPeriodDates(startDateObj, endDateObj);
 
   // Determine trends for all KPIs
   const caTrend = kpis.revenue_variation !== null
@@ -483,7 +504,8 @@ EXEMPLES DE TON À REPRODUIRE:
 
 RÈGLES:
 1. Commence par saluer avec le prénom: "Bonjour [prénom] ! 👋" ou "Salut [prénom] !"
-2. Synthèse rapide avec indicateurs visuels OBLIGATOIRES (dans cet ordre):
+2. IMPORTANT: Indique clairement la période analysée juste après le nom du restaurant: "Voici ton bilan ${periodStr} pour [RESTAURANT]."
+3. Synthèse rapide avec indicateurs visuels OBLIGATOIRES (dans cet ordre):
    - ${caTrend} CA : [valeur]€ ([variation]% vs [valeur précédente]€ semaine dernière)
    - ${orderTrend} Commandes : [nb] ([variation]% vs [nb précédent] semaine dernière)
    - ${ratingTrend} Notes : [valeur actuelle] (vs [valeur précédente] semaine dernière)
@@ -500,6 +522,7 @@ RÈGLES:
 
 RESTAURANT: ${kpis.restaurant_name}
 PRÉNOM MANAGER: ${kpis.manager_first_name}
+PÉRIODE D'ANALYSE: ${periodStr}
 
 📊 KPIs SEMAINE (AFFICHE TOUS CES INDICATEURS):
 - 💰 CA: ${kpis.revenue.toFixed(0)}€ ${kpis.revenue_variation !== null ? `(${kpis.revenue_variation >= 0 ? '+' : ''}${kpis.revenue_variation.toFixed(0)}% vs ${kpis.prev_revenue.toFixed(0)}€ semaine précédente)` : ''}
@@ -547,7 +570,7 @@ Génère maintenant le message WhatsApp personnalisé:`;
     if (!response.ok) {
       console.error('AI API error:', response.status);
       // Fallback to basic message if AI fails
-      return generateFallbackMessage(kpis);
+      return generateFallbackMessage(kpis, periodStr);
     }
 
     const result = await response.json();
@@ -555,17 +578,17 @@ Génère maintenant le message WhatsApp personnalisé:`;
 
     if (!content) {
       console.error('No content in AI response');
-      return generateFallbackMessage(kpis);
+      return generateFallbackMessage(kpis, periodStr);
     }
 
     return content.trim();
   } catch (error) {
     console.error('Error calling AI:', error);
-    return generateFallbackMessage(kpis);
+    return generateFallbackMessage(kpis, periodStr);
   }
 }
 
-function generateFallbackMessage(kpis: WeeklyKPIs): string {
+function generateFallbackMessage(kpis: WeeklyKPIs, periodStr: string): string {
   const caEmoji = kpis.revenue_variation !== null && kpis.revenue_variation >= 0 ? '✅' : '❌';
   const orderEmoji = kpis.order_variation !== null && kpis.order_variation >= 0 ? '✅' : '❌';
   const ratingEmoji = kpis.average_rating !== null && kpis.average_rating >= 4.4 ? '✅' : '❌';
@@ -574,7 +597,7 @@ function generateFallbackMessage(kpis: WeeklyKPIs): string {
 
   return `Bonjour ${kpis.manager_first_name} ! 👋
 
-📊 BILAN SEMAINE - ${kpis.restaurant_name}
+📊 BILAN ${periodStr.toUpperCase()} - ${kpis.restaurant_name}
 
 ${caEmoji} CA : ${kpis.revenue.toFixed(0)}€ ${kpis.revenue_variation !== null ? `(${kpis.revenue_variation >= 0 ? '+' : ''}${kpis.revenue_variation.toFixed(0)}% vs ${kpis.prev_revenue.toFixed(0)}€)` : ''}
 ${orderEmoji} Commandes : ${kpis.order_count} ${kpis.order_variation !== null ? `(${kpis.order_variation >= 0 ? '+' : ''}${kpis.order_variation.toFixed(0)}% vs ${kpis.prev_order_count})` : ''}
