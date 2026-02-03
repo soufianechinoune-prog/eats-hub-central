@@ -461,6 +461,24 @@ Deno.serve(async (req) => {
 
     console.log('Processing complete:', results);
 
+    // Calculate sales period based on payout dates
+    // Uber Eats pays for sales from 7 days before the payout date
+    // e.g., payout on Jan 26 covers sales from Jan 19-25
+    let salesPeriodStart: string | null = null;
+    let salesPeriodEnd: string | null = null;
+    
+    if (minDate) {
+      const startDate = new Date(minDate);
+      startDate.setDate(startDate.getDate() - 7);
+      salesPeriodStart = startDate.toISOString().split('T')[0];
+    }
+    
+    if (maxDate) {
+      const endDate = new Date(maxDate);
+      endDate.setDate(endDate.getDate() - 1);
+      salesPeriodEnd = endDate.toISOString().split('T')[0];
+    }
+
     // Build response in expected format
     const response = {
       success: true,
@@ -477,6 +495,10 @@ Deno.serve(async (req) => {
         dateRange: {
           start: minDate,
           end: maxDate,
+        },
+        salesPeriod: {
+          start: salesPeriodStart,
+          end: salesPeriodEnd,
         },
         restaurants: Array.from(restaurantStats.values()),
         unknownStoreIds: Array.from(unknownStoreIds),
