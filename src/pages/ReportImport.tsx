@@ -93,6 +93,10 @@ interface ValidationData {
     start: string | null;
     end: string | null;
   };
+  salesPeriod?: {
+    start: string | null;
+    end: string | null;
+  };
   restaurants: RestaurantStats[];
   unknownStoreIds: string[];
   skippedDetails: SkipInfo[];
@@ -1453,15 +1457,31 @@ export default function ReportImport() {
                     </div>
                   </div>
 
-                  {/* Date range */}
+                  {/* Date range - special display for payout_summary */}
                   {validationResult.validation?.dateRange && (
                     <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
                       <Calendar className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">Période des données</p>
-                        <p className="text-sm text-muted-foreground">
-                          Du {formatDate(validationResult.validation.dateRange.start)} au {formatDate(validationResult.validation.dateRange.end)}
-                        </p>
+                      <div className="flex-1">
+                        {reportType === "payout_summary" && validationResult.validation?.salesPeriod ? (
+                          <>
+                            <p className="text-sm font-medium">Période de ventes</p>
+                            <p className="text-sm text-muted-foreground">
+                              Du {formatDate(validationResult.validation.salesPeriod.start)} au {formatDate(validationResult.validation.salesPeriod.end)}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Date de versement : {formatDate(validationResult.validation.dateRange.start)}
+                              {validationResult.validation.dateRange.start !== validationResult.validation.dateRange.end && 
+                                ` au ${formatDate(validationResult.validation.dateRange.end)}`}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium">Période des données</p>
+                            <p className="text-sm text-muted-foreground">
+                              Du {formatDate(validationResult.validation.dateRange.start)} au {formatDate(validationResult.validation.dateRange.end)}
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
