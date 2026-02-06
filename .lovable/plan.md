@@ -1,59 +1,48 @@
 
-# Plan : Corriger l'import des fichiers d'avis Uber Eats
+# Plan : Corriger l'affichage du sélecteur de restaurant pour les avis
 
-## Diagnostic du problème
+## Problème identifié
 
-Le fichier `restaurant_rating_local.csv` contient la colonne "Valeur de la note" mais la détection automatique cherche uniquement "Note du restaurant". Résultat : le fichier est incorrectement détecté comme "Historique des commandes" car il contient "Id. de la commande" et "Heure de la commande".
+Le fichier `reportImportConfig.ts` configure correctement `reviews_order` et `reviews_item` avec `requiresRestaurant: false`, mais le code dans `ReportImport.tsx` contient **4 listes hardcodées** qui incluent encore ces types comme nécessitant un restaurant.
 
-Les 9369 avis ont été insérés dans `order_history` au lieu de `customer_reviews`.
+Le parser `parse-reviews-order` est conçu pour gérer les fichiers **multi-restaurant** : il identifie automatiquement chaque restaurant via le `uber_store_id` du CSV ou par matching de nom.
 
-## Solution en 2 étapes
+## Incohérences à corriger
 
-### Etape 1 : Corriger la détection automatique
+| Ligne | Code actuel | Correction |
+|-------|-------------|------------|
+| ~690 | `["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", ...]` | Retirer `"reviews_order"` et `"reviews_item"` |
+| ~728 | `["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", ...]` | Retirer `"reviews_order"` et `"reviews_item"` |
+| ~855 | `["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", ...]` | Retirer `"reviews_order"` et `"reviews_item"` |
+| ~1334 | `(reportType === "reviews_order" \|\| reportType === "reviews_item")` | Retirer ces conditions |
 
-**Fichier** : `src/pages/ReportImport.tsx`
+## Solution recommandée
 
-Ajouter "Valeur de la note" dans la détection des avis (fonction `detectReportType` et `parsePreview`).
+Utiliser la configuration centralisée `requiresRestaurant()` de `reportImportConfig.ts` au lieu de listes hardcodées, pour éviter les divergences futures.
 
-Modifications :
-1. Ligne ~428 : Ajouter la condition `headerLine.includes("Valeur de la note")` au pattern de détection `reviews_order`
-2. Ligne ~550 : Ajouter la même condition pour la détection des en-têtes de prévisualisation
+**Fichier à modifier** : `src/pages/ReportImport.tsx`
 
-Cela permettra aux futurs fichiers d'avis avec "Valeur de la note" d'être correctement routés vers le parser `parse-reviews-order`.
+### Changements
 
-### Etape 2 : Ré-importer le fichier
-
-Après la correction, tu pourras ré-importer le même fichier CSV et il sera correctement détecté comme "Avis par commande".
+1. Importer la fonction `requiresRestaurant` depuis le fichier de config
+2. Remplacer les listes hardcodées par un appel à cette fonction
+3. Mettre à jour la condition UI du sélecteur de restaurant
 
 ## Section technique
 
 ```text
-+--------------------------------------------------+
-|  Logique de détection actuelle                   |
-+--------------------------------------------------+
-|  reviews_order = "Note du restaurant" +          |
-|                  "UUID de la commande"           |
-+--------------------------------------------------+
-|  order_history = "Id. de la commande" +          |
-|                  "Heure de la commande"          |
-+--------------------------------------------------+
+Avant (hardcodé) :
+  const requiresRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", ...].includes(reportType);
 
-Le fichier contient :
-- "Valeur de la note" (non reconnu ❌)
-- "UUID de la commande" ✓
-- "Id. de la commande" ✓  → Match order_history!
-- "Heure de la commande" ✓
-
-Solution: Ajouter "Valeur de la note" au pattern reviews_order
-          et le placer AVANT order_history dans l'ordre de détection
+Après (centralisé) :
+  import { requiresRestaurant as checkRequiresRestaurant } from "@/lib/reportImportConfig";
+  const needsRestaurant = checkRequiresRestaurant(reportType);
 ```
 
-### Fichiers modifiés
+L'avantage : une seule source de vérité dans `reportImportConfig.ts`, évitant les incohérences futures.
 
-| Fichier | Modification |
-|---------|-------------|
-| `src/pages/ReportImport.tsx` | Ajouter "Valeur de la note" dans 2 emplacements |
+## Résultat attendu
 
-## Nettoyage optionnel
-
-Après le ré-import réussi, tu pourras supprimer les entrées erronées de `order_history` via l'historique des imports si nécessaire.
+- Le sélecteur de restaurant n'apparaîtra plus pour les fichiers d'avis
+- Le parser multi-restaurant identifiera automatiquement les restaurants via le CSV
+- Les 11 restaurants épinglés pourront être importés en une seule opération
