@@ -377,20 +377,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Insert reviews
-    for (const review of reviewsToInsert) {
+    // Insert reviews in batches of 500 for performance
+    const batchSize = 500;
+    for (let i = 0; i < reviewsToInsert.length; i += batchSize) {
+      const batch = reviewsToInsert.slice(i, i + batchSize);
       const { error } = await supabase
         .from('customer_reviews')
-        .upsert(review, {
+        .upsert(batch, {
           onConflict: 'uber_order_id',
           ignoreDuplicates: false,
         });
 
       if (error) {
-        console.error('Insert error:', error);
-        stats.errors++;
+        console.error(`Batch insert error (${i}-${i + batch.length}):`, error);
+        stats.errors += batch.length;
       } else {
-        stats.inserted++;
+        stats.inserted += batch.length;
       }
     }
 
