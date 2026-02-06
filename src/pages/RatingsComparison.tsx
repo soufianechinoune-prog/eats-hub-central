@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { RatingsInsightsSection } from "@/components/compare/RatingsInsightsSection";
 import { RatingsFullRankingTable } from "@/components/compare/RatingsFullRankingTable";
+import { RatingsEvolutionChart } from "@/components/compare/RatingsEvolutionChart";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useRatingsExport } from "@/hooks/useRatingsExport";
 import {
@@ -366,6 +367,14 @@ const RatingsComparison = () => {
                 </Card>
               )}
             </div>
+
+            {/* Evolution Chart */}
+            {reviewsData && reviewsData.length > 0 && (
+              <RatingsEvolutionChart 
+                reviews={reviewsData}
+                dateRange={dateRange}
+              />
+            )}
 
             {/* Insights Section */}
             <RatingsInsightsSection 
