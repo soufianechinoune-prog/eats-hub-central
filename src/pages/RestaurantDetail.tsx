@@ -112,7 +112,31 @@ const RestaurantDetail = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (forceDelete: boolean = false) => {
+      // If forceDelete, delete all related data first
+      if (forceDelete) {
+        // Delete in order of dependencies
+        await supabase.from("order_items").delete().eq("restaurant_id", id);
+        await supabase.from("order_errors").delete().eq("restaurant_id", id);
+        await supabase.from("order_history").delete().eq("restaurant_id", id);
+        await supabase.from("customer_reviews").delete().eq("restaurant_id", id);
+        await supabase.from("menu_item_reviews").delete().eq("restaurant_id", id);
+        await supabase.from("delivery_stats").delete().eq("restaurant_id", id);
+        await supabase.from("downtime_logs").delete().eq("restaurant_id", id);
+        await supabase.from("daily_revenue").delete().eq("restaurant_id", id);
+        await supabase.from("daily_sales_uber").delete().eq("restaurant_id", id);
+        await supabase.from("daily_conversion").delete().eq("restaurant_id", id);
+        await supabase.from("daily_order_accuracy").delete().eq("restaurant_id", id);
+        await supabase.from("monthly_revenue").delete().eq("restaurant_id", id);
+        await supabase.from("monthly_fees").delete().eq("restaurant_id", id);
+        await supabase.from("monthly_conversion").delete().eq("restaurant_id", id);
+        await supabase.from("monthly_order_accuracy").delete().eq("restaurant_id", id);
+        await supabase.from("hourly_availability").delete().eq("restaurant_id", id);
+        await supabase.from("message_history").delete().eq("restaurant_id", id);
+        await supabase.from("restaurant_actions").delete().eq("restaurant_id", id);
+        await supabase.from("uber_connections").delete().eq("restaurant_id", id);
+      }
+      
       const { error } = await supabase
         .from("restaurants")
         .delete()
@@ -125,8 +149,17 @@ const RestaurantDetail = () => {
       toast({ title: "Succès", description: "Restaurant supprimé" });
       navigate("/restaurants");
     },
-    onError: () => {
-      toast({ title: "Erreur", description: "Impossible de supprimer le restaurant", variant: "destructive" });
+    onError: (error: Error & { code?: string; details?: string }) => {
+      // Check if it's a foreign key constraint error
+      if (error.message?.includes("foreign key constraint") || error.code === "23503") {
+        toast({ 
+          title: "Données liées existantes", 
+          description: "Ce restaurant a des commandes, avis ou autres données associées. Utilisez 'Supprimer tout' pour supprimer toutes les données.", 
+          variant: "destructive" 
+        });
+      } else {
+        toast({ title: "Erreur", description: "Impossible de supprimer le restaurant", variant: "destructive" });
+      }
     },
   });
 
@@ -310,16 +343,28 @@ const RestaurantDetail = () => {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Supprimer "{restaurant.name}" ?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Cette action est irréversible. Toutes les données associées à ce restaurant seront définitivement supprimées.
+                        Cette action est irréversible. Vous pouvez :
+                        <ul className="list-disc list-inside mt-2 space-y-1">
+                          <li><strong>Supprimer</strong> : Supprime le restaurant s'il n'a pas de données liées</li>
+                          <li><strong>Supprimer tout</strong> : Supprime le restaurant ET toutes ses données (commandes, avis, revenus, etc.)</li>
+                        </ul>
                       </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter>
+                    <AlertDialogFooter className="flex-col sm:flex-row gap-2">
                       <AlertDialogCancel>Annuler</AlertDialogCancel>
                       <AlertDialogAction
-                        onClick={() => deleteMutation.mutate()}
+                        onClick={() => deleteMutation.mutate(false)}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        disabled={deleteMutation.isPending}
                       >
                         Supprimer
+                      </AlertDialogAction>
+                      <AlertDialogAction
+                        onClick={() => deleteMutation.mutate(true)}
+                        className="bg-red-700 text-white hover:bg-red-800"
+                        disabled={deleteMutation.isPending}
+                      >
+                        {deleteMutation.isPending ? "Suppression..." : "⚠️ Supprimer tout"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

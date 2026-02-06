@@ -563,7 +563,32 @@ const Restaurants = () => {
       <RestaurantShareActions
         selectedRestaurants={selectedRestaurants}
         onClear={() => setSelectedIds(new Set())}
-        onDelete={async (ids) => {
+        onDelete={async (ids, forceDelete) => {
+          if (forceDelete) {
+            // Delete all related data first for each restaurant
+            for (const restaurantId of ids) {
+              await supabase.from("order_items").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("order_errors").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("order_history").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("customer_reviews").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("menu_item_reviews").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("delivery_stats").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("downtime_logs").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("daily_revenue").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("daily_sales_uber").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("daily_conversion").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("daily_order_accuracy").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("monthly_revenue").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("monthly_fees").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("monthly_conversion").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("monthly_order_accuracy").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("hourly_availability").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("message_history").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("restaurant_actions").delete().eq("restaurant_id", restaurantId);
+              await supabase.from("uber_connections").delete().eq("restaurant_id", restaurantId);
+            }
+          }
+          
           const { error } = await supabase
             .from("restaurants")
             .delete()
