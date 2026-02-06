@@ -1,35 +1,59 @@
 
-# Plan : Suppression des tableaux inutiles
+# Plan : Corriger l'import des fichiers d'avis Uber Eats
 
-## Composants à supprimer
+## Diagnostic du problème
 
-| Composant | Lignes | Description |
-|-----------|--------|-------------|
-| Performance par période | 445-461 | Card contenant `RatingsHeatmapGrid` |
-| Analyse des Tags Réseau | 463-466 | Composant `NetworkTagsAnalysis` |
+Le fichier `restaurant_rating_local.csv` contient la colonne "Valeur de la note" mais la détection automatique cherche uniquement "Note du restaurant". Résultat : le fichier est incorrectement détecté comme "Historique des commandes" car il contient "Id. de la commande" et "Heure de la commande".
 
-## Modifications
+Les 9369 avis ont été insérés dans `order_history` au lieu de `customer_reviews`.
 
-### Fichier : `src/pages/RatingsComparison.tsx`
+## Solution en 2 étapes
 
-1. **Supprimer les imports inutilisés** (lignes 7 et 13, 17) :
-   - `BarChart3` de lucide-react (plus utilisé après suppression)
-   - `RatingsHeatmapGrid` 
-   - `NetworkTagsAnalysis`
+### Etape 1 : Corriger la détection automatique
 
-2. **Supprimer le code des composants** :
-   - Lignes 445-461 : Card "Performance par période"
-   - Lignes 463-466 : `NetworkTagsAnalysis`
+**Fichier** : `src/pages/ReportImport.tsx`
 
-3. **Supprimer le code inutilisé** :
-   - Lignes 240-249 : `heatmapStats` (useMemo qui n'est plus nécessaire)
+Ajouter "Valeur de la note" dans la détection des avis (fonction `detectReportType` et `parsePreview`).
 
-## Résultat
+Modifications :
+1. Ligne ~428 : Ajouter la condition `headerLine.includes("Valeur de la note")` au pattern de détection `reviews_order`
+2. Ligne ~550 : Ajouter la même condition pour la détection des en-têtes de prévisualisation
 
-La page conservera :
-- Les KPIs globaux
-- La section Insights
-- Le tableau de classement complet (`RatingsFullRankingTable`)
-- La distribution des notes (bar chart)
+Cela permettra aux futurs fichiers d'avis avec "Valeur de la note" d'être correctement routés vers le parser `parse-reviews-order`.
 
-La page sera plus légère et focalisée sur les métriques essentielles.
+### Etape 2 : Ré-importer le fichier
+
+Après la correction, tu pourras ré-importer le même fichier CSV et il sera correctement détecté comme "Avis par commande".
+
+## Section technique
+
+```text
++--------------------------------------------------+
+|  Logique de détection actuelle                   |
++--------------------------------------------------+
+|  reviews_order = "Note du restaurant" +          |
+|                  "UUID de la commande"           |
++--------------------------------------------------+
+|  order_history = "Id. de la commande" +          |
+|                  "Heure de la commande"          |
++--------------------------------------------------+
+
+Le fichier contient :
+- "Valeur de la note" (non reconnu ❌)
+- "UUID de la commande" ✓
+- "Id. de la commande" ✓  → Match order_history!
+- "Heure de la commande" ✓
+
+Solution: Ajouter "Valeur de la note" au pattern reviews_order
+          et le placer AVANT order_history dans l'ordre de détection
+```
+
+### Fichiers modifiés
+
+| Fichier | Modification |
+|---------|-------------|
+| `src/pages/ReportImport.tsx` | Ajouter "Valeur de la note" dans 2 emplacements |
+
+## Nettoyage optionnel
+
+Après le ré-import réussi, tu pourras supprimer les entrées erronées de `order_history` via l'historique des imports si nécessaire.
