@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Calendar, Star, TrendingUp, Award, BarChart3 } from "lucide-react";
+import { ArrowLeft, Calendar, Star, TrendingUp, Award, BarChart3, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,7 +13,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { cn } from "@/lib/utils";
 import { RatingsHeatmapGrid } from "@/components/compare/RatingsHeatmapGrid";
+import { NetworkTagsAnalysis } from "@/components/compare/NetworkTagsAnalysis";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   BarChart,
   Bar,
@@ -36,11 +45,14 @@ const COLORS = [
   "hsl(var(--chart-5))",
 ];
 
+const PAGE_SIZE = 25;
+
 const RatingsComparison = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPeriod = (searchParams.get('period') as PeriodType) || 'month';
   const [period, setPeriod] = useState<PeriodType>(initialPeriod);
+  const [page, setPage] = useState(1);
 
   const { 
     setSelectedRestaurants, 
@@ -52,6 +64,7 @@ const RatingsComparison = () => {
   // Sync period changes with URL
   const handlePeriodChange = (newPeriod: PeriodType) => {
     setPeriod(newPeriod);
+    setPage(1); // Reset pagination on period change
     setSearchParams({ period: newPeriod });
   };
 
@@ -76,45 +89,54 @@ const RatingsComparison = () => {
     }
   }, [period]);
 
-  // Fetch pinned restaurants
-  const { data: pinnedRestaurants } = useQuery({
-    queryKey: ["pinned-restaurants"],
+  // Fetch ALL active restaurants (Vue Réseau)
+  const { data: allRestaurants } = useQuery({
+    queryKey: ["active-restaurants"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
         .select("id, name")
-        .eq("is_pinned", true)
+        .eq("is_active", true)
         .order("name");
       if (error) throw error;
       return data || [];
     },
   });
 
-  // Fetch customer reviews for pinned restaurants
+  // Fetch customer reviews for ALL active restaurants
   const { data: reviewsData, isLoading } = useQuery({
-    queryKey: ["ratings-comparison", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+    queryKey: ["ratings-comparison-network", allRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
-      if (!pinnedRestaurants?.length) return [];
+      if (!allRestaurants?.length) return [];
       
-      const { data, error } = await supabase
-        .from("customer_reviews")
-        .select("restaurant_id, overall_rating, review_date, platform")
-        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
-        .gte("review_date", dateRange.start.toISOString())
-        .lte("review_date", dateRange.end.toISOString())
-        .not("overall_rating", "is", null);
+      // Fetch in batches to handle large number of restaurants
+      const allReviews: any[] = [];
+      const batchSize = 50;
       
-      if (error) throw error;
-      return data || [];
+      for (let i = 0; i < allRestaurants.length; i += batchSize) {
+        const batchIds = allRestaurants.slice(i, i + batchSize).map(r => r.id);
+        const { data, error } = await supabase
+          .from("customer_reviews")
+          .select("restaurant_id, overall_rating, review_date, platform, tags")
+          .in("restaurant_id", batchIds)
+          .gte("review_date", dateRange.start.toISOString())
+          .lte("review_date", dateRange.end.toISOString())
+          .not("overall_rating", "is", null);
+        
+        if (error) throw error;
+        if (data) allReviews.push(...data);
+      }
+      
+      return allReviews;
     },
-    enabled: !!pinnedRestaurants?.length,
+    enabled: !!allRestaurants?.length,
   });
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!reviewsData?.length || !pinnedRestaurants?.length) return [];
+    if (!reviewsData?.length || !allRestaurants?.length) return [];
     
-    const stats = pinnedRestaurants.map(restaurant => {
+    const stats = allRestaurants.map(restaurant => {
       const restaurantReviews = reviewsData.filter(r => r.restaurant_id === restaurant.id);
       const totalReviews = restaurantReviews.length;
       const avgRating = totalReviews > 0
@@ -166,8 +188,18 @@ const RatingsComparison = () => {
       };
     });
     
-    return stats.sort((a, b) => b.avgRating - a.avgRating);
-  }, [reviewsData, pinnedRestaurants]);
+    // Filter out restaurants with no reviews and sort by rating
+    return stats
+      .filter(s => s.totalReviews > 0)
+      .sort((a, b) => b.avgRating - a.avgRating);
+  }, [reviewsData, allRestaurants]);
+
+  // Paginated stats for table
+  const paginatedStats = useMemo(() => {
+    return restaurantStats.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [restaurantStats, page]);
+
+  const totalPages = Math.ceil(restaurantStats.length / PAGE_SIZE);
 
   // Global KPIs
   const globalStats = useMemo(() => {
@@ -290,9 +322,15 @@ const RatingsComparison = () => {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Comparaison Notes</h1>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                Comparaison Notes
+                <Badge variant="secondary" className="text-xs font-normal">
+                  <Building2 className="h-3 w-3 mr-1" />
+                  Vue Réseau
+                </Badge>
+              </h1>
               <p className="text-muted-foreground text-sm">
-                Analyse comparative des restaurants épinglés
+                Analyse de {restaurantStats.length} restaurants | {periodLabel}
               </p>
             </div>
           </div>
@@ -403,45 +441,48 @@ const RatingsComparison = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {restaurantStats.map((resto, idx) => (
-                        <TableRow 
-                          key={resto.id} 
-                          className="cursor-pointer hover:bg-muted/50 transition-all duration-300 border-border/30 group"
-                          onClick={() => handleNavigateToReviews(resto.id)}
-                        >
-                          <TableCell className="font-bold">
-                            <Badge 
-                              variant="secondary" 
-                              className={cn(
-                                "text-base h-8 w-8 flex items-center justify-center rounded-lg",
-                                idx === 0 && "bg-amber-500/20 text-amber-600 border-amber-500/30",
-                                idx === 1 && "bg-slate-400/20 text-slate-600 border-slate-400/30",
-                                idx === 2 && "bg-orange-600/20 text-orange-600 border-orange-600/30",
-                                idx > 2 && "bg-muted text-muted-foreground"
-                              )}
-                            >
-                              {idx + 1}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-semibold group-hover:text-primary transition-colors">
-                            {resto.name}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <span className="flex items-center justify-end gap-2 font-bold text-lg">
-                              <Star className={cn(
-                                "h-4 w-4",
-                                resto.avgRating >= 4.5 ? "fill-amber-400 text-amber-400" : 
-                                resto.avgRating >= 4 ? "fill-amber-400/70 text-amber-400/70" :
-                                "fill-muted text-muted"
-                              )} />
-                              {resto.avgRating}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground">
-                            {resto.totalReviews}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {paginatedStats.map((resto, idx) => {
+                        const globalRank = (page - 1) * PAGE_SIZE + idx + 1;
+                        return (
+                          <TableRow 
+                            key={resto.id} 
+                            className="cursor-pointer hover:bg-muted/50 transition-all duration-300 border-border/30 group"
+                            onClick={() => handleNavigateToReviews(resto.id)}
+                          >
+                            <TableCell className="font-bold">
+                              <Badge 
+                                variant="secondary" 
+                                className={cn(
+                                  "text-base h-8 w-8 flex items-center justify-center rounded-lg",
+                                  globalRank === 1 && "bg-amber-500/20 text-amber-600 border-amber-500/30",
+                                  globalRank === 2 && "bg-slate-400/20 text-slate-600 border-slate-400/30",
+                                  globalRank === 3 && "bg-orange-600/20 text-orange-600 border-orange-600/30",
+                                  globalRank > 3 && "bg-muted text-muted-foreground"
+                                )}
+                              >
+                                {globalRank}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-semibold group-hover:text-primary transition-colors">
+                              {resto.name}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="flex items-center justify-end gap-2 font-bold text-lg">
+                                <Star className={cn(
+                                  "h-4 w-4",
+                                  resto.avgRating >= 4.5 ? "fill-amber-400 text-amber-400" : 
+                                  resto.avgRating >= 4 ? "fill-amber-400/70 text-amber-400/70" :
+                                  "fill-muted text-muted"
+                                )} />
+                                {resto.avgRating}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {resto.totalReviews}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                       {restaurantStats.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
@@ -451,6 +492,45 @@ const RatingsComparison = () => {
                       )}
                     </TableBody>
                   </Table>
+                  
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <Pagination className="mt-4">
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                          />
+                        </PaginationItem>
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          const pageNum = page <= 3 
+                            ? i + 1 
+                            : page >= totalPages - 2 
+                              ? totalPages - 4 + i 
+                              : page - 2 + i;
+                          if (pageNum < 1 || pageNum > totalPages) return null;
+                          return (
+                            <PaginationItem key={pageNum}>
+                              <PaginationLink
+                                onClick={() => setPage(pageNum)}
+                                isActive={page === pageNum}
+                                className="cursor-pointer"
+                              >
+                                {pageNum}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        })}
+                        <PaginationItem>
+                          <PaginationNext
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            className={page === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  )}
                 </CardContent>
               </Card>
 
@@ -562,6 +642,11 @@ const RatingsComparison = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Network Tags Analysis */}
+            {reviewsData && reviewsData.length > 0 && (
+              <NetworkTagsAnalysis reviews={reviewsData} />
+            )}
           </div>
         )}
       </div>
