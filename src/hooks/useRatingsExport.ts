@@ -40,7 +40,9 @@ const getStatusColor = (rating: number): [number, number, number] => {
 
 // Helper to format numbers without non-breaking spaces (jsPDF doesn't render \u00A0 correctly)
 const formatNumber = (num: number): string => {
-  return num.toLocaleString("fr-FR").replace(/\u00A0/g, " ");
+  // jsPDF has issues with any space character in large fonts, so we use no separator
+  // and just output the raw number for clean rendering
+  return num.toString();
 };
 
 export const useRatingsExport = () => {
