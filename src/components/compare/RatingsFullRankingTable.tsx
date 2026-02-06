@@ -34,6 +34,7 @@ interface RatingsFullRankingTableProps {
   data: RestaurantRating[];
   onExportPDF?: () => void;
   isExporting?: boolean;
+  dateRange?: { start: Date; end: Date };
 }
 
 type SortField = "rank" | "name" | "avgRating" | "totalReviews";
@@ -64,10 +65,11 @@ const ITEMS_PER_PAGE = 25;
 export const RatingsFullRankingTable = ({ 
   data, 
   onExportPDF,
-  isExporting = false
+  isExporting = false,
+  dateRange
 }: RatingsFullRankingTableProps) => {
   const navigate = useNavigate();
-  const { setSelectedRestaurants, setVisibleRestaurants } = useAnalyticsContext();
+  const { setSelectedRestaurants, setVisibleRestaurants, setDateRange, setPeriodMode } = useAnalyticsContext();
   
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("avgRating");
@@ -75,9 +77,16 @@ export const RatingsFullRankingTable = ({
   const [currentPage, setCurrentPage] = useState(1);
 
   const handleRowClick = (restaurantId: string) => {
-    // Set the restaurant in context and navigate to reviews page
+    // Set the restaurant in context
     setVisibleRestaurants([restaurantId]);
     setSelectedRestaurants([restaurantId]);
+    
+    // Synchronize the date range from RatingsComparison page
+    if (dateRange) {
+      setDateRange({ from: dateRange.start, to: dateRange.end });
+      setPeriodMode("range");
+    }
+    
     navigate("/analytics/reviews");
   };
 

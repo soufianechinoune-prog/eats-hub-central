@@ -380,6 +380,7 @@ const RatingsComparison = () => {
               data={rankingStats}
               onExportPDF={handleExportPDF}
               isExporting={isExporting}
+              dateRange={dateRange}
             />
 
             {/* Evolution Chart - Below ranking */}
