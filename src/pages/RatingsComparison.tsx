@@ -4,25 +4,17 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Calendar, Star, TrendingUp, Award, BarChart3, Building2 } from "lucide-react";
+import { ArrowLeft, Calendar, Star, BarChart3, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
-import { cn } from "@/lib/utils";
 import { RatingsHeatmapGrid } from "@/components/compare/RatingsHeatmapGrid";
+import { RatingsRankingBars } from "@/components/compare/RatingsRankingBars";
+import { RatingsInsightsSection } from "@/components/compare/RatingsInsightsSection";
 import { NetworkTagsAnalysis } from "@/components/compare/NetworkTagsAnalysis";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import {
   BarChart,
   Bar,
@@ -31,28 +23,16 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   Cell,
 } from "recharts";
 
 type PeriodType = "week" | "month" | "quarter";
-
-const COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-];
-
-const PAGE_SIZE = 25;
 
 const RatingsComparison = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPeriod = (searchParams.get('period') as PeriodType) || 'month';
   const [period, setPeriod] = useState<PeriodType>(initialPeriod);
-  const [page, setPage] = useState(1);
 
   const { 
     setSelectedRestaurants, 
@@ -61,14 +41,11 @@ const RatingsComparison = () => {
     setDateRange: setContextDateRange 
   } = useAnalyticsContext();
 
-  // Sync period changes with URL
   const handlePeriodChange = (newPeriod: PeriodType) => {
     setPeriod(newPeriod);
-    setPage(1); // Reset pagination on period change
     setSearchParams({ period: newPeriod });
   };
 
-  // Calculate date range based on period
   const dateRange = useMemo(() => {
     const now = new Date();
     switch (period) {
@@ -89,7 +66,7 @@ const RatingsComparison = () => {
     }
   }, [period]);
 
-  // Fetch ALL active restaurants (Vue Réseau)
+  // Fetch ALL active restaurants
   const { data: allRestaurants } = useQuery({
     queryKey: ["active-restaurants"],
     queryFn: async () => {
@@ -103,13 +80,12 @@ const RatingsComparison = () => {
     },
   });
 
-  // Fetch customer reviews for ALL active restaurants
+  // Fetch customer reviews
   const { data: reviewsData, isLoading } = useQuery({
     queryKey: ["ratings-comparison-network", allRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
       if (!allRestaurants?.length) return [];
       
-      // Fetch in batches to handle large number of restaurants
       const allReviews: any[] = [];
       const batchSize = 50;
       
@@ -143,7 +119,6 @@ const RatingsComparison = () => {
         ? restaurantReviews.reduce((sum, r) => sum + (r.overall_rating || 0), 0) / totalReviews
         : 0;
       
-      // Platform-specific ratings
       const uberReviews = restaurantReviews.filter(r => r.platform === "uber_eats");
       const deliverooReviews = restaurantReviews.filter(r => r.platform === "deliveroo");
       
@@ -154,7 +129,6 @@ const RatingsComparison = () => {
         ? deliverooReviews.reduce((sum, r) => sum + (r.overall_rating || 0), 0) / deliverooReviews.length
         : null;
 
-      // Group by date for daily evolution
       const dailyData: Record<string, { sum: number; count: number }> = {};
       restaurantReviews.forEach(r => {
         if (r.review_date) {
@@ -165,7 +139,6 @@ const RatingsComparison = () => {
         }
       });
 
-      // Rating distribution (1-5 stars)
       const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
       restaurantReviews.forEach(r => {
         const rating = Math.round(r.overall_rating || 0);
@@ -188,22 +161,14 @@ const RatingsComparison = () => {
       };
     });
     
-    // Filter out restaurants with no reviews and sort by rating
     return stats
       .filter(s => s.totalReviews > 0)
       .sort((a, b) => b.avgRating - a.avgRating);
   }, [reviewsData, allRestaurants]);
 
-  // Paginated stats for table
-  const paginatedStats = useMemo(() => {
-    return restaurantStats.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  }, [restaurantStats, page]);
-
-  const totalPages = Math.ceil(restaurantStats.length / PAGE_SIZE);
-
   // Global KPIs
   const globalStats = useMemo(() => {
-    if (!reviewsData?.length) return { avgRating: 0, totalReviews: 0, uberAvg: 0, deliverooAvg: 0 };
+    if (!reviewsData?.length) return { avgRating: 0, totalReviews: 0, uberAvg: 0, uberCount: 0, deliverooAvg: 0, deliverooCount: 0 };
     
     const totalReviews = reviewsData.length;
     const avgRating = reviewsData.reduce((sum, r) => sum + (r.overall_rating || 0), 0) / totalReviews;
@@ -222,45 +187,13 @@ const RatingsComparison = () => {
       avgRating: parseFloat(avgRating.toFixed(2)), 
       totalReviews,
       uberAvg: parseFloat(uberAvg.toFixed(2)),
+      uberCount: uberReviews.length,
       deliverooAvg: parseFloat(deliverooAvg.toFixed(2)),
+      deliverooCount: deliverooReviews.length,
     };
   }, [reviewsData]);
 
-  // Prepare evolution chart data
-  const evolutionData = useMemo(() => {
-    if (!restaurantStats.length) return [];
-    
-    // Get all unique dates
-    const allDates = new Set<string>();
-    restaurantStats.forEach(r => {
-      Object.keys(r.dailyData).forEach(date => allDates.add(date));
-    });
-    
-    return Array.from(allDates)
-      .sort()
-      .map(date => {
-        const entry: Record<string, string | number> = { 
-          date,
-          displayDate: format(parseISO(date), "dd/MM", { locale: fr }),
-        };
-        restaurantStats.forEach(r => {
-          const data = r.dailyData[date];
-          entry[r.name] = data ? parseFloat((data.sum / data.count).toFixed(2)) : 0;
-        });
-        return entry;
-      });
-  }, [restaurantStats]);
-
-  // Prepare platform comparison data
-  const platformData = useMemo(() => {
-    return restaurantStats.map(r => ({
-      name: r.name.length > 15 ? r.name.slice(0, 15) + "..." : r.name,
-      "Uber Eats": r.uberRating || 0,
-      "Deliveroo": r.deliverooRating || 0,
-    }));
-  }, [restaurantStats]);
-
-  // Prepare distribution data
+  // Distribution data
   const distributionData = useMemo(() => {
     const aggregated = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     restaurantStats.forEach(r => {
@@ -278,34 +211,29 @@ const RatingsComparison = () => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
   }, [dateRange]);
 
-  // Navigate to reviews page with restaurant and period pre-selected
-  const handleNavigateToReviews = (restaurantId: string) => {
-    // Update context with the selected restaurant
-    setVisibleRestaurants([restaurantId]);
-    setSelectedRestaurants([restaurantId]);
-    
-    // Set period mode to range and apply the current date range
-    setPeriodMode("range");
-    setContextDateRange({ from: dateRange.start, to: dateRange.end });
-    
-    // Force localStorage update immediately before navigation
-    const currentState = localStorage.getItem("analytics-context");
-    const state = currentState ? JSON.parse(currentState) : {};
-    const updatedState = {
-      ...state,
-      selectedRestaurants: [restaurantId],
-      visibleRestaurants: [restaurantId],
-      periodMode: "range",
-      dateRange: {
-        from: dateRange.start.toISOString(),
-        to: dateRange.end.toISOString(),
-      },
-    };
-    localStorage.setItem("analytics-context", JSON.stringify(updatedState));
-    
-    // Navigate to the reviews page
-    navigate("/analytics/reviews");
-  };
+  // Stats for ranking bars
+  const rankingStats = useMemo(() => {
+    return restaurantStats.map(s => ({
+      id: s.id,
+      name: s.name,
+      avgRating: s.avgRating,
+      totalReviews: s.totalReviews,
+    }));
+  }, [restaurantStats]);
+
+  // Stats for heatmap
+  const heatmapStats = useMemo(() => {
+    return restaurantStats.map(s => ({
+      id: s.id,
+      name: s.name,
+      avgRating: s.avgRating,
+      totalReviews: s.totalReviews,
+      dailyData: s.dailyData,
+    }));
+  }, [restaurantStats]);
+
+  // Show Deliveroo card only if there's data
+  const showDeliveroo = globalStats.deliverooCount > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -359,53 +287,48 @@ const RatingsComparison = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Global KPIs */}
-            <div className="grid gap-4 md:grid-cols-4">
+            {/* Global KPIs - Conditional Deliveroo */}
+            <div className={`grid gap-4 ${showDeliveroo ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
               <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
                 <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Note moyenne globale</p>
-                      <p className="text-3xl font-bold flex items-center gap-2">
-                        <Star className="h-6 w-6 fill-amber-400 text-amber-400" />
-                        {globalStats.avgRating}
-                        <span className="text-lg text-muted-foreground">/5</span>
-                      </p>
-                    </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Note moyenne globale</p>
+                    <p className="text-3xl font-bold flex items-center gap-2">
+                      <Star className="h-6 w-6 fill-amber-400 text-amber-400" />
+                      {globalStats.avgRating}
+                      <span className="text-lg text-muted-foreground">/5</span>
+                    </p>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
                 <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total avis</p>
-                      <p className="text-3xl font-bold">{globalStats.totalReviews}</p>
-                    </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total avis</p>
+                    <p className="text-3xl font-bold">{globalStats.totalReviews.toLocaleString('fr-FR')}</p>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="backdrop-blur-xl bg-card/80 border-uber/30 shadow-lg">
                 <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        <UberEatsLogo size={16} /> Uber Eats
-                      </p>
-                      <p className="text-3xl font-bold flex items-center gap-2">
-                        {globalStats.uberAvg}
-                        <span className="text-lg text-muted-foreground">/5</span>
-                      </p>
-                    </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <UberEatsLogo size={16} /> Uber Eats
+                    </p>
+                    <p className="text-3xl font-bold flex items-center gap-2">
+                      {globalStats.uberAvg}
+                      <span className="text-lg text-muted-foreground">/5</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">{globalStats.uberCount.toLocaleString('fr-FR')} avis</p>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="backdrop-blur-xl bg-card/80 border-deliveroo/30 shadow-lg">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
+              {showDeliveroo && (
+                <Card className="backdrop-blur-xl bg-card/80 border-deliveroo/30 shadow-lg">
+                  <CardContent className="pt-6">
                     <div>
                       <p className="text-sm text-muted-foreground flex items-center gap-2">
                         <DeliverooLogo size={16} /> Deliveroo
@@ -414,195 +337,47 @@ const RatingsComparison = () => {
                         {globalStats.deliverooAvg}
                         <span className="text-lg text-muted-foreground">/5</span>
                       </p>
+                      <p className="text-xs text-muted-foreground">{globalStats.deliverooCount.toLocaleString('fr-FR')} avis</p>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
-            {/* Ranking + Evolution */}
+            {/* Insights Section */}
+            <RatingsInsightsSection 
+              stats={rankingStats}
+              globalAvg={globalStats.avgRating}
+              totalReviews={globalStats.totalReviews}
+            />
+
+            {/* Ranking Bars + Distribution */}
             <div className="grid lg:grid-cols-2 gap-6">
-              {/* Full Ranking */}
               <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Award className="h-5 w-5 text-amber-500" />
+                    <Star className="h-5 w-5 text-amber-500" />
                     Classement par note
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent border-border/50">
-                        <TableHead className="w-12 text-xs font-semibold uppercase">#</TableHead>
-                        <TableHead className="text-xs font-semibold uppercase">Restaurant</TableHead>
-                        <TableHead className="text-right text-xs font-semibold uppercase">Note</TableHead>
-                        <TableHead className="text-right text-xs font-semibold uppercase">Avis</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paginatedStats.map((resto, idx) => {
-                        const globalRank = (page - 1) * PAGE_SIZE + idx + 1;
-                        return (
-                          <TableRow 
-                            key={resto.id} 
-                            className="cursor-pointer hover:bg-muted/50 transition-all duration-300 border-border/30 group"
-                            onClick={() => handleNavigateToReviews(resto.id)}
-                          >
-                            <TableCell className="font-bold">
-                              <Badge 
-                                variant="secondary" 
-                                className={cn(
-                                  "text-base h-8 w-8 flex items-center justify-center rounded-lg",
-                                  globalRank === 1 && "bg-amber-500/20 text-amber-600 border-amber-500/30",
-                                  globalRank === 2 && "bg-slate-400/20 text-slate-600 border-slate-400/30",
-                                  globalRank === 3 && "bg-orange-600/20 text-orange-600 border-orange-600/30",
-                                  globalRank > 3 && "bg-muted text-muted-foreground"
-                                )}
-                              >
-                                {globalRank}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-semibold group-hover:text-primary transition-colors">
-                              {resto.name}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <span className="flex items-center justify-end gap-2 font-bold text-lg">
-                                <Star className={cn(
-                                  "h-4 w-4",
-                                  resto.avgRating >= 4.5 ? "fill-amber-400 text-amber-400" : 
-                                  resto.avgRating >= 4 ? "fill-amber-400/70 text-amber-400/70" :
-                                  "fill-muted text-muted"
-                                )} />
-                                {resto.avgRating}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right text-muted-foreground">
-                              {resto.totalReviews}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      {restaurantStats.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                            Aucune donnée disponible
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                  
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <Pagination className="mt-4">
-                      <PaginationContent>
-                        <PaginationItem>
-                          <PaginationPrevious
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                          />
-                        </PaginationItem>
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                          const pageNum = page <= 3 
-                            ? i + 1 
-                            : page >= totalPages - 2 
-                              ? totalPages - 4 + i 
-                              : page - 2 + i;
-                          if (pageNum < 1 || pageNum > totalPages) return null;
-                          return (
-                            <PaginationItem key={pageNum}>
-                              <PaginationLink
-                                onClick={() => setPage(pageNum)}
-                                isActive={page === pageNum}
-                                className="cursor-pointer"
-                              >
-                                {pageNum}
-                              </PaginationLink>
-                            </PaginationItem>
-                          );
-                        })}
-                        <PaginationItem>
-                          <PaginationNext
-                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                            className={page === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                          />
-                        </PaginationItem>
-                      </PaginationContent>
-                    </Pagination>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Heatmap Evolution */}
-              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-primary" />
-                    Performance par période
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <RatingsHeatmapGrid 
-                    data={restaurantStats} 
-                    dateRange={dateRange} 
-                    period={period}
+                  <RatingsRankingBars 
+                    stats={rankingStats}
+                    dateRange={dateRange}
+                    showTop={10}
+                    showBottom={5}
                   />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Platform Comparison + Distribution */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              {/* Platform Comparison */}
-              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-lg">Comparatif Uber Eats vs Deliveroo</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {platformData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={platformData} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                        <XAxis 
-                          type="number" 
-                          domain={[0, 5]} 
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
-                        <YAxis 
-                          type="category" 
-                          dataKey="name" 
-                          width={100}
-                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'hsl(var(--card))', 
-                            borderColor: 'hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                        />
-                        <Legend />
-                        <Bar dataKey="Uber Eats" fill="hsl(var(--uber))" radius={[0, 4, 4, 0]} />
-                        <Bar dataKey="Deliveroo" fill="hsl(var(--deliveroo))" radius={[0, 4, 4, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                      Aucune donnée disponible
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
               {/* Rating Distribution */}
               <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <CardTitle className="text-lg">Distribution des notes</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {distributionData.some(d => d.count > 0) ? (
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={350}>
                       <BarChart data={distributionData}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                         <XAxis 
@@ -618,6 +393,7 @@ const RatingsComparison = () => {
                             borderColor: 'hsl(var(--border))',
                             borderRadius: '8px',
                           }}
+                          formatter={(value: number) => [value.toLocaleString('fr-FR'), 'Avis']}
                         />
                         <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                           {distributionData.map((entry, index) => (
@@ -635,13 +411,31 @@ const RatingsComparison = () => {
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                    <div className="flex items-center justify-center h-[350px] text-muted-foreground">
                       Aucune donnée disponible
                     </div>
                   )}
                 </CardContent>
               </Card>
             </div>
+
+            {/* Heatmap - Full Width */}
+            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Performance par période
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RatingsHeatmapGrid 
+                  data={heatmapStats} 
+                  dateRange={dateRange} 
+                  period={period}
+                  maxVisible={25}
+                />
+              </CardContent>
+            </Card>
 
             {/* Network Tags Analysis */}
             {reviewsData && reviewsData.length > 0 && (
