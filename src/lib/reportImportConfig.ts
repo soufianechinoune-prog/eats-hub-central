@@ -84,7 +84,8 @@ export const REPORT_TYPE_CONFIG: Record<string, ReportTypeConfig> = {
     requiresRestaurant: false,
     edgeFunctionName: "parse-reviews-order",
     targetTables: ["customer_reviews"],
-    requiredColumns: ["Note du restaurant", "UUID de la commande"],
+    // Accept both "Note du restaurant" AND "Valeur de la note" header variants
+    requiredColumns: ["UUID de la commande"],
   },
   
   reviews_item: {
