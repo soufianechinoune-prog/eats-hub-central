@@ -1,59 +1,35 @@
 
-# Plan : Corrections PDF Export Notes Réseau
+# Plan : Suppression des tableaux inutiles
 
-## Problèmes identifiés
+## Composants à supprimer
 
-### 1. Lettre "P" parasite
-- **Cause** : L'emoji ⭐ passé en paramètre `subtext` n'est pas supporté par la police Helvetica de jsPDF
-- **Ligne concernée** : `useRatingsExport.ts` ligne 128
-```typescript
-drawKPICard(..., "⭐"); // ← emoji non supporté
-```
+| Composant | Lignes | Description |
+|-----------|--------|-------------|
+| Performance par période | 445-461 | Card contenant `RatingsHeatmapGrid` |
+| Analyse des Tags Réseau | 463-466 | Composant `NetworkTagsAnalysis` |
 
-### 2. Affichage "9 / 4 1 0" au lieu de "9 410"
-- **Cause** : `toLocaleString("fr-FR")` génère des espaces insécables Unicode (`\u00A0`) que jsPDF affiche de manière incorrecte
-- **Vérification base** : Janvier 2026 contient bien **9 410 avis** (donc les données sont correctes)
-- Le problème est purement cosmétique dans le rendu PDF
+## Modifications
 
-## Solution proposée
+### Fichier : `src/pages/RatingsComparison.tsx`
 
-### Modifier `useRatingsExport.ts`
+1. **Supprimer les imports inutilisés** (lignes 7 et 13, 17) :
+   - `BarChart3` de lucide-react (plus utilisé après suppression)
+   - `RatingsHeatmapGrid` 
+   - `NetworkTagsAnalysis`
 
-1. **Supprimer l'emoji étoile** du premier KPI card (ou le remplacer par "/5" qui est déjà affiché)
+2. **Supprimer le code des composants** :
+   - Lignes 445-461 : Card "Performance par période"
+   - Lignes 463-466 : `NetworkTagsAnalysis`
 
-2. **Créer une fonction helper** pour formater les nombres sans espaces insécables :
-```typescript
-const formatNumber = (num: number): string => {
-  return num.toLocaleString("fr-FR").replace(/\u00A0/g, " ");
-};
-```
+3. **Supprimer le code inutilisé** :
+   - Lignes 240-249 : `heatmapStats` (useMemo qui n'est plus nécessaire)
 
-3. **Appliquer ce format** à tous les appels `toLocaleString` du hook
+## Résultat
 
-## Fichier à modifier
+La page conservera :
+- Les KPIs globaux
+- La section Insights
+- Le tableau de classement complet (`RatingsFullRankingTable`)
+- La distribution des notes (bar chart)
 
-| Fichier | Modification |
-|---------|--------------|
-| `src/hooks/useRatingsExport.ts` | Ajouter helper + supprimer emoji + remplacer tous les `toLocaleString` |
-
-## Détail technique
-
-Corrections à apporter :
-
-Ligne 128 - Supprimer le subtext emoji :
-```typescript
-// Avant
-drawKPICard(margin, yPos, "Note moyenne globale", `${data.globalStats.avgRating.toFixed(2)} / 5`, "⭐");
-// Après
-drawKPICard(margin, yPos, "Note moyenne globale", `${data.globalStats.avgRating.toFixed(2)} / 5`);
-```
-
-Ligne 129 et suivantes - Utiliser formatNumber :
-```typescript
-// Avant
-data.globalStats.totalReviews.toLocaleString("fr-FR")
-// Après  
-formatNumber(data.globalStats.totalReviews)
-```
-
-Appliquer également aux lignes 134, 138, 177, 213 où `toLocaleString("fr-FR")` est utilisé.
+La page sera plus légère et focalisée sur les métriques essentielles.
