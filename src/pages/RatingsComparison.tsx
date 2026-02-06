@@ -368,14 +368,6 @@ const RatingsComparison = () => {
               )}
             </div>
 
-            {/* Evolution Chart */}
-            {reviewsData && reviewsData.length > 0 && (
-              <RatingsEvolutionChart 
-                reviews={reviewsData}
-                dateRange={dateRange}
-              />
-            )}
-
             {/* Insights Section */}
             <RatingsInsightsSection 
               stats={rankingStats}
@@ -389,6 +381,14 @@ const RatingsComparison = () => {
               onExportPDF={handleExportPDF}
               isExporting={isExporting}
             />
+
+            {/* Evolution Chart - Below ranking */}
+            {reviewsData && reviewsData.length > 0 && (
+              <RatingsEvolutionChart 
+                reviews={reviewsData}
+                dateRange={dateRange}
+              />
+            )}
 
             {/* Rating Distribution - Full Width below */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
