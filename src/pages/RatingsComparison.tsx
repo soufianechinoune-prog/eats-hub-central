@@ -4,17 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Calendar, Star, BarChart3, Building2 } from "lucide-react";
+import { ArrowLeft, Calendar, Star, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
-import { RatingsHeatmapGrid } from "@/components/compare/RatingsHeatmapGrid";
-
 import { RatingsInsightsSection } from "@/components/compare/RatingsInsightsSection";
 import { RatingsFullRankingTable } from "@/components/compare/RatingsFullRankingTable";
-import { NetworkTagsAnalysis } from "@/components/compare/NetworkTagsAnalysis";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useRatingsExport } from "@/hooks/useRatingsExport";
 import {
@@ -237,16 +234,6 @@ const RatingsComparison = () => {
     }));
   }, [restaurantStats]);
 
-  // Stats for heatmap
-  const heatmapStats = useMemo(() => {
-    return restaurantStats.map(s => ({
-      id: s.id,
-      name: s.name,
-      avgRating: s.avgRating,
-      totalReviews: s.totalReviews,
-      dailyData: s.dailyData,
-    }));
-  }, [restaurantStats]);
 
   // Show Deliveroo card only if there's data
   const showDeliveroo = globalStats.deliverooCount > 0;
@@ -442,28 +429,6 @@ const RatingsComparison = () => {
               </CardContent>
             </Card>
 
-            {/* Heatmap - Full Width */}
-            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-primary" />
-                  Performance par période
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RatingsHeatmapGrid 
-                  data={heatmapStats} 
-                  dateRange={dateRange} 
-                  period={period}
-                  maxVisible={25}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Network Tags Analysis */}
-            {reviewsData && reviewsData.length > 0 && (
-              <NetworkTagsAnalysis reviews={reviewsData} />
-            )}
           </div>
         )}
       </div>
