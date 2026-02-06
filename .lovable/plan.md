@@ -1,120 +1,59 @@
 
+# Plan : Corriger l'import des fichiers d'avis Uber Eats
 
-# Plan : Import automatique + création des nouveaux restaurants
+## Diagnostic du problème
 
-## Ce que le système fera
+Le fichier `restaurant_rating_local.csv` contient la colonne "Valeur de la note" mais la détection automatique cherche uniquement "Note du restaurant". Résultat : le fichier est incorrectement détecté comme "Historique des commandes" car il contient "Id. de la commande" et "Heure de la commande".
+
+Les 9369 avis ont été insérés dans `order_history` au lieu de `customer_reviews`.
+
+## Solution en 2 étapes
+
+### Etape 1 : Corriger la détection automatique
+
+**Fichier** : `src/pages/ReportImport.tsx`
+
+Ajouter "Valeur de la note" dans la détection des avis (fonction `detectReportType` et `parsePreview`).
+
+Modifications :
+1. Ligne ~428 : Ajouter la condition `headerLine.includes("Valeur de la note")` au pattern de détection `reviews_order`
+2. Ligne ~550 : Ajouter la même condition pour la détection des en-têtes de prévisualisation
+
+Cela permettra aux futurs fichiers d'avis avec "Valeur de la note" d'être correctement routés vers le parser `parse-reviews-order`.
+
+### Etape 2 : Ré-importer le fichier
+
+Après la correction, tu pourras ré-importer le même fichier CSV et il sera correctement détecté comme "Avis par commande".
+
+## Section technique
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│  Pour chaque restaurant dans le CSV :                           │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  1. Est-ce un des 4 protégés ?                                   │
-│     → OUI : On ne touche à rien                                  │
-│     → NON : Continuer                                            │
-│                                                                  │
-│  2. Match trouvé en base (similarité > 70%) ?                    │
-│     → OUI : Renommer avec le nom CSV + ajouter uber_store_id     │
-│     → NON : CRÉER un nouveau restaurant avec le nom CSV          │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
++--------------------------------------------------+
+|  Logique de détection actuelle                   |
++--------------------------------------------------+
+|  reviews_order = "Note du restaurant" +          |
+|                  "UUID de la commande"           |
++--------------------------------------------------+
+|  order_history = "Id. de la commande" +          |
+|                  "Heure de la commande"          |
++--------------------------------------------------+
+
+Le fichier contient :
+- "Valeur de la note" (non reconnu ❌)
+- "UUID de la commande" ✓
+- "Id. de la commande" ✓  → Match order_history!
+- "Heure de la commande" ✓
+
+Solution: Ajouter "Valeur de la note" au pattern reviews_order
+          et le placer AVANT order_history dans l'ordre de détection
 ```
 
-## Interface simplifiée
+### Fichiers modifiés
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  Import des restaurants Uber Eats                               │
-├─────────────────────────────────────────────────────────────────┤
-│  📄 restaurant_rating_local.csv                                 │
-│                                                                 │
-│  Résumé :                                                       │
-│  🔒 4 protégés (Antony, Athis-Mons, Bonneuil, Juvisy)          │
-│  ✏️  52 à renommer (match trouvé en base)                       │
-│  ➕ 34 à créer (pas de match)                                   │
-│                                                                 │
-│  ┌────────────────────────────┬───────────────────┬────────────┐│
-│  │ Nom CSV                    │ Action            │ Match %    ││
-│  ├────────────────────────────┼───────────────────┼────────────┤│
-│  │ Chicken Street - Annecy    │ ✏️ Renommer       │ 85%        ││
-│  │ Chicken Street - Lyon 1    │ ➕ Créer          │ —          ││
-│  │ Chicken Street - Antony    │ 🔒 Protégé        │ —          ││
-│  └────────────────────────────┴───────────────────┴────────────┘│
-│                                                                 │
-│           [ Appliquer les changements ]                         │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Fichier | Modification |
+|---------|-------------|
+| `src/pages/ReportImport.tsx` | Ajouter "Valeur de la note" dans 2 emplacements |
 
-## Actions automatiques
+## Nettoyage optionnel
 
-| Situation | Action |
-|-----------|--------|
-| Restaurant protégé (déjà uber_store_id) | Aucune modification |
-| Match trouvé (similarité > 70%) | `UPDATE name = csvName, uber_store_id = storeId` |
-| Pas de match | `INSERT INTO restaurants (name, chain_id, uber_store_id, is_active)` |
-
-## Après l'import
-
-Toi tu pourras :
-1. Voir la liste des restaurants en base
-2. Supprimer manuellement les doublons/orphelins (ceux qui n'ont pas été matchés)
-3. Faire un autre import si nécessaire
-
-## Modifications techniques
-
-### Fichier : `src/pages/UberStoreMapping.tsx`
-
-1. **Simplifier le parsing du CSV**
-   - Extraire `store_id` et `store_name` pour chaque ligne
-   - Calculer automatiquement le meilleur match en base
-
-2. **Catégoriser chaque restaurant**
-   ```typescript
-   type ImportAction = 'protected' | 'rename' | 'create';
-   
-   interface ImportItem {
-     storeId: string;
-     storeName: string;        // Nom du CSV
-     action: ImportAction;
-     matchedRestaurantId?: string;
-     matchedRestaurantName?: string;
-     similarity?: number;
-   }
-   ```
-
-3. **Nouvelle mutation d'import**
-   ```typescript
-   // Pour les renommages
-   await supabase
-     .from("restaurants")
-     .update({ name: storeName, uber_store_id: storeId })
-     .eq("id", matchedId);
-   
-   // Pour les créations
-   await supabase
-     .from("restaurants")
-     .insert({
-       name: storeName,
-       uber_store_id: storeId,
-       chain_id: "chicken-street",  // ID de la chaîne par défaut
-       is_active: true
-     });
-   ```
-
-4. **Affichage simplifié**
-   - Liste avec icônes : 🔒 Protégé, ✏️ Renommer, ➕ Créer
-   - Bouton unique "Appliquer les changements"
-   - Compteurs en haut (protégés, renommés, créés)
-
-## Sécurités
-
-- Les 4 restaurants avec `uber_store_id` existant ne sont JAMAIS modifiés
-- Affichage clair de ce qui va se passer AVANT validation
-- Possibilité de voir le % de similarité pour les renommages
-
-## Fichiers à modifier
-
-| Fichier | Action |
-|---------|--------|
-| `src/pages/UberStoreMapping.tsx` | Refonte pour import automatique + création |
-
+Après le ré-import réussi, tu pourras supprimer les entrées erronées de `order_history` via l'historique des imports si nécessaire.
