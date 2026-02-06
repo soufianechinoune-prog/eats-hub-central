@@ -424,8 +424,8 @@ export default function ReportImport() {
     if (headerLine.includes("Période") && headerLine.includes("Ventes")) {
       return "sales_over_time";
     }
-    // Reviews Order Level
-    if ((headerLine.includes("Note du restaurant") || headerLine.includes("restaurant rating")) && 
+    // Reviews Order Level - MUST be checked BEFORE order_history because reviews files also contain "Id. de la commande"
+    if ((headerLine.includes("Note du restaurant") || headerLine.includes("Valeur de la note") || headerLine.includes("restaurant rating") || headerLine.includes("rating value")) && 
         (headerLine.includes("UUID de la commande") || headerLine.includes("Order UUID"))) {
       return "reviews_order";
     }
