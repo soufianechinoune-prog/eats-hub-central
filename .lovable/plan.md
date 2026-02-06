@@ -1,85 +1,120 @@
 
 
-# Plan : Renommer les restaurants avec les noms du CSV Uber
+# Plan : Import automatique + création des nouveaux restaurants
 
-## Objectif
+## Ce que le système fera
 
-Modifier l'outil de mapping pour qu'il :
-1. **Renomme** les restaurants en base avec les noms officiels du CSV Uber
-2. **Protège** les 4 restaurants déjà matchés (ne pas modifier leurs noms)
-3. **Associe** les `uber_store_id` comme avant
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│  Pour chaque restaurant dans le CSV :                           │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. Est-ce un des 4 protégés ?                                   │
+│     → OUI : On ne touche à rien                                  │
+│     → NON : Continuer                                            │
+│                                                                  │
+│  2. Match trouvé en base (similarité > 70%) ?                    │
+│     → OUI : Renommer avec le nom CSV + ajouter uber_store_id     │
+│     → NON : CRÉER un nouveau restaurant avec le nom CSV          │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
 
-## Restaurants protégés (ne seront PAS modifiés)
-
-| Restaurant | uber_store_id |
-|------------|---------------|
-| CHICKEN STREET ANTONY | 250e04f7-... |
-| CHICKEN STREET ATHIS-MONS | adeed447-... |
-| CHICKEN STREET BONNEUIL-SUR-MARNE | 723fa695-... |
-| CHICKEN STREET JUVISY-SUR-ORGE | 051979ae-... |
-
-## Comportement modifié
+## Interface simplifiée
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│  Mapping Uber Eats                                              │
+│  Import des restaurants Uber Eats                               │
 ├─────────────────────────────────────────────────────────────────┤
-│  Store CSV                │ Restaurant à associer │ Nouveau nom │
-│───────────────────────────┼───────────────────────┼─────────────│
-│  Chicken Street - Annecy  │ [CHICKEN STREET...]▼  │ ✓ Renommer  │
-│  Chicken Street - Lyon 1  │ [CHICKEN STREET...]▼  │ ✓ Renommer  │
-│  Chicken Street - Antony  │ ✓ Déjà associé        │ 🔒 Protégé  │
-├─────────────────────────────────────────────────────────────────┤
-│                    [ Enregistrer ]                              │
+│  📄 restaurant_rating_local.csv                                 │
+│                                                                 │
+│  Résumé :                                                       │
+│  🔒 4 protégés (Antony, Athis-Mons, Bonneuil, Juvisy)          │
+│  ✏️  52 à renommer (match trouvé en base)                       │
+│  ➕ 34 à créer (pas de match)                                   │
+│                                                                 │
+│  ┌────────────────────────────┬───────────────────┬────────────┐│
+│  │ Nom CSV                    │ Action            │ Match %    ││
+│  ├────────────────────────────┼───────────────────┼────────────┤│
+│  │ Chicken Street - Annecy    │ ✏️ Renommer       │ 85%        ││
+│  │ Chicken Street - Lyon 1    │ ➕ Créer          │ —          ││
+│  │ Chicken Street - Antony    │ 🔒 Protégé        │ —          ││
+│  └────────────────────────────┴───────────────────┴────────────┘│
+│                                                                 │
+│           [ Appliquer les changements ]                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+## Actions automatiques
+
+| Situation | Action |
+|-----------|--------|
+| Restaurant protégé (déjà uber_store_id) | Aucune modification |
+| Match trouvé (similarité > 70%) | `UPDATE name = csvName, uber_store_id = storeId` |
+| Pas de match | `INSERT INTO restaurants (name, chain_id, uber_store_id, is_active)` |
+
+## Après l'import
+
+Toi tu pourras :
+1. Voir la liste des restaurants en base
+2. Supprimer manuellement les doublons/orphelins (ceux qui n'ont pas été matchés)
+3. Faire un autre import si nécessaire
 
 ## Modifications techniques
 
 ### Fichier : `src/pages/UberStoreMapping.tsx`
 
-1. **Ajouter une colonne "Renommer"** dans le tableau
-   - Afficher le nouveau nom proposé (depuis le CSV)
-   - Cocher par défaut pour les restaurants non protégés
+1. **Simplifier le parsing du CSV**
+   - Extraire `store_id` et `store_name` pour chaque ligne
+   - Calculer automatiquement le meilleur match en base
 
-2. **Protéger les 4 restaurants matchés**
-   - Si `matchedRestaurantId` existe → badge "🔒 Protégé"
-   - Pas de modification du nom ni du mapping
+2. **Catégoriser chaque restaurant**
+   ```typescript
+   type ImportAction = 'protected' | 'rename' | 'create';
+   
+   interface ImportItem {
+     storeId: string;
+     storeName: string;        // Nom du CSV
+     action: ImportAction;
+     matchedRestaurantId?: string;
+     matchedRestaurantName?: string;
+     similarity?: number;
+   }
+   ```
 
-3. **Modifier la mutation de sauvegarde**
-   - En plus de mettre à jour `uber_store_id`
-   - Mettre à jour `name` avec le nom du CSV (si coché)
+3. **Nouvelle mutation d'import**
+   ```typescript
+   // Pour les renommages
+   await supabase
+     .from("restaurants")
+     .update({ name: storeName, uber_store_id: storeId })
+     .eq("id", matchedId);
+   
+   // Pour les créations
+   await supabase
+     .from("restaurants")
+     .insert({
+       name: storeName,
+       uber_store_id: storeId,
+       chain_id: "chicken-street",  // ID de la chaîne par défaut
+       is_active: true
+     });
+   ```
 
-```typescript
-// Dans la mutation de sauvegarde
-for (const { storeId, restaurantId, newName } of updates) {
-  const updateData: any = { uber_store_id: storeId };
-  
-  // Renommer seulement si demandé
-  if (newName) {
-    updateData.name = newName;
-  }
-  
-  await supabase
-    .from("restaurants")
-    .update(updateData)
-    .eq("id", restaurantId);
-}
-```
-
-4. **Ajouter un état pour les renommages**
-   - `renamings: Record<storeId, { restaurantId, newName, enabled }>`
-   - Checkbox pour activer/désactiver le renommage par restaurant
+4. **Affichage simplifié**
+   - Liste avec icônes : 🔒 Protégé, ✏️ Renommer, ➕ Créer
+   - Bouton unique "Appliquer les changements"
+   - Compteurs en haut (protégés, renommés, créés)
 
 ## Sécurités
 
-- Les 4 restaurants avec `uber_store_id` existant ne seront jamais modifiés
-- Confirmation visuelle avec badge "🔒 Protégé"
-- Pas de checkbox de renommage pour les restaurants protégés
+- Les 4 restaurants avec `uber_store_id` existant ne sont JAMAIS modifiés
+- Affichage clair de ce qui va se passer AVANT validation
+- Possibilité de voir le % de similarité pour les renommages
 
 ## Fichiers à modifier
 
 | Fichier | Action |
 |---------|--------|
-| `src/pages/UberStoreMapping.tsx` | Ajouter colonne renommage + protection des 4 matchés |
+| `src/pages/UberStoreMapping.tsx` | Refonte pour import automatique + création |
 
