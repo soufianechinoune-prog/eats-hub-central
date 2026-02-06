@@ -1,81 +1,93 @@
 
-# Adaptation de la page "Comparaison Notes" pour la Vue Réseau (100+ restaurants)
+# Plan : Corriger le matching des avis pour 100 restaurants
 
-## ✅ IMPLÉMENTÉ
+## Problème identifié
 
-### Contexte
+Le système d'import des avis (`parse-reviews-order`) ne trouve que **4 restaurants sur 97** car :
 
-- **97 restaurants actifs** dans la base
-- **4 restaurants épinglés** (pinned)
-- **1 485 avis** dans le fichier hebdomadaire (tout le réseau)
-- La page `/compare/ratings` charge maintenant **tout le réseau actif**
+1. **Seulement 4 restaurants ont un `uber_store_id` renseigné** dans la base
+2. Le matching par nom échoue car les noms dans le CSV Uber ne correspondent pas exactement aux noms en base
+3. **2245 lignes ont été ignorées** lors de l'import (restaurants non trouvés)
+
+## Solution proposée
+
+### Etape 1 : Enrichir les restaurants avec les `uber_store_id`
+
+Le CSV importé contient une colonne avec l'UUID du restaurant Uber. Il faut :
+
+1. Extraire tous les UUID uniques du CSV avec leur nom de restaurant
+2. Afficher une interface de mapping pour associer chaque UUID à un restaurant existant
+3. Mettre à jour la colonne `uber_store_id` pour chaque restaurant
+
+### Etape 2 : Améliorer le matching par nom (fallback)
+
+Améliorer la fonction `normalizeName` dans l'Edge Function pour mieux gérer :
+- Les variations de noms (CHICKEN STREET vs Chicken Street)
+- Les tirets vs espaces (ATHIS-MONS vs ATHIS MONS)
+- Les accents et caractères spéciaux
+
+### Etape 3 : Ré-importer les avis
+
+Une fois les `uber_store_id` renseignés, ré-importer le fichier CSV pour que tous les restaurants soient correctement matchés.
 
 ---
 
-## Structure de la page adaptée ✅
+## Modifications techniques
 
-| Section | Contenu | Comportement avec 100 restaurants |
-|---------|---------|-----------------------------------|
-| **KPIs Globaux** ✅ | Note moyenne réseau, Total avis, Uber Eats, Deliveroo | Agrégation de TOUS les restaurants |
-| **Classement par note** ✅ | Tableau triable avec tous les restaurants | Pagination (25 par page) |
-| **Heatmap par période** ✅ | Vue condensée par groupe/Top performers | Limité à Top 20, bouton "Voir tout" avec modale |
-| **Distribution des notes** ✅ | Histogramme 1-5 étoiles réseau | Agrégation globale |
-| **Tags les plus fréquents** ✅ | Top 10 tags positifs/négatifs réseau | Nouveau composant NetworkTagsAnalysis |
+### Fichier 1 : Nouvelle page de mapping `src/pages/UberStoreMapping.tsx`
 
----
+Créer une interface qui :
+1. Lit le CSV et extrait les paires `(store_id, store_name)`
+2. Pour chaque store_id non trouvé, propose un dropdown pour sélectionner le restaurant correspondant
+3. Met à jour en masse les `uber_store_id` dans la table `restaurants`
 
-## Modifications effectuées
-
-### 1. ✅ Source de données : Réseau complet
-
-**Fichier** : `src/pages/RatingsComparison.tsx`
-- Chargement de tous les restaurants avec `is_active = true`
-- Récupération des avis en batch (50 restaurants par requête)
-- Filtrage des restaurants sans avis
-
-### 2. ✅ Header avec compteur réseau
-
+```text
++--------------------------------------------------+
+|  Mapping des restaurants Uber Eats               |
++--------------------------------------------------+
+| Store Uber                  | Restaurant lié     |
+|-----------------------------|--------------------|
+| 250e04f7-... (CS Antony)    | ✓ CHICKEN STREET   |
+| 723fa695-... (CS Bonneuil)  | ✓ CHICKEN STREET   |
+| f8a3b2c1-... (CS Lyon 2e)   | [ Sélectionner ▼ ] |
+| d4e5f6a7-... (CS Marseille) | [ Sélectionner ▼ ] |
++--------------------------------------------------+
+|        [ Enregistrer les associations ]          |
++--------------------------------------------------+
 ```
-Comparaison Notes [Vue Réseau]
-Analyse de 97 restaurants | 26 janv. - 1 févr. 2026
-```
 
-### 3. ✅ Heatmap limité aux Top 20
+### Fichier 2 : Edge Function `supabase/functions/extract-uber-stores/index.ts`
 
-**Fichier** : `src/components/compare/RatingsHeatmapGrid.tsx`
-- Affiche les 20 premiers restaurants par défaut
-- Bouton "Voir les X autres restaurants" pour accéder à la liste complète
-- Modale avec pagination (20 par page)
+Nouvelle fonction qui :
+1. Parse le CSV
+2. Extrait les paires uniques `(uuid, store_name)`
+3. Compare avec les `uber_store_id` existants
+4. Retourne la liste des stores non associés
 
-### 4. ✅ Classement avec pagination
+### Fichier 3 : Mise à jour de la sidebar
 
-**Fichier** : `src/pages/RatingsComparison.tsx`
-- PAGE_SIZE = 25 restaurants par page
-- Pagination avec navigation intelligente (affiche max 5 pages)
-- Numérotation globale du rang préservée
-
-### 5. ✅ Tags du réseau
-
-**Nouveau composant** : `src/components/compare/NetworkTagsAnalysis.tsx`
-- Agrège tous les tags de tous les restaurants
-- Utilise les labels français de `src/lib/reviewTagLabels.ts`
-- Sépare tags positifs et négatifs
-- Affiche le Top 5 de chaque catégorie
+Ajouter un lien vers la page de mapping dans le menu Données.
 
 ---
 
-## Fichiers modifiés
+## Alternative rapide (recommandée)
 
-| Fichier | Action |
-|---------|--------|
-| `src/pages/RatingsComparison.tsx` | ✅ Réseau complet + pagination |
-| `src/components/compare/RatingsHeatmapGrid.tsx` | ✅ Top 20 + modale |
-| `src/components/compare/NetworkTagsAnalysis.tsx` | ✅ Nouveau composant |
+Si tu as le fichier avec tous les UUID Uber, je peux créer un script SQL qui met à jour directement les `uber_store_id` en matchant par nom de ville.
+
+Par exemple :
+```sql
+-- Associer automatiquement par extraction du nom de ville
+UPDATE restaurants 
+SET uber_store_id = 'uuid-du-csv'
+WHERE name ILIKE '%ATHIS-MONS%';
+```
 
 ---
 
 ## Prochaines étapes
 
-1. **Importer les avis** : Le fichier CSV doit être importé via l'outil d'import pour que les données apparaissent
-2. **Valider les seuils** : Définir les seuils de significativité (min 5 avis par restaurant) si nécessaire
-3. **Répliquer ce pattern** sur les autres pages de comparaison (Prep Time, Downtime, etc.)
+1. **Option A** : Tu me fournis un fichier avec la correspondance nom → UUID Uber, je mets à jour la base
+2. **Option B** : Je crée l'interface de mapping pour faire ça visuellement
+3. **Option C** : On améliore le matching par nom pour qu'il soit plus tolérant
+
+Quelle option préfères-tu ?
