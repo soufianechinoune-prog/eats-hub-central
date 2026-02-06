@@ -32,7 +32,7 @@ interface Restaurant {
 interface RestaurantShareActionsProps {
   selectedRestaurants: Restaurant[];
   onClear: () => void;
-  onDelete?: (ids: string[]) => Promise<void>;
+  onDelete?: (ids: string[], forceDelete?: boolean) => Promise<void>;
 }
 
 export function RestaurantShareActions({ selectedRestaurants, onClear, onDelete }: RestaurantShareActionsProps) {
@@ -40,22 +40,31 @@ export function RestaurantShareActions({ selectedRestaurants, onClear, onDelete 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = async () => {
+  const handleDelete = async (forceDelete: boolean = false) => {
     if (!onDelete) return;
     setIsDeleting(true);
     try {
-      await onDelete(selectedRestaurants.map(r => r.id));
+      await onDelete(selectedRestaurants.map(r => r.id), forceDelete);
       setShowDeleteDialog(false);
       toast({
         title: "Supprimé",
         description: `${selectedRestaurants.length} restaurant${selectedRestaurants.length > 1 ? 's' : ''} supprimé${selectedRestaurants.length > 1 ? 's' : ''}`,
       });
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de supprimer les restaurants",
-        variant: "destructive",
-      });
+    } catch (error: unknown) {
+      const err = error as { message?: string; code?: string };
+      if (err.message?.includes("foreign key constraint") || err.code === "23503") {
+        toast({
+          title: "Données liées existantes",
+          description: "Certains restaurants ont des commandes ou avis associés. Utilisez 'Supprimer tout' pour supprimer toutes les données.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erreur",
+          description: "Impossible de supprimer les restaurants",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsDeleting(false);
     }
@@ -241,22 +250,33 @@ export function RestaurantShareActions({ selectedRestaurants, onClear, onDelete 
             <AlertDialogDescription asChild>
               <div>
                 <p className="mb-2">Cette action est irréversible. Les restaurants suivants seront définitivement supprimés :</p>
-                <ul className="list-disc list-inside text-sm space-y-1">
+                <ul className="list-disc list-inside text-sm space-y-1 mb-3">
                   {selectedRestaurants.map(r => (
                     <li key={r.id} className="font-medium">{r.name} {r.city && <span className="text-muted-foreground font-normal">({r.city})</span>}</li>
                   ))}
                 </ul>
+                <p className="text-sm text-muted-foreground">
+                  <strong>Supprimer</strong> : Supprime uniquement si pas de données liées<br/>
+                  <strong>Supprimer tout</strong> : Supprime les restaurants ET toutes leurs données
+                </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
             <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
+              onClick={() => handleDelete(false)}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? "Suppression..." : "Supprimer"}
+              Supprimer
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => handleDelete(true)}
+              disabled={isDeleting}
+              className="bg-red-700 text-white hover:bg-red-800"
+            >
+              {isDeleting ? "Suppression..." : "⚠️ Supprimer tout"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
