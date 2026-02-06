@@ -224,7 +224,7 @@ export const RatingsFullRankingTable = ({
                         <div className="space-y-1">
                           <span className="font-medium">{restaurant.name}</span>
                           <div className="flex items-center gap-3">
-                            <div className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden min-w-[300px] max-w-[500px]">
+                            <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden min-w-[400px]">
                               <div 
                                 className={`h-full rounded-full ${getBarColor(restaurant.avgRating)}`}
                                 style={{ width: `${(restaurant.avgRating / 5) * 100}%` }}
