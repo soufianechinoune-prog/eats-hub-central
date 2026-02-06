@@ -78,7 +78,7 @@ export const RatingsFullRankingTable = ({
     // Set the restaurant in context and navigate to reviews page
     setVisibleRestaurants([restaurantId]);
     setSelectedRestaurants([restaurantId]);
-    navigate("/analytics?view=reviews");
+    navigate("/analytics/reviews");
   };
 
   const handleSort = (field: SortField) => {
