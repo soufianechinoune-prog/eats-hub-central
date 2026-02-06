@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Star, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -64,10 +66,20 @@ export const RatingsFullRankingTable = ({
   onExportPDF,
   isExporting = false
 }: RatingsFullRankingTableProps) => {
+  const navigate = useNavigate();
+  const { setSelectedRestaurants, setVisibleRestaurants } = useAnalyticsContext();
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("avgRating");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [currentPage, setCurrentPage] = useState(1);
+
+  const handleRowClick = (restaurantId: string) => {
+    // Set the restaurant in context and navigate to reviews page
+    setVisibleRestaurants([restaurantId]);
+    setSelectedRestaurants([restaurantId]);
+    navigate("/analytics?view=reviews");
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -225,7 +237,11 @@ export const RatingsFullRankingTable = ({
                 paginatedData.map((restaurant) => {
                   const rank = rankedData.get(restaurant.id) || 0;
                   return (
-                    <TableRow key={restaurant.id} className="hover:bg-muted/30">
+                    <TableRow 
+                      key={restaurant.id} 
+                      className="hover:bg-muted/30 cursor-pointer"
+                      onClick={() => handleRowClick(restaurant.id)}
+                    >
                       <TableCell className="text-center font-medium text-muted-foreground">
                         {rank}
                       </TableCell>
