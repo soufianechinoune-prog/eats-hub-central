@@ -98,6 +98,11 @@ const dataItems = [
     icon: FileUp,
   },
   {
+    title: "Mapping Uber",
+    url: "/uber-mapping",
+    icon: Store,
+  },
+  {
     title: "Catalogue Produits",
     url: "/menu-items",
     icon: UtensilsCrossed,

@@ -37,6 +37,7 @@ import RatingsComparison from "./pages/RatingsComparison";
 import OpeningHoursComparison from "./pages/OpeningHoursComparison";
 import PrepTimeComparison from "./pages/PrepTimeComparison";
 import InaccurateOrdersComparison from "./pages/InaccurateOrdersComparison";
+import UberStoreMapping from "./pages/UberStoreMapping";
 
 import ItemSales from "./pages/ItemSales";
 import MarketingAnalytics from "./pages/MarketingAnalytics";
@@ -289,6 +290,14 @@ const App = () => {
                 element={
                   <AppLayout>
                     <SuccessScore />
+                  </AppLayout>
+                }
+              />
+              <Route
+                path="/uber-mapping"
+                element={
+                  <AppLayout>
+                    <UberStoreMapping />
                   </AppLayout>
                 }
               />
