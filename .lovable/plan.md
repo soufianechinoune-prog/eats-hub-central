@@ -1,48 +1,59 @@
 
-# Plan : Corriger l'affichage du sélecteur de restaurant pour les avis
+# Plan : Supporter les fichiers CSV volumineux pour les avis
 
-## Problème identifié
+## Probleme identifie
 
-Le fichier `reportImportConfig.ts` configure correctement `reviews_order` et `reviews_item` avec `requiresRestaurant: false`, mais le code dans `ReportImport.tsx` contient **4 listes hardcodées** qui incluent encore ces types comme nécessitant un restaurant.
+L'edge function `parse-reviews-order` insere les avis **un par un** (boucle for avec upsert individuel), ce qui cause un timeout sur les fichiers volumineux (~9400 lignes = 9400 requetes reseau).
 
-Le parser `parse-reviews-order` est conçu pour gérer les fichiers **multi-restaurant** : il identifie automatiquement chaque restaurant via le `uber_store_id` du CSV ou par matching de nom.
-
-## Incohérences à corriger
-
-| Ligne | Code actuel | Correction |
-|-------|-------------|------------|
-| ~690 | `["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", ...]` | Retirer `"reviews_order"` et `"reviews_item"` |
-| ~728 | `["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", ...]` | Retirer `"reviews_order"` et `"reviews_item"` |
-| ~855 | `["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", ...]` | Retirer `"reviews_order"` et `"reviews_item"` |
-| ~1334 | `(reportType === "reviews_order" \|\| reportType === "reviews_item")` | Retirer ces conditions |
-
-## Solution recommandée
-
-Utiliser la configuration centralisée `requiresRestaurant()` de `reportImportConfig.ts` au lieu de listes hardcodées, pour éviter les divergences futures.
-
-**Fichier à modifier** : `src/pages/ReportImport.tsx`
-
-### Changements
-
-1. Importer la fonction `requiresRestaurant` depuis le fichier de config
-2. Remplacer les listes hardcodées par un appel à cette fonction
-3. Mettre à jour la condition UI du sélecteur de restaurant
-
-## Section technique
+### Logs d'erreur confirmes
 
 ```text
-Avant (hardcodé) :
-  const requiresRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", ...].includes(reportType);
-
-Après (centralisé) :
-  import { requiresRestaurant as checkRequiresRestaurant } from "@/lib/reportImportConfig";
-  const needsRestaurant = checkRequiresRestaurant(reportType);
+2026-02-06T15:48:42Z ERROR Insert error: 500: Internal server error (Cloudflare timeout)
 ```
 
-L'avantage : une seule source de vérité dans `reportImportConfig.ts`, évitant les incohérences futures.
+## Solution
 
-## Résultat attendu
+Modifier l'edge function pour utiliser des **batch upserts** comme le fait deja `parse-order-history` (batches de 500 lignes).
 
-- Le sélecteur de restaurant n'apparaîtra plus pour les fichiers d'avis
-- Le parser multi-restaurant identifiera automatiquement les restaurants via le CSV
-- Les 11 restaurants épinglés pourront être importés en une seule opération
+### Code actuel (lent)
+
+```typescript
+// Insere une ligne a la fois = 9400 requetes
+for (const review of reviewsToInsert) {
+  const { error } = await supabase
+    .from('customer_reviews')
+    .upsert(review, { onConflict: 'uber_order_id' });
+}
+```
+
+### Code corrige (rapide)
+
+```typescript
+// Insere par lots de 500 = ~19 requetes
+const batchSize = 500;
+for (let i = 0; i < reviewsToInsert.length; i += batchSize) {
+  const batch = reviewsToInsert.slice(i, i + batchSize);
+  const { error } = await supabase
+    .from('customer_reviews')
+    .upsert(batch, { 
+      onConflict: 'uber_order_id',
+      ignoreDuplicates: false 
+    });
+}
+```
+
+## Avantages
+
+| Aspect | Avant | Apres |
+|--------|-------|-------|
+| Requetes DB pour 9400 avis | ~9400 | ~19 |
+| Temps d'execution estime | >60s (timeout) | <5s |
+| Fichiers mensuels | Impossible | Possible |
+
+## Fichier a modifier
+
+`supabase/functions/parse-reviews-order/index.ts` (lignes 380-395)
+
+## Resultat attendu
+
+Le fichier mensuel de ~9400 avis s'importera en quelques secondes au lieu de timeout.
