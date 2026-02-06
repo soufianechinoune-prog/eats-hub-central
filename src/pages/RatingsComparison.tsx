@@ -373,68 +373,60 @@ const RatingsComparison = () => {
               totalReviews={globalStats.totalReviews}
             />
 
-            {/* Full Ranking Table with bars + Distribution side by side */}
-            <div className="grid lg:grid-cols-3 gap-6">
-              {/* Full Ranking Table - Takes 2 columns */}
-              <div className="lg:col-span-2">
-                <RatingsFullRankingTable 
-                  data={rankingStats}
-                  onExportPDF={handleExportPDF}
-                  isExporting={isExporting}
-                />
-              </div>
+            {/* Full Ranking Table - Full Width */}
+            <RatingsFullRankingTable 
+              data={rankingStats}
+              onExportPDF={handleExportPDF}
+              isExporting={isExporting}
+            />
 
-              {/* Rating Distribution */}
-              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Distribution des notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {distributionData.some(d => d.count > 0) ? (
-                    <ResponsiveContainer width="100%" height={400}>
-                      <BarChart data={distributionData} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                        <XAxis 
-                          type="number"
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
-                        <YAxis 
-                          type="category"
-                          dataKey="star"
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                          width={40}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'hsl(var(--card))', 
-                            borderColor: 'hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                          formatter={(value: number) => [value.toLocaleString('fr-FR'), 'Avis']}
-                        />
-                        <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                          {distributionData.map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={
-                                index === 4 ? "hsl(var(--chart-2))" :
-                                index === 3 ? "hsl(var(--chart-3))" :
-                                index === 2 ? "hsl(var(--chart-4))" :
-                                "hsl(var(--destructive))"
-                              }
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-[400px] text-muted-foreground">
-                      Aucune donnée disponible
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            {/* Rating Distribution - Full Width below */}
+            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Distribution des notes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {distributionData.some(d => d.count > 0) ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={distributionData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                      <XAxis 
+                        dataKey="star"
+                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      />
+                      <YAxis 
+                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--card))', 
+                          borderColor: 'hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                        formatter={(value: number) => [value.toLocaleString('fr-FR'), 'Avis']}
+                      />
+                      <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                        {distributionData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={
+                              index === 4 ? "hsl(var(--chart-2))" :
+                              index === 3 ? "hsl(var(--chart-3))" :
+                              index === 2 ? "hsl(var(--chart-4))" :
+                              "hsl(var(--destructive))"
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+                    Aucune donnée disponible
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Heatmap - Full Width */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
