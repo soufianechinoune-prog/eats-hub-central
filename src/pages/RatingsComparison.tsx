@@ -82,27 +82,41 @@ const RatingsComparison = () => {
     },
   });
 
-  // Fetch customer reviews
+  // Fetch customer reviews with pagination to bypass 1000 row limit
   const { data: reviewsData, isLoading } = useQuery({
     queryKey: ["ratings-comparison-network", allRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
       if (!allRestaurants?.length) return [];
       
       const allReviews: any[] = [];
-      const batchSize = 50;
+      const pageSize = 1000;
       
-      for (let i = 0; i < allRestaurants.length; i += batchSize) {
-        const batchIds = allRestaurants.slice(i, i + batchSize).map(r => r.id);
+      // Paginate through ALL reviews for the date range
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
         const { data, error } = await supabase
           .from("customer_reviews")
           .select("restaurant_id, overall_rating, review_date, platform, tags")
-          .in("restaurant_id", batchIds)
           .gte("review_date", dateRange.start.toISOString())
           .lte("review_date", dateRange.end.toISOString())
-          .not("overall_rating", "is", null);
+          .not("overall_rating", "is", null)
+          .order("review_date", { ascending: false })
+          .range(offset, offset + pageSize - 1);
         
         if (error) throw error;
-        if (data) allReviews.push(...data);
+        
+        if (data && data.length > 0) {
+          // Filter to only include restaurants we care about
+          const restaurantIds = new Set(allRestaurants.map(r => r.id));
+          const filteredData = data.filter(r => restaurantIds.has(r.restaurant_id));
+          allReviews.push(...filteredData);
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
       }
       
       return allReviews;
