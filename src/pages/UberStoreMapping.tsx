@@ -20,8 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, CheckCircle2, AlertCircle, Search, Save, RefreshCw } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle, Search, Save, RefreshCw, Lock } from "lucide-react";
 import { normalizeName, calculateSimilarity } from "@/lib/fuzzyMatch";
 
 interface UberStore {
@@ -46,6 +47,7 @@ export default function UberStoreMapping() {
   const [csvContent, setCsvContent] = useState<string | null>(null);
   const [uberStores, setUberStores] = useState<UberStore[]>([]);
   const [mappings, setMappings] = useState<Record<string, string>>({});
+  const [renamings, setRenamings] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(true);
 
@@ -162,6 +164,15 @@ export default function UberStoreMapping() {
 
     setUberStores(stores);
     
+    // Initialize renamings: enabled by default for unmatched stores
+    const initialRenamings: Record<string, boolean> = {};
+    stores.forEach(store => {
+      if (!store.matchedRestaurantId) {
+        initialRenamings[store.storeId] = true; // Checked by default
+      }
+    });
+    setRenamings(initialRenamings);
+    
     const unmatchedCount = stores.filter(s => !s.matchedRestaurantId).length;
     toast({
       title: `${stores.length} restaurants Uber détectés`,
@@ -171,37 +182,44 @@ export default function UberStoreMapping() {
 
   // Save mappings mutation
   const saveMappingsMutation = useMutation({
-    mutationFn: async (mappingsToSave: Record<string, string>) => {
-      const updates = Object.entries(mappingsToSave).map(([storeId, restaurantId]) => ({
-        storeId,
-        restaurantId,
-      }));
+    mutationFn: async (data: { mappings: Record<string, string>; renamings: Record<string, boolean>; stores: UberStore[] }) => {
+      const { mappings: mappingsToSave, renamings: renamingsToApply, stores } = data;
+      
+      const updates = Object.entries(mappingsToSave).map(([storeId, restaurantId]) => {
+        const store = stores.find(s => s.storeId === storeId);
+        return {
+          storeId,
+          restaurantId,
+          newName: renamingsToApply[storeId] ? store?.storeName : null,
+        };
+      });
 
-      for (const { storeId, restaurantId } of updates) {
+      for (const { storeId, restaurantId, newName } of updates) {
+        const updateData: { uber_store_id: string; name?: string } = { uber_store_id: storeId };
+        
+        // Rename only if enabled
+        if (newName) {
+          updateData.name = newName;
+        }
+        
         const { error } = await supabase
           .from("restaurants")
-          .update({ uber_store_id: storeId })
+          .update(updateData)
           .eq("id", restaurantId);
         
         if (error) throw error;
       }
 
-      return updates.length;
+      return { count: updates.length, renamed: updates.filter(u => u.newName).length };
     },
-    onSuccess: (count) => {
+    onSuccess: (result) => {
       toast({
         title: "Associations enregistrées",
-        description: `${count} restaurant(s) mis à jour`,
+        description: `${result.count} restaurant(s) associé(s), ${result.renamed} renommé(s)`,
       });
       queryClient.invalidateQueries({ queryKey: ["restaurants-for-mapping"] });
       setMappings({});
-      
-      // Re-process to update matched status
-      if (csvContent) {
-        const input = document.createElement("input");
-        input.type = "file";
-        // Trigger re-analysis would require re-uploading
-      }
+      setRenamings({});
     },
     onError: (error) => {
       toast({
@@ -239,6 +257,13 @@ export default function UberStoreMapping() {
     }));
   };
 
+  const handleToggleRename = (storeId: string, enabled: boolean) => {
+    setRenamings(prev => ({
+      ...prev,
+      [storeId]: enabled,
+    }));
+  };
+
   const handleSave = () => {
     if (Object.keys(mappings).length === 0) {
       toast({
@@ -248,11 +273,12 @@ export default function UberStoreMapping() {
       });
       return;
     }
-    saveMappingsMutation.mutate(mappings);
+    saveMappingsMutation.mutate({ mappings, renamings, stores: uberStores });
   };
 
   const handleAutoMatch = () => {
     const autoMappings: Record<string, string> = {};
+    const autoRenamings: Record<string, boolean> = {};
     
     for (const store of uberStores) {
       if (!store.matchedRestaurantId && store.suggestedRestaurantId && store.similarity >= 80) {
@@ -264,11 +290,13 @@ export default function UberStoreMapping() {
         
         if (!alreadyMapped) {
           autoMappings[store.storeId] = store.suggestedRestaurantId;
+          autoRenamings[store.storeId] = true; // Enable rename by default
         }
       }
     }
     
     setMappings(prev => ({ ...prev, ...autoMappings }));
+    setRenamings(prev => ({ ...prev, ...autoRenamings }));
     
     toast({
       title: `${Object.keys(autoMappings).length} associations automatiques`,
@@ -382,76 +410,111 @@ export default function UberStoreMapping() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Store Uber</TableHead>
+                    <TableHead>Store Uber (CSV)</TableHead>
                     <TableHead>Store ID</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead>Suggestion</TableHead>
                     <TableHead>Restaurant à associer</TableHead>
+                    <TableHead>Renommer</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredStores.map((store) => (
-                    <TableRow key={store.storeId}>
-                      <TableCell className="font-medium">{store.storeName}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {store.storeId.substring(0, 8)}...
-                      </TableCell>
-                      <TableCell>
-                        {store.matchedRestaurantId ? (
-                          <Badge variant="default">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            {store.matchedRestaurantName}
-                          </Badge>
-                        ) : mappings[store.storeId] ? (
-                          <Badge variant="secondary">
-                            En attente
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                            Non associé
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {store.suggestedRestaurantName && !store.matchedRestaurantId && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">{store.suggestedRestaurantName}</span>
-                            <Badge variant="outline">
-                              {store.similarity}%
+                  {filteredStores.map((store) => {
+                    const isProtected = !!store.matchedRestaurantId;
+                    const hasPendingMapping = !!mappings[store.storeId];
+                    
+                    return (
+                      <TableRow key={store.storeId}>
+                        <TableCell className="font-medium">{store.storeName}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {store.storeId.startsWith("name:") 
+                            ? <span className="italic">Nom uniquement</span>
+                            : `${store.storeId.substring(0, 8)}...`
+                          }
+                        </TableCell>
+                        <TableCell>
+                          {isProtected ? (
+                            <Badge variant="default">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              {store.matchedRestaurantName}
                             </Badge>
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {!store.matchedRestaurantId && (
-                          <Select
-                            value={mappings[store.storeId] || ""}
-                            onValueChange={(value) => handleSelectRestaurant(store.storeId, value)}
-                          >
-                            <SelectTrigger className="w-64">
-                              <SelectValue placeholder="Sélectionner un restaurant" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {store.suggestedRestaurantId && (
-                                <SelectItem value={store.suggestedRestaurantId}>
-                                  ⭐ {store.suggestedRestaurantName} ({store.similarity}%)
-                                </SelectItem>
-                              )}
-                              {restaurants
-                                .filter(r => r.id !== store.suggestedRestaurantId)
-                                .map((restaurant) => (
-                                  <SelectItem key={restaurant.id} value={restaurant.id}>
-                                    {restaurant.name}
-                                    {restaurant.uber_store_id && " ✓"}
+                          ) : hasPendingMapping ? (
+                            <Badge variant="secondary">
+                              En attente
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Non associé
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {store.suggestedRestaurantName && !isProtected && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">{store.suggestedRestaurantName}</span>
+                              <Badge variant="outline">
+                                {store.similarity}%
+                              </Badge>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {!isProtected && (
+                            <Select
+                              value={mappings[store.storeId] || ""}
+                              onValueChange={(value) => handleSelectRestaurant(store.storeId, value)}
+                            >
+                              <SelectTrigger className="w-64">
+                                <SelectValue placeholder="Sélectionner un restaurant" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {store.suggestedRestaurantId && (
+                                  <SelectItem value={store.suggestedRestaurantId}>
+                                    ⭐ {store.suggestedRestaurantName} ({store.similarity}%)
                                   </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                                )}
+                                {restaurants
+                                  .filter(r => r.id !== store.suggestedRestaurantId)
+                                  .map((restaurant) => (
+                                    <SelectItem key={restaurant.id} value={restaurant.id}>
+                                      {restaurant.name}
+                                      {restaurant.uber_store_id && " ✓"}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isProtected ? (
+                            <Badge variant="outline" className="text-muted-foreground">
+                              <Lock className="h-3 w-3 mr-1" />
+                              Protégé
+                            </Badge>
+                          ) : hasPendingMapping ? (
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`rename-${store.storeId}`}
+                                checked={renamings[store.storeId] ?? true}
+                                onCheckedChange={(checked) => 
+                                  handleToggleRename(store.storeId, checked === true)
+                                }
+                              />
+                              <label 
+                                htmlFor={`rename-${store.storeId}`}
+                                className="text-sm cursor-pointer"
+                              >
+                                Renommer
+                              </label>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
