@@ -75,22 +75,32 @@ export default function UberStoreMapping() {
     const lines = text.split("\n");
     const headers = lines[0].toLowerCase().split(",").map(h => h.trim().replace(/"/g, ""));
     
-    // Find store_id and store_name columns
+    // Find store_id and store_name columns (support multiple formats)
     const storeIdIndex = headers.findIndex(h => 
-      h.includes("store_id") || h.includes("restaurant_id") || h === "store id"
+      h.includes("store_id") || 
+      h.includes("id. externe du restaurant") ||
+      h.includes("restaurant_id") || 
+      h === "store id"
     );
     const storeNameIndex = headers.findIndex(h => 
-      h.includes("store_name") || h.includes("restaurant_name") || h === "store name"
+      h.includes("store_name") || 
+      h === "restaurant" ||
+      h.includes("restaurant_name") || 
+      h === "store name"
     );
 
-    if (storeIdIndex === -1 || storeNameIndex === -1) {
+    // Allow name-only matching if no store_id column
+    if (storeIdIndex === -1 && storeNameIndex === -1) {
       toast({
         title: "Format CSV non reconnu",
-        description: "Le fichier doit contenir des colonnes store_id et store_name",
+        description: "Le fichier doit contenir au minimum une colonne 'Restaurant' ou 'store_name'",
         variant: "destructive",
       });
       return;
     }
+
+    // Mode "nom uniquement" si pas de colonne store_id
+    const useNameAsId = storeIdIndex === -1;
 
     // Extract unique stores
     const storesMap = new Map<string, string>();
@@ -103,11 +113,17 @@ export default function UberStoreMapping() {
         c.replace(/^"|"$/g, "").replace(/""/g, '"').trim()
       ) || [];
       
-      const storeId = cells[storeIdIndex];
       const storeName = cells[storeNameIndex];
+      if (!storeName) continue;
       
-      if (storeId && storeName && !storesMap.has(storeId)) {
-        storesMap.set(storeId, storeName);
+      // Use external ID if available, otherwise generate key from name
+      const rawStoreId = useNameAsId ? null : cells[storeIdIndex];
+      const storeKey = rawStoreId && rawStoreId.trim() 
+        ? rawStoreId.trim() 
+        : `name:${normalizeName(storeName)}`;
+      
+      if (!storesMap.has(storeKey)) {
+        storesMap.set(storeKey, storeName);
       }
     }
 
