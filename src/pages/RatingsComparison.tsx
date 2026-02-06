@@ -215,7 +215,7 @@ const RatingsComparison = () => {
       }
     });
     return [1, 2, 3, 4, 5].map(star => ({
-      star: `${star} ★`,
+      star: `${star} étoiles`,
       count: aggregated[star as keyof typeof aggregated],
     }));
   }, [restaurantStats]);
