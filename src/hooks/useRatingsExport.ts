@@ -38,6 +38,11 @@ const getStatusColor = (rating: number): [number, number, number] => {
   return [239, 68, 68]; // red-500
 };
 
+// Helper to format numbers without non-breaking spaces (jsPDF doesn't render \u00A0 correctly)
+const formatNumber = (num: number): string => {
+  return num.toLocaleString("fr-FR").replace(/\u00A0/g, " ");
+};
+
 export const useRatingsExport = () => {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -125,17 +130,17 @@ export const useRatingsExport = () => {
         }
       };
 
-      drawKPICard(margin, yPos, "Note moyenne globale", `${data.globalStats.avgRating.toFixed(2)} / 5`, "⭐");
-      drawKPICard(margin + kpiCardWidth + 10, yPos, "Total avis", data.globalStats.totalReviews.toLocaleString("fr-FR"));
+      drawKPICard(margin, yPos, "Note moyenne globale", `${data.globalStats.avgRating.toFixed(2)} / 5`);
+      drawKPICard(margin + kpiCardWidth + 10, yPos, "Total avis", formatNumber(data.globalStats.totalReviews));
 
       yPos += kpiCardHeight + 10;
 
       if (data.globalStats.uberCount > 0) {
-        drawKPICard(margin, yPos, "Uber Eats", `${data.globalStats.uberAvg.toFixed(2)} / 5`, `${data.globalStats.uberCount.toLocaleString("fr-FR")} avis`);
+        drawKPICard(margin, yPos, "Uber Eats", `${data.globalStats.uberAvg.toFixed(2)} / 5`, `${formatNumber(data.globalStats.uberCount)} avis`);
       }
       
       if (data.globalStats.deliverooCount > 0) {
-        drawKPICard(margin + kpiCardWidth + 10, yPos, "Deliveroo", `${data.globalStats.deliverooAvg.toFixed(2)} / 5`, `${data.globalStats.deliverooCount.toLocaleString("fr-FR")} avis`);
+        drawKPICard(margin + kpiCardWidth + 10, yPos, "Deliveroo", `${data.globalStats.deliverooAvg.toFixed(2)} / 5`, `${formatNumber(data.globalStats.deliverooCount)} avis`);
       }
 
       yPos += kpiCardHeight + 25;
@@ -174,7 +179,7 @@ export const useRatingsExport = () => {
 
         // Count
         pdf.setTextColor(...mutedColor);
-        pdf.text(item.count.toLocaleString("fr-FR"), margin + 30 + barWidth, yPos + 8);
+        pdf.text(formatNumber(item.count), margin + 30 + barWidth, yPos + 8);
 
         yPos += barHeight + 5;
       });
@@ -210,7 +215,7 @@ export const useRatingsExport = () => {
           pdf.text(item.name, margin + 20, itemY);
           pdf.text(`${item.avgRating.toFixed(2)}`, margin + contentWidth - 40, itemY);
           pdf.setTextColor(...mutedColor);
-          pdf.text(`(${item.totalReviews} avis)`, margin + contentWidth - 20, itemY);
+          pdf.text(`(${formatNumber(item.totalReviews)} avis)`, margin + contentWidth - 20, itemY);
           itemY += 10;
         });
 
