@@ -223,14 +223,14 @@ export const RatingsFullRankingTable = ({
                       <TableCell>
                         <div className="space-y-1">
                           <span className="font-medium">{restaurant.name}</span>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden max-w-[200px]">
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 h-2.5 bg-muted rounded-full overflow-hidden min-w-[300px] max-w-[500px]">
                               <div 
                                 className={`h-full rounded-full ${getBarColor(restaurant.avgRating)}`}
                                 style={{ width: `${(restaurant.avgRating / 5) * 100}%` }}
                               />
                             </div>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
                               {restaurant.totalReviews} avis
                             </span>
                           </div>
