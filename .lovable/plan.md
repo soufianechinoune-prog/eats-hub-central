@@ -1,111 +1,85 @@
 
-# Plan : Adapter le mapping pour accepter le fichier des avis
 
-## Problème identifié
+# Plan : Renommer les restaurants avec les noms du CSV Uber
 
-Le fichier CSV des avis (`restaurant_rating_local_*.csv`) a ces colonnes :
-| Colonne | Exemple |
-|---------|---------|
-| `Restaurant` | Chicken Street - Annemasse |
-| `Id. externe du restaurant` | BYS00293 (optionnel) |
+## Objectif
 
-Mais le code de mapping cherche :
-- `store_id` → non trouvé
-- `store_name` → non trouvé
+Modifier l'outil de mapping pour qu'il :
+1. **Renomme** les restaurants en base avec les noms officiels du CSV Uber
+2. **Protège** les 4 restaurants déjà matchés (ne pas modifier leurs noms)
+3. **Associe** les `uber_store_id` comme avant
 
-## Solution
+## Restaurants protégés (ne seront PAS modifiés)
 
-Modifier `UberStoreMapping.tsx` pour reconnaître les colonnes du fichier d'avis Uber Eats :
+| Restaurant | uber_store_id |
+|------------|---------------|
+| CHICKEN STREET ANTONY | 250e04f7-... |
+| CHICKEN STREET ATHIS-MONS | adeed447-... |
+| CHICKEN STREET BONNEUIL-SUR-MARNE | 723fa695-... |
+| CHICKEN STREET JUVISY-SUR-ORGE | 051979ae-... |
+
+## Comportement modifié
 
 ```text
-// Headers à chercher (ordre de priorité)
-store_id: "store_id", "id. externe du restaurant", "restaurant_id"
-store_name: "store_name", "restaurant", "restaurant_name"
+┌─────────────────────────────────────────────────────────────────┐
+│  Mapping Uber Eats                                              │
+├─────────────────────────────────────────────────────────────────┤
+│  Store CSV                │ Restaurant à associer │ Nouveau nom │
+│───────────────────────────┼───────────────────────┼─────────────│
+│  Chicken Street - Annecy  │ [CHICKEN STREET...]▼  │ ✓ Renommer  │
+│  Chicken Street - Lyon 1  │ [CHICKEN STREET...]▼  │ ✓ Renommer  │
+│  Chicken Street - Antony  │ ✓ Déjà associé        │ 🔒 Protégé  │
+├─────────────────────────────────────────────────────────────────┤
+│                    [ Enregistrer ]                              │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Modifications techniques
 
 ### Fichier : `src/pages/UberStoreMapping.tsx`
 
-**Ligne 79-84** - Ajouter la reconnaissance des nouvelles colonnes :
+1. **Ajouter une colonne "Renommer"** dans le tableau
+   - Afficher le nouveau nom proposé (depuis le CSV)
+   - Cocher par défaut pour les restaurants non protégés
+
+2. **Protéger les 4 restaurants matchés**
+   - Si `matchedRestaurantId` existe → badge "🔒 Protégé"
+   - Pas de modification du nom ni du mapping
+
+3. **Modifier la mutation de sauvegarde**
+   - En plus de mettre à jour `uber_store_id`
+   - Mettre à jour `name` avec le nom du CSV (si coché)
 
 ```typescript
-// AVANT
-const storeIdIndex = headers.findIndex(h => 
-  h.includes("store_id") || h.includes("restaurant_id") || h === "store id"
-);
-const storeNameIndex = headers.findIndex(h => 
-  h.includes("store_name") || h.includes("restaurant_name") || h === "store name"
-);
-
-// APRES
-const storeIdIndex = headers.findIndex(h => 
-  h.includes("store_id") || 
-  h.includes("id. externe du restaurant") ||
-  h.includes("restaurant_id") || 
-  h === "store id"
-);
-const storeNameIndex = headers.findIndex(h => 
-  h.includes("store_name") || 
-  h === "restaurant" ||
-  h.includes("restaurant_name") || 
-  h === "store name"
-);
-```
-
-**Ligne 86-93** - Gérer le cas où `store_id` est optionnel (certains restaurants n'ont pas d'ID externe) :
-
-```typescript
-// Permettre le matching par nom uniquement si pas de store_id
-if (storeIdIndex === -1 && storeNameIndex === -1) {
-  toast({
-    title: "Format CSV non reconnu",
-    description: "Le fichier doit contenir au minimum une colonne 'Restaurant' ou 'store_name'",
-    variant: "destructive",
-  });
-  return;
-}
-
-// Mode "nom uniquement" si pas de colonne store_id
-const useNameAsId = storeIdIndex === -1;
-```
-
-**Ligne 95-112** - Adapter l'extraction pour utiliser le nom comme clé si pas d'ID :
-
-```typescript
-// Extract unique stores
-const storesMap = new Map<string, string>();
-for (let i = 1; i < lines.length; i++) {
-  // ...parsing...
+// Dans la mutation de sauvegarde
+for (const { storeId, restaurantId, newName } of updates) {
+  const updateData: any = { uber_store_id: storeId };
   
-  // Utiliser l'ID externe s'il existe, sinon générer un ID basé sur le nom
-  const rawStoreId = useNameAsId ? null : cells[storeIdIndex];
-  const storeName = cells[storeNameIndex];
-  
-  if (storeName) {
-    // Clé = ID externe si disponible, sinon hash du nom
-    const storeKey = rawStoreId && rawStoreId.trim() 
-      ? rawStoreId.trim() 
-      : `name:${normalizeName(storeName)}`;
-    
-    if (!storesMap.has(storeKey)) {
-      storesMap.set(storeKey, storeName);
-    }
+  // Renommer seulement si demandé
+  if (newName) {
+    updateData.name = newName;
   }
+  
+  await supabase
+    .from("restaurants")
+    .update(updateData)
+    .eq("id", restaurantId);
 }
 ```
 
-## Résultat attendu
+4. **Ajouter un état pour les renommages**
+   - `renamings: Record<storeId, { restaurantId, newName, enabled }>`
+   - Checkbox pour activer/désactiver le renommage par restaurant
 
-Après cette modification :
-1. Tu uploades le fichier `restaurant_rating_local_*.csv`
-2. Le système détecte ~60 restaurants uniques par leur nom
-3. Tu fais le matching visuel avec les restaurants en base
-4. Tu enregistres → les `uber_store_id` sont renseignés
-5. Tu peux ré-importer les avis → ils seront correctement associés
+## Sécurités
+
+- Les 4 restaurants avec `uber_store_id` existant ne seront jamais modifiés
+- Confirmation visuelle avec badge "🔒 Protégé"
+- Pas de checkbox de renommage pour les restaurants protégés
 
 ## Fichiers à modifier
 
 | Fichier | Action |
 |---------|--------|
-| `src/pages/UberStoreMapping.tsx` | Adapter la détection des colonnes pour supporter le format du fichier d'avis |
+| `src/pages/UberStoreMapping.tsx` | Ajouter colonne renommage + protection des 4 matchés |
+
