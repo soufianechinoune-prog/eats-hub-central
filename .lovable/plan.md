@@ -1,59 +1,69 @@
 
-# Plan : Corriger l'import des fichiers d'avis Uber Eats
+# Plan : Synchroniser la période lors du clic sur un restaurant
 
-## Diagnostic du problème
+## Diagnostic
 
-Le fichier `restaurant_rating_local.csv` contient la colonne "Valeur de la note" mais la détection automatique cherche uniquement "Note du restaurant". Résultat : le fichier est incorrectement détecté comme "Historique des commandes" car il contient "Id. de la commande" et "Heure de la commande".
+| Page | Filtre date | Mode date | Période |
+|------|-------------|-----------|---------|
+| Comparaison Notes | `review_date` | - | Mois précédent (1-31 janv) |
+| Reviews | `order_date` OU `review_date` | `dateMode` (défaut: "order") | Lit le contexte Analytics |
 
-Les 9369 avis ont été insérés dans `order_history` au lieu de `customer_reviews`.
+L'écart de 3 avis (83 → 80) vient du fait que :
+1. La page Comparaison filtre sur `review_date`
+2. La page Reviews filtre sur `order_date` par défaut
+3. Certains avis ont une `order_date` différente de leur `review_date`
 
-## Solution en 2 étapes
+## Solution
 
-### Etape 1 : Corriger la détection automatique
+### Modification : `src/components/compare/RatingsFullRankingTable.tsx`
 
-**Fichier** : `src/pages/ReportImport.tsx`
+Lors du clic sur un restaurant, synchroniser le contexte Analytics avec la période de la page Comparaison :
 
-Ajouter "Valeur de la note" dans la détection des avis (fonction `detectReportType` et `parsePreview`).
+```typescript
+// Props à ajouter
+interface RatingsFullRankingTableProps {
+  data: RestaurantRating[];
+  onExportPDF?: () => void;
+  isExporting?: boolean;
+  dateRange?: { start: Date; end: Date }; // ← NOUVEAU
+}
 
-Modifications :
-1. Ligne ~428 : Ajouter la condition `headerLine.includes("Valeur de la note")` au pattern de détection `reviews_order`
-2. Ligne ~550 : Ajouter la même condition pour la détection des en-têtes de prévisualisation
-
-Cela permettra aux futurs fichiers d'avis avec "Valeur de la note" d'être correctement routés vers le parser `parse-reviews-order`.
-
-### Etape 2 : Ré-importer le fichier
-
-Après la correction, tu pourras ré-importer le même fichier CSV et il sera correctement détecté comme "Avis par commande".
-
-## Section technique
-
-```text
-+--------------------------------------------------+
-|  Logique de détection actuelle                   |
-+--------------------------------------------------+
-|  reviews_order = "Note du restaurant" +          |
-|                  "UUID de la commande"           |
-+--------------------------------------------------+
-|  order_history = "Id. de la commande" +          |
-|                  "Heure de la commande"          |
-+--------------------------------------------------+
-
-Le fichier contient :
-- "Valeur de la note" (non reconnu ❌)
-- "UUID de la commande" ✓
-- "Id. de la commande" ✓  → Match order_history!
-- "Heure de la commande" ✓
-
-Solution: Ajouter "Valeur de la note" au pattern reviews_order
-          et le placer AVANT order_history dans l'ordre de détection
+// Dans handleRowClick, synchroniser la période
+const handleRowClick = (restaurantId: string) => {
+  setVisibleRestaurants([restaurantId]);
+  setSelectedRestaurants([restaurantId]);
+  
+  // Synchroniser la période
+  if (dateRange) {
+    setContextDateRange({ from: dateRange.start, to: dateRange.end });
+    setPeriodMode("range");
+  }
+  
+  navigate("/analytics/reviews");
+};
 ```
 
-### Fichiers modifiés
+### Modification : `src/pages/RatingsComparison.tsx`
 
-| Fichier | Modification |
-|---------|-------------|
-| `src/pages/ReportImport.tsx` | Ajouter "Valeur de la note" dans 2 emplacements |
+Passer le `dateRange` au composant :
 
-## Nettoyage optionnel
+```typescript
+<RatingsFullRankingTable 
+  data={rankingStats}
+  onExportPDF={handleExportPDF}
+  isExporting={isExporting}
+  dateRange={dateRange}  // ← NOUVEAU
+/>
+```
 
-Après le ré-import réussi, tu pourras supprimer les entrées erronées de `order_history` via l'historique des imports si nécessaire.
+## Résultat attendu
+
+Quand l'utilisateur clique sur "Chicken Street - Douai" :
+1. Le contexte est mis à jour avec la plage 1-31 janvier 2026
+2. Le `periodMode` passe en "range"
+3. La page Reviews affiche les avis pour la même période
+4. Le nombre d'avis sera cohérent (83 avis avec filtre `review_date`)
+
+## Note
+
+L'écart restant possible (83 vs 80) viendrait du toggle "Par: Commande / Avis" sur la page Reviews. Si l'utilisateur veut voir exactement le même nombre, il devrait basculer sur "Avis" (qui filtre sur `review_date`).
