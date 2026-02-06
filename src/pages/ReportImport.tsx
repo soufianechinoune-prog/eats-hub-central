@@ -686,9 +686,9 @@ export default function ReportImport() {
       return;
     }
 
-    // For sales_over_time, marketing_campaigns, reviews, order_accuracy_summary, item_issues_leaderboard, and conversion_funnel, restaurant selection is required
-    const requiresRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"].includes(reportType);
-    if (requiresRestaurant && !selectedRestaurantId) {
+    // For sales_over_time, marketing_campaigns, order_accuracy_summary, item_issues_leaderboard, and conversion_funnel, restaurant selection is required
+    const requiresRestaurantSelection = ["sales_over_time", "marketing_campaigns", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"].includes(reportType);
+    if (requiresRestaurantSelection && !selectedRestaurantId) {
       toast({
         title: "Restaurant requis",
         description: "Veuillez sélectionner un restaurant pour ce type de rapport",
@@ -724,8 +724,8 @@ export default function ReportImport() {
         fileName: file?.name,
       };
 
-      // Add restaurantId for specific report types
-      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"];
+      // Add restaurantId for specific report types (reviews_order/reviews_item are multi-restaurant and identify via CSV)
+      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"];
       if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
         body.restaurantId = selectedRestaurantId;
       }
@@ -851,8 +851,8 @@ export default function ReportImport() {
         fileName: file?.name,
       };
 
-      // Add restaurantId for specific report types
-      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "reviews_order", "reviews_item", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"];
+      // Add restaurantId for specific report types (reviews_order/reviews_item are multi-restaurant and identify via CSV)
+      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"];
       if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
         body.restaurantId = selectedRestaurantId;
       }
@@ -1330,8 +1330,8 @@ export default function ReportImport() {
                     </CardDescription>
                   </div>
                   
-                  {/* Sélecteur de restaurant pour les types qui le nécessitent */}
-                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "reviews_order" || reportType === "reviews_item") && (
+                  {/* Sélecteur de restaurant pour les types qui le nécessitent (reviews sont multi-restaurant) */}
+                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns") && (
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium text-muted-foreground">Restaurant :</span>
                       <Select value={selectedRestaurantId} onValueChange={setSelectedRestaurantId}>
