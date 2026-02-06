@@ -202,13 +202,22 @@ export const RatingsFullRankingTable = ({
                     <SortIcon field="avgRating" />
                   </button>
                 </TableHead>
+                <TableHead className="text-center w-24">
+                  <button 
+                    className="flex items-center justify-center hover:text-foreground transition-colors mx-auto"
+                    onClick={() => handleSort("totalReviews")}
+                  >
+                    Avis
+                    <SortIcon field="totalReviews" />
+                  </button>
+                </TableHead>
                 <TableHead className="text-center w-28">Statut</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginatedData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     Aucun restaurant trouvé
                   </TableCell>
                 </TableRow>
@@ -230,9 +239,6 @@ export const RatingsFullRankingTable = ({
                                 style={{ width: `${(restaurant.avgRating / 5) * 100}%` }}
                               />
                             </div>
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                              {restaurant.totalReviews} avis
-                            </span>
                           </div>
                         </div>
                       </TableCell>
@@ -241,6 +247,9 @@ export const RatingsFullRankingTable = ({
                           <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
                           <span className="font-semibold">{restaurant.avgRating.toFixed(2)}</span>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="text-sm font-medium">{restaurant.totalReviews}</span>
                       </TableCell>
                       <TableCell className="text-center">
                         {getStatusBadge(restaurant.avgRating)}
