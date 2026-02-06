@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { RatingsHeatmapGrid } from "@/components/compare/RatingsHeatmapGrid";
-import { RatingsRankingBars } from "@/components/compare/RatingsRankingBars";
+
 import { RatingsInsightsSection } from "@/components/compare/RatingsInsightsSection";
 import { RatingsFullRankingTable } from "@/components/compare/RatingsFullRankingTable";
 import { NetworkTagsAnalysis } from "@/components/compare/NetworkTagsAnalysis";
@@ -373,24 +373,16 @@ const RatingsComparison = () => {
               totalReviews={globalStats.totalReviews}
             />
 
-            {/* Ranking Bars + Distribution */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Star className="h-5 w-5 text-amber-500" />
-                    Classement par note
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <RatingsRankingBars 
-                    stats={rankingStats}
-                    dateRange={dateRange}
-                    showTop={10}
-                    showBottom={5}
-                  />
-                </CardContent>
-              </Card>
+            {/* Full Ranking Table with bars + Distribution side by side */}
+            <div className="grid lg:grid-cols-3 gap-6">
+              {/* Full Ranking Table - Takes 2 columns */}
+              <div className="lg:col-span-2">
+                <RatingsFullRankingTable 
+                  data={rankingStats}
+                  onExportPDF={handleExportPDF}
+                  isExporting={isExporting}
+                />
+              </div>
 
               {/* Rating Distribution */}
               <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
@@ -399,15 +391,18 @@ const RatingsComparison = () => {
                 </CardHeader>
                 <CardContent>
                   {distributionData.some(d => d.count > 0) ? (
-                    <ResponsiveContainer width="100%" height={350}>
-                      <BarChart data={distributionData}>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart data={distributionData} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                         <XAxis 
-                          dataKey="star"
+                          type="number"
                           tick={{ fill: 'hsl(var(--muted-foreground))' }}
                         />
                         <YAxis 
+                          type="category"
+                          dataKey="star"
                           tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          width={40}
                         />
                         <Tooltip 
                           contentStyle={{ 
@@ -417,7 +412,7 @@ const RatingsComparison = () => {
                           }}
                           formatter={(value: number) => [value.toLocaleString('fr-FR'), 'Avis']}
                         />
-                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                        <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                           {distributionData.map((entry, index) => (
                             <Cell 
                               key={`cell-${index}`} 
@@ -433,7 +428,7 @@ const RatingsComparison = () => {
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="flex items-center justify-center h-[350px] text-muted-foreground">
+                    <div className="flex items-center justify-center h-[400px] text-muted-foreground">
                       Aucune donnée disponible
                     </div>
                   )}
@@ -458,13 +453,6 @@ const RatingsComparison = () => {
                 />
               </CardContent>
             </Card>
-
-            {/* Full Ranking Table with Export */}
-            <RatingsFullRankingTable 
-              data={rankingStats}
-              onExportPDF={handleExportPDF}
-              isExporting={isExporting}
-            />
 
             {/* Network Tags Analysis */}
             {reviewsData && reviewsData.length > 0 && (

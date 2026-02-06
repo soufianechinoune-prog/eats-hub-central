@@ -50,6 +50,13 @@ const getStatusBadge = (rating: number) => {
   return <Badge className="bg-red-500/20 text-red-600 border-red-500/30">À surveiller</Badge>;
 };
 
+const getBarColor = (rating: number) => {
+  if (rating >= 4.7) return "bg-emerald-500";
+  if (rating >= 4.5) return "bg-green-500";
+  if (rating >= 4.2) return "bg-amber-500";
+  return "bg-red-500";
+};
+
 const ITEMS_PER_PAGE = 25;
 
 export const RatingsFullRankingTable = ({ 
@@ -177,7 +184,7 @@ export const RatingsFullRankingTable = ({
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="w-16 text-center">#</TableHead>
-                <TableHead>
+                <TableHead className="min-w-[280px]">
                   <button 
                     className="flex items-center hover:text-foreground transition-colors"
                     onClick={() => handleSort("name")}
@@ -186,7 +193,7 @@ export const RatingsFullRankingTable = ({
                     <SortIcon field="name" />
                   </button>
                 </TableHead>
-                <TableHead className="text-center">
+                <TableHead className="text-center w-24">
                   <button 
                     className="flex items-center justify-center hover:text-foreground transition-colors mx-auto"
                     onClick={() => handleSort("avgRating")}
@@ -195,22 +202,13 @@ export const RatingsFullRankingTable = ({
                     <SortIcon field="avgRating" />
                   </button>
                 </TableHead>
-                <TableHead className="text-center">
-                  <button 
-                    className="flex items-center justify-center hover:text-foreground transition-colors mx-auto"
-                    onClick={() => handleSort("totalReviews")}
-                  >
-                    Avis
-                    <SortIcon field="totalReviews" />
-                  </button>
-                </TableHead>
-                <TableHead className="text-center">Statut</TableHead>
+                <TableHead className="text-center w-28">Statut</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginatedData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                     Aucun restaurant trouvé
                   </TableCell>
                 </TableRow>
@@ -222,15 +220,27 @@ export const RatingsFullRankingTable = ({
                       <TableCell className="text-center font-medium text-muted-foreground">
                         {rank}
                       </TableCell>
-                      <TableCell className="font-medium">{restaurant.name}</TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <span className="font-medium">{restaurant.name}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden max-w-[200px]">
+                              <div 
+                                className={`h-full rounded-full ${getBarColor(restaurant.avgRating)}`}
+                                style={{ width: `${(restaurant.avgRating / 5) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {restaurant.totalReviews} avis
+                            </span>
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
                           <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
                           <span className="font-semibold">{restaurant.avgRating.toFixed(2)}</span>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-center text-muted-foreground">
-                        {restaurant.totalReviews.toLocaleString('fr-FR')}
                       </TableCell>
                       <TableCell className="text-center">
                         {getStatusBadge(restaurant.avgRating)}
