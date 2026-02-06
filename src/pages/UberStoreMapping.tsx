@@ -12,44 +12,36 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, CheckCircle2, AlertCircle, Search, Save, RefreshCw, Lock } from "lucide-react";
+import { Upload, Lock, Pencil, Plus, Search, Loader2 } from "lucide-react";
 import { normalizeName, calculateSimilarity } from "@/lib/fuzzyMatch";
 
-interface UberStore {
+type ImportAction = "protected" | "rename" | "create";
+
+interface ImportItem {
   storeId: string;
-  storeName: string;
-  matchedRestaurantId: string | null;
-  matchedRestaurantName: string | null;
-  suggestedRestaurantId: string | null;
-  suggestedRestaurantName: string | null;
-  similarity: number;
+  storeName: string; // Nom du CSV (source de vérité)
+  action: ImportAction;
+  matchedRestaurantId?: string;
+  matchedRestaurantName?: string;
+  similarity?: number;
 }
 
 interface Restaurant {
   id: string;
   name: string;
   uber_store_id: string | null;
+  chain_id: string | null;
 }
+
+const SIMILARITY_THRESHOLD = 70;
 
 export default function UberStoreMapping() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [csvContent, setCsvContent] = useState<string | null>(null);
-  const [uberStores, setUberStores] = useState<UberStore[]>([]);
-  const [mappings, setMappings] = useState<Record<string, string>>({});
-  const [renamings, setRenamings] = useState<Record<string, boolean>>({});
+  const [importItems, setImportItems] = useState<ImportItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(true);
 
   // Fetch all restaurants
   const { data: restaurants = [], isLoading: loadingRestaurants } = useQuery({
@@ -57,7 +49,7 @@ export default function UberStoreMapping() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, uber_store_id")
+        .select("id, name, uber_store_id, chain_id")
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
@@ -65,43 +57,51 @@ export default function UberStoreMapping() {
     },
   });
 
-  // Extract uber stores from CSV
+  // Get protected restaurant IDs (those already with uber_store_id)
+  const protectedRestaurantIds = useMemo(() => {
+    return new Set(
+      restaurants
+        .filter((r) => r.uber_store_id)
+        .map((r) => r.id)
+    );
+  }, [restaurants]);
+
+  // Parse CSV and automatically categorize each item
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const text = await file.text();
-    setCsvContent(text);
-    
+
     // Parse CSV to extract store_id and store_name
     const lines = text.split("\n");
-    const headers = lines[0].toLowerCase().split(",").map(h => h.trim().replace(/"/g, ""));
-    
-    // Find store_id and store_name columns (support multiple formats)
-    const storeIdIndex = headers.findIndex(h => 
-      h.includes("store_id") || 
-      h.includes("id. externe du restaurant") ||
-      h.includes("restaurant_id") || 
-      h === "store id"
+    const headers = lines[0].toLowerCase().split(",").map((h) => h.trim().replace(/"/g, ""));
+
+    // Find store_id and store_name columns
+    const storeIdIndex = headers.findIndex(
+      (h) =>
+        h.includes("store_id") ||
+        h.includes("id. externe du restaurant") ||
+        h.includes("restaurant_id") ||
+        h === "store id"
     );
-    const storeNameIndex = headers.findIndex(h => 
-      h.includes("store_name") || 
-      h === "restaurant" ||
-      h.includes("restaurant_name") || 
-      h === "store name"
+    const storeNameIndex = headers.findIndex(
+      (h) =>
+        h.includes("store_name") ||
+        h === "restaurant" ||
+        h.includes("restaurant_name") ||
+        h === "store name"
     );
 
-    // Allow name-only matching if no store_id column
-    if (storeIdIndex === -1 && storeNameIndex === -1) {
+    if (storeNameIndex === -1) {
       toast({
         title: "Format CSV non reconnu",
-        description: "Le fichier doit contenir au minimum une colonne 'Restaurant' ou 'store_name'",
+        description: "Le fichier doit contenir une colonne 'Restaurant' ou 'store_name'",
         variant: "destructive",
       });
       return;
     }
 
-    // Mode "nom uniquement" si pas de colonne store_id
     const useNameAsId = storeIdIndex === -1;
 
     // Extract unique stores
@@ -109,211 +109,238 @@ export default function UberStoreMapping() {
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i];
       if (!line.trim()) continue;
-      
-      // Handle CSV with quoted fields
-      const cells = line.match(/("([^"]|"")*"|[^,]*)/g)?.map(c => 
-        c.replace(/^"|"$/g, "").replace(/""/g, '"').trim()
-      ) || [];
-      
+
+      const cells =
+        line.match(/("([^"]|"")*"|[^,]*)/g)?.map((c) =>
+          c
+            .replace(/^"|"$/g, "")
+            .replace(/""/g, '"')
+            .trim()
+        ) || [];
+
       const storeName = cells[storeNameIndex];
       if (!storeName) continue;
-      
-      // Use external ID if available, otherwise generate key from name
+
       const rawStoreId = useNameAsId ? null : cells[storeIdIndex];
-      const storeKey = rawStoreId && rawStoreId.trim() 
-        ? rawStoreId.trim() 
-        : `name:${normalizeName(storeName)}`;
-      
+      const storeKey =
+        rawStoreId && rawStoreId.trim()
+          ? rawStoreId.trim()
+          : `name:${normalizeName(storeName)}`;
+
       if (!storesMap.has(storeKey)) {
         storesMap.set(storeKey, storeName);
       }
     }
 
-    // Match with existing restaurants
-    const stores: UberStore[] = [];
+    // Categorize each store
+    const items: ImportItem[] = [];
+    const usedRestaurantIds = new Set<string>();
+
     storesMap.forEach((storeName, storeId) => {
-      // Check if already matched
-      const matchedRestaurant = restaurants.find(r => r.uber_store_id === storeId);
-      
-      // Find best match by name similarity
+      // Check if this store is already matched to a protected restaurant
+      const alreadyMatchedRestaurant = restaurants.find(
+        (r) => r.uber_store_id === storeId
+      );
+
+      if (alreadyMatchedRestaurant) {
+        items.push({
+          storeId,
+          storeName,
+          action: "protected",
+          matchedRestaurantId: alreadyMatchedRestaurant.id,
+          matchedRestaurantName: alreadyMatchedRestaurant.name,
+        });
+        usedRestaurantIds.add(alreadyMatchedRestaurant.id);
+        return;
+      }
+
+      // Find best match by name similarity (excluding already used ones)
       let bestMatch: { id: string; name: string; similarity: number } | null = null;
       for (const restaurant of restaurants) {
+        // Skip protected restaurants and already used ones
+        if (protectedRestaurantIds.has(restaurant.id) || usedRestaurantIds.has(restaurant.id)) {
+          continue;
+        }
+
         const similarity = calculateSimilarity(storeName, restaurant.name);
-        if (similarity > 60 && (!bestMatch || similarity > bestMatch.similarity)) {
+        if (similarity >= SIMILARITY_THRESHOLD && (!bestMatch || similarity > bestMatch.similarity)) {
           bestMatch = { id: restaurant.id, name: restaurant.name, similarity };
         }
       }
 
-      stores.push({
-        storeId,
-        storeName,
-        matchedRestaurantId: matchedRestaurant?.id || null,
-        matchedRestaurantName: matchedRestaurant?.name || null,
-        suggestedRestaurantId: bestMatch?.id || null,
-        suggestedRestaurantName: bestMatch?.name || null,
-        similarity: bestMatch?.similarity || 0,
-      });
-    });
-
-    // Sort: unmatched first, then by similarity
-    stores.sort((a, b) => {
-      if (a.matchedRestaurantId && !b.matchedRestaurantId) return 1;
-      if (!a.matchedRestaurantId && b.matchedRestaurantId) return -1;
-      return b.similarity - a.similarity;
-    });
-
-    setUberStores(stores);
-    
-    // Initialize renamings: enabled by default for unmatched stores
-    const initialRenamings: Record<string, boolean> = {};
-    stores.forEach(store => {
-      if (!store.matchedRestaurantId) {
-        initialRenamings[store.storeId] = true; // Checked by default
+      if (bestMatch) {
+        items.push({
+          storeId,
+          storeName,
+          action: "rename",
+          matchedRestaurantId: bestMatch.id,
+          matchedRestaurantName: bestMatch.name,
+          similarity: bestMatch.similarity,
+        });
+        usedRestaurantIds.add(bestMatch.id);
+      } else {
+        items.push({
+          storeId,
+          storeName,
+          action: "create",
+        });
       }
     });
-    setRenamings(initialRenamings);
-    
-    const unmatchedCount = stores.filter(s => !s.matchedRestaurantId).length;
+
+    // Sort: protected first, then rename, then create
+    items.sort((a, b) => {
+      const order = { protected: 0, rename: 1, create: 2 };
+      return order[a.action] - order[b.action];
+    });
+
+    setImportItems(items);
+
+    const counts = {
+      protected: items.filter((i) => i.action === "protected").length,
+      rename: items.filter((i) => i.action === "rename").length,
+      create: items.filter((i) => i.action === "create").length,
+    };
+
     toast({
-      title: `${stores.length} restaurants Uber détectés`,
-      description: `${stores.length - unmatchedCount} déjà associés, ${unmatchedCount} à mapper`,
+      title: `${items.length} restaurants détectés`,
+      description: `${counts.protected} protégés, ${counts.rename} à renommer, ${counts.create} à créer`,
     });
   };
 
-  // Save mappings mutation
-  const saveMappingsMutation = useMutation({
-    mutationFn: async (data: { mappings: Record<string, string>; renamings: Record<string, boolean>; stores: UberStore[] }) => {
-      const { mappings: mappingsToSave, renamings: renamingsToApply, stores } = data;
-      
-      const updates = Object.entries(mappingsToSave).map(([storeId, restaurantId]) => {
-        const store = stores.find(s => s.storeId === storeId);
-        return {
-          storeId,
-          restaurantId,
-          newName: renamingsToApply[storeId] ? store?.storeName : null,
-        };
-      });
+  // Apply changes mutation
+  const applyChangesMutation = useMutation({
+    mutationFn: async (items: ImportItem[]) => {
+      let renamed = 0;
+      let created = 0;
 
-      for (const { storeId, restaurantId, newName } of updates) {
-        const updateData: { uber_store_id: string; name?: string } = { uber_store_id: storeId };
-        
-        // Rename only if enabled
-        if (newName) {
-          updateData.name = newName;
+      // Get the default chain_id from an existing restaurant
+      const defaultChainId = restaurants.find((r) => r.chain_id)?.chain_id || null;
+
+      for (const item of items) {
+        if (item.action === "protected") continue;
+
+        if (item.action === "rename" && item.matchedRestaurantId) {
+          const { error } = await supabase
+            .from("restaurants")
+            .update({
+              name: item.storeName,
+              uber_store_id: item.storeId,
+            })
+            .eq("id", item.matchedRestaurantId);
+
+          if (error) throw error;
+          renamed++;
+        } else if (item.action === "create") {
+          const { error } = await supabase.from("restaurants").insert({
+            name: item.storeName,
+            uber_store_id: item.storeId,
+            chain_id: defaultChainId,
+            is_active: true,
+          });
+
+          if (error) throw error;
+          created++;
         }
-        
-        const { error } = await supabase
-          .from("restaurants")
-          .update(updateData)
-          .eq("id", restaurantId);
-        
-        if (error) throw error;
       }
 
-      return { count: updates.length, renamed: updates.filter(u => u.newName).length };
+      return { renamed, created };
     },
     onSuccess: (result) => {
       toast({
-        title: "Associations enregistrées",
-        description: `${result.count} restaurant(s) associé(s), ${result.renamed} renommé(s)`,
+        title: "Import terminé",
+        description: `${result.renamed} renommé(s), ${result.created} créé(s)`,
       });
       queryClient.invalidateQueries({ queryKey: ["restaurants-for-mapping"] });
-      setMappings({});
-      setRenamings({});
+      setImportItems([]);
     },
     onError: (error) => {
       toast({
         title: "Erreur",
-        description: "Impossible de sauvegarder les associations",
+        description: "Impossible d'appliquer les changements",
         variant: "destructive",
       });
       console.error(error);
     },
   });
 
-  // Filter stores
-  const filteredStores = useMemo(() => {
-    let result = uberStores;
-    
-    if (showOnlyUnmapped) {
-      result = result.filter(s => !s.matchedRestaurantId);
-    }
-    
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(s => 
-        s.storeName.toLowerCase().includes(term) ||
-        s.storeId.toLowerCase().includes(term)
-      );
-    }
-    
-    return result;
-  }, [uberStores, showOnlyUnmapped, searchTerm]);
+  // Filter items
+  const filteredItems = useMemo(() => {
+    if (!searchTerm) return importItems;
 
-  const handleSelectRestaurant = (storeId: string, restaurantId: string) => {
-    setMappings(prev => ({
-      ...prev,
-      [storeId]: restaurantId,
-    }));
-  };
+    const term = searchTerm.toLowerCase();
+    return importItems.filter(
+      (item) =>
+        item.storeName.toLowerCase().includes(term) ||
+        item.matchedRestaurantName?.toLowerCase().includes(term)
+    );
+  }, [importItems, searchTerm]);
 
-  const handleToggleRename = (storeId: string, enabled: boolean) => {
-    setRenamings(prev => ({
-      ...prev,
-      [storeId]: enabled,
-    }));
-  };
+  // Counts
+  const counts = useMemo(
+    () => ({
+      protected: importItems.filter((i) => i.action === "protected").length,
+      rename: importItems.filter((i) => i.action === "rename").length,
+      create: importItems.filter((i) => i.action === "create").length,
+    }),
+    [importItems]
+  );
 
-  const handleSave = () => {
-    if (Object.keys(mappings).length === 0) {
+  const handleApply = () => {
+    if (counts.rename === 0 && counts.create === 0) {
       toast({
-        title: "Aucune association",
-        description: "Sélectionnez au moins un restaurant à associer",
+        title: "Rien à faire",
+        description: "Tous les restaurants sont déjà protégés",
         variant: "destructive",
       });
       return;
     }
-    saveMappingsMutation.mutate({ mappings, renamings, stores: uberStores });
+    applyChangesMutation.mutate(importItems);
   };
 
-  const handleAutoMatch = () => {
-    const autoMappings: Record<string, string> = {};
-    const autoRenamings: Record<string, boolean> = {};
-    
-    for (const store of uberStores) {
-      if (!store.matchedRestaurantId && store.suggestedRestaurantId && store.similarity >= 80) {
-        // Check if this restaurant is not already mapped to another store
-        const alreadyMapped = uberStores.some(s => 
-          s.matchedRestaurantId === store.suggestedRestaurantId ||
-          autoMappings[s.storeId] === store.suggestedRestaurantId
-        );
-        
-        if (!alreadyMapped) {
-          autoMappings[store.storeId] = store.suggestedRestaurantId;
-          autoRenamings[store.storeId] = true; // Enable rename by default
-        }
-      }
+  const getActionIcon = (action: ImportAction) => {
+    switch (action) {
+      case "protected":
+        return <Lock className="h-4 w-4" />;
+      case "rename":
+        return <Pencil className="h-4 w-4" />;
+      case "create":
+        return <Plus className="h-4 w-4" />;
     }
-    
-    setMappings(prev => ({ ...prev, ...autoMappings }));
-    setRenamings(prev => ({ ...prev, ...autoRenamings }));
-    
-    toast({
-      title: `${Object.keys(autoMappings).length} associations automatiques`,
-      description: "Vérifiez et validez les associations proposées",
-    });
   };
 
-  const matchedCount = uberStores.filter(s => s.matchedRestaurantId).length;
-  const pendingCount = Object.keys(mappings).length;
+  const getActionBadge = (action: ImportAction) => {
+    switch (action) {
+      case "protected":
+        return (
+          <Badge variant="secondary" className="gap-1">
+            <Lock className="h-3 w-3" />
+            Protégé
+          </Badge>
+        );
+      case "rename":
+        return (
+          <Badge variant="default" className="gap-1">
+            <Pencil className="h-3 w-3" />
+            Renommer
+          </Badge>
+        );
+      case "create":
+        return (
+          <Badge className="gap-1 bg-green-600 hover:bg-green-700">
+            <Plus className="h-3 w-3" />
+            Créer
+          </Badge>
+        );
+    }
+  };
 
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Mapping Uber Eats</h1>
+          <h1 className="text-2xl font-bold">Import Uber Eats</h1>
           <p className="text-muted-foreground">
-            Associez les restaurants Uber Eats à vos restaurants en base
+            Importez les noms officiels depuis un fichier CSV Uber Eats
           </p>
         </div>
       </div>
@@ -326,7 +353,8 @@ export default function UberStoreMapping() {
             Importer un fichier CSV
           </CardTitle>
           <CardDescription>
-            Uploadez un export Uber Eats contenant les colonnes store_id et store_name
+            Les noms du CSV deviendront les noms officiels des restaurants. 
+            Les restaurants non matchés seront créés automatiquement.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -335,186 +363,117 @@ export default function UberStoreMapping() {
             accept=".csv"
             onChange={handleFileUpload}
             className="max-w-md"
+            disabled={loadingRestaurants}
           />
         </CardContent>
       </Card>
 
-      {uberStores.length > 0 && (
+      {importItems.length > 0 && (
         <>
-          {/* Stats */}
+          {/* Summary Stats */}
           <div className="grid grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-6">
-                <div className="text-2xl font-bold">{uberStores.length}</div>
-                <p className="text-sm text-muted-foreground">Stores Uber détectés</p>
+                <div className="text-2xl font-bold">{importItems.length}</div>
+                <p className="text-sm text-muted-foreground">Total détectés</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="text-2xl font-bold text-primary">{matchedCount}</div>
-                <p className="text-sm text-muted-foreground">Déjà associés</p>
+                <div className="flex items-center gap-2">
+                  <Lock className="h-5 w-5 text-muted-foreground" />
+                  <div className="text-2xl font-bold">{counts.protected}</div>
+                </div>
+                <p className="text-sm text-muted-foreground">Protégés</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="text-2xl font-bold text-destructive">{uberStores.length - matchedCount}</div>
-                <p className="text-sm text-muted-foreground">À mapper</p>
+                <div className="flex items-center gap-2">
+                  <Pencil className="h-5 w-5 text-primary" />
+                  <div className="text-2xl font-bold text-primary">{counts.rename}</div>
+                </div>
+                <p className="text-sm text-muted-foreground">À renommer</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="text-2xl font-bold text-accent-foreground">{pendingCount}</div>
-                <p className="text-sm text-muted-foreground">En attente de sauvegarde</p>
+                <div className="flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-green-600" />
+                  <div className="text-2xl font-bold text-green-600">{counts.create}</div>
+                </div>
+                <p className="text-sm text-muted-foreground">À créer</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Filters and Actions */}
+          {/* Filters and Apply Button */}
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-64"
-                />
-              </div>
-              <Button
-                variant={showOnlyUnmapped ? "default" : "outline"}
-                size="sm"
-                onClick={() => setShowOnlyUnmapped(!showOnlyUnmapped)}
-              >
-                {showOnlyUnmapped ? "Non associés uniquement" : "Tous les stores"}
-              </Button>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 w-64"
+              />
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={handleAutoMatch}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Auto-match (≥80%)
-              </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={pendingCount === 0 || saveMappingsMutation.isPending}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                Enregistrer ({pendingCount})
-              </Button>
-            </div>
+            <Button
+              onClick={handleApply}
+              disabled={
+                applyChangesMutation.isPending ||
+                (counts.rename === 0 && counts.create === 0)
+              }
+              size="lg"
+            >
+              {applyChangesMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Import en cours...
+                </>
+              ) : (
+                <>
+                  Appliquer les changements ({counts.rename + counts.create})
+                </>
+              )}
+            </Button>
           </div>
 
-          {/* Mapping Table */}
+          {/* Items Table */}
           <Card>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Store Uber (CSV)</TableHead>
-                    <TableHead>Store ID</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Suggestion</TableHead>
-                    <TableHead>Restaurant à associer</TableHead>
-                    <TableHead>Renommer</TableHead>
+                    <TableHead>Nom CSV (nouveau nom)</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Restaurant actuel</TableHead>
+                    <TableHead>Similarité</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredStores.map((store) => {
-                    const isProtected = !!store.matchedRestaurantId;
-                    const hasPendingMapping = !!mappings[store.storeId];
-                    
-                    return (
-                      <TableRow key={store.storeId}>
-                        <TableCell className="font-medium">{store.storeName}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {store.storeId.startsWith("name:") 
-                            ? <span className="italic">Nom uniquement</span>
-                            : `${store.storeId.substring(0, 8)}...`
-                          }
-                        </TableCell>
-                        <TableCell>
-                          {isProtected ? (
-                            <Badge variant="default">
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              {store.matchedRestaurantName}
-                            </Badge>
-                          ) : hasPendingMapping ? (
-                            <Badge variant="secondary">
-                              En attente
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                              Non associé
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {store.suggestedRestaurantName && !isProtected && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">{store.suggestedRestaurantName}</span>
-                              <Badge variant="outline">
-                                {store.similarity}%
-                              </Badge>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {!isProtected && (
-                            <Select
-                              value={mappings[store.storeId] || ""}
-                              onValueChange={(value) => handleSelectRestaurant(store.storeId, value)}
-                            >
-                              <SelectTrigger className="w-64">
-                                <SelectValue placeholder="Sélectionner un restaurant" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {store.suggestedRestaurantId && (
-                                  <SelectItem value={store.suggestedRestaurantId}>
-                                    ⭐ {store.suggestedRestaurantName} ({store.similarity}%)
-                                  </SelectItem>
-                                )}
-                                {restaurants
-                                  .filter(r => r.id !== store.suggestedRestaurantId)
-                                  .map((restaurant) => (
-                                    <SelectItem key={restaurant.id} value={restaurant.id}>
-                                      {restaurant.name}
-                                      {restaurant.uber_store_id && " ✓"}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {isProtected ? (
-                            <Badge variant="outline" className="text-muted-foreground">
-                              <Lock className="h-3 w-3 mr-1" />
-                              Protégé
-                            </Badge>
-                          ) : hasPendingMapping ? (
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                id={`rename-${store.storeId}`}
-                                checked={renamings[store.storeId] ?? true}
-                                onCheckedChange={(checked) => 
-                                  handleToggleRename(store.storeId, checked === true)
-                                }
-                              />
-                              <label 
-                                htmlFor={`rename-${store.storeId}`}
-                                className="text-sm cursor-pointer"
-                              >
-                                Renommer
-                              </label>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {filteredItems.map((item) => (
+                    <TableRow key={item.storeId}>
+                      <TableCell className="font-medium">{item.storeName}</TableCell>
+                      <TableCell>{getActionBadge(item.action)}</TableCell>
+                      <TableCell>
+                        {item.matchedRestaurantName ? (
+                          <span className={item.action === "rename" ? "text-muted-foreground line-through" : ""}>
+                            {item.matchedRestaurantName}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground italic">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.similarity ? (
+                          <Badge variant="outline">{item.similarity}%</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>
