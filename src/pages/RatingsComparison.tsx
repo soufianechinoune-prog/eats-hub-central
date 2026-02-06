@@ -13,8 +13,10 @@ import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { RatingsHeatmapGrid } from "@/components/compare/RatingsHeatmapGrid";
 import { RatingsRankingBars } from "@/components/compare/RatingsRankingBars";
 import { RatingsInsightsSection } from "@/components/compare/RatingsInsightsSection";
+import { RatingsFullRankingTable } from "@/components/compare/RatingsFullRankingTable";
 import { NetworkTagsAnalysis } from "@/components/compare/NetworkTagsAnalysis";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useRatingsExport } from "@/hooks/useRatingsExport";
 import {
   BarChart,
   Bar,
@@ -235,6 +237,26 @@ const RatingsComparison = () => {
   // Show Deliveroo card only if there's data
   const showDeliveroo = globalStats.deliverooCount > 0;
 
+  // PDF Export hook
+  const { exportToPDF, isExporting } = useRatingsExport();
+
+  // Prepare data for PDF export
+  const handleExportPDF = () => {
+    const rankedRestaurants = restaurantStats.map((s, idx) => ({
+      rank: idx + 1,
+      name: s.name,
+      avgRating: s.avgRating,
+      totalReviews: s.totalReviews,
+    }));
+
+    exportToPDF({
+      periodLabel,
+      globalStats,
+      distribution: distributionData,
+      restaurants: rankedRestaurants,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-6 space-y-6">
@@ -436,6 +458,13 @@ const RatingsComparison = () => {
                 />
               </CardContent>
             </Card>
+
+            {/* Full Ranking Table with Export */}
+            <RatingsFullRankingTable 
+              data={rankingStats}
+              onExportPDF={handleExportPDF}
+              isExporting={isExporting}
+            />
 
             {/* Network Tags Analysis */}
             {reviewsData && reviewsData.length > 0 && (
