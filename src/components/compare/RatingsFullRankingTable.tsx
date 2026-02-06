@@ -202,6 +202,15 @@ export const RatingsFullRankingTable = ({
                     <SortIcon field="avgRating" />
                   </button>
                 </TableHead>
+                <TableHead className="text-right w-24">
+                  <button 
+                    className="flex items-center justify-end hover:text-foreground transition-colors ml-auto"
+                    onClick={() => handleSort("totalReviews")}
+                  >
+                    Avis
+                    <SortIcon field="totalReviews" />
+                  </button>
+                </TableHead>
                 <TableHead className="text-center w-28">Statut</TableHead>
               </TableRow>
             </TableHeader>
