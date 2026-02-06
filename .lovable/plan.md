@@ -1,137 +1,117 @@
 
 
-# Plan : Refonte UX/UI de la page Comparaison Notes
+# Plan : Vue Tableau Complet + Export PDF Notes Réseau
 
-## Analyse de l'existant
+## Constat
 
-En analysant les captures d'ecran et le code, j'identifie plusieurs problemes UX :
+Actuellement la page `/compare/ratings` affiche :
+- Top 10 + Bottom 5 dans les barres de ranking
+- Heatmap limité à 25 restaurants visibles (avec modal paginée)
+- **Aucun tableau synthétique** avec TOUS les restaurants
+- **Aucun bouton d'export PDF**
 
-### Problemes identifies
+## Solution proposée
 
-| Zone | Probleme | Impact |
-|------|----------|--------|
-| Heatmap (droite) | Cases trop petites, noms tronques, pas de tri | Difficile de reperer les tendances |
-| Graphique Uber vs Deliveroo | Affiche TOUS les restaurants (92!), labels illisibles | Inutilisable, pollution visuelle |
-| Tableau de classement | Occupe 50% de l'espace mais duplique l'info du heatmap | Redundance |
-| KPIs plateforme | Deliveroo affiche "0/5" (pas de donnees) | Confusion utilisateur |
-| Distribution des notes | Bien fait, mais manque le contexte par restaurant |
+### 1. Nouveau composant : Tableau complet triable
 
-### Benchmark interne
+Un tableau simple et lisible affichant TOUS les restaurants avec :
 
-La page PrepTimeComparison est plus claire car elle utilise :
-- Des barres horizontales de ranking (PrepTimeRankingBars)
-- Une section insights textuelle (PrepTimeInsightsSection)
-- Un heatmap comme vue secondaire
+| # | Restaurant | Note | Avis | Statut |
+|---|------------|------|------|--------|
+| 1 | Douai | 5.00 | 10 | Excellent |
+| 2 | Toulouse | 4.89 | 9 | Excellent |
+| ... | ... | ... | ... | ... |
+| 92 | Juvisy | 1.00 | 1 | Attention |
 
----
+Fonctionnalités :
+- Tri par colonne (Note, Avis, Nom)
+- Recherche rapide par nom
+- Pagination (25 par page) ou scroll virtuel
+- Badges de statut colorés (Excellent/Tres bien/Bon/A surveiller)
 
-## Proposition de refonte
+### 2. Export PDF professionnel
 
-### 1. Reorganisation de la hierarchie visuelle
+Rapport multi-pages style "executive report" :
+
+**Page 1 - Couverture**
+- Logo Chicken Street
+- Titre "Rapport Notes Réseau"
+- Période et date de génération
+- KPIs globaux (Note moyenne, Total avis, Uber/Deliveroo)
+
+**Page 2 - Synthèse visuelle**
+- Distribution des notes (graphique barres)
+- Top 5 / Flop 5 (tableau synthétique)
+- Insights textuels
+
+**Pages 3+ - Tableau détaillé**
+- Liste complète des 92 restaurants
+- ~30 restaurants par page
+- Code couleur par performance
+- Totaux en pied de page
+
+### 3. Intégration dans la page
+
+Ajouter entre le Heatmap et les Tags :
 
 ```text
-+----------------------------------------------------------+
-|  HEADER : Titre + Badge Vue Reseau + Selecteur Periode   |
-+----------------------------------------------------------+
-|  4 KPIs GLOBAUX (inchanges, mais masquer Deliveroo=0)    |
-+----------------------------------------------------------+
-|                                                          |
-|  RANKING VISUEL (Barres horizontales)     | INSIGHTS     |
-|  Top 10 meilleurs / 10 moins bons         | Textuels     |
-|  Avec mini-sparkline de tendance          | (nouveau)    |
-|                                                          |
-+----------------------------------------------------------+
-|                                                          |
-|  HEATMAP (pleine largeur, scroll horizontal)             |
-|  Tri par : Note moyenne / Nombre d'avis / Nom            |
-|                                                          |
-+----------------------------------------------------------+
-|  DISTRIBUTION DES NOTES (bar chart)                      |
-+----------------------------------------------------------+
-|  ANALYSE DES TAGS RESEAU (inchange)                      |
-+----------------------------------------------------------+
++-- Classement complet ----------------------------------+
+|  [🔍 Rechercher...]           [Trier: Note ▼] [PDF 📄] |
+|                                                        |
+|  #   Restaurant              Note      Avis   Statut   |
+|  1   Douai                   ⭐ 5.00   10     Excellent |
+|  2   Toulouse                ⭐ 4.89   9      Excellent |
+|  3   Venissieux              ⭐ 4.88   24     Excellent |
+|  ...                                                   |
+|                                                        |
+|  < Page 1 / 4 >                                        |
++--------------------------------------------------------+
 ```
 
-### 2. Supprimer le graphique Uber vs Deliveroo
-
-Ce graphique avec 92 barres horizontales est illisible. Remplacer par :
-- Un simple comparatif dans les KPIs (deja present)
-- Ou un scatter plot si vraiment necessaire
-
-### 3. Nouveau composant RatingsRankingBars
-
-S'inspire de `PrepTimeRankingBars` existant. Affiche :
-- Top 10 restaurants (vert → excellence)
-- Flop 10 restaurants (orange/rouge → alerte)
-- Format visuel : barres horizontales proportionnelles
-
-### 4. Section Insights textuelle
-
-Nouveau composant `RatingsInsightsSection` :
-- "3 restaurants ont une note > 4.9"
-- "Lyon 6eme a gagne +0.3 pts cette semaine"
-- "Attention : 2 restaurants sous 4.5"
-
-### 5. Ameliorations du Heatmap
-
-- Largeur pleine (supprimer le tableau de gauche)
-- Ajouter un tri interactif (par note, par volume, par nom)
-- Cellules plus grandes avec valeurs arrondies
-- Sticky header pour le scroll
-
-### 6. KPIs dynamiques
-
-- Masquer la carte Deliveroo si 0 avis
-- Ajouter une icone de tendance vs periode precedente
-
----
-
-## Fichiers a modifier/creer
+## Fichiers à créer/modifier
 
 | Action | Fichier | Description |
 |--------|---------|-------------|
-| Creer | `src/components/compare/RatingsRankingBars.tsx` | Barres Top/Flop |
-| Creer | `src/components/compare/RatingsInsightsSection.tsx` | Insights textuels |
-| Modifier | `src/components/compare/RatingsHeatmapGrid.tsx` | Pleine largeur + tri |
-| Modifier | `src/pages/RatingsComparison.tsx` | Nouvelle mise en page |
-
----
-
-## Maquette visuelle des Ranking Bars
-
-```text
-+-- Top 10 Restaurants --------------------------------+
-|                                                      |
-|  #1 Douai           ████████████████████████  5.0    |
-|  #2 Toulouse        ███████████████████████▒  4.89   |
-|  #3 Venissieux      ███████████████████████▒  4.88   |
-|  ...                                                 |
-|                                                      |
-+-- Restaurants a surveiller --------------------------+
-|                                                      |
-|  #90 Paris X        ██████████████░░░░░░░░░  4.32    |
-|  #91 Montreuil      █████████████░░░░░░░░░░  4.28    |
-|  #92 Chatelet       ████████████░░░░░░░░░░░  4.15    |
-|                                                      |
-+------------------------------------------------------+
-```
-
----
-
-## Resume des changements
-
-1. Suppression du tableau de classement (redondant avec heatmap)
-2. Suppression du graphique Uber vs Deliveroo (92 barres = illisible)
-3. Ajout de barres de ranking Top/Flop (pattern existant)
-4. Ajout d'insights textuels (pattern existant)
-5. Heatmap en pleine largeur avec options de tri
-6. KPI Deliveroo conditionnel (masque si 0 donnees)
+| Créer | `src/components/compare/RatingsFullRankingTable.tsx` | Tableau complet avec tri/recherche/pagination |
+| Créer | `src/hooks/useRatingsExport.ts` | Hook d'export PDF multi-pages |
+| Modifier | `src/pages/RatingsComparison.tsx` | Intégrer tableau + bouton export |
 
 ## Section technique
 
-Les nouveaux composants suivront les patterns existants :
-- `RatingsRankingBars` : clone de `PrepTimeRankingBars` adapte aux notes
-- `RatingsInsightsSection` : clone de `PrepTimeInsightsSection` adapte aux notes
-- Le heatmap passera de `lg:grid-cols-2` a pleine largeur
-- Ajout d'un state `sortBy` dans le heatmap pour le tri interactif
+### Structure du hook d'export
+
+```typescript
+interface RatingsExportData {
+  period: string;
+  periodLabel: string;
+  globalStats: {
+    avgRating: number;
+    totalReviews: number;
+    uberAvg: number;
+    deliverooAvg: number;
+  };
+  distribution: { star: string; count: number }[];
+  restaurants: {
+    rank: number;
+    name: string;
+    avgRating: number;
+    totalReviews: number;
+    status: string;
+  }[];
+}
+```
+
+Le PDF utilisera jsPDF avec :
+- Format A4 portrait (meilleur pour les tableaux longs)
+- En-tête fixe avec logo sur chaque page
+- Pagination automatique (~30 lignes/page)
+- Couleurs cohérentes avec la charte (emerald pour succès, orange pour attention)
+
+### Structure du tableau
+
+Le composant réutilisera les patterns existants :
+- `<Table>` de shadcn/ui pour la structure
+- Tri via `useState` + `.sort()`
+- Pagination avec le composant `<Pagination>` existant
+- Recherche avec `useMemo` filtrant sur le nom
 
