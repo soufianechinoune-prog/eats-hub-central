@@ -4,7 +4,7 @@ import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { extractCityName } from "@/lib/restaurantUtils";
-import { Star, ChevronDown, ChevronUp } from "lucide-react";
+import { Star, ChevronDown, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,11 +20,18 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface RestaurantRatingData {
   id: string;
   name: string;
   avgRating: number;
+  totalReviews?: number;
   dailyData: Record<string, { sum: number; count: number }>;
 }
 
@@ -34,6 +41,8 @@ interface RatingsHeatmapGridProps {
   period: "week" | "month" | "quarter";
   maxVisible?: number;
 }
+
+type SortOption = "rating" | "volume" | "name";
 
 const getRatingColor = (rating: number | null): string => {
   if (rating === null) return "bg-muted/30";
@@ -51,6 +60,12 @@ const getRatingTextColor = (rating: number | null): string => {
 
 const PAGE_SIZE = 20;
 
+const SORT_LABELS: Record<SortOption, string> = {
+  rating: "Note moyenne",
+  volume: "Nombre d'avis",
+  name: "Nom",
+};
+
 export const RatingsHeatmapGrid = ({ 
   data, 
   dateRange, 
@@ -59,6 +74,7 @@ export const RatingsHeatmapGrid = ({
 }: RatingsHeatmapGridProps) => {
   const [showAll, setShowAll] = useState(false);
   const [modalPage, setModalPage] = useState(1);
+  const [sortBy, setSortBy] = useState<SortOption>("rating");
 
   // Generate time columns based on period
   const timeColumns = useMemo(() => {
@@ -89,16 +105,22 @@ export const RatingsHeatmapGrid = ({
     }
   }, [dateRange, period]);
 
-  // Calculate rating for each cell
+  // Calculate rating for each cell and apply sorting
   const heatmapData = useMemo(() => {
-    return data.map(restaurant => {
+    const processed = data.map(restaurant => {
       const cityName = extractCityName(restaurant.name);
+      
+      // Calculate total reviews from daily data
+      let totalReviewCount = restaurant.totalReviews || 0;
+      if (!totalReviewCount) {
+        totalReviewCount = Object.values(restaurant.dailyData).reduce((sum, d) => sum + d.count, 0);
+      }
+      
       const cells = timeColumns.map(col => {
         let sum = 0;
         let count = 0;
 
         if (period === "quarter") {
-          // Aggregate all days in the week
           const daysInWeek = eachDayOfInterval({ start: col.start, end: col.end });
           daysInWeek.forEach(day => {
             const dayKey = format(day, "yyyy-MM-dd");
@@ -129,10 +151,25 @@ export const RatingsHeatmapGrid = ({
         name: restaurant.name,
         cityName,
         avgRating: restaurant.avgRating,
+        totalReviewCount,
         cells,
       };
     });
-  }, [data, timeColumns, period]);
+    
+    // Apply sorting
+    return processed.sort((a, b) => {
+      switch (sortBy) {
+        case "rating":
+          return b.avgRating - a.avgRating;
+        case "volume":
+          return b.totalReviewCount - a.totalReviewCount;
+        case "name":
+          return a.cityName.localeCompare(b.cityName, 'fr');
+        default:
+          return 0;
+      }
+    });
+  }, [data, timeColumns, period, sortBy]);
 
   // Limit visible restaurants
   const visibleData = heatmapData.slice(0, maxVisible);
@@ -213,14 +250,40 @@ export const RatingsHeatmapGrid = ({
 
   return (
     <div className="space-y-4">
+      {/* Sort controls */}
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          {data.length} restaurants
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              Trier : {SORT_LABELS[sortBy]}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setSortBy("rating")}>
+              {SORT_LABELS.rating}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortBy("volume")}>
+              {SORT_LABELS.volume}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortBy("name")}>
+              {SORT_LABELS.name}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       {/* Header row with time labels */}
       <div className="flex items-center gap-2">
-        <div className="w-28 shrink-0" /> {/* Spacer for restaurant name column */}
+        <div className="w-28 shrink-0" />
         <div className="flex gap-1 flex-1 overflow-x-auto pb-1">
           {timeColumns.map(col => (
             <div
               key={col.key}
-              className="flex-1 min-w-[32px] text-center text-xs text-muted-foreground font-medium"
+              className="flex-1 min-w-[36px] text-center text-xs text-muted-foreground font-medium"
             >
               {col.label}
             </div>
