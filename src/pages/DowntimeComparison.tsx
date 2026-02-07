@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileDown, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DowntimeRankingBars } from "@/components/compare/DowntimeRankingBars";
@@ -12,6 +12,8 @@ import { DowntimeInsightsSection } from "@/components/compare/DowntimeInsightsSe
 import { DowntimeHeatmapGrid } from "@/components/compare/DowntimeHeatmapGrid";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
+import { useDowntimeExport } from "@/hooks/useDowntimeExport";
+import { extractCityName } from "@/lib/restaurantUtils";
 import type { DateRange } from "react-day-picker";
 
 const STORAGE_KEY = "downtime-comparison-state";
@@ -51,6 +53,7 @@ const DowntimeComparison = () => {
     () => storedState?.isNetworkView ?? false
   );
 
+  const { exportPdf, exportExcel, isExporting } = useDowntimeExport();
   // Persist state to localStorage
   useEffect(() => {
     const state = {
@@ -237,6 +240,55 @@ const DowntimeComparison = () => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
   }, [dateRange]);
 
+  // Export handlers
+  const handleExportPdf = () => {
+    const totalDowntime = restaurantStats.reduce((sum, s) => sum + s.totalOfflineMinutes, 0);
+    const avgAvailability = restaurantStats.length > 0
+      ? restaurantStats.reduce((sum, s) => sum + s.availabilityRate, 0) / restaurantStats.length
+      : 100;
+    const perfectCount = restaurantStats.filter(s => s.totalOfflineMinutes === 0).length;
+    const bestPerformer = restaurantStats[0] || { name: "-", totalOfflineMinutes: 0 };
+    const worstPerformer = restaurantStats[restaurantStats.length - 1] || { name: "-", totalOfflineMinutes: 0 };
+
+    exportPdf({
+      title: "Comparaison Temps d'inactivite",
+      period: periodLabel,
+      dateRange,
+      stats: restaurantStats,
+      insights: {
+        bestPerformer: { name: bestPerformer.name, downtime: bestPerformer.totalOfflineMinutes },
+        worstPerformer: { name: worstPerformer.name, downtime: worstPerformer.totalOfflineMinutes },
+        totalDowntime,
+        avgAvailability,
+        perfectCount,
+      },
+    });
+  };
+
+  const handleExportExcel = () => {
+    const totalDowntime = restaurantStats.reduce((sum, s) => sum + s.totalOfflineMinutes, 0);
+    const avgAvailability = restaurantStats.length > 0
+      ? restaurantStats.reduce((sum, s) => sum + s.availabilityRate, 0) / restaurantStats.length
+      : 100;
+    const perfectCount = restaurantStats.filter(s => s.totalOfflineMinutes === 0).length;
+    const bestPerformer = restaurantStats[0] || { name: "-", totalOfflineMinutes: 0 };
+    const worstPerformer = restaurantStats[restaurantStats.length - 1] || { name: "-", totalOfflineMinutes: 0 };
+
+    exportExcel({
+      title: "Comparaison Temps d'inactivite",
+      period: periodLabel,
+      dateRange,
+      stats: restaurantStats,
+      insights: {
+        bestPerformer: { name: bestPerformer.name, downtime: bestPerformer.totalOfflineMinutes },
+        worstPerformer: { name: worstPerformer.name, downtime: worstPerformer.totalOfflineMinutes },
+        totalDowntime,
+        avgAvailability,
+        perfectCount,
+      },
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-6 space-y-6">
@@ -266,6 +318,25 @@ const DowntimeComparison = () => {
               pinnedCount={pinnedRestaurants?.length || 0}
               networkCount={allActiveRestaurants?.length || 0}
             />
+            
+            <Button
+              onClick={handleExportPdf}
+              disabled={isExporting || restaurantStats.length === 0}
+              variant="outline"
+              className="gap-2"
+            >
+              <FileDown className="h-4 w-4" />
+              PDF
+            </Button>
+            <Button
+              onClick={handleExportExcel}
+              disabled={isExporting || restaurantStats.length === 0}
+              variant="outline"
+              className="gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Excel
+            </Button>
             
             <OverviewPeriodSelector
               periodMode={periodMode}
