@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,13 +14,57 @@ import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import type { DateRange } from "react-day-picker";
 
+const STORAGE_KEY = "downtime-comparison-state";
+
+const getInitialState = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
+
 const DowntimeComparison = () => {
   const navigate = useNavigate();
-  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("previous_week");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined);
-  const [isNetworkView, setIsNetworkView] = useState(false);
+  const storedState = getInitialState();
+  
+  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(
+    () => storedState?.periodMode || "previous_week"
+  );
+  const [selectedYear, setSelectedYear] = useState(
+    () => storedState?.selectedYear || new Date().getFullYear()
+  );
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => storedState?.selectedMonth || new Date().getMonth() + 1
+  );
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(() => {
+    if (storedState?.customDateRange?.from && storedState?.customDateRange?.to) {
+      return {
+        from: new Date(storedState.customDateRange.from),
+        to: new Date(storedState.customDateRange.to),
+      };
+    }
+    return undefined;
+  });
+  const [isNetworkView, setIsNetworkView] = useState(
+    () => storedState?.isNetworkView ?? false
+  );
+
+  // Persist state to localStorage
+  useEffect(() => {
+    const state = {
+      periodMode,
+      selectedYear,
+      selectedMonth,
+      customDateRange: customDateRange ? {
+        from: customDateRange.from?.toISOString(),
+        to: customDateRange.to?.toISOString(),
+      } : undefined,
+      isNetworkView,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [periodMode, selectedYear, selectedMonth, customDateRange, isNetworkView]);
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
