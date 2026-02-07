@@ -1,84 +1,115 @@
 
 
-# Plan : Synchroniser les statistiques entre les pages Analytics et Comparaison Downtime
+# Plan : Persister le filtre de période sur la page Comparaison Downtime
 
 ## Problème identifié
 
-Après investigation approfondie, deux causes expliquent les écarts de statistiques observés :
+Quand vous êtes sur la page **Comparaison Temps d'inactivité** avec le filtre "Janvier 2026" et que vous cliquez sur un restaurant puis faites "retour", le filtre se réinitialise à "Semaine précédente".
 
-### 1. Pagination - Déjà corrigé
+**Cause technique :**
+- La page `DowntimeComparison.tsx` utilise `useState` avec des valeurs par défaut
+- Ces valeurs ne sont pas persistées dans `localStorage`
+- Quand le composant est remonté (après navigation retour), il s'initialise avec les valeurs par défaut
 
-La page Comparaison ne récupérait que 1000 lignes au lieu de ~1656, causant des calculs erronés. Cette correction a été appliquée.
-
-### 2. Contexte de filtrage différent
-
-| Aspect | Page Analytics | Page Comparaison |
-|--------|---------------|------------------|
-| Filtre plateforme | Uber Eats / Deliveroo / Global | Aucun filtre |
-| Source période | AnalyticsContext | État local |
-| Source restaurants | AnalyticsContext | Restaurants épinglés |
-
-Quand l'utilisateur navigue de la page Comparaison vers Analytics (en cliquant sur un restaurant), le contexte est synchronisé. Mais si les périodes affichées diffèrent légèrement (ex: "Semaine précédente" recalculée vs période stockée), les données peuvent varier.
+```typescript
+// Actuellement (ligne 19)
+const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("previous_week");
+```
 
 ---
 
-## Solution proposée
+## Solution
 
-### Aligner le filtre de plateforme dans la page Comparaison
-
-**Fichier : `src/pages/DowntimeComparison.tsx`**
-
-Actuellement, la requête ne filtre pas par plateforme :
-```typescript
-.from("hourly_availability")
-.select("*")
-.in("restaurant_id", selectedRestaurants.map(r => r.id))
-```
-
-Ajouter un filtre `uber_eats` par défaut (comme la page Analytics) :
-```typescript
-.from("hourly_availability")
-.select("*")
-.in("restaurant_id", selectedRestaurants.map(r => r.id))
-.eq("platform", "uber_eats")  // Aligner avec le comportement par défaut Analytics
-```
-
-### Alternative : Ajouter un sélecteur de plateforme
-
-Si le besoin est de voir plusieurs plateformes, ajouter un `PlatformSelector` dans l'en-tête de la page Comparaison pour permettre le choix explicite.
+Ajouter une persistance locale similaire à celle utilisée dans `AnalyticsContext.tsx` :
+1. Créer une clé `downtime-comparison-state` dans localStorage
+2. Initialiser les états depuis cette clé au montage
+3. Sauvegarder les changements automatiquement
 
 ---
 
-## Section technique
+## Fichier à modifier
 
-### Modification requise
-
-```typescript
-// src/pages/DowntimeComparison.tsx - ligne 118
-while (hasMore) {
-  const { data, error } = await supabase
-    .from("hourly_availability")
-    .select("*")
-    .in("restaurant_id", selectedRestaurants.map(r => r.id))
-    .eq("platform", "uber_eats")  // NOUVEAU: aligner avec Analytics
-    .gte("hour_start", format(dateRange.start, "yyyy-MM-dd"))
-    .lte("hour_start", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
-    .order("hour_start", { ascending: true })
-    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-```
-
-### Impact
-
-Cette modification garantit que les deux pages utilisent le même sous-ensemble de données (plateforme Uber Eats), éliminant les écarts potentiels si d'autres plateformes sont ajoutées à l'avenir.
+**`src/pages/DowntimeComparison.tsx`**
 
 ---
 
-## Résultat attendu
+## Modifications
 
-| Restaurant | Avant (Comparaison) | Après (Comparaison) | Analytics |
-|------------|---------------------|---------------------|-----------|
-| Bourg-en-Bresse | 90.5% | 93.2% | 93.2% |
-| Marseille Belsunce | 92.2% | 93.6% | 93.6% |
+### 1. Ajouter la clé de stockage et la lecture initiale
 
-Les deux pages afficheront des données identiques pour la même période et les mêmes restaurants.
+```typescript
+const STORAGE_KEY = "downtime-comparison-state";
+
+// Lecture initiale depuis localStorage
+const getInitialState = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
+```
+
+### 2. Initialiser les états depuis localStorage
+
+```typescript
+const DowntimeComparison = () => {
+  const navigate = useNavigate();
+  const storedState = getInitialState();
+  
+  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(
+    () => storedState?.periodMode || "previous_week"
+  );
+  const [selectedYear, setSelectedYear] = useState(
+    () => storedState?.selectedYear || new Date().getFullYear()
+  );
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => storedState?.selectedMonth || new Date().getMonth() + 1
+  );
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(() => {
+    if (storedState?.customDateRange?.from && storedState?.customDateRange?.to) {
+      return {
+        from: new Date(storedState.customDateRange.from),
+        to: new Date(storedState.customDateRange.to),
+      };
+    }
+    return undefined;
+  });
+  const [isNetworkView, setIsNetworkView] = useState(
+    () => storedState?.isNetworkView ?? false
+  );
+```
+
+### 3. Ajouter un useEffect pour persister les changements
+
+```typescript
+// Persister l'état dans localStorage
+useEffect(() => {
+  const state = {
+    periodMode,
+    selectedYear,
+    selectedMonth,
+    customDateRange: customDateRange ? {
+      from: customDateRange.from?.toISOString(),
+      to: customDateRange.to?.toISOString(),
+    } : undefined,
+    isNetworkView,
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}, [periodMode, selectedYear, selectedMonth, customDateRange, isNetworkView]);
+```
+
+---
+
+## Comportement attendu
+
+| Scénario | Avant | Après |
+|----------|-------|-------|
+| Page ouverte avec "Janvier 2026" | ✓ Affiche Janvier | ✓ Affiche Janvier |
+| Clic sur restaurant → détail | ✓ Naviguer | ✓ Naviguer |
+| Retour arrière | ✗ Revient à "Semaine précédente" | ✓ Reste sur "Janvier 2026" |
+| Fermer/rouvrir la page | ✗ Perd le filtre | ✓ Restaure le filtre |
+
+Le filtre sera conservé non seulement lors du retour arrière, mais aussi entre les sessions (rechargement de page, fermeture/réouverture).
 
