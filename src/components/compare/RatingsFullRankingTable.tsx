@@ -72,8 +72,8 @@ export const RatingsFullRankingTable = ({
   const { setSelectedRestaurants, setVisibleRestaurants, setDateRange, setPeriodMode } = useAnalyticsContext();
   
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortField, setSortField] = useState<SortField>("avgRating");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [sortField, setSortField] = useState<SortField>("rank");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [currentPage, setCurrentPage] = useState(1);
 
   const handleRowClick = (restaurantId: string) => {
@@ -113,6 +113,11 @@ export const RatingsFullRankingTable = ({
     result.sort((a, b) => {
       let comparison = 0;
       switch (sortField) {
+        case "rank":
+          const rankA = rankedData.get(a.id) || 999;
+          const rankB = rankedData.get(b.id) || 999;
+          comparison = rankA - rankB;
+          break;
         case "name":
           comparison = a.name.localeCompare(b.name);
           break;
@@ -204,7 +209,15 @@ export const RatingsFullRankingTable = ({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="w-16 text-center">#</TableHead>
+                <TableHead className="w-16 text-center">
+                  <button 
+                    className="flex items-center justify-center hover:text-foreground transition-colors mx-auto"
+                    onClick={() => handleSort("rank")}
+                  >
+                    #
+                    <SortIcon field="rank" />
+                  </button>
+                </TableHead>
                 <TableHead className="min-w-[280px]">
                   <button 
                     className="flex items-center hover:text-foreground transition-colors"
