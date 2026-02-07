@@ -13,6 +13,7 @@ import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { RatingsInsightsSection } from "@/components/compare/RatingsInsightsSection";
 import { RatingsFullRankingTable } from "@/components/compare/RatingsFullRankingTable";
 import { RatingsEvolutionChart } from "@/components/compare/RatingsEvolutionChart";
+import { RatingsDistributionBars } from "@/components/compare/RatingsDistributionBars";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useRatingsExport } from "@/hooks/useRatingsExport";
 import {
@@ -399,53 +400,8 @@ const RatingsComparison = () => {
               />
             )}
 
-            {/* Rating Distribution - Full Width below */}
-            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Distribution des notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {distributionData.some(d => d.count > 0) ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={distributionData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                      <XAxis 
-                        dataKey="star"
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      />
-                      <YAxis 
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
-                          borderColor: 'hsl(var(--border))',
-                          borderRadius: '8px',
-                        }}
-                        formatter={(value: number) => [value.toLocaleString('fr-FR'), 'Avis']}
-                      />
-                      <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                        {distributionData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={
-                              index === 4 ? "hsl(var(--chart-2))" :
-                              index === 3 ? "hsl(var(--chart-3))" :
-                              index === 2 ? "hsl(var(--chart-4))" :
-                              "hsl(var(--destructive))"
-                            }
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-                    Aucune donnée disponible
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {/* Rating Distribution - Horizontal Bars */}
+            <RatingsDistributionBars data={distributionData} />
 
           </div>
         )}
