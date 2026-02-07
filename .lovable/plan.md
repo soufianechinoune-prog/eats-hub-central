@@ -1,85 +1,84 @@
 
-# Plan : Corriger la pagination des données de disponibilité
+
+# Plan : Synchroniser les statistiques entre les pages Analytics et Comparaison Downtime
 
 ## Problème identifié
 
-La page **Comparaison Temps d'inactivité** récupère seulement **1 000 lignes** alors qu'il y en a **13 608** pour la période (limite par défaut Supabase).
+Après investigation approfondie, deux causes expliquent les écarts de statistiques observés :
 
-Conséquence : chaque restaurant ne reçoit qu'une fraction de ses données (ex: 11 lignes sur 144 pour Nantes Centre), faussant complètement le calcul de disponibilité.
+### 1. Pagination - Déjà corrigé
 
-| Restaurant | Données reçues | Données réelles |
-|------------|----------------|-----------------|
-| Nantes Centre | 11 lignes → calcul faux | 144 lignes → 99.0% |
-| Nantes | 10 lignes → calcul faux | 144 lignes → 99.8% |
+La page Comparaison ne récupérait que 1000 lignes au lieu de ~1656, causant des calculs erronés. Cette correction a été appliquée.
 
-## Solution
+### 2. Contexte de filtrage différent
 
-Implémenter la **pagination** dans la requête de `DowntimeComparison.tsx`, identique à celle utilisée dans `OperationsAnalytics.tsx`.
+| Aspect | Page Analytics | Page Comparaison |
+|--------|---------------|------------------|
+| Filtre plateforme | Uber Eats / Deliveroo / Global | Aucun filtre |
+| Source période | AnalyticsContext | État local |
+| Source restaurants | AnalyticsContext | Restaurants épinglés |
 
----
-
-## Fichier à modifier
-
-**`src/pages/DowntimeComparison.tsx`**
+Quand l'utilisateur navigue de la page Comparaison vers Analytics (en cliquant sur un restaurant), le contexte est synchronisé. Mais si les périodes affichées diffèrent légèrement (ex: "Semaine précédente" recalculée vs période stockée), les données peuvent varier.
 
 ---
 
-## Modifications
+## Solution proposée
 
-### 1. Ajouter le format de date cohérent
+### Aligner le filtre de plateforme dans la page Comparaison
 
-Importer `format` depuis date-fns (déjà présent) et utiliser le format date string au lieu de `.toISOString()`.
+**Fichier : `src/pages/DowntimeComparison.tsx`**
 
-### 2. Implémenter la pagination
+Actuellement, la requête ne filtre pas par plateforme :
+```typescript
+.from("hourly_availability")
+.select("*")
+.in("restaurant_id", selectedRestaurants.map(r => r.id))
+```
 
-Remplacer la requête simple par une boucle de pagination :
+Ajouter un filtre `uber_eats` par défaut (comme la page Analytics) :
+```typescript
+.from("hourly_availability")
+.select("*")
+.in("restaurant_id", selectedRestaurants.map(r => r.id))
+.eq("platform", "uber_eats")  // Aligner avec le comportement par défaut Analytics
+```
+
+### Alternative : Ajouter un sélecteur de plateforme
+
+Si le besoin est de voir plusieurs plateformes, ajouter un `PlatformSelector` dans l'en-tête de la page Comparaison pour permettre le choix explicite.
+
+---
+
+## Section technique
+
+### Modification requise
 
 ```typescript
-const { data: availabilityData, isLoading } = useQuery({
-  queryKey: ["downtime-comparison", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
-  queryFn: async () => {
-    if (!selectedRestaurants?.length) return [];
-    
-    const PAGE_SIZE = 1000;
-    let allData: any[] = [];
-    let page = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from("hourly_availability")
-        .select("*")
-        .in("restaurant_id", selectedRestaurants.map(r => r.id))
-        .gte("hour_start", format(dateRange.start, "yyyy-MM-dd"))
-        .lte("hour_start", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
-        .order("hour_start", { ascending: true })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-      
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        allData = [...allData, ...data];
-        hasMore = data.length === PAGE_SIZE;
-        page++;
-      } else {
-        hasMore = false;
-      }
-    }
-    
-    return allData;
-  },
-  enabled: !!selectedRestaurants?.length,
-});
+// src/pages/DowntimeComparison.tsx - ligne 118
+while (hasMore) {
+  const { data, error } = await supabase
+    .from("hourly_availability")
+    .select("*")
+    .in("restaurant_id", selectedRestaurants.map(r => r.id))
+    .eq("platform", "uber_eats")  // NOUVEAU: aligner avec Analytics
+    .gte("hour_start", format(dateRange.start, "yyyy-MM-dd"))
+    .lte("hour_start", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
+    .order("hour_start", { ascending: true })
+    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 ```
+
+### Impact
+
+Cette modification garantit que les deux pages utilisent le même sous-ensemble de données (plateforme Uber Eats), éliminant les écarts potentiels si d'autres plateformes sont ajoutées à l'avenir.
 
 ---
 
 ## Résultat attendu
 
-| Avant | Après |
-|-------|-------|
-| 1 000 lignes max | Toutes les lignes (13 608+) |
-| Nantes Centre: 84.7% (faux) | Nantes Centre: 99.0% (correct) |
-| Données incomplètes | Parité avec la page Analytics |
+| Restaurant | Avant (Comparaison) | Après (Comparaison) | Analytics |
+|------------|---------------------|---------------------|-----------|
+| Bourg-en-Bresse | 90.5% | 93.2% | 93.2% |
+| Marseille Belsunce | 92.2% | 93.6% | 93.6% |
 
-Les deux pages afficheront désormais les mêmes taux de disponibilité pour la même période.
+Les deux pages afficheront des données identiques pour la même période et les mêmes restaurants.
+
