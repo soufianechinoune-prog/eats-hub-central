@@ -103,21 +103,39 @@ const DowntimeComparison = () => {
   // Select restaurants based on view mode
   const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
 
-  // Fetch hourly availability data for selected restaurants
+  // Fetch hourly availability data for selected restaurants with pagination
   const { data: availabilityData, isLoading } = useQuery({
     queryKey: ["downtime-comparison", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
     queryFn: async () => {
       if (!selectedRestaurants?.length) return [];
       
-      const { data, error } = await supabase
-        .from("hourly_availability")
-        .select("*")
-        .in("restaurant_id", selectedRestaurants.map(r => r.id))
-        .gte("hour_start", dateRange.start.toISOString())
-        .lte("hour_start", dateRange.end.toISOString());
+      const PAGE_SIZE = 1000;
+      let allData: any[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("hourly_availability")
+          .select("*")
+          .in("restaurant_id", selectedRestaurants.map(r => r.id))
+          .gte("hour_start", format(dateRange.start, "yyyy-MM-dd"))
+          .lte("hour_start", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
+          .order("hour_start", { ascending: true })
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          hasMore = data.length === PAGE_SIZE;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
       
-      if (error) throw error;
-      return data || [];
+      return allData;
     },
     enabled: !!selectedRestaurants?.length,
   });
