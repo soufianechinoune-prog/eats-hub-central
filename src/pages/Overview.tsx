@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { subWeeks, startOfWeek, endOfWeek, format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +16,9 @@ import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
+import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
+
+const OVERVIEW_STORAGE_KEY = "overview-state";
 
 // Success Score tier configuration
 const TIER_BADGE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -47,16 +50,87 @@ const formatHoursToTime = (hours: number | null | undefined): string | null => {
   return `${h}h ${mins}min`;
 };
 
+// Load saved state from localStorage
+const getInitialOverviewState = () => {
+  try {
+    const stored = localStorage.getItem(OVERVIEW_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
+
 const Overview = () => {
+  const storedState = getInitialOverviewState();
+  
   const defaultPeriodMode: OverviewPeriodMode = "previous_week";
-  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(defaultPeriodMode);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(
+    () => storedState?.periodMode || defaultPeriodMode
+  );
+  const [selectedYear, setSelectedYear] = useState(
+    () => storedState?.selectedYear || new Date().getFullYear()
+  );
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => storedState?.selectedMonth || new Date().getMonth() + 1
+  );
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    if (storedState?.dateRange?.from && storedState?.dateRange?.to) {
+      return {
+        from: new Date(storedState.dateRange.from),
+        to: new Date(storedState.dateRange.to),
+      };
+    }
+    return undefined;
+  });
   const [showN1Comparison, setShowN1Comparison] = useState(false);
+  const [isNetworkView, setIsNetworkView] = useState(
+    () => storedState?.isNetworkView ?? false
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { exportComprehensivePdf, exportComprehensiveExcel, isExporting } = useOverviewExport();
+
+  // Persist state to localStorage
+  useEffect(() => {
+    const state = {
+      periodMode,
+      selectedYear,
+      selectedMonth,
+      dateRange: dateRange ? {
+        from: dateRange.from?.toISOString(),
+        to: dateRange.to?.toISOString(),
+      } : undefined,
+      isNetworkView,
+    };
+    localStorage.setItem(OVERVIEW_STORAGE_KEY, JSON.stringify(state));
+  }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView]);
+
+  // Fetch pinned restaurant count for toggle
+  const { data: pinnedRestaurants } = useQuery({
+    queryKey: ["pinned-restaurants-count"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("is_pinned", true)
+        .eq("is_active", true);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch all active restaurant count for toggle
+  const { data: allActiveRestaurants } = useQuery({
+    queryKey: ["active-restaurants-count"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("is_active", true);
+      if (error) throw error;
+      return data || [];
+    },
+  });
   
   // Fetch latest Success Score for network overview (Uber Eats only)
   const { data: successScoreData } = useQuery({
@@ -146,6 +220,24 @@ const Overview = () => {
     // Navigate to Finances tab
     navigate("/analytics/finances");
   };
+
+  // Navigate to Downtime Comparison with period preserved
+  const navigateToDowntimeComparison = useCallback(() => {
+    // Sync the period to DowntimeComparison localStorage
+    const downtimeState = {
+      periodMode,
+      selectedYear,
+      selectedMonth,
+      customDateRange: dateRange ? {
+        from: dateRange.from?.toISOString(),
+        to: dateRange.to?.toISOString(),
+      } : undefined,
+      isNetworkView,
+    };
+    localStorage.setItem("downtime-comparison-state", JSON.stringify(downtimeState));
+    
+    navigate("/compare/downtime");
+  }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView, navigate]);
 
   const isCustomPeriod = periodMode !== defaultPeriodMode;
 
@@ -914,6 +1006,12 @@ const Overview = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <NetworkViewToggle
+            isNetworkView={isNetworkView}
+            onToggle={setIsNetworkView}
+            pinnedCount={pinnedRestaurants?.length || 0}
+            networkCount={allActiveRestaurants?.length || 0}
+          />
           <Button
             onClick={() => {
               queryClient.invalidateQueries({ queryKey: ["network-health"] });
@@ -990,7 +1088,7 @@ const Overview = () => {
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/analytics?view=operations&tab=totalDelivery')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.global.incorrectOrderRate != null ? networkData.global.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability != null ? networkData.global.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal()} />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.global.downtime)} color="text-orange-500" onClick={() => navigate('/compare/downtime')} />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.global.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
                 <MetricRow icon={Clock} label="Horaires d'ouverture" value="Voir analyse" color="text-indigo-500" onClick={() => navigate('/compare/opening-hours')} />
                 <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productApprovalRate != null ? Math.round(networkData.global.productApprovalRate) : null} unit="%" color="text-violet-500" />
               </CardContent>
@@ -1027,7 +1125,7 @@ const Overview = () => {
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/analytics?view=operations&tab=totalDelivery')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability != null ? networkData.uber.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal()} />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.uber.downtime)} color="text-orange-500" onClick={() => navigate('/compare/downtime')} />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.uber.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
               </CardContent>
             </Card>
 
@@ -1052,7 +1150,7 @@ const Overview = () => {
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/analytics?view=operations&tab=totalDelivery')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate != null ? networkData.deliveroo.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability != null ? networkData.deliveroo.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal()} />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" onClick={() => navigate('/compare/downtime')} />
+                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
               </CardContent>
             </Card>
           </div>
