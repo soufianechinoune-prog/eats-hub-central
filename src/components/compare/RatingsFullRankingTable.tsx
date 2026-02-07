@@ -100,6 +100,14 @@ export const RatingsFullRankingTable = ({
     setCurrentPage(1);
   };
 
+  // Calculate global rank based on original sorted data - must be before filteredAndSortedData
+  const rankedData = useMemo(() => {
+    const sortedByRating = [...data].sort((a, b) => b.avgRating - a.avgRating);
+    const rankMap = new Map<string, number>();
+    sortedByRating.forEach((r, idx) => rankMap.set(r.id, idx + 1));
+    return rankMap;
+  }, [data]);
+
   const filteredAndSortedData = useMemo(() => {
     let result = [...data];
 
@@ -134,7 +142,7 @@ export const RatingsFullRankingTable = ({
     });
 
     return result;
-  }, [data, searchQuery, sortField, sortDirection]);
+  }, [data, searchQuery, sortField, sortDirection, rankedData]);
 
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedData.length / ITEMS_PER_PAGE);
@@ -151,14 +159,6 @@ export const RatingsFullRankingTable = ({
       ? <ArrowUp className="h-4 w-4 ml-1 text-primary" />
       : <ArrowDown className="h-4 w-4 ml-1 text-primary" />;
   };
-
-  // Calculate global rank based on original sorted data
-  const rankedData = useMemo(() => {
-    const sortedByRating = [...data].sort((a, b) => b.avgRating - a.avgRating);
-    const rankMap = new Map<string, number>();
-    sortedByRating.forEach((r, idx) => rankMap.set(r.id, idx + 1));
-    return rankMap;
-  }, [data]);
 
   return (
     <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
