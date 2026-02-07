@@ -8,12 +8,13 @@ import { ArrowLeft, Calendar, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PrepTimeRankingBars } from "@/components/compare/PrepTimeRankingBars";
+import { PrepTimeFullRankingTable } from "@/components/compare/PrepTimeFullRankingTable";
 import { PrepTimeInsightsSection } from "@/components/compare/PrepTimeInsightsSection";
 import { PrepTimeHeatmapGrid } from "@/components/compare/PrepTimeHeatmapGrid";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { useAnalyticsContext, Platform } from "@/contexts/AnalyticsContext";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
+import { usePrepTimeExport } from "@/hooks/usePrepTimeExport";
 
 type PeriodType = "week" | "month" | "quarter" | "context";
 
@@ -25,6 +26,8 @@ const PrepTimeComparison = () => {
     setSelectedPlatform: setContextPlatform,
     periodMode: contextPeriodMode
   } = useAnalyticsContext();
+  
+  const { exportToPDF, isExporting } = usePrepTimeExport();
   
   // Determine initial period based on context
   const [period, setPeriod] = useState<PeriodType>(() => {
@@ -206,6 +209,80 @@ const PrepTimeComparison = () => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
   }, [dateRange]);
 
+  // Prepare export data
+  const handleExportPDF = () => {
+    // Calculate network stats for export
+    const totalWeighted = restaurantStats.reduce((sum, s) => sum + s.avgPrepTime * s.orderCount, 0);
+    const totalOrders = restaurantStats.reduce((sum, s) => sum + s.orderCount, 0);
+    const networkAverage = totalOrders > 0 ? totalWeighted / totalOrders : 0;
+    
+    const fastRestaurants = restaurantStats.filter(s => s.avgPrepTime < 5).length;
+    const slowRestaurants = restaurantStats.filter(s => s.avgPrepTime > 8).length;
+    
+    // Find peak hour across all restaurants
+    const hourlyTotals: Record<number, { total: number; count: number }> = {};
+    restaurantStats.forEach(stat => {
+      Object.entries(stat.hourlyData).forEach(([hour, data]) => {
+        if (!hourlyTotals[Number(hour)]) {
+          hourlyTotals[Number(hour)] = { total: 0, count: 0 };
+        }
+        hourlyTotals[Number(hour)].total += data.total;
+        hourlyTotals[Number(hour)].count += data.count;
+      });
+    });
+    const peakHour = Object.entries(hourlyTotals)
+      .filter(([, data]) => data.count > 0)
+      .map(([hour, data]) => ({ hour: Number(hour), avg: data.total / data.count }))
+      .sort((a, b) => b.avg - a.avg)[0] || null;
+    
+    // Find worst day of week
+    const weekdayTotals: Record<number, { total: number; count: number }> = {};
+    restaurantStats.forEach(stat => {
+      Object.entries(stat.weekdayData).forEach(([day, data]) => {
+        if (!weekdayTotals[Number(day)]) {
+          weekdayTotals[Number(day)] = { total: 0, count: 0 };
+        }
+        weekdayTotals[Number(day)].total += data.total;
+        weekdayTotals[Number(day)].count += data.count;
+      });
+    });
+    const peakWeekday = Object.entries(weekdayTotals)
+      .filter(([, data]) => data.count > 0)
+      .map(([day, data]) => ({ day: Number(day), avg: data.total / data.count }))
+      .sort((a, b) => b.avg - a.avg)[0] || null;
+
+    // Distribution by performance
+    const distribution = [
+      { label: "Excellent (< 4min)", count: restaurantStats.filter(s => s.avgPrepTime <= 4).length, color: "emerald" },
+      { label: "Tres bien (4-5min)", count: restaurantStats.filter(s => s.avgPrepTime > 4 && s.avgPrepTime <= 5).length, color: "green" },
+      { label: "Bon (5-6min)", count: restaurantStats.filter(s => s.avgPrepTime > 5 && s.avgPrepTime <= 6).length, color: "amber" },
+      { label: "A surveiller (6-8min)", count: restaurantStats.filter(s => s.avgPrepTime > 6 && s.avgPrepTime <= 8).length, color: "orange" },
+      { label: "Lent (> 8min)", count: restaurantStats.filter(s => s.avgPrepTime > 8).length, color: "red" },
+    ];
+
+    // Restaurants with rank
+    const restaurants = restaurantStats.map((stat, index) => ({
+      rank: index + 1,
+      name: stat.name,
+      avgPrepTime: stat.avgPrepTime,
+      orderCount: stat.orderCount,
+    }));
+
+    exportToPDF({
+      periodLabel,
+      globalStats: {
+        avgPrepTime: networkAverage,
+        totalOrders,
+        fastRestaurants,
+        slowRestaurants,
+        peakHour,
+        peakWeekday,
+      },
+      distribution,
+      restaurants,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-6 space-y-6">
@@ -297,15 +374,13 @@ const PrepTimeComparison = () => {
             {/* Insights Section */}
             <PrepTimeInsightsSection stats={restaurantStats} period={period} />
 
-            {/* Ranking - Full Width */}
-            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-lg">Classement par rapidité</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <PrepTimeRankingBars stats={restaurantStats} dateRange={dateRange} />
-              </CardContent>
-            </Card>
+            {/* Ranking - Full Width with Table */}
+            <PrepTimeFullRankingTable 
+              data={restaurantStats}
+              dateRange={dateRange}
+              onExportPDF={handleExportPDF}
+              isExporting={isExporting}
+            />
 
             {/* Heatmap */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
