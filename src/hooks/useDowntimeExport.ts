@@ -1,7 +1,7 @@
 import { useState } from "react";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx-js-style";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { extractCityName } from "@/lib/restaurantUtils";
 
@@ -12,6 +12,7 @@ interface RestaurantStat {
   availabilityRate: number;
   hourlyData?: Record<number, number>;
   weekdayData?: Record<number, number>;
+  dailyData?: Record<string, number>;
 }
 
 interface ExportData {
@@ -56,6 +57,13 @@ export const useDowntimeExport = () => {
       const margin = 15;
       let yPos = margin;
 
+      // Build restaurant page mapping (page 2 = first restaurant, etc.)
+      const restaurantPages: Record<string, number> = {};
+      data.stats.forEach((stat, index) => {
+        restaurantPages[stat.id] = index + 2; // Page 1 is summary
+      });
+
+      // ============ PAGE 1: SUMMARY ============
       // Header
       doc.setFillColor(16, 185, 129); // Emerald
       doc.rect(0, 0, pageWidth, 35, "F");
@@ -130,7 +138,13 @@ export const useDowntimeExport = () => {
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.text("Classement par disponibilite", margin, yPos);
-      yPos += 8;
+      
+      // Clickable hint
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(107, 114, 128);
+      doc.text("Cliquez sur un restaurant pour voir le detail journalier", margin, yPos + 5);
+      yPos += 12;
 
       // Table
       const colWidths = [10, 70, 45, 55];
@@ -177,8 +191,15 @@ export const useDowntimeExport = () => {
         doc.text((index + 1).toString(), colX, yPos + 5.5);
         colX += colWidths[0];
         
+        // Restaurant name - clickable link (blue)
         const cityName = extractCityName(stat.name);
+        const targetPage = restaurantPages[stat.id];
+        doc.setTextColor(37, 99, 235); // Blue for link
+        doc.setFont("helvetica", "bold");
         doc.text(cityName.substring(0, 35), colX, yPos + 5.5);
+        // Add internal link to detail page
+        doc.link(colX - 2, yPos, colWidths[1], rowHeight, { pageNumber: targetPage });
+        
         colX += colWidths[1];
 
         // Color code availability
@@ -189,7 +210,6 @@ export const useDowntimeExport = () => {
         } else {
           doc.setTextColor(239, 68, 68);
         }
-        doc.setFont("helvetica", "bold");
         doc.text(`${stat.availabilityRate.toFixed(1)}%`, colX, yPos + 5.5);
         colX += colWidths[2];
 
@@ -200,7 +220,7 @@ export const useDowntimeExport = () => {
         yPos += rowHeight;
       });
 
-      // Footer
+      // Footer on page 1
       doc.setFontSize(8);
       doc.setTextColor(156, 163, 175);
       doc.text(
@@ -209,6 +229,157 @@ export const useDowntimeExport = () => {
         pageHeight - 8,
         { align: "center" }
       );
+
+      // ============ DETAIL PAGES: One per restaurant ============
+      data.stats.forEach((stat) => {
+        doc.addPage();
+        let detailY = margin;
+
+        // Header with restaurant info
+        doc.setFillColor(16, 185, 129);
+        doc.rect(0, 0, pageWidth, 30, "F");
+
+        // Restaurant name
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(16);
+        doc.setFont("helvetica", "bold");
+        doc.text(extractCityName(stat.name), margin, 14);
+
+        // Stats summary
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Disponibilite: ${stat.availabilityRate.toFixed(1)}% | Hors ligne: ${formatMinutesToDisplay(stat.totalOfflineMinutes)}`, margin, 23);
+
+        // Back link
+        doc.setFontSize(9);
+        doc.text("<- Retour synthese", pageWidth - margin - 35, 14);
+        doc.link(pageWidth - margin - 40, 6, 45, 12, { pageNumber: 1 });
+
+        // Period
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.text(data.period, pageWidth - margin, 23, { align: "right" });
+
+        detailY = 40;
+
+        // Daily breakdown table
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Detail journalier", margin, detailY);
+        detailY += 8;
+
+        const dailyEntries = Object.entries(stat.dailyData || {}).sort(([a], [b]) => a.localeCompare(b));
+
+        if (dailyEntries.length === 0) {
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(107, 114, 128);
+          doc.text("Aucune donnee disponible pour cette periode", margin, detailY + 10);
+        } else {
+          // Table header
+          const detailColWidths = [35, 50, 40, 55];
+          const detailTableWidth = detailColWidths.reduce((a, b) => a + b, 0);
+
+          doc.setFillColor(16, 185, 129);
+          doc.rect(margin, detailY, detailTableWidth, 8, "F");
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+
+          let dColX = margin + 3;
+          doc.text("Date", dColX, detailY + 5.5);
+          dColX += detailColWidths[0];
+          doc.text("Jour", dColX, detailY + 5.5);
+          dColX += detailColWidths[1];
+          doc.text("Temps offline", dColX, detailY + 5.5);
+          dColX += detailColWidths[2];
+          doc.text("Statut", dColX, detailY + 5.5);
+
+          detailY += 8;
+
+          // Daily rows
+          dailyEntries.forEach(([dateStr, minutes], idx) => {
+            if (detailY > pageHeight - 20) {
+              doc.addPage();
+              detailY = margin;
+              
+              // Repeat header on new page
+              doc.setFillColor(16, 185, 129);
+              doc.rect(margin, detailY, detailTableWidth, 8, "F");
+              doc.setTextColor(255, 255, 255);
+              doc.setFontSize(9);
+              doc.setFont("helvetica", "bold");
+              
+              let repColX = margin + 3;
+              doc.text("Date", repColX, detailY + 5.5);
+              repColX += detailColWidths[0];
+              doc.text("Jour", repColX, detailY + 5.5);
+              repColX += detailColWidths[1];
+              doc.text("Temps offline", repColX, detailY + 5.5);
+              repColX += detailColWidths[2];
+              doc.text("Statut", repColX, detailY + 5.5);
+              
+              detailY += 8;
+            }
+
+            // Alternate row colors
+            if (idx % 2 === 0) {
+              doc.setFillColor(249, 250, 251);
+              doc.rect(margin, detailY, detailTableWidth, 7, "F");
+            }
+
+            const dateObj = parseISO(dateStr);
+            const dayName = format(dateObj, "EEEE", { locale: fr });
+
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+
+            dColX = margin + 3;
+            doc.setTextColor(0, 0, 0);
+            doc.text(format(dateObj, "dd/MM/yyyy"), dColX, detailY + 5);
+            dColX += detailColWidths[0];
+
+            doc.setTextColor(107, 114, 128);
+            doc.text(dayName.charAt(0).toUpperCase() + dayName.slice(1), dColX, detailY + 5);
+            dColX += detailColWidths[1];
+
+            // Color based on offline time
+            if (minutes === 0) {
+              doc.setTextColor(16, 185, 129); // Green
+            } else if (minutes < 30) {
+              doc.setTextColor(245, 158, 11); // Orange
+            } else {
+              doc.setTextColor(239, 68, 68); // Red
+            }
+            doc.setFont("helvetica", "bold");
+            doc.text(formatMinutesToDisplay(minutes), dColX, detailY + 5);
+            dColX += detailColWidths[2];
+
+            // Status text
+            let status = "OK";
+            if (minutes > 0 && minutes < 30) {
+              status = "Attention";
+            } else if (minutes >= 30) {
+              status = "Critique";
+            }
+            doc.text(status, dColX, detailY + 5);
+
+            detailY += 7;
+          });
+        }
+
+        // Footer on detail page
+        doc.setFontSize(8);
+        doc.setTextColor(156, 163, 175);
+        doc.setFont("helvetica", "normal");
+        doc.text(
+          `${extractCityName(stat.name)} - CS Delivery Performance`,
+          pageWidth / 2,
+          pageHeight - 8,
+          { align: "center" }
+        );
+      });
 
       const fileName = `downtime-comparison-${format(data.dateRange.start, "yyyyMMdd")}-${format(data.dateRange.end, "yyyyMMdd")}.pdf`;
       doc.save(fileName);
@@ -344,6 +515,40 @@ export const useDowntimeExport = () => {
         });
 
         XLSX.utils.book_append_sheet(wb, hourlyWs, "Par heure");
+      }
+
+      // Daily breakdown sheet
+      if (data.stats.some(s => s.dailyData && Object.keys(s.dailyData).length > 0)) {
+        // Collect all dates
+        const allDates = new Set<string>();
+        data.stats.forEach(stat => {
+          Object.keys(stat.dailyData || {}).forEach(d => allDates.add(d));
+        });
+        const sortedDates = Array.from(allDates).sort();
+
+        const dailyHeaders = ["Restaurant", ...sortedDates.map(d => format(parseISO(d), "dd/MM"))];
+        const dailyRows = data.stats.map(stat => {
+          const values = sortedDates.map(d => 
+            stat.dailyData?.[d] !== undefined ? formatMinutesToDisplay(stat.dailyData[d]) : "-"
+          );
+          return [extractCityName(stat.name), ...values];
+        });
+
+        const dailyWs = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyRows]);
+        dailyWs["!cols"] = [
+          { wch: 20 },
+          ...sortedDates.map(() => ({ wch: 10 })),
+        ];
+
+        // Style header
+        dailyHeaders.forEach((_, colIndex) => {
+          const cellRef = XLSX.utils.encode_cell({ r: 0, c: colIndex });
+          if (dailyWs[cellRef]) {
+            dailyWs[cellRef].s = headerStyle;
+          }
+        });
+
+        XLSX.utils.book_append_sheet(wb, dailyWs, "Par jour");
       }
 
       const fileName = `downtime-comparison-${format(data.dateRange.start, "yyyyMMdd")}-${format(data.dateRange.end, "yyyyMMdd")}.xlsx`;
