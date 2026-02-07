@@ -115,11 +115,12 @@ const DowntimeComparison = () => {
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
-          .from("hourly_availability")
-          .select("*")
-          .in("restaurant_id", selectedRestaurants.map(r => r.id))
-          .gte("hour_start", format(dateRange.start, "yyyy-MM-dd"))
+      const { data, error } = await supabase
+        .from("hourly_availability")
+        .select("*")
+        .in("restaurant_id", selectedRestaurants.map(r => r.id))
+        .eq("platform", "uber_eats")
+        .gte("hour_start", format(dateRange.start, "yyyy-MM-dd"))
           .lte("hour_start", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
           .order("hour_start", { ascending: true })
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
