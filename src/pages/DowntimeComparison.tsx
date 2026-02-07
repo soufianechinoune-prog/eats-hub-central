@@ -126,8 +126,10 @@ const DowntimeComparison = () => {
   const restaurantStats = useMemo(() => {
     if (!selectedRestaurants?.length) return [];
     
+    const safeAvailabilityData = availabilityData || [];
+    
     const stats = selectedRestaurants.map(restaurant => {
-      const restaurantData = availabilityData.filter(d => d.restaurant_id === restaurant.id);
+      const restaurantData = safeAvailabilityData.filter(d => d.restaurant_id === restaurant.id);
       const totalOffline = restaurantData.reduce((sum, d) => sum + (d.offline_minutes || 0), 0);
       const totalOnline = restaurantData.reduce((sum, d) => sum + (d.online_minutes || 0), 0);
       const totalMinutes = totalOffline + totalOnline;
