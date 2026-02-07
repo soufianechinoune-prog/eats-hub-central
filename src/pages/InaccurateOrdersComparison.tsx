@@ -12,12 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { InaccurateOrdersRankingBars } from "@/components/compare/InaccurateOrdersRankingBars";
 import { InaccurateOrdersInsightsSection } from "@/components/compare/InaccurateOrdersInsightsSection";
 import { InaccurateOrdersHeatmapGrid } from "@/components/compare/InaccurateOrdersHeatmapGrid";
+import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 
 type PeriodType = "week" | "month" | "quarter";
 
 const InaccurateOrdersComparison = () => {
   const navigate = useNavigate();
   const [period, setPeriod] = useState<PeriodType>("week");
+  const [isNetworkView, setIsNetworkView] = useState(false);
 
   // Calculate date range based on period
   const dateRange = useMemo(() => {
@@ -54,24 +56,41 @@ const InaccurateOrdersComparison = () => {
     },
   });
 
+  // Fetch all active restaurants (for network view)
+  const { data: allActiveRestaurants } = useQuery({
+    queryKey: ["active-restaurants"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Select restaurants based on view mode
+  const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
+
   // Fetch daily order accuracy data (aggregated from Uber dashboard)
   const { data: orderAccuracyData, isLoading: accuracyLoading } = useQuery({
-    queryKey: ["inaccurate-orders-comparison-accuracy", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+    queryKey: ["inaccurate-orders-comparison-accuracy", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
     queryFn: async () => {
-      if (!pinnedRestaurants?.length) return [];
+      if (!selectedRestaurants?.length) return [];
       
       const { data, error } = await supabase
         .from("daily_order_accuracy")
         .select("*")
         .eq("period_type", "current")
-        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
+        .in("restaurant_id", selectedRestaurants.map(r => r.id))
         .gte("date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("date", format(dateRange.end, "yyyy-MM-dd"));
       
       if (error) throw error;
       return data || [];
     },
-    enabled: !!pinnedRestaurants?.length,
+    enabled: !!selectedRestaurants?.length,
   });
 
   // Fetch latest accuracy date to check data coverage
@@ -92,14 +111,14 @@ const InaccurateOrdersComparison = () => {
 
   // Fetch order counts from daily_sales_uber for the period
   const { data: orderCountsData, isLoading: ordersLoading } = useQuery({
-    queryKey: ["inaccurate-orders-comparison-sales", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+    queryKey: ["inaccurate-orders-comparison-sales", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
     queryFn: async () => {
-      if (!pinnedRestaurants?.length) return [];
+      if (!selectedRestaurants?.length) return [];
       
       const { data, error } = await supabase
         .from("daily_sales_uber_deduped")
         .select("restaurant_id, date, order_count")
-        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
+        .in("restaurant_id", selectedRestaurants.map(r => r.id))
         .gte("date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("date", format(dateRange.end, "yyyy-MM-dd"))
         .order("date", { ascending: true });
@@ -107,7 +126,7 @@ const InaccurateOrdersComparison = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!pinnedRestaurants?.length,
+    enabled: !!selectedRestaurants?.length,
   });
 
   const isLoading = accuracyLoading || ordersLoading;
@@ -120,7 +139,7 @@ const InaccurateOrdersComparison = () => {
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!orderAccuracyData || !pinnedRestaurants?.length) return [];
+    if (!orderAccuracyData || !selectedRestaurants?.length) return [];
     
     // Build order counts by restaurant and weekday
     const orderCountsByRestaurant: Record<string, {
@@ -141,7 +160,7 @@ const InaccurateOrdersComparison = () => {
       }
     });
     
-    const stats = pinnedRestaurants.map(restaurant => {
+    const stats = selectedRestaurants.map(restaurant => {
       const accuracyRecords = orderAccuracyData.filter(d => d.restaurant_id === restaurant.id);
       const orderData = orderCountsByRestaurant[restaurant.id] || { total: 0, weekday: {} };
       
@@ -210,7 +229,7 @@ const InaccurateOrdersComparison = () => {
     
     // Sort by error rate (lowest first = best)
     return stats.sort((a, b) => a.errorRate - b.errorRate);
-  }, [orderAccuracyData, orderCountsData, pinnedRestaurants]);
+  }, [orderAccuracyData, orderCountsData, selectedRestaurants]);
 
   const periodLabel = useMemo(() => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
@@ -236,12 +255,18 @@ const InaccurateOrdersComparison = () => {
                 <h1 className="text-2xl font-bold">Comparaison Commandes incorrectes</h1>
               </div>
               <p className="text-muted-foreground text-sm">
-                Analyse comparative des restaurants épinglés
+                Analyse de {restaurantStats.length} restaurants
               </p>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
+            <NetworkViewToggle
+              isNetworkView={isNetworkView}
+              onToggle={setIsNetworkView}
+              pinnedCount={pinnedRestaurants?.length || 0}
+              networkCount={allActiveRestaurants?.length || 0}
+            />
             <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
               <Calendar className="h-4 w-4" />
               <span>{periodLabel}</span>

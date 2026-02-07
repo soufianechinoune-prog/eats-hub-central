@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PrepTimeRankingBars } from "@/components/compare/PrepTimeRankingBars";
 import { PrepTimeInsightsSection } from "@/components/compare/PrepTimeInsightsSection";
 import { PrepTimeHeatmapGrid } from "@/components/compare/PrepTimeHeatmapGrid";
+import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { useAnalyticsContext, Platform } from "@/contexts/AnalyticsContext";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 
@@ -32,6 +33,7 @@ const PrepTimeComparison = () => {
     }
     return "week";
   });
+  const [isNetworkView, setIsNetworkView] = useState(false);
 
   // Calculate date range based on period or context
   const dateRange = useMemo(() => {
@@ -73,13 +75,30 @@ const PrepTimeComparison = () => {
     },
   });
 
+  // Fetch all active restaurants (for network view)
+  const { data: allActiveRestaurants } = useQuery({
+    queryKey: ["active-restaurants"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Select restaurants based on view mode
+  const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
+
   // Fetch order history data for prep times with platform filter
   const { data: orderHistoryData, isLoading } = useQuery({
-    queryKey: ["prep-time-comparison", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, contextPlatform],
+    queryKey: ["prep-time-comparison", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, contextPlatform, isNetworkView],
     queryFn: async () => {
-      if (!pinnedRestaurants?.length) return [];
+      if (!selectedRestaurants?.length) return [];
       
-      const restaurantIds = pinnedRestaurants.map(r => r.id);
+      const restaurantIds = selectedRestaurants.map(r => r.id);
       let allData: typeof data = [];
       let page = 0;
       const pageSize = 1000;
@@ -115,14 +134,14 @@ const PrepTimeComparison = () => {
       
       return allData;
     },
-    enabled: !!pinnedRestaurants?.length,
+    enabled: !!selectedRestaurants?.length,
   });
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!orderHistoryData?.length || !pinnedRestaurants?.length) return [];
+    if (!orderHistoryData?.length || !selectedRestaurants?.length) return [];
     
-    const stats = pinnedRestaurants.map(restaurant => {
+    const stats = selectedRestaurants.map(restaurant => {
       const restaurantData = orderHistoryData.filter(d => d.restaurant_id === restaurant.id);
       
       // Calculate average prep time
@@ -180,7 +199,7 @@ const PrepTimeComparison = () => {
     
     // Sort by average prep time (fastest first)
     return stats.sort((a, b) => a.avgPrepTime - b.avgPrepTime);
-  }, [orderHistoryData, pinnedRestaurants]);
+  }, [orderHistoryData, selectedRestaurants]);
 
 
   const periodLabel = useMemo(() => {
@@ -207,12 +226,18 @@ const PrepTimeComparison = () => {
                 <h1 className="text-2xl font-bold">Comparaison Temps de préparation</h1>
               </div>
               <p className="text-muted-foreground text-sm">
-                Analyse comparative des restaurants épinglés
+                Analyse de {restaurantStats.length} restaurants
               </p>
             </div>
           </div>
           
         <div className="flex items-center gap-3">
+            <NetworkViewToggle
+              isNetworkView={isNetworkView}
+              onToggle={setIsNetworkView}
+              pinnedCount={pinnedRestaurants?.length || 0}
+              networkCount={allActiveRestaurants?.length || 0}
+            />
             {/* Platform selector */}
             <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg">
               <Button
