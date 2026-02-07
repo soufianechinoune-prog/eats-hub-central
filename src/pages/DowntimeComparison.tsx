@@ -124,7 +124,7 @@ const DowntimeComparison = () => {
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!availabilityData?.length || !selectedRestaurants?.length) return [];
+    if (!selectedRestaurants?.length) return [];
     
     const stats = selectedRestaurants.map(restaurant => {
       const restaurantData = availabilityData.filter(d => d.restaurant_id === restaurant.id);
