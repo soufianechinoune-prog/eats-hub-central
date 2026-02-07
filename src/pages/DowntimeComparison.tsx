@@ -12,12 +12,14 @@ import { DowntimeRankingBars } from "@/components/compare/DowntimeRankingBars";
 import { DowntimeEvolutionChart } from "@/components/compare/DowntimeEvolutionChart";
 import { DowntimeInsightsSection } from "@/components/compare/DowntimeInsightsSection";
 import { DowntimeHeatmapGrid } from "@/components/compare/DowntimeHeatmapGrid";
+import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 
 type PeriodType = "week" | "month" | "quarter";
 
 const DowntimeComparison = () => {
   const navigate = useNavigate();
   const [period, setPeriod] = useState<PeriodType>("week");
+  const [isNetworkView, setIsNetworkView] = useState(false);
 
   // Calculate date range based on period
   const dateRange = useMemo(() => {
@@ -54,30 +56,47 @@ const DowntimeComparison = () => {
     },
   });
 
-  // Fetch hourly availability data for pinned restaurants
-  const { data: availabilityData, isLoading } = useQuery({
-    queryKey: ["downtime-comparison", pinnedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+  // Fetch all active restaurants (for network view)
+  const { data: allActiveRestaurants } = useQuery({
+    queryKey: ["active-restaurants"],
     queryFn: async () => {
-      if (!pinnedRestaurants?.length) return [];
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Select restaurants based on view mode
+  const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
+
+  // Fetch hourly availability data for selected restaurants
+  const { data: availabilityData, isLoading } = useQuery({
+    queryKey: ["downtime-comparison", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
+    queryFn: async () => {
+      if (!selectedRestaurants?.length) return [];
       
       const { data, error } = await supabase
         .from("hourly_availability")
         .select("*")
-        .in("restaurant_id", pinnedRestaurants.map(r => r.id))
+        .in("restaurant_id", selectedRestaurants.map(r => r.id))
         .gte("hour_start", dateRange.start.toISOString())
         .lte("hour_start", dateRange.end.toISOString());
       
       if (error) throw error;
       return data || [];
     },
-    enabled: !!pinnedRestaurants?.length,
+    enabled: !!selectedRestaurants?.length,
   });
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!availabilityData?.length || !pinnedRestaurants?.length) return [];
+    if (!availabilityData?.length || !selectedRestaurants?.length) return [];
     
-    const stats = pinnedRestaurants.map(restaurant => {
+    const stats = selectedRestaurants.map(restaurant => {
       const restaurantData = availabilityData.filter(d => d.restaurant_id === restaurant.id);
       const totalOffline = restaurantData.reduce((sum, d) => sum + (d.offline_minutes || 0), 0);
       const totalOnline = restaurantData.reduce((sum, d) => sum + (d.online_minutes || 0), 0);
@@ -117,7 +136,7 @@ const DowntimeComparison = () => {
     });
     
     return stats.sort((a, b) => a.totalOfflineMinutes - b.totalOfflineMinutes);
-  }, [availabilityData, pinnedRestaurants]);
+  }, [availabilityData, selectedRestaurants]);
 
   // Prepare evolution chart data
   const evolutionData = useMemo(() => {
@@ -161,12 +180,18 @@ const DowntimeComparison = () => {
             <div>
               <h1 className="text-2xl font-bold">Comparaison Temps d'inactivité</h1>
               <p className="text-muted-foreground text-sm">
-                Analyse comparative des restaurants épinglés
+                Analyse de {restaurantStats.length} restaurants
               </p>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
+            <NetworkViewToggle
+              isNetworkView={isNetworkView}
+              onToggle={setIsNetworkView}
+              pinnedCount={pinnedRestaurants?.length || 0}
+              networkCount={allActiveRestaurants?.length || 0}
+            />
             <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
               <Calendar className="h-4 w-4" />
               <span>{periodLabel}</span>

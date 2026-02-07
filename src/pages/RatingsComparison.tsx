@@ -4,15 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, subWeeks, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Star, Building2 } from "lucide-react";
+import { ArrowLeft, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { RatingsInsightsSection } from "@/components/compare/RatingsInsightsSection";
 import { RatingsFullRankingTable } from "@/components/compare/RatingsFullRankingTable";
 import { RatingsEvolutionChart } from "@/components/compare/RatingsEvolutionChart";
 import { RatingsDistributionBars } from "@/components/compare/RatingsDistributionBars";
+import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useRatingsExport } from "@/hooks/useRatingsExport";
@@ -34,6 +34,7 @@ const RatingsComparison = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined);
+  const [isNetworkView, setIsNetworkView] = useState(true); // Default to network view for this page
 
   const { 
     setSelectedRestaurants, 
@@ -91,8 +92,22 @@ const RatingsComparison = () => {
     return { start, end };
   }, [periodMode, selectedYear, selectedMonth, customDateRange]);
 
+  // Fetch pinned restaurants
+  const { data: pinnedRestaurants } = useQuery({
+    queryKey: ["pinned-restaurants"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name")
+        .eq("is_pinned", true)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   // Fetch ALL active restaurants
-  const { data: allRestaurants } = useQuery({
+  const { data: allActiveRestaurants } = useQuery({
     queryKey: ["active-restaurants"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -105,11 +120,14 @@ const RatingsComparison = () => {
     },
   });
 
+  // Select restaurants based on view mode
+  const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
+
   // Fetch customer reviews with pagination to bypass 1000 row limit
   const { data: reviewsData, isLoading } = useQuery({
-    queryKey: ["ratings-comparison-network", allRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
+    queryKey: ["ratings-comparison-network", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
     queryFn: async () => {
-      if (!allRestaurants?.length) return [];
+      if (!selectedRestaurants?.length) return [];
       
       const allReviews: any[] = [];
       const pageSize = 1000;
@@ -132,7 +150,7 @@ const RatingsComparison = () => {
         
         if (data && data.length > 0) {
           // Filter to only include restaurants we care about
-          const restaurantIds = new Set(allRestaurants.map(r => r.id));
+          const restaurantIds = new Set(selectedRestaurants.map(r => r.id));
           const filteredData = data.filter(r => restaurantIds.has(r.restaurant_id));
           allReviews.push(...filteredData);
           offset += pageSize;
@@ -144,14 +162,14 @@ const RatingsComparison = () => {
       
       return allReviews;
     },
-    enabled: !!allRestaurants?.length,
+    enabled: !!selectedRestaurants?.length,
   });
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!reviewsData?.length || !allRestaurants?.length) return [];
+    if (!reviewsData?.length || !selectedRestaurants?.length) return [];
     
-    const stats = allRestaurants.map(restaurant => {
+    const stats = selectedRestaurants.map(restaurant => {
       const restaurantReviews = reviewsData.filter(r => r.restaurant_id === restaurant.id);
       const totalReviews = restaurantReviews.length;
       const avgRating = totalReviews > 0
@@ -203,7 +221,7 @@ const RatingsComparison = () => {
     return stats
       .filter(s => s.totalReviews > 0)
       .sort((a, b) => b.avgRating - a.avgRating);
-  }, [reviewsData, allRestaurants]);
+  }, [reviewsData, selectedRestaurants]);
 
   // Global KPIs
   const globalStats = useMemo(() => {
@@ -301,10 +319,6 @@ const RatingsComparison = () => {
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 Comparaison Notes
-                <Badge variant="secondary" className="text-xs font-normal">
-                  <Building2 className="h-3 w-3 mr-1" />
-                  Vue Réseau
-                </Badge>
               </h1>
               <p className="text-muted-foreground text-sm">
                 Analyse de {restaurantStats.length} restaurants | {periodLabel}
@@ -312,16 +326,25 @@ const RatingsComparison = () => {
             </div>
           </div>
           
-          <OverviewPeriodSelector
-            periodMode={periodMode}
-            onPeriodModeChange={setPeriodMode}
-            selectedYear={selectedYear}
-            onYearChange={setSelectedYear}
-            selectedMonth={selectedMonth}
-            onMonthChange={setSelectedMonth}
-            dateRange={customDateRange}
-            onDateRangeChange={setCustomDateRange}
-          />
+          <div className="flex items-center gap-3">
+            <NetworkViewToggle
+              isNetworkView={isNetworkView}
+              onToggle={setIsNetworkView}
+              pinnedCount={pinnedRestaurants?.length || 0}
+              networkCount={allActiveRestaurants?.length || 0}
+            />
+            
+            <OverviewPeriodSelector
+              periodMode={periodMode}
+              onPeriodModeChange={setPeriodMode}
+              selectedYear={selectedYear}
+              onYearChange={setSelectedYear}
+              selectedMonth={selectedMonth}
+              onMonthChange={setSelectedMonth}
+              dateRange={customDateRange}
+              onDateRangeChange={setCustomDateRange}
+            />
+          </div>
         </div>
 
         {isLoading ? (
