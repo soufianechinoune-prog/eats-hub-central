@@ -732,8 +732,26 @@ export default function ReportImport() {
       };
       const functionName = functionMap[reportType] || "parse-payment-report";
       
+      // For large order_history files, send only a sample for validation
+      let contentToValidate = csvContent;
+      let totalLinesCount = 0;
+      let isLargeFile = false;
+      
+      if (reportType === "order_history") {
+        const lines = csvContent.split('\n').filter(l => l.trim());
+        totalLinesCount = lines.length - 1; // Exclude header
+        
+        // If file is large, only send first 1000 lines for validation
+        if (totalLinesCount > CHUNK_SIZE) {
+          isLargeFile = true;
+          const headerLine = lines[0];
+          const sampleLines = lines.slice(1, 1001); // First 1000 data lines
+          contentToValidate = [headerLine, ...sampleLines].join('\n');
+        }
+      }
+      
       const body: Record<string, any> = {
-        csvContent,
+        csvContent: contentToValidate,
         reportType,
         dryRun: true,
         fileName: file?.name,
@@ -754,13 +772,32 @@ export default function ReportImport() {
 
       if (error) throw error;
 
-      setValidationResult(data as ImportResult);
+      // For large files, adjust the validation result to show actual totals
+      let validationData = data as ImportResult;
+      if (isLargeFile && reportType === "order_history") {
+        validationData = {
+          ...validationData,
+          stats: {
+            ...validationData.stats,
+            totalRows: totalLinesCount, // Show actual total, not sample size
+          },
+        };
+        
+        toast({
+          title: "Fichier volumineux détecté",
+          description: `${totalLinesCount.toLocaleString()} lignes seront importées en ${Math.ceil(totalLinesCount / CHUNK_SIZE)} chunks`,
+        });
+      }
+
+      setValidationResult(validationData);
       setStep("validation");
 
-      toast({
-        title: "Analyse terminée",
-        description: "Vérifiez les données avant de confirmer l'import",
-      });
+      if (!isLargeFile) {
+        toast({
+          title: "Analyse terminée",
+          description: "Vérifiez les données avant de confirmer l'import",
+        });
+      }
     } catch (error: any) {
       console.error("Validation error:", error);
       toast({
