@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, subYears, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, FileDown, Zap } from "lucide-react";
+import { Loader2, FileDown, Zap, ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1100,11 +1100,21 @@ export default function Analytics() {
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">{pageTitle.title}</h1>
-          <p className="text-muted-foreground mt-1">
-            {pageTitle.subtitle}
-          </p>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="rounded-full"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">{pageTitle.title}</h1>
+            <p className="text-muted-foreground mt-1">
+              {pageTitle.subtitle}
+            </p>
+          </div>
         </div>
         <Button
           onClick={handleExportPdf}
