@@ -308,25 +308,56 @@ serve(async (req) => {
       });
     }
 
+    // Phase 1.5: Deduplicate by (restaurant_id, hour_start, platform)
+    // This prevents PostgreSQL "ON CONFLICT DO UPDATE cannot affect row a second time" errors
+    const deduplicatedMap = new Map<string, any>();
+
+    for (const row of rowsToInsert) {
+      const key = `${row.restaurant_id}::${row.hour_start}::${row.platform}`;
+      const existing = deduplicatedMap.get(key);
+      
+      if (existing) {
+        // Merge: take max values (they should be identical, but just in case)
+        existing.menu_availability_minutes = Math.max(
+          existing.menu_availability_minutes || 0, 
+          row.menu_availability_minutes || 0
+        );
+        existing.online_minutes = Math.max(
+          existing.online_minutes || 0, 
+          row.online_minutes || 0
+        );
+        existing.offline_minutes = Math.max(
+          existing.offline_minutes || 0, 
+          row.offline_minutes || 0
+        );
+      } else {
+        deduplicatedMap.set(key, { ...row });
+      }
+    }
+
+    const deduplicatedRows = Array.from(deduplicatedMap.values());
+    const duplicatesMerged = rowsToInsert.length - deduplicatedRows.length;
+    console.log(`Deduplicated: ${rowsToInsert.length} → ${deduplicatedRows.length} rows (${duplicatesMerged} duplicates merged)`);
+
     result.restaurants.ids = Array.from(restaurantIdsSet);
     result.restaurants.count = restaurantIdsSet.size;
     result.dateRange.start = minDate?.toISOString().split('T')[0] || null;
     result.dateRange.end = maxDate?.toISOString().split('T')[0] || null;
 
-    console.log(`Parsed ${rowsToInsert.length} rows for ${result.restaurants.count} restaurants`);
+    console.log(`Parsed ${deduplicatedRows.length} unique rows for ${result.restaurants.count} restaurants`);
 
     if (dryRun) {
-      result.stats.inserted = rowsToInsert.length;
+      result.stats.inserted = deduplicatedRows.length;
       return new Response(
         JSON.stringify(result),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Insert in batches
+    // Insert in batches using deduplicated rows
     const BATCH_SIZE = 500;
-    for (let i = 0; i < rowsToInsert.length; i += BATCH_SIZE) {
-      const batch = rowsToInsert.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < deduplicatedRows.length; i += BATCH_SIZE) {
+      const batch = deduplicatedRows.slice(i, i + BATCH_SIZE);
       
       const { error: insertError } = await supabase
         .from('hourly_availability')
