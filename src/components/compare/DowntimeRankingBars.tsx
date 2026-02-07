@@ -1,9 +1,13 @@
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { extractCityName } from "@/lib/restaurantUtils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 interface RestaurantStat {
   id: string;
@@ -16,6 +20,8 @@ interface DowntimeRankingBarsProps {
   stats: RestaurantStat[];
   dateRange: { start: Date; end: Date };
 }
+
+type SortDirection = "asc" | "desc";
 
 const formatMinutesToDisplay = (minutes: number): string => {
   if (minutes === 0) return "0min";
@@ -51,13 +57,41 @@ const getStatusLabel = (availabilityRate: number): { text: string; color: string
 
 export const DowntimeRankingBars = ({ stats, dateRange }: DowntimeRankingBarsProps) => {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc"); // desc = best first (100%)
+  
   const { 
     setSelectedRestaurants, 
     setVisibleRestaurants,
     setPeriodMode, 
     setDateRange: setContextDateRange 
   } = useAnalyticsContext();
-  const maxMinutes = Math.max(...stats.map(s => s.totalOfflineMinutes), 1);
+
+  // Filter and sort stats
+  const filteredAndSortedStats = useMemo(() => {
+    let filtered = stats;
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = stats.filter(stat => 
+        stat.name.toLowerCase().includes(query) ||
+        extractCityName(stat.name).toLowerCase().includes(query)
+      );
+    }
+    
+    // Apply sort
+    return [...filtered].sort((a, b) => {
+      if (sortDirection === "desc") {
+        return b.availabilityRate - a.availabilityRate; // Best first
+      }
+      return a.availabilityRate - b.availabilityRate; // Worst first
+    });
+  }, [stats, searchQuery, sortDirection]);
+
+  const toggleSort = () => {
+    setSortDirection(prev => prev === "desc" ? "asc" : "desc");
+  };
 
   const handleRestaurantClick = (restaurantId: string) => {
     // REMPLACER la sélection par ce seul restaurant
@@ -97,58 +131,108 @@ export const DowntimeRankingBars = ({ stats, dateRange }: DowntimeRankingBarsPro
 
   return (
     <div className="space-y-4">
-      {stats.map((stat, index) => {
-        const barWidth = stat.availabilityRate;
-        const status = getStatusLabel(stat.availabilityRate);
-        const cityName = extractCityName(stat.name);
+      {/* Search and Sort controls */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher un restaurant..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
         
-        return (
-          <motion.div
-            key={stat.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="space-y-2 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors -mx-2"
-            onClick={() => handleRestaurantClick(stat.id)}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-lg w-6">{getMedal(index)}</span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="font-medium hover:text-primary transition-colors">{cityName}</span>
-                  </TooltipTrigger>
-                  <TooltipContent>{stat.name}</TooltipContent>
-                </Tooltip>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className={cn("text-sm font-medium", status.color)}>
-                  {status.text}
-                </span>
-                <span className="font-semibold tabular-nums min-w-[80px] text-right">
-                  {stat.availabilityRate.toFixed(1)}%
-                </span>
-              </div>
-            </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleSort}
+          className="flex items-center gap-2"
+        >
+          {sortDirection === "desc" ? (
+            <>
+              <ArrowDown className="h-4 w-4" />
+              <span>Meilleurs d'abord</span>
+            </>
+          ) : (
+            <>
+              <ArrowUp className="h-4 w-4" />
+              <span>Moins bons d'abord</span>
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Results count */}
+      {searchQuery && (
+        <p className="text-sm text-muted-foreground">
+          {filteredAndSortedStats.length} résultat{filteredAndSortedStats.length > 1 ? "s" : ""} sur {stats.length}
+        </p>
+      )}
+
+      {/* Restaurant list */}
+      <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+        {filteredAndSortedStats.length === 0 ? (
+          <div className="text-center text-muted-foreground py-8">
+            Aucun restaurant trouvé pour "{searchQuery}"
+          </div>
+        ) : (
+          filteredAndSortedStats.map((stat, index) => {
+            const barWidth = stat.availabilityRate;
+            const status = getStatusLabel(stat.availabilityRate);
+            const cityName = extractCityName(stat.name);
+            // Only show medals for top 3 when sorted by best first and no search filter
+            const showMedal = sortDirection === "desc" && !searchQuery && index < 3;
             
-            <div className="h-3 bg-muted rounded-full overflow-hidden">
+            return (
               <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${barWidth}%` }}
-                transition={{ duration: 0.8, ease: "easeOut", delay: index * 0.1 }}
-                className={cn("h-full rounded-full", getBarColor(stat.availabilityRate))}
-              />
-            </div>
-            
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Temps hors ligne: {formatMinutesToDisplay(stat.totalOfflineMinutes)}</span>
-              {stat.availabilityRate === 100 && (
-                <span className="text-emerald-500">✓ 100% en ligne</span>
-              )}
-            </div>
-          </motion.div>
-        );
-      })}
+                key={stat.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: Math.min(index * 0.05, 0.5) }}
+                className="space-y-2 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors -mx-2"
+                onClick={() => handleRestaurantClick(stat.id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg w-6">{showMedal ? getMedal(index) : ""}</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="font-medium hover:text-primary transition-colors">{cityName}</span>
+                      </TooltipTrigger>
+                      <TooltipContent>{stat.name}</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={cn("text-sm font-medium", status.color)}>
+                      {status.text}
+                    </span>
+                    <span className="font-semibold tabular-nums min-w-[80px] text-right">
+                      {stat.availabilityRate.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="h-3 bg-muted rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${barWidth}%` }}
+                    transition={{ duration: 0.8, ease: "easeOut", delay: Math.min(index * 0.05, 0.5) }}
+                    className={cn("h-full rounded-full", getBarColor(stat.availabilityRate))}
+                  />
+                </div>
+                
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Temps hors ligne: {formatMinutesToDisplay(stat.totalOfflineMinutes)}</span>
+                  {stat.availabilityRate === 100 && (
+                    <span className="text-emerald-500">✓ 100% en ligne</span>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 };
