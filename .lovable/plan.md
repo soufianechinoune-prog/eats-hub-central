@@ -1,71 +1,70 @@
 
 
-# Plan : Corriger l'incohérence des comptages d'avis
+# Plan : Ajouter le tri par rang au tableau de classement
 
 ## Problème identifié
 
-Les totaux d'avis diffèrent entre les pages à cause de l'utilisation de `toISOString()` qui convertit les dates en UTC. Cette conversion dépend du timezone du navigateur :
-
-| Utilisateur | Timezone | Avis captés en janvier |
-|-------------|----------|------------------------|
-| France | UTC+1 | 9410 |
-| Californie | UTC-8 | 9023 |
-
-L'écart de ~400 avis au niveau réseau (et ~11 pour Montigny) vient de cette différence.
+Le tableau "Classement complet" sur la page `/compare/ratings` ne permet pas de trier par la colonne **#** (rang). Par défaut, le tri se fait par note décroissante, mais les rangs affichés ne correspondent pas forcément à l'ordre visuel.
 
 ## Solution
 
-Remplacer les filtres basés sur `toISOString()` par des filtres en **format date locale** (`YYYY-MM-DD`), cohérents avec la logique utilisée dans `useReviews.ts`.
+Rendre la colonne **#** cliquable pour trier par rang, et corriger la logique de tri pour ce champ.
 
-### Fichier : `src/pages/RatingsComparison.tsx`
+## Modifications
 
-**Avant (lignes 100-101) :**
+### Fichier : `src/components/compare/RatingsFullRankingTable.tsx`
+
+| Ligne | Changement |
+|-------|------------|
+| 75-76 | Changer le tri par défaut à `"rank"` au lieu de `"avgRating"` |
+| 98 | Ajouter la logique de tri par rang dans `handleSort` |
+| 113-127 | Ajouter le cas `"rank"` dans le switch de tri |
+| 207 | Rendre l'en-tête **#** cliquable avec un bouton de tri |
+
+### Code avant / après
+
+**État initial du tri (ligne 75-76) :**
 ```typescript
-.gte("review_date", dateRange.start.toISOString())
-.lte("review_date", dateRange.end.toISOString())
+// Avant
+const [sortField, setSortField] = useState<SortField>("avgRating");
+const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+// Après - tri par rang ascendant par défaut
+const [sortField, setSortField] = useState<SortField>("rank");
+const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 ```
 
-**Après :**
+**Ajout du tri par rang dans le switch (ligne 113-127) :**
 ```typescript
-// Nouvelle fonction utilitaire (à ajouter en haut du fichier)
-function formatDateLocal(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-// Puis dans la requête
-.gte("review_date", formatDateLocal(dateRange.start))
-.lte("review_date", formatDateLocal(dateRange.end))
+// Ajouter ce cas
+case "rank":
+  const rankA = rankedData.get(a.id) || 999;
+  const rankB = rankedData.get(b.id) || 999;
+  comparison = rankA - rankB;
+  break;
 ```
 
-### Alternative : utiliser le hook centralisé
+**Rendre la colonne # cliquable (ligne 207) :**
+```typescript
+// Avant
+<TableHead className="w-16 text-center">#</TableHead>
 
-Puisque `useReviews.ts` gère déjà correctement les dates, on pourrait réutiliser cette logique :
-
-1. Importer et utiliser `useCustomerReviews` depuis `src/hooks/useReviews.ts`
-2. Passer les `restaurantIds` des restaurants actifs
-3. Le hook gère déjà la pagination et le format de date correct
+// Après
+<TableHead className="w-16 text-center">
+  <button 
+    className="flex items-center justify-center hover:text-foreground transition-colors mx-auto"
+    onClick={() => handleSort("rank")}
+  >
+    #
+    <SortIcon field="rank" />
+  </button>
+</TableHead>
+```
 
 ## Résultat attendu
 
-| Page | Nombre d'avis Montigny | Nombre d'avis réseau |
-|------|------------------------|----------------------|
-| Comparaison Notes | 742 | 9410 |
-| Avis (mode "Avis") | 742 | 9410 |
-
-Les deux pages afficheront le même nombre, indépendamment du timezone du navigateur.
-
-## Fichiers à modifier
-
-| Fichier | Changement |
-|---------|------------|
-| `src/pages/RatingsComparison.tsx` | Remplacer `toISOString()` par format `YYYY-MM-DD` |
-
-## Tests de validation
-
-1. Vérifier que le total réseau passe de ~9023 à 9410
-2. Vérifier que Montigny affiche 742 avis
-3. Cliquer sur Montigny → la page Avis doit aussi montrer 742
+1. Par défaut, le tableau affiche les restaurants triés par rang (1, 2, 3...)
+2. Tu peux cliquer sur **#** pour inverser l'ordre (dernier en premier)
+3. Tu peux toujours trier par Restaurant, Note ou Avis
+4. Le rang affiché reste cohérent avec la note moyenne globale
 
