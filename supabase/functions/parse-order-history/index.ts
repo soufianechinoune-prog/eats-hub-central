@@ -159,7 +159,7 @@ serve(async (req) => {
     let headerIndex = 0;
     for (let i = 0; i < Math.min(10, lines.length); i++) {
       const line = lines[i].toLowerCase();
-      if (line.includes('id. de la commande') || line.includes('id de la commande')) {
+      if (line.includes('id. de la commande') || line.includes('id de la commande') || line.includes('uuid de la commande')) {
         headerIndex = i;
         break;
       }
@@ -206,7 +206,7 @@ serve(async (req) => {
 
       result.stats.totalRows++;
 
-      const uberOrderId = getCol(row, 'id. de la commande', 'id de la commande');
+      const uberOrderId = getCol(row, 'id. de la commande', 'id de la commande', 'uuid de la commande');
       if (!uberOrderId) {
         result.stats.skipped++;
         continue;

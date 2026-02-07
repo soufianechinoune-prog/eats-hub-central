@@ -149,6 +149,18 @@ interface BatchResult {
   dateRangeEnd: string | null;
 }
 
+// Chunking progress state for large files
+interface ChunkProgress {
+  current: number;
+  total: number;
+  percent: number;
+  totalInserted: number;
+  totalErrors: number;
+}
+
+// Chunk size for large file imports (15,000 lines per chunk)
+const CHUNK_SIZE = 15000;
+
 export default function ReportImport() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -168,6 +180,9 @@ export default function ReportImport() {
   const [batchFiles, setBatchFiles] = useState<BatchFile[]>([]);
   const [batchProgress, setBatchProgress] = useState(0);
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
+  
+  // Chunking progress for large files
+  const [chunkProgress, setChunkProgress] = useState<ChunkProgress | null>(null);
   
   // Delete existing data option
   const [deleteExisting, setDeleteExisting] = useState(false);
@@ -823,6 +838,7 @@ export default function ReportImport() {
 
     setStep("importing");
     setIsLoading(true);
+    setChunkProgress(null);
 
     try {
       const fileUrl = await uploadFileToStorage();
@@ -844,34 +860,162 @@ export default function ReportImport() {
       };
       const functionName = functionMap[reportType] || "parse-payment-report";
       
-      const body: Record<string, any> = {
-        csvContent,
-        reportType,
-        dryRun: false,
-        fileName: file?.name,
-      };
+      // Check if file needs chunking (for order_history with large files)
+      const lines = csvContent.split('\n').filter(l => l.trim());
+      const dataLinesCount = lines.length - 1; // Exclude header
+      const needsChunking = reportType === "order_history" && dataLinesCount > CHUNK_SIZE;
+      
+      let importData: ImportResult;
+      
+      if (needsChunking) {
+        // Large file: process in chunks
+        const headerLine = lines[0];
+        const dataLines = lines.slice(1);
+        const totalChunks = Math.ceil(dataLines.length / CHUNK_SIZE);
+        
+        let totalInserted = 0;
+        let totalUpdated = 0;
+        let totalSkipped = 0;
+        let totalErrors = 0;
+        let allRestaurants: RestaurantStats[] = [];
+        let minDate: string | null = null;
+        let maxDate: string | null = null;
+        const errorDetails: string[] = [];
+        
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, dataLines.length);
+          const chunkLines = [headerLine, ...dataLines.slice(start, end)];
+          const chunkCsv = chunkLines.join('\n');
+          
+          setChunkProgress({
+            current: i + 1,
+            total: totalChunks,
+            percent: ((i + 1) / totalChunks) * 100,
+            totalInserted,
+            totalErrors,
+          });
+          
+          const body: Record<string, any> = {
+            csvContent: chunkCsv,
+            reportType,
+            dryRun: false,
+            fileName: file?.name,
+          };
+          
+          if (selectedRestaurantId) {
+            body.restaurantId = selectedRestaurantId;
+          }
+          
+          try {
+            const { data, error } = await supabase.functions.invoke(functionName, { body });
+            
+            if (error) {
+              errorDetails.push(`Chunk ${i + 1}: ${error.message}`);
+              totalErrors += CHUNK_SIZE;
+              continue;
+            }
+            
+            const chunkResult = data as any;
+            totalInserted += chunkResult.stats?.inserted || 0;
+            totalUpdated += chunkResult.stats?.updated || 0;
+            totalSkipped += chunkResult.stats?.skipped || 0;
+            totalErrors += chunkResult.stats?.errors || 0;
+            
+            // Merge restaurants (API returns restaurants array at root level)
+            if (chunkResult.restaurants) {
+              for (const r of chunkResult.restaurants) {
+                const existing = allRestaurants.find(ar => ar.id === r.id);
+                if (existing) {
+                  existing.orderCount += r.count || r.orderCount || 0;
+                } else {
+                  allRestaurants.push({ 
+                    id: r.id, 
+                    name: r.name, 
+                    orderCount: r.count || r.orderCount || 0 
+                  });
+                }
+              }
+            }
+            
+            // Track date range (API returns dateRange at root level)
+            if (chunkResult.dateRange?.start) {
+              if (!minDate || chunkResult.dateRange.start < minDate) minDate = chunkResult.dateRange.start;
+            }
+            if (chunkResult.dateRange?.end) {
+              if (!maxDate || chunkResult.dateRange.end > maxDate) maxDate = chunkResult.dateRange.end;
+            }
+            
+            // Collect errors (API returns errors array at root level)
+            if (chunkResult.errors && chunkResult.errors.length > 0) {
+              errorDetails.push(...chunkResult.errors.slice(0, 10).map((e: string) => `Chunk ${i + 1}: ${e}`));
+            }
+          } catch (chunkError: any) {
+            errorDetails.push(`Chunk ${i + 1}: ${chunkError.message || 'Erreur inconnue'}`);
+            totalErrors += CHUNK_SIZE;
+          }
+        }
+        
+        // Build aggregated result
+        importData = {
+          success: totalErrors === 0,
+          reportType: "order-history",
+          stats: {
+            totalRows: dataLines.length,
+            inserted: totalInserted,
+            updated: totalUpdated,
+            skipped: totalSkipped,
+            errors: totalErrors,
+          },
+          validation: {
+            dateRange: { start: minDate, end: maxDate },
+            restaurants: allRestaurants,
+            unknownStoreIds: [],
+            skippedDetails: [],
+          },
+          errorDetails,
+        };
+        
+        setChunkProgress({
+          current: totalChunks,
+          total: totalChunks,
+          percent: 100,
+          totalInserted,
+          totalErrors,
+        });
+        
+      } else {
+        // Normal import (small file or other report types)
+        const body: Record<string, any> = {
+          csvContent,
+          reportType,
+          dryRun: false,
+          fileName: file?.name,
+        };
 
-      // Add restaurantId for specific report types (reviews_order/reviews_item are multi-restaurant and identify via CSV)
-      const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"];
-      if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
-        body.restaurantId = selectedRestaurantId;
+        // Add restaurantId for specific report types
+        const reportTypesWithRestaurant = ["sales_over_time", "marketing_campaigns", "downtime_report", "order_history", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"];
+        if (reportTypesWithRestaurant.includes(reportType) && selectedRestaurantId) {
+          body.restaurantId = selectedRestaurantId;
+        }
+        
+        // Add deleteExisting option for order_accuracy_summary
+        if (reportType === "order_accuracy_summary" && deleteExisting) {
+          body.deleteExisting = true;
+        }
+        
+        // Add scoreMonth for success_score
+        if (reportType === "success_score") {
+          body.scoreMonth = scoreMonth;
+        }
+
+        const { data, error } = await supabase.functions.invoke(functionName, { body });
+
+        if (error) throw error;
+
+        importData = data as ImportResult;
       }
       
-      // Add deleteExisting option for order_accuracy_summary
-      if (reportType === "order_accuracy_summary" && deleteExisting) {
-        body.deleteExisting = true;
-      }
-      
-      // Add scoreMonth for success_score
-      if (reportType === "success_score") {
-        body.scoreMonth = scoreMonth;
-      }
-
-      const { data, error } = await supabase.functions.invoke(functionName, { body });
-
-      if (error) throw error;
-
-      const importData = data as ImportResult;
       setImportResult(importData);
       setStep("complete");
 
@@ -902,7 +1046,7 @@ export default function ReportImport() {
       } else {
         toast({
           title: "Import terminé avec erreurs",
-          description: data.error || "Certaines lignes n'ont pas pu être importées",
+          description: importData.errorDetails?.[0] || "Certaines lignes n'ont pas pu être importées",
           variant: "destructive",
         });
       }
@@ -926,6 +1070,7 @@ export default function ReportImport() {
       setStep("validation");
     } finally {
       setIsLoading(false);
+      setChunkProgress(null);
     }
   };
 
@@ -941,6 +1086,7 @@ export default function ReportImport() {
     setBatchProgress(0);
     setBatchResult(null);
     setDeleteExisting(false);
+    setChunkProgress(null);
     setStep("upload");
   };
 
@@ -1670,10 +1816,29 @@ export default function ReportImport() {
                   <div className="text-center">
                     <h3 className="text-lg font-medium">Import en cours...</h3>
                     <p className="text-sm text-muted-foreground">
-                      Traitement du fichier, veuillez patienter
+                      {chunkProgress 
+                        ? `Traitement du chunk ${chunkProgress.current}/${chunkProgress.total}`
+                        : "Traitement du fichier, veuillez patienter"}
                     </p>
                   </div>
-                  <Progress value={undefined} className="w-64" />
+                  
+                  {/* Progress bar with chunk info */}
+                  {chunkProgress ? (
+                    <div className="w-80 space-y-2">
+                      <Progress value={chunkProgress.percent} className="w-full" />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{chunkProgress.totalInserted.toLocaleString()} lignes importées</span>
+                        <span>{Math.round(chunkProgress.percent)}%</span>
+                      </div>
+                      {chunkProgress.totalErrors > 0 && (
+                        <p className="text-xs text-destructive text-center">
+                          {chunkProgress.totalErrors} erreurs
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <Progress value={undefined} className="w-64" />
+                  )}
                 </div>
               </CardContent>
             </Card>
