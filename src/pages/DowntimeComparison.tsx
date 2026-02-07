@@ -8,7 +8,6 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DowntimeRankingBars } from "@/components/compare/DowntimeRankingBars";
-import { DowntimeEvolutionChart } from "@/components/compare/DowntimeEvolutionChart";
 import { DowntimeInsightsSection } from "@/components/compare/DowntimeInsightsSection";
 import { DowntimeHeatmapGrid } from "@/components/compare/DowntimeHeatmapGrid";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
@@ -169,27 +168,6 @@ const DowntimeComparison = () => {
     return stats.sort((a, b) => a.totalOfflineMinutes - b.totalOfflineMinutes);
   }, [availabilityData, selectedRestaurants]);
 
-  // Prepare evolution chart data
-  const evolutionData = useMemo(() => {
-    if (!restaurantStats.length) return [];
-    
-    // Get all unique dates
-    const allDates = new Set<string>();
-    restaurantStats.forEach(r => {
-      Object.keys(r.dailyData).forEach(date => allDates.add(date));
-    });
-    
-    return Array.from(allDates)
-      .sort()
-      .map(date => {
-        const entry: Record<string, string | number> = { date };
-        restaurantStats.forEach(r => {
-          entry[r.name] = r.dailyData[date] || 0;
-        });
-        return entry;
-      });
-  }, [restaurantStats]);
-
   const periodLabel = useMemo(() => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
   }, [dateRange]);
@@ -246,26 +224,15 @@ const DowntimeComparison = () => {
             {/* Insights Section */}
             <DowntimeInsightsSection stats={restaurantStats} period={periodMode} />
 
-            {/* Ranking + Evolution */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-lg">Classement par disponibilité</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <DowntimeRankingBars stats={restaurantStats} dateRange={dateRange} />
-                </CardContent>
-              </Card>
-
-              <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-lg">Évolution journalière</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <DowntimeEvolutionChart data={evolutionData} restaurants={restaurantStats.map(r => r.name)} />
-                </CardContent>
-              </Card>
-            </div>
+            {/* Ranking - Full width */}
+            <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-lg">Classement par disponibilité ({restaurantStats.length} restaurants)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DowntimeRankingBars stats={restaurantStats} dateRange={dateRange} />
+              </CardContent>
+            </Card>
 
             {/* Heatmap */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
