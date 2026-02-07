@@ -1,27 +1,31 @@
 
-# Plan : Implémenter le sélecteur de période avancé sur Comparaison des Notes
+
+# Plan : Aligner le header de Comparaison Temps d'inactivité sur Comparaison Notes
 
 ## Objectif
 
-Remplacer le sélecteur simple (Select avec 3 options) par le composant `OverviewPeriodSelector` du Dashboard, qui offre :
-- **Rapide** : Semaine précédente, 7 derniers jours, 30 derniers jours, Mois en cours
-- **Mois** : Sélection d'un mois spécifique avec navigation par année
-- **Année** : Sélection d'une année complète
-- **Période perso.** : Calendrier avec plage de dates personnalisée
+Reproduire exactement le format du header de `RatingsComparison.tsx` sur `DowntimeComparison.tsx` :
+- Toggle Épinglés/Réseau (deja present)
+- Sélecteur de période avancé `OverviewPeriodSelector`
+- Sous-titre avec période affichée
+
+---
+
+## Fichier à modifier
+
+**`src/pages/DowntimeComparison.tsx`**
 
 ---
 
 ## Modifications
 
-### Fichier : `src/pages/RatingsComparison.tsx`
-
-| Section | Changement |
-|---------|------------|
-| Imports | Ajouter `OverviewPeriodSelector`, `OverviewPeriodMode`, `DateRange`, `subWeeks` |
-| État | Remplacer `period` par `periodMode`, ajouter `selectedYear`, `selectedMonth`, `dateRange` |
-| Logique | Adapter `dateRange` pour gérer tous les modes de période |
-| UI | Remplacer le `Select` par `OverviewPeriodSelector` |
-| Nettoyage | Supprimer les imports inutilisés (Recharts non utilisés) |
+| Élément | Avant | Après |
+|---------|-------|-------|
+| Imports | `Select`, `Calendar`, `subMonths` | `OverviewPeriodSelector`, `subWeeks` |
+| Type | `PeriodType = "week" \| "month" \| "quarter"` | Supprimé (utilise `OverviewPeriodMode`) |
+| État | `period: PeriodType` | `periodMode`, `selectedYear`, `selectedMonth`, `customDateRange` |
+| Header | Badge période + Select 3 options | `OverviewPeriodSelector` seul |
+| Sous-titre | "Analyse de X restaurants" | "Analyse de X restaurants \| 26 janv. - 1 févr. 2026" |
 
 ---
 
@@ -30,22 +34,29 @@ Remplacer le sélecteur simple (Select avec 3 options) par le composant `Overvie
 ### 1. Nouveaux imports
 
 ```typescript
+// Supprimer
+import { Calendar } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+// Ajouter
+import { subWeeks } from "date-fns";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import type { DateRange } from "react-day-picker";
-import { subWeeks, startOfWeek, endOfWeek } from "date-fns";
 ```
 
-### 2. Nouvel état
+### 2. Supprimer le type `PeriodType` (ligne 17)
+
+### 3. Nouvel état (remplace ligne 21-22)
 
 ```typescript
-// Remplacer l'ancien état
 const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("previous_week");
 const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined);
+const [isNetworkView, setIsNetworkView] = useState(false);
 ```
 
-### 3. Nouvelle logique de calcul des dates
+### 4. Nouvelle logique de calcul des dates (remplace lignes 24-43)
 
 ```typescript
 const dateRange = useMemo(() => {
@@ -98,26 +109,53 @@ const dateRange = useMemo(() => {
 }, [periodMode, selectedYear, selectedMonth, customDateRange]);
 ```
 
-### 4. Nouveau composant dans le header
+### 5. Nouveau sous-titre (ligne 182-184)
 
 ```typescript
-<OverviewPeriodSelector
-  periodMode={periodMode}
-  onPeriodModeChange={setPeriodMode}
-  selectedYear={selectedYear}
-  onYearChange={setSelectedYear}
-  selectedMonth={selectedMonth}
-  onMonthChange={setSelectedMonth}
-  dateRange={customDateRange}
-  onDateRangeChange={setCustomDateRange}
-/>
+<p className="text-muted-foreground text-sm">
+  Analyse de {restaurantStats.length} restaurants | {periodLabel}
+</p>
+```
+
+### 6. Nouveau header (remplace lignes 188-209)
+
+```typescript
+<div className="flex items-center gap-3">
+  <NetworkViewToggle
+    isNetworkView={isNetworkView}
+    onToggle={setIsNetworkView}
+    pinnedCount={pinnedRestaurants?.length || 0}
+    networkCount={allActiveRestaurants?.length || 0}
+  />
+  
+  <OverviewPeriodSelector
+    periodMode={periodMode}
+    onPeriodModeChange={setPeriodMode}
+    selectedYear={selectedYear}
+    onYearChange={setSelectedYear}
+    selectedMonth={selectedMonth}
+    onMonthChange={setSelectedMonth}
+    dateRange={customDateRange}
+    onDateRangeChange={setCustomDateRange}
+  />
+</div>
+```
+
+### 7. Adapter le prop `period` passé à `DowntimeInsightsSection`
+
+```typescript
+// Ligne 219 - Le composant attend peut-être encore "period"
+// Il faudra vérifier si ce composant doit être adapté ou si on peut passer periodMode
+<DowntimeInsightsSection stats={restaurantStats} periodMode={periodMode} />
 ```
 
 ---
 
 ## Résultat attendu
 
-1. Le sélecteur affiche un bouton avec l'icône calendrier et le libellé de la période active
-2. Au clic, un popover s'ouvre avec 4 onglets (Rapide, Mois, Année, Période perso.)
-3. Les données se rechargent automatiquement à chaque changement de période
-4. Le label de période dans le sous-titre s'adapte (ex: "1 janv. - 31 janv. 2026")
+1. Header aligné avec le format de "Comparaison Notes"
+2. Toggle Épinglés/Réseau à gauche du sélecteur de période
+3. Sélecteur de période avec les 4 onglets (Rapide, Mois, Année, Période perso.)
+4. Sous-titre affichant le nombre de restaurants ET la période sélectionnée
+5. Plus de badge de période séparé ni de Select basique
+
