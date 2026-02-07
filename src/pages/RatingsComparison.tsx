@@ -28,6 +28,14 @@ import {
 
 type PeriodType = "week" | "month" | "quarter";
 
+// Format date as YYYY-MM-DD without UTC conversion to avoid timezone issues
+function formatDateLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 const RatingsComparison = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -97,8 +105,8 @@ const RatingsComparison = () => {
         const { data, error } = await supabase
           .from("customer_reviews")
           .select("restaurant_id, overall_rating, review_date, platform, tags")
-          .gte("review_date", dateRange.start.toISOString())
-          .lte("review_date", dateRange.end.toISOString())
+          .gte("review_date", formatDateLocal(dateRange.start))
+          .lte("review_date", formatDateLocal(dateRange.end))
           .not("overall_rating", "is", null)
           .order("review_date", { ascending: false })
           .range(offset, offset + pageSize - 1);
