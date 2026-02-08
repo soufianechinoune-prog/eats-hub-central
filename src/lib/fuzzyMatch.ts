@@ -58,6 +58,50 @@ export const calculateSimilarity = (str1: string, str2: string): number => {
 };
 
 /**
+ * Extract the location part from a restaurant name (after the last " - ")
+ */
+export const extractLocationPart = (name: string): string => {
+  const normalized = normalizeName(name);
+  const parts = normalized.split(" - ");
+  if (parts.length >= 2) {
+    return parts[parts.length - 1].trim();
+  }
+  return normalized;
+};
+
+/**
+ * Calculate similarity specifically for restaurant names
+ * Compares only the city/location part when format is "Brand - City"
+ */
+export const calculateRestaurantSimilarity = (str1: string, str2: string): number => {
+  const norm1 = normalizeName(str1);
+  const norm2 = normalizeName(str2);
+
+  // Exact match = 100%
+  if (norm1 === norm2) return 100;
+
+  // Extract location parts
+  const loc1 = extractLocationPart(str1);
+  const loc2 = extractLocationPart(str2);
+
+  // If both have a location extracted (format "Brand - City")
+  if (loc1 !== norm1 && loc2 !== norm2) {
+    // Check that brands match first
+    const brand1 = norm1.split(" - ")[0].trim();
+    const brand2 = norm2.split(" - ")[0].trim();
+
+    if (brand1 !== brand2) return 0; // Different brands = no match
+
+    // Compare only cities
+    if (loc1 === loc2) return 100;
+    return calculateSimilarity(loc1, loc2);
+  }
+
+  // Standard comparison for other cases
+  return calculateSimilarity(str1, str2);
+};
+
+/**
  * Check if two names contain the same key words
  */
 export const containsSameKeywords = (name1: string, name2: string): boolean => {

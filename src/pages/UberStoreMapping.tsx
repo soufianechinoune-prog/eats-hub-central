@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Lock, Pencil, Plus, Search, Loader2 } from "lucide-react";
-import { normalizeName, calculateSimilarity } from "@/lib/fuzzyMatch";
+import { normalizeName, calculateRestaurantSimilarity } from "@/lib/fuzzyMatch";
 
 type ImportAction = "protected" | "rename" | "create";
 
@@ -35,7 +35,7 @@ interface Restaurant {
   chain_id: string | null;
 }
 
-const SIMILARITY_THRESHOLD = 70;
+const SIMILARITY_THRESHOLD = 90;
 
 export default function UberStoreMapping() {
   const { toast } = useToast();
@@ -172,7 +172,7 @@ export default function UberStoreMapping() {
           continue;
         }
 
-        const similarity = calculateSimilarity(storeName, restaurant.name);
+        const similarity = calculateRestaurantSimilarity(storeName, restaurant.name);
         if (similarity >= SIMILARITY_THRESHOLD && (!bestMatch || similarity > bestMatch.similarity)) {
           const hasPlaceholderId = restaurant.uber_store_id?.startsWith("name:") || false;
           bestMatch = { id: restaurant.id, name: restaurant.name, similarity, hasPlaceholderId };
