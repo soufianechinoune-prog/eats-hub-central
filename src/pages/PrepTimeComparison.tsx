@@ -1,68 +1,159 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Calendar, Clock } from "lucide-react";
+import { ArrowLeft, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PrepTimeFullRankingTable } from "@/components/compare/PrepTimeFullRankingTable";
 import { PrepTimeInsightsSection } from "@/components/compare/PrepTimeInsightsSection";
 import { PrepTimeHeatmapGrid } from "@/components/compare/PrepTimeHeatmapGrid";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
-import { useAnalyticsContext, Platform } from "@/contexts/AnalyticsContext";
+import { OverviewPeriodSelector, OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { usePrepTimeExport } from "@/hooks/usePrepTimeExport";
+import type { DateRange } from "react-day-picker";
 
-type PeriodType = "week" | "month" | "quarter" | "context";
+const STORAGE_KEY = "prep-time-comparison-state";
+
+const getInitialState = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return {
+        periodMode: parsed.periodMode || "previous_week",
+        selectedYear: parsed.selectedYear || new Date().getFullYear(),
+        selectedMonth: parsed.selectedMonth || new Date().getMonth() + 1,
+        customDateRange: parsed.customDateRange ? {
+          from: parsed.customDateRange.from ? new Date(parsed.customDateRange.from) : undefined,
+          to: parsed.customDateRange.to ? new Date(parsed.customDateRange.to) : undefined,
+        } : undefined,
+        isNetworkView: parsed.isNetworkView || false,
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+};
 
 const PrepTimeComparison = () => {
   const navigate = useNavigate();
   const { 
-    dateRange: contextDateRange, 
     selectedPlatform: contextPlatform,
     setSelectedPlatform: setContextPlatform,
-    periodMode: contextPeriodMode
   } = useAnalyticsContext();
   
   const { exportToPDF, isExporting } = usePrepTimeExport();
   
-  // Determine initial period based on context
-  const [period, setPeriod] = useState<PeriodType>(() => {
-    if (contextDateRange?.from && contextDateRange?.to) {
-      return "context";
-    }
-    return "week";
-  });
-  const [isNetworkView, setIsNetworkView] = useState(false);
+  // Initialize state from localStorage
+  const initialState = getInitialState();
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
+  
+  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(
+    initialState?.periodMode || "previous_week"
+  );
+  const [selectedYear, setSelectedYear] = useState(
+    initialState?.selectedYear || currentYear
+  );
+  const [selectedMonth, setSelectedMonth] = useState(
+    initialState?.selectedMonth || currentMonth
+  );
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(
+    initialState?.customDateRange
+  );
+  const [isNetworkView, setIsNetworkView] = useState(
+    initialState?.isNetworkView || false
+  );
 
-  // Calculate date range based on period or context
+  // Persist state to localStorage
+  useEffect(() => {
+    const state = {
+      periodMode,
+      selectedYear,
+      selectedMonth,
+      customDateRange: customDateRange ? {
+        from: customDateRange.from?.toISOString(),
+        to: customDateRange.to?.toISOString(),
+      } : undefined,
+      isNetworkView,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [periodMode, selectedYear, selectedMonth, customDateRange, isNetworkView]);
+
+  // Calculate date range based on period mode
   const dateRange = useMemo(() => {
-    // If using context and context has valid dates
-    if (period === "context" && contextDateRange?.from && contextDateRange?.to) {
-      return { start: contextDateRange.from, end: contextDateRange.to };
+    switch (periodMode) {
+      case "previous_week": {
+        const lastWeek = subWeeks(today, 1);
+        return {
+          start: startOfWeek(lastWeek, { weekStartsOn: 1 }),
+          end: endOfWeek(lastWeek, { weekStartsOn: 1 }),
+        };
+      }
+      case "7d": {
+        return {
+          start: subDays(today, 6),
+          end: today,
+        };
+      }
+      case "30d": {
+        return {
+          start: subDays(today, 29),
+          end: today,
+        };
+      }
+      case "current_month": {
+        return {
+          start: startOfMonth(today),
+          end: today,
+        };
+      }
+      case "year": {
+        const yearStart = new Date(selectedYear, 0, 1);
+        const yearEnd = new Date(selectedYear, 11, 31);
+        return {
+          start: yearStart,
+          end: selectedYear === currentYear ? today : yearEnd,
+        };
+      }
+      case "custom_month": {
+        const monthStart = startOfMonth(new Date(selectedYear, selectedMonth - 1));
+        const monthEnd = endOfMonth(monthStart);
+        return {
+          start: monthStart,
+          end: monthEnd > today ? today : monthEnd,
+        };
+      }
+      case "custom_range": {
+        if (customDateRange?.from && customDateRange?.to) {
+          return {
+            start: customDateRange.from,
+            end: customDateRange.to,
+          };
+        }
+        // Fallback to previous week
+        const lastWeek = subWeeks(today, 1);
+        return {
+          start: startOfWeek(lastWeek, { weekStartsOn: 1 }),
+          end: endOfWeek(lastWeek, { weekStartsOn: 1 }),
+        };
+      }
+      default: {
+        const lastWeek = subWeeks(today, 1);
+        return {
+          start: startOfWeek(lastWeek, { weekStartsOn: 1 }),
+          end: endOfWeek(lastWeek, { weekStartsOn: 1 }),
+        };
+      }
     }
-    
-    const now = new Date();
-    switch (period) {
-      case "week": {
-        const lastWeekEnd = endOfWeek(subDays(now, 7), { weekStartsOn: 1 });
-        const lastWeekStart = startOfWeek(subDays(now, 7), { weekStartsOn: 1 });
-        return { start: lastWeekStart, end: lastWeekEnd };
-      }
-      case "month": {
-        const lastMonth = subMonths(now, 1);
-        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
-      }
-      case "quarter": {
-        return { start: subMonths(now, 3), end: now };
-      }
-      default:
-        return { start: subDays(now, 7), end: now };
-    }
-  }, [period, contextDateRange]);
+  }, [periodMode, selectedYear, selectedMonth, customDateRange, today, currentYear]);
 
   // Fetch pinned restaurants
   const { data: pinnedRestaurants } = useQuery({
@@ -303,12 +394,12 @@ const PrepTimeComparison = () => {
                 <h1 className="text-2xl font-bold">Comparaison Temps de préparation</h1>
               </div>
               <p className="text-muted-foreground text-sm">
-                Analyse de {restaurantStats.length} restaurants
+                Analyse de {restaurantStats.length} restaurants | {periodLabel}
               </p>
             </div>
           </div>
           
-        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <NetworkViewToggle
               isNetworkView={isNetworkView}
               onToggle={setIsNetworkView}
@@ -345,23 +436,16 @@ const PrepTimeComparison = () => {
               </Button>
             </div>
             
-            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
-              <Calendar className="h-4 w-4" />
-              <span>{periodLabel}</span>
-            </div>
-            <Select value={period} onValueChange={(v) => setPeriod(v as PeriodType)}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {contextDateRange?.from && contextDateRange?.to && (
-                  <SelectItem value="context">Période Analytics</SelectItem>
-                )}
-                <SelectItem value="week">Semaine précédente</SelectItem>
-                <SelectItem value="month">Mois précédent</SelectItem>
-                <SelectItem value="quarter">3 derniers mois</SelectItem>
-              </SelectContent>
-            </Select>
+            <OverviewPeriodSelector
+              periodMode={periodMode}
+              onPeriodModeChange={setPeriodMode}
+              selectedYear={selectedYear}
+              onYearChange={setSelectedYear}
+              selectedMonth={selectedMonth}
+              onMonthChange={setSelectedMonth}
+              dateRange={customDateRange}
+              onDateRangeChange={setCustomDateRange}
+            />
           </div>
         </div>
 
@@ -372,7 +456,7 @@ const PrepTimeComparison = () => {
         ) : (
           <div className="grid gap-6">
             {/* Insights Section */}
-            <PrepTimeInsightsSection stats={restaurantStats} period={period} />
+            <PrepTimeInsightsSection stats={restaurantStats} period={periodMode} />
 
             {/* Ranking - Full Width with Table */}
             <PrepTimeFullRankingTable 
