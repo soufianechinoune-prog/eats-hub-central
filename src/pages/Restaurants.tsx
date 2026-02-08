@@ -262,6 +262,9 @@ const Restaurants = () => {
                 {pinnedCount} épinglé{pinnedCount > 1 ? "s" : ""}
               </Badge>
             )}
+            <Badge variant="outline" className="text-muted-foreground">
+              {restaurants?.length || 0} restaurant{(restaurants?.length || 0) > 1 ? "s" : ""} au total
+            </Badge>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
