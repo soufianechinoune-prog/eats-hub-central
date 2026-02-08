@@ -207,50 +207,6 @@ export const useTotalDeliveryTimeExport = () => {
         yPos += barHeight + 4;
       });
 
-      yPos += 10;
-
-      // Top 5 / Bottom 5 - more compact
-      pdf.setTextColor(...textColor);
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Top 5 & A surveiller", margin, yPos);
-
-      yPos += 8;
-
-      const top5 = data.restaurants.slice(0, 5);
-      const bottom5 = data.restaurants.slice(-5).reverse();
-
-      const drawMiniTable = (title: string, items: RestaurantTotalDeliveryTime[], startY: number, isTop: boolean) => {
-        const tableHeight = 6 + items.length * 8;
-        pdf.setFillColor(isTop ? 236 : 254, isTop ? 253 : 242, isTop ? 245 : 242);
-        pdf.roundedRect(margin, startY, contentWidth, tableHeight, 3, 3, "F");
-
-        pdf.setTextColor(isTop ? 16 : 239, isTop ? 185 : 68, isTop ? 129 : 68);
-        pdf.setFontSize(9);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(title, margin + 5, startY + 5);
-
-        let itemY = startY + 11;
-        items.forEach((item) => {
-          pdf.setTextColor(...textColor);
-          pdf.setFontSize(8);
-          pdf.setFont("helvetica", "normal");
-          pdf.text(`#${item.rank}`, margin + 5, itemY);
-          const truncatedName = item.name.length > 30 ? item.name.substring(0, 28) + "..." : item.name;
-          pdf.text(truncatedName, margin + 18, itemY);
-          pdf.text(formatMinutesToDisplay(item.avgTotalTime), margin + contentWidth - 45, itemY);
-          pdf.setTextColor(...mutedColor);
-          pdf.text(`(${formatNumber(item.orderCount)})`, margin + contentWidth - 15, itemY);
-          itemY += 8;
-        });
-
-        return startY + tableHeight;
-      };
-
-      yPos = drawMiniTable("Les plus rapides", top5, yPos, true);
-      yPos += 4;
-      drawMiniTable("Les plus lents", bottom5, yPos, false);
-
       // =====================
       // PAGES 2+ - DETAILED TABLE
       // =====================
