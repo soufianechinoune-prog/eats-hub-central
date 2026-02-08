@@ -37,6 +37,60 @@ interface Restaurant {
 
 const SIMILARITY_THRESHOLD = 90;
 
+// UUID regex pattern
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Helper: check if a string is a valid UUID
+const isValidUUID = (str: string | null | undefined): boolean => {
+  if (!str) return false;
+  return UUID_REGEX.test(str.trim());
+};
+
+// Helper: auto-detect CSV delimiter (comma or semicolon)
+const detectDelimiter = (headerLine: string): string => {
+  const semicolonCount = (headerLine.match(/;/g) || []).length;
+  const commaCount = (headerLine.match(/,/g) || []).length;
+  return semicolonCount > commaCount ? ";" : ",";
+};
+
+// Helper: parse a single CSV line respecting quotes
+const parseCSVLine = (line: string, delimiter: string): string[] => {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++; // Skip escaped quote
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delimiter && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current.trim());
+  return result;
+};
+
+// Helper: normalize header string (remove BOM, quotes, trim, lowercase)
+const normalizeHeader = (h: string): string => {
+  return h
+    .replace(/^\uFEFF/, "") // Remove BOM
+    .replace(/^"|"$/g, "")  // Remove surrounding quotes
+    .replace(/\u00A0/g, " ") // Replace non-breaking spaces
+    .trim()
+    .toLowerCase();
+};
+
 export default function UberStoreMapping() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -57,11 +111,11 @@ export default function UberStoreMapping() {
     },
   });
 
-  // Get restaurants that already have a real UUID (not placeholder format)
+  // Get restaurants that already have a REAL UUID (strict validation)
   const restaurantsWithRealUUID = useMemo(() => {
     return new Set(
       restaurants
-        .filter((r) => r.uber_store_id && !r.uber_store_id.startsWith("name:"))
+        .filter((r) => isValidUUID(r.uber_store_id))
         .map((r) => r.id)
     );
   }, [restaurants]);
@@ -71,28 +125,31 @@ export default function UberStoreMapping() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const text = await file.text();
-
-    // Parse CSV to extract store_id and store_name
-    const lines = text.split("\n");
-    const headers = lines[0].toLowerCase().split(",").map((h) => h.trim().replace(/"/g, ""));
-
-    // Find store_id column - use findLastIndex to get the second "Id. du restaurant" (the one with UUIDs)
-    let storeIdIndex = -1;
-    for (let i = headers.length - 1; i >= 0; i--) {
-      const h = headers[i];
-      if (
-        h.includes("store_id") ||
-        h.includes("id. externe du restaurant") ||
-        h.includes("id. du restaurant") ||
-        h.includes("restaurant_id") ||
-        h === "store id"
-      ) {
-        storeIdIndex = i;
-        break;
-      }
-    }
+    let text = await file.text();
     
+    // Remove BOM if present
+    if (text.charCodeAt(0) === 0xFEFF) {
+      text = text.slice(1);
+    }
+
+    const lines = text.split("\n").filter(l => l.trim());
+    if (lines.length < 2) {
+      toast({
+        title: "Fichier vide",
+        description: "Le fichier CSV ne contient pas de données",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Auto-detect delimiter from first line
+    const delimiter = detectDelimiter(lines[0]);
+    
+    // Parse headers with proper CSV parsing
+    const rawHeaders = parseCSVLine(lines[0], delimiter);
+    const headers = rawHeaders.map(normalizeHeader);
+
+    // Find store_name column
     const storeNameIndex = headers.findIndex(
       (h) =>
         h.includes("store_name") ||
@@ -111,34 +168,90 @@ export default function UberStoreMapping() {
       return;
     }
 
+    // Find store_id column - prioritize column that contains actual UUIDs
+    // First, find all candidate columns
+    const candidateIdColumns: number[] = [];
+    for (let i = 0; i < headers.length; i++) {
+      const h = headers[i];
+      if (
+        h.includes("store_id") ||
+        h.includes("id. externe du restaurant") ||
+        h.includes("id. du restaurant") ||
+        h.includes("restaurant_id") ||
+        h === "store id"
+      ) {
+        candidateIdColumns.push(i);
+      }
+    }
+
+    // Sample first few data rows to find which column contains UUIDs
+    let storeIdIndex = -1;
+    if (candidateIdColumns.length > 0) {
+      const sampleSize = Math.min(10, lines.length - 1);
+      let bestColumn = -1;
+      let maxUUIDCount = 0;
+
+      for (const colIdx of candidateIdColumns) {
+        let uuidCount = 0;
+        for (let i = 1; i <= sampleSize; i++) {
+          const cells = parseCSVLine(lines[i], delimiter);
+          if (isValidUUID(cells[colIdx])) {
+            uuidCount++;
+          }
+        }
+        if (uuidCount > maxUUIDCount) {
+          maxUUIDCount = uuidCount;
+          bestColumn = colIdx;
+        }
+      }
+
+      // Use the column with most UUIDs, or fallback to last candidate
+      storeIdIndex = bestColumn !== -1 ? bestColumn : candidateIdColumns[candidateIdColumns.length - 1];
+    }
+
     const useNameAsId = storeIdIndex === -1;
 
     // Extract unique stores
     const storesMap = new Map<string, string>();
+    let uuidCount = 0;
+    let placeholderCount = 0;
+
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i];
       if (!line.trim()) continue;
 
-      const cells =
-        line.match(/("([^"]|"")*"|[^,]*)/g)?.map((c) =>
-          c
-            .replace(/^"|"$/g, "")
-            .replace(/""/g, '"')
-            .trim()
-        ) || [];
-
+      const cells = parseCSVLine(line, delimiter);
       const storeName = cells[storeNameIndex];
       if (!storeName) continue;
 
       const rawStoreId = useNameAsId ? null : cells[storeIdIndex];
-      const storeKey =
-        rawStoreId && rawStoreId.trim()
-          ? rawStoreId.trim()
-          : `name:${normalizeName(storeName)}`;
+      let storeKey: string;
+
+      if (rawStoreId && rawStoreId.trim()) {
+        storeKey = rawStoreId.trim();
+        if (isValidUUID(storeKey)) {
+          uuidCount++;
+        } else {
+          placeholderCount++;
+        }
+      } else {
+        storeKey = `name:${normalizeName(storeName)}`;
+        placeholderCount++;
+      }
 
       if (!storesMap.has(storeKey)) {
         storesMap.set(storeKey, storeName);
       }
+    }
+
+    // Warning if no UUIDs found
+    if (uuidCount === 0 && storesMap.size > 0) {
+      toast({
+        title: "Aucun UUID détecté",
+        description: "Ce fichier ne contient pas de store_id au format UUID. Vérifie que tu as bien exporté le bon rapport Uber Eats (ex: Récapitulatif des versements).",
+        variant: "destructive",
+      });
+      // Don't return - still allow user to see what was found
     }
 
     // Categorize each store
@@ -146,9 +259,9 @@ export default function UberStoreMapping() {
     const usedRestaurantIds = new Set<string>();
 
     storesMap.forEach((storeName, storeId) => {
-      // Check if this store UUID is already matched to a restaurant with real UUID
+      // Check if this store UUID is already matched to a restaurant with REAL UUID
       const alreadyMatchedRestaurant = restaurants.find(
-        (r) => r.uber_store_id === storeId && !r.uber_store_id.startsWith("name:")
+        (r) => r.uber_store_id === storeId && isValidUUID(r.uber_store_id)
       );
 
       if (alreadyMatchedRestaurant) {
@@ -164,7 +277,6 @@ export default function UberStoreMapping() {
       }
 
       // Find best match by name similarity (excluding already used ones)
-      // First, check restaurants with placeholder IDs (can be renamed)
       let bestMatch: { id: string; name: string; similarity: number; hasRealUUID: boolean } | null = null;
       
       for (const restaurant of restaurants) {
@@ -234,8 +346,12 @@ export default function UberStoreMapping() {
       create: items.filter((i) => i.action === "create").length,
     };
 
+    const uuidInfo = uuidCount > 0 
+      ? `(${uuidCount} UUIDs valides trouvés)` 
+      : "(⚠️ Aucun UUID)";
+
     toast({
-      title: `${items.length} restaurants détectés`,
+      title: `${items.length} restaurants détectés ${uuidInfo}`,
       description: `${counts.protected} protégés, ${counts.update_uuid} UUID à mettre à jour, ${counts.rename} à renommer, ${counts.create} à créer`,
     });
   };
