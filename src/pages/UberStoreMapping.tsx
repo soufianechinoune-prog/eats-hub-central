@@ -98,6 +98,7 @@ export default function UberStoreMapping() {
         h.includes("store_name") ||
         h === "restaurant" ||
         h.includes("restaurant_name") ||
+        h.includes("nom du restaurant") ||
         h === "store name"
     );
 
