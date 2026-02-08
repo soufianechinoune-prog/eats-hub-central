@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Lock, Pencil, Plus, Search, Loader2, RefreshCw } from "lucide-react";
-import { normalizeName, calculateRestaurantSimilarity, normalizeForLooseMatch } from "@/lib/fuzzyMatch";
+import { normalizeName, calculateRestaurantSimilarity, normalizeForLooseMatch, cityStartsWith } from "@/lib/fuzzyMatch";
 
 type ImportAction = "protected" | "rename" | "create" | "update_uuid";
 
@@ -176,7 +176,18 @@ export default function UberStoreMapping() {
         // Also try loose matching for different formats (CHICKEN STREET ATHIS-MONS vs Chicken Street - Athis-Mons)
         const looseStoreName = normalizeForLooseMatch(storeName);
         const looseRestaurantName = normalizeForLooseMatch(restaurant.name);
-        const looseSimilarity = looseStoreName === looseRestaurantName ? 100 : similarity;
+        const exactLooseMatch = looseStoreName === looseRestaurantName;
+        
+        // Also check partial city match (Bonneuil vs Bonneuil-sur-Marne)
+        const partialCityMatch = cityStartsWith(storeName, restaurant.name);
+        
+        // Determine best similarity
+        let looseSimilarity = similarity;
+        if (exactLooseMatch) {
+          looseSimilarity = 100;
+        } else if (partialCityMatch) {
+          looseSimilarity = 95; // High confidence for partial city match
+        }
         
         const bestSimilarity = Math.max(similarity, looseSimilarity);
         
