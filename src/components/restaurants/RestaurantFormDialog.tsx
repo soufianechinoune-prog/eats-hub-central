@@ -38,6 +38,10 @@ interface RestaurantForm {
   deliveroo_account_manager_title: string;
   deliveroo_account_manager_phone: string;
   deliveroo_account_manager_email: string;
+  uber_opening_date: string;
+  uber_closing_date: string;
+  deliveroo_opening_date: string;
+  deliveroo_closing_date: string;
 }
 
 const initialFormState: RestaurantForm = {
@@ -62,6 +66,10 @@ const initialFormState: RestaurantForm = {
   deliveroo_account_manager_title: "",
   deliveroo_account_manager_phone: "",
   deliveroo_account_manager_email: "",
+  uber_opening_date: "",
+  uber_closing_date: "",
+  deliveroo_opening_date: "",
+  deliveroo_closing_date: "",
 };
 
 interface RestaurantFormDialogProps {
@@ -136,6 +144,10 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
       deliveroo_account_manager_title: newRestaurant.deliveroo_account_manager_title || null,
       deliveroo_account_manager_phone: newRestaurant.deliveroo_account_manager_phone || null,
       deliveroo_account_manager_email: newRestaurant.deliveroo_account_manager_email || null,
+      uber_opening_date: newRestaurant.uber_opening_date || null,
+      uber_closing_date: newRestaurant.uber_closing_date || null,
+      deliveroo_opening_date: newRestaurant.deliveroo_opening_date || null,
+      deliveroo_closing_date: newRestaurant.deliveroo_closing_date || null,
       is_active: true,
     });
 
