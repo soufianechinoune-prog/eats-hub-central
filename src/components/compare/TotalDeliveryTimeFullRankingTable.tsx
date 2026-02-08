@@ -41,26 +41,26 @@ const formatMinutesToDisplay = (minutes: number): string => {
 };
 
 const getStatusBadge = (totalTime: number) => {
-  if (totalTime <= 25) {
-    return <Badge className="bg-emerald-500/20 text-emerald-600 border-emerald-500/30">Excellent</Badge>;
+  if (totalTime === 0) {
+    return <Badge className="bg-muted text-muted-foreground border-muted">Aucune donnée</Badge>;
   }
-  if (totalTime <= 30) {
-    return <Badge className="bg-green-500/20 text-green-600 border-green-500/30">Très bien</Badge>;
+  if (totalTime < 10) {
+    return <Badge className="bg-emerald-500/20 text-emerald-600 border-emerald-500/30">Très rapide</Badge>;
   }
-  if (totalTime <= 35) {
-    return <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30">Bon</Badge>;
+  if (totalTime < 15) {
+    return <Badge className="bg-green-500/20 text-green-600 border-green-500/30">Rapide</Badge>;
   }
-  if (totalTime <= 40) {
-    return <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">À surveiller</Badge>;
+  if (totalTime < 20) {
+    return <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">Lent</Badge>;
   }
-  return <Badge className="bg-red-500/20 text-red-600 border-red-500/30">Lent</Badge>;
+  return <Badge className="bg-red-500/20 text-red-600 border-red-500/30">Très lent</Badge>;
 };
 
 const getBarColor = (totalTime: number) => {
-  if (totalTime <= 25) return "bg-emerald-500";
-  if (totalTime <= 30) return "bg-green-500";
-  if (totalTime <= 35) return "bg-amber-500";
-  if (totalTime <= 40) return "bg-orange-500";
+  if (totalTime === 0) return "bg-muted";
+  if (totalTime < 10) return "bg-emerald-500";
+  if (totalTime < 15) return "bg-green-500";
+  if (totalTime < 20) return "bg-orange-500";
   return "bg-red-500";
 };
 
