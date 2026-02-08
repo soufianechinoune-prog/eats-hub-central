@@ -109,52 +109,52 @@ export const useTotalDeliveryTimeExport = () => {
       );
 
       // KPIs Section
-      let yPos = 80;
+      let yPos = 75;
 
       pdf.setTextColor(...textColor);
-      pdf.setFontSize(16);
+      pdf.setFontSize(14);
       pdf.setFont("helvetica", "bold");
       pdf.text("Indicateurs cles", margin, yPos);
 
-      yPos += 15;
+      yPos += 10;
 
-      // KPI Cards
+      // KPI Cards - more compact
       const kpiCardWidth = (contentWidth - 10) / 2;
-      const kpiCardHeight = 35;
+      const kpiCardHeight = 28;
 
       const drawKPICard = (x: number, y: number, label: string, value: string, subtext?: string) => {
         pdf.setFillColor(248, 250, 252);
         pdf.roundedRect(x, y, kpiCardWidth, kpiCardHeight, 3, 3, "F");
         
         pdf.setTextColor(...mutedColor);
-        pdf.setFontSize(10);
+        pdf.setFontSize(9);
         pdf.setFont("helvetica", "normal");
-        pdf.text(label, x + 8, y + 12);
+        pdf.text(label, x + 6, y + 10);
         
         pdf.setTextColor(...textColor);
-        pdf.setFontSize(20);
+        pdf.setFontSize(16);
         pdf.setFont("helvetica", "bold");
-        pdf.text(value, x + 8, y + 26);
+        pdf.text(value, x + 6, y + 22);
 
         if (subtext) {
           pdf.setTextColor(...mutedColor);
-          pdf.setFontSize(9);
+          pdf.setFontSize(8);
           pdf.setFont("helvetica", "normal");
-          pdf.text(subtext, x + kpiCardWidth - 8, y + 26, { align: "right" });
+          pdf.text(subtext, x + kpiCardWidth - 6, y + 22, { align: "right" });
         }
       };
 
       drawKPICard(margin, yPos, "Temps moyen reseau", formatMinutesToDisplay(data.globalStats.avgTotalTime));
       drawKPICard(margin + kpiCardWidth + 10, yPos, "Total commandes", formatNumber(data.globalStats.totalOrders));
 
-      yPos += kpiCardHeight + 10;
+      yPos += kpiCardHeight + 6;
 
       const fastLabel = `Rapide (< ${data.objective}min)`;
       const slowLabel = `Lent (>= ${data.objective}min)`;
       drawKPICard(margin, yPos, fastLabel, `${data.globalStats.fastRestaurants} restaurants`);
       drawKPICard(margin + kpiCardWidth + 10, yPos, slowLabel, `${data.globalStats.slowRestaurants} restaurants`);
 
-      yPos += kpiCardHeight + 10;
+      yPos += kpiCardHeight + 6;
 
       if (data.globalStats.peakHour) {
         drawKPICard(margin, yPos, "Heure la plus lente", `${data.globalStats.peakHour.hour}h - ${data.globalStats.peakHour.hour + 1}h`, formatMinutesToDisplay(data.globalStats.peakHour.avg));
@@ -164,87 +164,91 @@ export const useTotalDeliveryTimeExport = () => {
         drawKPICard(margin + kpiCardWidth + 10, yPos, "Jour le plus lent", WEEKDAYS[data.globalStats.peakWeekday.day], formatMinutesToDisplay(data.globalStats.peakWeekday.avg));
       }
 
-      yPos += kpiCardHeight + 25;
+      yPos += kpiCardHeight + 15;
 
-      // Distribution section
+      // Distribution section - more compact
       pdf.setTextColor(...textColor);
-      pdf.setFontSize(16);
+      pdf.setFontSize(14);
       pdf.setFont("helvetica", "bold");
       pdf.text("Repartition par performance", margin, yPos);
 
-      yPos += 12;
+      yPos += 10;
 
       const totalRestaurants = data.distribution.reduce((sum, d) => sum + d.count, 0);
-      const barMaxWidth = contentWidth - 50;
-      const barHeight = 12;
+      const barMaxWidth = contentWidth - 60;
+      const barHeight = 8;
 
       data.distribution.forEach((item) => {
         const barWidth = totalRestaurants > 0 ? (item.count / totalRestaurants) * barMaxWidth : 0;
         
         // Label
         pdf.setTextColor(...textColor);
-        pdf.setFontSize(10);
+        pdf.setFontSize(8);
         pdf.setFont("helvetica", "normal");
-        pdf.text(item.label, margin, yPos + 8);
+        pdf.text(item.label, margin, yPos + 5);
 
-        // Bar
+        // Bar with dynamic color
         let barColor: [number, number, number];
-        if (item.label.includes("Excellent")) barColor = [16, 185, 129];
-        else if (item.label.includes("Très")) barColor = [34, 197, 94];
-        else if (item.label.includes("Bon")) barColor = [245, 158, 11];
-        else if (item.label.includes("surveiller")) barColor = [249, 115, 22];
-        else barColor = [239, 68, 68];
+        if (item.label.includes("Tres rapide")) barColor = [16, 185, 129]; // emerald
+        else if (item.label.includes("Rapide")) barColor = [34, 197, 94]; // green
+        else if (item.label.includes("Lent") && !item.label.includes("Tres lent")) barColor = [249, 115, 22]; // orange
+        else barColor = [239, 68, 68]; // red
         
         pdf.setFillColor(...barColor);
-        pdf.roundedRect(margin + 50, yPos, barWidth, barHeight, 2, 2, "F");
+        if (barWidth > 0) {
+          pdf.roundedRect(margin + 55, yPos, barWidth, barHeight, 2, 2, "F");
+        }
 
         // Count
         pdf.setTextColor(...mutedColor);
-        pdf.text(`${item.count} (${Math.round((item.count / totalRestaurants) * 100)}%)`, margin + 55 + barWidth, yPos + 8);
+        const percent = totalRestaurants > 0 ? Math.round((item.count / totalRestaurants) * 100) : 0;
+        pdf.text(`${item.count} (${percent}%)`, margin + 60 + barWidth, yPos + 5);
 
-        yPos += barHeight + 5;
+        yPos += barHeight + 4;
       });
 
-      yPos += 15;
+      yPos += 10;
 
-      // Top 5 / Bottom 5
+      // Top 5 / Bottom 5 - more compact
       pdf.setTextColor(...textColor);
-      pdf.setFontSize(16);
+      pdf.setFontSize(14);
       pdf.setFont("helvetica", "bold");
       pdf.text("Top 5 & A surveiller", margin, yPos);
 
-      yPos += 12;
+      yPos += 8;
 
       const top5 = data.restaurants.slice(0, 5);
       const bottom5 = data.restaurants.slice(-5).reverse();
 
       const drawMiniTable = (title: string, items: RestaurantTotalDeliveryTime[], startY: number, isTop: boolean) => {
+        const tableHeight = 6 + items.length * 8;
         pdf.setFillColor(isTop ? 236 : 254, isTop ? 253 : 242, isTop ? 245 : 242);
-        pdf.roundedRect(margin, startY, contentWidth, 8 + items.length * 10, 3, 3, "F");
+        pdf.roundedRect(margin, startY, contentWidth, tableHeight, 3, 3, "F");
 
         pdf.setTextColor(isTop ? 16 : 239, isTop ? 185 : 68, isTop ? 129 : 68);
-        pdf.setFontSize(10);
+        pdf.setFontSize(9);
         pdf.setFont("helvetica", "bold");
-        pdf.text(title, margin + 5, startY + 6);
+        pdf.text(title, margin + 5, startY + 5);
 
-        let itemY = startY + 14;
+        let itemY = startY + 11;
         items.forEach((item) => {
           pdf.setTextColor(...textColor);
-          pdf.setFontSize(9);
+          pdf.setFontSize(8);
           pdf.setFont("helvetica", "normal");
           pdf.text(`#${item.rank}`, margin + 5, itemY);
-          pdf.text(item.name, margin + 20, itemY);
-          pdf.text(formatMinutesToDisplay(item.avgTotalTime), margin + contentWidth - 50, itemY);
+          const truncatedName = item.name.length > 30 ? item.name.substring(0, 28) + "..." : item.name;
+          pdf.text(truncatedName, margin + 18, itemY);
+          pdf.text(formatMinutesToDisplay(item.avgTotalTime), margin + contentWidth - 45, itemY);
           pdf.setTextColor(...mutedColor);
-          pdf.text(`(${formatNumber(item.orderCount)} cmd)`, margin + contentWidth - 20, itemY);
-          itemY += 10;
+          pdf.text(`(${formatNumber(item.orderCount)})`, margin + contentWidth - 15, itemY);
+          itemY += 8;
         });
 
-        return startY + 12 + items.length * 10;
+        return startY + tableHeight;
       };
 
       yPos = drawMiniTable("Les plus rapides", top5, yPos, true);
-      yPos += 5;
+      yPos += 4;
       drawMiniTable("Les plus lents", bottom5, yPos, false);
 
       // =====================
