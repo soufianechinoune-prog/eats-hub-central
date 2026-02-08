@@ -1,71 +1,122 @@
 
+## Ce qui se passe (explication simple)
 
-# Corriger le matching pour les 4 restaurants historiques
+Sur l’écran **/report-import**, ton fichier contient des `store_id` au format **UUID** (ex: `adeed447-...`).  
+Mais dans la base, tes restaurants ont encore des `uber_store_id` au format **placeholder** (`name:chicken street - ...`) ou un code type **BYS00708**.
 
-## Problème identifié
+Je l’ai vérifié côté base : actuellement, **aucun restaurant n’a un `uber_store_id` au format UUID**, donc l’import ne peut pas reconnaître les restaurants → tout part en `unknown_restaurant` et “lignes ignorées”.
 
-Les 4 restaurants historiques ont des `uber_store_id` de type placeholder (`name:...` ou `BYS00708`), pas de vrais UUIDs. L'outil de mapping devrait les matcher par nom et proposer "Renommer", mais le matching échoue car :
+Donc le vrai problème n’est plus “le fuzzy match” : c’est que **l’outil /uber-mapping n’a pas réellement écrit les UUIDs en base** (ou il ne lit pas la bonne colonne dans ton CSV).
 
-- CSV : `Chicken Street - Bonneuil`
-- DB : `CHICKEN STREET BONNEUIL-SUR-MARNE`
+---
 
-Le problème spécifique : `Bonneuil` ≠ `Bonneuil-sur-Marne` après normalisation.
+## Hypothèse la plus probable (et la plus fréquente)
 
-## Solution
+Le CSV utilisé pour le mapping n’est pas parsé correctement côté navigateur (délimiteur `;` vs `,`, guillemets, colonnes dupliquées “Id. du restaurant”, BOM, etc.).  
+Résultat : l’écran de mapping affiche des choses, mais il n’extrait pas le **vrai UUID** à mettre dans `uber_store_id`, donc il n’update rien d’utile.
 
-Améliorer la fonction `cityStartsWith` pour gérer les suffixes composés comme "-sur-Marne", "-sur-Orge" qui sont souvent absents des noms CSV.
+---
 
-## Modifications techniques
+## Objectif
 
-### Fichier : `src/lib/fuzzyMatch.ts`
+1) Faire en sorte que **/uber-mapping récupère toujours le bon store_id UUID** depuis le CSV.  
+2) Appliquer :  
+   - soit **update_uuid** (si on veut juste lier l’UUID)  
+   - soit **rename + update uuid** (si on veut enlever les majuscules, aligner le nom “Chicken Street - …”)  
+3) Vérifier automatiquement après “Appliquer” que des UUIDs existent bien en base.
 
-Modifier `cityStartsWith` pour traiter les suffixes "-sur-..." et "-en-..." :
+---
 
-```typescript
-export const cityStartsWith = (shortName: string, fullName: string): boolean => {
-  const shortNorm = normalizeForLooseMatch(shortName);
-  const fullNorm = normalizeForLooseMatch(fullName);
-  
-  // Extract city parts (after brand)
-  const brandWords = ["chicken", "street", "cs"];
-  const shortParts = shortNorm.split(" ").filter(w => !brandWords.includes(w));
-  const fullParts = fullNorm.split(" ").filter(w => !brandWords.includes(w));
-  
-  const shortCity = shortParts.join(" ");
-  let fullCity = fullParts.join(" ");
-  
-  // Remove common French suffixes like "sur marne", "sur orge", "en france"
-  fullCity = fullCity
-    .replace(/ sur [a-z]+$/, "")
-    .replace(/ en [a-z]+$/, "")
-    .replace(/ les [a-z]+$/, "")
-    .trim();
-  
-  // Direct comparison after suffix removal
-  if (shortCity === fullCity) return true;
-  
-  // Prefix check
-  return fullCity.startsWith(shortCity) || shortCity.startsWith(fullCity);
-};
-```
+## Changements à implémenter
 
-### Fichier : `src/pages/UberStoreMapping.tsx`
+### A) Rendre le parsing CSV de `/uber-mapping` robuste
+**Fichier :** `src/pages/UberStoreMapping.tsx`
 
-Aucune modification nécessaire - le code utilise déjà `cityStartsWith`. Une fois la fonction corrigée, le matching fonctionnera.
+- Ajouter une fonction de parsing CSV “propre” (gestion :
+  - séparateur `,` ou `;` (auto-détection sur la ligne d’en-têtes)
+  - guillemets `"`
+  - cellules contenant des virgules/points-virgules
+  - lignes vides
+)
+- Normaliser les en-têtes (trim, minuscules, suppression BOM `\uFEFF`, espaces insécables).
+- Trouver la colonne store_id de façon fiable :
+  - si plusieurs “Id. du restaurant”, choisir celle dont les valeurs ressemblent à un UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+  - sinon fallback sur la dernière occurrence comme aujourd’hui
+- Trouver la colonne nom de restaurant (Nom du restaurant / Restaurant / store_name).
 
-## Résultat attendu
+**Pourquoi ça corrige ton cas :**
+Même si Uber change le format (ou si ton export est en `;`), on récupère quand même le bon UUID.
 
-Après cette correction :
+---
 
-| CSV | DB | Match |
-|-----|-----|-------|
-| Chicken Street - Bonneuil | CHICKEN STREET BONNEUIL-SUR-MARNE | ✅ 95% |
-| Chicken Street - Juvisy | CHICKEN STREET JUVISY-SUR-ORGE | ✅ 95% |
-| Chicken Street - Athis-Mons | CHICKEN STREET ATHIS-MONS | ✅ 100% |
-| Chicken Street - Antony | CHICKEN STREET ANTONY | ✅ 100% |
+### B) Ajouter une “sécurité anti-fausse import” dans `/uber-mapping`
+Toujours dans `src/pages/UberStoreMapping.tsx`
 
-Les 4 restaurants s'afficheront en **"Renommer"** (badge bleu) :
-- Le nom passera au format CSV (ex: "Chicken Street - Bonneuil")
-- L'UUID sera mis à jour avec le vrai UUID du CSV
-- **Toutes les données historiques seront préservées** car elles sont liées à l'ID interne du restaurant, pas au nom
+Avant de générer les actions :
+- Compter combien de `storeId` extraits sont des UUIDs.
+- Si ~0 UUID détecté, afficher un toast rouge explicite du style :
+  - “Je n’ai trouvé aucun store_id au format UUID dans ce fichier. Vérifie que tu as bien exporté le bon rapport / le bon séparateur.”
 
+Après “Appliquer les changements” :
+- Re-fetch des restaurants
+- Vérifier que les 4 restaurants ciblés ont maintenant un `uber_store_id` UUID
+- Si non, afficher une erreur claire au lieu de laisser croire que c’est bon.
+
+---
+
+### C) Corriger le matching “BYSxxxx” (Antony) pour forcer `update_uuid` sans ambiguïté
+**Fichier :** `src/pages/UberStoreMapping.tsx`
+
+Actuellement, tout ce qui n’est pas `name:` est considéré “real UUID” dans `restaurantsWithRealUUID`, ce qui inclut `BYS00708` (qui n’est pas un UUID).
+
+- Ajuster la notion de “real UUID” :
+  - considérer “réel” uniquement si `uber_store_id` matche une regex UUID.
+  - ainsi BYS… sera traité comme un identifiant non fiable → on pourra le migrer vers un UUID officiel.
+
+---
+
+### D) (Optionnel mais recommandé) Aider l’utilisateur depuis `/report-import`
+**Fichier :** `src/pages/ReportImport.tsx`
+
+Quand `unknownStoreIds.length > 0` :
+- ajouter un bouton “Ouvrir le mapping Uber Eats” qui amène vers `/uber-mapping`
+- et un micro-texte : “Il faut configurer les store_id avant d’importer ces fichiers multi-restaurants.”
+
+Ce n’est pas obligatoire pour corriger, mais ça évite la confusion “j’ai fait le matching mais ça marche pas”.
+
+---
+
+## Vérification (ce que tu pourras tester juste après)
+
+1) Aller sur `/uber-mapping`
+2) Importer le même CSV que celui qui te donne des unknown store ids dans `/report-import`
+3) Vérifier que tu vois bien :
+   - pour Bonneuil + Juvisy : une action de type **Renommer** ou **Mettre à jour UUID**
+   - et surtout que le store_id affiché ressemble à un UUID
+4) Cliquer “Appliquer”
+5) Revenir sur `/report-import` et relancer “Analyser avant import”
+   - l’alerte “Restaurants non configurés” doit disparaître (ou fortement diminuer)
+
+---
+
+## Notes importantes (data préservée)
+
+- Changer le **nom** (enlever les majuscules) ne touche pas l’historique : l’historique est lié au `restaurant.id`.
+- Mettre à jour `uber_store_id` sert justement à relier tes fichiers Uber (UUID) à tes restaurants existants, sans bouger la data.
+
+---
+
+## Risques / Edge cases couverts
+
+- CSV en `;` au lieu de `,`
+- colonnes dupliquées “Id. du restaurant”
+- UUID parfois vide sur certaines lignes
+- noms tronqués (“Bonneuil” vs “Bonneuil-sur-Marne”)
+- codes non-UUID (BYS…) traités correctement (migrables)
+
+---
+
+## Livrables (liste des fichiers)
+
+- `src/pages/UberStoreMapping.tsx` (principal : parsing + détection UUID + correction “real UUID”)
+- `src/pages/ReportImport.tsx` (optionnel : bouton/UX vers mapping)
