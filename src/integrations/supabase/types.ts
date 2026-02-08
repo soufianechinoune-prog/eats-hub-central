@@ -2517,6 +2517,8 @@ export type Database = {
           deliveroo_account_manager_name: string | null
           deliveroo_account_manager_phone: string | null
           deliveroo_account_manager_title: string | null
+          deliveroo_closing_date: string | null
+          deliveroo_opening_date: string | null
           deliveroo_store_id: string | null
           id: string
           is_active: boolean | null
@@ -2536,7 +2538,9 @@ export type Database = {
           street: string | null
           tablet_email: string | null
           tablet_password: string | null
+          uber_closing_date: string | null
           uber_commission_rate: number | null
+          uber_opening_date: string | null
           uber_store_id: string | null
         }
         Insert: {
@@ -2553,6 +2557,8 @@ export type Database = {
           deliveroo_account_manager_name?: string | null
           deliveroo_account_manager_phone?: string | null
           deliveroo_account_manager_title?: string | null
+          deliveroo_closing_date?: string | null
+          deliveroo_opening_date?: string | null
           deliveroo_store_id?: string | null
           id?: string
           is_active?: boolean | null
@@ -2572,7 +2578,9 @@ export type Database = {
           street?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
+          uber_closing_date?: string | null
           uber_commission_rate?: number | null
+          uber_opening_date?: string | null
           uber_store_id?: string | null
         }
         Update: {
@@ -2589,6 +2597,8 @@ export type Database = {
           deliveroo_account_manager_name?: string | null
           deliveroo_account_manager_phone?: string | null
           deliveroo_account_manager_title?: string | null
+          deliveroo_closing_date?: string | null
+          deliveroo_opening_date?: string | null
           deliveroo_store_id?: string | null
           id?: string
           is_active?: boolean | null
@@ -2608,7 +2618,9 @@ export type Database = {
           street?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
+          uber_closing_date?: string | null
           uber_commission_rate?: number | null
+          uber_opening_date?: string | null
           uber_store_id?: string | null
         }
         Relationships: [

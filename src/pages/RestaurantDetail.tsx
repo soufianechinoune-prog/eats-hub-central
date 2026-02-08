@@ -41,7 +41,9 @@ import {
   Mail,
   MessageCircle,
   Trash2,
+  CalendarDays,
 } from "lucide-react";
+import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 
 const RestaurantDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -187,6 +189,10 @@ const RestaurantDetail = () => {
         deliveroo_account_manager_title: restaurant.deliveroo_account_manager_title || "",
         deliveroo_account_manager_phone: restaurant.deliveroo_account_manager_phone || "",
         deliveroo_account_manager_email: restaurant.deliveroo_account_manager_email || "",
+        uber_opening_date: restaurant.uber_opening_date || "",
+        uber_closing_date: restaurant.uber_closing_date || "",
+        deliveroo_opening_date: restaurant.deliveroo_opening_date || "",
+        deliveroo_closing_date: restaurant.deliveroo_closing_date || "",
       });
       setIsEditing(true);
     }
@@ -479,6 +485,48 @@ const RestaurantDetail = () => {
             <div className="grid grid-cols-2 gap-4">
               {renderPhoneField("Téléphone", "deliveroo_account_manager_phone", "07 12 34 56 78", <Phone className="h-3 w-3" />)}
               {renderField("Email", "deliveroo_account_manager_email", "email", "email@deliveroo.com")}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Dates d'activité plateformes */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center gap-2 pb-4">
+            <div className="p-2 rounded-md bg-primary/10">
+              <CalendarDays className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Dates d'activité plateformes</CardTitle>
+              <CardDescription className="text-xs">
+                Les restaurants non actifs sur la période analysée sont exclus des moyennes réseau
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Uber Eats */}
+              <div className="space-y-4 p-4 border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <UberEatsIcon className="h-5 w-5" />
+                  <span className="font-medium text-green-600">Uber Eats</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {renderField("Ouverture", "uber_opening_date", "date")}
+                  {renderField("Fermeture", "uber_closing_date", "date")}
+                </div>
+              </div>
+              
+              {/* Deliveroo */}
+              <div className="space-y-4 p-4 border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <DeliverooIcon className="h-5 w-5" />
+                  <span className="font-medium text-cyan-600">Deliveroo</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {renderField("Ouverture", "deliveroo_opening_date", "date")}
+                  {renderField("Fermeture", "deliveroo_closing_date", "date")}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
