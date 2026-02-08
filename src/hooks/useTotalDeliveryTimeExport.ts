@@ -12,11 +12,12 @@ interface RestaurantTotalDeliveryTime {
 
 interface TotalDeliveryTimeExportData {
   periodLabel: string;
+  objective: number; // Dynamic objective threshold
   globalStats: {
     avgTotalTime: number;
     totalOrders: number;
-    fastRestaurants: number; // ≤ 30 min
-    slowRestaurants: number; // > 40 min
+    fastRestaurants: number;
+    slowRestaurants: number;
     peakHour: { hour: number; avg: number } | null;
     peakWeekday: { day: number; avg: number } | null;
   };
@@ -34,19 +35,20 @@ const formatMinutesToDisplay = (minutes: number): string => {
   return `${m}min ${s}s`;
 };
 
-const getStatusLabel = (totalTime: number): string => {
-  if (totalTime <= 25) return "Excellent";
-  if (totalTime <= 30) return "Tres bien";
-  if (totalTime <= 35) return "Bon";
-  if (totalTime <= 40) return "A surveiller";
-  return "Lent";
+// Dynamic status based on objective
+const getStatusLabel = (totalTime: number, objective: number): string => {
+  if (totalTime === 0) return "Aucune donnee";
+  if (totalTime < objective - 5) return "Tres rapide";
+  if (totalTime < objective) return "Rapide";
+  if (totalTime < objective + 5) return "Lent";
+  return "Tres lent";
 };
 
-const getStatusColor = (totalTime: number): [number, number, number] => {
-  if (totalTime <= 25) return [16, 185, 129]; // emerald-500
-  if (totalTime <= 30) return [34, 197, 94]; // green-500
-  if (totalTime <= 35) return [245, 158, 11]; // amber-500
-  if (totalTime <= 40) return [249, 115, 22]; // orange-500
+const getStatusColor = (totalTime: number, objective: number): [number, number, number] => {
+  if (totalTime === 0) return [120, 120, 120]; // muted
+  if (totalTime < objective - 5) return [16, 185, 129]; // emerald-500
+  if (totalTime < objective) return [34, 197, 94]; // green-500
+  if (totalTime < objective + 5) return [249, 115, 22]; // orange-500
   return [239, 68, 68]; // red-500
 };
 
@@ -147,8 +149,10 @@ export const useTotalDeliveryTimeExport = () => {
 
       yPos += kpiCardHeight + 10;
 
-      drawKPICard(margin, yPos, "Restaurants rapides (≤ 30min)", `${data.globalStats.fastRestaurants} restaurants`);
-      drawKPICard(margin + kpiCardWidth + 10, yPos, "Restaurants lents (> 40min)", `${data.globalStats.slowRestaurants} restaurants`);
+      const fastLabel = `Rapide (< ${data.objective}min)`;
+      const slowLabel = `Lent (>= ${data.objective}min)`;
+      drawKPICard(margin, yPos, fastLabel, `${data.globalStats.fastRestaurants} restaurants`);
+      drawKPICard(margin + kpiCardWidth + 10, yPos, slowLabel, `${data.globalStats.slowRestaurants} restaurants`);
 
       yPos += kpiCardHeight + 10;
 
@@ -343,10 +347,10 @@ export const useTotalDeliveryTimeExport = () => {
           pdf.setFont("helvetica", "normal");
           pdf.text(item.orderCount.toString(), margin + 140, yPos + 5.5);
 
-          // Status with color
-          const [r, g, b] = getStatusColor(item.avgTotalTime);
+          // Status with color based on objective
+          const [r, g, b] = getStatusColor(item.avgTotalTime, data.objective);
           pdf.setTextColor(r, g, b);
-          pdf.text(getStatusLabel(item.avgTotalTime), margin + 165, yPos + 5.5);
+          pdf.text(getStatusLabel(item.avgTotalTime, data.objective), margin + 165, yPos + 5.5);
 
           yPos += rowHeight;
         });
