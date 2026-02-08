@@ -14,10 +14,10 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Lock, Pencil, Plus, Search, Loader2 } from "lucide-react";
-import { normalizeName, calculateRestaurantSimilarity } from "@/lib/fuzzyMatch";
+import { Upload, Lock, Pencil, Plus, Search, Loader2, RefreshCw } from "lucide-react";
+import { normalizeName, calculateRestaurantSimilarity, normalizeForLooseMatch } from "@/lib/fuzzyMatch";
 
-type ImportAction = "protected" | "rename" | "create";
+type ImportAction = "protected" | "rename" | "create" | "update_uuid";
 
 interface ImportItem {
   storeId: string;
@@ -164,26 +164,36 @@ export default function UberStoreMapping() {
       }
 
       // Find best match by name similarity (excluding already used ones)
-      // Now we allow updating restaurants with placeholder uber_store_id (starting with "name:")
-      let bestMatch: { id: string; name: string; similarity: number; hasPlaceholderId: boolean } | null = null;
+      // First, check restaurants with placeholder IDs (can be renamed)
+      let bestMatch: { id: string; name: string; similarity: number; hasRealUUID: boolean } | null = null;
+      
       for (const restaurant of restaurants) {
-        // Skip restaurants with real UUIDs (already configured) and already used ones
-        if (restaurantsWithRealUUID.has(restaurant.id) || usedRestaurantIds.has(restaurant.id)) {
-          continue;
-        }
-
+        if (usedRestaurantIds.has(restaurant.id)) continue;
+        
+        // Try standard similarity first
         const similarity = calculateRestaurantSimilarity(storeName, restaurant.name);
-        if (similarity >= SIMILARITY_THRESHOLD && (!bestMatch || similarity > bestMatch.similarity)) {
-          const hasPlaceholderId = restaurant.uber_store_id?.startsWith("name:") || false;
-          bestMatch = { id: restaurant.id, name: restaurant.name, similarity, hasPlaceholderId };
+        
+        // Also try loose matching for different formats (CHICKEN STREET ATHIS-MONS vs Chicken Street - Athis-Mons)
+        const looseStoreName = normalizeForLooseMatch(storeName);
+        const looseRestaurantName = normalizeForLooseMatch(restaurant.name);
+        const looseSimilarity = looseStoreName === looseRestaurantName ? 100 : similarity;
+        
+        const bestSimilarity = Math.max(similarity, looseSimilarity);
+        
+        if (bestSimilarity >= SIMILARITY_THRESHOLD && (!bestMatch || bestSimilarity > bestMatch.similarity)) {
+          const hasRealUUID = restaurantsWithRealUUID.has(restaurant.id);
+          bestMatch = { id: restaurant.id, name: restaurant.name, similarity: bestSimilarity, hasRealUUID };
         }
       }
 
       if (bestMatch) {
+        // If restaurant has real UUID, only update the UUID (preserve name and data)
+        // If restaurant has placeholder ID, rename + update UUID
+        const action: ImportAction = bestMatch.hasRealUUID ? "update_uuid" : "rename";
         items.push({
           storeId,
           storeName,
-          action: "rename",
+          action,
           matchedRestaurantId: bestMatch.id,
           matchedRestaurantName: bestMatch.name,
           similarity: bestMatch.similarity,
@@ -198,9 +208,9 @@ export default function UberStoreMapping() {
       }
     });
 
-    // Sort: protected first, then rename, then create
+    // Sort: protected first, then update_uuid, then rename, then create
     items.sort((a, b) => {
-      const order = { protected: 0, rename: 1, create: 2 };
+      const order = { protected: 0, update_uuid: 1, rename: 2, create: 3 };
       return order[a.action] - order[b.action];
     });
 
@@ -208,13 +218,14 @@ export default function UberStoreMapping() {
 
     const counts = {
       protected: items.filter((i) => i.action === "protected").length,
+      update_uuid: items.filter((i) => i.action === "update_uuid").length,
       rename: items.filter((i) => i.action === "rename").length,
       create: items.filter((i) => i.action === "create").length,
     };
 
     toast({
       title: `${items.length} restaurants détectés`,
-      description: `${counts.protected} protégés, ${counts.rename} à renommer, ${counts.create} à créer`,
+      description: `${counts.protected} protégés, ${counts.update_uuid} UUID à mettre à jour, ${counts.rename} à renommer, ${counts.create} à créer`,
     });
   };
 
@@ -227,10 +238,23 @@ export default function UberStoreMapping() {
       // Get the default chain_id from an existing restaurant
       const defaultChainId = restaurants.find((r) => r.chain_id)?.chain_id || null;
 
+      let uuidUpdated = 0;
+      
       for (const item of items) {
         if (item.action === "protected") continue;
 
-        if (item.action === "rename" && item.matchedRestaurantId) {
+        if (item.action === "update_uuid" && item.matchedRestaurantId) {
+          // Only update UUID, preserve name and all data
+          const { error } = await supabase
+            .from("restaurants")
+            .update({
+              uber_store_id: item.storeId,
+            })
+            .eq("id", item.matchedRestaurantId);
+
+          if (error) throw error;
+          uuidUpdated++;
+        } else if (item.action === "rename" && item.matchedRestaurantId) {
           const { error } = await supabase
             .from("restaurants")
             .update({
@@ -254,12 +278,16 @@ export default function UberStoreMapping() {
         }
       }
 
-      return { renamed, created };
+      return { renamed, created, uuidUpdated };
     },
     onSuccess: (result) => {
+      const parts = [];
+      if (result.uuidUpdated > 0) parts.push(`${result.uuidUpdated} UUID mis à jour`);
+      if (result.renamed > 0) parts.push(`${result.renamed} renommé(s)`);
+      if (result.created > 0) parts.push(`${result.created} créé(s)`);
       toast({
         title: "Import terminé",
-        description: `${result.renamed} renommé(s), ${result.created} créé(s)`,
+        description: parts.join(", ") || "Aucune modification",
       });
       queryClient.invalidateQueries({ queryKey: ["restaurants-for-mapping"] });
       setImportItems([]);
@@ -290,6 +318,7 @@ export default function UberStoreMapping() {
   const counts = useMemo(
     () => ({
       protected: importItems.filter((i) => i.action === "protected").length,
+      update_uuid: importItems.filter((i) => i.action === "update_uuid").length,
       rename: importItems.filter((i) => i.action === "rename").length,
       create: importItems.filter((i) => i.action === "create").length,
     }),
@@ -297,7 +326,7 @@ export default function UberStoreMapping() {
   );
 
   const handleApply = () => {
-    if (counts.rename === 0 && counts.create === 0) {
+    if (counts.rename === 0 && counts.create === 0 && counts.update_uuid === 0) {
       toast({
         title: "Rien à faire",
         description: "Tous les restaurants sont déjà protégés",
@@ -312,6 +341,8 @@ export default function UberStoreMapping() {
     switch (action) {
       case "protected":
         return <Lock className="h-4 w-4" />;
+      case "update_uuid":
+        return <RefreshCw className="h-4 w-4" />;
       case "rename":
         return <Pencil className="h-4 w-4" />;
       case "create":
@@ -326,6 +357,13 @@ export default function UberStoreMapping() {
           <Badge variant="secondary" className="gap-1">
             <Lock className="h-3 w-3" />
             Protégé
+          </Badge>
+        );
+      case "update_uuid":
+        return (
+          <Badge className="gap-1 bg-amber-600 hover:bg-amber-700">
+            <RefreshCw className="h-3 w-3" />
+            Mettre à jour UUID
           </Badge>
         );
       case "rename":
@@ -382,7 +420,7 @@ export default function UberStoreMapping() {
       {importItems.length > 0 && (
         <>
           {/* Summary Stats */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-5 gap-4">
             <Card>
               <CardContent className="pt-6">
                 <div className="text-2xl font-bold">{importItems.length}</div>
@@ -396,6 +434,15 @@ export default function UberStoreMapping() {
                   <div className="text-2xl font-bold">{counts.protected}</div>
                 </div>
                 <p className="text-sm text-muted-foreground">Protégés</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-5 w-5 text-amber-600" />
+                  <div className="text-2xl font-bold text-amber-600">{counts.update_uuid}</div>
+                </div>
+                <p className="text-sm text-muted-foreground">UUID à mettre à jour</p>
               </CardContent>
             </Card>
             <Card>
@@ -433,7 +480,7 @@ export default function UberStoreMapping() {
               onClick={handleApply}
               disabled={
                 applyChangesMutation.isPending ||
-                (counts.rename === 0 && counts.create === 0)
+                (counts.rename === 0 && counts.create === 0 && counts.update_uuid === 0)
               }
               size="lg"
             >
@@ -444,7 +491,7 @@ export default function UberStoreMapping() {
                 </>
               ) : (
                 <>
-                  Appliquer les changements ({counts.rename + counts.create})
+                  Appliquer les changements ({counts.update_uuid + counts.rename + counts.create})
                 </>
               )}
             </Button>
@@ -469,8 +516,9 @@ export default function UberStoreMapping() {
                       <TableCell>{getActionBadge(item.action)}</TableCell>
                       <TableCell>
                         {item.matchedRestaurantName ? (
-                          <span className={item.action === "rename" ? "text-muted-foreground line-through" : ""}>
+                          <span className={item.action === "rename" ? "text-muted-foreground line-through" : item.action === "update_uuid" ? "font-medium" : ""}>
                             {item.matchedRestaurantName}
+                            {item.action === "update_uuid" && <span className="text-xs text-muted-foreground ml-2">(données préservées)</span>}
                           </span>
                         ) : (
                           <span className="text-muted-foreground italic">—</span>
