@@ -70,6 +70,26 @@ export const normalizeForLooseMatch = (name: string): string => {
 };
 
 /**
+ * Check if one city name starts with another (for partial matches like "Bonneuil" vs "Bonneuil sur Marne")
+ */
+export const cityStartsWith = (shortName: string, fullName: string): boolean => {
+  const shortNorm = normalizeForLooseMatch(shortName);
+  const fullNorm = normalizeForLooseMatch(fullName);
+  
+  // Extract city parts (after brand)
+  const shortParts = shortNorm.split(" ");
+  const fullParts = fullNorm.split(" ");
+  
+  // Find where city starts (skip common brand words)
+  const brandWords = ["chicken", "street", "cs"];
+  const shortCity = shortParts.filter(w => !brandWords.includes(w)).join(" ");
+  const fullCity = fullParts.filter(w => !brandWords.includes(w)).join(" ");
+  
+  // Check if full city starts with short city (e.g., "bonneuil sur marne" starts with "bonneuil")
+  return fullCity.startsWith(shortCity) || shortCity.startsWith(fullCity);
+};
+
+/**
  * Extract the location part from a restaurant name (after the last " - ")
  */
 export const extractLocationPart = (name: string): string => {
