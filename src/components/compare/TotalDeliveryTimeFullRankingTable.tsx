@@ -27,6 +27,7 @@ interface TotalDeliveryTimeFullRankingTableProps {
   onExportPDF?: () => void;
   isExporting?: boolean;
   dateRange?: { start: Date; end: Date };
+  objective?: number; // User-defined threshold in minutes
 }
 
 type SortField = "rank" | "name" | "avgTotalTime" | "orderCount";
@@ -40,27 +41,32 @@ const formatMinutesToDisplay = (minutes: number): string => {
   return `${m}min ${s}s`;
 };
 
-const getStatusBadge = (totalTime: number) => {
+// Dynamic status based on objective threshold
+// < objective - 5 min: Très rapide (emerald)
+// < objective: Rapide (green)
+// < objective + 5 min: Lent (orange)
+// >= objective + 5 min: Très lent (red)
+const getStatusBadge = (totalTime: number, objective: number) => {
   if (totalTime === 0) {
     return <Badge className="bg-muted text-muted-foreground border-muted">Aucune donnée</Badge>;
   }
-  if (totalTime < 10) {
+  if (totalTime < objective - 5) {
     return <Badge className="bg-emerald-500/20 text-emerald-600 border-emerald-500/30">Très rapide</Badge>;
   }
-  if (totalTime < 15) {
+  if (totalTime < objective) {
     return <Badge className="bg-green-500/20 text-green-600 border-green-500/30">Rapide</Badge>;
   }
-  if (totalTime < 20) {
+  if (totalTime < objective + 5) {
     return <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">Lent</Badge>;
   }
   return <Badge className="bg-red-500/20 text-red-600 border-red-500/30">Très lent</Badge>;
 };
 
-const getBarColor = (totalTime: number) => {
+const getBarColor = (totalTime: number, objective: number) => {
   if (totalTime === 0) return "bg-muted";
-  if (totalTime < 10) return "bg-emerald-500";
-  if (totalTime < 15) return "bg-green-500";
-  if (totalTime < 20) return "bg-orange-500";
+  if (totalTime < objective - 5) return "bg-emerald-500";
+  if (totalTime < objective) return "bg-green-500";
+  if (totalTime < objective + 5) return "bg-orange-500";
   return "bg-red-500";
 };
 
@@ -68,7 +74,8 @@ export const TotalDeliveryTimeFullRankingTable = ({
   data, 
   onExportPDF,
   isExporting = false,
-  dateRange
+  dateRange,
+  objective = 15, // Default 15 min objective
 }: TotalDeliveryTimeFullRankingTableProps) => {
   const navigate = useNavigate();
   const { setSelectedRestaurants, setVisibleRestaurants, setDateRange, setPeriodMode } = useAnalyticsContext();
@@ -269,9 +276,9 @@ export const TotalDeliveryTimeFullRankingTable = ({
                         <div className="space-y-1">
                           <span className="font-medium">{restaurant.name}</span>
                           <div className="flex items-center gap-3">
-                            <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden min-w-[400px]">
+                              <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden min-w-[400px]">
                               <div 
-                                className={`h-full rounded-full ${getBarColor(restaurant.avgTotalTime)}`}
+                                className={`h-full rounded-full ${getBarColor(restaurant.avgTotalTime, objective)}`}
                                 style={{ width: `${Math.min(barWidth, 100)}%` }}
                               />
                             </div>
@@ -288,7 +295,7 @@ export const TotalDeliveryTimeFullRankingTable = ({
                         <span className="text-sm font-medium">{restaurant.orderCount.toLocaleString('fr-FR')}</span>
                       </TableCell>
                       <TableCell className="text-center">
-                        {getStatusBadge(restaurant.avgTotalTime)}
+                        {getStatusBadge(restaurant.avgTotalTime, objective)}
                       </TableCell>
                     </TableRow>
                   );
