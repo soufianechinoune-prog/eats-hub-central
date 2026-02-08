@@ -13,6 +13,7 @@ import { InaccurateOrdersRankingBars } from "@/components/compare/InaccurateOrde
 import { InaccurateOrdersInsightsSection } from "@/components/compare/InaccurateOrdersInsightsSection";
 import { InaccurateOrdersHeatmapGrid } from "@/components/compare/InaccurateOrdersHeatmapGrid";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
+import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
 
 type PeriodType = "week" | "month" | "quarter";
 
@@ -42,13 +43,13 @@ const InaccurateOrdersComparison = () => {
     }
   }, [period]);
 
-  // Fetch pinned restaurants
-  const { data: pinnedRestaurants } = useQuery({
-    queryKey: ["pinned-restaurants"],
+  // Fetch pinned restaurants with activity dates
+  const { data: pinnedRestaurantsRaw } = useQuery({
+    queryKey: ["pinned-restaurants-with-dates"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name")
+        .select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
         .eq("is_pinned", true)
         .order("name");
       if (error) throw error;
@@ -56,19 +57,30 @@ const InaccurateOrdersComparison = () => {
     },
   });
 
-  // Fetch all active restaurants (for network view)
-  const { data: allActiveRestaurants } = useQuery({
-    queryKey: ["active-restaurants"],
+  // Fetch all active restaurants (for network view) with activity dates
+  const { data: allActiveRestaurantsRaw } = useQuery({
+    queryKey: ["active-restaurants-with-dates"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name")
+        .select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
       return data || [];
     },
   });
+
+  // Filter restaurants by activity dates for the selected period
+  const pinnedRestaurants = useMemo(() => {
+    if (!pinnedRestaurantsRaw) return [];
+    return filterActiveRestaurants(pinnedRestaurantsRaw, dateRange.start, dateRange.end);
+  }, [pinnedRestaurantsRaw, dateRange.start, dateRange.end]);
+
+  const allActiveRestaurants = useMemo(() => {
+    if (!allActiveRestaurantsRaw) return [];
+    return filterActiveRestaurants(allActiveRestaurantsRaw, dateRange.start, dateRange.end);
+  }, [allActiveRestaurantsRaw, dateRange.start, dateRange.end]);
 
   // Select restaurants based on view mode
   const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
