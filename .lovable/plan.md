@@ -1,112 +1,104 @@
 
-# Aligner le calendrier de Temps de préparation sur Temps d'inactivité
+# Nouvelle page : Comparaison Temps de Preparation + Livraison
 
 ## Objectif
-Remplacer le sélecteur de période simple de la page "Comparaison Temps de préparation" par le composant `OverviewPeriodSelector` utilisé sur "Temps d'inactivité".
+Creer une page de comparaison dediee au "Temps de preparation + livraison" (temps total commande-livraison) avec les memes fonctionnalites que la page "Comparaison Temps de preparation" actuelle.
 
-## Changements à effectuer
+## Architecture
 
-### Fichier : `src/pages/PrepTimeComparison.tsx`
+La nouvelle page repliquera exactement le design de `/compare/prep-time` avec :
+- Tri multi-colonnes (Rang, Nom, Temps, Commandes)
+- Barre de recherche en temps reel
+- Export PDF complet
+- Section KPIs reseau (Plus rapide, Plus lent, Moyenne, etc.)
+- Selecteur de periode avance (OverviewPeriodSelector)
+- Toggle Epingles/Reseau (NetworkViewToggle)
+- Selecteur de plateforme (Uber Eats, Deliveroo, Global)
+- Heatmap des patterns temporels
 
-1. **Imports à modifier**
-   - Supprimer : `Select, SelectContent, SelectItem, SelectTrigger, SelectValue`
-   - Supprimer : `Calendar` de lucide-react (déjà dans OverviewPeriodSelector)
-   - Ajouter : `OverviewPeriodSelector, OverviewPeriodMode` depuis `@/components/overview/OverviewPeriodSelector`
-   - Ajouter : `DateRange` depuis `react-day-picker`
+## Differences avec Temps de preparation
 
-2. **État local à refactoriser**
-   - Remplacer `period` (type `PeriodType`) par `periodMode` (type `OverviewPeriodMode`)
-   - Ajouter `selectedYear` / `setSelectedYear`
-   - Ajouter `selectedMonth` / `setSelectedMonth`
-   - Ajouter `customDateRange` / `setCustomDateRange`
-   - Ajouter persistance localStorage comme Downtime
+| Element | Temps preparation | Temps prep+livraison |
+|---------|-------------------|---------------------|
+| Champ DB | `initial_prep_time_minutes` | `total_prep_delivery_time_minutes` |
+| Seuil Excellent | <= 4 min | <= 25 min |
+| Seuil Tres bien | 4-5 min | 25-30 min |
+| Seuil Bon | 5-6 min | 30-35 min |
+| Seuil A surveiller | 6-8 min | 35-40 min |
+| Seuil Lent | > 8 min | > 40 min |
+| Icone | Clock (amber) | Truck (violet) |
+| Couleur primaire | Amber (#F59E0B) | Violet (#8B5CF6) |
 
-3. **Logique de calcul `dateRange`**
-   Aligner sur le même switch que Downtime pour supporter :
-   - `previous_week` : semaine précédente
-   - `7d` : 7 derniers jours
-   - `30d` : 30 derniers jours
-   - `current_month` : mois en cours
-   - `year` : année complète
-   - `custom_month` : mois spécifique
-   - `custom_range` : période personnalisée
+## Fichiers a creer
 
-4. **Header - Remplacer le Select**
-   Supprimer :
-   ```tsx
-   <div className="flex items-center gap-2 text-sm ...">
-     <Calendar className="h-4 w-4" />
-     <span>{periodLabel}</span>
-   </div>
-   <Select value={period} onValueChange={...}>
-     ...
-   </Select>
-   ```
+### 1. Page principale
+`src/pages/TotalDeliveryTimeComparison.tsx`
+- Copie de PrepTimeComparison.tsx adaptee
+- Champ de donnees : `total_prep_delivery_time_minutes`
+- Nouveaux seuils de performance
+- Icone Truck, couleur violet
+- Titre : "Comparaison Temps prepa+livraison"
+- localStorage key : `total-delivery-time-comparison-state`
 
-   Par :
-   ```tsx
-   <OverviewPeriodSelector
-     periodMode={periodMode}
-     onPeriodModeChange={setPeriodMode}
-     selectedYear={selectedYear}
-     onYearChange={setSelectedYear}
-     selectedMonth={selectedMonth}
-     onMonthChange={setSelectedMonth}
-     dateRange={customDateRange}
-     onDateRangeChange={setCustomDateRange}
-   />
-   ```
+### 2. Composants
+`src/components/compare/TotalDeliveryTimeFullRankingTable.tsx`
+- Table avec tri, recherche, pagination
+- Seuils adaptes (25-40 min)
+- Barres de progression couleur adaptees
+- Redirection vers `/analytics/operations?tab=totalDelivery`
 
-5. **Sous-titre avec période**
-   Ajouter le `periodLabel` dans le sous-titre comme Downtime :
-   ```tsx
-   <p className="text-muted-foreground text-sm">
-     Analyse de {restaurantStats.length} restaurants | {periodLabel}
-   </p>
-   ```
+`src/components/compare/TotalDeliveryTimeInsightsSection.tsx`
+- KPIs avec seuils adaptes
+- Icones et couleurs violet
 
-## Résultat visuel attendu
+`src/components/compare/TotalDeliveryTimeHeatmapGrid.tsx`
+- Heatmap heure/jour avec seuils adaptes
 
-| Élément | Avant | Après |
-|---------|-------|-------|
-| Sélecteur | Menu déroulant simple | Popover avec onglets |
-| Options rapides | 3 (Semaine, Mois, Trimestre) | 4 (Semaine préc., 7j, 30j, Mois en cours) |
-| Sélection mois | Non disponible | Grille de 12 mois avec navigation année |
-| Sélection année | Non disponible | Grille des 5 dernières années |
-| Période perso. | Non disponible | Calendrier double avec sélection de plage |
+### 3. Hook d'export
+`src/hooks/useTotalDeliveryTimeExport.ts`
+- PDF avec couleur violet
+- Seuils de performance adaptes
+
+### 4. Route
+Ajouter dans `src/App.tsx` :
+- Route : `/compare/total-delivery-time`
 
 ## Section technique
 
-### Constante de stockage
-```typescript
-const STORAGE_KEY = "prep-time-comparison-state";
+### Seuils de performance (minutes)
+```text
+Excellent     : <= 25 min  (vert emeraude)
+Tres bien     : 25-30 min  (vert)
+Bon           : 30-35 min  (ambre)
+A surveiller  : 35-40 min  (orange)
+Lent          : > 40 min   (rouge)
 ```
 
-### État initial depuis localStorage
+### Requete Supabase
 ```typescript
-const getInitialState = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-};
+supabase
+  .from("order_history")
+  .select("restaurant_id, total_prep_delivery_time_minutes, order_datetime, platform")
+  .in("restaurant_id", restaurantIds)
+  .gte("order_datetime", dateRange.start.toISOString())
+  .lte("order_datetime", dateRange.end.toISOString())
+  .not("total_prep_delivery_time_minutes", "is", null)
 ```
 
-### Persistance
+### Formatage temps
+Le formatage existant (`formatMinutesToDisplay`) sera reutilise car il gere deja les durees plus longues.
+
+### Persistance localStorage
 ```typescript
-useEffect(() => {
-  const state = {
-    periodMode,
-    selectedYear,
-    selectedMonth,
-    customDateRange: customDateRange ? {
-      from: customDateRange.from?.toISOString(),
-      to: customDateRange.to?.toISOString(),
-    } : undefined,
-    isNetworkView,
-  };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}, [periodMode, selectedYear, selectedMonth, customDateRange, isNetworkView]);
+const STORAGE_KEY = "total-delivery-time-comparison-state";
+// Structure identique a prep-time-comparison-state
 ```
+
+## Resume des livrables
+
+1. **TotalDeliveryTimeComparison.tsx** - Page principale
+2. **TotalDeliveryTimeFullRankingTable.tsx** - Table avec tri/recherche
+3. **TotalDeliveryTimeInsightsSection.tsx** - Section KPIs
+4. **TotalDeliveryTimeHeatmapGrid.tsx** - Heatmap patterns
+5. **useTotalDeliveryTimeExport.ts** - Export PDF
+6. **App.tsx** - Ajout route `/compare/total-delivery-time`
