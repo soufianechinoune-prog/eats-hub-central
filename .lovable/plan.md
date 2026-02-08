@@ -1,111 +1,115 @@
 
-# Supprimer la pagination et ajouter le scroll infini
+
+# Ajout des dates d'ouverture par plateforme
 
 ## Objectif
-Remplacer la pagination par un scroll infini dans les 3 tables de comparaison :
-- Comparaison Notes (RatingsFullRankingTable)
-- Comparaison Temps de preparation (PrepTimeFullRankingTable)  
-- Comparaison Temps prepa+livraison (TotalDeliveryTimeFullRankingTable)
+Ajouter deux champs de date dans la fiche restaurant pour indiquer quand le restaurant a ouvert sur Uber Eats et sur Deliveroo. Ces dates permettront d'exclure automatiquement les restaurants non actifs des calculs de moyennes réseau.
 
-## Principe
-Comme sur la page "Temps d'inactivite" (DowntimeRankingBars), la table affichera tous les resultats dans une zone scrollable sans pagination.
+## Architecture
 
-## Modifications par fichier
+### 1. Migration base de données
 
-### 1. RatingsFullRankingTable.tsx
+Ajout de 4 nouvelles colonnes à la table `restaurants` :
+- `uber_opening_date` : date d'ouverture sur Uber Eats
+- `uber_closing_date` : date de fermeture sur Uber Eats (si fermé)
+- `deliveroo_opening_date` : date d'ouverture sur Deliveroo
+- `deliveroo_closing_date` : date de fermeture sur Deliveroo (si fermé)
 
-**Suppressions :**
-- Import de Pagination et ses sous-composants (lignes 17-24)
-- Constante ITEMS_PER_PAGE (ligne 63)
-- State currentPage et setCurrentPage (ligne 77)
-- Reset de currentPage dans handleSort et handleSearch
-- Calcul totalPages (ligne 148)
-- Calcul paginatedData (lignes 149-152)
-- Bloc JSX de pagination (lignes 303-352)
-
-**Modifications :**
-- Remplacer `paginatedData` par `filteredAndSortedData` dans le map du TableBody
-- Ajouter une hauteur maximale avec scroll sur le container de la table
-
-**Code cible :**
-```tsx
-<div className="rounded-lg border overflow-hidden max-h-[700px] overflow-y-auto">
-  <Table>
-    ...
-    <TableBody>
-      {filteredAndSortedData.map((restaurant) => ...)}
-    </TableBody>
-  </Table>
-</div>
+```sql
+ALTER TABLE public.restaurants 
+ADD COLUMN uber_opening_date DATE,
+ADD COLUMN uber_closing_date DATE,
+ADD COLUMN deliveroo_opening_date DATE,
+ADD COLUMN deliveroo_closing_date DATE;
 ```
 
-### 2. PrepTimeFullRankingTable.tsx
+### 2. Interface utilisateur - Page détail restaurant
 
-Memes modifications que RatingsFullRankingTable :
-- Supprimer imports pagination
-- Supprimer ITEMS_PER_PAGE, currentPage, totalPages, paginatedData
-- Supprimer bloc pagination JSX
-- Ajouter max-h-[700px] overflow-y-auto sur le container
-- Utiliser filteredAndSortedData au lieu de paginatedData
+Une nouvelle carte "Dates d'activité plateformes" sera ajoutée dans `RestaurantDetail.tsx` :
 
-### 3. TotalDeliveryTimeFullRankingTable.tsx
+```text
+┌───────────────────────────────────────────────────────┐
+│ 📅 Dates d'activité plateformes                       │
+├───────────────────────────────────────────────────────┤
+│                                                       │
+│  Uber Eats                    Deliveroo               │
+│  ┌─────────────────────┐     ┌─────────────────────┐  │
+│  │ Ouverture           │     │ Ouverture           │  │
+│  │ [15/03/2023    📅]  │     │ [20/04/2023    📅]  │  │
+│  │                     │     │                     │  │
+│  │ Fermeture           │     │ Fermeture           │  │
+│  │ [Non renseigné   ]  │     │ [Non renseigné   ]  │  │
+│  └─────────────────────┘     └─────────────────────┘  │
+│                                                       │
+└───────────────────────────────────────────────────────┘
+```
 
-Memes modifications :
-- Supprimer imports pagination
-- Supprimer ITEMS_PER_PAGE, currentPage, totalPages, paginatedData
-- Supprimer bloc pagination JSX
-- Ajouter max-h-[700px] overflow-y-auto sur le container
-- Utiliser filteredAndSortedData au lieu de paginatedData
+### 3. Logique de filtrage pour les moyennes réseau
 
-## Resume des changements
+Modification du hook `useNetworkStats.ts` pour :
+1. Récupérer les dates d'ouverture/fermeture de chaque restaurant
+2. Exclure des moyennes les restaurants où :
+   - La date d'ouverture est postérieure à la fin de la période analysée
+   - La date de fermeture est antérieure au début de la période analysée
+3. Ajouter un indicateur visuel pour les restaurants exclus
 
-| Element | Avant | Apres |
-|---------|-------|-------|
-| Navigation | Boutons Previous/Next et numeros | Scroll vertical natif |
-| Affichage | 25 items par page | Tous les items visibles |
-| Container | Hauteur auto | max-h-[700px] avec overflow-y-auto |
-| Compteur | "Page X sur Y" | Supprime |
+### 4. Mise à jour du fichier hardcodé
+
+Suppression de la logique hardcodée dans `restaurantOpeningDates.ts` et utilisation des vraies données de la DB.
+
+## Fichiers à modifier
+
+| Fichier | Modification |
+|---------|--------------|
+| Migration SQL | Ajout des 4 colonnes de dates |
+| `RestaurantDetail.tsx` | Nouvelle carte avec 4 champs date |
+| `RestaurantFormDialog.tsx` | Ajout des champs pour création |
+| `useNetworkStats.ts` | Filtrage par dates d'activité |
+| `restaurantOpeningDates.ts` | Refactoring pour utiliser la DB |
 
 ## Section technique
 
-### Imports a supprimer (dans les 3 fichiers)
-```tsx
-// Supprimer ces lignes
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+### Colonnes de la migration
+```sql
+uber_opening_date DATE         -- Nullable, format YYYY-MM-DD
+uber_closing_date DATE         -- Nullable (null = toujours actif)
+deliveroo_opening_date DATE    -- Nullable
+deliveroo_closing_date DATE    -- Nullable
 ```
 
-### State a supprimer
-```tsx
-// Supprimer
-const [currentPage, setCurrentPage] = useState(1);
-const ITEMS_PER_PAGE = 25;
+### Logique de filtrage (pseudo-code)
+```typescript
+const isActiveForPeriod = (restaurant, startDate, endDate) => {
+  // Uber Eats
+  const uberActive = 
+    (!restaurant.uber_opening_date || restaurant.uber_opening_date <= endDate) &&
+    (!restaurant.uber_closing_date || restaurant.uber_closing_date >= startDate);
+  
+  // Deliveroo
+  const deliverooActive = 
+    (!restaurant.deliveroo_opening_date || restaurant.deliveroo_opening_date <= endDate) &&
+    (!restaurant.deliveroo_closing_date || restaurant.deliveroo_closing_date >= startDate);
+  
+  return uberActive || deliverooActive;
+};
 ```
 
-### Calculs a supprimer
-```tsx
-// Supprimer
-const totalPages = Math.ceil(filteredAndSortedData.length / ITEMS_PER_PAGE);
-const paginatedData = useMemo(() => {
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  return filteredAndSortedData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-}, [filteredAndSortedData, currentPage]);
+### Champs du formulaire
+```typescript
+// Nouveaux champs à ajouter
+uber_opening_date: string;      // Format YYYY-MM-DD
+uber_closing_date: string;
+deliveroo_opening_date: string;
+deliveroo_closing_date: string;
 ```
 
-### Container avec scroll
+### Rendu du sélecteur de date
+Un input de type `date` natif sera utilisé pour la simplicité et la compatibilité mobile :
 ```tsx
-<div className="rounded-lg border overflow-hidden max-h-[700px] overflow-y-auto">
+<Input
+  type="date"
+  value={formData.uber_opening_date || ""}
+  onChange={(e) => handleInputChange("uber_opening_date", e.target.value)}
+/>
 ```
 
-### TableBody utilisant toutes les donnees
-```tsx
-<TableBody>
-  {filteredAndSortedData.map((restaurant) => ...)}
-</TableBody>
-```
