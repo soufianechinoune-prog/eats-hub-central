@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ArrowLeft, Truck } from "lucide-react";
+import { ObjectiveSlider } from "@/components/compare/ObjectiveSlider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TotalDeliveryTimeFullRankingTable } from "@/components/compare/TotalDeliveryTimeFullRankingTable";
@@ -34,6 +35,7 @@ const getInitialState = () => {
           to: parsed.customDateRange.to ? new Date(parsed.customDateRange.to) : undefined,
         } : undefined,
         isNetworkView: parsed.isNetworkView || false,
+        objective: parsed.objective ?? 15,
       };
     }
   } catch {
@@ -72,6 +74,9 @@ const TotalDeliveryTimeComparison = () => {
   const [isNetworkView, setIsNetworkView] = useState(
     initialState?.isNetworkView || false
   );
+  const [objective, setObjective] = useState(
+    initialState?.objective ?? 15
+  );
 
   // Persist state to localStorage
   useEffect(() => {
@@ -84,9 +89,10 @@ const TotalDeliveryTimeComparison = () => {
         to: customDateRange.to?.toISOString(),
       } : undefined,
       isNetworkView,
+      objective,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [periodMode, selectedYear, selectedMonth, customDateRange, isNetworkView]);
+  }, [periodMode, selectedYear, selectedMonth, customDateRange, isNetworkView, objective]);
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
@@ -469,13 +475,26 @@ const TotalDeliveryTimeComparison = () => {
             {/* Insights Section */}
             <TotalDeliveryTimeInsightsSection stats={restaurantStats} period={periodMode} />
 
-            {/* Ranking - Full Width with Table */}
-            <TotalDeliveryTimeFullRankingTable 
-              data={restaurantStats}
-              dateRange={dateRange}
-              onExportPDF={handleExportPDF}
-              isExporting={isExporting}
-            />
+            {/* Objective Slider + Ranking */}
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <ObjectiveSlider
+                  value={objective}
+                  onChange={setObjective}
+                  min={5}
+                  max={30}
+                  unit="min"
+                />
+              </div>
+              
+              <TotalDeliveryTimeFullRankingTable 
+                data={restaurantStats}
+                dateRange={dateRange}
+                onExportPDF={handleExportPDF}
+                isExporting={isExporting}
+                objective={objective}
+              />
+            </div>
 
             {/* Heatmap */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
