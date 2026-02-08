@@ -77,8 +77,6 @@ export const PrepTimeInsightsSection = ({ stats }: PrepTimeInsightsSectionProps)
     .map(([day, data]) => ({ day: Number(day), avg: data.total / data.count }))
     .sort((a, b) => b.avg - a.avg)[0];
 
-  // Fast restaurants (under 5 min)
-  const fastRestaurants = stats.filter(s => s.avgPrepTime < 5);
 
   const insights = [
     // Best performer
@@ -140,16 +138,6 @@ export const PrepTimeInsightsSection = ({ stats }: PrepTimeInsightsSectionProps)
       title: "Jour lent",
       value: WEEKDAYS[peakWeekday.day],
       detail: `${formatMinutesToDisplay(peakWeekday.avg)} en moyenne`,
-    },
-    // Fast restaurants
-    fastRestaurants.length > 0 && fastRestaurants.length < stats.length && {
-      icon: CheckCircle2,
-      iconColor: "text-emerald-500",
-      bgColor: "bg-emerald-500/10",
-      borderColor: "border-emerald-500/20",
-      title: "< 5 minutes",
-      value: `${fastRestaurants.length} restaurant${fastRestaurants.length > 1 ? "s" : ""}`,
-      detail: fastRestaurants.map(r => extractCityName(r.name)).join(", "),
     },
   ].filter(Boolean);
 
