@@ -57,11 +57,11 @@ export default function UberStoreMapping() {
     },
   });
 
-  // Get protected restaurant IDs (those already with uber_store_id)
-  const protectedRestaurantIds = useMemo(() => {
+  // Get restaurants that already have a real UUID (not placeholder format)
+  const restaurantsWithRealUUID = useMemo(() => {
     return new Set(
       restaurants
-        .filter((r) => r.uber_store_id)
+        .filter((r) => r.uber_store_id && !r.uber_store_id.startsWith("name:"))
         .map((r) => r.id)
     );
   }, [restaurants]);
@@ -77,14 +77,22 @@ export default function UberStoreMapping() {
     const lines = text.split("\n");
     const headers = lines[0].toLowerCase().split(",").map((h) => h.trim().replace(/"/g, ""));
 
-    // Find store_id and store_name columns
-    const storeIdIndex = headers.findIndex(
-      (h) =>
+    // Find store_id column - use findLastIndex to get the second "Id. du restaurant" (the one with UUIDs)
+    let storeIdIndex = -1;
+    for (let i = headers.length - 1; i >= 0; i--) {
+      const h = headers[i];
+      if (
         h.includes("store_id") ||
         h.includes("id. externe du restaurant") ||
+        h.includes("id. du restaurant") ||
         h.includes("restaurant_id") ||
         h === "store id"
-    );
+      ) {
+        storeIdIndex = i;
+        break;
+      }
+    }
+    
     const storeNameIndex = headers.findIndex(
       (h) =>
         h.includes("store_name") ||
@@ -137,9 +145,9 @@ export default function UberStoreMapping() {
     const usedRestaurantIds = new Set<string>();
 
     storesMap.forEach((storeName, storeId) => {
-      // Check if this store is already matched to a protected restaurant
+      // Check if this store UUID is already matched to a restaurant with real UUID
       const alreadyMatchedRestaurant = restaurants.find(
-        (r) => r.uber_store_id === storeId
+        (r) => r.uber_store_id === storeId && !r.uber_store_id.startsWith("name:")
       );
 
       if (alreadyMatchedRestaurant) {
@@ -155,16 +163,18 @@ export default function UberStoreMapping() {
       }
 
       // Find best match by name similarity (excluding already used ones)
-      let bestMatch: { id: string; name: string; similarity: number } | null = null;
+      // Now we allow updating restaurants with placeholder uber_store_id (starting with "name:")
+      let bestMatch: { id: string; name: string; similarity: number; hasPlaceholderId: boolean } | null = null;
       for (const restaurant of restaurants) {
-        // Skip protected restaurants and already used ones
-        if (protectedRestaurantIds.has(restaurant.id) || usedRestaurantIds.has(restaurant.id)) {
+        // Skip restaurants with real UUIDs (already configured) and already used ones
+        if (restaurantsWithRealUUID.has(restaurant.id) || usedRestaurantIds.has(restaurant.id)) {
           continue;
         }
 
         const similarity = calculateSimilarity(storeName, restaurant.name);
         if (similarity >= SIMILARITY_THRESHOLD && (!bestMatch || similarity > bestMatch.similarity)) {
-          bestMatch = { id: restaurant.id, name: restaurant.name, similarity };
+          const hasPlaceholderId = restaurant.uber_store_id?.startsWith("name:") || false;
+          bestMatch = { id: restaurant.id, name: restaurant.name, similarity, hasPlaceholderId };
         }
       }
 
