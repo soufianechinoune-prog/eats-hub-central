@@ -1,41 +1,45 @@
-# Filtrage automatique par dates d'activité des plateformes
 
-## ✅ IMPLÉMENTÉ
+# Corriger la détection du format CSV dans l'outil de mapping
 
-### Migration base de données
-Les colonnes suivantes ont été ajoutées à la table `restaurants`:
-- `uber_opening_date` (DATE)
-- `uber_closing_date` (DATE)
-- `deliveroo_opening_date` (DATE)
-- `deliveroo_closing_date` (DATE)
+## Problème identifié
 
-### Interface utilisateur
-Une carte "Dates d'activité plateformes" a été ajoutée dans `RestaurantDetail.tsx` avec 4 champs date.
+L'outil `/uber-mapping` rejette le fichier CSV payout car il cherche des en-têtes spécifiques (`Restaurant`, `store_name`, `restaurant_name`) alors que le fichier payout Uber Eats utilise **`Nom du restaurant`**.
 
-### Utilitaire de filtrage
-Fichier créé: `src/lib/restaurantActivityFilter.ts`
-- `filterActiveRestaurants(restaurants, startDate, endDate)` - Filtre les restaurants actifs pendant la période
-- `getExcludedCount(restaurants, startDate, endDate)` - Compte les restaurants exclus
+## Solution
 
-### Pages mises à jour
-Les pages suivantes récupèrent maintenant les dates d'activité et filtrent automatiquement les restaurants:
-- ✅ `DowntimeComparison.tsx`
-- ✅ `RatingsComparison.tsx`
-- ✅ `PrepTimeComparison.tsx`
-- ✅ `TotalDeliveryTimeComparison.tsx`
-- ✅ `InaccurateOrdersComparison.tsx`
+Ajouter `nom du restaurant` à la liste des en-têtes acceptés pour la colonne du nom du restaurant.
 
-### Fichier déprécié
-`src/lib/restaurantOpeningDates.ts` - La logique hardcodée a été supprimée et remplacée par une fonction qui retourne toujours false.
+## Modification technique
 
-## Logique de filtrage
+**Fichier**: `src/pages/UberStoreMapping.tsx`
 
-Un restaurant est considéré actif pour une période si:
-- **Uber Eats**: (opening_date null OU <= fin_periode) ET (closing_date null OU >= debut_periode)
-- **Deliveroo**: même logique
-- Inclus si **au moins une plateforme** était active
+Ligne ~100 - Mettre à jour la détection de la colonne `storeName`:
 
-## Exemple
-Avec Antony ayant `uber_opening_date: 2025-11-15`:
-- Octobre 2025 → **Exclu** (ouverture après fin période)
-- Novembre 2025 → **Inclus** (ouverture pendant la période)
+```typescript
+// AVANT
+const storeNameIndex = headers.findIndex(
+  (h) =>
+    h.includes("store_name") ||
+    h === "restaurant" ||
+    h.includes("restaurant_name") ||
+    h === "store name"
+);
+
+// APRÈS
+const storeNameIndex = headers.findIndex(
+  (h) =>
+    h.includes("store_name") ||
+    h === "restaurant" ||
+    h.includes("restaurant_name") ||
+    h.includes("nom du restaurant") ||  // Ajout pour fichiers payout
+    h === "store name"
+);
+```
+
+## Résultat attendu
+
+Après cette modification, tu pourras :
+1. Importer le fichier payout CSV sur `/uber-mapping`
+2. L'outil détectera les 91 restaurants et proposera de mettre à jour les 87 avec placeholder ID vers les vrais UUIDs
+3. Appliquer les changements
+4. Retourner sur `/report-import` pour importer les payouts avec succès
