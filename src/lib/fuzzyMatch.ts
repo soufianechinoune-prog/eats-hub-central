@@ -58,6 +58,18 @@ export const calculateSimilarity = (str1: string, str2: string): number => {
 };
 
 /**
+ * Normalize a name more aggressively for loose matching
+ * Removes hyphens and extra spaces to match different formats
+ */
+export const normalizeForLooseMatch = (name: string): string => {
+  return normalizeName(name)
+    .replace(/ - /g, " ")  // Replace " - " with simple space
+    .replace(/-/g, " ")     // Remove remaining hyphens
+    .replace(/\s+/g, " ")   // Normalize spaces
+    .trim();
+};
+
+/**
  * Extract the location part from a restaurant name (after the last " - ")
  */
 export const extractLocationPart = (name: string): string => {
