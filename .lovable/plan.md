@@ -1,43 +1,111 @@
 
-# Corriger la navigation "Temps prépa+livraison"
+# Supprimer la pagination et ajouter le scroll infini
 
-## Problème identifié
-Dans la page Vue d'ensemble (`Overview.tsx`), les clics sur "Temps prépa+livraison" dans les cartes Global et Uber Eats redirigent vers `/analytics?view=operations&tab=totalDelivery` au lieu de la nouvelle page de comparaison `/compare/total-delivery-time`.
+## Objectif
+Remplacer la pagination par un scroll infini dans les 3 tables de comparaison :
+- Comparaison Notes (RatingsFullRankingTable)
+- Comparaison Temps de preparation (PrepTimeFullRankingTable)  
+- Comparaison Temps prepa+livraison (TotalDeliveryTimeFullRankingTable)
 
-## Corrections à apporter
+## Principe
+Comme sur la page "Temps d'inactivite" (DowntimeRankingBars), la table affichera tous les resultats dans une zone scrollable sans pagination.
 
-### Fichier : `src/pages/Overview.tsx`
+## Modifications par fichier
 
-**Ligne 1088** (carte Global) :
-- Avant : `onClick={() => navigate('/analytics?view=operations&tab=totalDelivery')}`
-- Après : `onClick={() => navigate('/compare/total-delivery-time')}`
+### 1. RatingsFullRankingTable.tsx
 
-**Ligne 1125** (carte Uber Eats) :
-- Avant : `onClick={() => navigate('/analytics?view=operations&tab=totalDelivery')}`
-- Après : `onClick={() => navigate('/compare/total-delivery-time')}`
+**Suppressions :**
+- Import de Pagination et ses sous-composants (lignes 17-24)
+- Constante ITEMS_PER_PAGE (ligne 63)
+- State currentPage et setCurrentPage (ligne 77)
+- Reset de currentPage dans handleSort et handleSearch
+- Calcul totalPages (ligne 148)
+- Calcul paginatedData (lignes 149-152)
+- Bloc JSX de pagination (lignes 303-352)
 
-## Résultat attendu
-Après cette correction, cliquer sur "Temps prépa+livraison" depuis la Vue d'ensemble amènera directement à la nouvelle page de comparaison avec le tableau de classement, le tri, la recherche et l'export PDF.
+**Modifications :**
+- Remplacer `paginatedData` par `filteredAndSortedData` dans le map du TableBody
+- Ajouter une hauteur maximale avec scroll sur le container de la table
+
+**Code cible :**
+```tsx
+<div className="rounded-lg border overflow-hidden max-h-[700px] overflow-y-auto">
+  <Table>
+    ...
+    <TableBody>
+      {filteredAndSortedData.map((restaurant) => ...)}
+    </TableBody>
+  </Table>
+</div>
+```
+
+### 2. PrepTimeFullRankingTable.tsx
+
+Memes modifications que RatingsFullRankingTable :
+- Supprimer imports pagination
+- Supprimer ITEMS_PER_PAGE, currentPage, totalPages, paginatedData
+- Supprimer bloc pagination JSX
+- Ajouter max-h-[700px] overflow-y-auto sur le container
+- Utiliser filteredAndSortedData au lieu de paginatedData
+
+### 3. TotalDeliveryTimeFullRankingTable.tsx
+
+Memes modifications :
+- Supprimer imports pagination
+- Supprimer ITEMS_PER_PAGE, currentPage, totalPages, paginatedData
+- Supprimer bloc pagination JSX
+- Ajouter max-h-[700px] overflow-y-auto sur le container
+- Utiliser filteredAndSortedData au lieu de paginatedData
+
+## Resume des changements
+
+| Element | Avant | Apres |
+|---------|-------|-------|
+| Navigation | Boutons Previous/Next et numeros | Scroll vertical natif |
+| Affichage | 25 items par page | Tous les items visibles |
+| Container | Hauteur auto | max-h-[700px] avec overflow-y-auto |
+| Compteur | "Page X sur Y" | Supprime |
 
 ## Section technique
 
-Modifications simples de 2 lignes dans `Overview.tsx` :
+### Imports a supprimer (dans les 3 fichiers)
 ```tsx
-// Ligne 1088 - Carte Global
-<MetricRow 
-  icon={Truck} 
-  label="Temps prépa+livraison" 
-  value={...} 
-  color="text-cyan-500" 
-  onClick={() => navigate('/compare/total-delivery-time')} 
-/>
+// Supprimer ces lignes
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+```
 
-// Ligne 1125 - Carte Uber Eats
-<MetricRow 
-  icon={Truck} 
-  label="Temps prépa+livraison" 
-  value={...} 
-  color="text-cyan-500" 
-  onClick={() => navigate('/compare/total-delivery-time')} 
-/>
+### State a supprimer
+```tsx
+// Supprimer
+const [currentPage, setCurrentPage] = useState(1);
+const ITEMS_PER_PAGE = 25;
+```
+
+### Calculs a supprimer
+```tsx
+// Supprimer
+const totalPages = Math.ceil(filteredAndSortedData.length / ITEMS_PER_PAGE);
+const paginatedData = useMemo(() => {
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  return filteredAndSortedData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+}, [filteredAndSortedData, currentPage]);
+```
+
+### Container avec scroll
+```tsx
+<div className="rounded-lg border overflow-hidden max-h-[700px] overflow-y-auto">
+```
+
+### TableBody utilisant toutes les donnees
+```tsx
+<TableBody>
+  {filteredAndSortedData.map((restaurant) => ...)}
+</TableBody>
 ```
