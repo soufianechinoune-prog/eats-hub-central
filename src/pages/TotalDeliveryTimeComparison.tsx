@@ -324,8 +324,9 @@ const TotalDeliveryTimeComparison = () => {
     const totalOrders = restaurantStats.reduce((sum, s) => sum + s.orderCount, 0);
     const networkAverage = totalOrders > 0 ? totalWeighted / totalOrders : 0;
     
-    const fastRestaurants = restaurantStats.filter(s => s.avgTotalTime <= 30).length;
-    const slowRestaurants = restaurantStats.filter(s => s.avgTotalTime > 40).length;
+    // Use dynamic objective for fast/slow thresholds
+    const fastRestaurants = restaurantStats.filter(s => s.avgTotalTime < objective).length;
+    const slowRestaurants = restaurantStats.filter(s => s.avgTotalTime >= objective).length;
     
     // Find peak hour across all restaurants
     const hourlyTotals: Record<number, { total: number; count: number }> = {};
@@ -359,13 +360,12 @@ const TotalDeliveryTimeComparison = () => {
       .map(([day, data]) => ({ day: Number(day), avg: data.total / data.count }))
       .sort((a, b) => b.avg - a.avg)[0] || null;
 
-    // Distribution by performance (adapted thresholds for total delivery)
+    // Distribution by performance based on dynamic objective
     const distribution = [
-      { label: "Excellent (≤ 25min)", count: restaurantStats.filter(s => s.avgTotalTime <= 25).length, color: "emerald" },
-      { label: "Très bien (25-30min)", count: restaurantStats.filter(s => s.avgTotalTime > 25 && s.avgTotalTime <= 30).length, color: "green" },
-      { label: "Bon (30-35min)", count: restaurantStats.filter(s => s.avgTotalTime > 30 && s.avgTotalTime <= 35).length, color: "amber" },
-      { label: "À surveiller (35-40min)", count: restaurantStats.filter(s => s.avgTotalTime > 35 && s.avgTotalTime <= 40).length, color: "orange" },
-      { label: "Lent (> 40min)", count: restaurantStats.filter(s => s.avgTotalTime > 40).length, color: "red" },
+      { label: `Tres rapide (< ${objective - 5}min)`, count: restaurantStats.filter(s => s.avgTotalTime > 0 && s.avgTotalTime < objective - 5).length, color: "emerald" },
+      { label: `Rapide (${objective - 5}-${objective}min)`, count: restaurantStats.filter(s => s.avgTotalTime >= objective - 5 && s.avgTotalTime < objective).length, color: "green" },
+      { label: `Lent (${objective}-${objective + 5}min)`, count: restaurantStats.filter(s => s.avgTotalTime >= objective && s.avgTotalTime < objective + 5).length, color: "orange" },
+      { label: `Tres lent (> ${objective + 5}min)`, count: restaurantStats.filter(s => s.avgTotalTime >= objective + 5).length, color: "red" },
     ];
 
     // Restaurants with rank
@@ -378,6 +378,7 @@ const TotalDeliveryTimeComparison = () => {
 
     exportToPDF({
       periodLabel,
+      objective,
       globalStats: {
         avgTotalTime: networkAverage,
         totalOrders,
