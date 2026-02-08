@@ -14,14 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 
 interface RestaurantTotalDeliveryTime {
   id: string;
@@ -72,8 +64,6 @@ const getBarColor = (totalTime: number) => {
   return "bg-red-500";
 };
 
-const ITEMS_PER_PAGE = 25;
-
 export const TotalDeliveryTimeFullRankingTable = ({ 
   data, 
   onExportPDF,
@@ -86,7 +76,6 @@ export const TotalDeliveryTimeFullRankingTable = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("rank");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [currentPage, setCurrentPage] = useState(1);
 
   const handleRowClick = (restaurantId: string) => {
     // Set the restaurant in context
@@ -110,7 +99,6 @@ export const TotalDeliveryTimeFullRankingTable = ({
       // Default sort direction: rank/avgTotalTime asc (fastest first), name asc, orderCount desc
       setSortDirection(field === "orderCount" ? "desc" : "asc");
     }
-    setCurrentPage(1);
   };
 
   // Calculate global rank based on original sorted data - must be before filteredAndSortedData
@@ -157,13 +145,6 @@ export const TotalDeliveryTimeFullRankingTable = ({
     return result;
   }, [data, searchQuery, sortField, sortDirection, rankedData]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredAndSortedData.length / ITEMS_PER_PAGE);
-  const paginatedData = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredAndSortedData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [filteredAndSortedData, currentPage]);
-
   // Calculate max time for bar scaling
   const maxTime = useMemo(() => {
     return Math.max(...data.map(d => d.avgTotalTime), 1);
@@ -193,10 +174,7 @@ export const TotalDeliveryTimeFullRankingTable = ({
               <Input
                 placeholder="Rechercher..."
                 value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 w-48"
               />
             </div>
@@ -223,7 +201,7 @@ export const TotalDeliveryTimeFullRankingTable = ({
       </CardHeader>
       
       <CardContent>
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-lg border overflow-hidden max-h-[700px] overflow-y-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
@@ -267,14 +245,14 @@ export const TotalDeliveryTimeFullRankingTable = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedData.length === 0 ? (
+              {filteredAndSortedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     Aucun restaurant trouvé
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedData.map((restaurant) => {
+                filteredAndSortedData.map((restaurant) => {
                   const rank = rankedData.get(restaurant.id) || 0;
                   const barWidth = (restaurant.avgTotalTime / maxTime) * 100;
                   
@@ -319,57 +297,6 @@ export const TotalDeliveryTimeFullRankingTable = ({
             </TableBody>
           </Table>
         </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <p className="text-sm text-muted-foreground">
-              Page {currentPage} sur {totalPages} ({filteredAndSortedData.length} restaurants)
-            </p>
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-                
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum: number;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  
-                  return (
-                    <PaginationItem key={pageNum}>
-                      <PaginationLink
-                        onClick={() => setCurrentPage(pageNum)}
-                        isActive={currentPage === pageNum}
-                        className="cursor-pointer"
-                      >
-                        {pageNum}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                })}
-                
-                <PaginationItem>
-                  <PaginationNext 
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
