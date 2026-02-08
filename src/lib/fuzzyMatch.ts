@@ -77,15 +77,24 @@ export const cityStartsWith = (shortName: string, fullName: string): boolean => 
   const fullNorm = normalizeForLooseMatch(fullName);
   
   // Extract city parts (after brand)
-  const shortParts = shortNorm.split(" ");
-  const fullParts = fullNorm.split(" ");
-  
-  // Find where city starts (skip common brand words)
   const brandWords = ["chicken", "street", "cs"];
-  const shortCity = shortParts.filter(w => !brandWords.includes(w)).join(" ");
-  const fullCity = fullParts.filter(w => !brandWords.includes(w)).join(" ");
+  const shortParts = shortNorm.split(" ").filter(w => !brandWords.includes(w));
+  const fullParts = fullNorm.split(" ").filter(w => !brandWords.includes(w));
   
-  // Check if full city starts with short city (e.g., "bonneuil sur marne" starts with "bonneuil")
+  const shortCity = shortParts.join(" ");
+  let fullCity = fullParts.join(" ");
+  
+  // Remove common French suffixes like "sur marne", "sur orge", "en france"
+  fullCity = fullCity
+    .replace(/ sur [a-z]+$/, "")
+    .replace(/ en [a-z]+$/, "")
+    .replace(/ les [a-z]+$/, "")
+    .trim();
+  
+  // Direct comparison after suffix removal
+  if (shortCity === fullCity) return true;
+  
+  // Prefix check
   return fullCity.startsWith(shortCity) || shortCity.startsWith(fullCity);
 };
 
