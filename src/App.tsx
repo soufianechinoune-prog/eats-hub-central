@@ -36,6 +36,7 @@ import DowntimeComparison from "./pages/DowntimeComparison";
 import RatingsComparison from "./pages/RatingsComparison";
 import OpeningHoursComparison from "./pages/OpeningHoursComparison";
 import PrepTimeComparison from "./pages/PrepTimeComparison";
+import TotalDeliveryTimeComparison from "./pages/TotalDeliveryTimeComparison";
 import InaccurateOrdersComparison from "./pages/InaccurateOrdersComparison";
 import UberStoreMapping from "./pages/UberStoreMapping";
 
@@ -268,6 +269,14 @@ const App = () => {
                 element={
                   <AppLayout>
                     <PrepTimeComparison />
+                  </AppLayout>
+                }
+              />
+              <Route
+                path="/compare/total-delivery-time"
+                element={
+                  <AppLayout>
+                    <TotalDeliveryTimeComparison />
                   </AppLayout>
                 }
               />
