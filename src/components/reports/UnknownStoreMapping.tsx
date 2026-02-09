@@ -69,29 +69,45 @@ export default function UnknownStoreMapping({
             continue;
           }
           
-          const { error } = await supabase.from("restaurants").insert([{
+          // Create restaurant with the uber_store_id on the main table for backward compatibility
+          const { data: newRestaurant, error: createError } = await supabase.from("restaurants").insert([{
             name: storeName,
             uber_store_id: storeId,
             is_active: true,
             chain_id: chainId,
-          }]);
+          }]).select("id").single();
 
-          if (error) {
-            console.error("Error creating restaurant:", error);
+          if (createError) {
+            console.error("Error creating restaurant:", createError);
             errorCount++;
-          } else {
+          } else if (newRestaurant) {
+            // Also add to the multi-UUID mapping table
+            await supabase.from("restaurant_uber_ids").insert([{
+              restaurant_id: newRestaurant.id,
+              uber_store_id: storeId,
+              is_primary: true,
+              label: "principal",
+            }]);
             successCount++;
           }
         } else {
-          // Update existing restaurant with new uber_store_id
-          const { error } = await supabase
-            .from("restaurants")
-            .update({ uber_store_id: storeId })
-            .eq("id", restaurantId);
+          // Add new uber_store_id to the multi-UUID mapping table (don't overwrite existing)
+          const { error } = await supabase.from("restaurant_uber_ids").insert([{
+            restaurant_id: restaurantId,
+            uber_store_id: storeId,
+            is_primary: false,
+            label: "ajouté via import",
+          }]);
 
           if (error) {
-            console.error("Error updating restaurant:", error);
-            errorCount++;
+            // If duplicate, it's already mapped - that's fine
+            if (error.code === "23505") {
+              console.log("UUID already mapped:", storeId);
+              successCount++;
+            } else {
+              console.error("Error adding UUID mapping:", error);
+              errorCount++;
+            }
           } else {
             successCount++;
           }
