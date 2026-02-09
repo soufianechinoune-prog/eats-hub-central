@@ -13,8 +13,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import ImportHistory from "@/components/reports/ImportHistory";
 import BulkImportTab from "@/components/reports/BulkImportTab";
+import UnknownStoreMapping from "@/components/reports/UnknownStoreMapping";
 import { SuccessScorePreviewEditor } from "@/components/success-score/SuccessScorePreviewEditor";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Report types organized by theme
 const REPORT_THEMES = [
@@ -99,6 +100,7 @@ interface ValidationData {
   };
   restaurants: RestaurantStats[];
   unknownStoreIds: string[];
+  unknownStoreDetails?: Record<string, { name: string }>;
   skippedDetails: SkipInfo[];
 }
 
@@ -164,6 +166,7 @@ const CHUNK_SIZE = 15000;
 export default function ReportImport() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("import");
   const [file, setFile] = useState<File | null>(null);
   const [csvContent, setCsvContent] = useState<string>("");
@@ -1697,38 +1700,18 @@ export default function ReportImport() {
                     </div>
                   )}
 
-                  {/* Unknown store IDs warning */}
+                  {/* Unknown store IDs - Interactive mapping */}
                   {validationResult.validation?.unknownStoreIds && validationResult.validation.unknownStoreIds.length > 0 && (
-                    <Alert variant={selectedRestaurantId ? "default" : "destructive"}>
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertTitle>
-                        {selectedRestaurantId ? "Store ID non reconnu (non bloquant)" : "Restaurants non configurés"}
-                      </AlertTitle>
-                      <AlertDescription>
-                        <p className="mb-2">
-                          {validationResult.validation.unknownStoreIds.length} store_id(s) trouvé(s) dans le fichier mais non configuré(s) :
-                        </p>
-                        {selectedRestaurantId ? (
-                          <p className="mb-2 text-sm text-muted-foreground">
-                            Comme vous avez sélectionné un restaurant manuellement, l’import associera quand même toutes les lignes à ce restaurant.
-                          </p>
-                        ) : (
-                          <p className="mb-2 text-sm text-muted-foreground">
-                            Si le fichier contient plusieurs restaurants, ceux dont le store_id n’est pas configuré risquent d’être ignorés.
-                          </p>
-                        )}
-                        <div className="flex flex-wrap gap-2">
-                          {validationResult.validation.unknownStoreIds.slice(0, 10).map((id) => (
-                            <Badge key={id} variant="outline" className="font-mono text-xs">
-                              {id}
-                            </Badge>
-                          ))}
-                          {validationResult.validation.unknownStoreIds.length > 10 && (
-                            <Badge variant="outline">+{validationResult.validation.unknownStoreIds.length - 10} autres</Badge>
-                          )}
-                        </div>
-                      </AlertDescription>
-                    </Alert>
+                    <UnknownStoreMapping
+                      unknownStoreIds={validationResult.validation.unknownStoreIds}
+                      unknownStoreDetails={validationResult.validation.unknownStoreDetails}
+                      restaurants={restaurants}
+                      selectedRestaurantId={selectedRestaurantId}
+                      onMappingComplete={async () => {
+                        await queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] });
+                        handleValidate();
+                      }}
+                    />
                   )}
 
                   {/* Skipped details */}

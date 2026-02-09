@@ -353,6 +353,7 @@ Deno.serve(async (req) => {
     const skippedDetails: SkipInfo[] = [];
     const restaurantStats = new Map<string, RestaurantStats>();
     const unknownStoreIds = new Set<string>();
+    const unknownStoreDetails: Record<string, { name: string }> = {};
     let minDate: string | null = null;
     let maxDate: string | null = null;
 
@@ -482,6 +483,11 @@ Deno.serve(async (req) => {
         if (!restaurant) {
           skippedCount++;
           unknownStoreIds.add(uberStoreId);
+          // Store the restaurant name from CSV for UI display
+          const restaurantName = getValue('restaurant_name');
+          if (restaurantName && !unknownStoreDetails[uberStoreId]) {
+            unknownStoreDetails[uberStoreId] = { name: restaurantName };
+          }
           if (skippedDetails.length < 50) {
             skippedDetails.push({
               rowIndex: rowIndex + headerRowIndex + 2,
@@ -827,6 +833,7 @@ Deno.serve(async (req) => {
         },
         restaurants: Array.from(restaurantStats.values()),
         unknownStoreIds: Array.from(unknownStoreIds),
+        unknownStoreDetails,
         skippedDetails: skippedDetails,
       },
       diagnostics: {
