@@ -1,122 +1,115 @@
 
-## Ce qui se passe (explication simple)
-
-Sur l’écran **/report-import**, ton fichier contient des `store_id` au format **UUID** (ex: `adeed447-...`).  
-Mais dans la base, tes restaurants ont encore des `uber_store_id` au format **placeholder** (`name:chicken street - ...`) ou un code type **BYS00708**.
-
-Je l’ai vérifié côté base : actuellement, **aucun restaurant n’a un `uber_store_id` au format UUID**, donc l’import ne peut pas reconnaître les restaurants → tout part en `unknown_restaurant` et “lignes ignorées”.
-
-Donc le vrai problème n’est plus “le fuzzy match” : c’est que **l’outil /uber-mapping n’a pas réellement écrit les UUIDs en base** (ou il ne lit pas la bonne colonne dans ton CSV).
-
----
-
-## Hypothèse la plus probable (et la plus fréquente)
-
-Le CSV utilisé pour le mapping n’est pas parsé correctement côté navigateur (délimiteur `;` vs `,`, guillemets, colonnes dupliquées “Id. du restaurant”, BOM, etc.).  
-Résultat : l’écran de mapping affiche des choses, mais il n’extrait pas le **vrai UUID** à mettre dans `uber_store_id`, donc il n’update rien d’utile.
-
----
+# Résolution interactive des store_id non configurés
 
 ## Objectif
 
-1) Faire en sorte que **/uber-mapping récupère toujours le bon store_id UUID** depuis le CSV.  
-2) Appliquer :  
-   - soit **update_uuid** (si on veut juste lier l’UUID)  
-   - soit **rename + update uuid** (si on veut enlever les majuscules, aligner le nom “Chicken Street - …”)  
-3) Vérifier automatiquement après “Appliquer” que des UUIDs existent bien en base.
+Quand l'écran `/report-import` détecte des `unknownStoreIds`, au lieu de simplement afficher un avertissement, on propose à l'utilisateur de :
+1. Choisir un restaurant existant dans la liste pour y associer le store_id
+2. OU créer un nouveau restaurant avec le nom du fichier
 
----
+## UX proposée
 
-## Changements à implémenter
+Dans l'alerte "Restaurants non configurés", on ajoute :
+- Un bouton pour chaque store_id inconnu qui ouvre un **popover/dialog** avec :
+  - Une liste déroulante des restaurants existants
+  - Un bouton "Créer un nouveau restaurant"
+- Le nom du restaurant dans le CSV sera affiché si disponible
+- Une fois tous les store_id mappés → l'import peut continuer
 
-### A) Rendre le parsing CSV de `/uber-mapping` robuste
-**Fichier :** `src/pages/UberStoreMapping.tsx`
+## Modifications techniques
 
-- Ajouter une fonction de parsing CSV “propre” (gestion :
-  - séparateur `,` ou `;` (auto-détection sur la ligne d’en-têtes)
-  - guillemets `"`
-  - cellules contenant des virgules/points-virgules
-  - lignes vides
-)
-- Normaliser les en-têtes (trim, minuscules, suppression BOM `\uFEFF`, espaces insécables).
-- Trouver la colonne store_id de façon fiable :
-  - si plusieurs “Id. du restaurant”, choisir celle dont les valeurs ressemblent à un UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
-  - sinon fallback sur la dernière occurrence comme aujourd’hui
-- Trouver la colonne nom de restaurant (Nom du restaurant / Restaurant / store_name).
+### Fichier : `src/pages/ReportImport.tsx`
 
-**Pourquoi ça corrige ton cas :**
-Même si Uber change le format (ou si ton export est en `;`), on récupère quand même le bon UUID.
+**1. Ajouter un état pour stocker les mappings en cours**
+```typescript
+const [storeIdMappings, setStoreIdMappings] = useState<Record<string, string | null>>({});
+const [unknownStoreNames, setUnknownStoreNames] = useState<Record<string, string>>({});
+```
 
----
+**2. Modifier la zone d'alerte des unknownStoreIds (lignes ~1700-1730)**
+- Pour chaque store_id inconnu, afficher un **Select** avec :
+  - Liste des restaurants existants
+  - Option "Créer nouveau restaurant"
+- Stocker le choix dans `storeIdMappings[storeId] = restaurantId`
 
-### B) Ajouter une “sécurité anti-fausse import” dans `/uber-mapping`
-Toujours dans `src/pages/UberStoreMapping.tsx`
+**3. Ajouter une fonction pour appliquer les mappings**
+```typescript
+const applyStoreIdMappings = async () => {
+  for (const [storeId, restaurantId] of Object.entries(storeIdMappings)) {
+    if (!restaurantId) continue;
+    
+    if (restaurantId === "__create__") {
+      // Créer un nouveau restaurant avec le nom du fichier
+      const storeName = unknownStoreNames[storeId] || `Restaurant ${storeId.slice(0, 8)}`;
+      const { data: newResto } = await supabase.from("restaurants").insert({
+        name: storeName,
+        uber_store_id: storeId,
+        is_active: true,
+      }).select().single();
+      // Re-mapper avec le nouvel ID
+    } else {
+      // Mettre à jour le restaurant existant avec le nouveau store_id
+      await supabase.from("restaurants")
+        .update({ uber_store_id: storeId })
+        .eq("id", restaurantId);
+    }
+  }
+  // Invalider le cache et relancer la validation
+  queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] });
+  await handleValidate(); // Re-valider
+};
+```
 
-Avant de générer les actions :
-- Compter combien de `storeId` extraits sont des UUIDs.
-- Si ~0 UUID détecté, afficher un toast rouge explicite du style :
-  - “Je n’ai trouvé aucun store_id au format UUID dans ce fichier. Vérifie que tu as bien exporté le bon rapport / le bon séparateur.”
+**4. Récupérer les noms de restaurants depuis le CSV pendant la validation**
+- Modifier l'appel au backend pour qu'il retourne aussi les noms correspondant aux store_id inconnus
+- Ou parser le CSV côté frontend pour extraire les noms
 
-Après “Appliquer les changements” :
-- Re-fetch des restaurants
-- Vérifier que les 4 restaurants ciblés ont maintenant un `uber_store_id` UUID
-- Si non, afficher une erreur claire au lieu de laisser croire que c’est bon.
+**5. Ajouter un bouton "Appliquer les correspondances"**
+- Désactivé tant que tous les store_id ne sont pas mappés
+- Au clic, applique les mappings et relance la validation
 
----
+### Fichier : Edge Functions (optionnel mais recommandé)
 
-### C) Corriger le matching “BYSxxxx” (Antony) pour forcer `update_uuid` sans ambiguïté
-**Fichier :** `src/pages/UberStoreMapping.tsx`
+Modifier les parsers (`parse-payout-summary`, `parse-payment-report`) pour retourner :
+```typescript
+unknownStoreIds: ["uuid1", "uuid2"],
+unknownStoreDetails: {
+  "uuid1": { name: "Chicken Street - Bonneuil" },
+  "uuid2": { name: "Chicken Street - Juvisy" },
+}
+```
 
-Actuellement, tout ce qui n’est pas `name:` est considéré “real UUID” dans `restaurantsWithRealUUID`, ce qui inclut `BYS00708` (qui n’est pas un UUID).
+Cela évite de re-parser le CSV côté frontend.
 
-- Ajuster la notion de “real UUID” :
-  - considérer “réel” uniquement si `uber_store_id` matche une regex UUID.
-  - ainsi BYS… sera traité comme un identifiant non fiable → on pourra le migrer vers un UUID officiel.
+## Interface utilisateur finale
 
----
+```
+┌──────────────────────────────────────────────────────────┐
+│ ⚠️ 3 restaurants non configurés                         │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│ a9c2e15c... (Chicken Street - Bonneuil)                 │
+│ [▼ Sélectionner un restaurant      ] [Créer nouveau]    │
+│                                                          │
+│ 8bb9922a... (Chicken Street - Juvisy)                   │
+│ [▼ Sélectionner un restaurant      ] [Créer nouveau]    │
+│                                                          │
+│ 4c9abb94... (Chicken Street - ???)                      │
+│ [▼ Sélectionner un restaurant      ] [Créer nouveau]    │
+│                                                          │
+│                    [Appliquer et revalider]             │
+└──────────────────────────────────────────────────────────┘
+```
 
-### D) (Optionnel mais recommandé) Aider l’utilisateur depuis `/report-import`
-**Fichier :** `src/pages/ReportImport.tsx`
+## Avantages
 
-Quand `unknownStoreIds.length > 0` :
-- ajouter un bouton “Ouvrir le mapping Uber Eats” qui amène vers `/uber-mapping`
-- et un micro-texte : “Il faut configurer les store_id avant d’importer ces fichiers multi-restaurants.”
+- **Pas besoin d'aller sur /uber-mapping** : tout se fait directement dans le flux d'import
+- **On voit le nom du CSV** : ça aide à choisir le bon restaurant
+- **Création rapide** : si le restaurant n'existe pas, on peut le créer immédiatement
+- **Re-validation automatique** : après mapping, on re-valide pour confirmer que tout est bon
 
-Ce n’est pas obligatoire pour corriger, mais ça évite la confusion “j’ai fait le matching mais ça marche pas”.
+## Fichiers modifiés
 
----
-
-## Vérification (ce que tu pourras tester juste après)
-
-1) Aller sur `/uber-mapping`
-2) Importer le même CSV que celui qui te donne des unknown store ids dans `/report-import`
-3) Vérifier que tu vois bien :
-   - pour Bonneuil + Juvisy : une action de type **Renommer** ou **Mettre à jour UUID**
-   - et surtout que le store_id affiché ressemble à un UUID
-4) Cliquer “Appliquer”
-5) Revenir sur `/report-import` et relancer “Analyser avant import”
-   - l’alerte “Restaurants non configurés” doit disparaître (ou fortement diminuer)
-
----
-
-## Notes importantes (data préservée)
-
-- Changer le **nom** (enlever les majuscules) ne touche pas l’historique : l’historique est lié au `restaurant.id`.
-- Mettre à jour `uber_store_id` sert justement à relier tes fichiers Uber (UUID) à tes restaurants existants, sans bouger la data.
-
----
-
-## Risques / Edge cases couverts
-
-- CSV en `;` au lieu de `,`
-- colonnes dupliquées “Id. du restaurant”
-- UUID parfois vide sur certaines lignes
-- noms tronqués (“Bonneuil” vs “Bonneuil-sur-Marne”)
-- codes non-UUID (BYS…) traités correctement (migrables)
-
----
-
-## Livrables (liste des fichiers)
-
-- `src/pages/UberStoreMapping.tsx` (principal : parsing + détection UUID + correction “real UUID”)
-- `src/pages/ReportImport.tsx` (optionnel : bouton/UX vers mapping)
+1. `src/pages/ReportImport.tsx` - Interface de mapping interactive
+2. `supabase/functions/parse-payout-summary/index.ts` - Retourner les noms avec les store_id inconnus (optionnel)
+3. `supabase/functions/parse-payment-report/index.ts` - Idem (optionnel)
