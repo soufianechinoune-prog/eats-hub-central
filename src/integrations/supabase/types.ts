@@ -2502,6 +2502,41 @@ export type Database = {
           },
         ]
       }
+      restaurant_uber_ids: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary: boolean | null
+          label: string | null
+          restaurant_id: string
+          uber_store_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean | null
+          label?: string | null
+          restaurant_id: string
+          uber_store_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean | null
+          label?: string | null
+          restaurant_id?: string
+          uber_store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_uber_ids_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurants: {
         Row: {
           account_manager_email: string | null
