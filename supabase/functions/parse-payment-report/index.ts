@@ -337,14 +337,32 @@ Deno.serve(async (req) => {
       throw new Error('Failed to fetch restaurants: ' + restaurantError.message);
     }
 
+    // Also fetch from the multi-UUID mapping table
+    const { data: uberIdMappings } = await supabase
+      .from('restaurant_uber_ids')
+      .select('restaurant_id, uber_store_id');
+
     const restaurantMap = new Map<string, { id: string; name: string }>();
+    
+    // First, add from restaurants.uber_store_id (legacy)
     restaurants?.forEach(r => {
       if (r.uber_store_id) {
         restaurantMap.set(r.uber_store_id, { id: r.id, name: r.name });
       }
     });
 
-    console.log('Restaurant map size:', restaurantMap.size);
+    // Then, add from the multi-UUID mapping table (may have additional UUIDs)
+    if (uberIdMappings && restaurants) {
+      const restaurantById = new Map(restaurants.map(r => [r.id, r]));
+      uberIdMappings.forEach(mapping => {
+        const restaurant = restaurantById.get(mapping.restaurant_id);
+        if (restaurant && mapping.uber_store_id) {
+          restaurantMap.set(mapping.uber_store_id, { id: restaurant.id, name: restaurant.name });
+        }
+      });
+    }
+
+    console.log('Restaurant UUID map size:', restaurantMap.size);
 
     // Phase 1: Parse all rows WITHOUT database calls
     const dataRows = rows.slice(headerRowIndex + 1);
