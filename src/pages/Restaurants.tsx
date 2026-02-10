@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2 } from "lucide-react";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import {
   Tooltip,
@@ -406,6 +406,16 @@ const Restaurants = () => {
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <MapPin className="h-3.5 w-3.5" />
                         {restaurant.postal_code && `${restaurant.postal_code} `}{restaurant.city}
+                        {(restaurant as any).csv_verified && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                              </TooltipTrigger>
+                              <TooltipContent>Vérifié via CSV Uber</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
