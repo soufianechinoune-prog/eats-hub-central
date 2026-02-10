@@ -2548,6 +2548,7 @@ export type Database = {
           city: string | null
           coverage_radius_km: number | null
           created_at: string
+          csv_verified: boolean | null
           deliveroo_account_manager_email: string | null
           deliveroo_account_manager_name: string | null
           deliveroo_account_manager_phone: string | null
@@ -2588,6 +2589,7 @@ export type Database = {
           city?: string | null
           coverage_radius_km?: number | null
           created_at?: string
+          csv_verified?: boolean | null
           deliveroo_account_manager_email?: string | null
           deliveroo_account_manager_name?: string | null
           deliveroo_account_manager_phone?: string | null
@@ -2628,6 +2630,7 @@ export type Database = {
           city?: string | null
           coverage_radius_km?: number | null
           created_at?: string
+          csv_verified?: boolean | null
           deliveroo_account_manager_email?: string | null
           deliveroo_account_manager_name?: string | null
           deliveroo_account_manager_phone?: string | null
