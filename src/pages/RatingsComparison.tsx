@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,16 +27,83 @@ function formatDateLocal(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+const RATINGS_STORAGE_KEY = "ratings-comparison-state";
+
+// Load saved state from localStorage (set by Overview or persisted locally)
+const getInitialRatingsState = () => {
+  try {
+    const stored = localStorage.getItem(RATINGS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
+
 const RatingsComparison = () => {
   const navigate = useNavigate();
+  const storedState = getInitialRatingsState();
   
-  // Period selector state
-  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>("previous_week");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined);
-  const [isNetworkView, setIsNetworkView] = useState(true); // Default to network view for this page
+  // Map Overview periodMode to local periodMode if needed
+  const mapPeriodMode = (mode: string | undefined): OverviewPeriodMode => {
+    if (!mode) return "previous_week";
+    // Overview uses "month" for custom_month
+    if (mode === "month") return "custom_month";
+    if (mode === "range") return "custom_range";
+    return mode as OverviewPeriodMode;
+  };
+  
+  // Period selector state - initialized from localStorage
+  const [periodMode, setPeriodModeLocal] = useState<OverviewPeriodMode>(
+    () => storedState ? mapPeriodMode(storedState.periodMode) : "previous_week"
+  );
+  const [selectedYear, setSelectedYearLocal] = useState(
+    () => storedState?.selectedYear || new Date().getFullYear()
+  );
+  const [selectedMonth, setSelectedMonthLocal] = useState(
+    () => storedState?.selectedMonth || new Date().getMonth() + 1
+  );
+  const [customDateRange, setCustomDateRangeLocal] = useState<DateRange | undefined>(() => {
+    const range = storedState?.customDateRange;
+    if (range?.from && range?.to) {
+      return { from: new Date(range.from), to: new Date(range.to) };
+    }
+    return undefined;
+  });
+  const [isNetworkView, setIsNetworkViewLocal] = useState(
+    () => storedState?.isNetworkView ?? true
+  );
 
+  // Persist state to localStorage on every filter change
+  const setPeriodMode = (mode: OverviewPeriodMode) => {
+    setPeriodModeLocal(mode);
+  };
+  const setSelectedYear = (year: number) => {
+    setSelectedYearLocal(year);
+  };
+  const setSelectedMonth = (month: number) => {
+    setSelectedMonthLocal(month);
+  };
+  const setCustomDateRange = (range: DateRange | undefined) => {
+    setCustomDateRangeLocal(range);
+  };
+  const setIsNetworkView = (value: boolean) => {
+    setIsNetworkViewLocal(value);
+  };
+
+  // Persist state to localStorage for back-button support
+  useEffect(() => {
+    const state = {
+      periodMode,
+      selectedYear,
+      selectedMonth,
+      customDateRange: customDateRange ? {
+        from: customDateRange.from?.toISOString(),
+        to: customDateRange.to?.toISOString(),
+      } : undefined,
+      isNetworkView,
+    };
+    localStorage.setItem(RATINGS_STORAGE_KEY, JSON.stringify(state));
+  }, [periodMode, selectedYear, selectedMonth, customDateRange, isNetworkView]);
   const { 
     setSelectedRestaurants, 
     setVisibleRestaurants,
