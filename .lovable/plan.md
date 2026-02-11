@@ -1,29 +1,44 @@
 
-# Remplacer la colonne "AM Uber" par la date d'ouverture Uber
 
-## Ce qui sera fait
+# Nettoyer le doublon Juvisy
 
-### 1. Mise a jour des dates d'ouverture en base
-Pour les restaurants verifies (`csv_verified = true`), mettre a jour `uber_opening_date` avec la valeur `first_request_date` du CSV Uber. Cela concerne notamment les restaurants ou la date est manquante ou incorrecte (calculee a partir des commandes au lieu du CSV officiel).
+## Origine du probleme
+Le doublon (id: `7ba462d6`, uber_store_id: `name:chicken street - juvisy`) a ete cree le 6 fevrier 2026 par un import CSV qui n'a pas reconnu le restaurant. Il a genere un placeholder au lieu de rattacher les donnees au vrai Juvisy (id: `8e4026f9`, UUID: `051979ae-34a3-4ddc-9ac0-d430efdcc0a5`).
 
-Restaurants concernes (date manquante ou a corriger) :
-- **Plombieres** : null -> 2025-05-20
-- **Roubaix** : null -> 2023-08-17
-- **Marseille (13015)** : null -> 2021-03-22
-- **Marseille Belsunce** : null -> 2022-06-22
+## Donnees liees au doublon
+- **order_history** : 8 959 lignes (sept 2025 - janv 2026)
+- **restaurant_uber_ids** : 1 entree placeholder
+- Toutes les autres tables : 0 donnees
 
-Et verification/correction des dates existantes par rapport au CSV pour tous les autres restaurants verifies (certains ont des dates issues des commandes en base qui different du `first_request_date` officiel).
+Le vrai Juvisy a deja 14 452 lignes dans order_history.
 
-### 2. Modification de la colonne dans le tableau des restaurants
-Remplacer la colonne **"AM Uber"** (qui affiche le nom de l'account manager Uber) par une colonne **"Ouverture Uber"** qui affiche la date `uber_opening_date` formatee en francais (ex: "17 aout 2023").
+## Plan d'action
 
-## Details techniques
+### Etape 1 : Migrer les commandes vers le bon restaurant
+Transferer les 8 959 lignes de `order_history` du doublon (`7ba462d6`) vers le vrai Juvisy (`8e4026f9`).
 
-### Base de donnees
-Executer des UPDATE SQL pour les restaurants csv_verified dont la date d'ouverture doit etre corrigee/ajoutee a partir du CSV.
+```sql
+UPDATE order_history 
+SET restaurant_id = '8e4026f9-88dd-4932-98fd-8db44c88e02d' 
+WHERE restaurant_id = '7ba462d6-5b27-4531-9696-5c565bcfe4e5';
+```
 
-### Fichier modifie : `src/pages/Restaurants.tsx`
-- Renommer l'en-tete de colonne "AM Uber" en "Ouverture Uber"
-- Remplacer l'affichage du nom de l'account manager par la date `uber_opening_date` formatee
-- Adapter le tri (`handleSort`) pour trier par date au lieu de par nom d'AM
-- Afficher "-" si la date n'est pas renseignee
+### Etape 2 : Supprimer l'entree de mapping placeholder
+
+```sql
+DELETE FROM restaurant_uber_ids 
+WHERE restaurant_id = '7ba462d6-5b27-4531-9696-5c565bcfe4e5';
+```
+
+### Etape 3 : Supprimer le doublon
+
+```sql
+DELETE FROM restaurants 
+WHERE id = '7ba462d6-5b27-4531-9696-5c565bcfe4e5';
+```
+
+### Resultat attendu
+- Le vrai Juvisy aura ~23 411 lignes dans order_history (14 452 + 8 959)
+- Plus de doublon dans la liste des restaurants
+- Aucune perte de donnees
+
