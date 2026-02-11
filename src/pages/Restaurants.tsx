@@ -145,9 +145,9 @@ const Restaurants = () => {
             aVal = `${a.manager_first_name || ""} ${a.manager_last_name || ""}`.toLowerCase().trim();
             bVal = `${b.manager_first_name || ""} ${b.manager_last_name || ""}`.toLowerCase().trim();
             break;
-          case "account_manager":
-            aVal = a.account_manager_name?.toLowerCase() || "";
-            bVal = b.account_manager_name?.toLowerCase() || "";
+          case "uber_opening_date":
+            aVal = (a as any).uber_opening_date || "";
+            bVal = (b as any).uber_opening_date || "";
             break;
           case "deliveroo_account_manager":
             aVal = a.deliveroo_account_manager_name?.toLowerCase() || "";
@@ -336,11 +336,11 @@ const Restaurants = () => {
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("account_manager")}
+                  onClick={() => handleSort("uber_opening_date")}
                 >
                   <div className="flex items-center gap-1.5">
-                    AM Uber
-                    <SortIcon column="account_manager" />
+                    Ouverture Uber
+                    <SortIcon column="uber_opening_date" />
                   </div>
                 </TableHead>
                 <TableHead 
@@ -441,36 +441,10 @@ const Restaurants = () => {
                       )}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.account_manager_name ? (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="cursor-help border-b border-dotted border-muted-foreground/50">
-                                {restaurant.account_manager_name}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs">
-                              <div className="space-y-1.5">
-                                <p className="font-medium">{restaurant.account_manager_name}</p>
-                                {restaurant.account_manager_title && (
-                                  <p className="text-xs text-muted-foreground">{restaurant.account_manager_title}</p>
-                                )}
-                                {restaurant.account_manager_phone && (
-                                  <div className="flex items-center gap-1.5 text-xs">
-                                    <Phone className="h-3 w-3" />
-                                    {restaurant.account_manager_phone}
-                                  </div>
-                                )}
-                                {restaurant.account_manager_email && (
-                                  <div className="flex items-center gap-1.5 text-xs">
-                                    <Mail className="h-3 w-3" />
-                                    {restaurant.account_manager_email}
-                                  </div>
-                                )}
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                      {(restaurant as any).uber_opening_date ? (
+                        <span className="text-sm">
+                          {new Date((restaurant as any).uber_opening_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
