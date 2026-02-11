@@ -1,44 +1,65 @@
 
 
-# Nettoyer le doublon Juvisy
+# Nettoyer le doublon Bonneuil
 
-## Origine du probleme
-Le doublon (id: `7ba462d6`, uber_store_id: `name:chicken street - juvisy`) a ete cree le 6 fevrier 2026 par un import CSV qui n'a pas reconnu le restaurant. Il a genere un placeholder au lieu de rattacher les donnees au vrai Juvisy (id: `8e4026f9`, UUID: `051979ae-34a3-4ddc-9ac0-d430efdcc0a5`).
+## Diagnostic
 
-## Donnees liees au doublon
-- **order_history** : 8 959 lignes (sept 2025 - janv 2026)
+Le doublon (`bc673a23`, uber_store_id: `name:chicken street - bonneuil`) a ete cree le 6 fevrier 2026 par un import CSV. Le vrai Bonneuil (`9d1ebcb5`, UUID officiel: `723fa695-f889-4132-9c39-4fbe35d18c54`) existe depuis novembre 2025.
+
+### Donnees du doublon
+- **order_history** : 11 380 lignes dont 11 130 sont des doublons exacts et **250 sont uniques**
+- **customer_reviews** : **757 avis uniques** (aout 2025 - jan 2026) - absents du vrai Bonneuil
 - **restaurant_uber_ids** : 1 entree placeholder
-- Toutes les autres tables : 0 donnees
-
-Le vrai Juvisy a deja 14 452 lignes dans order_history.
 
 ## Plan d'action
 
-### Etape 1 : Migrer les commandes vers le bon restaurant
-Transferer les 8 959 lignes de `order_history` du doublon (`7ba462d6`) vers le vrai Juvisy (`8e4026f9`).
+### Etape 1 : Migrer les 250 commandes uniques vers le vrai Bonneuil
+
+Transferer uniquement les commandes qui n'existent pas deja dans le vrai restaurant.
 
 ```sql
 UPDATE order_history 
-SET restaurant_id = '8e4026f9-88dd-4932-98fd-8db44c88e02d' 
-WHERE restaurant_id = '7ba462d6-5b27-4531-9696-5c565bcfe4e5';
+SET restaurant_id = '9d1ebcb5-2aac-4757-a431-0d2e5e4f9015'
+WHERE restaurant_id = 'bc673a23-4c54-40d3-942c-b4c5ea44e85a'
+AND NOT EXISTS (
+  SELECT 1 FROM order_history oh2
+  WHERE oh2.restaurant_id = '9d1ebcb5-2aac-4757-a431-0d2e5e4f9015'
+  AND oh2.order_datetime = order_history.order_datetime
+  AND oh2.order_amount = order_history.order_amount
+);
 ```
 
-### Etape 2 : Supprimer l'entree de mapping placeholder
+### Etape 2 : Supprimer les 11 130 commandes en doublon
+
+```sql
+DELETE FROM order_history 
+WHERE restaurant_id = 'bc673a23-4c54-40d3-942c-b4c5ea44e85a';
+```
+
+### Etape 3 : Migrer les 757 avis clients vers le vrai Bonneuil
+
+```sql
+UPDATE customer_reviews 
+SET restaurant_id = '9d1ebcb5-2aac-4757-a431-0d2e5e4f9015'
+WHERE restaurant_id = 'bc673a23-4c54-40d3-942c-b4c5ea44e85a';
+```
+
+### Etape 4 : Supprimer le mapping placeholder
 
 ```sql
 DELETE FROM restaurant_uber_ids 
-WHERE restaurant_id = '7ba462d6-5b27-4531-9696-5c565bcfe4e5';
+WHERE restaurant_id = 'bc673a23-4c54-40d3-942c-b4c5ea44e85a';
 ```
 
-### Etape 3 : Supprimer le doublon
+### Etape 5 : Supprimer le doublon
 
 ```sql
 DELETE FROM restaurants 
-WHERE id = '7ba462d6-5b27-4531-9696-5c565bcfe4e5';
+WHERE id = 'bc673a23-4c54-40d3-942c-b4c5ea44e85a';
 ```
 
 ### Resultat attendu
-- Le vrai Juvisy aura ~23 411 lignes dans order_history (14 452 + 8 959)
+- Le vrai Bonneuil aura ~15 969 commandes (15 719 + 250) et 1 051 avis (294 + 757)
 - Plus de doublon dans la liste des restaurants
 - Aucune perte de donnees
 
