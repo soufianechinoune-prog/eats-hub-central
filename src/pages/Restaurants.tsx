@@ -347,7 +347,7 @@ const Restaurants = () => {
                   onClick={() => handleSort("deliveroo_account_manager")}
                 >
                   <div className="flex items-center gap-1.5">
-                    AM Deliveroo
+                    Statut
                     <SortIcon column="deliveroo_account_manager" />
                   </div>
                 </TableHead>
@@ -449,7 +449,13 @@ const Restaurants = () => {
                       )}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.deliveroo_account_manager_name ? (
+                      {restaurant.is_active === false ? (
+                        <Badge className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                          Fermé{(restaurant as any).uber_closing_date 
+                            ? ` le ${new Date((restaurant as any).uber_closing_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}` 
+                            : ''}
+                        </Badge>
+                      ) : restaurant.deliveroo_account_manager_name ? (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>

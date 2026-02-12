@@ -309,7 +309,13 @@ const RestaurantDetail = () => {
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-3xl font-bold tracking-tight">{restaurant.name}</h2>
-              {restaurant.csv_verified ? (
+              {restaurant.is_active === false ? (
+                <Badge className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                  Fermé{restaurant.uber_closing_date 
+                    ? ` le ${new Date(restaurant.uber_closing_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}` 
+                    : ''}
+                </Badge>
+              ) : restaurant.csv_verified ? (
                 <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Validé</Badge>
               ) : restaurant.uber_store_id ? (
                 <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
