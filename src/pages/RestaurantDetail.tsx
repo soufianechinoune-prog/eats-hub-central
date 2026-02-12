@@ -59,8 +59,7 @@ const RestaurantDetail = () => {
       const { data, error } = await supabase
         .from("restaurants")
         .select(`
-          *,
-          uber_connections (id)
+          *
         `)
         .eq("id", id)
         .single();
@@ -310,8 +309,8 @@ const RestaurantDetail = () => {
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-3xl font-bold tracking-tight">{restaurant.name}</h2>
-              {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0 ? (
-                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Uber Connecté</Badge>
+              {restaurant.csv_verified ? (
+                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Validé</Badge>
               ) : restaurant.uber_store_id ? (
                 <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
               ) : (
@@ -554,10 +553,10 @@ const RestaurantDetail = () => {
               <div>
                 <p className="font-medium text-green-600">Uber Eats</p>
                 <p className="text-sm text-muted-foreground">
-                  {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0
-                    ? "Connecté à l'API"
+                  {restaurant.csv_verified
+                    ? "Validé (CSV maître)"
                     : restaurant.uber_store_id
-                    ? "En attente de connexion"
+                    ? "En attente de validation"
                     : "Non connecté"}
                 </p>
                 {restaurant.uber_store_id && (
@@ -566,8 +565,8 @@ const RestaurantDetail = () => {
                   </p>
                 )}
               </div>
-              {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0 ? (
-                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Connecté</Badge>
+              {restaurant.csv_verified ? (
+                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Validé</Badge>
               ) : restaurant.uber_store_id ? (
                 <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
               ) : (

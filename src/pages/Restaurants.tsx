@@ -72,8 +72,7 @@ const Restaurants = () => {
       const { data } = await supabase
         .from("restaurants")
         .select(`
-          *,
-          uber_connections (id)
+          *
         `)
         .order("postal_code", { ascending: true })
         .order("city", { ascending: true });
@@ -81,9 +80,9 @@ const Restaurants = () => {
     },
   });
 
-  // Helper to get Uber API status
+  // Helper to get Uber status based on csv_verified
   const getUberStatus = (r: typeof restaurants[0]) => {
-    if (Array.isArray(r.uber_connections) && r.uber_connections.length > 0) return "connected";
+    if (r.csv_verified) return "connected";
     if (r.uber_store_id) return "pending";
     return "disconnected";
   };
@@ -284,7 +283,7 @@ const Restaurants = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="connected">Connecté</SelectItem>
+                  <SelectItem value="connected">Validé</SelectItem>
                   <SelectItem value="pending">En attente</SelectItem>
                   <SelectItem value="disconnected">Non connecté</SelectItem>
                 </SelectContent>
@@ -494,7 +493,7 @@ const Restaurants = () => {
                                 <UberEatsLogo size={14} />
                                 <span 
                                   className={`h-2 w-2 rounded-full ${
-                                    Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0
+                                    restaurant.csv_verified
                                       ? "bg-green-500"
                                       : restaurant.uber_store_id
                                       ? "bg-yellow-500"
@@ -504,8 +503,8 @@ const Restaurants = () => {
                               </div>
                             </TooltipTrigger>
                             <TooltipContent>
-                              {Array.isArray(restaurant.uber_connections) && restaurant.uber_connections.length > 0
-                                ? "Uber Eats connecté"
+                              {restaurant.csv_verified
+                                ? "Uber Eats validé"
                                 : restaurant.uber_store_id
                                 ? "Uber Eats en attente"
                                 : "Uber Eats non connecté"}
