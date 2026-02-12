@@ -1,65 +1,70 @@
 
 
-# Nettoyer le doublon Bonneuil
+# Nettoyage des 3 restaurants sans UUID + badge "Ferme"
 
-## Diagnostic
+## 1. Supprimer Villeurbanne La Perraliere (doublon)
 
-Le doublon (`bc673a23`, uber_store_id: `name:chicken street - bonneuil`) a ete cree le 6 fevrier 2026 par un import CSV. Le vrai Bonneuil (`9d1ebcb5`, UUID officiel: `723fa695-f889-4132-9c39-4fbe35d18c54`) existe depuis novembre 2025.
+Le restaurant `CHICKEN STREET VILLEURBANNE LA PERRALIERE` (`4025b1f7...`) n'existe pas dans le CSV. Le vrai Villeurbanne est `Chicken Street - Villeurbanne` (`9f8dfc4f...`, UUID `113e3029...`).
 
-### Donnees du doublon
-- **order_history** : 11 380 lignes dont 11 130 sont des doublons exacts et **250 sont uniques**
-- **customer_reviews** : **757 avis uniques** (aout 2025 - jan 2026) - absents du vrai Bonneuil
-- **restaurant_uber_ids** : 1 entree placeholder
+**Donnees du doublon** : 173 commandes, 0 avis, 0 dispo horaires.
 
-## Plan d'action
+Actions :
+1. Migrer les commandes uniques vers le vrai Villeurbanne (en verifiant les doublons par `uber_order_id` ou `order_datetime` + `order_amount`)
+2. Supprimer les commandes restantes du doublon
+3. Supprimer la fiche restaurant `4025b1f7...`
 
-### Etape 1 : Migrer les 250 commandes uniques vers le vrai Bonneuil
+## 2. Supprimer Nancy Place des Vosges (doublon)
 
-Transferer uniquement les commandes qui n'existent pas deja dans le vrai restaurant.
+Le restaurant `CHICKEN STREET NANCY PLACE DES VOSGES` (`2f06317f...`) n'existe pas dans le CSV. Le vrai Nancy est `Chicken Street - Nancy` (`e00f3db3...`, UUID `68d1d7f1...`).
 
-```sql
-UPDATE order_history 
-SET restaurant_id = '9d1ebcb5-2aac-4757-a431-0d2e5e4f9015'
-WHERE restaurant_id = 'bc673a23-4c54-40d3-942c-b4c5ea44e85a'
-AND NOT EXISTS (
-  SELECT 1 FROM order_history oh2
-  WHERE oh2.restaurant_id = '9d1ebcb5-2aac-4757-a431-0d2e5e4f9015'
-  AND oh2.order_datetime = order_history.order_datetime
-  AND oh2.order_amount = order_history.order_amount
-);
+**Donnees du doublon** : 96 commandes, 0 avis, 0 dispo horaires.
+
+Actions :
+1. Migrer les commandes uniques vers le vrai Nancy
+2. Supprimer les commandes restantes du doublon
+3. Supprimer la fiche restaurant `2f06317f...`
+
+## 3. Mettre a jour Toulon (restaurant ferme)
+
+Le restaurant `Chicken Street - Toulon` (`728c43f6...`) existe dans le CSV avec l'UUID `5ac13198-ed05-5bf2-8d73-30aa8f860bbf`.
+
+Actions :
+1. Mettre a jour `uber_store_id` avec l'UUID officiel
+2. Definir `uber_opening_date` = `2023-06-12` (first_request_date)
+3. Definir `uber_closing_date` = `2025-09-21` (date de fermeture)
+4. Definir `is_active` = `false`
+5. Mettre a jour l'adresse : "237 Boulevard Marechal Joffre, Toulon"
+6. Marquer `csv_verified` = `true`
+
+## 4. Ajouter un badge "Ferme" dans l'interface
+
+Actuellement, les restaurants afichent un badge "Valide" / "En attente" / "Non connecte" base sur `csv_verified` et `uber_store_id`. Pour les restaurants fermes, on ajoutera un badge rouge "Ferme" avec la date de fermeture, qui remplace le badge Deliveroo (comme demande).
+
+### Fichiers a modifier
+
+**`src/pages/Restaurants.tsx`** :
+- Ajouter un badge rouge "Ferme" a cote du nom ou dans la zone de statut pour les restaurants ou `is_active === false`
+- Afficher la date de fermeture (`uber_closing_date`) si disponible
+
+**`src/pages/RestaurantDetail.tsx`** :
+- Ajouter un badge "Ferme" visible en haut de la fiche, avec la date de fermeture
+- Remplacer le badge Deliveroo par cette information quand le restaurant est ferme
+
+### Logique du badge
+
+```text
+Si is_active === false :
+  -> Badge rouge "Ferme le [date]" (ou juste "Ferme" si pas de date)
+Sinon :
+  -> Comportement actuel (Valide / En attente / Non connecte)
 ```
 
-### Etape 2 : Supprimer les 11 130 commandes en doublon
+## Resume des operations
 
-```sql
-DELETE FROM order_history 
-WHERE restaurant_id = 'bc673a23-4c54-40d3-942c-b4c5ea44e85a';
-```
-
-### Etape 3 : Migrer les 757 avis clients vers le vrai Bonneuil
-
-```sql
-UPDATE customer_reviews 
-SET restaurant_id = '9d1ebcb5-2aac-4757-a431-0d2e5e4f9015'
-WHERE restaurant_id = 'bc673a23-4c54-40d3-942c-b4c5ea44e85a';
-```
-
-### Etape 4 : Supprimer le mapping placeholder
-
-```sql
-DELETE FROM restaurant_uber_ids 
-WHERE restaurant_id = 'bc673a23-4c54-40d3-942c-b4c5ea44e85a';
-```
-
-### Etape 5 : Supprimer le doublon
-
-```sql
-DELETE FROM restaurants 
-WHERE id = 'bc673a23-4c54-40d3-942c-b4c5ea44e85a';
-```
-
-### Resultat attendu
-- Le vrai Bonneuil aura ~15 969 commandes (15 719 + 250) et 1 051 avis (294 + 757)
-- Plus de doublon dans la liste des restaurants
-- Aucune perte de donnees
+| Restaurant | Action | Commandes a migrer |
+|---|---|---|
+| Villeurbanne La Perraliere | Supprimer (doublon) | 173 |
+| Nancy Place des Vosges | Supprimer (doublon) | 96 |
+| Toulon | Mettre a jour UUID + marquer ferme | 0 (donnees conservees) |
+| Badge UI | Ajouter badge "Ferme" | — |
 
