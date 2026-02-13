@@ -1,27 +1,40 @@
 
 
-## Fermeture de Chicken Street - Clermont-Ferrand
-
-Mise a jour de la fiche restaurant pour refleter la fermeture constatee dans le CSV maitre Uber Eats.
+## Ajout de l'ancien UUID Colombes en secondaire
 
 ### Restaurant concerne
 
-| Champ | Valeur actuelle | Nouvelle valeur |
-|---|---|---|
-| Restaurant | Chicken Street - Clermont-Ferrand | - |
-| UUID | 73ac0e25-c5b4-586a-8105-577d38bdc401 | - |
-| is_active | true | **false** |
-| uber_closing_date | NULL | **2025-12-09** |
+| Champ | Valeur |
+|---|---|
+| Restaurant | Chicken Street - Colombes |
+| ID interne | 0d9ed512-8795-4c4c-a99d-3243de95d95f |
+| UUID actif (principal) | 7ef325e8-0c56-564f-b677-5f7c2b60e674 |
 
 ### Action
 
-Executer la requete SQL suivante :
+Inserer l'ancien UUID comme entree secondaire dans `restaurant_uber_ids` :
 
 ```sql
-UPDATE restaurants 
-SET is_active = false, uber_closing_date = '2025-12-09' 
-WHERE uber_store_id = '73ac0e25-c5b4-586a-8105-577d38bdc401';
+INSERT INTO restaurant_uber_ids (restaurant_id, uber_store_id, is_primary, label)
+VALUES (
+  '0d9ed512-8795-4c4c-a99d-3243de95d95f',
+  'dca44878-e375-41b9-8580-39f930697916',
+  false,
+  'ancien compte (ferme 2025-06-11)'
+);
 ```
 
-Aucune modification de code necessaire. Le badge "Ferme" s'affichera automatiquement sur la page /restaurants grace a la logique de statut existante.
+Mettre a jour `uber_opening_date` du restaurant pour refleter la date d'ouverture de l'ancien compte (ouvert depuis 2019 selon le CSV) :
+
+```sql
+UPDATE restaurants
+SET uber_opening_date = '2019-09-12'
+WHERE id = '0d9ed512-8795-4c4c-a99d-3243de95d95f';
+```
+
+### Resultat attendu
+
+- L'ancien UUID sera reconnu automatiquement lors d'imports de rapports historiques
+- La date d'ouverture refletera l'historique complet du restaurant
+- Aucune modification de code necessaire
 
