@@ -1,53 +1,27 @@
 
 
-## Pre-configuration de Chicken Street - Poitiers
+## Fermeture de Chicken Street - Clermont-Ferrand
 
-Comme pour Creteil et Sens, ce restaurant n'est pas encore ouvert (statut "waiting for activation" dans le CSV Uber Eats). On le pre-configure en base pour que les donnees soient automatiquement rattachees des l'ouverture.
+Mise a jour de la fiche restaurant pour refleter la fermeture constatee dans le CSV maitre Uber Eats.
 
-### Donnees du CSV (ligne 80)
+### Restaurant concerne
 
-| Champ | Valeur |
-|---|---|
-| store_name | Chicken Street - Poitiers |
-| uuid | 06b8d554-6304-553f-9f44-0dfe0d8578b3 |
-| external_store_id | BYS00629 |
-| is_visible | FALSE |
-| address | 2 Avenue de Lafayette, Poitiers |
-| postal_code | 86000 |
-| first_request_date | N/A (pas encore ouvert) |
-| statut | waiting for activation |
+| Champ | Valeur actuelle | Nouvelle valeur |
+|---|---|---|
+| Restaurant | Chicken Street - Clermont-Ferrand | - |
+| UUID | 73ac0e25-c5b4-586a-8105-577d38bdc401 | - |
+| is_active | true | **false** |
+| uber_closing_date | NULL | **2025-12-09** |
 
-### Actions a realiser
+### Action
 
-**1. INSERT dans `restaurants`**
-- name: Chicken Street - Poitiers
-- chain_id: 110e05b8-5136-45cc-a385-265360104844 (Chicken Street)
-- uber_store_id: 06b8d554-6304-553f-9f44-0dfe0d8578b3
-- address: 2 Avenue de Lafayette, Poitiers
-- postal_code: 86000
-- uber_opening_date: NULL (pas encore ouvert)
-
-**2. INSERT dans `restaurant_uber_ids`**
-- Mapping du UUID comme is_primary = true
-
-### Detail technique
+Executer la requete SQL suivante :
 
 ```sql
-WITH new_restaurant AS (
-  INSERT INTO restaurants (name, chain_id, uber_store_id, address, postal_code, uber_opening_date)
-  VALUES (
-    'Chicken Street - Poitiers',
-    '110e05b8-5136-45cc-a385-265360104844',
-    '06b8d554-6304-553f-9f44-0dfe0d8578b3',
-    '2 Avenue de Lafayette, Poitiers',
-    '86000',
-    NULL
-  )
-  RETURNING id
-)
-INSERT INTO restaurant_uber_ids (restaurant_id, uber_store_id, is_primary)
-SELECT id, '06b8d554-6304-553f-9f44-0dfe0d8578b3', true FROM new_restaurant;
+UPDATE restaurants 
+SET is_active = false, uber_closing_date = '2025-12-09' 
+WHERE uber_store_id = '73ac0e25-c5b4-586a-8105-577d38bdc401';
 ```
 
-Aucune modification de code necessaire. Les donnees seront automatiquement rattachees a cette fiche des l'importation des premiers rapports.
+Aucune modification de code necessaire. Le badge "Ferme" s'affichera automatiquement sur la page /restaurants grace a la logique de statut existante.
 
