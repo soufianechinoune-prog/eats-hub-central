@@ -1,39 +1,48 @@
 
 
-## Ajout du champ "Succursale" aux restaurants
+## Mise à jour Chicken Street - Poitiers (ligne 80)
 
-### Objectif
-Remplacer la colonne "Connexions" du tableau des restaurants par une colonne "Succursale" (Oui/Non), et rendre cette information editable dans la fiche du restaurant.
+### Etat actuel en base
 
-### 1. Modification de la base de donnees
-Ajouter une colonne `is_succursale` (boolean, defaut `false`) a la table `restaurants` :
+| Champ | Valeur actuelle |
+|---|---|
+| Restaurant | Chicken Street - Poitiers |
+| ID interne | 156e7a6e-8607-4f12-9134-e57b18197e9b |
+| UUID | 06b8d554-6304-553f-9f44-0dfe0d8578b3 (correct) |
+| is_active | true |
+| csv_verified | false |
+| uber_opening_date | null |
+
+### Donnees du CSV (ligne 80)
+
+| Champ | Valeur |
+|---|---|
+| Statut | waiting for activation |
+| is_visible | FALSE |
+| creation_date | 2025-08-29 |
+| first_request_date | null |
+| Adresse | 2 Avenue de Lafayette, Poitiers 86000 |
+
+### Action
+
+Mettre a jour les metadonnees pour refleter le statut "en attente d'activation" :
 
 ```sql
-ALTER TABLE restaurants ADD COLUMN is_succursale boolean DEFAULT false;
+UPDATE restaurants
+SET csv_verified = true,
+    is_active = false,
+    address = '2 Avenue de Lafayette, Poitiers 86000'
+WHERE id = '156e7a6e-8607-4f12-9134-e57b18197e9b';
 ```
 
-### 2. Page liste des restaurants (`src/pages/Restaurants.tsx`)
-- Remplacer l'en-tete "Connexions" par "Succursale"
-- Remplacer le contenu de la cellule (logos Uber/Deliveroo avec pastilles) par un badge :
-  - **Oui** : Badge vert "Succursale"
-  - **Non** : Affichage "-" ou badge discret "Franchise"
-- Ajouter le tri sur cette colonne
+- `csv_verified = true` : confirme par le CSV maitre
+- `is_active = false` : pas encore ouvert (waiting for activation)
+- `address` : mise a jour depuis le CSV
+- `uber_opening_date` reste null car `first_request_date` est vide (pas encore de premiere commande)
 
-### 3. Fiche restaurant (`src/pages/RestaurantDetail.tsx`)
-- Ajouter le champ "Succursale" dans la carte "Informations generales"
-- En mode lecture : afficher "Oui" ou "Non"
-- En mode edition : afficher un Switch (toggle) pour basculer entre succursale et franchise
-- Inclure `is_succursale` dans le `formData` et dans la logique de sauvegarde
+### Resultat attendu
 
-### 4. Formulaire de creation (`src/components/restaurants/RestaurantFormDialog.tsx`)
-- Ajouter un toggle "Succursale" dans la section "Informations generales"
-- Inclure `is_succursale` dans le formulaire et l'insertion en base
-
-### Resume des fichiers modifies
-| Fichier | Modification |
-|---|---|
-| Migration SQL | Ajout colonne `is_succursale` |
-| `src/pages/Restaurants.tsx` | Colonne "Connexions" remplacee par "Succursale" |
-| `src/pages/RestaurantDetail.tsx` | Champ succursale en lecture/edition |
-| `src/components/restaurants/RestaurantFormDialog.tsx` | Toggle succursale dans le formulaire de creation |
+- Le restaurant apparaitra avec le statut "Ferme" (badge rouge) en attendant son activation
+- Des que les premiers rapports arriveront, les donnees seront automatiquement rattachees
+- Aucune modification de code necessaire
 
