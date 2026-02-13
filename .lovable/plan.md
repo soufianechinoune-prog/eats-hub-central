@@ -1,34 +1,41 @@
 
 
-## Ajouter l'ancien UUID de Montreuil pour le matching historique
+## Configurer Ivry : ancien UUID + nettoyage doublon
 
 ### Contexte
-Montreuil a change d'UUID Uber Eats le 10/12/2020 :
-- **Ancien** : `f6cb4dd0-8542-40e9-87c6-1a0aa60d6076` (01/2019 - 12/2020)
-- **Actuel** : `bb1e1a0e-8d3e-4cc5-b7ad-944abfb206be` (12/2020 - aujourd'hui)
+Ivry a change d'UUID Uber Eats fin avril 2020 :
+- **Ancien** : `91dcc91f-46ac-47ce-8ec9-29d67b096072` (09/2019 - 04/2020)
+- **Actuel** : `cad7861d-bd22-4c66-83d9-f7ecd6821e08` (04/2020 - aujourd'hui)
 
-Actuellement, seul l'UUID actuel est configure. Les imports de fichiers historiques (avant 12/2020) ne pourront pas matcher car l'ancien UUID n'est pas enregistre.
+Un doublon existe en base : la fiche "CHICKEN STREET IVRY-SUR-SEINE" (`1ae214f7...`) sans UUID, creee probablement lors d'un ancien import. Ses 111 commandes sont toutes deja presentes dans la fiche principale "Chicken Street - Ivry" (`d0390bba...`).
 
-### Action
+### Actions (migration SQL uniquement, aucun code a modifier)
 
-Ajouter une entree dans `restaurant_uber_ids` pour lier l'ancien UUID au restaurant Montreuil existant :
+**Etape 1 : Lier l'ancien UUID a la fiche principale**
 
 ```text
 restaurant_uber_ids
 +--------------------------------------------+
-| restaurant_id : 1ffe6efa-d318-4e0b-993a-6c55ef3e1d44 (Montreuil)
-| uber_store_id : f6cb4dd0-8542-40e9-87c6-1a0aa60d6076
+| restaurant_id : d0390bba-eb43-4f86-955f-8cffd8caa9b1 (Ivry)
+| uber_store_id : 91dcc91f-46ac-47ce-8ec9-29d67b096072
 | is_primary    : false
-| label         : "ancien UUID - ferme 10/12/2020"
+| label         : "ancien UUID - ferme 27/04/2020"
 +--------------------------------------------+
 ```
 
-Mettre a jour egalement les metadonnees du restaurant :
-- `uber_opening_date` : corriger de `2019-11-07` vers `2019-01-14` (date reelle de premiere commande selon le CSV)
+**Etape 2 : Corriger la date d'ouverture**
+- `uber_opening_date` : de `2020-04-20` vers `2019-09-13` (date reelle de premiere commande)
+
+**Etape 3 : Supprimer le doublon `1ae214f7...`**
+- Supprimer les 111 lignes `order_history` du doublon (toutes redondantes, confirmees par matching sur `uber_order_id`)
+- Supprimer la fiche restaurant doublon
 
 ### Impact
-Apres cette configuration, tout import CSV contenant l'ancien store_id `f6cb4dd0...` sera automatiquement rattache au bon restaurant Montreuil, sans intervention manuelle.
+- Les imports CSV historiques avec l'ancien store_id `91dcc91f...` seront automatiquement rattaches au bon restaurant
+- Plus de doublon dans la liste des restaurants
+- Historique consolide sur une seule fiche
 
 ### Detail technique
-- **Migration SQL** : INSERT dans `restaurant_uber_ids` + UPDATE de `uber_opening_date` sur `restaurants`
-- Aucune modification de code necessaire, le systeme de matching multi-UUID est deja en place
+- Migration SQL : INSERT dans `restaurant_uber_ids`, UPDATE `uber_opening_date`, DELETE `order_history` du doublon, DELETE restaurant doublon
+- Aucune modification de code
+
