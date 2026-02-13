@@ -78,7 +78,8 @@ import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
 
 import { OfferSimulator } from "@/components/menu/OfferSimulator";
 import jsPDF from "jspdf";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
+import csLogoBase64 from "@/assets/cs-logo.jpeg";
 import { FileSpreadsheet, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
 import { RestaurantPriceComparison } from "@/components/menu/RestaurantPriceComparison";
 import { ProfitabilityComparison } from "@/components/menu/ProfitabilityComparison";
@@ -562,140 +563,290 @@ export default function MenuItems() {
     setEditingVatId(null);
   };
 
-  // Export to Excel
+  // Export to Excel - Mercuriale Food Cost complète
   const exportToExcel = () => {
-    const data = filteredItems.map(item => ({
-      "Produit": item.name,
-      "Catégorie": item.category || "-",
-      "Description": item.description || "-",
-      "Food Cost HT (€)": item.food_cost !== null ? item.food_cost.toFixed(2) : "Non renseigné",
-      "TVA (%)": item.vat_rate ? `${item.vat_rate}%` : "10%",
-      "Statut": item.is_active ? "Actif" : "Inactif",
-    }));
+    const activeItems = menuItems.filter(i => i.is_active);
+    const sorted = [...activeItems].sort((a, b) => {
+      const catA = a.category || "ZZZ";
+      const catB = b.category || "ZZZ";
+      if (catA !== catB) return catA.localeCompare(catB);
+      return a.name.localeCompare(b.name);
+    });
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    
-    worksheet["!cols"] = [
-      { wch: 40 },
+    const headerStyle = {
+      font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+      fill: { fgColor: { rgb: "10B981" } },
+      alignment: { horizontal: "center" as const, vertical: "center" as const },
+      border: {
+        bottom: { style: "thin" as const, color: { rgb: "059669" } },
+      },
+    };
+
+    const headers = ["Produit", "Catégorie", "Food Cost HT (EUR)", "TVA (%)", "Statut"];
+    const wsData: any[][] = [headers];
+
+    sorted.forEach((item) => {
+      const hasFoodCost = item.food_cost !== null && item.food_cost > 0;
+      wsData.push([
+        item.name,
+        item.category || "-",
+        hasFoodCost ? item.food_cost : "",
+        item.vat_rate ? item.vat_rate : 10,
+        hasFoodCost ? "Renseigné" : "À compléter",
+      ]);
+    });
+
+    // Summary rows
+    const withFC = sorted.filter(i => i.food_cost !== null && i.food_cost > 0).length;
+    const completionRate = sorted.length > 0 ? Math.round((withFC / sorted.length) * 100) : 0;
+    wsData.push([]);
+    wsData.push(["Total produits", sorted.length, "", "", ""]);
+    wsData.push(["Renseignés", withFC, "", "", ""]);
+    wsData.push(["Taux de complétion", `${completionRate}%`, "", "", ""]);
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Style headers
+    headers.forEach((_, colIdx) => {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c: colIdx });
+      if (ws[cellRef]) ws[cellRef].s = headerStyle;
+    });
+
+    // Alternating row colors + status coloring
+    const evenRowStyle = { fill: { fgColor: { rgb: "F0FDF4" } } };
+    const statusGreen = { font: { color: { rgb: "059669" }, bold: true } };
+    const statusOrange = { font: { color: { rgb: "D97706" }, bold: true } };
+
+    for (let r = 1; r <= sorted.length; r++) {
+      for (let c = 0; c < headers.length; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r, c });
+        if (!ws[cellRef]) continue;
+        if (r % 2 === 0) {
+          ws[cellRef].s = { ...(ws[cellRef].s || {}), ...evenRowStyle };
+        }
+        // Status column color
+        if (c === 4) {
+          const isComplete = ws[cellRef].v === "Renseigné";
+          ws[cellRef].s = { ...(ws[cellRef].s || {}), ...(isComplete ? statusGreen : statusOrange) };
+        }
+        // Food Cost number format
+        if (c === 2 && typeof ws[cellRef].v === "number") {
+          ws[cellRef].z = "0.00";
+        }
+      }
+    }
+
+    // Summary rows bold
+    for (let r = sorted.length + 2; r < wsData.length; r++) {
+      const cellRef = XLSX.utils.encode_cell({ r, c: 0 });
+      if (ws[cellRef]) ws[cellRef].s = { font: { bold: true } };
+    }
+
+    ws["!cols"] = [
+      { wch: 42 },
       { wch: 25 },
-      { wch: 40 },
       { wch: 18 },
       { wch: 10 },
-      { wch: 10 },
+      { wch: 16 },
     ];
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Catalogue");
-    XLSX.writeFile(workbook, `catalogue_produits_${new Date().toISOString().split('T')[0]}.xlsx`);
-    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Mercuriale Food Cost");
+    XLSX.writeFile(wb, `mercuriale_food_cost_${new Date().toISOString().split("T")[0]}.xlsx`);
+
     toast({
       title: "Export réussi",
-      description: "Le fichier Excel a été téléchargé",
+      description: `Mercuriale exportée : ${sorted.length} produits`,
     });
   };
 
-  // Export to PDF
+  // Export to PDF - Mercuriale Food Cost complète
   const exportToPdf = () => {
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    });
-
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 15;
-    let yPos = 20;
 
-    // Header
-    pdf.setFillColor(99, 102, 241);
-    pdf.rect(0, 0, pageWidth, 25, "F");
+    const activeItems = menuItems.filter(i => i.is_active);
+    const sorted = [...activeItems].sort((a, b) => {
+      const catA = a.category || "ZZZ";
+      const catB = b.category || "ZZZ";
+      if (catA !== catB) return catA.localeCompare(catB);
+      return a.name.localeCompare(b.name);
+    });
+
+    const withFC = sorted.filter(i => i.food_cost !== null && i.food_cost > 0);
+    const completionRate = sorted.length > 0 ? Math.round((withFC.length / sorted.length) * 100) : 0;
+    const avgFoodCost = withFC.length > 0
+      ? (withFC.reduce((sum, i) => sum + (i.food_cost || 0), 0) / withFC.length)
+      : 0;
+
+    // --- Header ---
+    pdf.setFillColor(16, 185, 129);
+    pdf.rect(0, 0, pageWidth, 28, "F");
+    try { pdf.addImage(csLogoBase64, "JPEG", margin, 4, 20, 20); } catch (e) { /* ignore */ }
     pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(16);
+    pdf.setFontSize(18);
     pdf.setFont("helvetica", "bold");
-    pdf.text("Catalogue Produits", margin, 16);
-
-    // Meta info
-    pdf.setFillColor(249, 250, 251);
-    pdf.rect(0, 25, pageWidth, 12, "F");
-    pdf.setTextColor(107, 114, 128);
-    pdf.setFontSize(9);
-    pdf.setFont("helvetica", "normal");
-    const dateStr = new Date().toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-    pdf.text(`Généré le ${dateStr}`, margin, 32);
-    pdf.text(`${filteredItems.length} produits`, pageWidth - margin - 30, 32);
-
-    yPos = 45;
-
-    // Stats
-    pdf.setTextColor(0, 0, 0);
+    pdf.text("Mercuriale - Food Cost", margin + 24, 14);
     pdf.setFontSize(10);
-    pdf.setFont("helvetica", "bold");
-    pdf.text(`Avec Food Cost: ${foodCostStats.withFoodCost}`, margin, yPos);
-    pdf.text(`À compléter: ${foodCostStats.withoutFoodCost}`, margin + 50, yPos);
-    pdf.text(`Complétion: ${foodCostStats.completionRate.toFixed(0)}%`, margin + 100, yPos);
-
-    yPos += 12;
-
-    // Table header
-    pdf.setFillColor(243, 244, 246);
-    pdf.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
-    pdf.setFontSize(9);
-    pdf.setFont("helvetica", "bold");
-    pdf.setTextColor(55, 65, 81);
-    pdf.text("Produit", margin + 3, yPos + 5.5);
-    pdf.text("Catégorie", margin + 70, yPos + 5.5);
-    pdf.text("Food Cost", margin + 115, yPos + 5.5);
-    pdf.text("TVA", margin + 145, yPos + 5.5);
-    pdf.text("Statut", margin + 165, yPos + 5.5);
-
-    yPos += 10;
-
-    // Table rows
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
+    const dateStr = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+    pdf.text(dateStr, margin + 24, 22);
 
-    filteredItems.forEach((item, index) => {
-      if (yPos > 270) {
-        pdf.addPage();
-        yPos = 20;
-      }
-
-      if (index % 2 === 0) {
-        pdf.setFillColor(249, 250, 251);
-        pdf.rect(margin, yPos - 3, pageWidth - margin * 2, 7, "F");
-      }
-
-      pdf.setTextColor(0, 0, 0);
-      const name = item.name.length > 35 ? item.name.substring(0, 32) + "..." : item.name;
-      pdf.text(name, margin + 3, yPos + 2);
-      
+    // --- KPIs ---
+    let yPos = 36;
+    const kpiW = (pageWidth - margin * 2 - 10) / 3;
+    const kpis = [
+      { label: "Produits analyses", value: sorted.length.toString() },
+      { label: "Taux completion", value: completionRate.toString() + "%" },
+      { label: "Food Cost moyen", value: avgFoodCost.toFixed(2) + " EUR" },
+    ];
+    kpis.forEach((kpi, i) => {
+      const x = margin + i * (kpiW + 5);
+      pdf.setFillColor(240, 253, 244);
+      pdf.roundedRect(x, yPos, kpiW, 16, 2, 2, "F");
+      pdf.setTextColor(5, 150, 105);
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(kpi.value, x + kpiW / 2, yPos + 7, { align: "center" });
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
       pdf.setTextColor(107, 114, 128);
-      pdf.text((item.category || "-").substring(0, 18), margin + 70, yPos + 2);
-      
-      if (item.food_cost !== null && item.food_cost > 0) {
-        pdf.setTextColor(16, 185, 129);
-        pdf.text(`${item.food_cost.toFixed(2)}€`, margin + 115, yPos + 2);
-      } else {
-        pdf.setTextColor(245, 158, 11);
-        pdf.text("-", margin + 115, yPos + 2);
-      }
-
-      // TVA
-      pdf.setTextColor(99, 102, 241);
-      pdf.text(`${item.vat_rate || 10}%`, margin + 145, yPos + 2);
-
-      pdf.setTextColor(item.is_active ? 16 : 107, item.is_active ? 185 : 114, item.is_active ? 129 : 128);
-      pdf.text(item.is_active ? "Actif" : "Inactif", margin + 165, yPos + 2);
-
-      yPos += 7;
+      pdf.text(kpi.label, x + kpiW / 2, yPos + 13, { align: "center" });
     });
 
-    pdf.save(`catalogue_produits_${new Date().toISOString().split('T')[0]}.pdf`);
-    
+    yPos = 58;
+
+    // Group by category
+    const categories = new Map<string, MenuItem[]>();
+    sorted.forEach(item => {
+      const cat = item.category || "Sans catégorie";
+      if (!categories.has(cat)) categories.set(cat, []);
+      categories.get(cat)!.push(item);
+    });
+
+    const colX = {
+      name: margin + 3,
+      foodCost: margin + 110,
+      vat: margin + 140,
+      status: margin + 160,
+    };
+
+    const drawTableHeader = () => {
+      pdf.setFillColor(243, 244, 246);
+      pdf.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(55, 65, 81);
+      pdf.text("Produit", colX.name, yPos + 5.5);
+      pdf.text("Food Cost HT", colX.foodCost, yPos + 5.5);
+      pdf.text("TVA", colX.vat, yPos + 5.5);
+      pdf.text("Statut", colX.status, yPos + 5.5);
+      yPos += 10;
+    };
+
+    const checkNewPage = (needed: number) => {
+      if (yPos + needed > pageHeight - 20) {
+        // Footer
+        pdf.setFontSize(7);
+        pdf.setTextColor(156, 163, 175);
+        pdf.text("CS Delivery - Mercuriale Food Cost", margin, pageHeight - 6);
+        pdf.addPage();
+        yPos = 15;
+        drawTableHeader();
+      }
+    };
+
+    let rowIdx = 0;
+    categories.forEach((items, catName) => {
+      checkNewPage(18);
+
+      // Category header
+      pdf.setFillColor(16, 185, 129);
+      pdf.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(9);
+      pdf.setFont("helvetica", "bold");
+      const catFC = items.filter(i => i.food_cost !== null && i.food_cost > 0);
+      pdf.text(`${catName} (${items.length})`, colX.name, yPos + 5.5);
+      if (catFC.length > 0) {
+        const catAvg = (catFC.reduce((s, i) => s + (i.food_cost || 0), 0) / catFC.length).toFixed(2);
+        pdf.text(`Moy: ${catAvg} EUR`, colX.foodCost, yPos + 5.5);
+      }
+      yPos += 10;
+
+      drawTableHeader();
+
+      items.forEach((item) => {
+        checkNewPage(7);
+
+        if (rowIdx % 2 === 0) {
+          pdf.setFillColor(249, 250, 251);
+          pdf.rect(margin, yPos - 3, pageWidth - margin * 2, 7, "F");
+        }
+
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "normal");
+        const name = item.name.length > 50 ? item.name.substring(0, 47) + "..." : item.name;
+        pdf.text(name, colX.name, yPos + 2);
+
+        if (item.food_cost !== null && item.food_cost > 0) {
+          pdf.setTextColor(16, 185, 129);
+          pdf.text(item.food_cost.toFixed(2) + " EUR", colX.foodCost, yPos + 2);
+        } else {
+          pdf.setTextColor(245, 158, 11);
+          pdf.text("A completer", colX.foodCost, yPos + 2);
+        }
+
+        pdf.setTextColor(99, 102, 241);
+        pdf.text((item.vat_rate || 10).toString() + "%", colX.vat, yPos + 2);
+
+        if (item.food_cost !== null && item.food_cost > 0) {
+          pdf.setTextColor(16, 185, 129);
+          pdf.text("OK", colX.status, yPos + 2);
+        } else {
+          pdf.setTextColor(245, 158, 11);
+          pdf.text("--", colX.status, yPos + 2);
+        }
+
+        yPos += 7;
+        rowIdx++;
+      });
+
+      yPos += 4;
+    });
+
+    // Legend
+    checkNewPage(20);
+    yPos += 4;
+    pdf.setDrawColor(229, 231, 235);
+    pdf.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 6;
+    pdf.setFontSize(7);
+    pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(16, 185, 129);
+    pdf.text("Vert = Food Cost renseigne", margin, yPos);
+    pdf.setTextColor(245, 158, 11);
+    pdf.text("Orange = A completer", margin + 50, yPos);
+    pdf.setTextColor(156, 163, 175);
+    pdf.text("Tous les produits actifs du catalogue sont inclus, independamment des filtres", margin, yPos + 5);
+
+    // Footer
+    pdf.setFontSize(7);
+    pdf.setTextColor(156, 163, 175);
+    pdf.text("CS Delivery - Mercuriale Food Cost", margin, pageHeight - 6);
+    const totalPages = pdf.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      pdf.setPage(p);
+      pdf.setFontSize(7);
+      pdf.setTextColor(156, 163, 175);
+      pdf.text(`Page ${p}/${totalPages}`, pageWidth - margin - 20, pageHeight - 6);
+    }
+
+    pdf.save(`mercuriale_food_cost_${new Date().toISOString().split("T")[0]}.pdf`);
+
     toast({
       title: "Export réussi",
       description: "Le fichier PDF a été téléchargé",
