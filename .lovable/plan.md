@@ -1,35 +1,37 @@
 
 
-## Configurer Villefranche : ancien UUID pour matching historique
+## Configurer Nantes : ancien UUID pour matching historique
 
 ### Contexte
-Villefranche-sur-Saone a change d'UUID Uber Eats le 08/02/2024 :
-- **Ancien** : `e1a89083-8624-54c4-9ee2-50a99b405574` (06/2023 - 02/2024, marque DEPRECATED)
-- **Actuel** : `005a2d0d-96e7-525e-ab38-41193de5cd7e` (02/2024 - aujourd'hui)
+Chicken Street - Nantes a changé d'UUID Uber Eats fin décembre 2022 :
+- **Ancien** : `0ed5bfaa-27be-446a-8c86-478238af85d2` (02/2021 - 12/2022, marqué DEPRECATED)
+- **Actuel** : `7cefab18-6a46-5203-bcbc-473c1b516ad7` (12/2022 - aujourd'hui)
 
-Actuellement, seul l'UUID actuel est configure en base. Pas de doublon detecte.
+Actuellement, seul l'UUID actuel est configuré en base. Pas de doublon détecté. Nantes Centre est un restaurant distinct, non concerné.
 
-### Actions (migration SQL uniquement, aucun code a modifier)
+### Actions (migration SQL uniquement, aucun code à modifier)
 
-**Etape 1 : Lier l'ancien UUID a la fiche principale**
+**Etape 1 : Lier l'ancien UUID à la fiche principale**
 
 ```text
 restaurant_uber_ids
 +--------------------------------------------+
-| restaurant_id : 7071835b-c364-4840-ba7e-8f252b140feb (Villefranche)
-| uber_store_id : e1a89083-8624-54c4-9ee2-50a99b405574
+| restaurant_id : 95b1acd2-8dec-47ba-b3fe-e78f877212fc (Nantes)
+| uber_store_id : 0ed5bfaa-27be-446a-8c86-478238af85d2
 | is_primary    : false
-| label         : "ancien UUID - ferme 08/02/2024"
+| label         : "ancien UUID - fermé 28/12/2022"
 +--------------------------------------------+
 ```
 
 **Etape 2 : Corriger la date d'ouverture**
-- `uber_opening_date` : de `2024-02-09` vers `2023-06-19` (date reelle de premiere commande selon le CSV)
+- `uber_opening_date` : de `2023-03-14` vers `2021-02-07` (date réelle de première commande selon le CSV)
 
 ### Impact
-- Les imports CSV historiques (juin 2023 - fevrier 2024) avec l'ancien store_id `e1a89083...` seront automatiquement rattaches au bon restaurant
-- Historique consolide sur une seule fiche
+- Les imports CSV historiques (février 2021 - décembre 2022) avec l'ancien store_id `0ed5bfaa...` seront automatiquement rattachés au bon restaurant
+- Historique consolidé sur une seule fiche
+- Nantes Centre reste inchangé
 
-### Detail technique
+### Détail technique
 - Migration SQL : INSERT dans `restaurant_uber_ids` + UPDATE de `uber_opening_date` sur `restaurants`
-- Aucune modification de code necessaire
+- Aucune modification de code nécessaire
+
