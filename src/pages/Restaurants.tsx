@@ -152,6 +152,10 @@ const Restaurants = () => {
             aVal = a.deliveroo_account_manager_name?.toLowerCase() || "";
             bVal = b.deliveroo_account_manager_name?.toLowerCase() || "";
             break;
+          case "is_succursale":
+            aVal = (a as any).is_succursale ? "1" : "0";
+            bVal = (b as any).is_succursale ? "1" : "0";
+            break;
           default:
             return 0;
         }
@@ -351,9 +355,13 @@ const Restaurants = () => {
                     <SortIcon column="deliveroo_account_manager" />
                   </div>
                 </TableHead>
-                <TableHead className="text-center">
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none text-center"
+                  onClick={() => handleSort("is_succursale")}
+                >
                   <div className="flex items-center justify-center gap-1.5">
-                    Connexions
+                    Succursale
+                    <SortIcon column="is_succursale" />
                   </div>
                 </TableHead>
                 <TableHead></TableHead>
@@ -490,56 +498,13 @@ const Restaurants = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      <div className="flex items-center justify-center gap-3">
-                        {/* Uber indicator */}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex items-center gap-1.5">
-                                <UberEatsLogo size={14} />
-                                <span 
-                                  className={`h-2 w-2 rounded-full ${
-                                    restaurant.csv_verified
-                                      ? "bg-green-500"
-                                      : restaurant.uber_store_id
-                                      ? "bg-yellow-500"
-                                      : "bg-gray-300"
-                                  }`}
-                                />
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {restaurant.csv_verified
-                                ? "Uber Eats validé"
-                                : restaurant.uber_store_id
-                                ? "Uber Eats en attente"
-                                : "Uber Eats non connecté"}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        {/* Deliveroo indicator */}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex items-center gap-1.5">
-                                <DeliverooLogo size={14} />
-                                <span 
-                                  className={`h-2 w-2 rounded-full ${
-                                    restaurant.deliveroo_store_id
-                                      ? "bg-cyan-500"
-                                      : "bg-gray-300"
-                                  }`}
-                                />
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {restaurant.deliveroo_store_id
-                                ? "Deliveroo configuré"
-                                : "Deliveroo non configuré"}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
+                      {(restaurant as any).is_succursale ? (
+                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+                          Succursale
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Franchise</span>
+                      )}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />

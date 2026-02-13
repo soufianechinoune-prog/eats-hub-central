@@ -192,16 +192,18 @@ const RestaurantDetail = () => {
         uber_closing_date: restaurant.uber_closing_date || "",
         deliveroo_opening_date: restaurant.deliveroo_opening_date || "",
         deliveroo_closing_date: restaurant.deliveroo_closing_date || "",
+        is_succursale: (restaurant as any).is_succursale ? "true" : "false",
       });
       setIsEditing(true);
     }
   };
 
   const handleSave = () => {
-    const updates: Record<string, string | null> = {};
+    const updates: Record<string, string | null | boolean> = {};
     Object.entries(formData).forEach(([key, value]) => {
-      // Format WhatsApp number before saving
-      if (key === "manager_whatsapp" && value) {
+      if (key === "is_succursale") {
+        updates[key] = value === "true";
+      } else if (key === "manager_whatsapp" && value) {
         updates[key] = formatPhoneNumber(value);
       } else {
         updates[key] = value || null;
@@ -408,6 +410,28 @@ const RestaurantDetail = () => {
             <div className="grid grid-cols-2 gap-4 pt-2">
               {renderPhoneField("Téléphone", "restaurant_phone", "01 23 45 67 89", <Phone className="h-3 w-3" />)}
               {renderField("Email", "restaurant_email", "email", "contact@restaurant.com")}
+            </div>
+            <div className="pt-2">
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Succursale</span>
+                {isEditing ? (
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={formData["is_succursale"] === "true"}
+                      onCheckedChange={(checked) => handleInputChange("is_succursale", checked ? "true" : "false")}
+                    />
+                    <span className="text-sm">{formData["is_succursale"] === "true" ? "Oui" : "Non"}</span>
+                  </div>
+                ) : (
+                  <p className="font-medium">
+                    {(restaurant as any).is_succursale ? (
+                      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">Succursale</Badge>
+                    ) : (
+                      "Franchise"
+                    )}
+                  </p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
