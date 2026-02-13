@@ -1,35 +1,34 @@
 
 
-## Export Food Cost de la Mercuriale (Excel + PDF)
+## Ajouter l'ancien UUID de Montreuil pour le matching historique
 
-L'onglet "Catalogue" dispose deja de boutons Excel et PDF, mais les exports actuels sont basiques. Je propose d'ameliorer ces exports pour qu'ils soient centres sur le Food Cost avec un format professionnel, et de s'assurer qu'ils exportent bien **tous** les produits (pas seulement les filtres actifs).
+### Contexte
+Montreuil a change d'UUID Uber Eats le 10/12/2020 :
+- **Ancien** : `f6cb4dd0-8542-40e9-87c6-1a0aa60d6076` (01/2019 - 12/2020)
+- **Actuel** : `bb1e1a0e-8d3e-4cc5-b7ad-944abfb206be` (12/2020 - aujourd'hui)
 
-### Ameliorations prevues
+Actuellement, seul l'UUID actuel est configure. Les imports de fichiers historiques (avant 12/2020) ne pourront pas matcher car l'ancien UUID n'est pas enregistre.
 
-**Export Excel :**
-- Exporter **tous les produits actifs** (ignorer les filtres de recherche/categorie pour avoir la mercuriale complete)
-- Colonnes : Produit, Categorie, Food Cost HT, TVA (%), Statut du renseignement (Renseigne / A completer)
-- Headers stylises en vert emeraude (via xlsx-js-style deja installe)
-- Lignes alternees pour la lisibilite
-- Resume en bas : nombre total, nombre renseigne, taux de completion
-- Nom du fichier : `mercuriale_food_cost_YYYY-MM-DD.xlsx`
+### Action
 
-**Export PDF :**
-- En-tete avec logo CS et titre "Mercuriale - Food Cost"
-- KPIs en haut : produits analyses, taux de completion, food cost moyen
-- Tableau complet avec code couleur (vert = renseigne, orange = manquant)
-- Groupement par categorie avec sous-totaux
-- Pagination automatique
-- Legende et pied de page
+Ajouter une entree dans `restaurant_uber_ids` pour lier l'ancien UUID au restaurant Montreuil existant :
 
-### Modifications techniques
+```text
+restaurant_uber_ids
++--------------------------------------------+
+| restaurant_id : 1ffe6efa-d318-4e0b-993a-6c55ef3e1d44 (Montreuil)
+| uber_store_id : f6cb4dd0-8542-40e9-87c6-1a0aa60d6076
+| is_primary    : false
+| label         : "ancien UUID - ferme 10/12/2020"
++--------------------------------------------+
+```
 
-**Fichier modifie : `src/pages/MenuItems.tsx`**
-- Remplacement des fonctions `exportToExcel()` et `exportToPdf()` existantes
-- Utilisation de `menuItems` (tous les produits) au lieu de `filteredItems` pour la mercuriale complete
-- Ajout du logo CS (`csLogoBase64`) deja utilise dans d'autres exports
-- Utilisation de `xlsx-js-style` (deja installe) pour le style Excel professionnel
-- Respect des standards PDF existants (pas d'emojis, pas de `toLocaleString()`)
+Mettre a jour egalement les metadonnees du restaurant :
+- `uber_opening_date` : corriger de `2019-11-07` vers `2019-01-14` (date reelle de premiere commande selon le CSV)
 
-Aucune nouvelle table ni dependance necessaire.
+### Impact
+Apres cette configuration, tout import CSV contenant l'ancien store_id `f6cb4dd0...` sera automatiquement rattache au bon restaurant Montreuil, sans intervention manuelle.
 
+### Detail technique
+- **Migration SQL** : INSERT dans `restaurant_uber_ids` + UPDATE de `uber_opening_date` sur `restaurants`
+- Aucune modification de code necessaire, le systeme de matching multi-UUID est deja en place
