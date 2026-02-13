@@ -1,40 +1,39 @@
 
 
-## Ajout de l'ancien UUID Colombes en secondaire
+## Ajout du champ "Succursale" aux restaurants
 
-### Restaurant concerne
+### Objectif
+Remplacer la colonne "Connexions" du tableau des restaurants par une colonne "Succursale" (Oui/Non), et rendre cette information editable dans la fiche du restaurant.
 
-| Champ | Valeur |
+### 1. Modification de la base de donnees
+Ajouter une colonne `is_succursale` (boolean, defaut `false`) a la table `restaurants` :
+
+```sql
+ALTER TABLE restaurants ADD COLUMN is_succursale boolean DEFAULT false;
+```
+
+### 2. Page liste des restaurants (`src/pages/Restaurants.tsx`)
+- Remplacer l'en-tete "Connexions" par "Succursale"
+- Remplacer le contenu de la cellule (logos Uber/Deliveroo avec pastilles) par un badge :
+  - **Oui** : Badge vert "Succursale"
+  - **Non** : Affichage "-" ou badge discret "Franchise"
+- Ajouter le tri sur cette colonne
+
+### 3. Fiche restaurant (`src/pages/RestaurantDetail.tsx`)
+- Ajouter le champ "Succursale" dans la carte "Informations generales"
+- En mode lecture : afficher "Oui" ou "Non"
+- En mode edition : afficher un Switch (toggle) pour basculer entre succursale et franchise
+- Inclure `is_succursale` dans le `formData` et dans la logique de sauvegarde
+
+### 4. Formulaire de creation (`src/components/restaurants/RestaurantFormDialog.tsx`)
+- Ajouter un toggle "Succursale" dans la section "Informations generales"
+- Inclure `is_succursale` dans le formulaire et l'insertion en base
+
+### Resume des fichiers modifies
+| Fichier | Modification |
 |---|---|
-| Restaurant | Chicken Street - Colombes |
-| ID interne | 0d9ed512-8795-4c4c-a99d-3243de95d95f |
-| UUID actif (principal) | 7ef325e8-0c56-564f-b677-5f7c2b60e674 |
-
-### Action
-
-Inserer l'ancien UUID comme entree secondaire dans `restaurant_uber_ids` :
-
-```sql
-INSERT INTO restaurant_uber_ids (restaurant_id, uber_store_id, is_primary, label)
-VALUES (
-  '0d9ed512-8795-4c4c-a99d-3243de95d95f',
-  'dca44878-e375-41b9-8580-39f930697916',
-  false,
-  'ancien compte (ferme 2025-06-11)'
-);
-```
-
-Mettre a jour `uber_opening_date` du restaurant pour refleter la date d'ouverture de l'ancien compte (ouvert depuis 2019 selon le CSV) :
-
-```sql
-UPDATE restaurants
-SET uber_opening_date = '2019-09-12'
-WHERE id = '0d9ed512-8795-4c4c-a99d-3243de95d95f';
-```
-
-### Resultat attendu
-
-- L'ancien UUID sera reconnu automatiquement lors d'imports de rapports historiques
-- La date d'ouverture refletera l'historique complet du restaurant
-- Aucune modification de code necessaire
+| Migration SQL | Ajout colonne `is_succursale` |
+| `src/pages/Restaurants.tsx` | Colonne "Connexions" remplacee par "Succursale" |
+| `src/pages/RestaurantDetail.tsx` | Champ succursale en lecture/edition |
+| `src/components/restaurants/RestaurantFormDialog.tsx` | Toggle succursale dans le formulaire de creation |
 
