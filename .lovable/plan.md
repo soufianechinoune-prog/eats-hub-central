@@ -1,36 +1,35 @@
 
 
-## Configurer Meaux : ancien UUID pour matching historique
+## Creer Chicken Street - Creteil en base
 
 ### Contexte
-Chicken Street - Meaux a change d'UUID Uber Eats le 18/06/2024 :
-- **Ancien** : `d369c6e7-a2c1-5788-b5ea-ffbaf3202d72` (10/2021 - 06/2024, marque DEPRECATED)
-- **Actuel** : `23243ab1-ded7-5656-a581-8cc9d1a3b0c4` (06/2024 - aujourd'hui)
+Creteil (ligne 114 du CSV) est un nouveau restaurant pas encore ouvert, en statut "waiting for activation" sur Uber Eats. Il a deja un UUID attribue. L'objectif est de le pre-configurer en base pour que les futurs imports de rapports le reconnaissent automatiquement.
 
-Actuellement, seul l'UUID actuel est configure en base. Pas de doublon detecte.
+### Donnees a inserer
 
-### Actions (migration SQL uniquement, aucun code a modifier)
+**Table `restaurants`** (nouvelle ligne) :
 
-**Etape 1 : Lier l'ancien UUID a la fiche principale**
+| Champ | Valeur |
+|---|---|
+| name | Chicken Street - Creteil |
+| chain_id | 110e05b8-5136-45cc-a385-265360104844 (Chicken Street) |
+| uber_store_id | 494adb5f-e40b-5dea-b00c-15ca91f754ae |
+| address | 126 avenue du Marechal Foch, Creteil |
+| postal_code | 94000 |
+| uber_opening_date | NULL (pas encore ouvert) |
 
-```text
-restaurant_uber_ids
-+--------------------------------------------+
-| restaurant_id : 3103038f-800f-4d79-b637-88a68aae39b7 (Meaux)
-| uber_store_id : d369c6e7-a2c1-5788-b5ea-ffbaf3202d72
-| is_primary    : false
-| label         : "ancien UUID - ferme 18/06/2024"
-+--------------------------------------------+
-```
+**Table `restaurant_uber_ids`** (mapping UUID) :
 
-**Etape 2 : Corriger la date d'ouverture**
-- `uber_opening_date` : de `2022-09-29` vers `2021-10-27` (date reelle de premiere commande selon le CSV)
-
-### Impact
-- Les imports CSV historiques (octobre 2021 - juin 2024) avec l'ancien store_id `d369c6e7...` seront automatiquement rattaches au bon restaurant
-- Historique consolide sur une seule fiche
+| Champ | Valeur |
+|---|---|
+| restaurant_id | (ID genere ci-dessus) |
+| uber_store_id | 494adb5f-e40b-5dea-b00c-15ca91f754ae |
+| is_primary | true |
+| label | NULL |
 
 ### Detail technique
-- Migration SQL : INSERT dans `restaurant_uber_ids` + UPDATE de `uber_opening_date` sur `restaurants`
+- INSERT dans `restaurants` avec le chain_id Chicken Street existant
+- INSERT dans `restaurant_uber_ids` pour le mapping UUID
 - Aucune modification de code necessaire
+- Quand le restaurant ouvrira et que les premiers rapports seront importes, les donnees seront automatiquement rattachees a cette fiche
 
