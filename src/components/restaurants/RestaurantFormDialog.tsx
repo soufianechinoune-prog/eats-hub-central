@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { Switch } from "@/components/ui/switch";
 import { Plus, Building2, User, Tablet, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +43,7 @@ interface RestaurantForm {
   uber_closing_date: string;
   deliveroo_opening_date: string;
   deliveroo_closing_date: string;
+  is_succursale: boolean;
 }
 
 const initialFormState: RestaurantForm = {
@@ -70,6 +72,7 @@ const initialFormState: RestaurantForm = {
   uber_closing_date: "",
   deliveroo_opening_date: "",
   deliveroo_closing_date: "",
+  is_succursale: false,
 };
 
 interface RestaurantFormDialogProps {
@@ -148,6 +151,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
       uber_closing_date: newRestaurant.uber_closing_date || null,
       deliveroo_opening_date: newRestaurant.deliveroo_opening_date || null,
       deliveroo_closing_date: newRestaurant.deliveroo_closing_date || null,
+      is_succursale: newRestaurant.is_succursale,
       is_active: true,
     });
 
@@ -210,6 +214,14 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
                   onChange={(e) => handleInputChange("siren", e.target.value)}
                 />
               </div>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
+              <Switch
+                id="is_succursale"
+                checked={newRestaurant.is_succursale}
+                onCheckedChange={(checked) => setNewRestaurant(prev => ({ ...prev, is_succursale: checked }))}
+              />
+              <Label htmlFor="is_succursale">Succursale</Label>
             </div>
             <div className="space-y-2">
               <Label htmlFor="street">Rue</Label>

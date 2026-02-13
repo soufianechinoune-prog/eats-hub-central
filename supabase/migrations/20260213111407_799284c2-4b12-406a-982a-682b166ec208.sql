@@ -1,0 +1,1 @@
+ALTER TABLE public.restaurants ADD COLUMN is_succursale boolean DEFAULT false;

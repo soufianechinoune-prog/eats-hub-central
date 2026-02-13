@@ -2559,6 +2559,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_pinned: boolean | null
+          is_succursale: boolean | null
           latitude: number | null
           longitude: number | null
           manager_first_name: string | null
@@ -2600,6 +2601,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_pinned?: boolean | null
+          is_succursale?: boolean | null
           latitude?: number | null
           longitude?: number | null
           manager_first_name?: string | null
@@ -2641,6 +2643,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_pinned?: boolean | null
+          is_succursale?: boolean | null
           latitude?: number | null
           longitude?: number | null
           manager_first_name?: string | null
