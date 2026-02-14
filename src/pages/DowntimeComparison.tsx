@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, FileDown, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, FileDown, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DowntimeRankingBars } from "@/components/compare/DowntimeRankingBars";
 import { DowntimeInsightsSection } from "@/components/compare/DowntimeInsightsSection";
@@ -55,6 +56,22 @@ const DowntimeComparison = () => {
   );
 
   const { exportPdf, exportExcel, isExporting } = useDowntimeExport();
+
+  // Fetch earliest available data date
+  const { data: earliestDate } = useQuery({
+    queryKey: ["downtime-earliest-date"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("hourly_availability")
+        .select("hour_start")
+        .eq("platform", "uber_eats")
+        .order("hour_start", { ascending: true })
+        .limit(1);
+      return data?.[0]?.hour_start ? parseISO(data[0].hour_start) : null;
+    },
+  });
+
+
   // Persist state to localStorage
   useEffect(() => {
     const state = {
@@ -119,6 +136,14 @@ const DowntimeComparison = () => {
     
     return { start, end };
   }, [periodMode, selectedYear, selectedMonth, customDateRange]);
+
+  // Determine alert type based on data coverage
+  const dataAlert = useMemo(() => {
+    if (!earliestDate) return null;
+    if (dateRange.end < earliestDate) return "full";
+    if (dateRange.start < earliestDate) return "partial";
+    return null;
+  }, [earliestDate, dateRange]);
 
   // Fetch pinned restaurants with activity dates
   const { data: pinnedRestaurantsRaw } = useQuery({
@@ -362,6 +387,20 @@ const DowntimeComparison = () => {
             />
           </div>
         </div>
+
+        {dataAlert && (
+          <Alert variant="destructive" className="border-orange-500/50 bg-orange-50 text-orange-900 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-500/30">
+            <AlertTriangle className="h-4 w-4 !text-orange-600 dark:!text-orange-400" />
+            <AlertTitle>
+              {dataAlert === "full" ? "Aucune donnée disponible" : "Historique limité"}
+            </AlertTitle>
+            <AlertDescription>
+              {dataAlert === "full"
+                ? "Aucun historique de disponibilité Uber Eats n'a été importé pour cette période. Les résultats affichés ne sont pas exploitables."
+                : `Les données de disponibilité Uber Eats ne sont disponibles qu'à partir du ${earliestDate ? format(earliestDate, "d MMMM yyyy", { locale: fr }) : "—"}. Les résultats affichés pour la période antérieure peuvent être incomplets ou non représentatifs.`}
+            </AlertDescription>
+          </Alert>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
