@@ -22,20 +22,18 @@ export function useAnalyticsPdfExport() {
     setIsExporting(true);
 
     try {
-      // Create canvas from the content
       const canvas = await html2canvas(contentRef, {
-        scale: 2,
+        scale: 1.5,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false,
       });
 
-      const imgData = canvas.toDataURL("image/png");
+      const imgData = canvas.toDataURL("image/jpeg", 0.75);
       
-      // Create PDF
       const pdf = new jsPDF({
-        orientation: "landscape",
+        orientation: "portrait",
         unit: "mm",
         format: "a4",
       });
@@ -43,72 +41,81 @@ export function useAnalyticsPdfExport() {
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 15;
+      const headerHeight = 42;
+      const footerHeight = 12;
 
-      // Header section
-      pdf.setFillColor(16, 185, 129); // emerald-500
+      // Image dimensions scaled to page width
+      const contentWidth = pageWidth - margin * 2;
+      const scaledImgHeight = (canvas.height * contentWidth) / canvas.width;
+
+      // Calculate pagination
+      const firstPageContentHeight = pageHeight - headerHeight - footerHeight;
+      const normalPageContentHeight = pageHeight - margin - footerHeight;
+      const totalPages = Math.max(1, 1 + Math.ceil(Math.max(0, scaledImgHeight - firstPageContentHeight) / normalPageContentHeight));
+
+      const drawFooter = (page: number) => {
+        pdf.setDrawColor(229, 231, 235);
+        pdf.line(margin, pageHeight - 8, pageWidth - margin, pageHeight - 8);
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(156, 163, 175);
+        pdf.text("CS Delivery Performance - Rapport Analytics", margin, pageHeight - 4);
+        const pageText = `Page ${page}/${totalPages}`;
+        pdf.text(pageText, pageWidth - margin - pdf.getTextWidth(pageText), pageHeight - 4);
+      };
+
+      // --- Page 1: Header + start of content ---
+      // Header bar
+      pdf.setFillColor(16, 185, 129);
       pdf.rect(0, 0, pageWidth, 25, "F");
-
-      // Title
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(18);
       pdf.setFont("helvetica", "bold");
       pdf.text(options.title, margin, 12);
-
-      // Subtitle
       pdf.setFontSize(10);
       pdf.setFont("helvetica", "normal");
       pdf.text(options.subtitle, margin, 19);
-
-      // Platform badge
-      pdf.setFontSize(10);
       pdf.text(options.platform, pageWidth - margin - pdf.getTextWidth(options.platform), 12);
 
-      // Meta info bar
-      pdf.setFillColor(249, 250, 251); // gray-50
+      // Meta bar
+      pdf.setFillColor(249, 250, 251);
       pdf.rect(0, 25, pageWidth, 12, "F");
-      
-      pdf.setTextColor(107, 114, 128); // gray-500
+      pdf.setTextColor(107, 114, 128);
       pdf.setFontSize(9);
-      pdf.text(`Période: ${options.period}`, margin, 32);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(`Periode: ${options.period}`, margin, 32);
       pdf.text(`Restaurants: ${options.restaurants}`, pageWidth / 2, 32);
-      
-      // Generated date
       const dateStr = new Date().toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+        day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
       });
-      pdf.text(`Généré le ${dateStr}`, pageWidth - margin - pdf.getTextWidth(`Généré le ${dateStr}`), 32);
+      pdf.text(`Genere le ${dateStr}`, pageWidth - margin - pdf.getTextWidth(`Genere le ${dateStr}`), 32);
 
-      // Content
-      const contentY = 42;
-      const contentWidth = pageWidth - margin * 2;
-      const contentHeight = pageHeight - contentY - margin;
-      
-      // Calculate image dimensions maintaining aspect ratio
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(contentWidth / imgWidth, contentHeight / imgHeight);
-      const scaledWidth = imgWidth * ratio;
-      const scaledHeight = imgHeight * ratio;
+      // Slice and render image across pages
+      let yOffset = 0; // how much of the image has been placed
 
-      // Center the image
-      const xOffset = margin + (contentWidth - scaledWidth) / 2;
-      
-      pdf.addImage(imgData, "PNG", xOffset, contentY, scaledWidth, scaledHeight);
+      for (let page = 1; page <= totalPages; page++) {
+        const startY = page === 1 ? headerHeight : margin;
+        const availableHeight = page === 1 ? firstPageContentHeight : normalPageContentHeight;
+        const sliceHeight = Math.min(availableHeight, scaledImgHeight - yOffset);
 
-      // Footer
-      pdf.setDrawColor(229, 231, 235); // gray-200
-      pdf.line(margin, pageHeight - 8, pageWidth - margin, pageHeight - 8);
-      
-      pdf.setFontSize(8);
-      pdf.setTextColor(156, 163, 175); // gray-400
-      pdf.text("CS Delivery Performance - Rapport Analytics", margin, pageHeight - 4);
-      pdf.text("Page 1/1", pageWidth - margin - pdf.getTextWidth("Page 1/1"), pageHeight - 4);
+        if (sliceHeight > 0) {
+          // We place the full image but clip it via positioning
+          // addImage with negative y to shift already-rendered content above the visible area
+          pdf.addImage(
+            imgData, "JPEG",
+            margin, startY - yOffset,
+            contentWidth, scaledImgHeight
+          );
+        }
 
-      // Save
+        drawFooter(page);
+        yOffset += availableHeight;
+
+        if (page < totalPages) {
+          pdf.addPage();
+        }
+      }
+
       const filename = `analytics_${options.platform.toLowerCase().replace(/\s+/g, "_")}_${options.period.replace(/\s+/g, "_")}.pdf`;
       pdf.save(filename);
     } catch (error) {
