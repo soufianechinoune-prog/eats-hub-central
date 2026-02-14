@@ -388,26 +388,33 @@ const DowntimeComparison = () => {
           </div>
         </div>
 
-        {dataAlert && (
-          <Alert variant="destructive" className="border-orange-500/50 bg-orange-50 text-orange-900 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-500/30">
-            <AlertTriangle className="h-4 w-4 !text-orange-600 dark:!text-orange-400" />
-            <AlertTitle>
-              {dataAlert === "full" ? "Aucune donnée disponible" : "Historique limité"}
-            </AlertTitle>
-            <AlertDescription>
-              {dataAlert === "full"
-                ? "Aucun historique de disponibilité Uber Eats n'a été importé pour cette période. Les résultats affichés ne sont pas exploitables."
-                : `Les données de disponibilité Uber Eats ne sont disponibles qu'à partir du ${earliestDate ? format(earliestDate, "d MMMM yyyy", { locale: fr }) : "—"}. Les résultats affichés pour la période antérieure peuvent être incomplets ou non représentatifs.`}
-            </AlertDescription>
-          </Alert>
-        )}
-
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
+        ) : dataAlert === "full" ? (
+          <div className="flex flex-col items-center justify-center h-80 text-center space-y-4">
+            <AlertTriangle className="h-12 w-12 text-orange-500" />
+            <h2 className="text-xl font-semibold">Aucune donnée disponible</h2>
+            <p className="text-muted-foreground max-w-md">
+              Aucun historique de disponibilité Uber Eats n'a été importé pour cette période.
+              {earliestDate && (
+                <> Les données ne sont disponibles qu'à partir du {format(earliestDate, "d MMMM yyyy", { locale: fr })}.</>
+              )}
+            </p>
+          </div>
         ) : (
           <div className="grid gap-6">
+            {dataAlert === "partial" && (
+              <Alert variant="destructive" className="border-orange-500/50 bg-orange-50 text-orange-900 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-500/30">
+                <AlertTriangle className="h-4 w-4 !text-orange-600 dark:!text-orange-400" />
+                <AlertTitle>Historique limité</AlertTitle>
+                <AlertDescription>
+                  Les données de disponibilité Uber Eats ne sont disponibles qu'à partir du {earliestDate ? format(earliestDate, "d MMMM yyyy", { locale: fr }) : "—"}. Les résultats affichés pour la période antérieure peuvent être incomplets ou non représentatifs.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Insights Section */}
             <DowntimeInsightsSection stats={restaurantStats} period={periodMode} />
 
