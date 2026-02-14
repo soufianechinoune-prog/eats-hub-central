@@ -1,13 +1,20 @@
 
-# Ajouter le toggle Epingles/Reseau au niveau global de la page Analytics
+# Aligner les barres de progression du classement Uber One
 
-## Statut: ✅ Implémenté
+## Probleme
 
-Le `NetworkViewToggle` est désormais dans le bandeau `AnalyticsHeader` et influence tous les onglets Analytics via `AnalyticsContext.isNetworkView`.
+Les noms de restaurants ont des longueurs variables (ex: "CS - DIJON" vs "CS - VILLEFRANCHE-SUR-SAONE"), ce qui decale le debut des barres de progression. Le `min-w-[140px]` actuel ne suffit pas pour les noms longs.
 
-### Fichiers modifiés
-- `src/contexts/AnalyticsContext.tsx` - ajout `isNetworkView` + persistance localStorage
-- `src/components/analytics/AnalyticsHeader.tsx` - toggle dans le bandeau + comptages pinned/actifs
-- `src/components/analytics/OperationsAnalytics.tsx` - filtre réactif au toggle
-- `src/components/analytics/UberOneAnalysis.tsx` - supprimé le toggle local, utilise le contexte
-- `src/pages/Analytics.tsx` - restaurantFilter réactif au toggle
+## Solution
+
+Remplacer `min-w-[140px]` par une largeur fixe `w-[200px]` et ajouter `shrink-0` sur le conteneur du nom, pour que tous les noms occupent exactement le meme espace. Les noms trop longs seront tronques avec `truncate` (deja en place).
+
+## Modification
+
+### Fichier : `src/components/analytics/UberOneAnalysis.tsx` (ligne 540)
+
+Changer la classe du `span` contenant le nom du restaurant :
+- Avant : `min-w-[140px] truncate`
+- Apres : `w-[200px] shrink-0 truncate`
+
+Cela garantit que toutes les barres de progression commencent exactement au meme endroit, independamment de la longueur du nom.
