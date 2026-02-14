@@ -36,18 +36,21 @@ function isActiveForPeriod(
 ): boolean {
   const startStr = formatDateLocal(startDate);
   const endStr = formatDateLocal(endDate);
-  
-  // Uber Eats: active if (opening null OR opening <= end) AND (closing null OR closing >= start)
-  const uberActive = 
+
+  const uberConfigured = !!restaurant.uber_opening_date || !!restaurant.uber_closing_date;
+  const deliverooConfigured = !!restaurant.deliveroo_opening_date || !!restaurant.deliveroo_closing_date;
+
+  // If no platform is configured at all, consider always active (backward compat)
+  if (!uberConfigured && !deliverooConfigured) return true;
+
+  const uberActive = uberConfigured &&
     (!restaurant.uber_opening_date || restaurant.uber_opening_date <= endStr) &&
     (!restaurant.uber_closing_date || restaurant.uber_closing_date >= startStr);
-  
-  // Deliveroo: same logic
-  const deliverooActive = 
+
+  const deliverooActive = deliverooConfigured &&
     (!restaurant.deliveroo_opening_date || restaurant.deliveroo_opening_date <= endStr) &&
     (!restaurant.deliveroo_closing_date || restaurant.deliveroo_closing_date >= startStr);
-  
-  // Include if at least one platform was active
+
   return uberActive || deliverooActive;
 }
 
