@@ -28,6 +28,8 @@ interface AnalyticsContextType {
   setComparisonMode: (mode: ComparisonMode) => void;
   profitabilityBase: ProfitabilityBase;
   setProfitabilityBase: (base: ProfitabilityBase) => void;
+  isNetworkView: boolean;
+  setIsNetworkView: (value: boolean) => void;
   isInitialized: boolean;
 }
 
@@ -95,6 +97,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     () => storedState?.profitabilityBase || "gross"
   );
 
+  const [isNetworkView, setIsNetworkView] = useState<boolean>(
+    () => storedState?.isNetworkView || false
+  );
+
   // Track if initial mount is complete to prevent saving during hydration
   const hasMounted = useRef(false);
 
@@ -147,6 +153,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       periodMode,
       comparisonMode,
       profitabilityBase,
+      isNetworkView,
       dateRange: dateRange
         ? {
             from: dateRange.from?.toISOString(),
@@ -166,6 +173,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     dateRange,
     comparisonMode,
     profitabilityBase,
+    isNetworkView,
   ]);
 
   const value = {
@@ -190,6 +198,8 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setComparisonMode,
     profitabilityBase,
     setProfitabilityBase,
+    isNetworkView,
+    setIsNetworkView,
     isInitialized: true, // Always true now since provider is stable
   };
 

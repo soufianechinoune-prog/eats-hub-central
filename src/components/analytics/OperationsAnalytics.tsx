@@ -46,6 +46,7 @@ export function OperationsAnalytics() {
     setPeriodMode,
     setSelectedMonth,
     dateRange: contextDateRange,
+    isNetworkView,
   } = useAnalyticsContext();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -113,7 +114,35 @@ export function OperationsAnalytics() {
                        periodMode === "range";
 
   const platformFilter = (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") ? selectedPlatform : null;
-  const restaurantIdsFilter = selectedRestaurants.length > 0 ? selectedRestaurants : null;
+
+  // Fetch restaurants for names and pinned status (must be before queries that use restaurantIdsFilter)
+  const { data: restaurants } = useQuery({
+    queryKey: ["restaurants_for_ops"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name, is_pinned, is_active");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const restaurantMap = useMemo(() => {
+    const map = new Map<string, string>();
+    restaurants?.forEach((r) => map.set(r.id, r.name));
+    return map;
+  }, [restaurants]);
+
+  // Compute restaurant filter based on network view toggle
+  const pinnedIds = useMemo(() => 
+    restaurants?.filter(r => r.is_pinned && r.is_active).map(r => r.id) || []
+  , [restaurants]);
+  
+  const restaurantIdsFilter = useMemo(() => {
+    if (selectedRestaurants.length > 0) return selectedRestaurants;
+    if (isNetworkView) return null; // all restaurants
+    return pinnedIds.length > 0 ? pinnedIds : null;
+  }, [selectedRestaurants, isNetworkView, pinnedIds]);
 
   // Fetch monthly availability via RPC (year view)
   const { data: monthlyRpcData, isLoading: isLoadingMonthly } = useQuery({
@@ -202,23 +231,6 @@ export function OperationsAnalytics() {
 
   const isLoading = isLoadingMonthly || isLoadingDaily || isLoadingDay;
 
-  // Fetch restaurants for names
-  const { data: restaurants } = useQuery({
-    queryKey: ["restaurants_for_ops"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const restaurantMap = useMemo(() => {
-    const map = new Map<string, string>();
-    restaurants?.forEach((r) => map.set(r.id, r.name));
-    return map;
-  }, [restaurants]);
 
   // Calculate KPIs from RPC data
   const kpis = useMemo(() => {

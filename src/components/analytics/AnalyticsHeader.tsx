@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
 
@@ -68,6 +69,8 @@ export function AnalyticsHeader() {
     setDateRange,
     comparisonMode,
     setComparisonMode,
+    isNetworkView,
+    setIsNetworkView,
   } = useAnalyticsContext();
 
   const [restaurantOpen, setRestaurantOpen] = useState(false);
@@ -93,12 +96,21 @@ export function AnalyticsHeader() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, city, is_pinned")
+        .select("id, name, city, is_pinned, is_active")
         .order("name");
       if (error) throw error;
       return data;
     },
   });
+
+  // Counts for NetworkViewToggle badges
+  const pinnedCount = useMemo(() => 
+    restaurants?.filter(r => r.is_pinned && r.is_active).length || 0
+  , [restaurants]);
+
+  const networkCount = useMemo(() => 
+    restaurants?.filter(r => r.is_active).length || 0
+  , [restaurants]);
 
   // Clean up invalid restaurant IDs when restaurants are loaded
   useEffect(() => {
@@ -406,8 +418,15 @@ export function AnalyticsHeader() {
           </Button>
         </div>
 
+        {/* Network View Toggle */}
+        <NetworkViewToggle
+          isNetworkView={isNetworkView}
+          onToggle={setIsNetworkView}
+          pinnedCount={pinnedCount}
+          networkCount={networkCount}
+        />
 
-        {/* Period Selector */}
+
         <div className="flex items-center gap-2">
           <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
             <PopoverTrigger asChild>

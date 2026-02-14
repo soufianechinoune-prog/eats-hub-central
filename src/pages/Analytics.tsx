@@ -58,6 +58,7 @@ export default function Analytics() {
     setSelectedMonth,
     comparisonMode,
     setComparisonMode,
+    isNetworkView,
   } = useAnalyticsContext();
 
   const [chartActionsConfig, setChartActionsConfig] = useState<ChartActionsConfig>(() => {
@@ -254,7 +255,17 @@ export default function Analytics() {
   const { footballEvents, loading: footballLoading } = useFootballMatches(selectedYear, selectedRestaurantsData, showFootballMatches);
 
   // Build filter for restaurants
-  const restaurantFilter = selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
+  // When isNetworkView is OFF and no manual selection: use pinned restaurant IDs
+  // When isNetworkView is ON and no manual selection: undefined = all restaurants
+  const pinnedRestaurantIds = useMemo(() => 
+    restaurants?.filter(r => r.is_pinned).map(r => r.id) || []
+  , [restaurants]);
+  
+  const restaurantFilter = useMemo(() => {
+    if (selectedRestaurants.length > 0) return selectedRestaurants;
+    if (isNetworkView) return undefined; // all restaurants
+    return pinnedRestaurantIds.length > 0 ? pinnedRestaurantIds : undefined;
+  }, [selectedRestaurants, isNetworkView, pinnedRestaurantIds]);
 
   // Fetch payouts data from payouts table (aggregated by month)
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
