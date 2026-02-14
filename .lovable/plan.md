@@ -1,39 +1,52 @@
 
-# Activer le sampling et le chunking pour les commandes incorrectes
+# Correction des erreurs d'import des commandes incorrectes
 
-## Probleme
+## Problemes identifies
 
-Le sampling (1 000 lignes pour validation) et le chunking (15 000 lignes par batch pour l'import) ne sont actuellement actives que pour le type `order_history`. Le fichier de commandes incorrectes (24 500 lignes) est envoye en un seul bloc, ce qui cause soit un timeout de l'Edge Function, soit un depassement memoire, resultant en seulement 1 000 lignes detectees au lieu de 24 514.
+### 1. 500 erreurs : incompatibilite NULL dans l'upsert
+L'index unique en base utilise `COALESCE(item_title, '')` mais le code envoie `item_title: null` quand il n'y a pas d'article. PostgreSQL ne peut pas resoudre le conflit avec des valeurs NULL (NULL != NULL en SQL), donc l'upsert echoue pour toutes les lignes sans item.
 
-## Solution
+### 2. 393 ignorees : restaurants non trouves
+Certaines lignes du CSV contiennent des noms de restaurants qui ne matchent pas avec la base. Le matching actuel normalise le nom et cherche une correspondance exacte ou partielle via "Chicken Street - [ville]". Si le nom dans le CSV differe (accents, tirets, espaces), le match echoue.
 
-Etendre le mecanisme de sampling + chunking existant aux imports de type `inaccurate_orders` (et potentiellement aux autres gros types de rapports).
+### 3. Mauvaise agregation des resultats par chunk
+Le code de chunking (initialement ecrit pour `order_history`) cherche les donnees aux mauvais chemins dans la reponse du parser `inaccurate_orders` :
+- `chunkResult.errors` au lieu de `chunkResult.errorDetails`
+- `chunkResult.restaurants` au lieu de `chunkResult.validation.restaurants`
+- `chunkResult.dateRange` au lieu de `chunkResult.validation.dateRange`
 
-## Details techniques
+## Corrections prevues
+
+### Fichier : `supabase/functions/parse-inaccurate-orders/index.ts`
+
+**Correction 1 - NULL -> chaine vide** (ligne 345) :
+```text
+// AVANT
+item_title: itemTitle || null,
+
+// APRES
+item_title: itemTitle || '',
+```
+Cela garantit que la valeur correspond au `COALESCE(item_title, '')` de l'index unique.
+
+**Correction 2 - Meilleur matching des restaurants** :
+Ajouter un matching par `uber_store_id` si la colonne "ID restaurant" ou "Store ID" est presente dans le CSV, et ameliorer le matching partiel pour gerer les variations courantes (accents, tirets, espaces supplementaires).
 
 ### Fichier : `src/pages/ReportImport.tsx`
 
-#### 1. Validation (dryRun) - lignes ~743-754
-
-Remplacer la condition `reportType === "order_history"` par une liste de types supportant les gros fichiers :
-
+**Correction 3 - Agregation des chunks** (lignes ~972-998) :
+Adapter le code de chunking pour lire les donnees au bon chemin selon le type de rapport :
 ```text
-const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders"];
-
-if (LARGE_FILE_REPORT_TYPES.includes(reportType)) {
-  // sampling des 1000 premieres lignes pour validation
-  // + ajustement du totalRows affiche
-}
+// Pour inaccurate_orders, les donnees sont dans validation.*
+const restaurants = chunkResult.validation?.restaurants || chunkResult.restaurants || [];
+const dateRange = chunkResult.validation?.dateRange || chunkResult.dateRange;
+const errors = chunkResult.errorDetails || chunkResult.errors || [];
 ```
 
-#### 2. Import reel (chunking) - ligne ~906
+## Resume des changements
 
-Meme modification pour la condition de chunking :
-
-```text
-const needsChunking = LARGE_FILE_REPORT_TYPES.includes(reportType) && dataLinesCount > CHUNK_SIZE;
-```
-
-Ces deux changements suffisent a reutiliser toute l'infrastructure de chunking existante (barre de progression, agregation des stats, gestion des erreurs par chunk) pour les commandes incorrectes.
-
-Aucun changement cote Edge Function n'est necessaire : le parser `parse-inaccurate-orders` recoit deja des morceaux de CSV et fonctionne correctement par batch grace a l'upsert.
+| Fichier | Changement | Impact |
+|---------|-----------|--------|
+| Edge Function `parse-inaccurate-orders` | `item_title` : null -> '' | Elimine les 500 erreurs d'upsert |
+| Edge Function `parse-inaccurate-orders` | Matching restaurant ameliore | Reduit les 393 ignorees |
+| `ReportImport.tsx` | Chemins d'agregation adaptes | Affichage correct des stats et erreurs par chunk |
