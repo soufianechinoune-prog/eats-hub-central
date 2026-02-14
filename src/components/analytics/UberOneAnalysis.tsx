@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Users, TrendingUp, TrendingDown, Minus, Crown, BarChart3, LineChartIcon, AlertTriangle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, Users, TrendingUp, TrendingDown, Minus, Crown, BarChart3, LineChartIcon, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, startOfWeek } from "date-fns";
 import {
   LineChart,
@@ -14,10 +15,6 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
-  LabelList,
   Legend,
 } from "recharts";
 import {
@@ -47,6 +44,8 @@ const RESTAURANT_COLORS = [
 ];
 
 type ChartMode = "average" | "detailed";
+type SortField = "name" | "uberOnePct" | "uberOneCount" | "nonUberOneCount" | "totalOrders" | "uberOneBasket" | "nonUberOneBasket";
+type SortDir = "asc" | "desc";
 
 export function UberOneAnalysis() {
   const {
@@ -71,6 +70,8 @@ export function UberOneAnalysis() {
   }, [selectedRestaurants]);
 
   const [chartMode, setChartMode] = useState<ChartMode>("average");
+  const [sortField, setSortField] = useState<SortField>("uberOnePct");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   // Calculate date range based on period mode
   const { startDate, endDate } = useMemo(() => {
@@ -181,6 +182,23 @@ export function UberOneAnalysis() {
   // Can show detailed view?
   const canShowDetailed = hasMultipleRestaurants || byRestaurant.length > 1;
 
+  // Sorted restaurants for ranking table (must be before early returns)
+  const sortedRestaurants = useMemo(() => {
+    return [...byRestaurant].sort((a, b) => {
+      const mod = sortDir === "asc" ? 1 : -1;
+      switch (sortField) {
+        case "name": return mod * a.restaurantName.localeCompare(b.restaurantName);
+        case "uberOnePct": return mod * (a.uberOnePercent - b.uberOnePercent);
+        case "uberOneCount": return mod * (a.uberOneCount - b.uberOneCount);
+        case "nonUberOneCount": return mod * (a.nonUberOneCount - b.nonUberOneCount);
+        case "totalOrders": return mod * (a.totalOrders - b.totalOrders);
+        case "uberOneBasket": return mod * (a.uberOneBasket - b.uberOneBasket);
+        case "nonUberOneBasket": return mod * (a.nonUberOneBasket - b.nonUberOneBasket);
+        default: return 0;
+      }
+    });
+  }, [byRestaurant, sortField, sortDir]);
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-20">
@@ -209,13 +227,6 @@ export function UberOneAnalysis() {
     },
   };
 
-  const restaurantChartConfig = {
-    uberOnePercent: {
-      label: "% Uber One",
-      color: "hsl(var(--chart-1))",
-    },
-  };
-
   const getDiffIcon = (diff: number) => {
     if (diff > 1) return <TrendingUp className="h-4 w-4 text-chart-2" />;
     if (diff < -1) return <TrendingDown className="h-4 w-4 text-destructive" />;
@@ -225,7 +236,24 @@ export function UberOneAnalysis() {
   const formatValue = (value: number, unit: string) => {
     if (unit === "€") return `${value.toFixed(2)} €`;
     if (unit === "min") return `${value.toFixed(1)} min`;
+    if (unit === "%") return `${value.toFixed(1)}%`;
     return value.toLocaleString("fr-FR");
+  };
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDir === "asc" 
+      ? <ArrowUp className="h-3 w-3 ml-1" /> 
+      : <ArrowDown className="h-3 w-3 ml-1" />;
   };
 
   return (
@@ -417,146 +445,163 @@ export function UberOneAnalysis() {
         </Card>
       </div>
 
-      {/* Bottom Section: Restaurant Comparison + Behavior Table */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Restaurant Ranking - Only show if more than 1 restaurant */}
-        {byRestaurant.length > 1 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Comparaison par restaurant</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Alert if majority of restaurants have insufficient data */}
-              {byRestaurant.filter(r => !r.isSignificant).length > byRestaurant.length / 2 && (
-                <Alert variant="default" className="mb-4">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    Données insuffisantes sur cette période (&lt;{SIGNIFICANCE_THRESHOLD} commandes). Les pourcentages peuvent être peu représentatifs.
-                  </AlertDescription>
-                </Alert>
-              )}
-              <ChartContainer config={restaurantChartConfig} className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={byRestaurant}
-                    layout="vertical"
-                    margin={{ top: 10, right: 60, left: 10, bottom: 10 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                    <XAxis
-                      type="number"
-                      domain={[0, 100]}
-                      tickFormatter={(v) => `${v}%`}
-                      tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="restaurantName"
-                      tick={{ fontSize: 12, fill: "hsl(var(--foreground))" }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={100}
-                    />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          formatter={(value, name, props) => [
-                            `${Number(value).toFixed(1)}% (${props.payload.uberOneCount} / ${props.payload.totalOrders})${!props.payload.isSignificant ? " ⚠️" : ""}`,
-                            "% Uber One",
-                          ]}
-                        />
-                      }
-                    />
-                    <Bar dataKey="uberOnePercent" radius={[0, 4, 4, 0]} maxBarSize={35}>
-                      {byRestaurant.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={
-                            entry.isSignificant
-                              ? (index === 0 ? "hsl(var(--chart-1))" : "hsl(var(--chart-1) / 0.7)")
-                              : "hsl(var(--muted-foreground) / 0.4)"
+      {/* Behavior Comparison Table - Full Width */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Comportement comparé</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {comparison.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[140px]">Métrique</TableHead>
+                  <TableHead className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Crown className="h-4 w-4 text-amber-500" />
+                      Uber One
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-right">Standard</TableHead>
+                  <TableHead className="text-right">Différence</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {comparison.map((row) => (
+                  <TableRow key={row.metric}>
+                    <TableCell className="font-medium">{row.metric}</TableCell>
+                    <TableCell className="text-right font-semibold text-chart-1">
+                      {formatValue(row.uberOneValue, row.unit)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {formatValue(row.nonUberOneValue, row.unit)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {getDiffIcon(row.differencePercent)}
+                        <Badge
+                          variant={
+                            row.differencePercent > 0
+                              ? "default"
+                              : row.differencePercent < 0
+                              ? "destructive"
+                              : "secondary"
                           }
-                        />
-                      ))}
-                      <LabelList
-                        dataKey="uberOnePercent"
-                        position="right"
-                        formatter={(v: number) => `${v.toFixed(1)}%`}
-                        fill="hsl(var(--foreground))"
-                        fontSize={12}
-                        fontWeight={600}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
-        )}
+                          className="text-xs"
+                        >
+                          {row.differencePercent > 0 ? "+" : ""}
+                          {row.differencePercent.toFixed(1)}%
+                        </Badge>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+              Aucune donnée de comparaison
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Behavior Comparison Table */}
-        <Card className={byRestaurant.length > 1 ? "" : "lg:col-span-2"}>
+      {/* Full-Width Restaurant Ranking Table */}
+      {byRestaurant.length > 1 && (
+        <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Comportement comparé</CardTitle>
+            <CardTitle className="text-lg">Classement par restaurant</CardTitle>
           </CardHeader>
           <CardContent>
-            {comparison.length > 0 ? (
+            {byRestaurant.filter(r => !r.isSignificant).length > byRestaurant.length / 2 && (
+              <Alert variant="default" className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Données insuffisantes sur cette période (&lt;{SIGNIFICANCE_THRESHOLD} commandes). Les pourcentages peuvent être peu représentatifs.
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[140px]">Métrique</TableHead>
-                    <TableHead className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Crown className="h-4 w-4 text-amber-500" />
-                        Uber One
-                      </div>
+                    <TableHead>
+                      <button className="flex items-center text-xs font-medium" onClick={() => toggleSort("name")}>
+                        Restaurant <SortIcon field="name" />
+                      </button>
                     </TableHead>
-                    <TableHead className="text-right">Standard</TableHead>
-                    <TableHead className="text-right">Différence</TableHead>
+                    <TableHead className="text-right min-w-[160px]">
+                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("uberOnePct")}>
+                        % Uber One <SortIcon field="uberOnePct" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("uberOneCount")}>
+                        Cmd UO <SortIcon field="uberOneCount" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("nonUberOneCount")}>
+                        Cmd Std <SortIcon field="nonUberOneCount" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("totalOrders")}>
+                        Total <SortIcon field="totalOrders" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("uberOneBasket")}>
+                        Panier UO <SortIcon field="uberOneBasket" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("nonUberOneBasket")}>
+                        Panier Std <SortIcon field="nonUberOneBasket" />
+                      </button>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {comparison.map((row) => (
-                    <TableRow key={row.metric}>
-                      <TableCell className="font-medium">{row.metric}</TableCell>
-                      <TableCell className="text-right font-semibold text-chart-1">
-                        {formatValue(row.uberOneValue, row.unit)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {formatValue(row.nonUberOneValue, row.unit)}
+                  {sortedRestaurants.map((r) => (
+                    <TableRow key={r.restaurantId}>
+                      <TableCell className="font-medium">
+                        <TooltipProvider>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-center gap-1.5">
+                                {!r.isSignificant && <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />}
+                                {getShortName(r.restaurantName)}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>{r.restaurantName}</TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {getDiffIcon(row.differencePercent)}
-                          <Badge
-                            variant={
-                              row.differencePercent > 0
-                                ? "default"
-                                : row.differencePercent < 0
-                                ? "destructive"
-                                : "secondary"
-                            }
-                            className="text-xs"
-                          >
-                            {row.differencePercent > 0 ? "+" : ""}
-                            {row.differencePercent.toFixed(1)}%
-                          </Badge>
+                        <div className="flex items-center gap-2 justify-end">
+                          <Progress 
+                            value={r.uberOnePercent} 
+                            className="h-2 w-16 bg-muted" 
+                          />
+                          <span className="font-semibold text-sm min-w-[48px] text-right">
+                            {r.uberOnePercent.toFixed(1)}%
+                          </span>
                         </div>
                       </TableCell>
+                      <TableCell className="text-right tabular-nums">{r.uberOneCount.toLocaleString("fr-FR")}</TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">{r.nonUberOneCount.toLocaleString("fr-FR")}</TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">{r.totalOrders.toLocaleString("fr-FR")}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.uberOneBasket.toFixed(2)} €</TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">{r.nonUberOneBasket.toFixed(2)} €</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            ) : (
-              <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-                Aucune donnée de comparaison
-              </div>
-            )}
+            </div>
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
   );
 }

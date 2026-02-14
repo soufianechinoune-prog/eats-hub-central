@@ -36,6 +36,8 @@ export interface UberOneByRestaurant {
   nonUberOneCount: number;
   totalOrders: number;
   isSignificant: boolean;
+  uberOneBasket: number;
+  nonUberOneBasket: number;
 }
 
 export interface UberOneComparison {
@@ -230,13 +232,15 @@ export function useUberOneStats({
   const byRestaurant = useMemo<UberOneByRestaurant[]>(() => {
     if (!rpcData || rpcData.length === 0) return [];
 
-    const restaurantStats: Record<string, { uberOne: number; nonUberOne: number }> = {};
+    const restaurantStats: Record<string, { uberOne: number; nonUberOne: number; uberOneRev: number; nonUberOneRev: number }> = {};
 
     rpcData.forEach((row: any) => {
       const rid = row.restaurant_id;
-      if (!restaurantStats[rid]) restaurantStats[rid] = { uberOne: 0, nonUberOne: 0 };
+      if (!restaurantStats[rid]) restaurantStats[rid] = { uberOne: 0, nonUberOne: 0, uberOneRev: 0, nonUberOneRev: 0 };
       restaurantStats[rid].uberOne += Number(row.uber_one_count) || 0;
       restaurantStats[rid].nonUberOne += Number(row.non_uber_one_count) || 0;
+      restaurantStats[rid].uberOneRev += Number(row.uber_one_revenue) || 0;
+      restaurantStats[rid].nonUberOneRev += Number(row.non_uber_one_revenue) || 0;
     });
 
     return Object.entries(restaurantStats)
@@ -250,6 +254,8 @@ export function useUberOneStats({
           nonUberOneCount: data.nonUberOne,
           totalOrders: total,
           isSignificant: total >= SIGNIFICANCE_THRESHOLD,
+          uberOneBasket: data.uberOne > 0 ? data.uberOneRev / data.uberOne : 0,
+          nonUberOneBasket: data.nonUberOne > 0 ? data.nonUberOneRev / data.nonUberOne : 0,
         };
       })
       .sort((a, b) => b.uberOnePercent - a.uberOnePercent);
@@ -277,7 +283,31 @@ export function useUberOneStats({
     const volumeDiff = uberOneCount - nonUberOneCount;
     const volumeDiffPercent = nonUberOneCount > 0 ? (volumeDiff / nonUberOneCount) * 100 : 0;
 
+    const totalRevenue = uberOneRevenue + nonUberOneRevenue;
+    const uberOneRevShare = totalRevenue > 0 ? (uberOneRevenue / totalRevenue) * 100 : 0;
+    const nonUberOneRevShare = totalRevenue > 0 ? (nonUberOneRevenue / totalRevenue) * 100 : 0;
+    const revShareDiff = uberOneRevShare - nonUberOneRevShare;
+
+    const revDiff = uberOneRevenue - nonUberOneRevenue;
+    const revDiffPercent = nonUberOneRevenue > 0 ? (revDiff / nonUberOneRevenue) * 100 : 0;
+
     return [
+      {
+        metric: "CA total",
+        uberOneValue: uberOneRevenue,
+        nonUberOneValue: nonUberOneRevenue,
+        difference: revDiff,
+        differencePercent: revDiffPercent,
+        unit: "€",
+      },
+      {
+        metric: "Part du CA",
+        uberOneValue: uberOneRevShare,
+        nonUberOneValue: nonUberOneRevShare,
+        difference: revShareDiff,
+        differencePercent: revShareDiff,
+        unit: "%",
+      },
       {
         metric: "Panier moyen",
         uberOneValue: uberOneBasket,
