@@ -1,22 +1,52 @@
 
-# Fix: Uber One chart truncated at 11 days in Network view
+# Fix : Filtrage des restaurants par dates d'activité
 
-## Root Cause
+## Probleme identifie
 
-The database function `get_uber_one_stats` returns one row per restaurant per day. For 92 restaurants over 31 days, that's **2,799 rows**. The database client applies a **default limit of 1,000 rows**, so only the first ~11 days of data are returned (1000 / 92 = ~11 days). With a single restaurant, 31 rows fit easily under the limit.
+Le filtre `filterActiveRestaurants` dans `src/lib/restaurantActivityFilter.ts` considere qu'un restaurant sans dates Deliveroo (null) est "actif sur Deliveroo depuis toujours". Resultat : 24 restaurants qui n'ont jamais ete sur Deliveroo passent le filtre meme pour des periodes anterieures a leur ouverture Uber.
 
-## Fix
+Exemple : Villeneuve la Garenne (ouverture Uber le 24/03/2025, pas de dates Deliveroo) apparait en fevrier 2024.
 
-### File: `src/hooks/useUberOneStats.ts`
+## Solution
 
-Add `.limit(10000)` to the RPC call chain to override the default 1,000 row cap. This ensures all rows are returned even for large networks with daily granularity (worst case: ~100 restaurants x 365 days = 36,500 rows for yearly view, so 10,000 covers monthly views comfortably).
+Modifier la fonction `isActiveForPeriod` pour qu'un restaurant sans aucune date sur une plateforme soit considere comme **inactif** sur cette plateforme (et non actif par defaut).
 
-```text
-Before:
-  supabase.rpc("get_uber_one_stats", { ... })
+La nouvelle logique :
+- Une plateforme est "configuree" si elle a au moins une date (ouverture OU fermeture)
+- Si une plateforme n'est pas configuree, elle est ignoree (pas consideree active)
+- Si aucune plateforme n'est configuree, le restaurant est considere toujours actif (retrocompatibilite)
 
-After:
-  supabase.rpc("get_uber_one_stats", { ... }).limit(10000)
+## Details techniques
+
+### Fichier : `src/lib/restaurantActivityFilter.ts`
+
+Modifier la fonction `isActiveForPeriod` :
+
+```typescript
+function isActiveForPeriod(
+  restaurant: RestaurantWithDates,
+  startDate: Date,
+  endDate: Date
+): boolean {
+  const startStr = formatDateLocal(startDate);
+  const endStr = formatDateLocal(endDate);
+
+  const uberConfigured = !!restaurant.uber_opening_date || !!restaurant.uber_closing_date;
+  const deliverooConfigured = !!restaurant.deliveroo_opening_date || !!restaurant.deliveroo_closing_date;
+
+  // If no platform is configured at all, consider always active (backward compat)
+  if (!uberConfigured && !deliverooConfigured) return true;
+
+  const uberActive = uberConfigured &&
+    (!restaurant.uber_opening_date || restaurant.uber_opening_date <= endStr) &&
+    (!restaurant.uber_closing_date || restaurant.uber_closing_date >= startStr);
+
+  const deliverooActive = deliverooConfigured &&
+    (!restaurant.deliveroo_opening_date || restaurant.deliveroo_opening_date <= endStr) &&
+    (!restaurant.deliveroo_closing_date || restaurant.deliveroo_closing_date >= startStr);
+
+  return uberActive || deliverooActive;
+}
 ```
 
-This is a one-line change that resolves the truncation for all period modes.
+Ce changement s'applique globalement a toutes les pages qui utilisent `filterActiveRestaurants` (Downtime, Prep Time, Ratings, Overview, etc.), corrigeant le filtrage partout en une seule modification.
