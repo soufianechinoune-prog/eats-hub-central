@@ -1,80 +1,42 @@
 
-# Optimisation des performances de la page Operations
+# Uber One : Liste complete et Comportement enrichi
 
-## Probleme
+## 1. Enrichir le tableau "Comportement compare"
 
-La page Operations met presque 1 minute a charger pour une annee complete car elle telecharge les donnees brutes ligne par ligne :
-- **hourly_availability** : 260 960 lignes en 261 requetes paginees de 1000
-- **order_history (Uber One)** : 42 000+ lignes en 43 requetes paginees
+Actuellement le tableau ne montre que 2 metriques (Panier moyen, Volume). On va ajouter des metriques supplementaires deja disponibles dans les donnees RPC :
 
-## Solution
+- **CA total** : chiffre d'affaires Uber One vs Standard
+- **Panier moyen** : deja present
+- **Volume** : deja present  
+- **Part du CA** : pourcentage du CA genere par chaque segment
 
-Creer des fonctions RPC (cote serveur) qui agregent les donnees avant de les envoyer au navigateur. Au lieu de 260 000 lignes, on recevra ~12 lignes (vue annuelle) ou ~31 lignes (vue mensuelle).
+Ces donnees sont deja remontees par le RPC `get_uber_one_stats` (champs `uber_one_revenue`, `non_uber_one_revenue`), il suffit de les exploiter dans le hook.
 
-## Etape 1 : Creer 3 fonctions RPC pour hourly_availability
+## 2. Liste complete des restaurants (pleine largeur, triable)
 
-### 1a. `get_availability_monthly` (vue annuelle)
-- Parametres : `p_year`, `p_restaurant_ids`, `p_platform`
-- Retourne : 12 lignes max (1 par mois) avec `month`, `total_online_minutes`, `total_offline_minutes`
-- Remplace les 261 requetes actuelles en vue annuelle
+Remplacer le graphique horizontal actuel "Comparaison par restaurant" par un **tableau pleine largeur** place sous le bloc "Comportement compare". Ce tableau affichera :
 
-### 1b. `get_availability_daily` (vue mois / plage de dates)
-- Parametres : `p_start_date`, `p_end_date`, `p_restaurant_ids`, `p_platform`
-- Retourne : ~31 lignes max avec `date`, `total_online_minutes`, `total_offline_minutes`
-- Utilise pour le drill-down mensuel
+| Restaurant | % Uber One | Uber One | Standard | Total | Panier UO | Panier Std |
+|---|---|---|---|---|---|---|
 
-### 1c. `get_availability_by_restaurant` (classement)
-- Parametres : `p_start_date`, `p_end_date`, `p_restaurant_ids`, `p_platform`
-- Retourne : 1 ligne par restaurant avec totaux agreges
+Fonctionnalites :
+- **Pleine largeur** (pas de grille 2 colonnes)
+- **Tri par colonne** en cliquant sur les en-tetes (% Uber One, Volume, Panier...)
+- Indicateur de significativite (icone warning si moins de 10 commandes)
+- Noms raccourcis avec tooltip pour le nom complet
 
-### 1d. `get_availability_heatmap` (heatmap jour x heure)
-- Parametres : `p_start_date`, `p_end_date`, `p_restaurant_ids`, `p_platform`
-- Retourne : lignes agregees par jour_de_semaine x heure (max 168 lignes)
+## Detail technique
 
-## Etape 2 : Creer 1 fonction RPC pour Uber One
+### Fichier : `src/hooks/useUberOneStats.ts`
+- Ajouter dans le tableau `comparison` les metriques "CA total" et "Part du CA"
+- Ajouter dans `byRestaurant` les champs `uberOneBasket` et `nonUberOneBasket` (calcules a partir des revenus et counts deja disponibles dans le RPC)
 
-### `get_uber_one_stats`
-- Parametres : `p_start_date`, `p_end_date`, `p_restaurant_ids`, `p_platform`, `p_granularity` ('monthly' ou 'daily')
-- Retourne par periode et par restaurant : `uber_one_count`, `non_uber_one_count`, `uber_one_revenue`, `non_uber_one_revenue`, `uber_one_prep_time_sum`, `non_uber_one_prep_time_sum`
-- Remplace les 43 requetes paginees actuelles par 1 seule requete
-
-## Etape 3 : Adapter le frontend
-
-### OperationsAnalytics.tsx
-- Remplacer la boucle de pagination `hourly_availability` par des appels aux nouvelles RPC
-- Vue annuelle : appel a `get_availability_monthly`
-- Vue mois/plage : appel a `get_availability_daily`  
-- Classement : appel a `get_availability_by_restaurant`
-- Heatmap : appel a `get_availability_heatmap`
-- Vue jour (drill-down horaire) : conserver la requete directe filtree sur 1 jour (max ~24 lignes)
-
-### useUberOneStats.ts
-- Remplacer la boucle de pagination par un appel a `get_uber_one_stats`
-- Adapter le traitement des donnees pour utiliser les resultats agreges
-
-## Gains attendus
-
-```text
-Avant :  261 requetes x 1000 lignes = 260 960 lignes  (~1 min)
-Apres :  4-5 requetes x ~30 lignes  = ~150 lignes     (~1-2 sec)
-```
-
-## Detail technique des fonctions SQL
-
-Chaque fonction sera creee via une migration SQL. Exemple de structure :
-
-```text
-get_availability_monthly(p_year, p_restaurant_ids, p_platform)
-  -> SELECT
-       EXTRACT(MONTH FROM hour_start) as month,
-       SUM(online_minutes),
-       SUM(offline_minutes)
-     FROM hourly_availability
-     WHERE year = p_year
-       AND (p_restaurant_ids IS NULL OR restaurant_id = ANY(p_restaurant_ids))
-       AND (p_platform IS NULL OR platform = p_platform)
-     GROUP BY month
-     ORDER BY month
-```
-
-Les requetes existantes dans le frontend seront remplacees par des appels `supabase.rpc(...)` simples, comme ce qui est deja fait ailleurs dans le projet (ex: `get_hourly_order_performance`).
+### Fichier : `src/components/analytics/UberOneAnalysis.tsx`
+- Supprimer la carte "Comparaison par restaurant" (graphique barres horizontales) de la grille 2 colonnes
+- Garder le tableau "Comportement compare" dans sa grille actuelle mais en pleine largeur (`lg:col-span-2`)
+- Ajouter en dessous (hors grille) une nouvelle section "Classement par restaurant" en pleine largeur avec :
+  - Un tableau HTML triable (state local `sortField` + `sortDirection`)
+  - Colonnes : Restaurant, % Uber One, Commandes UO, Commandes Std, Total, Panier UO, Panier Std
+  - Clic sur en-tete pour trier asc/desc
+  - Barres de progression inline pour le % Uber One
+  - Badge warning pour les restaurants non significatifs
