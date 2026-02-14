@@ -537,7 +537,7 @@ export function UberOneAnalysis() {
                   onClick={() => setSelectedRestaurant(r)}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/60 transition-colors text-left"
                 >
-                  <span className="text-sm font-medium min-w-[140px] truncate flex items-center gap-1.5">
+                  <span className="text-sm font-medium w-[200px] shrink-0 truncate flex items-center gap-1.5">
                     {!r.isSignificant && <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />}
                     {getShortName(r.restaurantName)}
                   </span>
