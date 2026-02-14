@@ -1,48 +1,23 @@
 
+## Correction du gras dans l'export PDF des restaurants
 
-## Mise à jour Chicken Street - Poitiers (ligne 80)
+### Probleme identifie
 
-### Etat actuel en base
+Dans `drawHeader()`, la police est mise en **bold** pour les en-tetes du tableau. Apres le premier appel (page 1), le code remet bien la police en "normal" (ligne 112). Mais quand une nouvelle page est creee dans la boucle (ligne 118), `drawHeader()` remet la police en bold et il n'y a pas de `setFont("normal")` apres -- donc toutes les lignes de donnees de la premiere page sont en normal, mais celles des pages suivantes restent en bold.
 
-| Champ | Valeur actuelle |
-|---|---|
-| Restaurant | Chicken Street - Poitiers |
-| ID interne | 156e7a6e-8607-4f12-9134-e57b18197e9b |
-| UUID | 06b8d554-6304-553f-9f44-0dfe0d8578b3 (correct) |
-| is_active | true |
-| csv_verified | false |
-| uber_opening_date | null |
+### Correction
 
-### Donnees du CSV (ligne 80)
+Fichier : `src/hooks/useRestaurantsExport.ts`
 
-| Champ | Valeur |
-|---|---|
-| Statut | waiting for activation |
-| is_visible | FALSE |
-| creation_date | 2025-08-29 |
-| first_request_date | null |
-| Adresse | 2 Avenue de Lafayette, Poitiers 86000 |
+Ajouter `doc.setFont("helvetica", "normal")` a la fin de la fonction `drawHeader()`, juste apres la boucle des en-tetes. Ainsi, peu importe quand `drawHeader()` est appelee, la police revient automatiquement en normal pour les lignes de donnees qui suivent.
 
-### Action
+### Detail technique
 
-Mettre a jour les metadonnees pour refleter le statut "en attente d'activation" :
-
-```sql
-UPDATE restaurants
-SET csv_verified = true,
-    is_active = false,
-    address = '2 Avenue de Lafayette, Poitiers 86000'
-WHERE id = '156e7a6e-8607-4f12-9134-e57b18197e9b';
+```text
+drawHeader()
+  ├── setFont("bold")     ← pour les titres de colonnes
+  ├── dessine les en-tetes
+  └── setFont("normal")   ← AJOUT : reset automatique
 ```
 
-- `csv_verified = true` : confirme par le CSV maitre
-- `is_active = false` : pas encore ouvert (waiting for activation)
-- `address` : mise a jour depuis le CSV
-- `uber_opening_date` reste null car `first_request_date` est vide (pas encore de premiere commande)
-
-### Resultat attendu
-
-- Le restaurant apparaitra avec le statut "Ferme" (badge rouge) en attendant son activation
-- Des que les premiers rapports arriveront, les donnees seront automatiquement rattachees
-- Aucune modification de code necessaire
-
+Cela supprime aussi le `setFont("normal")` redondant apres le premier appel (ligne 112), pour garder le code propre.
