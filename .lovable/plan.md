@@ -1,68 +1,45 @@
 
-# Simplifier le classement Uber One : liste epuree + panneau lateral
+# Ajouter le toggle Epingles/Reseau sur la section Uber One
 
 ## Objectif
 
-Remplacer le tableau dense actuel (7 colonnes) par une liste epuree affichant uniquement le nom du restaurant, le pourcentage et une barre de progression. Un clic sur une ligne ouvre un panneau lateral (Sheet) avec tous les details.
+Ajouter le composant `NetworkViewToggle` (identique a celui de la Vue d'ensemble) dans la section "Classement par restaurant" de l'analyse Uber One, pour permettre de basculer entre les restaurants epingles (14) et l'ensemble du reseau (92+).
 
 ## Modifications
 
 ### Fichier : `src/components/analytics/UberOneAnalysis.tsx`
 
-**1. Liste simplifiee (lignes 509-603)**
+1. **Importer** `NetworkViewToggle` depuis `@/components/compare/NetworkViewToggle`
+2. **Ajouter un state** `isNetworkView` (default `false` = epingles)
+3. **Ajouter une query** pour recuperer les restaurants epingles et tous les restaurants actifs (avec leurs counts) -- necessaire pour alimenter les badges du toggle
+4. **Modifier la logique `restaurantIdsForQuery`** : quand `isNetworkView` est `true`, passer un tableau vide au hook (ce qui declenchera le fallback vers tous les restaurants actifs dans le hook) OU passer tous les IDs actifs
+5. **Placer le toggle** dans le header de la carte "Classement par restaurant", a cote des boutons de tri existants
 
-Remplacer le tableau multi-colonnes par une liste ou chaque ligne contient :
-- Nom du restaurant (avec tooltip si tronque)
-- Barre de progression (% Uber One)
-- Pourcentage affiche
+### Fichier : `src/hooks/useUberOneStats.ts`
 
-Le tri reste fonctionnel (par nom ou par %) via les boutons d'en-tete.
+6. **Modifier le fallback** : actuellement quand `restaurantIds` est vide, le hook utilise les restaurants epingles. On ajoutera un parametre optionnel `useAllActive` pour basculer vers tous les restaurants actifs au lieu des seuls epingles.
 
-**2. Panneau lateral (Sheet)**
-
-Ajouter un state `selectedRestaurant` et un composant `Sheet` (deja disponible dans le projet) qui s'ouvre au clic sur une ligne. Le panneau affichera :
-- Nom complet du restaurant
-- Badge de significativite si < 10 commandes
-- Section "Volume" : Commandes Uber One, Standard, Total
-- Section "Panier moyen" : Uber One vs Standard avec difference en %
-- Section "CA" : estimation CA Uber One et Standard (panier x volume)
-- Barre visuelle du % Uber One (plus grande, plus lisible)
-
-**3. Imports a ajouter**
-
-- `Sheet`, `SheetContent`, `SheetHeader`, `SheetTitle` depuis `@/components/ui/sheet`
-
-### Resultat visuel
+### Flux de donnees
 
 ```text
-Classement par restaurant
-+-----------------------------------------+
-| Restaurant          % Uber One          |
-|-----------------------------------------|
-| CS CERGY        [========    ] 66.0%    |
-| CS NANTES       [=======     ] 65.2%    |
-| CS LYON         [=======     ] 64.8%    |
-| ...                                     |
-+-----------------------------------------+
-
-  Clic sur CS CERGY ->
-  
-  +------ Sheet lateral ------+
-  | CS - CERGY                |
-  |                           |
-  | % Uber One     66.0%      |
-  | [================    ]    |
-  |                           |
-  | Volume                    |
-  | Uber One    4 139         |
-  | Standard    2 133         |
-  | Total       6 272         |
-  |                           |
-  | Panier moyen              |
-  | Uber One    24.59 EUR     |
-  | Standard    24.51 EUR     |
-  | Diff.       +0.3%         |
-  +---------------------------+
+NetworkViewToggle (isNetworkView)
+       |
+       v
+isNetworkView = false --> restaurantIds = selectedRestaurants OU pinned (14)
+isNetworkView = true  --> restaurantIds = tous actifs (92+)
+       |
+       v
+useUberOneStats({ restaurantIds, ... })
+       |
+       v
+RPC get_uber_one_stats
+       |
+       v
+Classement par restaurant (liste + sheet)
 ```
 
-Aucune modification de base de donnees necessaire. Seul le fichier `UberOneAnalysis.tsx` sera modifie.
+### Detail technique
+
+- Le toggle sera place dans le `CardHeader` de "Classement par restaurant", entre le titre et les boutons de tri
+- Deux queries supplementaires dans `UberOneAnalysis.tsx` pour obtenir les counts (pinned et actifs) pour les badges du toggle
+- Le state `isNetworkView` remplacera la logique actuelle qui depend uniquement de `selectedRestaurants` du context global -- le toggle est local a cette section
