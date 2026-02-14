@@ -55,6 +55,7 @@ export interface UseUberOneStatsParams {
   endDate: Date;
   periodMode: string;
   platform: "uber_eats" | "deliveroo" | "global";
+  useAllActive?: boolean;
 }
 
 const monthLabels = [
@@ -68,6 +69,7 @@ export function useUberOneStats({
   endDate,
   periodMode,
   platform,
+  useAllActive = false,
 }: UseUberOneStatsParams) {
   // Fetch pinned restaurants as fallback when no restaurants selected
   const { data: pinnedRestaurants } = useQuery({
@@ -82,10 +84,24 @@ export function useUberOneStats({
     },
   });
 
+  // Fetch all active restaurants when useAllActive is true
+  const { data: allActiveRestaurants } = useQuery({
+    queryKey: ["all-active-restaurants-for-uber-one"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("is_active", true);
+      return data?.map(r => r.id) || [];
+    },
+    enabled: useAllActive,
+  });
+
   const effectiveRestaurantIds = useMemo(() => {
     if (restaurantIds.length > 0) return restaurantIds;
+    if (useAllActive) return allActiveRestaurants || [];
     return pinnedRestaurants || [];
-  }, [restaurantIds, pinnedRestaurants]);
+  }, [restaurantIds, pinnedRestaurants, allActiveRestaurants, useAllActive]);
 
   const useDaily = ["month", "7d", "30d", "previous_week", "current_month", "range"].includes(periodMode);
   const platformFilter = platform !== "global" ? platform : null;
