@@ -2923,6 +2923,58 @@ export type Database = {
       }
     }
     Functions: {
+      get_availability_by_restaurant: {
+        Args: {
+          p_end_date: string
+          p_platform?: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          restaurant_id: string
+          total_offline_minutes: number
+          total_online_minutes: number
+        }[]
+      }
+      get_availability_daily: {
+        Args: {
+          p_end_date: string
+          p_platform?: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          day: string
+          total_offline_minutes: number
+          total_online_minutes: number
+        }[]
+      }
+      get_availability_heatmap: {
+        Args: {
+          p_end_date: string
+          p_platform?: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          avg_offline_minutes: number
+          day_of_week: number
+          hour: number
+          record_count: number
+        }[]
+      }
+      get_availability_monthly: {
+        Args: {
+          p_platform?: string
+          p_restaurant_ids?: string[]
+          p_year: number
+        }
+        Returns: {
+          month: number
+          total_offline_minutes: number
+          total_online_minutes: number
+        }[]
+      }
       get_bogo_historical_sales: {
         Args: {
           p_item_names: string[]
@@ -3114,6 +3166,27 @@ export type Database = {
           payout: number
           restaurant_id: string
           sales: number
+        }[]
+      }
+      get_uber_one_stats: {
+        Args: {
+          p_end_date: string
+          p_granularity?: string
+          p_platform?: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          non_uber_one_count: number
+          non_uber_one_prep_count: number
+          non_uber_one_prep_sum: number
+          non_uber_one_revenue: number
+          period_key: string
+          restaurant_id: string
+          uber_one_count: number
+          uber_one_prep_count: number
+          uber_one_prep_sum: number
+          uber_one_revenue: number
         }[]
       }
       update_uber_commission_rates: {
