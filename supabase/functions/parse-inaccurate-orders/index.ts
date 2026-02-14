@@ -192,6 +192,11 @@ serve(async (req) => {
       throw new Error(`Failed to fetch restaurants: ${restaurantsError.message}`);
     }
 
+    // Fetch secondary/historical uber store IDs
+    const { data: uberIds } = await supabase
+      .from('restaurant_uber_ids')
+      .select('uber_store_id, restaurant_id');
+
     // Create lookup maps
     const restaurantByStoreId = new Map<string, { id: string; name: string }>();
     const restaurantByName = new Map<string, { id: string; name: string }>();
@@ -201,6 +206,15 @@ serve(async (req) => {
         restaurantByStoreId.set(r.uber_store_id, { id: r.id, name: r.name });
       }
       restaurantByName.set(normalizeRestaurantName(r.name), { id: r.id, name: r.name });
+    }
+
+    // Add secondary/historical UUIDs to the lookup map
+    for (const mapping of uberIds || []) {
+      const restaurant = restaurants?.find(r => r.id === mapping.restaurant_id);
+      if (restaurant && !restaurantByStoreId.has(mapping.uber_store_id)) {
+        restaurantByStoreId.set(mapping.uber_store_id, { id: restaurant.id, name: restaurant.name });
+        console.log(`Added secondary UUID ${mapping.uber_store_id} -> ${restaurant.name}`);
+      }
     }
 
     // Parse CSV
@@ -296,7 +310,7 @@ serve(async (req) => {
 
         // Fallback to name matching
         if (!matchedRestaurant) {
-          const restaurantName = getCol(row, 'restaurant');
+          const restaurantName = getCol(row, 'restaurant', 'nom du restaurant', 'store name', 'restaurant name');
           if (restaurantName) {
             const normalizedName = normalizeRestaurantName(restaurantName);
             matchedRestaurant = restaurantByName.get(normalizedName);
@@ -310,11 +324,12 @@ serve(async (req) => {
 
       if (!matchedRestaurant) {
         result.stats.skipped++;
-        const restaurantName = getCol(row, 'restaurant');
+        const restaurantName = getCol(row, 'restaurant', 'nom du restaurant', 'store name', 'restaurant name');
+        const storeIdForError = getCol(row, 'id du restaurant', 'id restaurant', 'store id', 'restaurant id');
         result.validation?.skippedDetails.push({
           rowIndex: i + 1,
           reason: 'restaurant_not_found',
-          details: `Restaurant not found: ${restaurantName}`,
+          details: `Restaurant not found: name="${restaurantName}" storeId="${storeIdForError}"`,
         });
         continue;
       }
