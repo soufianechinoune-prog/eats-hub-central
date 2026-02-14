@@ -116,7 +116,7 @@ export function useUberOneStats({
         p_restaurant_ids: effectiveRestaurantIds,
         p_platform: platformFilter,
         p_granularity: useDaily ? "daily" : "monthly",
-      });
+      }).limit(10000);
       if (error) {
         console.error("Error fetching uber one stats:", error);
         return [];
