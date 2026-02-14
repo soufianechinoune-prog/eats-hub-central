@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { useUberOneStats, SIGNIFICANCE_THRESHOLD } from "@/hooks/useUberOneStats";
+import { useUberOneStats, SIGNIFICANCE_THRESHOLD, type UberOneByRestaurant } from "@/hooks/useUberOneStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Loader2, Users, TrendingUp, TrendingDown, Minus, Crown, BarChart3, LineChartIcon, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, startOfWeek } from "date-fns";
 import {
@@ -44,7 +45,7 @@ const RESTAURANT_COLORS = [
 ];
 
 type ChartMode = "average" | "detailed";
-type SortField = "name" | "uberOnePct" | "uberOneCount" | "nonUberOneCount" | "totalOrders" | "uberOneBasket" | "nonUberOneBasket";
+type SortField = "name" | "uberOnePct";
 type SortDir = "asc" | "desc";
 
 export function UberOneAnalysis() {
@@ -72,6 +73,7 @@ export function UberOneAnalysis() {
   const [chartMode, setChartMode] = useState<ChartMode>("average");
   const [sortField, setSortField] = useState<SortField>("uberOnePct");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [selectedRestaurant, setSelectedRestaurant] = useState<UberOneByRestaurant | null>(null);
 
   // Calculate date range based on period mode
   const { startDate, endDate } = useMemo(() => {
@@ -189,11 +191,6 @@ export function UberOneAnalysis() {
       switch (sortField) {
         case "name": return mod * a.restaurantName.localeCompare(b.restaurantName);
         case "uberOnePct": return mod * (a.uberOnePercent - b.uberOnePercent);
-        case "uberOneCount": return mod * (a.uberOneCount - b.uberOneCount);
-        case "nonUberOneCount": return mod * (a.nonUberOneCount - b.nonUberOneCount);
-        case "totalOrders": return mod * (a.totalOrders - b.totalOrders);
-        case "uberOneBasket": return mod * (a.uberOneBasket - b.uberOneBasket);
-        case "nonUberOneBasket": return mod * (a.nonUberOneBasket - b.nonUberOneBasket);
         default: return 0;
       }
     });
@@ -506,11 +503,21 @@ export function UberOneAnalysis() {
         </CardContent>
       </Card>
 
-      {/* Full-Width Restaurant Ranking Table */}
+      {/* Simplified Restaurant Ranking List */}
       {byRestaurant.length > 1 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Classement par restaurant</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Classement par restaurant</CardTitle>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => toggleSort("name")}>
+                  Nom <SortIcon field="name" />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => toggleSort("uberOnePct")}>
+                  % UO <SortIcon field="uberOnePct" />
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {byRestaurant.filter(r => !r.isSignificant).length > byRestaurant.length / 2 && (
@@ -521,87 +528,114 @@ export function UberOneAnalysis() {
                 </AlertDescription>
               </Alert>
             )}
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>
-                      <button className="flex items-center text-xs font-medium" onClick={() => toggleSort("name")}>
-                        Restaurant <SortIcon field="name" />
-                      </button>
-                    </TableHead>
-                    <TableHead className="text-right min-w-[160px]">
-                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("uberOnePct")}>
-                        % Uber One <SortIcon field="uberOnePct" />
-                      </button>
-                    </TableHead>
-                    <TableHead className="text-right">
-                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("uberOneCount")}>
-                        Cmd UO <SortIcon field="uberOneCount" />
-                      </button>
-                    </TableHead>
-                    <TableHead className="text-right">
-                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("nonUberOneCount")}>
-                        Cmd Std <SortIcon field="nonUberOneCount" />
-                      </button>
-                    </TableHead>
-                    <TableHead className="text-right">
-                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("totalOrders")}>
-                        Total <SortIcon field="totalOrders" />
-                      </button>
-                    </TableHead>
-                    <TableHead className="text-right">
-                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("uberOneBasket")}>
-                        Panier UO <SortIcon field="uberOneBasket" />
-                      </button>
-                    </TableHead>
-                    <TableHead className="text-right">
-                      <button className="flex items-center justify-end text-xs font-medium w-full" onClick={() => toggleSort("nonUberOneBasket")}>
-                        Panier Std <SortIcon field="nonUberOneBasket" />
-                      </button>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedRestaurants.map((r) => (
-                    <TableRow key={r.restaurantId}>
-                      <TableCell className="font-medium">
-                        <TooltipProvider>
-                          <UITooltip>
-                            <TooltipTrigger asChild>
-                              <span className="flex items-center gap-1.5">
-                                {!r.isSignificant && <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />}
-                                {getShortName(r.restaurantName)}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>{r.restaurantName}</TooltipContent>
-                          </UITooltip>
-                        </TooltipProvider>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center gap-2 justify-end">
-                          <Progress 
-                            value={r.uberOnePercent} 
-                            className="h-2 w-16 bg-muted" 
-                          />
-                          <span className="font-semibold text-sm min-w-[48px] text-right">
-                            {r.uberOnePercent.toFixed(1)}%
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{r.uberOneCount.toLocaleString("fr-FR")}</TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">{r.nonUberOneCount.toLocaleString("fr-FR")}</TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">{r.totalOrders.toLocaleString("fr-FR")}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.uberOneBasket.toFixed(2)} €</TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">{r.nonUberOneBasket.toFixed(2)} €</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="space-y-1">
+              {sortedRestaurants.map((r) => (
+                <button
+                  key={r.restaurantId}
+                  onClick={() => setSelectedRestaurant(r)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/60 transition-colors text-left"
+                >
+                  <span className="text-sm font-medium min-w-[140px] truncate flex items-center gap-1.5">
+                    {!r.isSignificant && <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />}
+                    {getShortName(r.restaurantName)}
+                  </span>
+                  <Progress value={r.uberOnePercent} className="h-2.5 flex-1 bg-muted" />
+                  <span className="text-sm font-semibold tabular-nums min-w-[52px] text-right">
+                    {r.uberOnePercent.toFixed(1)}%
+                  </span>
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Restaurant Detail Sheet */}
+      <Sheet open={!!selectedRestaurant} onOpenChange={(open) => !open && setSelectedRestaurant(null)}>
+        <SheetContent className="overflow-y-auto">
+          {selectedRestaurant && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="text-lg">{selectedRestaurant.restaurantName}</SheetTitle>
+                {!selectedRestaurant.isSignificant && (
+                  <Badge variant="outline" className="w-fit text-amber-600 border-amber-300">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    &lt;{SIGNIFICANCE_THRESHOLD} commandes
+                  </Badge>
+                )}
+              </SheetHeader>
+
+              <div className="mt-6 space-y-6">
+                {/* % Uber One with large progress bar */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-muted-foreground">% Uber One</span>
+                    <span className="text-2xl font-bold text-chart-1">{selectedRestaurant.uberOnePercent.toFixed(1)}%</span>
+                  </div>
+                  <Progress value={selectedRestaurant.uberOnePercent} className="h-4 bg-muted" />
+                </div>
+
+                {/* Volume */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Volume</h4>
+                  <div className="grid grid-cols-2 gap-y-2 text-sm">
+                    <span className="flex items-center gap-1.5">
+                      <Crown className="h-3.5 w-3.5 text-amber-500" /> Uber One
+                    </span>
+                    <span className="text-right font-semibold tabular-nums">{selectedRestaurant.uberOneCount.toLocaleString("fr-FR")}</span>
+                    <span className="text-muted-foreground">Standard</span>
+                    <span className="text-right tabular-nums text-muted-foreground">{selectedRestaurant.nonUberOneCount.toLocaleString("fr-FR")}</span>
+                    <span className="font-medium">Total</span>
+                    <span className="text-right font-semibold tabular-nums">{selectedRestaurant.totalOrders.toLocaleString("fr-FR")}</span>
+                  </div>
+                </div>
+
+                {/* Panier moyen */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Panier moyen</h4>
+                  <div className="grid grid-cols-2 gap-y-2 text-sm">
+                    <span className="flex items-center gap-1.5">
+                      <Crown className="h-3.5 w-3.5 text-amber-500" /> Uber One
+                    </span>
+                    <span className="text-right font-semibold tabular-nums">{selectedRestaurant.uberOneBasket.toFixed(2)} €</span>
+                    <span className="text-muted-foreground">Standard</span>
+                    <span className="text-right tabular-nums text-muted-foreground">{selectedRestaurant.nonUberOneBasket.toFixed(2)} €</span>
+                  </div>
+                  {selectedRestaurant.nonUberOneBasket > 0 && (() => {
+                    const diff = ((selectedRestaurant.uberOneBasket - selectedRestaurant.nonUberOneBasket) / selectedRestaurant.nonUberOneBasket) * 100;
+                    return (
+                      <div className="flex items-center gap-2 pt-1">
+                        {getDiffIcon(diff)}
+                        <Badge variant={diff > 0 ? "default" : diff < 0 ? "destructive" : "secondary"} className="text-xs">
+                          {diff > 0 ? "+" : ""}{diff.toFixed(1)}%
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">vs Standard</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* CA estimé */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">CA estimé</h4>
+                  <div className="grid grid-cols-2 gap-y-2 text-sm">
+                    <span className="flex items-center gap-1.5">
+                      <Crown className="h-3.5 w-3.5 text-amber-500" /> Uber One
+                    </span>
+                    <span className="text-right font-semibold tabular-nums">
+                      {(selectedRestaurant.uberOneBasket * selectedRestaurant.uberOneCount).toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €
+                    </span>
+                    <span className="text-muted-foreground">Standard</span>
+                    <span className="text-right tabular-nums text-muted-foreground">
+                      {(selectedRestaurant.nonUberOneBasket * selectedRestaurant.nonUberOneCount).toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
