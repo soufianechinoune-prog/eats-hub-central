@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
+import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
 
 export interface RestaurantNetworkStats {
   id: string;
@@ -74,19 +75,25 @@ export function useNetworkStats({
   const prevEndDateStr = prevEndDate.toISOString().split("T")[0];
 
   // Fetch restaurants info
-  const { data: restaurants } = useQuery({
+  const { data: restaurantsRaw } = useQuery({
     queryKey: ["network-stats-restaurants", restaurantIds],
     queryFn: async () => {
       if (restaurantIds.length === 0) return [];
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, city")
+        .select("id, name, city, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
         .in("id", restaurantIds);
       if (error) throw error;
       return data || [];
     },
     enabled: restaurantIds.length > 0,
   });
+
+  // Filter restaurants to only those active during the selected period
+  const restaurants = useMemo(() => {
+    if (!restaurantsRaw) return [];
+    return filterActiveRestaurants(restaurantsRaw, startDate, endDate);
+  }, [restaurantsRaw, startDate, endDate]);
 
   // Fetch daily sales (CA & orders)
   const { data: salesData, isLoading: salesLoading } = useQuery({
