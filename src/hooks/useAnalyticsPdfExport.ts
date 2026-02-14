@@ -23,7 +23,7 @@ export function useAnalyticsPdfExport() {
 
     try {
       const canvas = await html2canvas(contentRef, {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
@@ -66,7 +66,7 @@ export function useAnalyticsPdfExport() {
             0, 0, slice.width, slice.height
           );
         }
-        return slice.toDataURL("image/jpeg", 0.80);
+        return slice.toDataURL("image/jpeg", 0.85);
       };
 
       const drawFooter = (page: number) => {
