@@ -457,7 +457,11 @@ const Restaurants = () => {
                       )}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.is_active === false ? (
+                      {restaurant.is_active === false && !(restaurant as any).uber_opening_date && !(restaurant as any).uber_closing_date ? (
+                        <Badge className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
+                          🚀 Bientôt
+                        </Badge>
+                      ) : restaurant.is_active === false ? (
                         <Badge className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
                           Fermé{(restaurant as any).uber_closing_date 
                             ? ` le ${new Date((restaurant as any).uber_closing_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}` 
