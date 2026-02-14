@@ -1,45 +1,63 @@
 
-# Ajouter le toggle Epingles/Reseau sur la section Uber One
+# Ajouter le toggle Epingles/Reseau au niveau global de la page Analytics
 
 ## Objectif
 
-Ajouter le composant `NetworkViewToggle` (identique a celui de la Vue d'ensemble) dans la section "Classement par restaurant" de l'analyse Uber One, pour permettre de basculer entre les restaurants epingles (14) et l'ensemble du reseau (92+).
+Deplacer le `NetworkViewToggle` du niveau local (section Uber One uniquement) vers le niveau global de la page Analytics, dans le bandeau de filtres partage (`AnalyticsHeader`). Ce toggle influencera **tous les onglets** : Disponibilite, Temps de preparation, Temps d'attente, Temps total, Erreurs, et Uber One.
 
-## Modifications
+## Architecture
 
-### Fichier : `src/components/analytics/UberOneAnalysis.tsx`
-
-1. **Importer** `NetworkViewToggle` depuis `@/components/compare/NetworkViewToggle`
-2. **Ajouter un state** `isNetworkView` (default `false` = epingles)
-3. **Ajouter une query** pour recuperer les restaurants epingles et tous les restaurants actifs (avec leurs counts) -- necessaire pour alimenter les badges du toggle
-4. **Modifier la logique `restaurantIdsForQuery`** : quand `isNetworkView` est `true`, passer un tableau vide au hook (ce qui declenchera le fallback vers tous les restaurants actifs dans le hook) OU passer tous les IDs actifs
-5. **Placer le toggle** dans le header de la carte "Classement par restaurant", a cote des boutons de tri existants
-
-### Fichier : `src/hooks/useUberOneStats.ts`
-
-6. **Modifier le fallback** : actuellement quand `restaurantIds` est vide, le hook utilise les restaurants epingles. On ajoutera un parametre optionnel `useAllActive` pour basculer vers tous les restaurants actifs au lieu des seuls epingles.
-
-### Flux de donnees
+Le toggle sera gere via le `AnalyticsContext` pour que son etat soit accessible partout sans prop drilling.
 
 ```text
-NetworkViewToggle (isNetworkView)
+AnalyticsContext (isNetworkView state)
        |
        v
-isNetworkView = false --> restaurantIds = selectedRestaurants OU pinned (14)
-isNetworkView = true  --> restaurantIds = tous actifs (92+)
+AnalyticsHeader (affiche le NetworkViewToggle)
        |
        v
-useUberOneStats({ restaurantIds, ... })
+OperationsAnalytics --> restaurantIdsFilter reagit a isNetworkView
        |
-       v
-RPC get_uber_one_stats
-       |
-       v
-Classement par restaurant (liste + sheet)
+       +-- Disponibilite (utilise le filtre)
+       +-- Temps de prep (utilise le filtre)
+       +-- Temps d'attente (utilise le filtre)
+       +-- Temps total (utilise le filtre)
+       +-- Erreurs (utilise le filtre)
+       +-- Uber One (utilise le filtre, supprime son toggle local)
 ```
 
-### Detail technique
+## Fichiers modifies
 
-- Le toggle sera place dans le `CardHeader` de "Classement par restaurant", entre le titre et les boutons de tri
-- Deux queries supplementaires dans `UberOneAnalysis.tsx` pour obtenir les counts (pinned et actifs) pour les badges du toggle
-- Le state `isNetworkView` remplacera la logique actuelle qui depend uniquement de `selectedRestaurants` du context global -- le toggle est local a cette section
+### 1. `src/contexts/AnalyticsContext.tsx`
+- Ajouter `isNetworkView: boolean` et `setIsNetworkView` au contexte
+- Default `false` (epingles)
+- Persister dans localStorage avec le reste de l'etat
+
+### 2. `src/components/analytics/AnalyticsHeader.tsx`
+- Importer `NetworkViewToggle`
+- Ajouter une query pour compter les restaurants epingles et actifs (pour les badges)
+- Placer le toggle dans le bandeau de filtres, entre le selecteur de restaurant et les boutons de plateforme (ou a droite du selecteur de periode)
+
+### 3. `src/components/analytics/OperationsAnalytics.tsx`
+- Lire `isNetworkView` depuis le contexte
+- Modifier `restaurantIdsFilter` (ligne 116) : quand `isNetworkView` est `true` et qu'aucun restaurant n'est selectionne manuellement, passer `null` (= tous les actifs) au lieu du filtre vide actuel
+
+### 4. `src/components/analytics/UberOneAnalysis.tsx`
+- Supprimer le `NetworkViewToggle` local et son state `isNetworkView` local
+- Lire `isNetworkView` depuis le contexte a la place
+- Supprimer les queries locales de comptage pinned/network (desormais dans le Header)
+
+### 5. `src/pages/Analytics.tsx`
+- Adapter `restaurantFilter` (ligne 257) pour reagir au `isNetworkView` du contexte
+- Quand `isNetworkView` est `true` et aucun restaurant selectionne, passer `undefined` pour inclure tous les restaurants
+
+## Comportement attendu
+
+| Situation | isNetworkView OFF | isNetworkView ON |
+|---|---|---|
+| Aucun restaurant selectionne | Donnees des epingles (14) | Donnees de tout le reseau (92+) |
+| Restaurants selectionnes manuellement | Donnees des selectionnes | Donnees des selectionnes (le toggle est visible mais la selection manuelle prime) |
+
+## Placement visuel du toggle
+
+Le toggle sera place dans le bandeau sticky `AnalyticsHeader`, sur la meme ligne que les filtres, a droite du selecteur de periode. Il affichera les badges avec le nombre d'epingles et le nombre total de restaurants actifs.
