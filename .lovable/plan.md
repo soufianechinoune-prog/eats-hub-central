@@ -1,30 +1,39 @@
 
-
-# Masquer le contenu quand aucune donnee n'est disponible
+# Activer le sampling et le chunking pour les commandes incorrectes
 
 ## Probleme
 
-Quand l'alerte "Aucune donnee disponible" s'affiche (periode entierement avant les donnees importees), les graphiques et classements apparaissent quand meme en dessous avec des valeurs fausses (100% partout, 0min d'inactivite). C'est contradictoire et trompeur.
+Le sampling (1 000 lignes pour validation) et le chunking (15 000 lignes par batch pour l'import) ne sont actuellement actives que pour le type `order_history`. Le fichier de commandes incorrectes (24 500 lignes) est envoye en un seul bloc, ce qui cause soit un timeout de l'Edge Function, soit un depassement memoire, resultant en seulement 1 000 lignes detectees au lieu de 24 514.
 
 ## Solution
 
-Quand `dataAlert === "full"`, remplacer tout le contenu (insights, classement, heatmap) par un message central expliquant l'absence de donnees. Le bandeau d'alerte orange reste en place pour le cas `"partial"` (historique limite mais donnees partielles disponibles).
+Etendre le mecanisme de sampling + chunking existant aux imports de type `inaccurate_orders` (et potentiellement aux autres gros types de rapports).
 
 ## Details techniques
 
-### Fichier : `src/pages/DowntimeComparison.tsx`
+### Fichier : `src/pages/ReportImport.tsx`
 
-Dans le bloc conditionnel apres le loading spinner, ajouter une condition : si `dataAlert === "full"`, afficher un ecran vide centre avec une icone `AlertTriangle`, un titre et une description explicative, au lieu du grid contenant les insights, le classement et la heatmap.
+#### 1. Validation (dryRun) - lignes ~743-754
 
-Le cas `"partial"` continue d'afficher le bandeau orange en haut ET le contenu en dessous (car une partie des donnees est exploitable).
-
-Structure du rendu :
+Remplacer la condition `reportType === "order_history"` par une liste de types supportant les gros fichiers :
 
 ```text
-if isLoading -> spinner
-else if dataAlert === "full" -> message central plein ecran (icone + texte)
-else -> contenu normal (insights + classement + heatmap)
+const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders"];
+
+if (LARGE_FILE_REPORT_TYPES.includes(reportType)) {
+  // sampling des 1000 premieres lignes pour validation
+  // + ajustement du totalRows affiche
+}
 ```
 
-Le message central reprendra le texte existant de l'alerte avec un style centre et une hauteur minimale pour occuper l'espace.
+#### 2. Import reel (chunking) - ligne ~906
 
+Meme modification pour la condition de chunking :
+
+```text
+const needsChunking = LARGE_FILE_REPORT_TYPES.includes(reportType) && dataLinesCount > CHUNK_SIZE;
+```
+
+Ces deux changements suffisent a reutiliser toute l'infrastructure de chunking existante (barre de progression, agregation des stats, gestion des erreurs par chunk) pour les commandes incorrectes.
+
+Aucun changement cote Edge Function n'est necessaire : le parser `parse-inaccurate-orders` recoit deja des morceaux de CSV et fonctionne correctement par batch grace a l'upsert.
