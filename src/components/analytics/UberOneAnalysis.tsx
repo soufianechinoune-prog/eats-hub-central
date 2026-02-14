@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { Loader2, Users, TrendingUp, TrendingDown, Minus, Crown, BarChart3, LineChartIcon, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, startOfWeek } from "date-fns";
 import {
@@ -60,16 +59,15 @@ export function UberOneAnalysis() {
     periodMode,
     dateRange: contextDateRange,
     selectedPlatform,
+    isNetworkView,
   } = useAnalyticsContext();
 
   // Use selectedRestaurants for calculations (active chips = dark background)
   // Fallback to pinned restaurants via useUberOneStats when no selection
   const restaurantIdsForQuery = useMemo(() => {
-    // Use selected restaurants (active ones)
     if (selectedRestaurants && selectedRestaurants.length > 0) {
       return selectedRestaurants;
     }
-    // If no explicit selection, the hook useUberOneStats will use pinned as fallback
     return [];
   }, [selectedRestaurants]);
 
@@ -77,31 +75,6 @@ export function UberOneAnalysis() {
   const [sortField, setSortField] = useState<SortField>("uberOnePct");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedRestaurant, setSelectedRestaurant] = useState<UberOneByRestaurant | null>(null);
-  const [isNetworkView, setIsNetworkView] = useState(false);
-
-  // Fetch counts for toggle badges
-  const { data: pinnedCount = 0 } = useQuery({
-    queryKey: ["uber-one-pinned-count"],
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("restaurants")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .eq("is_pinned", true);
-      return count || 0;
-    },
-  });
-
-  const { data: networkCount = 0 } = useQuery({
-    queryKey: ["uber-one-network-count"],
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("restaurants")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true);
-      return count || 0;
-    },
-  });
 
   // Calculate date range based on period mode
   const { startDate, endDate } = useMemo(() => {
@@ -536,25 +509,17 @@ export function UberOneAnalysis() {
       {byRestaurant.length > 1 && (
         <Card>
           <CardHeader className="pb-2">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Classement par restaurant</CardTitle>
-              <div className="flex items-center gap-3">
-                <NetworkViewToggle
-                  isNetworkView={isNetworkView}
-                  onToggle={setIsNetworkView}
-                  pinnedCount={pinnedCount}
-                  networkCount={networkCount}
-                />
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => toggleSort("name")}>
-                    Nom <SortIcon field="name" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => toggleSort("uberOnePct")}>
-                    % UO <SortIcon field="uberOnePct" />
-                  </Button>
-                </div>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => toggleSort("name")}>
+                  Nom <SortIcon field="name" />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => toggleSort("uberOnePct")}>
+                  % UO <SortIcon field="uberOnePct" />
+                </Button>
               </div>
-            </div>
+              </div>
           </CardHeader>
           <CardContent>
             {byRestaurant.filter(r => !r.isSignificant).length > byRestaurant.length / 2 && (
