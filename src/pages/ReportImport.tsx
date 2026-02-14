@@ -928,6 +928,8 @@ export default function ReportImport() {
         let minDate: string | null = null;
         let maxDate: string | null = null;
         const errorDetails: string[] = [];
+        const allUnknownStoreIds: string[] = [];
+        const allUnknownStoreDetails: Record<string, { name: string }> = {};
         
         for (let i = 0; i < totalChunks; i++) {
           const start = i * CHUNK_SIZE;
@@ -1004,6 +1006,18 @@ export default function ReportImport() {
               const skippedSample = chunkResult.validation.skippedDetails.slice(0, 5);
               errorDetails.push(...skippedSample.map((s: any) => `Chunk ${i + 1} - Ligne ${s.rowIndex}: ${s.details}`));
             }
+            
+            // Collect unknown store IDs from each chunk
+            if (chunkResult.validation?.unknownStoreIds?.length > 0) {
+              for (const uid of chunkResult.validation.unknownStoreIds) {
+                if (!allUnknownStoreIds.includes(uid)) {
+                  allUnknownStoreIds.push(uid);
+                }
+              }
+            }
+            if (chunkResult.validation?.unknownStoreDetails) {
+              Object.assign(allUnknownStoreDetails, chunkResult.validation.unknownStoreDetails);
+            }
           } catch (chunkError: any) {
             errorDetails.push(`Chunk ${i + 1}: ${chunkError.message || 'Erreur inconnue'}`);
             totalErrors += CHUNK_SIZE;
@@ -1024,7 +1038,8 @@ export default function ReportImport() {
           validation: {
             dateRange: { start: minDate, end: maxDate },
             restaurants: allRestaurants,
-            unknownStoreIds: [],
+            unknownStoreIds: allUnknownStoreIds,
+            unknownStoreDetails: allUnknownStoreDetails,
             skippedDetails: [],
           },
           errorDetails,
@@ -1959,6 +1974,23 @@ export default function ReportImport() {
                       </ul>
                     </AlertDescription>
                   </Alert>
+                )}
+
+                {/* Unknown store mapping - post-import resolution */}
+                {importResult.validation?.unknownStoreIds && importResult.validation.unknownStoreIds.length > 0 && (
+                  <UnknownStoreMapping
+                    unknownStoreIds={importResult.validation.unknownStoreIds}
+                    unknownStoreDetails={importResult.validation.unknownStoreDetails}
+                    restaurants={restaurants}
+                    selectedRestaurantId={selectedRestaurantId}
+                    onMappingComplete={async () => {
+                      await queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] });
+                      toast({
+                        title: "Mapping effectué",
+                        description: "Vous pouvez maintenant ré-importer le fichier pour traiter les lignes ignorées.",
+                      });
+                    }}
+                  />
                 )}
 
                 <div className="flex justify-end gap-3">
