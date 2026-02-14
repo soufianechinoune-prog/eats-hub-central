@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -12,7 +13,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2 } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText } from "lucide-react";
+import { useRestaurantsExport } from "@/hooks/useRestaurantsExport";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import {
   Tooltip,
@@ -39,6 +41,7 @@ const STORAGE_KEY = "restaurants-preferences";
 const Restaurants = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { exportCSV, exportPDF } = useRestaurantsExport();
   
   // Load preferences from localStorage
   const savedPrefs = useMemo(() => {
@@ -292,6 +295,26 @@ const Restaurants = () => {
                   <SelectItem value="disconnected">Non connecté</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportCSV(sortedRestaurants)}
+                title="Exporter en CSV"
+              >
+                <Download className="h-4 w-4 mr-1" />
+                CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportPDF(sortedRestaurants)}
+                title="Exporter en PDF"
+              >
+                <FileText className="h-4 w-4 mr-1" />
+                PDF
+              </Button>
             </div>
           </div>
         </CardHeader>
