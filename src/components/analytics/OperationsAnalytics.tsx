@@ -35,15 +35,6 @@ import { OrderAccuracyDashboard } from "@/components/operations/OrderAccuracyDas
 import { UberOneAnalysis } from "./UberOneAnalysis";
 import { TotalDeliveryTimeAnalytics } from "./TotalDeliveryTimeAnalytics";
 
-interface AvailabilityData {
-  id: string;
-  restaurant_id: string;
-  hour_start: string;
-  menu_availability_minutes: number;
-  online_minutes: number;
-  offline_minutes: number;
-  platform: string;
-}
 
 export function OperationsAnalytics() {
   const {
@@ -113,50 +104,103 @@ export function OperationsAnalytics() {
     end: endDate,
   }), [startDate, endDate]);
 
-  // Fetch availability data with pagination to overcome 1000 row limit
-  const { data: availabilityData, isLoading } = useQuery({
-    queryKey: ["hourly_availability", selectedRestaurants, selectedPlatform, dateRange.start, dateRange.end],
+  // Determine if we should use daily view (short periods or month) - must be before queries
+  const useDailyView = periodMode === "month" || 
+                       periodMode === "previous_week" || 
+                       periodMode === "7d" || 
+                       periodMode === "30d" || 
+                       periodMode === "current_month" || 
+                       periodMode === "range";
+
+  const platformFilter = (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") ? selectedPlatform : null;
+  const restaurantIdsFilter = selectedRestaurants.length > 0 ? selectedRestaurants : null;
+
+  // Fetch monthly availability via RPC (year view)
+  const { data: monthlyRpcData, isLoading: isLoadingMonthly } = useQuery({
+    queryKey: ["availability_monthly_rpc", selectedYear, restaurantIdsFilter, platformFilter],
     queryFn: async () => {
-      const PAGE_SIZE = 1000;
-      let allData: AvailabilityData[] = [];
-      let page = 0;
-      let hasMore = true;
+      const { data, error } = await supabase.rpc("get_availability_monthly", {
+        p_year: selectedYear,
+        p_restaurant_ids: restaurantIdsFilter,
+        p_platform: platformFilter,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !useDailyView && !selectedDay,
+  });
 
-      while (hasMore) {
-        let query = supabase
-          .from("hourly_availability")
-          .select("*")
-          .gte("hour_start", format(dateRange.start, "yyyy-MM-dd"))
-          .lte("hour_start", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
-          .order("hour_start", { ascending: true })
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+  // Fetch daily availability via RPC (month/range view)
+  const { data: dailyRpcData, isLoading: isLoadingDaily } = useQuery({
+    queryKey: ["availability_daily_rpc", dateRange.start, dateRange.end, restaurantIdsFilter, platformFilter],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_availability_daily", {
+        p_start_date: format(dateRange.start, "yyyy-MM-dd"),
+        p_end_date: format(dateRange.end, "yyyy-MM-dd"),
+        p_restaurant_ids: restaurantIdsFilter,
+        p_platform: platformFilter,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: useDailyView && !selectedDay,
+  });
 
-        // Only filter by restaurant if specific restaurants are selected
-        if (selectedRestaurants.length > 0) {
-          query = query.in("restaurant_id", selectedRestaurants);
-        }
-
-        // Filter by platform - only uber_eats and deliveroo are valid platform values
-        if (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") {
-          query = query.eq("platform", selectedPlatform);
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          hasMore = data.length === PAGE_SIZE;
-          page++;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      console.log("[Operations] Total fetched:", allData.length);
-      return allData as AvailabilityData[];
+  // Fetch by-restaurant availability via RPC (ranking)
+  const { data: byRestaurantRpcData } = useQuery({
+    queryKey: ["availability_by_restaurant_rpc", dateRange.start, dateRange.end, restaurantIdsFilter, platformFilter],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_availability_by_restaurant", {
+        p_start_date: format(dateRange.start, "yyyy-MM-dd"),
+        p_end_date: format(dateRange.end, "yyyy-MM-dd"),
+        p_restaurant_ids: restaurantIdsFilter,
+        p_platform: platformFilter,
+      });
+      if (error) throw error;
+      return data || [];
     },
   });
+
+  // Fetch heatmap via RPC
+  const { data: heatmapRpcData } = useQuery({
+    queryKey: ["availability_heatmap_rpc", dateRange.start, dateRange.end, restaurantIdsFilter, platformFilter],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_availability_heatmap", {
+        p_start_date: format(dateRange.start, "yyyy-MM-dd"),
+        p_end_date: format(dateRange.end, "yyyy-MM-dd"),
+        p_restaurant_ids: restaurantIdsFilter,
+        p_platform: platformFilter,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch hourly data for day drill-down only (max ~24 rows, direct query is fine)
+  const { data: dayDrilldownData, isLoading: isLoadingDay } = useQuery({
+    queryKey: ["availability_day_drilldown", selectedDay, restaurantIdsFilter, platformFilter],
+    queryFn: async () => {
+      let query = supabase
+        .from("hourly_availability")
+        .select("*")
+        .gte("hour_start", `${selectedDay}T00:00:00`)
+        .lte("hour_start", `${selectedDay}T23:59:59`);
+
+      if (restaurantIdsFilter) {
+        query = query.in("restaurant_id", restaurantIdsFilter);
+      }
+      if (platformFilter) {
+        query = query.eq("platform", platformFilter);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedDay,
+  });
+
+  const isLoading = isLoadingMonthly || isLoadingDaily || isLoadingDay;
 
   // Fetch restaurants for names
   const { data: restaurants } = useQuery({
@@ -176,32 +220,41 @@ export function OperationsAnalytics() {
     return map;
   }, [restaurants]);
 
-  // Calculate KPIs
+  // Calculate KPIs from RPC data
   const kpis = useMemo(() => {
-    if (!availabilityData || availabilityData.length === 0) {
-      return {
-        avgAvailability: 0,
-        totalOfflineHours: 0,
-        totalOnlineHours: 0,
-        incidentCount: 0,
-      };
+    // Use whichever RPC data is active
+    let totalOnline = 0;
+    let totalOffline = 0;
+
+    if (selectedDay && dayDrilldownData) {
+      // Day view uses raw data
+      dayDrilldownData.forEach((d: any) => {
+        totalOnline += d.online_minutes;
+        totalOffline += d.offline_minutes;
+      });
+    } else if (useDailyView && dailyRpcData) {
+      dailyRpcData.forEach((d: any) => {
+        totalOnline += Number(d.total_online_minutes) || 0;
+        totalOffline += Number(d.total_offline_minutes) || 0;
+      });
+    } else if (monthlyRpcData) {
+      monthlyRpcData.forEach((d: any) => {
+        totalOnline += Number(d.total_online_minutes) || 0;
+        totalOffline += Number(d.total_offline_minutes) || 0;
+      });
     }
 
-    const totalOnline = availabilityData.reduce((sum, d) => sum + d.online_minutes, 0);
-    const totalOffline = availabilityData.reduce((sum, d) => sum + d.offline_minutes, 0);
     const totalMinutes = totalOnline + totalOffline;
-
     return {
       avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 0,
       totalOfflineHours: totalOffline / 60,
       totalOnlineHours: totalOnline / 60,
-      incidentCount: availabilityData.filter((d) => d.offline_minutes > 15).length,
+      incidentCount: 0, // Not available from aggregated data
     };
-  }, [availabilityData]);
+  }, [monthlyRpcData, dailyRpcData, dayDrilldownData, selectedDay, useDailyView]);
 
-  // Monthly evolution (for year view) - always show all 12 months
+  // Monthly evolution from RPC data
   const monthlyEvolution = useMemo(() => {
-    // Create all 12 months for the selected year
     const allMonths = Array.from({ length: 12 }, (_, i) => ({
       monthKey: `${selectedYear}-${String(i + 1).padStart(2, '0')}`,
       displayDate: format(new Date(selectedYear, i, 1), "MMM", { locale: fr }),
@@ -211,23 +264,18 @@ export function OperationsAnalytics() {
       year: selectedYear,
     }));
 
-    if (!availabilityData || availabilityData.length === 0) return allMonths;
+    if (!monthlyRpcData || monthlyRpcData.length === 0) return allMonths;
 
-    // Aggregate real data by month
-    const monthlyMap = new Map<string, { online: number; offline: number }>();
-
-    availabilityData.forEach((d) => {
-      const monthKey = format(parseISO(d.hour_start), "yyyy-MM");
-      const existing = monthlyMap.get(monthKey) || { online: 0, offline: 0 };
-      monthlyMap.set(monthKey, {
-        online: existing.online + d.online_minutes,
-        offline: existing.offline + d.offline_minutes,
+    const rpcMap = new Map<number, { online: number; offline: number }>();
+    monthlyRpcData.forEach((d: any) => {
+      rpcMap.set(d.month, {
+        online: Number(d.total_online_minutes) || 0,
+        offline: Number(d.total_offline_minutes) || 0,
       });
     });
 
-    // Merge real data into all months structure
     return allMonths.map((month) => {
-      const data = monthlyMap.get(month.monthKey);
+      const data = rpcMap.get(month.monthIndex);
       if (data) {
         const total = data.online + data.offline;
         return {
@@ -236,50 +284,37 @@ export function OperationsAnalytics() {
           offlineHours: data.offline / 60,
         };
       }
-      return month; // availability stays null
+      return month;
     });
-  }, [availabilityData, selectedYear]);
+  }, [monthlyRpcData, selectedYear]);
 
-  // Daily evolution (for month view / drill-down)
+  // Daily evolution from RPC data
   const dailyEvolution = useMemo(() => {
-    if (!availabilityData || availabilityData.length === 0) return [];
+    if (!dailyRpcData || dailyRpcData.length === 0) return [];
 
-    const dailyMap = new Map<string, { online: number; offline: number }>();
-
-    availabilityData.forEach((d) => {
-      const date = format(parseISO(d.hour_start), "yyyy-MM-dd");
-      const existing = dailyMap.get(date) || { online: 0, offline: 0 };
-      dailyMap.set(date, {
-        online: existing.online + d.online_minutes,
-        offline: existing.offline + d.offline_minutes,
-      });
+    return dailyRpcData.map((d: any) => {
+      const online = Number(d.total_online_minutes) || 0;
+      const offline = Number(d.total_offline_minutes) || 0;
+      const total = online + offline;
+      const dateStr = d.day;
+      return {
+        date: dateStr,
+        displayDate: format(parseISO(dateStr), "d", { locale: fr }),
+        availability: total > 0 ? (online / total) * 100 : 100,
+        offlineHours: offline / 60,
+      };
     });
+  }, [dailyRpcData]);
 
-    return Array.from(dailyMap.entries())
-      .map(([date, values]) => {
-        const total = values.online + values.offline;
-        return {
-          date,
-          displayDate: format(parseISO(date), "d", { locale: fr }),
-          availability: total > 0 ? (values.online / total) * 100 : 100,
-          offlineHours: values.offline / 60,
-        };
-      })
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }, [availabilityData]);
-
-  // Hourly evolution for a specific day (for day drill-down)
+  // Hourly evolution for a specific day (from raw day drill-down data)
   const hourlyEvolution = useMemo(() => {
-    if (!selectedDay || !availabilityData) return [];
+    if (!selectedDay || !dayDrilldownData) return [];
 
-    const dayData = availabilityData.filter((d) =>
-      d.hour_start.startsWith(selectedDay)
-    );
+    const dayData = dayDrilldownData;
 
-    // Create all 24 hours
     return Array.from({ length: 24 }, (_, hour) => {
       const hourStr = String(hour).padStart(2, "0");
-      const hourData = dayData.filter((d) => {
+      const hourData = dayData.filter((d: any) => {
         const hourPart = d.hour_start.substring(11, 13);
         return hourPart === hourStr;
       });
@@ -294,8 +329,8 @@ export function OperationsAnalytics() {
         };
       }
 
-      const online = hourData.reduce((sum, d) => sum + d.online_minutes, 0);
-      const offline = hourData.reduce((sum, d) => sum + d.offline_minutes, 0);
+      const online = hourData.reduce((sum: number, d: any) => sum + d.online_minutes, 0);
+      const offline = hourData.reduce((sum: number, d: any) => sum + d.offline_minutes, 0);
       const total = online + offline;
 
       return {
@@ -306,7 +341,7 @@ export function OperationsAnalytics() {
         onlineMinutes: online,
       };
     });
-  }, [availabilityData, selectedDay]);
+  }, [dayDrilldownData, selectedDay]);
 
   // KPIs for selected day
   const dayKpis = useMemo(() => {
@@ -326,14 +361,6 @@ export function OperationsAnalytics() {
     };
   }, [hourlyEvolution, selectedDay]);
 
-  // Determine if we should use daily view (short periods or month)
-  const useDailyView = periodMode === "month" || 
-                       periodMode === "previous_week" || 
-                       periodMode === "7d" || 
-                       periodMode === "30d" || 
-                       periodMode === "current_month" || 
-                       periodMode === "range";
-
   // Select data based on period mode and selectedDay
   const chartData = selectedDay 
     ? hourlyEvolution 
@@ -347,12 +374,10 @@ export function OperationsAnalytics() {
       const payload = data.activePayload[0].payload;
       
       if (periodMode === "year" && payload.monthIndex) {
-        // Click on month -> drill down to days
         setPeriodMode("month");
         setSelectedMonth(payload.monthIndex);
         setSelectedDay(null);
       } else if (useDailyView && payload.date && !selectedDay) {
-        // Click on day -> drill down to hours (works for month and short periods)
         setSelectedDay(payload.date);
       }
     }
@@ -415,9 +440,9 @@ export function OperationsAnalytics() {
 
   // Check if clicking on chart should enable cursor pointer
   const isChartClickable = () => {
-    if (selectedDay) return false; // In day view, no further drill-down
-    if (useDailyView) return true; // In daily view (month or short periods), can drill down to day
-    return true; // In year view, can drill down to month
+    if (selectedDay) return false;
+    if (useDailyView) return true;
+    return true;
   };
 
   // Get chart title based on current view
@@ -428,7 +453,6 @@ export function OperationsAnalytics() {
     if (periodMode === "month") {
       return format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM yyyy", { locale: fr });
     }
-    // Short period modes - show date range
     if (periodMode === "previous_week" || periodMode === "7d" || periodMode === "30d" || periodMode === "current_month" || periodMode === "range") {
       if (dateRange.start && dateRange.end) {
         return `Du ${format(dateRange.start, "d MMM", { locale: fr })} au ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
@@ -442,78 +466,53 @@ export function OperationsAnalytics() {
 
   // Use darker, more contrasting colors for bars
   const getBarColor = (value: number) => {
-    if (value >= 98) return "hsl(142, 76%, 30%)"; // Vert foncé contrasté
-    if (value >= 95) return "hsl(38, 92%, 50%)";  // Orange/ambre
-    return "hsl(0, 84%, 50%)";                     // Rouge
+    if (value >= 98) return "hsl(142, 76%, 30%)";
+    if (value >= 95) return "hsl(38, 92%, 50%)";
+    return "hsl(0, 84%, 50%)";
   };
 
-  // Debug log pour vérifier les données agrégées
-  console.log("[Operations] monthlyEvolution:", monthlyEvolution);
-
-  // Hourly heatmap data (hour of day x day of week)
+  // Hourly heatmap data from RPC
   const hourlyHeatmap = useMemo(() => {
-    if (!availabilityData || availabilityData.length === 0) return [];
-
-    const heatmap: Record<string, { offline: number; count: number }> = {};
-
-    availabilityData.forEach((d) => {
-      const dateObj = parseISO(d.hour_start);
-      const hour = dateObj.getHours();
-      const dayOfWeek = dateObj.getDay();
-      const key = `${dayOfWeek}-${hour}`;
-      
-      if (!heatmap[key]) {
-        heatmap[key] = { offline: 0, count: 0 };
-      }
-      heatmap[key].offline += d.offline_minutes;
-      heatmap[key].count += 1;
-    });
+    if (!heatmapRpcData || heatmapRpcData.length === 0) return [];
 
     const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
-    const result: { day: string; hour: number; avgOffline: number; dayIndex: number }[] = [];
+    
+    // Build lookup map
+    const lookup = new Map<string, number>();
+    heatmapRpcData.forEach((d: any) => {
+      lookup.set(`${d.day_of_week}-${d.hour}`, Number(d.avg_offline_minutes) || 0);
+    });
 
+    const result: { day: string; hour: number; avgOffline: number; dayIndex: number }[] = [];
     for (let day = 0; day < 7; day++) {
       for (let hour = 0; hour < 24; hour++) {
-        const key = `${day}-${hour}`;
-        const data = heatmap[key];
         result.push({
           day: days[day],
           hour,
-          avgOffline: data ? data.offline / data.count : 0,
+          avgOffline: lookup.get(`${day}-${hour}`) || 0,
           dayIndex: day,
         });
       }
     }
-
     return result;
-  }, [availabilityData]);
+  }, [heatmapRpcData]);
 
-  // Restaurant ranking by availability
+  // Restaurant ranking from RPC
   const restaurantRanking = useMemo(() => {
-    if (!availabilityData || availabilityData.length === 0) return [];
+    if (!byRestaurantRpcData || byRestaurantRpcData.length === 0) return [];
 
-    const restaurantStats = new Map<string, { online: number; offline: number }>();
-
-    availabilityData.forEach((d) => {
-      const existing = restaurantStats.get(d.restaurant_id) || { online: 0, offline: 0 };
-      restaurantStats.set(d.restaurant_id, {
-        online: existing.online + d.online_minutes,
-        offline: existing.offline + d.offline_minutes,
-      });
-    });
-
-    return Array.from(restaurantStats.entries())
-      .map(([id, stats]) => {
-        const total = stats.online + stats.offline;
-        return {
-          id,
-          name: restaurantMap.get(id) || id.slice(0, 8),
-          availability: total > 0 ? (stats.online / total) * 100 : 100,
-          offlineHours: stats.offline / 60,
-        };
-      })
-      .sort((a, b) => a.availability - b.availability);
-  }, [availabilityData, restaurantMap]);
+    return byRestaurantRpcData.map((d: any) => {
+      const online = Number(d.total_online_minutes) || 0;
+      const offline = Number(d.total_offline_minutes) || 0;
+      const total = online + offline;
+      return {
+        id: d.restaurant_id,
+        name: restaurantMap.get(d.restaurant_id) || d.restaurant_id.slice(0, 8),
+        availability: total > 0 ? (online / total) * 100 : 100,
+        offlineHours: offline / 60,
+      };
+    }).sort((a: any, b: any) => a.availability - b.availability);
+  }, [byRestaurantRpcData, restaurantMap]);
 
   const topFlop = useMemo(() => {
     const sorted = [...restaurantRanking].sort((a, b) => b.availability - a.availability);
@@ -531,7 +530,12 @@ export function OperationsAnalytics() {
     );
   }
 
-  const hasAvailabilityData = availabilityData && availabilityData.length > 0;
+  // Check if we have any data from the active RPC source
+  const hasAvailabilityData = selectedDay 
+    ? (dayDrilldownData && dayDrilldownData.length > 0)
+    : useDailyView 
+      ? (dailyRpcData && dailyRpcData.length > 0)
+      : (monthlyRpcData && monthlyRpcData.length > 0);
 
   const getAvailabilityColor = (value: number) => {
     if (value >= 98) return "hsl(var(--chart-2))"; // Green

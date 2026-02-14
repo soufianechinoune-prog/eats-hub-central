@@ -22,7 +22,7 @@ export interface UberOneEvolutionData {
 export interface UberOneEvolutionByRestaurant {
   month: string;
   monthLabel: string;
-  [restaurantId: string]: number | string | null; // restaurantId -> uberOnePercent (null if no data)
+  [restaurantId: string]: number | string | null;
 }
 
 // Minimum orders threshold for statistical significance
@@ -35,7 +35,7 @@ export interface UberOneByRestaurant {
   uberOneCount: number;
   nonUberOneCount: number;
   totalOrders: number;
-  isSignificant: boolean; // true if totalOrders >= SIGNIFICANCE_THRESHOLD
+  isSignificant: boolean;
 }
 
 export interface UberOneComparison {
@@ -55,21 +55,10 @@ export interface UseUberOneStatsParams {
   platform: "uber_eats" | "deliveroo" | "global";
 }
 
-// Formater une date en YYYY-MM-DD selon le fuseau Europe/Paris
-const formatDateParis = (date: Date): string => {
-  return new Intl.DateTimeFormat('fr-CA', {
-    timeZone: 'Europe/Paris',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-};
-
-// Formater une date en YYYY-MM selon le fuseau Europe/Paris
-const formatMonthParis = (date: Date): string => {
-  const formatted = formatDateParis(date);
-  return formatted.slice(0, 7); // YYYY-MM
-};
+const monthLabels = [
+  "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
+  "Juil", "Août", "Sep", "Oct", "Nov", "Déc"
+];
 
 export function useUberOneStats({
   restaurantIds,
@@ -91,63 +80,35 @@ export function useUberOneStats({
     },
   });
 
-  // Use pinned restaurants as fallback when no selection
   const effectiveRestaurantIds = useMemo(() => {
     if (restaurantIds.length > 0) return restaurantIds;
     return pinnedRestaurants || [];
   }, [restaurantIds, pinnedRestaurants]);
 
-  // Fetch all order_history data with uber_one info
-  const { data: rawData, isLoading } = useQuery({
-    queryKey: ["uber-one-stats", effectiveRestaurantIds, startDate.toISOString(), endDate.toISOString(), platform],
+  const useDaily = ["month", "7d", "30d", "previous_week", "current_month", "range"].includes(periodMode);
+  const platformFilter = platform !== "global" ? platform : null;
+
+  // Fetch aggregated data via RPC
+  const { data: rpcData, isLoading } = useQuery({
+    queryKey: ["uber-one-stats-rpc", effectiveRestaurantIds, startDate.toISOString(), endDate.toISOString(), platformFilter, useDaily ? "daily" : "monthly"],
     queryFn: async () => {
-      if (effectiveRestaurantIds.length === 0) return [];
-
-      // Fetch in batches to handle 1000 row limit
-      const allData: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
-          .from("order_history")
-          .select(
-            "restaurant_id, order_datetime, uber_one, order_amount, initial_prep_time_minutes, platform"
-          )
-          .in("restaurant_id", effectiveRestaurantIds)
-          .gte("order_datetime", startDate.toISOString())
-          .lte("order_datetime", endDate.toISOString())
-          .order("order_datetime", { ascending: true })
-          .range(from, from + batchSize - 1);
-
-        // Apply platform filter if not global
-        if (platform !== "global") {
-          query = query.eq("platform", platform);
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-          console.error("Error fetching uber one stats:", error);
-          break;
-        }
-
-        if (data && data.length > 0) {
-          allData.push(...data);
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
-        }
+      const { data, error } = await supabase.rpc("get_uber_one_stats", {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+        p_restaurant_ids: effectiveRestaurantIds,
+        p_platform: platformFilter,
+        p_granularity: useDaily ? "daily" : "monthly",
+      });
+      if (error) {
+        console.error("Error fetching uber one stats:", error);
+        return [];
       }
-
-      return allData;
+      return data || [];
     },
     enabled: effectiveRestaurantIds.length > 0,
   });
 
-  // Fetch restaurant names for mapping
+  // Fetch restaurant names
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants-for-uber-one"],
     queryFn: async () => {
@@ -167,14 +128,19 @@ export function useUberOneStats({
     return map;
   }, [restaurants]);
 
-  // Calculate global stats
+  // Calculate global stats from RPC data
   const globalStats = useMemo<UberOneGlobalStats | null>(() => {
-    if (!rawData || rawData.length === 0) return null;
+    if (!rpcData || rpcData.length === 0) return null;
 
-    const uberOneCount = rawData.filter((d) => d.uber_one === true).length;
-    const nonUberOneCount = rawData.filter((d) => d.uber_one === false).length;
-    const totalOrders = rawData.length;
+    let uberOneCount = 0;
+    let nonUberOneCount = 0;
 
+    rpcData.forEach((row: any) => {
+      uberOneCount += Number(row.uber_one_count) || 0;
+      nonUberOneCount += Number(row.non_uber_one_count) || 0;
+    });
+
+    const totalOrders = uberOneCount + nonUberOneCount;
     return {
       uberOneCount,
       nonUberOneCount,
@@ -182,45 +148,26 @@ export function useUberOneStats({
       uberOnePercent: totalOrders > 0 ? (uberOneCount / totalOrders) * 100 : 0,
       nonUberOnePercent: totalOrders > 0 ? (nonUberOneCount / totalOrders) * 100 : 0,
     };
-  }, [rawData]);
+  }, [rpcData]);
 
-  // Calculate evolution with adaptive granularity
-  const monthLabels = [
-    "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
-    "Juil", "Août", "Sep", "Oct", "Nov", "Déc"
-  ];
-
-  // Use daily granularity for short periods, monthly for year view
-  const useDaily = ["month", "7d", "30d", "previous_week", "current_month", "range"].includes(periodMode);
-
+  // Calculate evolution (aggregate across restaurants per period)
   const evolution = useMemo<UberOneEvolutionData[]>(() => {
-    if (!rawData || rawData.length === 0) return [];
+    if (!rpcData || rpcData.length === 0) return [];
 
-    const dataMap: Record<string, { uberOne: number; nonUberOne: number }> = {};
+    const periodMap: Record<string, { uberOne: number; nonUberOne: number }> = {};
 
-    rawData.forEach((order) => {
-      const date = new Date(order.order_datetime);
-      const key = useDaily 
-        ? formatDateParis(date)  // YYYY-MM-DD en heure Paris
-        : formatMonthParis(date);  // YYYY-MM en heure Paris
-
-      if (!dataMap[key]) {
-        dataMap[key] = { uberOne: 0, nonUberOne: 0 };
-      }
-
-      if (order.uber_one === true) {
-        dataMap[key].uberOne++;
-      } else {
-        dataMap[key].nonUberOne++;
-      }
+    rpcData.forEach((row: any) => {
+      const key = row.period_key;
+      if (!periodMap[key]) periodMap[key] = { uberOne: 0, nonUberOne: 0 };
+      periodMap[key].uberOne += Number(row.uber_one_count) || 0;
+      periodMap[key].nonUberOne += Number(row.non_uber_one_count) || 0;
     });
 
-    return Object.entries(dataMap)
+    return Object.entries(periodMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, data]) => {
         let label: string;
         if (useDaily) {
-          // Ajouter T12:00:00 pour éviter les décalages de timezone lors du parsing
           const d = new Date(key + "T12:00:00");
           label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
         } else {
@@ -238,44 +185,30 @@ export function useUberOneStats({
           totalOrders: total,
         };
       });
-  }, [rawData, useDaily]);
+  }, [rpcData, useDaily]);
 
-  // Calculate evolution by restaurant with adaptive granularity
+  // Calculate evolution by restaurant
   const evolutionByRestaurant = useMemo<UberOneEvolutionByRestaurant[]>(() => {
-    if (!rawData || rawData.length === 0) return [];
+    if (!rpcData || rpcData.length === 0) return [];
 
-    // Get all unique restaurant IDs in the data
-    const uniqueRestaurantIds = [...new Set(rawData.map(o => o.restaurant_id))];
+    const uniqueRestaurantIds = [...new Set(rpcData.map((r: any) => r.restaurant_id))];
+    const periodRestaurantMap: Record<string, Record<string, { uberOne: number; total: number }>> = {};
 
-    // Map: key (date or month) -> restaurantId -> { uberOne, total }
-    const dataRestaurantMap: Record<string, Record<string, { uberOne: number; total: number }>> = {};
-
-    rawData.forEach((order) => {
-      const date = new Date(order.order_datetime);
-      const key = useDaily 
-        ? formatDateParis(date)  // YYYY-MM-DD en heure Paris
-        : formatMonthParis(date);  // YYYY-MM en heure Paris
-      const rid = order.restaurant_id;
-
-      if (!dataRestaurantMap[key]) {
-        dataRestaurantMap[key] = {};
-      }
-      if (!dataRestaurantMap[key][rid]) {
-        dataRestaurantMap[key][rid] = { uberOne: 0, total: 0 };
-      }
-
-      dataRestaurantMap[key][rid].total++;
-      if (order.uber_one === true) {
-        dataRestaurantMap[key][rid].uberOne++;
-      }
+    rpcData.forEach((row: any) => {
+      const key = row.period_key;
+      const rid = row.restaurant_id;
+      if (!periodRestaurantMap[key]) periodRestaurantMap[key] = {};
+      periodRestaurantMap[key][rid] = {
+        uberOne: Number(row.uber_one_count) || 0,
+        total: (Number(row.uber_one_count) || 0) + (Number(row.non_uber_one_count) || 0),
+      };
     });
 
-    return Object.entries(dataRestaurantMap)
+    return Object.entries(periodRestaurantMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, restaurantData]) => {
         let label: string;
         if (useDaily) {
-          // Ajouter T12:00:00 pour éviter les décalages de timezone lors du parsing
           const d = new Date(key + "T12:00:00");
           label = `${d.getDate()} ${monthLabels[d.getMonth()].toLowerCase()}`;
         } else {
@@ -283,38 +216,27 @@ export function useUberOneStats({
           label = `${monthLabels[parseInt(monthNum) - 1]} ${year.slice(2)}`;
         }
 
-        const result: UberOneEvolutionByRestaurant = {
-          month: key,
-          monthLabel: label,
-        };
-
-        // Normalize: include ALL restaurant IDs for each period (null if no data)
-        uniqueRestaurantIds.forEach((rid) => {
+        const result: UberOneEvolutionByRestaurant = { month: key, monthLabel: label };
+        uniqueRestaurantIds.forEach((rid: string) => {
           const data = restaurantData[rid];
           result[rid] = data && data.total > 0 ? (data.uberOne / data.total) * 100 : null;
         });
 
         return result;
       });
-  }, [rawData, useDaily]);
+  }, [rpcData, useDaily]);
 
-  // Calculate stats by restaurant
+  // Stats by restaurant
   const byRestaurant = useMemo<UberOneByRestaurant[]>(() => {
-    if (!rawData || rawData.length === 0) return [];
+    if (!rpcData || rpcData.length === 0) return [];
 
     const restaurantStats: Record<string, { uberOne: number; nonUberOne: number }> = {};
 
-    rawData.forEach((order) => {
-      const rid = order.restaurant_id;
-      if (!restaurantStats[rid]) {
-        restaurantStats[rid] = { uberOne: 0, nonUberOne: 0 };
-      }
-
-      if (order.uber_one === true) {
-        restaurantStats[rid].uberOne++;
-      } else {
-        restaurantStats[rid].nonUberOne++;
-      }
+    rpcData.forEach((row: any) => {
+      const rid = row.restaurant_id;
+      if (!restaurantStats[rid]) restaurantStats[rid] = { uberOne: 0, nonUberOne: 0 };
+      restaurantStats[rid].uberOne += Number(row.uber_one_count) || 0;
+      restaurantStats[rid].nonUberOne += Number(row.non_uber_one_count) || 0;
     });
 
     return Object.entries(restaurantStats)
@@ -331,33 +253,29 @@ export function useUberOneStats({
         };
       })
       .sort((a, b) => b.uberOnePercent - a.uberOnePercent);
-  }, [rawData, restaurantMap]);
+  }, [rpcData, restaurantMap]);
 
-  // Calculate comparison metrics (basket, prep time, volume)
+  // Comparison metrics
   const comparison = useMemo<UberOneComparison[]>(() => {
-    if (!rawData || rawData.length === 0) return [];
+    if (!rpcData || rpcData.length === 0) return [];
 
-    const uberOneOrders = rawData.filter((d) => d.uber_one === true);
-    const nonUberOneOrders = rawData.filter((d) => d.uber_one === false);
+    let uberOneRevenue = 0, nonUberOneRevenue = 0;
+    let uberOneCount = 0, nonUberOneCount = 0;
 
-    const calcAvg = (orders: any[], field: string) => {
-      const validOrders = orders.filter((o) => o[field] !== null && o[field] !== undefined);
-      if (validOrders.length === 0) return 0;
-      return validOrders.reduce((sum, o) => sum + (o[field] || 0), 0) / validOrders.length;
-    };
+    rpcData.forEach((row: any) => {
+      uberOneRevenue += Number(row.uber_one_revenue) || 0;
+      nonUberOneRevenue += Number(row.non_uber_one_revenue) || 0;
+      uberOneCount += Number(row.uber_one_count) || 0;
+      nonUberOneCount += Number(row.non_uber_one_count) || 0;
+    });
 
-    const uberOneBasket = calcAvg(uberOneOrders, "order_amount");
-    const nonUberOneBasket = calcAvg(nonUberOneOrders, "order_amount");
+    const uberOneBasket = uberOneCount > 0 ? uberOneRevenue / uberOneCount : 0;
+    const nonUberOneBasket = nonUberOneCount > 0 ? nonUberOneRevenue / nonUberOneCount : 0;
     const basketDiff = uberOneBasket - nonUberOneBasket;
     const basketDiffPercent = nonUberOneBasket > 0 ? (basketDiff / nonUberOneBasket) * 100 : 0;
 
-    const uberOnePrepTime = calcAvg(uberOneOrders, "initial_prep_time_minutes");
-    const nonUberOnePrepTime = calcAvg(nonUberOneOrders, "initial_prep_time_minutes");
-    const prepDiff = uberOnePrepTime - nonUberOnePrepTime;
-    const prepDiffPercent = nonUberOnePrepTime > 0 ? (prepDiff / nonUberOnePrepTime) * 100 : 0;
-
-    const volumeDiff = uberOneOrders.length - nonUberOneOrders.length;
-    const volumeDiffPercent = nonUberOneOrders.length > 0 ? (volumeDiff / nonUberOneOrders.length) * 100 : 0;
+    const volumeDiff = uberOneCount - nonUberOneCount;
+    const volumeDiffPercent = nonUberOneCount > 0 ? (volumeDiff / nonUberOneCount) * 100 : 0;
 
     return [
       {
@@ -370,14 +288,14 @@ export function useUberOneStats({
       },
       {
         metric: "Volume",
-        uberOneValue: uberOneOrders.length,
-        nonUberOneValue: nonUberOneOrders.length,
+        uberOneValue: uberOneCount,
+        nonUberOneValue: nonUberOneCount,
         difference: volumeDiff,
         differencePercent: volumeDiffPercent,
         unit: "",
       },
     ];
-  }, [rawData]);
+  }, [rpcData]);
 
   return {
     globalStats,
