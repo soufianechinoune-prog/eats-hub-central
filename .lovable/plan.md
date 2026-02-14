@@ -1,46 +1,30 @@
 
-# Alerte "Historique limité" sur la page Temps d'inactivité
 
-## Objectif
+# Masquer le contenu quand aucune donnee n'est disponible
 
-Afficher un bandeau d'avertissement visible lorsque la période sélectionnée tombe (totalement ou partiellement) avant la date la plus ancienne de données disponibles. Cela evitera de presenter des taux de disponibilite a 100% qui sont en realite dus a l'absence de donnees importees.
+## Probleme
 
-## Comportement
+Quand l'alerte "Aucune donnee disponible" s'affiche (periode entierement avant les donnees importees), les graphiques et classements apparaissent quand meme en dessous avec des valeurs fausses (100% partout, 0min d'inactivite). C'est contradictoire et trompeur.
 
-- Le systeme interroge la base pour connaitre la date la plus ancienne dans la table `hourly_availability` (plateforme Uber Eats)
-- Si la date de debut de la periode selectionnee est **anterieure** a cette date, un bandeau orange (warning) s'affiche sous le header :
-  - **Texte** : "Historique limité -- Les données de disponibilité Uber Eats ne sont disponibles qu'à partir du [date]. Les résultats affichés pour la période antérieure peuvent être incomplets ou non représentatifs."
-- Si la periode est **entierement** avant la premiere date disponible, le message est plus explicite :
-  - **Texte** : "Aucune donnée disponible -- Aucun historique de disponibilité Uber Eats n'a été importé pour cette période. Les résultats affichés ne sont pas exploitables."
-- Le bandeau disparait automatiquement quand la periode selectionnee est entierement couverte par les donnees
+## Solution
+
+Quand `dataAlert === "full"`, remplacer tout le contenu (insights, classement, heatmap) par un message central expliquant l'absence de donnees. Le bandeau d'alerte orange reste en place pour le cas `"partial"` (historique limite mais donnees partielles disponibles).
 
 ## Details techniques
 
-### Fichier modifie : `src/pages/DowntimeComparison.tsx`
+### Fichier : `src/pages/DowntimeComparison.tsx`
 
-1. Ajouter une requete pour recuperer la date la plus ancienne :
-```typescript
-const { data: earliestDate } = useQuery({
-  queryKey: ["downtime-earliest-date"],
-  queryFn: async () => {
-    const { data } = await supabase
-      .from("hourly_availability")
-      .select("hour_start")
-      .eq("platform", "uber_eats")
-      .order("hour_start", { ascending: true })
-      .limit(1);
-    return data?.[0]?.hour_start ? parseISO(data[0].hour_start) : null;
-  },
-});
+Dans le bloc conditionnel apres le loading spinner, ajouter une condition : si `dataAlert === "full"`, afficher un ecran vide centre avec une icone `AlertTriangle`, un titre et une description explicative, au lieu du grid contenant les insights, le classement et la heatmap.
+
+Le cas `"partial"` continue d'afficher le bandeau orange en haut ET le contenu en dessous (car une partie des donnees est exploitable).
+
+Structure du rendu :
+
+```text
+if isLoading -> spinner
+else if dataAlert === "full" -> message central plein ecran (icone + texte)
+else -> contenu normal (insights + classement + heatmap)
 ```
 
-2. Ajouter un `useMemo` pour determiner le type d'alerte :
-   - `"full"` si toute la periode est avant la premiere date
-   - `"partial"` si seul le debut de la periode est avant
-   - `null` si la periode est entierement couverte
+Le message central reprendra le texte existant de l'alerte avec un style centre et une hauteur minimale pour occuper l'espace.
 
-3. Afficher un composant `Alert` (deja disponible dans `src/components/ui/alert.tsx`) avec une icone `AlertTriangle` de Lucide, positionne juste apres le header et avant le contenu principal
-
-### Aucun autre fichier cree ou modifie
-
-La logique est entierement contenue dans la page `DowntimeComparison.tsx` en utilisant les composants `Alert`, `AlertTitle` et `AlertDescription` deja existants.
