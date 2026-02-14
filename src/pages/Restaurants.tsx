@@ -490,38 +490,10 @@ const Restaurants = () => {
                             ? ` le ${new Date((restaurant as any).uber_closing_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}` 
                             : ''}
                         </Badge>
-                      ) : restaurant.deliveroo_account_manager_name ? (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="cursor-help border-b border-dotted border-muted-foreground/50">
-                                {restaurant.deliveroo_account_manager_name}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs">
-                              <div className="space-y-1.5">
-                                <p className="font-medium">{restaurant.deliveroo_account_manager_name}</p>
-                                {restaurant.deliveroo_account_manager_title && (
-                                  <p className="text-xs text-muted-foreground">{restaurant.deliveroo_account_manager_title}</p>
-                                )}
-                                {restaurant.deliveroo_account_manager_phone && (
-                                  <div className="flex items-center gap-1.5 text-xs">
-                                    <Phone className="h-3 w-3" />
-                                    {restaurant.deliveroo_account_manager_phone}
-                                  </div>
-                                )}
-                                {restaurant.deliveroo_account_manager_email && (
-                                  <div className="flex items-center gap-1.5 text-xs">
-                                    <Mail className="h-3 w-3" />
-                                    {restaurant.deliveroo_account_manager_email}
-                                  </div>
-                                )}
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+                          Actif
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
