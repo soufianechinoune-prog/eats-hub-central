@@ -103,13 +103,12 @@ export function useRestaurantsExport() {
         x += colWidths[i];
       });
       doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
       y += headerH;
     };
 
     drawHeader();
-
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "normal");
 
     rows.forEach((row, idx) => {
       if (y + rowH > pageH - 10) {
