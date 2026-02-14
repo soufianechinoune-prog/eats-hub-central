@@ -61,7 +61,6 @@ function parseCSVLine(line: string): string[] {
 // Parse numeric value with comma as decimal separator
 function parseNumeric(value: string): number | null {
   if (!value || value.trim() === '') return null;
-  // Remove currency symbols, spaces, and replace comma with dot
   const cleaned = value.replace(/[€$\s]/g, '').replace(',', '.').replace(/[^\d.-]/g, '');
   const num = parseFloat(cleaned);
   return isNaN(num) ? null : num;
@@ -71,14 +70,12 @@ function parseNumeric(value: string): number | null {
 function parseDateTime(dateStr: string): string | null {
   if (!dateStr || dateStr.trim() === '') return null;
   
-  // Format ISO: "2025-11-01 00:02:54.000" or "2025-11-01T00:02:54.000"
   const isoMatch = dateStr.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2}):(\d{2})/);
   if (isoMatch) {
     const [_, year, month, day, hours, minutes, seconds] = isoMatch;
     return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+00:00`;
   }
   
-  // Format FR: "01/11/2024 10:48:16" or "01/11/2024 10:48"
   const frMatch = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
   if (frMatch) {
     const [_, day, month, year, hours, minutes, seconds = '00'] = frMatch;
@@ -192,7 +189,7 @@ serve(async (req) => {
     // Parse CSV
     const lines = csvContent.split('\n').filter((line: string) => line.trim());
     
-    // Find header row - look for "Problème avec la commande" or similar columns
+    // Find header row
     let headerIndex = 0;
     for (let i = 0; i < Math.min(10, lines.length); i++) {
       const line = lines[i].toLowerCase();
@@ -242,7 +239,7 @@ serve(async (req) => {
     };
 
     const restaurantStats = new Map<string, { id: string; name: string; orderCount: number }>();
-    const recordsToInsert: any[] = [];
+    const recordsToUpsert: any[] = [];
     const seenKeys = new Set<string>();
     let minDate: string | null = null;
     let maxDate: string | null = null;
@@ -269,19 +266,16 @@ serve(async (req) => {
       let matchedRestaurant: { id: string; name: string } | undefined;
 
       if (restaurantId) {
-        // Use override
         const overrideRestaurant = restaurants?.find(r => r.id === restaurantId);
         if (overrideRestaurant) {
           matchedRestaurant = { id: overrideRestaurant.id, name: overrideRestaurant.name };
         }
       } else {
-        // Try name matching from Restaurant column
         const restaurantName = getCol(row, 'restaurant');
         if (restaurantName) {
           const normalizedName = normalizeRestaurantName(restaurantName);
           matchedRestaurant = restaurantByName.get(normalizedName);
 
-          // Try partial matching by city
           if (!matchedRestaurant) {
             matchedRestaurant = findRestaurantByPartialName(restaurantName, restaurantByName) || undefined;
           }
@@ -308,7 +302,9 @@ serve(async (req) => {
 
       // Parse dates
       const orderDatetime = parseDateTime(getCol(row, 'heure de la commande', 'order time'));
-      const errorDate = orderDatetime || parseDateTime(getCol(row, 'heure du remboursement', 'refund time'));
+      const refundDatetimeRaw = getCol(row, 'heure du remboursement', 'refund time');
+      const refundDatetime = parseDateTime(refundDatetimeRaw);
+      const errorDate = orderDatetime || refundDatetime;
       
       if (errorDate) {
         const dateOnly = errorDate.split('T')[0];
@@ -326,6 +322,10 @@ serve(async (req) => {
       const refundTotal = parseNumeric(getCol(row, 'client remboursé', 'customer refunded'));
       const refundMerchant = parseNumeric(getCol(row, 'remboursement pris en charge par le commerçant', 'merchant refund'));
       
+      // New columns
+      const orderChannel = getCol(row, 'canal de la commande', 'order channel') || null;
+      const orderAmount = parseNumeric(getCol(row, 'montant moyen de la commande', 'average order amount'));
+
       // Split multiple items if present (separated by |)
       const items = incorrectItems ? incorrectItems.split('|').map(s => s.trim()).filter(Boolean) : [''];
 
@@ -345,13 +345,16 @@ serve(async (req) => {
           item_title: itemTitle || null,
           error_description: errorInfo || customerComment || null,
           financial_impact: refundMerchant || refundTotal || null,
+          order_channel: orderChannel,
+          order_amount: orderAmount,
+          refund_datetime: refundDatetime,
         };
 
-        recordsToInsert.push(record);
+        recordsToUpsert.push(record);
       }
     }
 
-    console.log(`Parsed ${result.stats.totalRows} rows, prepared ${recordsToInsert.length} records to insert`);
+    console.log(`Parsed ${result.stats.totalRows} rows, prepared ${recordsToUpsert.length} records to upsert`);
 
     // Set date range
     if (minDate && maxDate) {
@@ -361,20 +364,23 @@ serve(async (req) => {
     // Set restaurant stats
     result.validation!.restaurants = Array.from(restaurantStats.values());
 
-    // Insert records if not dry run
-    if (!dryRun && recordsToInsert.length > 0) {
-      // Process in batches of 500
+    // Upsert records if not dry run
+    if (!dryRun && recordsToUpsert.length > 0) {
       const batchSize = 500;
-      for (let i = 0; i < recordsToInsert.length; i += batchSize) {
-        const batch = recordsToInsert.slice(i, i + batchSize);
+      for (let i = 0; i < recordsToUpsert.length; i += batchSize) {
+        const batch = recordsToUpsert.slice(i, i + batchSize);
         
-        const { error: insertError } = await supabase
+        const { data, error: upsertError } = await supabase
           .from('order_errors')
-          .insert(batch);
+          .upsert(batch, {
+            onConflict: 'restaurant_id,uber_order_id,item_title',
+            ignoreDuplicates: false,
+          })
+          .select('id');
 
-        if (insertError) {
-          console.error('Insert error:', insertError);
-          result.errorDetails.push(`Batch ${Math.floor(i / batchSize) + 1}: ${insertError.message}`);
+        if (upsertError) {
+          console.error('Upsert error:', upsertError);
+          result.errorDetails.push(`Batch ${Math.floor(i / batchSize) + 1}: ${upsertError.message}`);
           result.stats.errors += batch.length;
         } else {
           result.stats.inserted += batch.length;
@@ -383,7 +389,7 @@ serve(async (req) => {
 
       result.success = result.stats.errors === 0;
     } else if (dryRun) {
-      result.stats.inserted = recordsToInsert.length;
+      result.stats.inserted = recordsToUpsert.length;
     }
 
     console.log('Parse inaccurate orders result:', JSON.stringify({

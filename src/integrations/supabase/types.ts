@@ -1311,7 +1311,10 @@ export type Database = {
           id: string
           item_id: string | null
           item_title: string | null
+          order_amount: number | null
+          order_channel: string | null
           order_id: string | null
+          refund_datetime: string | null
           restaurant_id: string
           uber_order_id: string | null
         }
@@ -1327,7 +1330,10 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_title?: string | null
+          order_amount?: number | null
+          order_channel?: string | null
           order_id?: string | null
+          refund_datetime?: string | null
           restaurant_id: string
           uber_order_id?: string | null
         }
@@ -1343,7 +1349,10 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_title?: string | null
+          order_amount?: number | null
+          order_channel?: string | null
           order_id?: string | null
+          refund_datetime?: string | null
           restaurant_id?: string
           uber_order_id?: string | null
         }
