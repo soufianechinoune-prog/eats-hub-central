@@ -1,38 +1,41 @@
 
-# Corriger la lisibilite et la pagination du PDF Analytics
 
-## Problemes identifies
+# Corriger les noms de restaurants coupes aux limites de page
 
-1. **Texte petit/illisible** : le scale `1.5` de html2canvas produit une resolution insuffisante
-2. **Restaurants coupes** : jsPDF `addImage` ne clippe pas reellement l'image -- le contenu deborde entre les pages au lieu d'etre proprement decoupe
-3. **Texte qui se chevauche dans le bandeau meta** : "Restaurants: Tous les restaurants" et "Genere le 14 fevrier 2026 a 12:35" sont sur la meme ligne et se melangent quand le texte est long
+## Probleme
+
+Le decoupage du canvas se fait a des positions en pixels arbitraires, calculees uniquement a partir de la hauteur disponible par page. Quand une ligne de restaurant tombe pile sur la frontiere, le texte est coupe en deux entre les pages.
 
 ## Solution
 
+Ajouter une logique de "snap" qui ajuste la position de coupe pour eviter de couper du texte. Avant de trancher le canvas a une position donnee, on scanne les pixels autour de cette position pour trouver la ligne horizontale la plus "blanche" (espace entre deux lignes de restaurant), et on deplace la coupe a cet endroit.
+
 ### Fichier modifie : `src/hooks/useAnalyticsPdfExport.ts`
 
-#### 1. Augmenter la qualite de capture
-- Passer `scale` de `1.5` a `2` pour une meilleure lisibilite
-- Garder JPEG 80% (au lieu de 75%) pour un bon compromis taille/qualite
+#### Ajouter une fonction `findSafeCutPosition`
+- Prend en entree : le canvas source, la position Y cible en pixels, et une zone de recherche (ex: 80px au-dessus et en dessous)
+- Pour chaque ligne Y dans cette zone, calcule la luminosite moyenne des pixels sur toute la largeur
+- Retourne la position Y dont la ligne est la plus claire (la plus proche du blanc = espace entre deux elements)
+- Si aucune ligne suffisamment blanche n'est trouvee, retourne la position originale
 
-#### 2. Corriger la pagination avec un vrai decoupage du canvas
-- Au lieu de placer l'image entiere avec un decalage negatif (ce qui ne clippe pas), **decouper le canvas source** en tranches via un canvas intermediaire pour chaque page
-- Chaque tranche est convertie en image JPEG independante et placee correctement sur sa page
+#### Modifier la boucle de pagination
+- Avant de calculer `sliceHeightPx`, appeler `findSafeCutPosition` pour ajuster la position de coupe
+- La tranche sera legerement plus courte ou plus longue que prevu, mais ne coupera jamais un texte
 
 ```text
-Canvas source (tres haut)
-  |
-  +-- Tranche 1 --> Page 1 (sous le header)
-  +-- Tranche 2 --> Page 2
-  +-- Tranche N --> Page N
+Position cible (calcul brut)
+     |
+     v
+  ~~~~ texte coupe ~~~~    <-- probleme actuel
+     
+Apres snap :
+     |
+     v    (deplace vers le gap le plus proche)
+  _____ espace blanc _____  <-- coupe propre
 ```
 
-#### 3. Corriger le bandeau meta
-- Passer le bandeau meta sur 2 lignes au lieu d'une seule :
-  - Ligne 1 : Periode + Plateforme
-  - Ligne 2 : Restaurants + Date de generation
-- Augmenter la hauteur du bandeau meta de 12mm a 18mm
-- Ajuster `headerHeight` en consequence
+#### Recalculer le nombre de pages dynamiquement
+- Comme chaque coupe est ajustee, le nombre total de pages peut varier
+- Passer a une boucle `while (canvasYPx < canvas.height)` au lieu d'un `for` avec `totalPages` fixe
+- Calculer `totalPages` a la fin pour le footer, ou utiliser un systeme a 2 passes (1ere passe : calculer les positions de coupe, 2eme passe : generer les pages)
 
-#### 4. Augmenter la taille du footer
-- Passer le footer de `setFontSize(8)` a `setFontSize(9)` pour meilleure lisibilite
