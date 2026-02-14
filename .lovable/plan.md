@@ -1,43 +1,38 @@
 
-# Corriger le PDF Analytics : portrait, multi-pages et taille optimisee
+# Corriger la lisibilite et la pagination du PDF Analytics
 
 ## Problemes identifies
 
-1. **Orientation paysage** : le PDF est en `landscape` alors que le contenu (classement vertical de 90+ restaurants) est en portrait
-2. **Taille ~100 Mo** : `html2canvas` capture a `scale: 2` et encode en PNG base64, ce qui genere une image enorme embarquee telle quelle
-3. **Page unique** : tout le contenu est ecrase sur une seule page au lieu d'etre pagine
+1. **Texte petit/illisible** : le scale `1.5` de html2canvas produit une resolution insuffisante
+2. **Restaurants coupes** : jsPDF `addImage` ne clippe pas reellement l'image -- le contenu deborde entre les pages au lieu d'etre proprement decoupe
+3. **Texte qui se chevauche dans le bandeau meta** : "Restaurants: Tous les restaurants" et "Genere le 14 fevrier 2026 a 12:35" sont sur la meme ligne et se melangent quand le texte est long
 
 ## Solution
 
-Modifier `src/hooks/useAnalyticsPdfExport.ts` avec les changements suivants :
+### Fichier modifie : `src/hooks/useAnalyticsPdfExport.ts`
 
-### 1. Passer en portrait
-- Changer `orientation: "landscape"` en `orientation: "portrait"`
+#### 1. Augmenter la qualite de capture
+- Passer `scale` de `1.5` a `2` pour une meilleure lisibilite
+- Garder JPEG 80% (au lieu de 75%) pour un bon compromis taille/qualite
 
-### 2. Reduire la taille du fichier
-- Baisser `scale` de 2 a 1.5 (suffisant pour la lisibilite)
-- Utiliser `canvas.toDataURL("image/jpeg", 0.75)` au lieu de PNG (compression JPEG avec qualite 75%)
-- Ajouter l'image avec le format `"JPEG"` au lieu de `"PNG"`
-
-### 3. Ajouter la pagination multi-pages
-- Calculer la hauteur totale de l'image par rapport a la zone imprimable
-- Decouper l'image en tranches (une par page) avec `addPage()` entre chaque
-- Ajouter un footer avec le numero de page sur chaque page
-
-### Detail technique
+#### 2. Corriger la pagination avec un vrai decoupage du canvas
+- Au lieu de placer l'image entiere avec un decalage negatif (ce qui ne clippe pas), **decouper le canvas source** en tranches via un canvas intermediaire pour chaque page
+- Chaque tranche est convertie en image JPEG independante et placee correctement sur sa page
 
 ```text
-Avant :
-  - orientation: landscape
-  - scale: 2, format PNG
-  - 1 seule page, image ecrasee
-
-Apres :
-  - orientation: portrait
-  - scale: 1.5, format JPEG 75%
-  - N pages, image decoupee en tranches verticales
-  - Footer "Page X/N" sur chaque page
+Canvas source (tres haut)
+  |
+  +-- Tranche 1 --> Page 1 (sous le header)
+  +-- Tranche 2 --> Page 2
+  +-- Tranche N --> Page N
 ```
 
-### Fichier modifie
-- `src/hooks/useAnalyticsPdfExport.ts` (refonte complete de la fonction `exportToPdf`)
+#### 3. Corriger le bandeau meta
+- Passer le bandeau meta sur 2 lignes au lieu d'une seule :
+  - Ligne 1 : Periode + Plateforme
+  - Ligne 2 : Restaurants + Date de generation
+- Augmenter la hauteur du bandeau meta de 12mm a 18mm
+- Ajuster `headerHeight` en consequence
+
+#### 4. Augmenter la taille du footer
+- Passer le footer de `setFontSize(8)` a `setFontSize(9)` pour meilleure lisibilite
