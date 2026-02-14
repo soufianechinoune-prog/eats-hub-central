@@ -1,51 +1,40 @@
 
-# Corriger les 393 lignes ignorees (Restaurant not found)
+# Afficher le mapping interactif pour "Chicken Street - Lille"
 
-## Diagnostic
+## Probleme racine
 
-Les 393 lignes ignorees proviennent de commandes dont le `store_id` dans le CSV correspond a un identifiant secondaire/historique stocke dans la table `restaurant_uber_ids`, mais la fonction ne consulte que `restaurants.uber_store_id`. Les restaurants ayant change d'UUID (ex: Montreuil, Saint-Etienne, Colombes, Arras, Meaux, Melun, etc.) ne sont pas retrouves.
+Le fichier CSV contient 24514 lignes. Les 393 lignes de "Chicken Street - Lille" commencent vers la ligne 11373. Or :
 
-De plus, si le store ID n'est pas trouve et que le fallback par nom echoue aussi (la colonne "restaurant" dans le CSV est peut-etre vide ou nommee differemment), les lignes sont ignorees avec un message "Restaurant not found" sans detail.
+1. **A la validation** (etape 3), seules les 1000 premieres lignes sont envoyees comme echantillon. "Lille" n'y figure pas, donc `unknownStoreIds` est vide et le composant de mapping ne s'affiche pas.
 
-## Solution
+2. **A l'import** (etape 4), le fichier est decoupe en chunks. Chaque chunk retourne ses `unknownStoreIds`, mais le code d'agregation les ignore (`unknownStoreIds: []` en dur a la ligne 1027).
 
-### Fichier : `supabase/functions/parse-inaccurate-orders/index.ts`
+Resultat : le mapping interactif n'apparait jamais pour ce restaurant.
 
-**1. Charger les identifiants secondaires depuis `restaurant_uber_ids`**
+## Corrections prevues
 
-En plus de la requete actuelle sur `restaurants`, ajouter une requete sur `restaurant_uber_ids` pour construire un map complet de tous les UUID connus :
+### 1. Collecter les `unknownStoreIds` pendant le chunking
 
-```text
-// Requete supplementaire
-const { data: uberIds } = await supabase
-  .from('restaurant_uber_ids')
-  .select('uber_store_id, restaurant_id');
+**Fichier** : `src/pages/ReportImport.tsx` (lignes ~1014-1029)
 
-// Ajouter au map existant
-for (const mapping of uberIds || []) {
-  const restaurant = restaurants?.find(r => r.id === mapping.restaurant_id);
-  if (restaurant && !restaurantByStoreId.has(mapping.uber_store_id)) {
-    restaurantByStoreId.set(mapping.uber_store_id, { id: restaurant.id, name: restaurant.name });
-  }
-}
-```
+Dans la boucle d'agregation des chunks, ajouter la collecte des `unknownStoreIds` et `unknownStoreDetails` depuis chaque chunk, puis les injecter dans le resultat agrege au lieu de `[]`.
 
-**2. Ajouter des variantes de noms de colonnes pour le restaurant**
+### 2. Afficher le mapping interactif sur l'ecran de resultat (etape 4)
 
-Le CSV pourrait utiliser "nom du restaurant", "store name", etc. Ajouter ces variantes dans le `getCol` pour le nom :
+**Fichier** : `src/pages/ReportImport.tsx` (vers l'etape "complete")
 
-```text
-const restaurantName = getCol(row, 'restaurant', 'nom du restaurant', 'store name', 'restaurant name');
-```
+Ajouter le composant `UnknownStoreMapping` sur l'ecran de resultat d'import (etape 4), avec un bouton "Re-importer les lignes ignorees" une fois le mapping effectue. Ainsi, meme si la validation n'a pas detecte le probleme, l'utilisateur peut corriger apres l'import.
 
-**3. Ameliorer le detail des erreurs**
+### 3. Hardcoder le match "Lille" -> "Lille Wazemmes" dans l'Edge Function (optionnel, raccourci)
 
-Inclure aussi le store ID qui a echoue dans le message d'erreur pour faciliter le debug :
+**Fichier** : `supabase/functions/parse-inaccurate-orders/index.ts`
 
-```text
-details: `Restaurant not found: name="${restaurantName}" storeId="${storeId}"`
-```
+Comme vous savez que "Chicken Street - Lille" doit aller vers Lille Wazemmes, on peut aussi ajouter une regle de matching : quand il y a plusieurs candidats et que le nom extrait est exactement "lille", choisir le premier resultat par defaut plutot que de refuser le match. Mais le mapping interactif reste la solution propre et perenne.
 
-## Impact attendu
+## Resume
 
-Les 393 lignes correspondent tres probablement a 1-2 restaurants dont les UUID historiques sont dans `restaurant_uber_ids`. Apres ce changement, ces lignes seront correctement rattachees et importees.
+| Fichier | Changement |
+|---------|-----------|
+| `ReportImport.tsx` | Collecter `unknownStoreIds` dans l'agregation des chunks |
+| `ReportImport.tsx` | Afficher `UnknownStoreMapping` a l'etape 4 (resultat) |
+| Edge Function (optionnel) | Fallback quand matching ambigu |
