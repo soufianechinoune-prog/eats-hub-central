@@ -1,52 +1,51 @@
 
-# Correction des erreurs d'import des commandes incorrectes
+# Corriger les 393 lignes ignorees (Restaurant not found)
 
-## Problemes identifies
+## Diagnostic
 
-### 1. 500 erreurs : incompatibilite NULL dans l'upsert
-L'index unique en base utilise `COALESCE(item_title, '')` mais le code envoie `item_title: null` quand il n'y a pas d'article. PostgreSQL ne peut pas resoudre le conflit avec des valeurs NULL (NULL != NULL en SQL), donc l'upsert echoue pour toutes les lignes sans item.
+Les 393 lignes ignorees proviennent de commandes dont le `store_id` dans le CSV correspond a un identifiant secondaire/historique stocke dans la table `restaurant_uber_ids`, mais la fonction ne consulte que `restaurants.uber_store_id`. Les restaurants ayant change d'UUID (ex: Montreuil, Saint-Etienne, Colombes, Arras, Meaux, Melun, etc.) ne sont pas retrouves.
 
-### 2. 393 ignorees : restaurants non trouves
-Certaines lignes du CSV contiennent des noms de restaurants qui ne matchent pas avec la base. Le matching actuel normalise le nom et cherche une correspondance exacte ou partielle via "Chicken Street - [ville]". Si le nom dans le CSV differe (accents, tirets, espaces), le match echoue.
+De plus, si le store ID n'est pas trouve et que le fallback par nom echoue aussi (la colonne "restaurant" dans le CSV est peut-etre vide ou nommee differemment), les lignes sont ignorees avec un message "Restaurant not found" sans detail.
 
-### 3. Mauvaise agregation des resultats par chunk
-Le code de chunking (initialement ecrit pour `order_history`) cherche les donnees aux mauvais chemins dans la reponse du parser `inaccurate_orders` :
-- `chunkResult.errors` au lieu de `chunkResult.errorDetails`
-- `chunkResult.restaurants` au lieu de `chunkResult.validation.restaurants`
-- `chunkResult.dateRange` au lieu de `chunkResult.validation.dateRange`
-
-## Corrections prevues
+## Solution
 
 ### Fichier : `supabase/functions/parse-inaccurate-orders/index.ts`
 
-**Correction 1 - NULL -> chaine vide** (ligne 345) :
+**1. Charger les identifiants secondaires depuis `restaurant_uber_ids`**
+
+En plus de la requete actuelle sur `restaurants`, ajouter une requete sur `restaurant_uber_ids` pour construire un map complet de tous les UUID connus :
+
 ```text
-// AVANT
-item_title: itemTitle || null,
+// Requete supplementaire
+const { data: uberIds } = await supabase
+  .from('restaurant_uber_ids')
+  .select('uber_store_id, restaurant_id');
 
-// APRES
-item_title: itemTitle || '',
-```
-Cela garantit que la valeur correspond au `COALESCE(item_title, '')` de l'index unique.
-
-**Correction 2 - Meilleur matching des restaurants** :
-Ajouter un matching par `uber_store_id` si la colonne "ID restaurant" ou "Store ID" est presente dans le CSV, et ameliorer le matching partiel pour gerer les variations courantes (accents, tirets, espaces supplementaires).
-
-### Fichier : `src/pages/ReportImport.tsx`
-
-**Correction 3 - Agregation des chunks** (lignes ~972-998) :
-Adapter le code de chunking pour lire les donnees au bon chemin selon le type de rapport :
-```text
-// Pour inaccurate_orders, les donnees sont dans validation.*
-const restaurants = chunkResult.validation?.restaurants || chunkResult.restaurants || [];
-const dateRange = chunkResult.validation?.dateRange || chunkResult.dateRange;
-const errors = chunkResult.errorDetails || chunkResult.errors || [];
+// Ajouter au map existant
+for (const mapping of uberIds || []) {
+  const restaurant = restaurants?.find(r => r.id === mapping.restaurant_id);
+  if (restaurant && !restaurantByStoreId.has(mapping.uber_store_id)) {
+    restaurantByStoreId.set(mapping.uber_store_id, { id: restaurant.id, name: restaurant.name });
+  }
+}
 ```
 
-## Resume des changements
+**2. Ajouter des variantes de noms de colonnes pour le restaurant**
 
-| Fichier | Changement | Impact |
-|---------|-----------|--------|
-| Edge Function `parse-inaccurate-orders` | `item_title` : null -> '' | Elimine les 500 erreurs d'upsert |
-| Edge Function `parse-inaccurate-orders` | Matching restaurant ameliore | Reduit les 393 ignorees |
-| `ReportImport.tsx` | Chemins d'agregation adaptes | Affichage correct des stats et erreurs par chunk |
+Le CSV pourrait utiliser "nom du restaurant", "store name", etc. Ajouter ces variantes dans le `getCol` pour le nom :
+
+```text
+const restaurantName = getCol(row, 'restaurant', 'nom du restaurant', 'store name', 'restaurant name');
+```
+
+**3. Ameliorer le detail des erreurs**
+
+Inclure aussi le store ID qui a echoue dans le message d'erreur pour faciliter le debug :
+
+```text
+details: `Restaurant not found: name="${restaurantName}" storeId="${storeId}"`
+```
+
+## Impact attendu
+
+Les 393 lignes correspondent tres probablement a 1-2 restaurants dont les UUID historiques sont dans `restaurant_uber_ids`. Apres ce changement, ces lignes seront correctement rattachees et importees.
