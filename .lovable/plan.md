@@ -1,41 +1,22 @@
 
+# Fix: Uber One chart truncated at 11 days in Network view
 
-# Corriger les noms de restaurants coupes aux limites de page
+## Root Cause
 
-## Probleme
+The database function `get_uber_one_stats` returns one row per restaurant per day. For 92 restaurants over 31 days, that's **2,799 rows**. The database client applies a **default limit of 1,000 rows**, so only the first ~11 days of data are returned (1000 / 92 = ~11 days). With a single restaurant, 31 rows fit easily under the limit.
 
-Le decoupage du canvas se fait a des positions en pixels arbitraires, calculees uniquement a partir de la hauteur disponible par page. Quand une ligne de restaurant tombe pile sur la frontiere, le texte est coupe en deux entre les pages.
+## Fix
 
-## Solution
+### File: `src/hooks/useUberOneStats.ts`
 
-Ajouter une logique de "snap" qui ajuste la position de coupe pour eviter de couper du texte. Avant de trancher le canvas a une position donnee, on scanne les pixels autour de cette position pour trouver la ligne horizontale la plus "blanche" (espace entre deux lignes de restaurant), et on deplace la coupe a cet endroit.
-
-### Fichier modifie : `src/hooks/useAnalyticsPdfExport.ts`
-
-#### Ajouter une fonction `findSafeCutPosition`
-- Prend en entree : le canvas source, la position Y cible en pixels, et une zone de recherche (ex: 80px au-dessus et en dessous)
-- Pour chaque ligne Y dans cette zone, calcule la luminosite moyenne des pixels sur toute la largeur
-- Retourne la position Y dont la ligne est la plus claire (la plus proche du blanc = espace entre deux elements)
-- Si aucune ligne suffisamment blanche n'est trouvee, retourne la position originale
-
-#### Modifier la boucle de pagination
-- Avant de calculer `sliceHeightPx`, appeler `findSafeCutPosition` pour ajuster la position de coupe
-- La tranche sera legerement plus courte ou plus longue que prevu, mais ne coupera jamais un texte
+Add `.limit(10000)` to the RPC call chain to override the default 1,000 row cap. This ensures all rows are returned even for large networks with daily granularity (worst case: ~100 restaurants x 365 days = 36,500 rows for yearly view, so 10,000 covers monthly views comfortably).
 
 ```text
-Position cible (calcul brut)
-     |
-     v
-  ~~~~ texte coupe ~~~~    <-- probleme actuel
-     
-Apres snap :
-     |
-     v    (deplace vers le gap le plus proche)
-  _____ espace blanc _____  <-- coupe propre
+Before:
+  supabase.rpc("get_uber_one_stats", { ... })
+
+After:
+  supabase.rpc("get_uber_one_stats", { ... }).limit(10000)
 ```
 
-#### Recalculer le nombre de pages dynamiquement
-- Comme chaque coupe est ajustee, le nombre total de pages peut varier
-- Passer a une boucle `while (canvasYPx < canvas.height)` au lieu d'un `for` avec `totalPages` fixe
-- Calculer `totalPages` a la fin pour le footer, ou utiliser un systeme a 2 passes (1ere passe : calculer les positions de coupe, 2eme passe : generer les pages)
-
+This is a one-line change that resolves the truncation for all period modes.
