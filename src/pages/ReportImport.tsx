@@ -778,12 +778,17 @@ export default function ReportImport() {
 
       // For large files, adjust the validation result to show actual totals
       let validationData = data as ImportResult;
-      if (isLargeFile && reportType === "order_history") {
+      if (isLargeFile) {
+        // Extrapolate inserted/skipped counts from sample to full file
+        const sampleTotal = validationData.stats.totalRows;
+        const ratio = sampleTotal > 0 ? totalLinesCount / sampleTotal : 1;
         validationData = {
           ...validationData,
           stats: {
             ...validationData.stats,
-            totalRows: totalLinesCount, // Show actual total, not sample size
+            totalRows: totalLinesCount,
+            inserted: Math.round(validationData.stats.inserted * ratio),
+            skipped: Math.round(validationData.stats.skipped * ratio),
           },
         };
         
