@@ -969,33 +969,40 @@ export default function ReportImport() {
             totalSkipped += chunkResult.stats?.skipped || 0;
             totalErrors += chunkResult.stats?.errors || 0;
             
-            // Merge restaurants (API returns restaurants array at root level)
-            if (chunkResult.restaurants) {
-              for (const r of chunkResult.restaurants) {
-                const existing = allRestaurants.find(ar => ar.id === r.id);
-                if (existing) {
-                  existing.orderCount += r.count || r.orderCount || 0;
-                } else {
-                  allRestaurants.push({ 
-                    id: r.id, 
-                    name: r.name, 
-                    orderCount: r.count || r.orderCount || 0 
-                  });
-                }
+            // Merge restaurants (support both root-level and validation-nested)
+            const chunkRestaurants = chunkResult.validation?.restaurants || chunkResult.restaurants || [];
+            for (const r of chunkRestaurants) {
+              const existing = allRestaurants.find(ar => ar.id === r.id);
+              if (existing) {
+                existing.orderCount += r.count || r.orderCount || 0;
+              } else {
+                allRestaurants.push({ 
+                  id: r.id, 
+                  name: r.name, 
+                  orderCount: r.count || r.orderCount || 0 
+                });
               }
             }
             
-            // Track date range (API returns dateRange at root level)
-            if (chunkResult.dateRange?.start) {
-              if (!minDate || chunkResult.dateRange.start < minDate) minDate = chunkResult.dateRange.start;
+            // Track date range (support both root-level and validation-nested)
+            const chunkDateRange = chunkResult.validation?.dateRange || chunkResult.dateRange;
+            if (chunkDateRange?.start) {
+              if (!minDate || chunkDateRange.start < minDate) minDate = chunkDateRange.start;
             }
-            if (chunkResult.dateRange?.end) {
-              if (!maxDate || chunkResult.dateRange.end > maxDate) maxDate = chunkResult.dateRange.end;
+            if (chunkDateRange?.end) {
+              if (!maxDate || chunkDateRange.end > maxDate) maxDate = chunkDateRange.end;
             }
             
-            // Collect errors (API returns errors array at root level)
-            if (chunkResult.errors && chunkResult.errors.length > 0) {
-              errorDetails.push(...chunkResult.errors.slice(0, 10).map((e: string) => `Chunk ${i + 1}: ${e}`));
+            // Collect errors (support both errorDetails and errors)
+            const chunkErrors = chunkResult.errorDetails || chunkResult.errors || [];
+            if (chunkErrors.length > 0) {
+              errorDetails.push(...chunkErrors.slice(0, 10).map((e: string) => `Chunk ${i + 1}: ${e}`));
+            }
+            
+            // Collect skipped details from validation
+            if (chunkResult.validation?.skippedDetails?.length > 0) {
+              const skippedSample = chunkResult.validation.skippedDetails.slice(0, 5);
+              errorDetails.push(...skippedSample.map((s: any) => `Chunk ${i + 1} - Ligne ${s.rowIndex}: ${s.details}`));
             }
           } catch (chunkError: any) {
             errorDetails.push(`Chunk ${i + 1}: ${chunkError.message || 'Erreur inconnue'}`);
@@ -1006,7 +1013,7 @@ export default function ReportImport() {
         // Build aggregated result
         importData = {
           success: totalErrors === 0,
-          reportType: "order-history",
+          reportType,
           stats: {
             totalRows: dataLines.length,
             inserted: totalInserted,

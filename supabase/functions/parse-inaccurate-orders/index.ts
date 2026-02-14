@@ -94,11 +94,28 @@ function normalizeRestaurantName(name: string): string {
     .trim();
 }
 
-// Find restaurant by partial name matching
+// Normalize for loose matching (remove hyphens, extra spaces)
+function normalizeForLooseMatch(name: string): string {
+  return normalizeRestaurantName(name)
+    .replace(/-/g, '')
+    .replace(/\s+/g, '');
+}
+
+// Find restaurant by partial/fuzzy name matching
 function findRestaurantByPartialName(
   csvName: string,
   restaurantByName: Map<string, { id: string; name: string }>
 ): { id: string; name: string } | null {
+  // Try loose match first (ignoring hyphens, spaces, accents)
+  const looseNormalized = normalizeForLooseMatch(csvName);
+  for (const [_, restaurant] of restaurantByName.entries()) {
+    if (normalizeForLooseMatch(restaurant.name) === looseNormalized) {
+      console.log(`Loose match: "${csvName}" -> "${restaurant.name}"`);
+      return restaurant;
+    }
+  }
+
+  // Try extracting city part from "Chicken Street - City" pattern
   const cityMatch = csvName.match(/Chicken\s*Street\s*[-–—]\s*(.+)/i);
   if (!cityMatch) return null;
 
@@ -271,13 +288,22 @@ serve(async (req) => {
           matchedRestaurant = { id: overrideRestaurant.id, name: overrideRestaurant.name };
         }
       } else {
-        const restaurantName = getCol(row, 'restaurant');
-        if (restaurantName) {
-          const normalizedName = normalizeRestaurantName(restaurantName);
-          matchedRestaurant = restaurantByName.get(normalizedName);
+        // Try uber_store_id first
+        const storeId = getCol(row, 'id du restaurant', 'id restaurant', 'store id', 'restaurant id');
+        if (storeId && restaurantByStoreId.has(storeId)) {
+          matchedRestaurant = restaurantByStoreId.get(storeId);
+        }
 
-          if (!matchedRestaurant) {
-            matchedRestaurant = findRestaurantByPartialName(restaurantName, restaurantByName) || undefined;
+        // Fallback to name matching
+        if (!matchedRestaurant) {
+          const restaurantName = getCol(row, 'restaurant');
+          if (restaurantName) {
+            const normalizedName = normalizeRestaurantName(restaurantName);
+            matchedRestaurant = restaurantByName.get(normalizedName);
+
+            if (!matchedRestaurant) {
+              matchedRestaurant = findRestaurantByPartialName(restaurantName, restaurantByName) || undefined;
+            }
           }
         }
       }
@@ -342,7 +368,7 @@ serve(async (req) => {
           error_date: errorDate,
           error_type: errorType || categorizeError(errorInfo),
           error_category: categorizeError(errorInfo),
-          item_title: itemTitle || null,
+          item_title: itemTitle || '',
           error_description: errorInfo || customerComment || null,
           financial_impact: refundMerchant || refundTotal || null,
           order_channel: orderChannel,
