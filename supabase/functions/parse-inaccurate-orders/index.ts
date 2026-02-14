@@ -326,6 +326,10 @@ serve(async (req) => {
         result.stats.skipped++;
         const restaurantName = getCol(row, 'restaurant', 'nom du restaurant', 'store name', 'restaurant name');
         const storeIdForError = getCol(row, 'id du restaurant', 'id restaurant', 'store id', 'restaurant id');
+        const unknownKey = storeIdForError || restaurantName;
+        if (unknownKey && !result.validation!.unknownStoreIds.includes(unknownKey)) {
+          result.validation!.unknownStoreIds.push(unknownKey);
+        }
         result.validation?.skippedDetails.push({
           rowIndex: i + 1,
           reason: 'restaurant_not_found',
