@@ -1,44 +1,50 @@
 
-# Ajouter la colonne "Pub" (depenses publicitaires) au Comparatif de Rentabilite
 
-## Objectif
+# Afficher le compteur de lignes fusionnees dans l'ecran d'import
 
-Integrer les depenses publicitaires depuis la table `payout_adjustments` (category = 'advertising') dans le tableau "Comparatif de Rentabilite" de la page Finances & Frais. La colonne s'affichera entre "Eco-contrib." et "Versement Total", en respectant les filtres temporels et restaurant existants.
+## Probleme
 
-## Donnees disponibles
+L'ecran d'import affiche 212 418 "Lignes totales" mais seulement 99 540 + 99 521 + 715 = 199 776 lignes comptabilisees. Les ~12 642 lignes restantes ne sont pas perdues : elles ont ete **fusionnees** lors de la deduplication (plusieurs lignes CSV pour la meme commande, ex: differents taux de TVA).
 
-- Table `payout_adjustments` : 1 364 lignes de pub totalisant -244 152 EUR
-- Cle de jointure : `payout_date` + `restaurant_id` (identique aux payouts)
-- Les montants sont negatifs (depenses)
+L'edge function `parse-payment-report` calcule deja ce chiffre dans `stats.merged` (ligne 930) mais le frontend ne l'affiche pas.
 
-## Plan d'implementation
+## Solution
 
-### 1. Requeter les depenses publicitaires (Analytics.tsx)
+### 1. Ajouter le compteur "Fusionnees" dans l'ecran de resultats
 
-Ajouter une requete `payout_adjustments` filtree par `category = 'advertising'` avec les memes filtres temporels et restaurant que `dailyPayoutsData`. Agreger par `payout_date` + `restaurant_id` pour obtenir le total pub par versement. Passer ces donnees a `FinancesSection` puis a `ProfitabilityComparisonTable`.
+Fichier : `src/pages/ReportImport.tsx`
 
-### 2. Modifier FinancesSection.tsx
+- Ajouter une 6eme carte KPI "Fusionnees" (en bleu/violet) entre "Mises a jour" et "Ignorees"
+- Afficher `importResult.stats.merged` (ou 0 si absent)
+- Avec un tooltip explicatif : "Lignes CSV fusionnees car elles concernent la meme commande (ex: TVA multiples)"
 
-Ajouter la prop `advertisingData` et la transmettre a `ProfitabilityComparisonTable`.
+### 2. Agreger le champ `merged` dans la logique de chunking
 
-### 3. Modifier ProfitabilityComparisonTable.tsx
+Fichier : `src/pages/ReportImport.tsx`
 
-- Ajouter une interface pour les donnees pub et une nouvelle prop
-- Dans `comparisonData` (useMemo), joindre les depenses pub par `payout_date` + `restaurant_id`
-- Ajouter le champ `advertisingAmount` a `ComparisonRow`
-- Ajouter une colonne "Pub" dans le header (entre Eco-contrib. et Versement Total), en rouge/orange
-- Afficher le montant dans chaque ligne de donnees (mode profitabilite, semaine, mois)
-- Integrer dans les calculs de moyenne
-- Le montant s'affiche toujours en valeur absolue avec un signe "-" car c'est une depense
+- Dans la boucle de chunks (ligne ~1150), accumuler `totalMerged += chunkResult.stats?.merged || 0`
+- Inclure `merged: totalMerged` dans le resultat agrege (ligne ~1212)
 
-### 4. Impact sur les vues
+### 3. Verification de coherence
 
-Les 3 vues (Rentabilite, Semaine, Mois) afficheront la colonne Pub. La ligne "Moyenne" inclura egalement la moyenne des depenses publicitaires.
+- Afficher un indicateur visuel si `inserted + updated + skipped + merged + errors != totalRows`
+- Cela garantit que 100% des lignes sont comptabilisees
 
 ## Fichiers modifies
 
 | Fichier | Changement |
 |---------|-----------|
-| `src/pages/Analytics.tsx` | Nouvelle requete `payout_adjustments` filtree advertising, passee a FinancesSection |
-| `src/components/analytics/FinancesSection.tsx` | Nouvelle prop `advertisingData`, transmise au tableau |
-| `src/components/analytics/ProfitabilityComparisonTable.tsx` | Nouvelle colonne "Pub" dans les 3 modes de vue + moyenne |
+| `src/pages/ReportImport.tsx` | Accumuler `merged` dans le chunking + afficher la carte "Fusionnees" dans l'ecran de resultats |
+
+## Resultat attendu
+
+L'ecran affichera :
+- 212 418 Lignes totales
+- 99 540 Inserees
+- 99 521 Mises a jour
+- ~12 642 Fusionnees
+- 715 Ignorees
+- 0 Erreurs
+
+Total = 212 418 (coherent)
+
