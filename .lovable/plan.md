@@ -1,50 +1,50 @@
 
 
-# Afficher le compteur de lignes fusionnees dans l'ecran d'import
+# Corriger l'affichage Eco-contribution et Pub dans le tableau de Rentabilite
 
-## Probleme
+## Diagnostic
 
-L'ecran d'import affiche 212 418 "Lignes totales" mais seulement 99 540 + 99 521 + 715 = 199 776 lignes comptabilisees. Les ~12 642 lignes restantes ne sont pas perdues : elles ont ete **fusionnees** lors de la deduplication (plusieurs lignes CSV pour la meme commande, ex: differents taux de TVA).
+### Eco-contribution : donnee manquante dans la RPC
+- **821 versements** dans la table `payouts` contiennent une valeur `eco_contribution_refund` non nulle (total: 119 041 EUR)
+- La fonction SQL `get_monthly_payouts_detail` ne retourne PAS cette colonne -- elle est simplement absente du SELECT
+- Consequence : en vue "Mois" (drill-down), eco_contribution = 0 pour toutes les lignes
 
-L'edge function `parse-payment-report` calcule deja ce chiffre dans `stats.merged` (ligne 930) mais le frontend ne l'affiche pas.
+### Pub (advertising) : agrégation manquante en vue "Mois"
+- **1 816 lignes** dans `payout_adjustments` (total: -330 233 EUR)
+- La requete Analytics.tsx les recupere correctement depuis `payout_adjustments`
+- En vue "Rentabilite" (par versement), `advertisingAmount` est bien calcule via `adMap`
+- En vue "Mois", l'agregation par restaurant (`restaurantAggregates`) n'accumule PAS `advertisingAmount`
+- Le header mensuel non plus ne totalise pas la pub
+- En janvier 2026, seuls 2-3 restaurants ont de la pub (les "-" sont donc normaux pour les autres)
 
-## Solution
+## Corrections
 
-### 1. Ajouter le compteur "Fusionnees" dans l'ecran de resultats
+### 1. Migration SQL : ajouter eco_contribution_refund a la RPC
 
-Fichier : `src/pages/ReportImport.tsx`
+Modifier la fonction `get_monthly_payouts_detail` pour inclure `COALESCE(p.eco_contribution_refund, 0) as eco_contribution_refund` dans le SELECT et dans le type de retour.
 
-- Ajouter une 6eme carte KPI "Fusionnees" (en bleu/violet) entre "Mises a jour" et "Ignorees"
-- Afficher `importResult.stats.merged` (ou 0 si absent)
-- Avec un tooltip explicatif : "Lignes CSV fusionnees car elles concernent la meme commande (ex: TVA multiples)"
+### 2. Agreger la pub dans la vue "Mois" (ProfitabilityComparisonTable.tsx)
 
-### 2. Agreger le champ `merged` dans la logique de chunking
+Dans le `monthGroups` useMemo :
+- Ajouter `advertisingAmount` dans `restaurantAggregates` (initialisation a 0, accumulation depuis `row.advertisingAmount`)
+- Passer `advertisingAmount` dans `MonthRestaurantData`
+- Calculer le `totalAdvertising` au niveau du mois (header)
+- Afficher les valeurs dans les cellules du tableau (vue Mois)
 
-Fichier : `src/pages/ReportImport.tsx`
+### 3. Verifier la vue "Semaine"
 
-- Dans la boucle de chunks (ligne ~1150), accumuler `totalMerged += chunkResult.stats?.merged || 0`
-- Inclure `merged: totalMerged` dans le resultat agrege (ligne ~1212)
-
-### 3. Verification de coherence
-
-- Afficher un indicateur visuel si `inserted + updated + skipped + merged + errors != totalRows`
-- Cela garantit que 100% des lignes sont comptabilisees
+Meme verification pour la vue "Semaine" : s'assurer que `advertisingAmount` et `ecoContribution` sont correctement agreges et affiches.
 
 ## Fichiers modifies
 
 | Fichier | Changement |
 |---------|-----------|
-| `src/pages/ReportImport.tsx` | Accumuler `merged` dans le chunking + afficher la carte "Fusionnees" dans l'ecran de resultats |
+| Migration SQL | Ajouter `eco_contribution_refund` au SELECT et au RETURN TYPE de `get_monthly_payouts_detail` |
+| `src/components/analytics/ProfitabilityComparisonTable.tsx` | Agreger `advertisingAmount` dans les vues Mois et Semaine ; afficher dans les cellules |
 
 ## Resultat attendu
 
-L'ecran affichera :
-- 212 418 Lignes totales
-- 99 540 Inserees
-- 99 521 Mises a jour
-- ~12 642 Fusionnees
-- 715 Ignorees
-- 0 Erreurs
-
-Total = 212 418 (coherent)
+- La colonne "Eco-contrib." affichera les vrais montants (ex: ~44 EUR pour certains restaurants en janvier 2026)
+- La colonne "Pub" affichera les depenses pour les restaurants concernes (ex: restaurant 4e35... avec ~42 EUR/semaine)
+- Les restaurants sans pub resteront a "-" (comportement correct)
 
