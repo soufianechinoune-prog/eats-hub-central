@@ -1,76 +1,44 @@
 
 
-# Corriger l'import CSV : colonnes manquantes, deduplication adjustments, header chunking
+# Corriger la detection du header CSV (cause racine des erreurs chunks 2+)
 
-## Diagnostic
+## Probleme identifie
 
-Apres analyse du fichier CSV uploade et du code, trois problemes sont identifies :
+La fonction `findHeaderLineIndex` dans `ReportImport.tsx` detecte la **ligne de description** (ligne 1 du CSV) comme le header, parce que le texte descriptif "Date du versement effectue par Uber" contient le marqueur "Date du versement".
 
-### 1. Colonnes du format 2025 non reconnues
+Resultat : `headerIndex = 0` au lieu de `1`. Les chunks 2+ ne recoivent que la description sans le vrai header, et l'edge function echoue avec "Could not find header row".
 
-Le fichier utilise de nouveaux noms de colonnes que le `COLUMN_MAPPING` ne connait pas :
+## Pourquoi chunk 1 marche
 
-| Colonne CSV (2025) | Mapping attendu | Statut |
-|---|---|---|
-| Ajustement marketing (TVA incluse) | marketing_fee_adjustment | MANQUANT |
-| Frais de preparation et emballage | packaging_fee | MANQUANT |
-| Frais de sac | bag_fee | MANQUANT |
-| Ajustements de prix (hors TVA) | price_adjustment_excl_vat | MANQUANT |
-| Ajustements de prix (TVA incluse) | price_adjustment_incl_vat | MANQUANT |
-| Utilisations de l'offre de livraison (hors TVA) | delivery_promo_excl_vat | MANQUANT |
-| TVA sur les utilisations de l'offre de livraison | vat_delivery_promo | MANQUANT |
-| Utilisations de l'offre de livraison (TVA incluse) | delivery_promo_incl_vat | MANQUANT |
-| TVA sur les frais pour preparation et emballage (minuscule) | vat_packaging_fee | MANQUANT |
+Quand `headerIndex = 0` :
+- `preHeaderLines = [description]` (une seule ligne)
+- `dataLines = allRecords.slice(1)` = [header, data1, data2, ...]
+- Chunk 1 = [description, header, data1...data14999] -- le header est inclus par hasard
+- Chunk 2 = [description, data15000...data29999] -- PAS de header
 
-### 2. Erreur "ON CONFLICT DO UPDATE cannot affect row a second time"
+## Correctif
 
-Les `payout_adjustments` (lignes sans uber_order_id, ex: "Depenses publicitaires") peuvent partager la meme cle composite `(payout_reference_id, description, uber_store_id)` dans un batch. PostgreSQL refuse l'upsert.
+### Fichier : `src/pages/ReportImport.tsx` - fonction `findHeaderLineIndex`
 
-### 3. Chunks 2+ echouent : "Could not find header row"
-
-Le fichier a 2 lignes pre-data : ligne 1 = descriptions longues, ligne 2 = headers courts. Le chunking n'envoie que la ligne 2 (headerLine). L'edge function cherche les headers dans les 20 premieres lignes et les trouve, mais certains formats necessitent aussi la ligne de description pour le parsing correct.
-
-## Solution
-
-### Fichier 1 : `supabase/functions/parse-payment-report/index.ts`
-
-**A. Ajouter les colonnes manquantes au COLUMN_MAPPING (lignes 48-69)**
-
-Ajouter toutes les variantes 2025 des noms de colonnes :
+Remplacer la logique "premier match unique" par une logique "meilleur match" qui compte le nombre de marqueurs trouves par ligne et retourne celle qui en a le plus. La vraie ligne de header contient 4+ marqueurs ("Id. de la commande", "Id. du flux", "Nom du restaurant", "Date de la commande"), tandis que la description n'en contient qu'un seul.
 
 ```text
-'Ajustement marketing (TVA incluse)': 'marketing_fee_adjustment'
-'Ajustements de prix (hors TVA)': 'price_adjustment_excl_vat'
-'Ajustements de prix (TVA incluse)': 'price_adjustment_incl_vat'
-'Frais de preparation et emballage': 'packaging_fee'  (sans "d'")
-'TVA sur les frais pour preparation et emballage': 'vat_packaging_fee' (minuscule)
-'Frais de sac': 'bag_fee'
-"Utilisations de l'offre de livraison (hors TVA)": 'delivery_promo_excl_vat'
-"TVA sur les utilisations de l'offre de livraison": 'vat_delivery_promo'
-"Utilisations de l'offre de livraison (TVA incluse)": 'delivery_promo_incl_vat'
+Avant : premiere ligne qui contient au moins 1 marqueur -> return
+Apres : parcourir les 20 premieres lignes, compter les marqueurs par ligne, retourner celle avec le plus de matches (minimum 2)
 ```
 
-**B. Dedupliquer les adjustments avant upsert (Phase 4, lignes 853-882)**
-
-Avant l'upsert, grouper les adjustments par cle `(payout_reference_id, description, uber_store_id)` en sommant les montants. Meme approche que la Phase 1.5 pour les orders.
-
-### Fichier 2 : `src/pages/ReportImport.tsx`
-
-**C. Inclure toutes les lignes pre-header dans chaque chunk (lignes 1063-1084)**
-
-Remplacer `[headerLine, ...dataLines.slice(start, end)]` par `[...preHeaderLines, ...dataLines.slice(start, end)]` ou `preHeaderLines = allRecords.slice(0, headerIndex + 1)`. Cela inclut la ligne de description ET la ligne de header dans chaque chunk.
-
-## Fichiers modifies
-
-| Fichier | Changement |
-|---------|-----------|
-| `supabase/functions/parse-payment-report/index.ts` | ~10 nouvelles variantes de colonnes dans COLUMN_MAPPING ; deduplication des adjustments avant Phase 4 |
-| `src/pages/ReportImport.tsx` | Inclure toutes les lignes pre-header (description + header) dans chaque chunk |
+De plus, ajouter un fallback : si aucune ligne n'a 2+ marqueurs, prendre le premier match comme avant.
 
 ## Resultat attendu
 
-- Toutes les colonnes financieres du format 2025 sont correctement mappees et importees
-- Plus d'erreur "ON CONFLICT" sur les adjustments dupliques
-- Tous les chunks trouvent le header correctement
-- Le fichier de 1858 commandes devrait s'importer a 100% sans erreur
+- `headerIndex = 1` (la vraie ligne de header)
+- `preHeaderLines = [description, header]` pour tous les chunks
+- Tous les chunks contiennent le header et sont correctement parses
+- Les 387 445 lignes sont importees sans erreur
+
+## Fichier modifie
+
+| Fichier | Changement |
+|---------|-----------|
+| `src/pages/ReportImport.tsx` | `findHeaderLineIndex` : utiliser le meilleur match (plus de marqueurs) au lieu du premier match |
 
