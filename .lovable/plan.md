@@ -1,88 +1,70 @@
 
 
-# Corriger le parsing CSV pour supporter les champs multi-lignes
+# Corriger la validation des fichiers volumineux (date range + compteurs)
 
-## Diagnostic
+## Problemes identifies
 
-Le fichier contient bien des centaines de milliers de commandes, mais le compteur "Lignes totales" est gonfle par les retours a la ligne contenus dans certains champs entre guillemets (notamment les URLs de factures Uber). Le parser actuel fait un `split('\n')` AVANT de parser les guillemets, ce qui casse les enregistrements multi-lignes :
+### 1. Periode des donnees incorrecte ("29/12/2024 au 06/01/2025" au lieu de "Jan 1 - Mar 30, 2025")
+Le dry run n'envoie que les 1 000 premiers enregistrements du fichier. Comme le fichier est trie chronologiquement, l'echantillon ne couvre que la premiere semaine. La plage de dates affichee est celle du sample, pas du fichier complet.
 
-```text
-Ligne CSV correcte :
-"#ABC12","uuid-1234","Chicken Street",..."https://invoice\nurl-suite",...
+### 2. Seulement 43 437 "A inserer" au lieu de ~387 000
+L'extrapolation a la ligne 870 ne multiplie que `inserted` et `skipped` par le ratio. Le compteur `updated` (848) reste a sa valeur brute du sample au lieu d'etre extrapole. De plus, la liste des restaurants (1 seul detecte) ne represente que le sample.
 
-Apres split('\n') :
-  Ligne 1: "#ABC12","uuid-1234","Chicken Street",..."https://invoice
-  Ligne 2: url-suite",...
-```
-
-La Ligne 2 n'a plus de `uber_order_id` ni de `uber_store_id` → elle est skippee. Et le compteur de lignes est fausse.
-
-Ce probleme existe a deux endroits :
-1. **Le parser Edge Function** (`parseCSV` dans `parse-payment-report`)
-2. **Le compteur client** dans `ReportImport.tsx` qui split aussi par `\n`
+### 3. Un seul restaurant detecte (Chicken Street - Athis-Mons)
+Les 1 000 premiers enregistrements ne contiennent que des commandes de ce restaurant. Les autres restaurants du fichier ne sont pas visibles dans le dry run.
 
 ## Solution
 
-### 1. Corriger `parseCSV()` dans le parser Edge Function
+### Fichier 1 : `src/pages/ReportImport.tsx`
 
-Remplacer la fonction `parseCSV` qui fait `csvText.split('\n')` par un parseur qui itere caractere par caractere sur tout le contenu CSV. Un `\n` rencontre a l'interieur de guillemets sera inclus dans la valeur du champ au lieu de creer une nouvelle ligne.
+**A. Extrapoler `updated` dans `handleValidate`** (ligne ~870)
 
+Ajouter `updated` a la liste des compteurs extrapoles :
 ```text
-function parseCSV(csvText):
-  rows = []
-  currentRow = []
-  currentField = ""
-  inQuotes = false
+Avant :
+  inserted: Math.round(validationData.stats.inserted * ratio),
+  skipped: Math.round(validationData.stats.skipped * ratio),
 
-  for each char in csvText:
-    if char == '"':
-      if inQuotes and nextChar == '"':
-        currentField += '"'  // escaped quote
-        skip next
-      else:
-        toggle inQuotes
-    else if char == ',' and not inQuotes:
-      push currentField to currentRow
-      reset currentField
-    else if char == '\n' and not inQuotes:
-      push currentField to currentRow
-      if currentRow is not empty:
-        push currentRow to rows
-      reset currentRow and currentField
-    else:
-      currentField += char
-
-  return rows
+Apres :
+  inserted: Math.round(validationData.stats.inserted * ratio),
+  updated: Math.round(validationData.stats.updated * ratio),
+  skipped: Math.round(validationData.stats.skipped * ratio),
 ```
 
-### 2. Corriger le compteur de lignes dans `ReportImport.tsx`
+**B. Scanner la date range sur tout le fichier cote client**
 
-Ajouter une fonction `countCSVRecords()` qui compte les vrais enregistrements CSV (en respectant les guillemets) au lieu du simple `split('\n').length`. Utiliser cette fonction pour :
-- Afficher le bon nombre de "Lignes totales"
-- Calculer le bon ratio d'extrapolation pour le dry run
-- Extraire les 1 000 premiers **enregistrements complets** pour l'echantillon (au lieu de 1 000 lignes brutes qui peuvent couper des enregistrements)
+Au lieu de se fier au sample pour la plage de dates, parcourir le fichier complet cote client pour extraire la premiere et la derniere date. L'index de la colonne "Date de la commande" est detecte depuis le header, puis on lit cette colonne sur chaque enregistrement CSV-aware pour trouver min/max.
 
-### 3. Impact attendu
+**C. Ajouter un indicateur "estimation" pour les fichiers volumineux**
 
-| Avant | Apres |
-|-------|-------|
-| "Lignes totales : 387 445" | "Lignes totales : ~45 000" (le vrai nombre) |
-| "A inserer : 43 437" (extrapolation faussee) | "A inserer : ~43 000" (ratio precis) |
-| Lignes multi-lignes cassees et skippees | Toutes les commandes parsees correctement |
+Afficher clairement que les compteurs sont des estimations basees sur un echantillon. Ajouter un badge ou une note d'information sous les KPI pour eviter la confusion.
 
-## Fichiers modifies
+**D. Scanner les restaurants sur un echantillon representatif**
 
-| Fichier | Changement |
-|---------|-----------|
-| `supabase/functions/parse-payment-report/index.ts` | Remplacer `parseCSV()` par un parseur qui itere caractere par caractere et respecte les guillemets pour les `\n` |
-| `src/pages/ReportImport.tsx` | Ajouter `countCSVRecords()` et `extractCSVRecords()` pour un comptage et echantillonnage CSV-aware ; mettre a jour `handleValidate` |
+Au lieu de prendre les 1 000 premiers enregistrements (qui sont biaises car tries par date/restaurant), prendre un echantillon reparti uniformement sur tout le fichier (par exemple, 1 enregistrement tous les N enregistrements pour un total de 1 000). Cela donnera une meilleure representation des restaurants et du ratio insert/update.
 
 ## Details techniques
 
-La fonction `parseCSV` actuelle (lignes 119-152) sera entierement remplacee. La nouvelle version gere :
-- Les retours a la ligne dans les champs entre guillemets (URLs de factures)
-- Les guillemets echappes (`""`)
-- Les retours chariot Windows (`\r\n`)
-- Les lignes vides
+| Changement | Localisation dans le fichier |
+|-----------|------------------------------|
+| Ajouter `updated` a l'extrapolation | Ligne 870 dans `handleValidate` |
+| Scan de dates sur fichier complet | Nouvelle fonction `scanDateRange()` appellee apres `parseCSVRecords` dans `handleValidate` |
+| Echantillonnage uniforme | Modifier la logique lignes 830-833 pour un sampling reparti au lieu de sequentiel |
+| Badge "estimation" | Dans le JSX de l'ecran de validation, a cote des compteurs |
 
-Cote client, la detection de `headerIndex` (qui utilise aussi `split('\n')`) sera egalement corrigee pour utiliser le parsing CSV-aware, garantissant que l'en-tete est correctement identifie et que l'echantillon contient des enregistrements complets.
+## Resultat attendu
+
+| Compteur | Avant | Apres |
+|----------|-------|-------|
+| Lignes totales | 387 445 | 387 445 |
+| A inserer | 43 437 | ~340 000+ (extrapole correctement) |
+| A mettre a jour | 848 | ~40 000+ (extrapole) |
+| Periode | 29/12/2024 - 06/01/2025 | 01/01/2025 - 30/03/2025 (scan complet) |
+| Restaurants | 1 (Athis-Mons) | Tous les restaurants du fichier |
+
+## Fichier modifie
+
+| Fichier | Changement |
+|---------|-----------|
+| `src/pages/ReportImport.tsx` | Extrapoler `updated`, scan date range complet, echantillonnage uniforme, badge estimation |
+
