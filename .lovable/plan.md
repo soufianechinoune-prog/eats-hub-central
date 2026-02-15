@@ -1,60 +1,42 @@
 
+# Corriger l'auto-detection du type "Commandes incorrectes"
 
-# Corriger le matching "Chicken Street - Lille" - Approche directe
+## Le probleme
 
-## Diagnostic
+Ton fichier CSV "Commandes incorrectes" contient les colonnes "Id. de la commande" et "Heure de la commande". Ces colonnes sont aussi presentes dans les fichiers "Historique des commandes". Or, dans le code, la detection de "Historique des commandes" est testee **avant** "Commandes incorrectes", donc le systeme identifie ton fichier a tort comme un historique.
 
-Le code dans `findRestaurantByPartialName` est correct (hardcoded match + ambiguous match), mais les deploiements successifs ne semblent pas prendre effet (0 logs dans les logs de la fonction).
+Resultat : il te demande de selectionner un restaurant (car "Historique des commandes" l'exige), alors que "Commandes incorrectes" ne l'exige pas et sait identifier les restaurants automatiquement.
 
-La solution : deplacer le matching directement dans le flux principal de la fonction, AVANT l'appel a `findRestaurantByPartialName`, pour eliminer toute dependance a cette sous-fonction.
+## La solution
 
-## Changement
-
-**Fichier** : `supabase/functions/parse-inaccurate-orders/index.ts`
-
-Ajouter un mapping direct dans le flux principal (lignes 327-335), juste apres l'echec du match exact par nom normalise et AVANT l'appel a `findRestaurantByPartialName` :
-
-```text
-// Fallback to name matching
-if (!matchedRestaurant) {
-  const restaurantName = getCol(row, 'restaurant', 'nom du restaurant', 'store name', 'restaurant name');
-  if (restaurantName) {
-    const normalizedName = normalizeRestaurantName(restaurantName);
-    matchedRestaurant = restaurantByName.get(normalizedName);
-
-    // NEW: Direct hardcoded match for ambiguous names
-    if (!matchedRestaurant) {
-      const cleanName = restaurantName.toLowerCase().trim().replace(/\s+/g, ' ');
-      if (cleanName === 'chicken street - lille') {
-        matchedRestaurant = restaurants?.find(r => r.id === 'b81531ef-d5db-47dd-b0bb-37f2c9fd6d5d');
-        if (matchedRestaurant) {
-          console.log(`Direct hardcoded match: "${restaurantName}" -> Lille Wazemmes`);
-        }
-      }
-    }
-
-    if (!matchedRestaurant) {
-      matchedRestaurant = findRestaurantByPartialName(restaurantName, restaurantByName) || undefined;
-    }
-  }
-}
-```
-
-De plus, ajouter un `console.log` avec un numero de version en haut de la fonction pour confirmer que le deploiement est bien actif :
-
-```text
-console.log(`[parse-inaccurate-orders v3] dryRun=${dryRun}, restaurantId=${restaurantId || 'none'}`);
-```
-
-## Pourquoi cette approche
-
-- Le match se fait directement dans le flux principal, pas dans une sous-fonction
-- On utilise `restaurants` (le tableau brut de la requete DB) plutot que `restaurantByName` (la Map), ce qui elimine tout probleme de cle
-- Le log de version permet de verifier que le bon code est deploye
+Inverser l'ordre de detection dans le code : tester d'abord "Commandes incorrectes" (marqueurs plus specifiques : "Probleme avec la commande" + "Client rembourse"), puis "Historique des commandes".
 
 ## Fichier modifie
 
 | Fichier | Changement |
 |---------|-----------|
-| `supabase/functions/parse-inaccurate-orders/index.ts` | Ajouter match direct dans le flux principal + log de version |
+| `src/pages/ReportImport.tsx` | Deplacer le bloc de detection `inaccurate_orders` (lignes 464-468) AVANT le bloc `order_history` (lignes 459-462) |
 
+## Detail technique
+
+Ordre actuel (lignes 459-468) :
+
+```text
+// Order History (ligne 459-462) -- TESTE EN PREMIER, gagne a tort
+if ("Id. de la commande" + "Heure de la commande") -> order_history
+
+// Inaccurate Orders (ligne 464-468) -- jamais atteint
+if ("Probleme avec la commande" + "Client rembourse") -> inaccurate_orders
+```
+
+Nouvel ordre :
+
+```text
+// Inaccurate Orders -- TESTE EN PREMIER (marqueurs plus specifiques)
+if ("Probleme avec la commande" + "Client rembourse") -> inaccurate_orders
+
+// Order History -- teste ensuite
+if ("Id. de la commande" + "Heure de la commande") -> order_history
+```
+
+Aucun changement backend, aucun impact sur les autres types d'import.
