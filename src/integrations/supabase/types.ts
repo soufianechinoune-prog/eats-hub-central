@@ -1310,7 +1310,7 @@ export type Database = {
           financial_impact: number | null
           id: string
           item_id: string | null
-          item_title: string | null
+          item_title: string
           order_amount: number | null
           order_channel: string | null
           order_id: string | null
@@ -1329,7 +1329,7 @@ export type Database = {
           financial_impact?: number | null
           id?: string
           item_id?: string | null
-          item_title?: string | null
+          item_title?: string
           order_amount?: number | null
           order_channel?: string | null
           order_id?: string | null
@@ -1348,7 +1348,7 @@ export type Database = {
           financial_impact?: number | null
           id?: string
           item_id?: string | null
-          item_title?: string | null
+          item_title?: string
           order_amount?: number | null
           order_channel?: string | null
           order_id?: string | null
