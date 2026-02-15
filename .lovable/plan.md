@@ -1,66 +1,69 @@
 
 
-# Utiliser les bonnes donnees pour la comparaison des commandes incorrectes
+# Ajouter order_errors comme source de donnees pour le dashboard Erreurs
 
 ## Le probleme
 
-La page "Comparaison Commandes incorrectes" lit les erreurs depuis la table `daily_order_accuracy` (importee depuis le dashboard Uber), qui ne couvre que **3 restaurants sur 14**. Pendant ce temps, la table `order_errors` (remplie par l'import CSV qu'on vient de corriger) contient les donnees pour **tous les 14 restaurants** epingles.
-
-Resultat : 11 restaurants affichent "0 erreurs / 0 commandes" alors que les donnees existent.
+Le dashboard "Erreurs" (onglet sur Analytics > Operations) utilise uniquement `daily_order_accuracy` qui ne couvre que 4 restaurants. Les 16+ autres restaurants affichent "Aucune donnee disponible" alors que la table `order_errors` contient leurs donnees d'erreurs.
 
 ## La solution
 
-Modifier la page `InaccurateOrdersComparison.tsx` pour lire les erreurs depuis `order_errors` au lieu de `daily_order_accuracy`. Les commandes restent lues depuis `daily_sales_uber_deduped` (qui couvre tous les restaurants).
+Ajouter une requete sur `order_errors` comme source de donnees de fallback dans le composant `OrderAccuracyDashboard`. Quand `daily_order_accuracy` n'a pas de donnees pour les restaurants selectionnes, le dashboard utilisera `order_errors` a la place.
 
 ## Fichier modifie
 
 | Fichier | Changement |
 |---------|-----------|
-| `src/pages/InaccurateOrdersComparison.tsx` | Remplacer la requete `daily_order_accuracy` par une requete sur `order_errors`, et adapter le traitement des donnees |
+| `src/components/operations/OrderAccuracyDashboard.tsx` | Ajouter une requete fallback sur `order_errors` et adapter l'agregation |
 
 ## Detail technique
 
-### Requete actuelle (ne couvre que 3 restaurants)
+### Nouvelle requete fallback
 
-```text
-daily_order_accuracy
-  .eq("period_type", "current")
-  .in("restaurant_id", ...)
-  .gte("date", ...)
-  .lte("date", ...)
-```
-
-### Nouvelle requete (couvre tous les restaurants)
+Ajouter une requete `useQuery` sur la table `order_errors` qui se declenche quand `daily_order_accuracy` est vide pour les restaurants selectionnes :
 
 ```text
 order_errors
-  .in("restaurant_id", ...)
-  .gte("error_date", dateRange.start)
-  .lte("error_date", dateRange.end)
+  .select("restaurant_id, uber_order_id, financial_impact, error_date, error_category")
+  .in("restaurant_id", restaurantIds)
+  .gte("error_date", effectiveDateRange.startDate)
+  .lte("error_date", effectiveDateRange.endDate)
 ```
 
-### Adaptation du traitement
+### Adaptation de l'agregation
 
-- Compter les erreurs par `COUNT(DISTINCT uber_order_id)` par restaurant (au lieu de sommer `incorrect_orders_count`)
-- Sommer `financial_impact` par restaurant (au lieu de `total_refund`)
-- Grouper par jour de semaine via `error_date` pour la heatmap
-- Categoriser par `error_category` pour le breakdown (au lieu des colonnes separees `missing_items_count`, etc.)
-- Supprimer les references a `period_type`, `latestErrorDate`, et l'alerte "donnees incompletes" (plus pertinente avec cette source)
+Quand on utilise `order_errors` comme source :
+
+- **Commandes incorrectes** : `COUNT(DISTINCT uber_order_id)` au lieu de `SUM(incorrect_orders_count)`
+- **Impact financier** : `SUM(financial_impact)` au lieu de `SUM(total_refund)`
+- **Categories** : mapper `error_category` vers les categories existantes du dashboard :
+  - "Articles manquants" -> Articles manquants
+  - "Commande incorrecte" -> Mauvaise commande
+  - "Article incorrect" -> Article incorrect
+  - "Problemes lies a la qualite des aliments" -> nouvelle categorie
+  - "Autre" -> Autre
+- **Evolution** : grouper par `error_date` pour le graphique journalier/mensuel
+- **Taux d'erreur** : utiliser `daily_sales_uber_deduped` pour le denominateur (deja en place)
+
+### Logique de fallback
+
+```text
+1. Charger daily_order_accuracy (source actuelle)
+2. Charger order_errors (nouvelle source)
+3. Si daily_order_accuracy a des donnees -> l'utiliser (priorite aux donnees officielles Uber)
+4. Sinon, si order_errors a des donnees -> l'utiliser avec le message "Source: Import CSV"
+5. Sinon -> afficher "Aucune donnee"
+```
+
+### Impact sur les sous-composants
+
+- Le graphique d'evolution (`ErrorRateEvolutionChart`) recoit deja des donnees pre-formatees, pas d'impact
+- La repartition par categorie sera construite a partir de `error_category` au lieu des colonnes dediees
+- Les KPIs (taux d'erreur, impact financier, nombre d'erreurs) restent identiques dans leur presentation
+- Le message d'info en haut du dashboard indiquera "Source: Import CSV" au lieu de "Donnees officielles Uber Eats"
 
 ### Donnees confirmees en base
 
-Les 14 restaurants epingles ont tous des donnees dans `order_errors` pour janvier 2026 :
-- Athis-Mons : 676 erreurs
-- Bonneuil : 549
-- Juvisy : 376
-- Saint-Denis : 138
-- Argenteuil : 104
-- Reims : 91
-- Cergy : 71
-- Toulouse, Roubaix : 48 chacun
-- Nantes : 41
-- Marseille Belsunce : 38
-- Plombieres : 23
-- Marseille : 19
-- Nantes Centre : 17
+`order_errors` contient des donnees pour 20 restaurants en 2026, dont Argenteuil (129 commandes erronees, 1696EUR d'impact).
+`daily_order_accuracy` ne couvre que 4 restaurants.
 
