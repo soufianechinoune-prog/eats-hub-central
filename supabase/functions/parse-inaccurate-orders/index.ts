@@ -134,6 +134,11 @@ function findRestaurantByPartialName(
     return matches[0];
   }
 
+  if (matches.length > 1) {
+    console.log(`Ambiguous match: "${csvName}" -> ${matches.map(m => m.name).join(', ')} - picking first`);
+    return matches[0];
+  }
+
   return null;
 }
 
