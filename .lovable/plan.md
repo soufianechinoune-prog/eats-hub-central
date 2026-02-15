@@ -1,40 +1,50 @@
 
-# Afficher le mapping interactif pour "Chicken Street - Lille"
 
-## Probleme racine
+# Corriger le matching "Chicken Street - Lille" dans l'Edge Function
 
-Le fichier CSV contient 24514 lignes. Les 393 lignes de "Chicken Street - Lille" commencent vers la ligne 11373. Or :
+## Probleme identifie
 
-1. **A la validation** (etape 3), seules les 1000 premieres lignes sont envoyees comme echantillon. "Lille" n'y figure pas, donc `unknownStoreIds` est vide et le composant de mapping ne s'affiche pas.
+Dans la fonction `findRestaurantByPartialName` (ligne 132 de `parse-inaccurate-orders/index.ts`), quand le nom "Chicken Street - Lille" est cherche, la partie ville "lille" matche deux restaurants :
+- "Chicken Street - Lille Flandres"  
+- "Chicken Street - Lille Wazemmes"
 
-2. **A l'import** (etape 4), le fichier est decoupe en chunks. Chaque chunk retourne ses `unknownStoreIds`, mais le code d'agregation les ignore (`unknownStoreIds: []` en dur a la ligne 1027).
+La condition `if (matches.length === 1)` echoue car il y a 2 resultats, et la fonction retourne `null`. Les 393 lignes sont donc ignorees.
 
-Resultat : le mapping interactif n'apparait jamais pour ce restaurant.
+Le mapping interactif a ete ajoute mais ne s'affiche pas car le build n'etait probablement pas pret lors du test (le screenshot montre "Starting live preview...").
 
-## Corrections prevues
+## Solution : double approche
 
-### 1. Collecter les `unknownStoreIds` pendant le chunking
+### 1. Edge Function : accepter le premier match quand il y a ambiguite (fichier `supabase/functions/parse-inaccurate-orders/index.ts`)
 
-**Fichier** : `src/pages/ReportImport.tsx` (lignes ~1014-1029)
+Modifier la logique a la ligne 132-137 pour que, au lieu de retourner `null` quand `matches.length > 1`, la fonction :
+- Log un warning avec les candidats trouves
+- Retourne quand meme le premier match (par ordre alphabetique)
+- Continue a remonter le nom dans `unknownStoreIds` pour informer l'utilisateur
 
-Dans la boucle d'agregation des chunks, ajouter la collecte des `unknownStoreIds` et `unknownStoreDetails` depuis chaque chunk, puis les injecter dans le resultat agrege au lieu de `[]`.
+Cela permet d'importer les donnees immediatement tout en signalant l'ambiguite.
 
-### 2. Afficher le mapping interactif sur l'ecran de resultat (etape 4)
+```text
+if (matches.length === 1) {
+  return matches[0];
+}
+if (matches.length > 1) {
+  // Ambiguous but pick first match rather than losing data
+  console.log(`Ambiguous match: "${csvName}" -> ${matches.map(m => m.name).join(', ')} - picking first`);
+  return matches[0];
+}
+```
 
-**Fichier** : `src/pages/ReportImport.tsx` (vers l'etape "complete")
+### 2. Frontend : garder le mapping interactif en place (deja fait)
 
-Ajouter le composant `UnknownStoreMapping` sur l'ecran de resultat d'import (etape 4), avec un bouton "Re-importer les lignes ignorees" une fois le mapping effectue. Ainsi, meme si la validation n'a pas detecte le probleme, l'utilisateur peut corriger apres l'import.
+Les changements precedents sur `ReportImport.tsx` (collecte des `unknownStoreIds` dans les chunks + affichage du composant `UnknownStoreMapping`) restent en place comme filet de securite pour les futurs cas ambigus.
 
-### 3. Hardcoder le match "Lille" -> "Lille Wazemmes" dans l'Edge Function (optionnel, raccourci)
+## Impact
 
-**Fichier** : `supabase/functions/parse-inaccurate-orders/index.ts`
+Les 393 lignes seront automatiquement rattachees au premier restaurant "Lille" trouve (probablement Lille Flandres par ordre alphabetique). Si ce n'est pas le bon, l'utilisateur pourra supprimer et re-importer apres avoir configure le mapping.
 
-Comme vous savez que "Chicken Street - Lille" doit aller vers Lille Wazemmes, on peut aussi ajouter une regle de matching : quand il y a plusieurs candidats et que le nom extrait est exactement "lille", choisir le premier resultat par defaut plutot que de refuser le match. Mais le mapping interactif reste la solution propre et perenne.
-
-## Resume
+## Details techniques
 
 | Fichier | Changement |
 |---------|-----------|
-| `ReportImport.tsx` | Collecter `unknownStoreIds` dans l'agregation des chunks |
-| `ReportImport.tsx` | Afficher `UnknownStoreMapping` a l'etape 4 (resultat) |
-| Edge Function (optionnel) | Fallback quand matching ambigu |
+| `supabase/functions/parse-inaccurate-orders/index.ts` | Modifier `findRestaurantByPartialName` pour accepter le premier match quand plusieurs candidats |
+
