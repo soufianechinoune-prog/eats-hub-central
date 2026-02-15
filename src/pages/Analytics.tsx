@@ -300,6 +300,30 @@ export default function Analytics() {
     },
   });
 
+  // Fetch advertising expenses from payout_adjustments
+  const { data: advertisingData } = useQuery({
+    queryKey: ["analytics_advertising", restaurantFilter, selectedYear],
+    queryFn: async () => {
+      let query = supabase
+        .from('payout_adjustments')
+        .select('payout_date, restaurant_id, amount')
+        .eq('category', 'advertising')
+        .gte('payout_date', `${selectedYear}-01-01`)
+        .lte('payout_date', `${selectedYear}-12-31`);
+      
+      if (restaurantFilter && restaurantFilter.length > 0) {
+        query = query.in('restaurant_id', restaurantFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) {
+        console.error("[Analytics] advertising data error:", error);
+        throw error;
+      }
+      return data || [];
+    },
+  });
+
   // Fetch detailed payouts data - always fetch for the full year in finances mode
   const { data: dailyPayoutsData } = useQuery({
     queryKey: ["analytics_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
@@ -1313,6 +1337,7 @@ export default function Analytics() {
                   profitabilityPrevDateRange={profitabilityPrevRange}
                   profitabilityComparisonMode={profitabilityComparisonMode}
                   onProfitabilityComparisonModeChange={setProfitabilityComparisonMode}
+                  advertisingData={advertisingData}
                   // Action filtering props for FinancesSection
                   globalActions={globalActions}
                   selectedActionIds={selectedActionIds}

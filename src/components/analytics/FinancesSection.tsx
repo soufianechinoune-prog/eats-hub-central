@@ -21,6 +21,7 @@ interface RestaurantAction {
 
 interface FinancesSectionProps {
   dailyPayoutsData: any[]; // Uses actual payout data from the table
+  advertisingData?: { payout_date: string; restaurant_id: string; amount: number }[];
   restaurants: { id: string; name: string; city?: string }[];
   selectedRestaurants: string[];
   startDate: Date;
@@ -52,6 +53,7 @@ interface FinancesSectionProps {
 
 export function FinancesSection({
   dailyPayoutsData,
+  advertisingData,
   restaurants,
   selectedRestaurants,
   startDate,
@@ -168,6 +170,7 @@ export function FinancesSection({
         <ProfitabilityComparisonTable
           payouts={dailyPayoutsData}
           restaurants={restaurants}
+          advertisingData={advertisingData}
         />
       )}
 
