@@ -125,6 +125,7 @@ interface ImportResult {
     updated: number;
     skipped: number;
     errors: number;
+    merged?: number;
   };
   validation?: ValidationData;
   orphanInfo?: OrphanInfo;
@@ -1087,6 +1088,7 @@ export default function ReportImport() {
         let totalUpdated = 0;
         let totalSkipped = 0;
         let totalErrors = 0;
+        let totalMerged = 0;
         let allRestaurants: RestaurantStats[] = [];
         let minDate: string | null = null;
         let maxDate: string | null = null;
@@ -1151,6 +1153,7 @@ export default function ReportImport() {
             totalUpdated += chunkResult.stats?.updated || 0;
             totalSkipped += chunkResult.stats?.skipped || 0;
             totalErrors += chunkResult.stats?.errors || 0;
+            totalMerged += chunkResult.stats?.merged || 0;
             
             // Merge restaurants (support both root-level and validation-nested)
             const chunkRestaurants = chunkResult.validation?.restaurants || chunkResult.restaurants || [];
@@ -1215,6 +1218,7 @@ export default function ReportImport() {
             updated: totalUpdated,
             skipped: totalSkipped,
             errors: totalErrors,
+            merged: totalMerged,
           },
           validation: {
             dateRange: { start: minDate, end: maxDate },
@@ -2102,7 +2106,7 @@ export default function ReportImport() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                   <div className="p-4 bg-muted rounded-lg text-center">
                     <p className="text-2xl font-bold">{importResult.stats.totalRows}</p>
                     <p className="text-sm text-muted-foreground">Lignes totales</p>
@@ -2115,6 +2119,18 @@ export default function ReportImport() {
                     <p className="text-2xl font-bold text-blue-600">{importResult.stats.updated}</p>
                     <p className="text-sm text-muted-foreground">Mises à jour</p>
                   </div>
+                  {(importResult.stats.merged ?? 0) > 0 && (
+                    <div className="p-4 bg-violet-500/10 rounded-lg text-center relative group">
+                      <p className="text-2xl font-bold text-violet-600">{importResult.stats.merged}</p>
+                      <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                        Fusionnées
+                        <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                      </p>
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover border rounded-md shadow-md text-xs text-popover-foreground w-56 hidden group-hover:block z-10">
+                        Lignes CSV fusionnées car elles concernent la même commande (ex: TVA multiples)
+                      </div>
+                    </div>
+                  )}
                   <div className="p-4 bg-amber-500/10 rounded-lg text-center">
                     <p className="text-2xl font-bold text-amber-600">{importResult.stats.skipped}</p>
                     <p className="text-sm text-muted-foreground">Ignorées</p>
@@ -2124,6 +2140,22 @@ export default function ReportImport() {
                     <p className="text-sm text-muted-foreground">Erreurs</p>
                   </div>
                 </div>
+                {/* Coherence check */}
+                {(() => {
+                  const accounted = importResult.stats.inserted + importResult.stats.updated + importResult.stats.skipped + (importResult.stats.merged ?? 0) + importResult.stats.errors;
+                  const total = importResult.stats.totalRows;
+                  if (accounted !== total && total > 0) {
+                    return (
+                      <Alert variant="destructive" className="border-amber-500 bg-amber-500/10">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        <AlertDescription className="text-sm text-amber-700">
+                          ⚠️ Incohérence : {accounted.toLocaleString()} lignes comptabilisées sur {total.toLocaleString()} totales ({(total - accounted).toLocaleString()} non comptabilisées)
+                        </AlertDescription>
+                      </Alert>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {/* Orphan items warning in complete step */}
                 {importResult.orphanInfo && importResult.orphanInfo.count > 0 && (
