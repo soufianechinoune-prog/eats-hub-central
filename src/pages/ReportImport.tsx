@@ -456,15 +456,15 @@ export default function ReportImport() {
     if (headerLine.includes("Ouverture du restaurant à") && headerLine.includes("Disponibilité du menu")) {
       return "downtime_report";
     }
+    // Inaccurate Orders (detail) — tested BEFORE order_history (shares common headers)
+    if ((headerLine.includes("Problème avec la commande") || headerLine.includes("Articles incorrects")) &&
+        headerLine.includes("Client remboursé")) {
+      return "inaccurate_orders";
+    }
     // Order History
     if ((headerLine.includes("Id. de la commande") || headerLine.includes("Id de la commande")) && 
         (headerLine.includes("Temps d'attente du coursier") || headerLine.includes("Heure de la commande"))) {
       return "order_history";
-    }
-    // Inaccurate Orders (detail)
-    if ((headerLine.includes("Problème avec la commande") || headerLine.includes("Articles incorrects")) &&
-        headerLine.includes("Client remboursé")) {
-      return "inaccurate_orders";
     }
     // Item Issues Leaderboard
     if (headerLine.includes("Articles incorrects") && headerLine.includes("Nombre") &&
