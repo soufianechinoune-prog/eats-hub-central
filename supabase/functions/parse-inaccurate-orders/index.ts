@@ -115,6 +115,16 @@ function findRestaurantByPartialName(
     }
   }
 
+  // Hardcoded match for "Chicken Street - Lille" -> Lille Wazemmes
+  const lowerName = csvName.toLowerCase().trim();
+  if (lowerName === 'chicken street - lille' || lowerName === 'chicken street lille') {
+    const wazemmes = Array.from(restaurantByName.values()).find(r => r.id === 'b81531ef-d5db-47dd-b0bb-37f2c9fd6d5d');
+    if (wazemmes) {
+      console.log(`Hardcoded match: "${csvName}" -> "${wazemmes.name}"`);
+      return wazemmes;
+    }
+  }
+
   // Try extracting city part from "Chicken Street - City" pattern
   const cityMatch = csvName.match(/Chicken\s*Street\s*[-–—]\s*(.+)/i);
   if (!cityMatch) return null;
