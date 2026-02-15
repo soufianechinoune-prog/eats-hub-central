@@ -1,42 +1,30 @@
 
-# Corriger l'auto-detection du type "Commandes incorrectes"
+
+# Corriger l'index unique de la table order_errors
 
 ## Le probleme
 
-Ton fichier CSV "Commandes incorrectes" contient les colonnes "Id. de la commande" et "Heure de la commande". Ces colonnes sont aussi presentes dans les fichiers "Historique des commandes". Or, dans le code, la detection de "Historique des commandes" est testee **avant** "Commandes incorrectes", donc le systeme identifie ton fichier a tort comme un historique.
+Les 32 145 lignes ont ete correctement lues par le parser, mais l'insertion en base echoue a chaque ligne avec l'erreur :
 
-Resultat : il te demande de selectionner un restaurant (car "Historique des commandes" l'exige), alors que "Commandes incorrectes" ne l'exige pas et sait identifier les restaurants automatiquement.
+> "there is no unique or exclusion constraint matching the ON CONFLICT specification"
+
+La cause : l'index unique utilise une **expression** `COALESCE(item_title, '')`, mais le code fait `ON CONFLICT (restaurant_id, uber_order_id, item_title)` sur la colonne brute. PostgreSQL ne reconnait pas l'equivalence.
 
 ## La solution
 
-Inverser l'ordre de detection dans le code : tester d'abord "Commandes incorrectes" (marqueurs plus specifiques : "Probleme avec la commande" + "Client rembourse"), puis "Historique des commandes".
+Une seule migration SQL. **Aucun fichier de code modifie.**
 
-## Fichier modifie
+| Action | Detail |
+|--------|--------|
+| Supprimer l'ancien index | `DROP INDEX order_errors_dedup_idx` |
+| Nettoyer les NULL existants | `UPDATE order_errors SET item_title = '' WHERE item_title IS NULL` |
+| Rendre item_title NOT NULL | `ALTER COLUMN item_title SET DEFAULT '', SET NOT NULL` |
+| Recreer l'index simple | `CREATE UNIQUE INDEX ... ON (restaurant_id, uber_order_id, item_title)` |
 
-| Fichier | Changement |
-|---------|-----------|
-| `src/pages/ReportImport.tsx` | Deplacer le bloc de detection `inaccurate_orders` (lignes 464-468) AVANT le bloc `order_history` (lignes 459-462) |
+## Pourquoi c'est sans risque
 
-## Detail technique
+- Le parser `parse-inaccurate-orders` utilise deja `item_title || ''` donc il n'envoie jamais de NULL
+- Les donnees existantes sont nettoyees avant de changer la contrainte
+- Aucun autre code ne depend de l'expression COALESCE dans l'index
+- Aucun parser n'est modifie
 
-Ordre actuel (lignes 459-468) :
-
-```text
-// Order History (ligne 459-462) -- TESTE EN PREMIER, gagne a tort
-if ("Id. de la commande" + "Heure de la commande") -> order_history
-
-// Inaccurate Orders (ligne 464-468) -- jamais atteint
-if ("Probleme avec la commande" + "Client rembourse") -> inaccurate_orders
-```
-
-Nouvel ordre :
-
-```text
-// Inaccurate Orders -- TESTE EN PREMIER (marqueurs plus specifiques)
-if ("Probleme avec la commande" + "Client rembourse") -> inaccurate_orders
-
-// Order History -- teste ensuite
-if ("Id. de la commande" + "Heure de la commande") -> order_history
-```
-
-Aucun changement backend, aucun impact sur les autres types d'import.
