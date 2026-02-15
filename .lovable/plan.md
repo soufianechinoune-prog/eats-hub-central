@@ -1,45 +1,44 @@
 
+# Ajouter la colonne "Pub" (depenses publicitaires) au Comparatif de Rentabilite
 
-# Reduire la taille des chunks et ajouter un retry automatique
+## Objectif
 
-## Probleme
+Integrer les depenses publicitaires depuis la table `payout_adjustments` (category = 'advertising') dans le tableau "Comparatif de Rentabilite" de la page Finances & Frais. La colonne s'affichera entre "Eco-contrib." et "Versement Total", en respectant les filtres temporels et restaurant existants.
 
-L'edge function plante avec l'erreur **WORKER_LIMIT** ("not enough compute resources") quand elle traite 15 000 lignes. Avec un fichier de 387 445 lignes, ca fait 26 chunks -- et une partie echoue systematiquement car le serveur n'a pas assez de memoire.
+## Donnees disponibles
 
-Chaque echec compte 15 000 erreurs, d'ou les 60 000+ erreurs visibles a l'ecran.
+- Table `payout_adjustments` : 1 364 lignes de pub totalisant -244 152 EUR
+- Cle de jointure : `payout_date` + `restaurant_id` (identique aux payouts)
+- Les montants sont negatifs (depenses)
 
-## Solution
+## Plan d'implementation
 
-### 1. Reduire CHUNK_SIZE de 15 000 a 5 000
+### 1. Requeter les depenses publicitaires (Analytics.tsx)
 
-Fichier : `src/pages/ReportImport.tsx`
+Ajouter une requete `payout_adjustments` filtree par `category = 'advertising'` avec les memes filtres temporels et restaurant que `dailyPayoutsData`. Agreger par `payout_date` + `restaurant_id` pour obtenir le total pub par versement. Passer ces donnees a `FinancesSection` puis a `ProfitabilityComparisonTable`.
 
-Passer la constante `CHUNK_SIZE` de 15 000 a 5 000 lignes. Cela triple le nombre de chunks (26 -> 78), mais chaque chunk sera 3x plus leger en memoire, evitant le WORKER_LIMIT.
+### 2. Modifier FinancesSection.tsx
 
-### 2. Ajouter un retry automatique (max 2 tentatives)
+Ajouter la prop `advertisingData` et la transmettre a `ProfitabilityComparisonTable`.
 
-Fichier : `src/pages/ReportImport.tsx`
+### 3. Modifier ProfitabilityComparisonTable.tsx
 
-Quand un chunk echoue avec une erreur reseau ou WORKER_LIMIT, attendre 3 secondes et re-essayer une fois avant de compter comme erreur definitive. Cela gere les echecs transitoires (le serveur a juste besoin de liberer de la memoire).
+- Ajouter une interface pour les donnees pub et une nouvelle prop
+- Dans `comparisonData` (useMemo), joindre les depenses pub par `payout_date` + `restaurant_id`
+- Ajouter le champ `advertisingAmount` a `ComparisonRow`
+- Ajouter une colonne "Pub" dans le header (entre Eco-contrib. et Versement Total), en rouge/orange
+- Afficher le montant dans chaque ligne de donnees (mode profitabilite, semaine, mois)
+- Integrer dans les calculs de moyenne
+- Le montant s'affiche toujours en valeur absolue avec un signe "-" car c'est une depense
 
-### 3. Ne pas envoyer la ligne de description dans les chunks
+### 4. Impact sur les vues
 
-Fichier : `src/pages/ReportImport.tsx`
-
-La ligne de description (ligne 1) fait ~4 000 caracteres et n'est PAS utilisee par l'edge function pour le parsing (seul le header avec les noms de colonnes est necessaire). Envoyer uniquement la ligne de header (pas la description) dans `preHeaderLines` pour reduire la taille du payload de chaque chunk.
-
-Concretement : `preHeaderLines = [allRecords[headerIndex]]` au lieu de `allRecords.slice(0, headerIndex + 1)`.
+Les 3 vues (Rentabilite, Semaine, Mois) afficheront la colonne Pub. La ligne "Moyenne" inclura egalement la moyenne des depenses publicitaires.
 
 ## Fichiers modifies
 
 | Fichier | Changement |
 |---------|-----------|
-| `src/pages/ReportImport.tsx` | CHUNK_SIZE: 15000 -> 5000 ; retry automatique sur echec ; ne pas envoyer la description line |
-
-## Resultat attendu
-
-- 78 chunks de 5 000 lignes au lieu de 26 chunks de 15 000
-- Chaque chunk passe sans WORKER_LIMIT
-- Les echecs transitoires sont retentes automatiquement
-- Import complet des 387 445 lignes sans erreur
-
+| `src/pages/Analytics.tsx` | Nouvelle requete `payout_adjustments` filtree advertising, passee a FinancesSection |
+| `src/components/analytics/FinancesSection.tsx` | Nouvelle prop `advertisingData`, transmise au tableau |
+| `src/components/analytics/ProfitabilityComparisonTable.tsx` | Nouvelle colonne "Pub" dans les 3 modes de vue + moyenne |
