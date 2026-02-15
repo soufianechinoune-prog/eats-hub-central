@@ -1622,6 +1622,7 @@ export type Database = {
           delivery_promo_excl_vat: number | null
           delivery_promo_incl_vat: number | null
           eco_contribution_refund: number | null
+          extra_columns: Json | null
           fulfillment_type: string | null
           gross_amount: number | null
           id: string
@@ -1700,6 +1701,7 @@ export type Database = {
           delivery_promo_excl_vat?: number | null
           delivery_promo_incl_vat?: number | null
           eco_contribution_refund?: number | null
+          extra_columns?: Json | null
           fulfillment_type?: string | null
           gross_amount?: number | null
           id?: string
@@ -1778,6 +1780,7 @@ export type Database = {
           delivery_promo_excl_vat?: number | null
           delivery_promo_incl_vat?: number | null
           eco_contribution_refund?: number | null
+          extra_columns?: Json | null
           fulfillment_type?: string | null
           gross_amount?: number | null
           id?: string
@@ -1846,6 +1849,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "orders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payout_adjustments: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          payout_date: string | null
+          payout_reference_id: string
+          raw_columns: Json | null
+          restaurant_id: string | null
+          restaurant_name: string | null
+          uber_store_id: string
+        }
+        Insert: {
+          amount?: number
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          payout_date?: string | null
+          payout_reference_id: string
+          raw_columns?: Json | null
+          restaurant_id?: string | null
+          restaurant_name?: string | null
+          uber_store_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          payout_date?: string | null
+          payout_reference_id?: string
+          raw_columns?: Json | null
+          restaurant_id?: string | null
+          restaurant_name?: string | null
+          uber_store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_adjustments_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
