@@ -207,8 +207,10 @@ interface ChunkProgress {
   totalErrors: number;
 }
 
-// Chunk size for large file imports (15,000 lines per chunk)
-const CHUNK_SIZE = 15000;
+// Chunk size for large file imports (5,000 lines per chunk to avoid WORKER_LIMIT)
+const CHUNK_SIZE = 5000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 3000;
 
 export default function ReportImport() {
   const { toast } = useToast();
@@ -1076,7 +1078,8 @@ export default function ReportImport() {
       if (needsChunking) {
         // Large file: process in chunks
         // Include ALL pre-header lines (description + header) in each chunk
-        const preHeaderLines = allRecords.slice(0, headerIndex + 1);
+        // Only send the header row (not the description line) to reduce payload size
+        const preHeaderLines = [allRecords[headerIndex]];
         const dataLines = allRecords.slice(headerIndex + 1);
         const totalChunks = Math.ceil(dataLines.length / CHUNK_SIZE);
         
@@ -1117,15 +1120,33 @@ export default function ReportImport() {
           }
           
           try {
-            const { data, error } = await supabase.functions.invoke(functionName, { body });
+            let chunkResult: any = null;
+            let lastError: any = null;
             
-            if (error) {
-              errorDetails.push(`Chunk ${i + 1}: ${error.message}`);
-              totalErrors += CHUNK_SIZE;
-              continue;
+            for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+              if (attempt > 0) {
+                console.log(`Retry ${attempt} for chunk ${i + 1} after ${RETRY_DELAY_MS}ms...`);
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+              }
+              
+              const { data, error } = await supabase.functions.invoke(functionName, { body });
+              
+              if (error) {
+                lastError = error;
+                console.warn(`Chunk ${i + 1} attempt ${attempt + 1} failed: ${error.message}`);
+                continue; // retry
+              }
+              
+              chunkResult = data;
+              lastError = null;
+              break; // success
             }
             
-            const chunkResult = data as any;
+            if (lastError) {
+              errorDetails.push(`Chunk ${i + 1}: ${lastError.message}`);
+              totalErrors += (end - start); // count actual rows, not CHUNK_SIZE
+              continue;
+            }
             totalInserted += chunkResult.stats?.inserted || 0;
             totalUpdated += chunkResult.stats?.updated || 0;
             totalSkipped += chunkResult.stats?.skipped || 0;
@@ -1180,7 +1201,7 @@ export default function ReportImport() {
             }
           } catch (chunkError: any) {
             errorDetails.push(`Chunk ${i + 1}: ${chunkError.message || 'Erreur inconnue'}`);
-            totalErrors += CHUNK_SIZE;
+            totalErrors += (end - start);
           }
         }
         
