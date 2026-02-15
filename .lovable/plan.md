@@ -1,74 +1,88 @@
 
-# Corriger le chunking pour les fichiers avec en-tete decale
 
-## Le probleme
+# Conserver toutes les donnees du rapport de paiement
 
-Les fichiers CSV Uber Eats "Paiements (commandes)" ont souvent des lignes de metadonnees avant la vraie ligne d'en-tete. Par exemple :
+## Le probleme actuel
 
-```text
-Ligne 0: "Rapport de paiements - Janvier 2026"   <-- metadonnee
-Ligne 1: ""                                        <-- vide
-Ligne 2: "Id. de la commande,Id. du flux,..."      <-- VRAI en-tete
-Ligne 3: "abc123,flow456,..."                      <-- donnees
-```
+Le parser `parse-payment-report` ignore les lignes CSV sans `Id. de la commande`. Ces lignes contiennent pourtant des donnees financieres importantes :
+- **Depenses publicitaires** (montants factures par Uber pour les campagnes ads)
+- **Eco-contributions** (frais environnementaux)
+- **Autres frais** et ajustements divers au niveau du versement
 
-Le code de chunking dans `ReportImport.tsx` prend toujours `lines[0]` comme en-tete (ligne 919). Pour le chunk 1, ca fonctionne car le fichier original inclut les metadonnees + en-tete + donnees, et la fonction backend cherche l'en-tete dans les 20 premieres lignes. Mais pour les chunks 2 a 26, seule la ligne 0 (metadonnee) est ajoutee, et la fonction ne trouve pas les colonnes attendues.
+Aujourd'hui, seules les eco-contributions sont partiellement detectees (pour diagnostic), mais rien n'est persiste en base.
 
-Resultat : 25 chunks sur 26 echouent avec "Could not find header row" = 375 000 erreurs.
+De plus, si Uber ajoute de nouvelles colonnes au CSV a l'avenir, elles seront silencieusement ignorees.
 
 ## La solution
 
-Detecter la vraie ligne d'en-tete cote frontend avant de decouper en chunks, en utilisant la meme logique que la fonction backend (chercher les colonnes connues dans les premieres lignes).
+### 1. Nouvelle table `payout_adjustments`
 
-## Fichier modifie
+Creer une table dediee pour stocker toutes les lignes du CSV qui n'ont pas d'identifiant de commande. Chaque ligne devient un enregistrement avec :
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| id | uuid | Cle primaire |
+| restaurant_id | uuid (nullable) | Restaurant si identifiable via uber_store_id |
+| uber_store_id | text | UUID du restaurant Uber (tel que dans le CSV) |
+| restaurant_name | text | Nom du restaurant depuis le CSV |
+| payout_reference_id | text | Reference du versement |
+| payout_date | date | Date du versement |
+| description | text | Contenu de "Description des autres paiements" |
+| category | text | Categorie auto-detectee : `advertising`, `eco_contribution`, `other_fee`, `adjustment` |
+| amount | numeric | Montant (depuis "Autres paiements TTC" ou "Montant total") |
+| raw_columns | jsonb | TOUTES les colonnes de la ligne CSV brute (cle = en-tete, valeur = contenu) |
+| created_at | timestamptz | Date d'import |
+
+### 2. Champ `extra_columns` sur la table `orders`
+
+Ajouter une colonne `extra_columns jsonb` a la table `orders` existante. Pour chaque ligne de commande, toutes les colonnes CSV non mappees dans `COLUMN_MAPPING` seront stockees dans ce champ JSON. Ainsi, si Uber ajoute une colonne demain, elle sera automatiquement conservee sans modifier le code.
+
+### 3. Modification du parser
+
+Au lieu d'ignorer les lignes sans order ID, le parser les inserera dans `payout_adjustments` avec :
+- Detection automatique de la categorie (`advertising`, `eco_contribution`, etc.)
+- Stockage de TOUTES les colonnes CSV brutes dans `raw_columns`
+
+Pour les lignes de commande normales, les colonnes non reconnues seront stockees dans `extra_columns`.
+
+## Fichiers modifies
 
 | Fichier | Changement |
 |---------|-----------|
-| `src/pages/ReportImport.tsx` | Detecter l'index de l'en-tete reel avant le chunking (phases validation ET import) |
+| Migration SQL | Creer la table `payout_adjustments` + ajouter `extra_columns` a `orders` |
+| `supabase/functions/parse-payment-report/index.ts` | Inserer les lignes sans order ID dans `payout_adjustments` au lieu de les ignorer ; collecter les colonnes non mappees dans `extra_columns` |
 
 ## Detail technique
 
-### Nouvelle fonction de detection
-
-Ajouter une fonction `findHeaderLineIndex` qui scanne les 20 premieres lignes pour trouver celle contenant des marqueurs connus (`Id. de la commande`, `Nom du restaurant`, `Date de la commande`, `UUID de la commande`, etc.) :
+### Categorisation automatique des ajustements
 
 ```text
-function findHeaderLineIndex(lines: string[]): number {
-  for (let i = 0; i < Math.min(20, lines.length); i++) {
-    if (lines[i] inclut un marqueur d'en-tete connu) return i;
-  }
-  return 0; // fallback: premiere ligne
+description contient "publicitaire" ou "advertising" ou "ads" -> category = "advertising"
+description contient "eco" ou "contribution" ou "environnement"  -> category = "eco_contribution"  
+description contient "ajustement" ou "adjustment"                -> category = "adjustment"
+sinon                                                            -> category = "other_fee"
+```
+
+### Stockage des colonnes brutes (raw_columns)
+
+Pour chaque ligne sans order ID, on construit un objet JSON avec TOUTES les colonnes :
+```text
+{
+  "Id. du flux": "xyz",
+  "Nom du restaurant": "Mon Resto",
+  "Description des autres paiements": "Depenses publicitaires",
+  "Autres paiements (TVA incluse)": "-45.50",
+  "Montant total": "-45.50",
+  "Date du versement": "15/02/2026",
+  ... (toutes les colonnes du CSV)
 }
 ```
 
-### Modification phase validation (dry run) - autour ligne 751
+### Extra columns pour les commandes
 
-Remplacer :
-```text
-const headerLine = lines[0];
-const sampleLines = [headerLine, ...lines.slice(1, 1001)];
-```
+Pour chaque ligne de commande, les colonnes CSV non presentes dans `COLUMN_MAPPING` sont collectees dans un objet JSON et stockees dans `orders.extra_columns`. Cela garantit que toute nouvelle colonne ajoutee par Uber sera preservee automatiquement.
 
-Par :
-```text
-const headerIndex = findHeaderLineIndex(lines);
-const headerLine = lines[headerIndex];
-const sampleLines = [headerLine, ...lines.slice(headerIndex + 1, headerIndex + 1001)];
-```
+### Upsert des ajustements
 
-### Modification phase import - autour ligne 919
+Cle d'upsert sur `payout_adjustments` : combinaison `(payout_reference_id, description, uber_store_id)` pour eviter les doublons lors de reimportations.
 
-Remplacer :
-```text
-const headerLine = lines[0];
-const dataLines = lines.slice(1);
-```
-
-Par :
-```text
-const headerIndex = findHeaderLineIndex(lines);
-const headerLine = lines[headerIndex];
-const dataLines = lines.slice(headerIndex + 1);
-```
-
-Ainsi chaque chunk recevra la vraie ligne d'en-tete et la fonction backend pourra identifier les colonnes correctement.
