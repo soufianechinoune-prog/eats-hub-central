@@ -146,6 +146,7 @@ interface MonthRestaurantData {
   promo: number;
   refund: number;
   orderCount: number;
+  advertisingAmount: number;
 }
 
 interface MonthGroup {
@@ -474,6 +475,7 @@ export function ProfitabilityComparisonTable({
           refund: number;
           uberFee: number;
           orderCount: number;
+          advertisingAmount: number;
         }> = {};
         
         rows.forEach(row => {
@@ -489,6 +491,7 @@ export function ProfitabilityComparisonTable({
               refund: 0,
               uberFee: 0,
               orderCount: 0,
+              advertisingAmount: 0,
             };
           }
           const agg = restaurantAggregates[row.restaurantId];
@@ -499,6 +502,7 @@ export function ProfitabilityComparisonTable({
           agg.promo += row.promoAmount;
           agg.refund += row.refundAmount;
           agg.orderCount += row.orderCount;
+          agg.advertisingAmount += row.advertisingAmount;
           // Find matching payout for uber fee HT
           const payoutData = payouts.find(p => p.payout_date === row.date && p.restaurant_id === row.restaurantId);
           agg.uberFee += Math.abs(Number(payoutData?.uber_fee_after_promo_excl_vat) || 0);
@@ -525,6 +529,7 @@ export function ProfitabilityComparisonTable({
               promo: agg.promo,
               refund: agg.refund,
               orderCount: agg.orderCount,
+              advertisingAmount: agg.advertisingAmount,
             };
           })
           .sort((a, b) => b.profitability - a.profitability);
@@ -1304,7 +1309,7 @@ export function ProfitabilityComparisonTable({
                               {resto.ecoContribution > 0 ? formatCurrency(resto.ecoContribution) : '-'}
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-orange-500">
-                              -
+                              {resto.advertisingAmount > 0 ? `-${formatCurrency(resto.advertisingAmount)}` : '-'}
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               {formatCurrency(resto.totalPayout)}
