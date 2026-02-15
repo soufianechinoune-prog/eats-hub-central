@@ -1062,7 +1062,8 @@ export default function ReportImport() {
       
       if (needsChunking) {
         // Large file: process in chunks
-        const headerLine = allRecords[headerIndex];
+        // Include ALL pre-header lines (description + header) in each chunk
+        const preHeaderLines = allRecords.slice(0, headerIndex + 1);
         const dataLines = allRecords.slice(headerIndex + 1);
         const totalChunks = Math.ceil(dataLines.length / CHUNK_SIZE);
         
@@ -1080,7 +1081,7 @@ export default function ReportImport() {
         for (let i = 0; i < totalChunks; i++) {
           const start = i * CHUNK_SIZE;
           const end = Math.min(start + CHUNK_SIZE, dataLines.length);
-          const chunkLines = [headerLine, ...dataLines.slice(start, end)];
+          const chunkLines = [...preHeaderLines, ...dataLines.slice(start, end)];
           const chunkCsv = chunkLines.join('\n');
           
           setChunkProgress({

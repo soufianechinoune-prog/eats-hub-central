@@ -46,27 +46,36 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Offres sur les articles (TVA incluse)': 'item_promo_incl_vat', // Nouveau format
   
   'Ajustement des frais de marketing': 'marketing_fee_adjustment',
+  'Ajustement marketing (TVA incluse)': 'marketing_fee_adjustment', // Format 2025
   'Titre-restaurant': 'meal_voucher_amount',
   'Fournisseur de titres-restaurant': 'meal_voucher_provider',
   'Ajustements du prix (hors TVA)': 'price_adjustment_excl_vat',
+  'Ajustements de prix (hors TVA)': 'price_adjustment_excl_vat', // Format 2025
   'TVA sur les ajustements du prix': 'vat_price_adjustment',
   'Ajustements du prix (TVA comprise)': 'price_adjustment_incl_vat',
+  'Ajustements de prix (TVA incluse)': 'price_adjustment_incl_vat', // Format 2025
   'Frais de livraison (hors TVA)': 'merchant_delivery_fee_excl_vat',
   'TVA 1 sur les frais de livraison': 'vat_1_merchant_delivery',
   'TVA 2 sur les frais de livraison': 'vat_2_merchant_delivery',
   'TVA 3 sur les frais de livraison': 'vat_3_merchant_delivery',
   'Frais de livraison (TVA incluse)': 'merchant_delivery_fee_incl_vat',
   'Frais de préparation et d\'emballage': 'packaging_fee',
+  'Frais de préparation et emballage': 'packaging_fee', // Format 2025 (sans "d'")
   'TVA sur les frais pour Préparation et emballage': 'vat_packaging_fee',
+  'TVA sur les frais pour préparation et emballage': 'vat_packaging_fee', // Format 2025 (minuscule)
   'Frais de sac de livraison': 'bag_fee',
+  'Frais de sac': 'bag_fee', // Format 2025
   
   // Promotions livraison - ancien et nouveau format
   'Promotion sur la livraison (hors TVA)': 'delivery_promo_excl_vat',
   'Offres de livraison (hors TVA)': 'delivery_promo_excl_vat', // Nouveau format
+  "Utilisations de l'offre de livraison (hors TVA)": 'delivery_promo_excl_vat', // Format 2025
   'Taxe sur les promotions sur la livraison': 'vat_delivery_promo',
   'TVA sur les offres de livraison': 'vat_delivery_promo', // Nouveau format
+  "TVA sur les utilisations de l'offre de livraison": 'vat_delivery_promo', // Format 2025
   'Promotion sur la livraison (TVA incluse)': 'delivery_promo_incl_vat',
   'Offres de livraison (TVA incluse)': 'delivery_promo_incl_vat', // Nouveau format
+  "Utilisations de l'offre de livraison (TVA incluse)": 'delivery_promo_incl_vat', // Format 2025
   
   'Total de la commande (TVA incluse)': 'order_total_incl_vat',
   'Lien vers la facture du commerçant pour le client': 'customer_invoice_url',
@@ -850,15 +859,35 @@ Deno.serve(async (req) => {
       console.log('Eco-contribution update complete:', ecoContributionPayoutsUpdated, 'payouts updated, total:', ecoContributionTotalAmount, '€');
     }
 
+    // Phase 3.5: Deduplicate adjustments by (payout_reference_id, description, uber_store_id)
+    // Multiple CSV lines can share the same composite key - merge by summing amounts
+    const adjustmentsMap = new Map<string, any>();
+    for (const adj of adjustmentsToUpsert) {
+      const key = `${adj.payout_reference_id}__${adj.description || ''}__${adj.uber_store_id}`;
+      const existing = adjustmentsMap.get(key);
+      if (existing) {
+        existing.amount = (existing.amount || 0) + (adj.amount || 0);
+        // Keep non-null text values from latest entry
+        if (adj.restaurant_id) existing.restaurant_id = adj.restaurant_id;
+        if (adj.restaurant_name) existing.restaurant_name = adj.restaurant_name;
+        if (adj.payout_date) existing.payout_date = adj.payout_date;
+        if (adj.category) existing.category = adj.category;
+      } else {
+        adjustmentsMap.set(key, { ...adj });
+      }
+    }
+    const deduplicatedAdjustments = Array.from(adjustmentsMap.values());
+    console.log('Phase 3.5 adjustment dedup:', adjustmentsToUpsert.length, '->', deduplicatedAdjustments.length);
+
     // Phase 4: Upsert payout_adjustments
     let adjustmentsInserted = 0;
     let adjustmentsErrors = 0;
 
-    if (!dryRun && adjustmentsToUpsert.length > 0) {
-      console.log('Phase 4: Upserting', adjustmentsToUpsert.length, 'payout adjustments');
+    if (!dryRun && deduplicatedAdjustments.length > 0) {
+      console.log('Phase 4: Upserting', deduplicatedAdjustments.length, 'payout adjustments');
       
-      for (let i = 0; i < adjustmentsToUpsert.length; i += BATCH_SIZE) {
-        const batch = adjustmentsToUpsert.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < deduplicatedAdjustments.length; i += BATCH_SIZE) {
+        const batch = deduplicatedAdjustments.slice(i, i + BATCH_SIZE);
         
         const { error: adjError } = await supabase
           .from('payout_adjustments')
@@ -878,7 +907,7 @@ Deno.serve(async (req) => {
       
       console.log('Phase 4 complete:', adjustmentsInserted, 'adjustments upserted,', adjustmentsErrors, 'errors');
     } else if (dryRun) {
-      adjustmentsInserted = adjustmentsToUpsert.length;
+      adjustmentsInserted = deduplicatedAdjustments.length;
     }
 
     // Sample first order's critical values for debugging
