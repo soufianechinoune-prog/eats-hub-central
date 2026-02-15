@@ -35,7 +35,7 @@ export const REPORT_TYPE_CONFIG: Record<string, ReportTypeConfig> = {
     description: "Détail financier par commande",
     requiresRestaurant: false,
     edgeFunctionName: "parse-payment-report",
-    targetTables: ["orders"],
+    targetTables: ["orders", "payout_adjustments"],
     requiredColumns: ["Id. de la commande", "Id. du flux"],
     excludedColumns: ["Nom du plat/de l'article", "Titre de l'article"],
   },
