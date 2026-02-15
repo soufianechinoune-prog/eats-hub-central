@@ -196,7 +196,7 @@ serve(async (req) => {
       throw new Error('CSV content is required');
     }
 
-    console.log(`Parsing inaccurate orders CSV, dryRun: ${dryRun}, restaurantId override: ${restaurantId || 'none'}`);
+    console.log(`[parse-inaccurate-orders v3] dryRun=${dryRun}, restaurantId=${restaurantId || 'none'}`);
 
     // Fetch all restaurants for matching
     const { data: restaurants, error: restaurantsError } = await supabase
@@ -329,6 +329,18 @@ serve(async (req) => {
           if (restaurantName) {
             const normalizedName = normalizeRestaurantName(restaurantName);
             matchedRestaurant = restaurantByName.get(normalizedName);
+
+            // Direct hardcoded match for ambiguous names
+            if (!matchedRestaurant) {
+              const cleanName = restaurantName.toLowerCase().trim().replace(/\s+/g, ' ');
+              if (cleanName === 'chicken street - lille' || cleanName === 'chicken street lille') {
+                const found = restaurants?.find(r => r.id === 'b81531ef-d5db-47dd-b0bb-37f2c9fd6d5d');
+                if (found) {
+                  matchedRestaurant = { id: found.id, name: found.name };
+                  console.log(`Direct hardcoded match: "${restaurantName}" -> ${found.name}`);
+                }
+              }
+            }
 
             if (!matchedRestaurant) {
               matchedRestaurant = findRestaurantByPartialName(restaurantName, restaurantByName) || undefined;
