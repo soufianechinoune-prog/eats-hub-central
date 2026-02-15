@@ -267,6 +267,8 @@ interface AnalyticsChartsProps {
   profitabilityPrevDateRange?: { start: Date; end: Date };
   profitabilityComparisonMode?: "yearOverYear" | "rollingPeriod";
   onProfitabilityComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
+  // Advertising data
+  advertisingData?: { payout_date: string; restaurant_id: string; amount: number }[];
   // Action filtering props for FinancesSection
   globalActions?: RestaurantAction[];
   selectedActionIds?: Set<string>;
@@ -564,6 +566,8 @@ export function AnalyticsCharts({
   profitabilityPrevDateRange,
   profitabilityComparisonMode = "yearOverYear",
   onProfitabilityComparisonModeChange,
+  // Advertising data
+  advertisingData,
   // Action filtering props for FinancesSection
   globalActions = [],
   selectedActionIds,
@@ -3317,6 +3321,7 @@ export function AnalyticsCharts({
       {showFinances && restaurants && restaurants.length > 0 && (
         <FinancesSection
           dailyPayoutsData={dailyPayoutsData || []}
+          advertisingData={advertisingData}
           restaurants={restaurants}
           selectedRestaurants={selectedRestaurants || []}
           startDate={propStartDate || (() => {
