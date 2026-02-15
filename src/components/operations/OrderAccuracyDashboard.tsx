@@ -170,6 +170,29 @@ export function OrderAccuracyDashboard({
     enabled: periodMode !== "range", // Don't fetch monthly data in range mode
   });
 
+  // Fallback #2: fetch from order_errors table (CSV imports)
+  const { data: orderErrorsData, isLoading: isLoadingOrderErrors } = useQuery({
+    queryKey: ["order-errors-fallback", restaurantIds, effectiveDateRange.startDate, effectiveDateRange.endDate],
+    queryFn: async () => {
+      let query = supabase
+        .from("order_errors")
+        .select("restaurant_id, uber_order_id, financial_impact, error_date, error_category")
+        .gte("error_date", effectiveDateRange.startDate)
+        .lte("error_date", effectiveDateRange.endDate);
+
+      if (!isAllRestaurants && restaurantIds.length > 0) {
+        query = query.in("restaurant_id", restaurantIds);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error("Error fetching order errors:", error);
+        return [];
+      }
+      return data || [];
+    },
+  });
+
   // Fetch product issues ranking - now filtered by date range and aggregated
   const { data: productIssues, isLoading: isLoadingProducts } = useQuery({
     queryKey: ["product-issues-ranking", restaurantIds, effectiveDateRange.startDate, effectiveDateRange.endDate],
@@ -286,7 +309,11 @@ export function OrderAccuracyDashboard({
   // Determine which data source to use
   const hasDaily = dailyAccuracy && dailyAccuracy.length > 0;
   const hasMonthly = monthlyAccuracy && monthlyAccuracy.length > 0;
+  const hasOrderErrors = orderErrorsData && orderErrorsData.length > 0;
   const useDaily = hasDaily;
+  const useOrderErrors = !hasDaily && !hasMonthly && hasOrderErrors;
+  const dataSource: "daily" | "monthly" | "order_errors" | "none" = 
+    hasDaily ? "daily" : hasMonthly ? "monthly" : hasOrderErrors ? "order_errors" : "none";
 
   // Aggregate data based on source and selection
   const aggregatedData = useMemo(() => {
@@ -352,10 +379,43 @@ export function OrderAccuracyDashboard({
         incorrect_item_refund: 0,
         total_refund: 0,
       });
+    } else if (useOrderErrors && orderErrorsData) {
+      // Aggregate from order_errors table (CSV import fallback)
+      const distinctOrders = new Set(orderErrorsData.map(e => e.uber_order_id).filter(Boolean));
+      const totalImpact = orderErrorsData.reduce((sum, e) => sum + (e.financial_impact || 0), 0);
+      
+      // Map error_category to standard categories
+      const categoryCounts: Record<string, { count: number; refund: number }> = {};
+      orderErrorsData.forEach(e => {
+        const cat = e.error_category || "Autre";
+        if (!categoryCounts[cat]) categoryCounts[cat] = { count: 0, refund: 0 };
+        categoryCounts[cat].count += 1;
+        categoryCounts[cat].refund += e.financial_impact || 0;
+      });
+
+      const mapCategory = (name: string) => categoryCounts[name] || { count: 0, refund: 0 };
+      const missingItems = mapCategory("Articles manquants");
+      const wrongOrder = mapCategory("Commande incorrecte");
+      const incorrectItem = mapCategory("Article incorrect");
+      const qualityIssues = mapCategory("Problèmes liés à la qualité des aliments");
+      const other = mapCategory("Autre");
+
+      return {
+        incorrect_orders: distinctOrders.size,
+        missing_items: missingItems.count,
+        missing_items_refund: missingItems.refund,
+        missing_customization: qualityIssues.count, // Map quality issues to this slot
+        missing_customization_refund: qualityIssues.refund,
+        wrong_order: wrongOrder.count,
+        wrong_order_refund: wrongOrder.refund,
+        incorrect_item: incorrectItem.count + other.count,
+        incorrect_item_refund: incorrectItem.refund + other.refund,
+        total_refund: totalImpact,
+      };
     }
     
     return null;
-  }, [dailyAccuracy, monthlyAccuracy, selectedMonth, periodMode, useDaily]);
+  }, [dailyAccuracy, monthlyAccuracy, orderErrorsData, selectedMonth, periodMode, useDaily, useOrderErrors]);
 
   // Calculate order count from sales data
   const orderCount = useMemo(() => {
@@ -569,10 +629,75 @@ export function OrderAccuracyDashboard({
             hasSalesData: orders > 0,
           };
         });
+    } else if (useOrderErrors && orderErrorsData && orderErrorsData.length > 0) {
+      // Aggregate order_errors by month or day
+      const dailyOrders: Record<string, number> = {};
+      (dailySalesData || []).forEach((r: any) => {
+        dailyOrders[r.date] = (dailyOrders[r.date] || 0) + (r.order_count || 0);
+      });
+
+      // Group errors by date, counting distinct uber_order_ids
+      const errorsByDate: Record<string, { orderIds: Set<string>; impact: number }> = {};
+      orderErrorsData.forEach(e => {
+        const d = e.error_date;
+        if (!d) return;
+        if (!errorsByDate[d]) errorsByDate[d] = { orderIds: new Set(), impact: 0 };
+        if (e.uber_order_id) errorsByDate[d].orderIds.add(e.uber_order_id);
+        errorsByDate[d].impact += e.financial_impact || 0;
+      });
+
+      if (chartPeriodMode === "month" || (periodMode as string) === "range") {
+        // Daily view
+        const allDates = new Set([...Object.keys(dailyOrders), ...Object.keys(errorsByDate)]);
+        return Array.from(allDates)
+          .sort((a, b) => a.localeCompare(b))
+          .map(dateStr => {
+            const date = parseISO(dateStr);
+            const orders = dailyOrders[dateStr] || 0;
+            const errData = errorsByDate[dateStr];
+            const errors = errData ? errData.orderIds.size : 0;
+            return {
+              period: dateStr,
+              label: format(date, "d MMM", { locale: fr }),
+              errorRate: orders > 0 ? (errors / orders) * 100 : null,
+              errorCount: errors,
+              orderCount: orders,
+              hasSalesData: orders > 0,
+            };
+          });
+      } else {
+        // Monthly aggregation
+        const monthlyErrors: Record<number, { orderIds: Set<string>; impact: number }> = {};
+        Object.entries(errorsByDate).forEach(([dateStr, data]) => {
+          const month = parseISO(dateStr).getMonth() + 1;
+          if (!monthlyErrors[month]) monthlyErrors[month] = { orderIds: new Set(), impact: 0 };
+          data.orderIds.forEach(id => monthlyErrors[month].orderIds.add(id));
+          monthlyErrors[month].impact += data.impact;
+        });
+
+        const monthlyOrders2: Record<number, number> = {};
+        (salesData || []).forEach((r: any) => {
+          monthlyOrders2[r.month] = (monthlyOrders2[r.month] || 0) + (r.order_count || 0);
+        });
+
+        return Object.entries(monthlyErrors)
+          .sort(([a], [b]) => parseInt(a) - parseInt(b))
+          .map(([month, data]) => {
+            const orders = monthlyOrders2[parseInt(month)] || 0;
+            return {
+              period: `${selectedYear}-${String(month).padStart(2, "0")}`,
+              label: monthNames[parseInt(month) - 1],
+              errorRate: orders > 0 ? (data.orderIds.size / orders) * 100 : null,
+              errorCount: data.orderIds.size,
+              orderCount: orders,
+              hasSalesData: orders > 0,
+            };
+          });
+      }
     }
     
     return [];
-  }, [dailyAccuracy, monthlyAccuracy, salesData, dailySalesData, selectedYear, useDaily, chartPeriodMode, chartSelectedMonth, periodMode]);
+  }, [dailyAccuracy, monthlyAccuracy, orderErrorsData, salesData, dailySalesData, selectedYear, useDaily, useOrderErrors, chartPeriodMode, chartSelectedMonth, periodMode]);
 
   // Drill-down handlers
   const handleDrillDown = (month: number) => {
@@ -599,11 +724,11 @@ export function OrderAccuracyDashboard({
 
     return [
       { name: "Articles manquants", count: aggregatedData.missing_items, impact: aggregatedData.missing_items_refund, color: "#ef4444" },
-      { name: "Personnalisation manquante", count: aggregatedData.missing_customization, impact: aggregatedData.missing_customization_refund, color: "#8b5cf6" },
+      { name: useOrderErrors ? "Qualité des aliments" : "Personnalisation manquante", count: aggregatedData.missing_customization, impact: aggregatedData.missing_customization_refund, color: "#8b5cf6" },
       { name: "Mauvaise commande", count: aggregatedData.wrong_order, impact: aggregatedData.wrong_order_refund, color: "#3b82f6" },
       { name: "Article incorrect", count: aggregatedData.incorrect_item, impact: aggregatedData.incorrect_item_refund, color: "#f97316" },
     ].filter(c => c.count > 0);
-  }, [aggregatedData]);
+  }, [aggregatedData, useOrderErrors]);
 
   // Calculate total for percentage
   const totalErrorCount = useMemo(() => {
@@ -627,7 +752,7 @@ export function OrderAccuracyDashboard({
     );
   }, [restaurantIds, restaurants, effectiveDateRange.endDate]);
 
-  const isLoading = isLoadingDaily || isLoadingMonthly || isLoadingProducts;
+  const isLoading = isLoadingDaily || isLoadingMonthly || isLoadingProducts || isLoadingOrderErrors;
 
   if (isLoading) {
     return (
@@ -637,7 +762,7 @@ export function OrderAccuracyDashboard({
     );
   }
 
-  if (!hasDaily && !hasMonthly) {
+  if (!hasDaily && !hasMonthly && !hasOrderErrors) {
     // Special message for restaurant before opening
     if (openingCheck.isBeforeOpening) {
       return (
@@ -670,10 +795,13 @@ export function OrderAccuracyDashboard({
   return (
     <div className="space-y-6">
       {/* Info about data source */}
-      <Alert className="border-blue-500/50 bg-blue-500/10">
-        <Info className="h-4 w-4 text-blue-500" />
-        <AlertDescription className="text-blue-700 dark:text-blue-400">
-          Données officielles Uber Eats • Format: {useDaily ? "Journalier" : "Mensuel"} • {useDaily ? dailyAccuracy?.length : monthlyAccuracy?.length} enregistrements
+      <Alert className={`border-blue-500/50 ${useOrderErrors ? "bg-amber-500/10 border-amber-500/50" : "bg-blue-500/10"}`}>
+        <Info className={`h-4 w-4 ${useOrderErrors ? "text-amber-500" : "text-blue-500"}`} />
+        <AlertDescription className={useOrderErrors ? "text-amber-700 dark:text-amber-400" : "text-blue-700 dark:text-blue-400"}>
+          {useOrderErrors 
+            ? `Source: Import CSV • ${orderErrorsData?.length || 0} lignes d'erreurs importées`
+            : `Données officielles Uber Eats • Format: ${useDaily ? "Journalier" : "Mensuel"} • ${useDaily ? dailyAccuracy?.length : monthlyAccuracy?.length} enregistrements`
+          }
         </AlertDescription>
       </Alert>
 
