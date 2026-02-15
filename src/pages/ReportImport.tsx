@@ -826,11 +826,60 @@ export default function ReportImport() {
         const { records, headerIndex } = parseCSVRecords(csvContent);
         totalLinesCount = records.length - 1 - headerIndex; // Exclude header and metadata lines
         
-        // If file is large, only send first 1000 records for validation
+        // If file is large, use uniform sampling for representative dry run
         if (totalLinesCount > CHUNK_SIZE) {
           isLargeFile = true;
-          const sampleRecords = records.slice(0, headerIndex + 1 + 1000); // header + 1000 data records
-          contentToValidate = sampleRecords.join('\n');
+          const dataRecords = records.slice(headerIndex + 1);
+          const sampleSize = 1000;
+          const step = Math.max(1, Math.floor(dataRecords.length / sampleSize));
+          const sampledRecords: string[] = [];
+          for (let i = 0; i < dataRecords.length && sampledRecords.length < sampleSize; i += step) {
+            sampledRecords.push(dataRecords[i]);
+          }
+          const headerRecords = records.slice(0, headerIndex + 1);
+          contentToValidate = [...headerRecords, ...sampledRecords].join('\n');
+          
+          // Scan full file for date range client-side
+          const headerFields = parseCSVLine(records[headerIndex]);
+          const dateColIndex = headerFields.findIndex(h => 
+            h.toLowerCase().includes("date de la commande") || 
+            h.toLowerCase().includes("heure de la commande") ||
+            h.toLowerCase().includes("order date")
+          );
+          if (dateColIndex >= 0) {
+            let minDate: string | null = null;
+            let maxDate: string | null = null;
+            // Scan a larger uniform sample (every 100th record) for speed
+            const dateScanStep = Math.max(1, Math.floor(dataRecords.length / 5000));
+            // Always include first and last records
+            const indicesToScan = new Set<number>();
+            indicesToScan.add(0);
+            indicesToScan.add(dataRecords.length - 1);
+            for (let i = 0; i < dataRecords.length; i += dateScanStep) {
+              indicesToScan.add(i);
+            }
+            for (const idx of indicesToScan) {
+              const fields = parseCSVLine(dataRecords[idx]);
+              const dateVal = fields[dateColIndex]?.trim();
+              if (dateVal) {
+                // Parse various date formats
+                let isoDate: string | null = null;
+                const ddmmyyyy = dateVal.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                if (ddmmyyyy) {
+                  isoDate = `${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2, '0')}-${ddmmyyyy[1].padStart(2, '0')}`;
+                } else {
+                  const isoMatch = dateVal.match(/(\d{4})-(\d{2})-(\d{2})/);
+                  if (isoMatch) isoDate = isoMatch[0];
+                }
+                if (isoDate) {
+                  if (!minDate || isoDate < minDate) minDate = isoDate;
+                  if (!maxDate || isoDate > maxDate) maxDate = isoDate;
+                }
+              }
+            }
+            // Store scanned date range to override sample's date range later
+            (window as any).__scannedDateRange = { start: minDate, end: maxDate };
+          }
         }
       }
       
@@ -859,7 +908,7 @@ export default function ReportImport() {
       // For large files, adjust the validation result to show actual totals
       let validationData = data as ImportResult;
       if (isLargeFile) {
-        // Extrapolate inserted/skipped counts from sample to full file
+        // Extrapolate all counts from sample to full file
         const sampleTotal = validationData.stats.totalRows;
         const ratio = sampleTotal > 0 ? totalLinesCount / sampleTotal : 1;
         validationData = {
@@ -868,9 +917,26 @@ export default function ReportImport() {
             ...validationData.stats,
             totalRows: totalLinesCount,
             inserted: Math.round(validationData.stats.inserted * ratio),
+            updated: Math.round(validationData.stats.updated * ratio),
             skipped: Math.round(validationData.stats.skipped * ratio),
           },
         };
+        
+        // Override date range with client-side full scan if available
+        const scannedRange = (window as any).__scannedDateRange;
+        if (scannedRange && validationData.validation) {
+          validationData = {
+            ...validationData,
+            validation: {
+              ...validationData.validation,
+              dateRange: {
+                start: scannedRange.start || validationData.validation.dateRange.start,
+                end: scannedRange.end || validationData.validation.dateRange.end,
+              },
+            },
+          };
+          delete (window as any).__scannedDateRange;
+        }
         
         toast({
           title: "Fichier volumineux détecté",
@@ -1733,24 +1799,39 @@ export default function ReportImport() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {/* Stats preview */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="p-4 bg-muted rounded-lg text-center">
-                      <p className="text-2xl font-bold">{validationResult.stats.totalRows}</p>
-                      <p className="text-sm text-muted-foreground">Lignes totales</p>
-                    </div>
-                    <div className="p-4 bg-green-500/10 rounded-lg text-center">
-                      <p className="text-2xl font-bold text-green-600">{validationResult.stats.inserted}</p>
-                      <p className="text-sm text-muted-foreground">À insérer</p>
-                    </div>
-                    <div className="p-4 bg-blue-500/10 rounded-lg text-center">
-                      <p className="text-2xl font-bold text-blue-600">{validationResult.stats.updated}</p>
-                      <p className="text-sm text-muted-foreground">À mettre à jour</p>
-                    </div>
-                    <div className="p-4 bg-amber-500/10 rounded-lg text-center">
-                      <p className="text-2xl font-bold text-amber-600">{validationResult.stats.skipped}</p>
-                      <p className="text-sm text-muted-foreground">À ignorer</p>
-                    </div>
-                  </div>
+                  {(() => {
+                    const isEstimated = validationResult.stats.totalRows > CHUNK_SIZE;
+                    return (
+                      <>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="p-4 bg-muted rounded-lg text-center">
+                            <p className="text-2xl font-bold">{validationResult.stats.totalRows.toLocaleString()}</p>
+                            <p className="text-sm text-muted-foreground">Lignes totales</p>
+                          </div>
+                          <div className="p-4 bg-green-500/10 rounded-lg text-center">
+                            <p className="text-2xl font-bold text-green-600">{isEstimated ? '~' : ''}{validationResult.stats.inserted.toLocaleString()}</p>
+                            <p className="text-sm text-muted-foreground">À insérer</p>
+                          </div>
+                          <div className="p-4 bg-blue-500/10 rounded-lg text-center">
+                            <p className="text-2xl font-bold text-blue-600">{isEstimated ? '~' : ''}{validationResult.stats.updated.toLocaleString()}</p>
+                            <p className="text-sm text-muted-foreground">À mettre à jour</p>
+                          </div>
+                          <div className="p-4 bg-amber-500/10 rounded-lg text-center">
+                            <p className="text-2xl font-bold text-amber-600">{isEstimated ? '~' : ''}{validationResult.stats.skipped.toLocaleString()}</p>
+                            <p className="text-sm text-muted-foreground">À ignorer</p>
+                          </div>
+                        </div>
+                        {isEstimated && (
+                          <Alert className="bg-blue-500/5 border-blue-500/20">
+                            <HelpCircle className="h-4 w-4 text-blue-500" />
+                            <AlertDescription className="text-sm text-muted-foreground">
+                              Les compteurs sont des <strong>estimations</strong> basées sur un échantillon représentatif de 1 000 enregistrements répartis uniformément dans le fichier.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {/* Date range - special display for payout_summary */}
                   {validationResult.validation?.dateRange && (
