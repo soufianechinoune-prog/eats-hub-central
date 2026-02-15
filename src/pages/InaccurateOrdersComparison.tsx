@@ -2,10 +2,9 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO, isAfter } from "date-fns";
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Calendar, TrendingDown, AlertTriangle, FileUp } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ArrowLeft, Calendar, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +21,6 @@ const InaccurateOrdersComparison = () => {
   const [period, setPeriod] = useState<PeriodType>("week");
   const [isNetworkView, setIsNetworkView] = useState(false);
 
-  // Calculate date range based on period
   const dateRange = useMemo(() => {
     const now = new Date();
     switch (period) {
@@ -35,9 +33,8 @@ const InaccurateOrdersComparison = () => {
         const lastMonth = subMonths(now, 1);
         return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
       }
-      case "quarter": {
+      case "quarter":
         return { start: subMonths(now, 3), end: now };
-      }
       default:
         return { start: subDays(now, 7), end: now };
     }
@@ -57,7 +54,6 @@ const InaccurateOrdersComparison = () => {
     },
   });
 
-  // Fetch all active restaurants (for network view) with activity dates
   const { data: allActiveRestaurantsRaw } = useQuery({
     queryKey: ["active-restaurants-with-dates"],
     queryFn: async () => {
@@ -71,7 +67,6 @@ const InaccurateOrdersComparison = () => {
     },
   });
 
-  // Filter restaurants by activity dates for the selected period
   const pinnedRestaurants = useMemo(() => {
     if (!pinnedRestaurantsRaw) return [];
     return filterActiveRestaurants(pinnedRestaurantsRaw, dateRange.start, dateRange.end);
@@ -82,51 +77,33 @@ const InaccurateOrdersComparison = () => {
     return filterActiveRestaurants(allActiveRestaurantsRaw, dateRange.start, dateRange.end);
   }, [allActiveRestaurantsRaw, dateRange.start, dateRange.end]);
 
-  // Select restaurants based on view mode
   const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
 
-  // Fetch daily order accuracy data (aggregated from Uber dashboard)
-  const { data: orderAccuracyData, isLoading: accuracyLoading } = useQuery({
-    queryKey: ["inaccurate-orders-comparison-accuracy", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
+  // Fetch order errors from order_errors table
+  const { data: orderErrorsData, isLoading: errorsLoading } = useQuery({
+    queryKey: ["inaccurate-orders-comparison-errors", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
     queryFn: async () => {
       if (!selectedRestaurants?.length) return [];
-      
+
       const { data, error } = await supabase
-        .from("daily_order_accuracy")
-        .select("*")
-        .eq("period_type", "current")
+        .from("order_errors")
+        .select("restaurant_id, uber_order_id, financial_impact, error_date, error_category")
         .in("restaurant_id", selectedRestaurants.map(r => r.id))
-        .gte("date", format(dateRange.start, "yyyy-MM-dd"))
-        .lte("date", format(dateRange.end, "yyyy-MM-dd"));
-      
+        .gte("error_date", format(dateRange.start, "yyyy-MM-dd"))
+        .lte("error_date", format(dateRange.end, "yyyy-MM-dd"));
+
       if (error) throw error;
       return data || [];
     },
     enabled: !!selectedRestaurants?.length,
   });
 
-  // Fetch latest accuracy date to check data coverage
-  const { data: latestErrorDate } = useQuery({
-    queryKey: ["latest-accuracy-date"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("daily_order_accuracy")
-        .select("date")
-        .order("date", { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (error) return null;
-      return data?.date ? parseISO(data.date) : null;
-    },
-  });
-
-  // Fetch order counts from daily_sales_uber for the period
+  // Fetch order counts from daily_sales_uber_deduped
   const { data: orderCountsData, isLoading: ordersLoading } = useQuery({
     queryKey: ["inaccurate-orders-comparison-sales", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
     queryFn: async () => {
       if (!selectedRestaurants?.length) return [];
-      
+
       const { data, error } = await supabase
         .from("daily_sales_uber_deduped")
         .select("restaurant_id, date, order_count")
@@ -134,114 +111,95 @@ const InaccurateOrdersComparison = () => {
         .gte("date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("date", format(dateRange.end, "yyyy-MM-dd"))
         .order("date", { ascending: true });
-      
+
       if (error) throw error;
       return data || [];
     },
     enabled: !!selectedRestaurants?.length,
   });
 
-  const isLoading = accuracyLoading || ordersLoading;
-
-  // Check if data is incomplete for selected period
-  const dataIncomplete = useMemo(() => {
-    if (!latestErrorDate) return true;
-    return isAfter(dateRange.end, latestErrorDate);
-  }, [latestErrorDate, dateRange.end]);
+  const isLoading = errorsLoading || ordersLoading;
 
   // Process data for each restaurant
   const restaurantStats = useMemo(() => {
-    if (!orderAccuracyData || !selectedRestaurants?.length) return [];
-    
+    if (!orderErrorsData || !selectedRestaurants?.length) return [];
+
     // Build order counts by restaurant and weekday
-    const orderCountsByRestaurant: Record<string, {
-      total: number;
-      weekday: Record<number, number>;
-    }> = {};
-    
+    const orderCountsByRestaurant: Record<string, { total: number; weekday: Record<number, number> }> = {};
     orderCountsData?.forEach((row) => {
       if (!orderCountsByRestaurant[row.restaurant_id]) {
         orderCountsByRestaurant[row.restaurant_id] = { total: 0, weekday: {} };
       }
       orderCountsByRestaurant[row.restaurant_id].total += row.order_count || 0;
-      
       if (row.date) {
         const weekday = parseISO(row.date).getDay();
-        orderCountsByRestaurant[row.restaurant_id].weekday[weekday] = 
+        orderCountsByRestaurant[row.restaurant_id].weekday[weekday] =
           (orderCountsByRestaurant[row.restaurant_id].weekday[weekday] || 0) + (row.order_count || 0);
       }
     });
-    
-    const stats = selectedRestaurants.map(restaurant => {
-      const accuracyRecords = orderAccuracyData.filter(d => d.restaurant_id === restaurant.id);
+
+    // Group order_errors by restaurant
+    const errorsByRestaurant: Record<string, typeof orderErrorsData> = {};
+    orderErrorsData.forEach((row) => {
+      if (!errorsByRestaurant[row.restaurant_id]) {
+        errorsByRestaurant[row.restaurant_id] = [];
+      }
+      errorsByRestaurant[row.restaurant_id].push(row);
+    });
+
+    const stats = selectedRestaurants.map((restaurant) => {
+      const errors = errorsByRestaurant[restaurant.id] || [];
       const orderData = orderCountsByRestaurant[restaurant.id] || { total: 0, weekday: {} };
-      
-      // Aggregate error counts from daily_order_accuracy
-      const errorCount = accuracyRecords.reduce((sum, r) => sum + (r.incorrect_orders_count || 0), 0);
-      const totalRefund = accuracyRecords.reduce((sum, r) => sum + (r.total_refund || 0), 0);
-      
-      // Category breakdown
-      const missingItems = accuracyRecords.reduce((sum, r) => sum + (r.missing_items_count || 0), 0);
-      const missingCustomizations = accuracyRecords.reduce((sum, r) => sum + (r.missing_customization_count || 0), 0);
-      const incorrectItems = accuracyRecords.reduce((sum, r) => sum + (r.incorrect_item_count || 0), 0);
-      const wrongOrders = accuracyRecords.reduce((sum, r) => sum + (r.wrong_order_count || 0), 0);
-      
-      // Refund breakdown
-      const missingItemsRefund = accuracyRecords.reduce((sum, r) => sum + (r.missing_items_refund || 0), 0);
-      const missingCustomizationsRefund = accuracyRecords.reduce((sum, r) => sum + (r.missing_customization_refund || 0), 0);
-      const incorrectItemRefund = accuracyRecords.reduce((sum, r) => sum + (r.incorrect_item_refund || 0), 0);
-      const wrongOrderRefund = accuracyRecords.reduce((sum, r) => sum + (r.wrong_order_refund || 0), 0);
-      
+
+      // Count distinct orders with errors
+      const distinctOrderIds = new Set(errors.map((e) => e.uber_order_id).filter(Boolean));
+      const errorCount = distinctOrderIds.size;
+
+      // Sum financial impact
+      const totalFinancialImpact = errors.reduce((sum, e) => sum + (e.financial_impact || 0), 0);
+
       const orderCount = orderData.total;
       const errorRate = orderCount > 0 ? (errorCount / orderCount) * 100 : 0;
-      
+
       // Group errors by day of week
       const weekdayData: Record<number, { errors: number; orders: number }> = {};
       for (let i = 0; i <= 6; i++) {
         weekdayData[i] = { errors: 0, orders: orderData.weekday[i] || 0 };
       }
-      accuracyRecords.forEach(r => {
-        if (!r.date) return;
-        const weekday = parseISO(r.date).getDay();
-        weekdayData[weekday].errors += r.incorrect_orders_count || 0;
+      // Count distinct uber_order_ids per weekday
+      const orderIdsByWeekday: Record<number, Set<string>> = {};
+      for (let i = 0; i <= 6; i++) orderIdsByWeekday[i] = new Set();
+      errors.forEach((e) => {
+        if (!e.error_date || !e.uber_order_id) return;
+        const weekday = parseISO(e.error_date).getDay();
+        orderIdsByWeekday[weekday].add(e.uber_order_id);
+      });
+      for (let i = 0; i <= 6; i++) {
+        weekdayData[i].errors = orderIdsByWeekday[i].size;
+      }
+
+      // Category breakdown from error_category
+      const categoryCounts: Record<string, number> = {};
+      errors.forEach((e) => {
+        const cat = e.error_category || "Autre";
+        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
       });
 
-      // Build error types for compatibility
-      const errorTypes: Record<string, number> = {};
-      if (missingItems > 0) errorTypes["Articles manquants"] = missingItems;
-      if (missingCustomizations > 0) errorTypes["Personnalisations manquantes"] = missingCustomizations;
-      if (incorrectItems > 0) errorTypes["Article incorrect"] = incorrectItems;
-      if (wrongOrders > 0) errorTypes["Commande incorrecte"] = wrongOrders;
-      
       return {
         id: restaurant.id,
         name: restaurant.name,
         errorRate,
         errorCount,
         orderCount,
-        totalFinancialImpact: totalRefund,
+        totalFinancialImpact,
         weekdayData,
-        hourlyData: {} as Record<number, { errors: number; orders: number }>, // Not available in aggregated data
-        errorTypes,
-        // Additional category details
-        categoryBreakdown: {
-          missingItems,
-          missingCustomizations,
-          incorrectItems,
-          wrongOrders,
-        },
-        refundBreakdown: {
-          missingItemsRefund,
-          missingCustomizationsRefund,
-          incorrectItemRefund,
-          wrongOrderRefund,
-        },
+        hourlyData: {} as Record<number, { errors: number; orders: number }>,
+        errorTypes: categoryCounts,
       };
     });
-    
-    // Sort by error rate (lowest first = best)
+
     return stats.sort((a, b) => a.errorRate - b.errorRate);
-  }, [orderAccuracyData, orderCountsData, selectedRestaurants]);
+  }, [orderErrorsData, orderCountsData, selectedRestaurants]);
 
   const periodLabel = useMemo(() => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
@@ -253,12 +211,7 @@ const InaccurateOrdersComparison = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/")}
-              className="rounded-full"
-            >
+            <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="rounded-full">
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
@@ -271,7 +224,7 @@ const InaccurateOrdersComparison = () => {
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <NetworkViewToggle
               isNetworkView={isNetworkView}
@@ -302,31 +255,8 @@ const InaccurateOrdersComparison = () => {
           </div>
         ) : (
           <div className="grid gap-6">
-            {/* Warning if data is incomplete */}
-            {dataIncomplete && latestErrorDate && (
-              <Alert className="border-amber-500/50 bg-amber-500/10">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                <AlertTitle className="text-amber-600">Données incomplètes</AlertTitle>
-                <AlertDescription className="text-amber-600/80">
-                  Les données d'erreurs s'arrêtent au <strong>{format(latestErrorDate, "d MMMM yyyy", { locale: fr })}</strong>.
-                  Pour avoir les données complètes, importez le fichier <strong>"Inaccurate Orders"</strong> (inaccurate_orders_v3_xxx.csv) 
-                  depuis Uber Eats Manager → Rapports → Qualité des commandes.
-                  <Button 
-                    variant="link" 
-                    className="p-0 h-auto ml-2 text-amber-600 underline"
-                    onClick={() => navigate("/reports")}
-                  >
-                    <FileUp className="h-3 w-3 mr-1" />
-                    Importer
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Insights Section */}
             <InaccurateOrdersInsightsSection stats={restaurantStats} period={period} />
 
-            {/* Ranking - Full Width */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
               <CardHeader>
                 <CardTitle className="text-lg">Classement par taux d'erreur</CardTitle>
@@ -336,7 +266,6 @@ const InaccurateOrdersComparison = () => {
               </CardContent>
             </Card>
 
-            {/* Heatmap */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
               <CardHeader>
                 <CardTitle className="text-lg">Patterns d'erreurs</CardTitle>
