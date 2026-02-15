@@ -131,6 +131,40 @@ interface ImportResult {
   errorDetails: string[];
 }
 
+/**
+ * Scan the first 20 lines of a CSV to find the real header row.
+ * Uber Eats exports often have metadata lines before the actual column headers.
+ */
+function findHeaderLineIndex(lines: string[]): number {
+  const knownHeaderMarkers = [
+    "Id. de la commande",
+    "Id. du flux",
+    "Nom du restaurant",
+    "Date de la commande",
+    "UUID de la commande",
+    "Nom du plat/de l'article",
+    "Titre de l'article",
+    "Date du versement",
+    "Ouverture du restaurant",
+    "Temps d'attente du coursier",
+    "Problème avec la commande",
+    "Commandes incorrectes",
+    "Store name",
+    "Note de l'article",
+    "Type d'offre",
+    "Utilisateurs ayant visité",
+    "Période",
+  ];
+
+  for (let i = 0; i < Math.min(20, lines.length); i++) {
+    const line = lines[i];
+    if (knownHeaderMarkers.some(marker => line.includes(marker))) {
+      return i;
+    }
+  }
+  return 0;
+}
+
 // Multi-file batch state
 interface BatchFile {
   file: File;
@@ -743,13 +777,14 @@ export default function ReportImport() {
       const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level"];
       if (LARGE_FILE_REPORT_TYPES.includes(reportType)) {
         const lines = csvContent.split('\n').filter(l => l.trim());
-        totalLinesCount = lines.length - 1; // Exclude header
+        const headerIndex = findHeaderLineIndex(lines);
+        totalLinesCount = lines.length - 1 - headerIndex; // Exclude header and metadata lines
         
         // If file is large, only send first 1000 lines for validation
         if (totalLinesCount > CHUNK_SIZE) {
           isLargeFile = true;
-          const headerLine = lines[0];
-          const sampleLines = lines.slice(1, 1001); // First 1000 data lines
+          const headerLine = lines[headerIndex];
+          const sampleLines = lines.slice(headerIndex + 1, headerIndex + 1001); // First 1000 data lines
           contentToValidate = [headerLine, ...sampleLines].join('\n');
         }
       }
@@ -908,7 +943,8 @@ export default function ReportImport() {
       
       // Check if file needs chunking (for order_history with large files)
       const lines = csvContent.split('\n').filter(l => l.trim());
-      const dataLinesCount = lines.length - 1; // Exclude header
+      const headerIndex = findHeaderLineIndex(lines);
+      const dataLinesCount = lines.length - 1 - headerIndex; // Exclude header and metadata lines
       const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level"];
       const needsChunking = LARGE_FILE_REPORT_TYPES.includes(reportType) && dataLinesCount > CHUNK_SIZE;
       
@@ -916,8 +952,8 @@ export default function ReportImport() {
       
       if (needsChunking) {
         // Large file: process in chunks
-        const headerLine = lines[0];
-        const dataLines = lines.slice(1);
+        const headerLine = lines[headerIndex];
+        const dataLines = lines.slice(headerIndex + 1);
         const totalChunks = Math.ceil(dataLines.length / CHUNK_SIZE);
         
         let totalInserted = 0;
