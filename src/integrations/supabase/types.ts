@@ -3102,6 +3102,7 @@ export type Database = {
         Returns: {
           delivery_promo_excl_vat: number
           delivery_promo_incl_vat: number
+          eco_contribution_refund: number
           item_promo_excl_vat: number
           item_promo_incl_vat: number
           marketing_fee_adjustment: number
