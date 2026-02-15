@@ -132,6 +132,8 @@ serve(async (req) => {
       throw new Error('CSV content is required');
     }
 
+    console.log(`[parse-order-history v2] dryRun=${dryRun}, restaurantId=${restaurantId || 'none'}`);
+
     // Fetch all restaurants for matching
     const { data: restaurants, error: restaurantsError } = await supabase
       .from('restaurants')
@@ -140,6 +142,11 @@ serve(async (req) => {
     if (restaurantsError) {
       throw new Error(`Failed to fetch restaurants: ${restaurantsError.message}`);
     }
+
+    // Fetch secondary/historical uber store IDs
+    const { data: uberIds } = await supabase
+      .from('restaurant_uber_ids')
+      .select('uber_store_id, restaurant_id');
 
     // Create lookup maps
     const restaurantByStoreId = new Map<string, { id: string; name: string }>();
@@ -150,6 +157,14 @@ serve(async (req) => {
         restaurantByStoreId.set(r.uber_store_id, { id: r.id, name: r.name });
       }
       restaurantByName.set(normalizeRestaurantName(r.name), { id: r.id, name: r.name });
+    }
+
+    // Add secondary/historical UUIDs to the lookup map
+    for (const mapping of uberIds || []) {
+      const restaurant = restaurants?.find(r => r.id === mapping.restaurant_id);
+      if (restaurant && !restaurantByStoreId.has(mapping.uber_store_id)) {
+        restaurantByStoreId.set(mapping.uber_store_id, { id: restaurant.id, name: restaurant.name });
+      }
     }
 
     // Parse CSV
@@ -234,6 +249,18 @@ serve(async (req) => {
           if (restaurantName) {
             const normalizedName = normalizeRestaurantName(restaurantName);
             matchedRestaurant = restaurantByName.get(normalizedName);
+
+            // Direct hardcoded match for ambiguous names
+            if (!matchedRestaurant) {
+              const cleanName = restaurantName.toLowerCase().trim().replace(/\s+/g, ' ');
+              if (cleanName === 'chicken street - lille' || cleanName === 'chicken street lille') {
+                const found = restaurants?.find(r => r.id === 'b81531ef-d5db-47dd-b0bb-37f2c9fd6d5d');
+                if (found) {
+                  matchedRestaurant = { id: found.id, name: found.name };
+                  console.log(`Direct hardcoded match: "${restaurantName}" -> ${found.name}`);
+                }
+              }
+            }
 
             // Try partial matching by city if exact match failed
             if (!matchedRestaurant) {
