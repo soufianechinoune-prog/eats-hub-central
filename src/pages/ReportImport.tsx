@@ -562,7 +562,7 @@ export default function ReportImport() {
   const parsePreview = (content: string) => {
     // Remove BOM if present
     const cleanedContent = content.replace(/^\uFEFF/, '');
-    const lines = cleanedContent.split("\n").filter((line) => line.trim());
+    const { records: lines, headerIndex: detectedHeaderIndex } = parseCSVRecords(cleanedContent);
     if (lines.length < 2) {
       toast({
         title: "Fichier invalide",
@@ -728,6 +728,53 @@ export default function ReportImport() {
     return result;
   };
 
+  /**
+   * CSV-aware record counting and extraction.
+   * Properly handles newlines inside quoted fields (e.g. invoice URLs).
+   * Returns: { records: array of raw CSV lines (one per record), headerIndex }
+   */
+  const parseCSVRecords = (content: string): { records: string[]; headerIndex: number } => {
+    const records: string[] = [];
+    let currentRecord = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < content.length; i++) {
+      const char = content[i];
+      const nextChar = content[i + 1];
+
+      if (inQuotes) {
+        if (char === '"' && nextChar === '"') {
+          currentRecord += '""';
+          i++;
+        } else if (char === '"') {
+          currentRecord += char;
+          inQuotes = false;
+        } else {
+          currentRecord += char;
+        }
+      } else {
+        if (char === '"') {
+          currentRecord += char;
+          inQuotes = true;
+        } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+          if (currentRecord.trim()) {
+            records.push(currentRecord);
+          }
+          currentRecord = '';
+          if (char === '\r') i++;
+        } else if (char !== '\r') {
+          currentRecord += char;
+        }
+      }
+    }
+    if (currentRecord.trim()) {
+      records.push(currentRecord);
+    }
+
+    const headerIndex = findHeaderLineIndex(records);
+    return { records, headerIndex };
+  };
+
   const handleValidate = async () => {
     if (!csvContent) {
       toast({
@@ -776,16 +823,14 @@ export default function ReportImport() {
       
       const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level"];
       if (LARGE_FILE_REPORT_TYPES.includes(reportType)) {
-        const lines = csvContent.split('\n').filter(l => l.trim());
-        const headerIndex = findHeaderLineIndex(lines);
-        totalLinesCount = lines.length - 1 - headerIndex; // Exclude header and metadata lines
+        const { records, headerIndex } = parseCSVRecords(csvContent);
+        totalLinesCount = records.length - 1 - headerIndex; // Exclude header and metadata lines
         
-        // If file is large, only send first 1000 lines for validation
+        // If file is large, only send first 1000 records for validation
         if (totalLinesCount > CHUNK_SIZE) {
           isLargeFile = true;
-          const headerLine = lines[headerIndex];
-          const sampleLines = lines.slice(headerIndex + 1, headerIndex + 1001); // First 1000 data lines
-          contentToValidate = [headerLine, ...sampleLines].join('\n');
+          const sampleRecords = records.slice(0, headerIndex + 1 + 1000); // header + 1000 data records
+          contentToValidate = sampleRecords.join('\n');
         }
       }
       
@@ -942,9 +987,8 @@ export default function ReportImport() {
       const functionName = functionMap[reportType] || "parse-payment-report";
       
       // Check if file needs chunking (for order_history with large files)
-      const lines = csvContent.split('\n').filter(l => l.trim());
-      const headerIndex = findHeaderLineIndex(lines);
-      const dataLinesCount = lines.length - 1 - headerIndex; // Exclude header and metadata lines
+      const { records: allRecords, headerIndex } = parseCSVRecords(csvContent);
+      const dataLinesCount = allRecords.length - 1 - headerIndex; // Exclude header and metadata lines
       const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level"];
       const needsChunking = LARGE_FILE_REPORT_TYPES.includes(reportType) && dataLinesCount > CHUNK_SIZE;
       
@@ -952,8 +996,8 @@ export default function ReportImport() {
       
       if (needsChunking) {
         // Large file: process in chunks
-        const headerLine = lines[headerIndex];
-        const dataLines = lines.slice(headerIndex + 1);
+        const headerLine = allRecords[headerIndex];
+        const dataLines = allRecords.slice(headerIndex + 1);
         const totalChunks = Math.ceil(dataLines.length / CHUNK_SIZE);
         
         let totalInserted = 0;
