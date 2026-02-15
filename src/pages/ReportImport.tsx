@@ -156,12 +156,25 @@ function findHeaderLineIndex(lines: string[]): number {
     "Période",
   ];
 
+  let bestIndex = -1;
+  let bestCount = 0;
+  let firstMatchIndex = -1;
+
   for (let i = 0; i < Math.min(20, lines.length); i++) {
     const line = lines[i];
-    if (knownHeaderMarkers.some(marker => line.includes(marker))) {
-      return i;
+    const matchCount = knownHeaderMarkers.filter(marker => line.includes(marker)).length;
+    if (matchCount > 0 && firstMatchIndex === -1) {
+      firstMatchIndex = i;
+    }
+    if (matchCount > bestCount) {
+      bestCount = matchCount;
+      bestIndex = i;
     }
   }
+
+  // Require at least 2 markers for confidence; fallback to first single match
+  if (bestCount >= 2) return bestIndex;
+  if (firstMatchIndex !== -1) return firstMatchIndex;
   return 0;
 }
 
