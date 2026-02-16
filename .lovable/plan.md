@@ -1,50 +1,60 @@
 
 
-# Corriger l'affichage Eco-contribution et Pub dans le tableau de Rentabilite
+# Remplacer la source CA/CMDS par la table `orders`
 
-## Diagnostic
+## Contexte
 
-### Eco-contribution : donnee manquante dans la RPC
-- **821 versements** dans la table `payouts` contiennent une valeur `eco_contribution_refund` non nulle (total: 119 041 EUR)
-- La fonction SQL `get_monthly_payouts_detail` ne retourne PAS cette colonne -- elle est simplement absente du SELECT
-- Consequence : en vue "Mois" (drill-down), eco_contribution = 0 pour toutes les lignes
+Le tableau "Comparatif des restaurants" (Overview) et les KPIs reseau utilisent la vue `daily_sales_uber_deduped` pour le CA (revenue) et le nombre de commandes. Cette vue est alimentee par le fichier "Sales Over Time" d'Uber Eats.
 
-### Pub (advertising) : agrégation manquante en vue "Mois"
-- **1 816 lignes** dans `payout_adjustments` (total: -330 233 EUR)
-- La requete Analytics.tsx les recupere correctement depuis `payout_adjustments`
-- En vue "Rentabilite" (par versement), `advertisingAmount` est bien calcule via `adMap`
-- En vue "Mois", l'agregation par restaurant (`restaurantAggregates`) n'accumule PAS `advertisingAmount`
-- Le header mensuel non plus ne totalise pas la pub
-- En janvier 2026, seuls 2-3 restaurants ont de la pub (les "-" sont donc normaux pour les autres)
+**Probleme** : ce fichier n'a ete importe que pour 4 restaurants sur 94. Les 90 autres affichent 0 EUR / 0 commandes.
 
-## Corrections
+**Solution** : la table `orders` (alimentee par le fichier "Detail par commande", deja importe pour 94 restaurants / 1,6M lignes) contient toutes les donnees necessaires : `sales_incl_vat` (CA TTC) et le comptage des lignes (nombre de commandes).
 
-### 1. Migration SQL : ajouter eco_contribution_refund a la RPC
+## Plan technique
 
-Modifier la fonction `get_monthly_payouts_detail` pour inclure `COALESCE(p.eco_contribution_refund, 0) as eco_contribution_refund` dans le SELECT et dans le type de retour.
+### 1. Creer une fonction RPC d'agregation `get_daily_sales_from_orders`
 
-### 2. Agreger la pub dans la vue "Mois" (ProfitabilityComparisonTable.tsx)
+Creer une fonction SQL qui agrege la table `orders` par restaurant et par jour, retournant les memes colonnes que `daily_sales_uber_deduped` :
 
-Dans le `monthGroups` useMemo :
-- Ajouter `advertisingAmount` dans `restaurantAggregates` (initialisation a 0, accumulation depuis `row.advertisingAmount`)
-- Passer `advertisingAmount` dans `MonthRestaurantData`
-- Calculer le `totalAdvertising` au niveau du mois (header)
-- Afficher les valeurs dans les cellules du tableau (vue Mois)
+- `restaurant_id`
+- `date` (extrait de `order_datetime`)
+- `revenue_ttc` = SUM(`sales_incl_vat`)
+- `order_count` = COUNT(*)
+- `average_basket` = revenue_ttc / order_count
 
-### 3. Verifier la vue "Semaine"
+Filtres : periode (start_date, end_date) et optionnellement liste de restaurant_ids.
 
-Meme verification pour la vue "Semaine" : s'assurer que `advertisingAmount` et `ecoContribution` sont correctement agreges et affiches.
+### 2. Modifier `useNetworkStats.ts`
+
+Remplacer la requete sur `daily_sales_uber_deduped` par un appel a la nouvelle RPC `get_daily_sales_from_orders`. Les colonnes retournees sont identiques, donc le reste du hook ne change pas.
+
+### 3. Modifier `Overview.tsx`
+
+Meme remplacement : la requete paginee sur `daily_sales_uber_deduped` (lignes ~367-390) devient un appel RPC. Le format de sortie reste le meme (`restaurant_id, date, revenue_ttc, order_count, average_basket`).
+
+### 4. Verifier les autres consommateurs
+
+Rechercher tous les usages de `daily_sales_uber_deduped` dans le code et les migrer vers la nouvelle RPC :
+- `useNetworkStats.ts` (KPIs reseau)
+- `Overview.tsx` (tableau comparatif)
+- `generate-weekly-report` (edge function pour rapports WhatsApp)
+- Tout autre fichier referençant cette vue
+
+### 5. Conservation de `daily_sales_uber` comme source secondaire
+
+La table `daily_sales_uber` et sa vue ne sont pas supprimees. Elles restent disponibles comme reference mais ne sont plus la source primaire pour CA/CMDS.
 
 ## Fichiers modifies
 
 | Fichier | Changement |
 |---------|-----------|
-| Migration SQL | Ajouter `eco_contribution_refund` au SELECT et au RETURN TYPE de `get_monthly_payouts_detail` |
-| `src/components/analytics/ProfitabilityComparisonTable.tsx` | Agreger `advertisingAmount` dans les vues Mois et Semaine ; afficher dans les cellules |
+| Migration SQL | Creer la RPC `get_daily_sales_from_orders` |
+| `src/hooks/useNetworkStats.ts` | Remplacer `daily_sales_uber_deduped` par appel RPC |
+| `src/pages/Overview.tsx` | Remplacer `daily_sales_uber_deduped` par appel RPC |
+| `supabase/functions/generate-weekly-report/index.ts` | Remplacer `daily_sales_uber_deduped` par requete directe sur `orders` |
 
 ## Resultat attendu
 
-- La colonne "Eco-contrib." affichera les vrais montants (ex: ~44 EUR pour certains restaurants en janvier 2026)
-- La colonne "Pub" affichera les depenses pour les restaurants concernes (ex: restaurant 4e35... avec ~42 EUR/semaine)
-- Les restaurants sans pub resteront a "-" (comportement correct)
-
+- Les 94 restaurants afficheront leur vrai CA et nombre de commandes
+- Plus besoin d'importer le fichier "Sales Over Time" un par un
+- Les donnees sont coherentes avec le fichier "Detail par commande" deja importe en masse
