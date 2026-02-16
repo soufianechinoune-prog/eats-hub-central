@@ -328,22 +328,7 @@ export default function Analytics() {
   const { data: dailyPayoutsData } = useQuery({
     queryKey: ["analytics_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
     queryFn: async () => {
-      // If we have a specific month, fetch just that month
-      if (drillDownMonth) {
-        const { data, error } = await supabase.rpc('get_monthly_payouts_detail', {
-          p_year: selectedYear,
-          p_month: drillDownMonth,
-          p_restaurant_ids: restaurantFilter || null,
-        });
-        if (error) {
-          console.error("[Analytics] get_monthly_payouts_detail error:", error);
-          throw error;
-        }
-        console.log("[Analytics] Daily payouts data for month", drillDownMonth, ":", data?.length, "rows");
-        return data || [];
-      }
-      
-      // In finances mode without drill-down, fetch all payouts for the year
+      // In finances mode, ALWAYS fetch all payouts for the full year (needed for "Mois" view)
       if (viewMode === "finances") {
         let query = supabase
           .from('payouts')
@@ -364,6 +349,21 @@ export default function Analytics() {
           throw error;
         }
         console.log("[Analytics] Full year payouts data:", data?.length, "rows");
+        return data || [];
+      }
+      
+      // For non-finances views, if we have a specific month, fetch just that month
+      if (drillDownMonth) {
+        const { data, error } = await supabase.rpc('get_monthly_payouts_detail', {
+          p_year: selectedYear,
+          p_month: drillDownMonth,
+          p_restaurant_ids: restaurantFilter || null,
+        });
+        if (error) {
+          console.error("[Analytics] get_monthly_payouts_detail error:", error);
+          throw error;
+        }
+        console.log("[Analytics] Daily payouts data for month", drillDownMonth, ":", data?.length, "rows");
         return data || [];
       }
       
