@@ -441,10 +441,15 @@ Deno.serve(async (req) => {
     };
 
     // Helper: categorize adjustment description
-    const categorizeAdjustment = (description: string): string => {
+    // marketingAmount: if non-zero, this is a marketing_adjustment even if description says "autres frais"
+    const categorizeAdjustment = (description: string, marketingAmount: number = 0): string => {
       const lower = description.toLowerCase();
       if (lower.includes('publicitaire') || lower.includes('advertising') || lower.includes(' ads') || lower.includes('dépenses publicitaires') || lower.includes('depenses publicitaires')) {
         return 'advertising';
+      }
+      // If marketing column has a value, it's a marketing adjustment, not eco
+      if (marketingAmount !== 0) {
+        return 'marketing_adjustment';
       }
       if (lower.includes('eco') || lower.includes('éco') || lower.includes('contribution') || lower.includes('environnement') || lower.includes('autres frais')) {
         return 'eco_contribution';
@@ -502,6 +507,7 @@ Deno.serve(async (req) => {
           const otherPaymentsInclVat = parseNumber(getValue('other_payments_incl_vat'));
           const totalAmount = parseNumber(getValue('net_payout'));
           const candidateAmount = otherPaymentsInclVat !== 0 ? otherPaymentsInclVat : totalAmount;
+          const marketingFeeAdj = parseNumber(getValue('marketing_fee_adjustment'));
 
           // Still track eco-contribution for payout updates (backward compat)
           const isExcluded = 
@@ -517,7 +523,8 @@ Deno.serve(async (req) => {
             otherDesc.includes('environnement') ||
             otherDesc.includes('autres frais');
 
-          const isEcoContribution = !!payoutRefId && candidateAmount !== 0 && isEcoKeyword && !isExcluded;
+          // If marketing column has a value, it's NOT eco-contribution
+          const isEcoContribution = !!payoutRefId && candidateAmount !== 0 && isEcoKeyword && !isExcluded && marketingFeeAdj === 0;
 
           if (isEcoContribution) {
             const existing = ecoContributionByPayout.get(payoutRefId);
@@ -540,7 +547,7 @@ Deno.serve(async (req) => {
           // Insert into payout_adjustments (ALL non-order rows, including eco)
           if (payoutRefId && uberStoreIdVal) {
             const matchedRestaurant = restaurantMap.get(uberStoreIdVal);
-            const category = otherDesc ? categorizeAdjustment(otherDesc) : 'other_fee';
+            const category = otherDesc ? categorizeAdjustment(otherDesc, marketingFeeAdj) : 'other_fee';
             
             adjustmentsToUpsert.push({
               restaurant_id: matchedRestaurant?.id || null,
