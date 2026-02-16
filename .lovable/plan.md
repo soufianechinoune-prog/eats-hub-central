@@ -1,39 +1,56 @@
 
-# Corriger le comptage "Versements" dans le tableau par restaurant
+# Dissocier les ajustements d'arrondi TVA de l'eco-contribution
 
 ## Probleme
 
-La colonne "Versements" affiche le nombre total de **versements hebdomadaires** (lignes dans la table `payouts`) pour chaque restaurant. Par exemple, Toulouse affiche 540 parce qu'il y a 540 lignes de versement au total, alors que seules quelques-unes concernent l'eco-contribution. Ce chiffre n'a aucun rapport avec l'eco-contribution.
+Uber Eats utilise la meme description "Autres frais" pour deux types de flux differents :
+1. **Eco-contribution** (minimum 0,1381 EUR par ligne)
+2. **Ajustement d'arrondi de TVA** ("Adjustment for invoice tax rounding discrepancy") avec des montants tres faibles (0,01 EUR, 0,08 EUR, etc.)
+
+Actuellement, les 67 lignes d'arrondi TVA sont melangees avec les vraies lignes d'eco-contribution, faussant les totaux.
 
 ## Solution
 
-Remplacer le comptage des versements (`r.count` issu de la requete `payouts`) par le nombre de **lignes eco-contribution** (`detailLines.length`) pour chaque restaurant. Renommer aussi l'en-tete de colonne en "Lignes" pour plus de clarte.
+Utiliser le seuil de 0,1381 EUR comme critere de dissociation :
+- `ABS(amount) >= 0.1381` : eco-contribution
+- `ABS(amount) < 0.1381` : arrondi TVA (nouvelle categorie `tax_rounding`)
+
+## Modifications
+
+### 1. Migration SQL
+
+Reclassifier les 67 lignes existantes :
+
+```sql
+UPDATE payout_adjustments
+SET category = 'tax_rounding'
+WHERE category = 'eco_contribution'
+  AND ABS(amount) < 0.1381;
+```
+
+### 2. Edge Function `parse-payment-report`
+
+Modifier la logique de categorisation pour que les futures importations appliquent automatiquement le seuil :
+
+- Si description = "Autres frais" ET pas de marketing adjustment :
+  - Si `ABS(montant) >= 0.1381` : categorie = `eco_contribution`
+  - Si `ABS(montant) < 0.1381` : categorie = `tax_rounding`
+
+### 3. Aucun changement UI necessaire
+
+Le dashboard eco-contribution filtre deja sur `category = 'eco_contribution'`, donc les lignes reclassifiees en `tax_rounding` disparaitront automatiquement de la vue.
+
+## Impact
+
+| Avant | Apres |
+|-------|-------|
+| 2038 lignes eco-contribution | 1971 lignes eco-contribution |
+| 67 lignes parasites incluses | 67 lignes reclassees en `tax_rounding` |
+| Totaux fausses par des centimes | Totaux precis |
 
 ## Detail technique
 
-| Fichier | Modification |
-|---------|-------------|
-| `src/components/analytics/EcoContributionSection.tsx` | Ligne 216 : renommer "Versements" en "Lignes" |
-| `src/components/analytics/EcoContributionSection.tsx` | Dans `RestaurantDrilldown`, remplacer `r.count` par `detailLines.length` dans la derniere cellule |
-
-### Avant
-
-```text
-<TableHead>Versements</TableHead>
-...
-<TableCell>{r.count}</TableCell>   <!-- compte TOUS les payouts -->
-```
-
-### Apres
-
-```text
-<TableHead>Lignes</TableHead>
-...
-<TableCell>{detailLines.length}</TableCell>   <!-- compte les lignes eco-contribution -->
-```
-
-## Resultat attendu
-
-- Toulouse affichera le vrai nombre de lignes eco-contribution (environ 9) au lieu de 540
-- Marseille Belsunce affichera environ 9 au lieu de 107
-- L'information sera coherente avec le drill-down mensuel
+| Fichier / Outil | Modification |
+|-----------------|-------------|
+| Migration SQL | `UPDATE payout_adjustments SET category = 'tax_rounding' WHERE category = 'eco_contribution' AND ABS(amount) < 0.1381` |
+| `supabase/functions/parse-payment-report/index.ts` | Ajouter condition sur le montant pour dissocier eco vs tax_rounding lors de l'import |
