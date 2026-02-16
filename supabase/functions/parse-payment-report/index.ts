@@ -446,7 +446,7 @@ Deno.serve(async (req) => {
       if (lower.includes('publicitaire') || lower.includes('advertising') || lower.includes(' ads') || lower.includes('dépenses publicitaires') || lower.includes('depenses publicitaires')) {
         return 'advertising';
       }
-      if (lower.includes('eco') || lower.includes('éco') || lower.includes('contribution') || lower.includes('environnement')) {
+      if (lower.includes('eco') || lower.includes('éco') || lower.includes('contribution') || lower.includes('environnement') || lower.includes('autres frais')) {
         return 'eco_contribution';
       }
       if (lower.includes('ajustement') || lower.includes('adjustment')) {
