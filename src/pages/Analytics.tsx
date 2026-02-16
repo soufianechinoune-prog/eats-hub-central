@@ -357,7 +357,7 @@ export default function Analytics() {
           query = query.in('restaurant_id', restaurantFilter);
         }
         
-        const { data, error } = await query;
+        const { data, error } = await query.limit(10000);
         
         if (error) {
           console.error("[Analytics] payouts fetch error:", error);
