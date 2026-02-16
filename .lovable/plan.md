@@ -1,70 +1,43 @@
 
-# Distinguer Prelevement et Remboursement Eco-Contribution
+# Vue mensuelle avec accordeon depliable
 
-## Probleme actuel
+## Objectif
 
-Le parser (`parse-payment-report`) utilise `Math.abs()` sur les montants eco-contribution (ligne 523), ce qui fait perdre le signe. Resultat :
-- **La Roche-sur-Yon** : les remboursements (+28.02, +29.72...) sont stockes en positif -> OK
-- **Melun** : les prelevements (-52.68, -55.78...) sont aussi stockes en **positif** -> FAUX
+Transformer la vue "Mois" du tableau de rentabilite pour qu'elle fonctionne en mode accordeon :
+- Par defaut : seules les lignes de synthese mensuelle sont visibles (Janvier, Fevrier, Mars...) + ligne Total
+- Clic sur une fleche : deroule la liste des restaurants de ce mois
+- Cela permet d'avoir une vue d'ensemble annuelle claire, puis de zoomer sur un mois specifique
 
-Dans le tableau, on voit une seule colonne "Eco-contrib." avec un montant positif dans les deux cas, impossible de distinguer remboursement vs prelevement.
+## Comportement
 
-## Solution
-
-### 1. Ajouter une colonne `eco_contribution_charge` a la table `payouts`
-
-- `eco_contribution_refund` (existant) : garde uniquement les **remboursements** (montants positifs)
-- `eco_contribution_charge` (nouveau) : stocke les **prelevements** (montants negatifs, stockes en valeur absolue positive)
-
-Migration SQL :
-```sql
-ALTER TABLE payouts ADD COLUMN IF NOT EXISTS eco_contribution_charge NUMERIC DEFAULT 0;
+```text
++------------------------------------------------------------------+
+| Restaurant      | CA TTC  | Rentab. | Commission | ... | Total   |
++------------------------------------------------------------------+
+| > Fevrier 2026  | 585 931 | 56.0%   | 26.9%      | ... | 327 962 |
+| > Janvier 2026  | 3 153 k | 55.1%   | 27.1%      | ... | 1 738 k |
+|   (clic sur >)                                                    |
+|   CS Toulouse   | 29 286  | 67.3%   | 26.9%      | ... | 19 720  |
+|   CS Arras      | 18 322  | 63.9%   | 26.9%      | ... | 11 701  |
+|   ...           |         |         |            |     |         |
+|   Ecart         |         | +X pts  |            |     |         |
+| Total 2026      | ...     | 56.5%   |            | ... | ...     |
++------------------------------------------------------------------+
 ```
 
-### 2. Modifier le parser `parse-payment-report`
+- Fleche ChevronRight (>) quand replie, ChevronDown (v) quand deplie
+- Par defaut, tous les mois sont replies
+- Cliquer sur la fleche deroule/replie les restaurants de ce mois
+- Le bouton "Detail" (loupe) reste present pour ouvrir le panneau lateral
 
-Remplacer la logique actuelle (ligne 522-533) qui fait `Math.abs()` par une separation :
-- Si `candidateAmount > 0` : c'est un **remboursement** -> accumuler dans `eco_contribution_refund`
-- Si `candidateAmount < 0` : c'est un **prelevement** -> accumuler dans `eco_contribution_charge` (stocke en positif)
+## Modification technique
 
-Mettre a jour la Phase 3 (lignes 840-857) pour ecrire les deux colonnes.
+**Fichier unique** : `src/components/analytics/ProfitabilityComparisonTable.tsx`
 
-### 3. Mettre a jour la RPC `get_monthly_payouts_detail`
+1. Ajouter un state `expandedMonths` (Set de monthKey) pour tracker les mois depliés
+2. Ajouter un bouton chevron dans la cellule du mois (colonne Restaurant)
+3. Conditionner l'affichage des lignes restaurant : visible uniquement si le mois est dans `expandedMonths`
+4. La ligne "Ecart" suit la meme logique (visible quand deplie)
+5. La ligne "Total" en bas reste toujours visible
 
-Ajouter `eco_contribution_charge` dans le `RETURNS TABLE` et le `SELECT`.
-
-### 4. Modifier le tableau `ProfitabilityComparisonTable.tsx`
-
-Remplacer la colonne unique "Eco-contrib." par deux colonnes :
-- **Eco Remb.** (vert) : remboursements recus d'Uber
-- **Eco Prel.** (rouge) : prelevements factures par Uber
-
-Cela permet de suivre si un prelevement a ete compense par un remboursement ulterieur.
-
-Propager dans les agregations (semaine, mois, totaux).
-
-## Fichiers modifies
-
-| Fichier | Changement |
-|---------|-----------|
-| Migration SQL | Ajouter colonne `eco_contribution_charge` |
-| Migration SQL | Mettre a jour RPC `get_monthly_payouts_detail` |
-| `supabase/functions/parse-payment-report/index.ts` | Separer remboursement/prelevement par signe |
-| `src/components/analytics/ProfitabilityComparisonTable.tsx` | 2 colonnes distinctes avec couleurs |
-
-## Donnees existantes
-
-Les payouts deja importes devront etre re-calcules. On peut le faire via une requete UPDATE qui relit `payout_adjustments` (qui conserve le signe original) pour recalculer `eco_contribution_refund` et `eco_contribution_charge` correctement.
-
-```sql
--- Recalcul depuis payout_adjustments (qui a le bon signe)
-UPDATE payouts p SET
-  eco_contribution_refund = COALESCE(pos.total, 0),
-  eco_contribution_charge = COALESCE(neg.total, 0)
-FROM (
-  SELECT restaurant_id, payout_date, SUM(amount) as total
-  FROM payout_adjustments WHERE category = 'other_fee' AND amount > 0
-  GROUP BY restaurant_id, payout_date
-) pos
-...
-```
+Pas de changement de base de donnees, pas de nouveau fichier. Modification purement UI dans le rendu du `viewMode === 'month'`.
