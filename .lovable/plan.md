@@ -1,39 +1,41 @@
 
 
-# Resoudre la saturation de la base de donnees
+# Corriger l'affichage des donnees malgre la pression I/O
 
 ## Diagnostic
 
-La base de donnees est en etat de saturation complete. Les logs montrent des dizaines de "canceling statement due to statement timeout" en cascade, y compris des "connection to client lost" et "FATAL" errors. Cela signifie que **toutes les requetes echouent**, pas seulement l'eco-contribution.
+La base de donnees est sous forte pression I/O suite aux imports massifs recents. Meme une requete SELECT sur 101 restaurants prend **6 secondes** (au lieu de quelques millisecondes). Quand la page charge et envoie plusieurs requetes en parallele, elles se bloquent mutuellement et finissent en timeout (120s).
 
-La cause probable : les batch upserts massifs du `parse-payment-report` (qui traitent des milliers de lignes) ont sature les connexions et verrouille des tables, creant un effet domino ou meme les requetes SELECT simples ne passent plus.
+Le code actuel masque le probleme : quand une requete echoue, il retourne un tableau vide (`return data || []`) au lieu de remonter l'erreur, ce qui donne l'impression que les donnees n'existent pas.
 
 ## Plan d'action
 
-### 1. Reduire la taille des batches dans parse-payment-report
+### 1. Ajouter une gestion d'erreur visible sur la page Restaurants
 
-Le probleme principal est que les upserts envoient trop de lignes d'un coup, ce qui verrouille la base trop longtemps. On va :
-- Reduire la taille des batches de 200 a **50 lignes**
-- Ajouter un **delai de 500ms** entre chaque batch pour laisser respirer la base
-- Ajouter un timeout plus court sur chaque batch individuel
+Actuellement, si la requete echoue, la page affiche "Aucun restaurant trouve" comme si tout allait bien. On va :
+- Lancer une **erreur** quand la requete echoue, pour que React Query affiche l'etat d'erreur
+- Afficher un **message d'erreur clair** avec un bouton "Reessayer"
+- Augmenter le nombre de **retries automatiques** de 2 a 4 pour cette requete specifique
 
-### 2. Ajouter une protection contre les requetes concurrentes
+### 2. Augmenter la resilience du QueryClient global
 
-Quand un import est en cours, les requetes du dashboard ne devraient pas entrer en competition. On va s'assurer que la fonction edge ne lance pas de requetes inutiles en parallele.
+- Passer le `retry` global de 2 a **3**  
+- Ajouter un **retryDelay** exponentiel pour espacer les tentatives et reduire la pression
+
+### 3. Limiter les requetes concurrentes au chargement
+
+La page Overview fait plusieurs requetes en parallele au demarrage. En ajoutant un delai de quelques secondes pour les requetes non-critiques, on reduit la contention.
 
 ## Detail technique
 
 | Fichier | Modification |
 |---------|-------------|
-| `supabase/functions/parse-payment-report/index.ts` | Reduire batch size de 200 a 50, ajouter delai inter-batch de 500ms |
+| `src/pages/Restaurants.tsx` | Ajouter `throw error` quand la requete echoue au lieu de retourner `[]`. Ajouter une UI d'erreur avec bouton "Reessayer". Ajouter `retry: 4` et `retryDelay` exponentiel sur cette requete specifique |
+| `src/App.tsx` | Passer `retry` de 2 a 3, ajouter `retryDelay` exponentiel |
 
 ### Impact attendu
 
-- Les imports seront un peu plus lents (quelques secondes de plus) mais ne bloqueront plus la base
-- Le dashboard redeviendra accessible pendant et apres les imports
-- Les donnees existantes ne sont pas affectees (elles sont toujours la, juste inaccessibles a cause de la saturation)
-
-### Action immediate apres deploiement
-
-Rafraichir la page -- la base devrait se liberer naturellement une fois que les requetes en timeout sont annulees (quelques minutes).
+- Les restaurants s'afficheront apres quelques tentatives (la base repond, juste lentement)
+- En cas d'echec, l'utilisateur verra un message clair avec un bouton pour reessayer
+- La pression I/O va se reduire naturellement au fil des minutes (autovacuum)
 
