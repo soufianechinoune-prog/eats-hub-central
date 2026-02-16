@@ -1,65 +1,45 @@
 
 
-# Ajouter "Eco-Contribution" comme onglet dans le menu lateral
+# Deux corrections pour Eco-Contribution
 
-## Objectif
+## Probleme 1 : Selecteur d'annee
 
-Deplacer l'Eco-Contribution d'un sous-onglet dans "Finances & Frais" vers un onglet a part entiere dans le menu de gauche, sous "Score de Reussite".
+Actuellement, l'annee est affichee dans un badge statique "2025". L'utilisateur souhaite pouvoir basculer entre 2025 et 2026 directement depuis la page, sans passer par le calendrier global.
 
-## Ce qui change
+### Solution
 
-### 1. Nouveau menu dans la sidebar
-
-**Fichier** : `src/components/layout/AppSidebar.tsx`
-
-Ajouter une entree dans `analyticsSubItems` apres "Score de Reussite" :
+Modifier `EcoContributionSection.tsx` pour remplacer le badge statique par deux boutons cliquables (2025 / 2026). Le bouton actif sera mis en surbrillance, l'autre sera en style outline. Le composant gerera sa propre annee localement (avec `selectedYear` comme valeur initiale).
 
 ```text
-Avant :
-  Score de Reussite  /success-score
-
-Apres :
-  Score de Reussite  /success-score
-  Eco-Contribution   /analytics/eco-contribution   (icone: Leaf)
+Avant :  [Leaf icon] Eco-Contribution  [2025]
+Apres :  [Leaf icon] Eco-Contribution  [2025] [2026]   (boutons toggle)
 ```
 
-Mettre a jour `isAnalyticsActive()` pour inclure `/analytics/eco-contribution`.
+## Probleme 2 : Detail lignes vide (0 lignes)
 
-### 2. Nouvelle route
+La table `payout_adjustments` a une politique RLS qui exige le role `authenticated`, mais l'application utilise la cle `anon` (pas d'authentification). La table `payouts`, elle, a une politique `public` -- c'est pourquoi les KPI et le graphique fonctionnent, mais pas le detail.
 
-**Fichier** : `src/App.tsx`
+### Solution
 
-La route `/analytics/:viewMode` gere deja tous les sous-chemins d'analytics. Le viewMode `eco-contribution` sera automatiquement capte par cette route existante. Aucune nouvelle route a ajouter.
+Ajouter une politique RLS publique en lecture sur `payout_adjustments` (identique a celle de `payouts`) pour permettre l'acces en lecture sans authentification.
 
-### 3. Integrer dans la page Analytics
+```text
+CREATE POLICY "Allow public read on payout_adjustments"
+  ON public.payout_adjustments
+  FOR SELECT
+  USING (true);
+```
 
-**Fichier** : `src/pages/Analytics.tsx`
-
-Ajouter le viewMode `eco-contribution` qui affiche directement les composants `EcoContributionSection` et `EcoContributionDetail` deja crees, avec les memes filtres (restaurants, annee, mois).
-
-### 4. Nettoyer l'ancien sous-onglet dans Finances
-
-**Fichier** : `src/components/analytics/FinancesSection.tsx`
-
-Retirer le systeme de sous-onglets "Rentabilite" / "Eco-Contribution" pour que la page Finances retrouve son affichage direct (uniquement Rentabilite).
+Cela alignera le comportement avec les autres tables du projet qui utilisent des politiques publiques.
 
 ## Fichiers modifies
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/components/layout/AppSidebar.tsx` | Ajouter l'entree "Eco-Contribution" dans analyticsSubItems |
-| `src/pages/Analytics.tsx` | Gerer le viewMode "eco-contribution" |
-| `src/components/analytics/FinancesSection.tsx` | Retirer le sous-onglet eco-contribution |
+| `src/components/analytics/EcoContributionSection.tsx` | Ajouter les boutons 2025/2026 dans le header |
+| Migration SQL | Ajouter politique RLS publique sur payout_adjustments |
 
-## Resultat
+## Resultat attendu
 
-Le menu lateral affichera :
-- Dashboard
-- Revenus & Ventes
-- Ventes Articles
-- Conversion
-- Finances & Frais
-- Operations
-- Avis
-- Score de Reussite
-- **Eco-Contribution** (nouveau)
+- Deux boutons d'annee cliquables dans le header de la page
+- Le tableau "Detail lignes" affichera les 51 lignes pour Chicken Street - Angers (et les 1881 lignes en mode Reseau)
