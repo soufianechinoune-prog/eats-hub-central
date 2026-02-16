@@ -41,23 +41,21 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
       const startStr = format(startDate, "yyyy-MM-dd");
       const endStr = format(endDate, "yyyy-MM-dd");
 
-      let query = supabase
-        .from("daily_sales_uber_deduped")
-        .select("date, revenue_ttc, order_count, restaurant_id, platform")
-        .gte("date", startStr)
-        .lte("date", endStr);
+      const { data, error } = await supabase
+        .rpc("get_daily_revenue_from_orders", {
+          p_start_date: startStr,
+          p_end_date: endStr,
+          p_restaurant_ids: restaurantIds.length > 0 ? restaurantIds : null,
+        });
 
-      if (restaurantIds.length > 0) {
-        query = query.in("restaurant_id", restaurantIds);
-      }
-
-      if (selectedPlatform !== "global") {
-        query = query.eq("platform", selectedPlatform);
-      }
-
-      const { data, error } = await query.order("date", { ascending: true });
       if (error) throw error;
-      return data || [];
+      return (data || []).map((d: any) => ({
+        date: d.date,
+        revenue_ttc: Number(d.revenue_ttc),
+        order_count: Number(d.order_count),
+        restaurant_id: d.restaurant_id,
+        platform: d.platform || "uber_eats",
+      }));
     },
     enabled: restaurantIds.length > 0,
   });

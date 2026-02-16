@@ -350,8 +350,8 @@ const Overview = () => {
         };
       }
 
-      // 1. Fetch daily sales (CA et commandes) - use deduplicated view to avoid duplicates
-      // Use pagination to bypass the 1000 row limit
+      // 1. Fetch daily sales (CA et commandes) from orders table via RPC
+      const PAGE_SIZE = 1000;
       let dailySalesData: Array<{
         restaurant_id: string;
         date: string;
@@ -360,34 +360,26 @@ const Overview = () => {
         average_basket: number;
         platform: string;
       }> = [];
-      let salesOffset = 0;
-      let salesHasMore = true;
-      const PAGE_SIZE = 1000;
 
-      while (salesHasMore) {
-        const { data: salesPage, error: salesError } = await supabase
-          .from("daily_sales_uber_deduped")
-          .select("restaurant_id, date, revenue_ttc, order_count, average_basket, platform")
-          .gte("date", startDateStr)
-          .lte("date", endDateStr)
-          .in("restaurant_id", restaurantIds)
-          // Deterministic multi-column sort to avoid pagination instability
-          .order("date", { ascending: true })
-          .order("restaurant_id", { ascending: true })
-          .order("platform", { ascending: true })
-          .range(salesOffset, salesOffset + PAGE_SIZE - 1);
+      {
+        const { data: salesRpc, error: salesError } = await supabase
+          .rpc("get_daily_revenue_from_orders", {
+            p_start_date: startDateStr,
+            p_end_date: endDateStr,
+            p_restaurant_ids: restaurantIds,
+          });
 
         if (salesError) {
           console.error("Error fetching daily sales:", salesError);
-          break;
-        }
-
-        if (salesPage && salesPage.length > 0) {
-          dailySalesData = [...dailySalesData, ...salesPage];
-          salesOffset += PAGE_SIZE;
-          salesHasMore = salesPage.length === PAGE_SIZE;
-        } else {
-          salesHasMore = false;
+        } else if (salesRpc) {
+          dailySalesData = salesRpc.map((d: any) => ({
+            restaurant_id: d.restaurant_id,
+            date: d.date,
+            revenue_ttc: Number(d.revenue_ttc),
+            order_count: Number(d.order_count),
+            average_basket: Number(d.average_basket),
+            platform: d.platform || "uber_eats",
+          }));
         }
       }
 
