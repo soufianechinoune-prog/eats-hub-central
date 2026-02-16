@@ -329,27 +329,26 @@ export default function Analytics() {
     queryKey: ["analytics_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
     queryFn: async () => {
       // In finances mode, ALWAYS fetch all payouts for the full year (needed for "Mois" view)
+      // Use RPC calls (no PostgREST row limit) - fetch all 12 months in parallel
       if (viewMode === "finances") {
-        let query = supabase
-          .from('payouts')
-          .select('*')
-          .gte('payout_date', `${selectedYear}-01-01`)
-          .lte('payout_date', `${selectedYear}-12-31`)
-          .order('payout_date', { ascending: false });
-        
-        // Filter by restaurants if specified
-        if (restaurantFilter && restaurantFilter.length > 0) {
-          query = query.in('restaurant_id', restaurantFilter);
+        const monthPromises = Array.from({ length: 12 }, (_, i) =>
+          supabase.rpc('get_monthly_payouts_detail', {
+            p_year: selectedYear,
+            p_month: i + 1,
+            p_restaurant_ids: restaurantFilter || null,
+          })
+        );
+        const results = await Promise.all(monthPromises);
+        const allData: any[] = [];
+        for (const { data, error } of results) {
+          if (error) {
+            console.error("[Analytics] get_monthly_payouts_detail error:", error);
+            throw error;
+          }
+          if (data) allData.push(...data);
         }
-        
-        const { data, error } = await query.limit(10000);
-        
-        if (error) {
-          console.error("[Analytics] payouts fetch error:", error);
-          throw error;
-        }
-        console.log("[Analytics] Full year payouts data:", data?.length, "rows");
-        return data || [];
+        console.log("[Analytics] Full year payouts data (RPC):", allData.length, "rows");
+        return allData;
       }
       
       // For non-finances views, if we have a specific month, fetch just that month
