@@ -1,45 +1,54 @@
 
 
-# Deux corrections pour Eco-Contribution
+# Restructurer le "Detail lignes" en accordeon Mois > Restaurant
 
-## Probleme 1 : Selecteur d'annee
+## Objectif
 
-Actuellement, l'annee est affichee dans un badge statique "2025". L'utilisateur souhaite pouvoir basculer entre 2025 et 2026 directement depuis la page, sans passer par le calendrier global.
+Remplacer la liste plate actuelle par une structure hierarchique a deux niveaux :
+1. **Niveau 1 : Mois** (accordeon deroulant) - affiche le total du mois
+2. **Niveau 2 : Restaurant** (accordeon deroulant a l'interieur du mois) - affiche le total par restaurant
+3. **Niveau 3 : Lignes individuelles** (tableau visible quand le restaurant est ouvert)
 
-### Solution
+Par defaut, tous les mois et restaurants sont replies pour une vue synthetique.
 
-Modifier `EcoContributionSection.tsx` pour remplacer le badge statique par deux boutons cliquables (2025 / 2026). Le bouton actif sera mis en surbrillance, l'autre sera en style outline. Le composant gerera sa propre annee localement (avec `selectedYear` comme valeur initiale).
-
-```text
-Avant :  [Leaf icon] Eco-Contribution  [2025]
-Apres :  [Leaf icon] Eco-Contribution  [2025] [2026]   (boutons toggle)
-```
-
-## Probleme 2 : Detail lignes vide (0 lignes)
-
-La table `payout_adjustments` a une politique RLS qui exige le role `authenticated`, mais l'application utilise la cle `anon` (pas d'authentification). La table `payouts`, elle, a une politique `public` -- c'est pourquoi les KPI et le graphique fonctionnent, mais pas le detail.
-
-### Solution
-
-Ajouter une politique RLS publique en lecture sur `payout_adjustments` (identique a celle de `payouts`) pour permettre l'acces en lecture sans authentification.
+## Structure visuelle
 
 ```text
-CREATE POLICY "Allow public read on payout_adjustments"
-  ON public.payout_adjustments
-  FOR SELECT
-  USING (true);
+v Janvier 2025                    Remb: 5 240€  Prel: -320€  Solde: 4 920€   (52 lignes)
+    v Chicken Street - Villeurbanne           Solde: 3 240€   (14 lignes)
+        | Date       | Description    | Montant   | Ref.           |
+        | 06/01/2025 | Autres frais   | 231,43 €  | PPHBN8NX...    |
+        | 06/01/2025 | Autres frais   | -12,30 €  | PPHBN8NX...    |
+    > Chicken Street - Nantes                 Solde: 1 680€   (8 lignes)
+> Fevrier 2025                    Remb: 1 200€  Prel: -450€  Solde: 750€     (38 lignes)
+> Mars 2025                       ...
 ```
 
-Cela alignera le comportement avec les autres tables du projet qui utilisent des politiques publiques.
+## Modifications
+
+### Fichier : `src/components/analytics/EcoContributionDetail.tsx`
+
+Refonte complete du composant :
+
+1. **Grouper les donnees** avec `useMemo` :
+   - Premier niveau : par mois (extraire mois/annee de `payout_date`)
+   - Second niveau : par `restaurant_id` au sein de chaque mois
+   - Calculer les sous-totaux (remboursements, prelevements, solde, nombre de lignes) a chaque niveau
+
+2. **Accordeons imbriques** :
+   - Utiliser le composant Collapsible de Radix (deja installe) pour les mois et les restaurants
+   - Chevron + animation d'ouverture/fermeture
+   - En-tete de mois : nom du mois, KPIs (Remb., Prel., Solde, nb lignes)
+   - En-tete de restaurant : nom, solde, nb lignes
+   - Contenu : tableau des lignes individuelles (Date, Description, Montant, Ref.)
+
+3. **Recherche conservee** : le filtre texte existant reste en haut et filtre les lignes avant le groupement
+
+4. **Tri** : les mois sont affiches du plus recent au plus ancien (Decembre en haut), les restaurants par solde decroissant au sein de chaque mois
 
 ## Fichiers modifies
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/components/analytics/EcoContributionSection.tsx` | Ajouter les boutons 2025/2026 dans le header |
-| Migration SQL | Ajouter politique RLS publique sur payout_adjustments |
+| `src/components/analytics/EcoContributionDetail.tsx` | Refonte avec accordeons Mois > Restaurant > Lignes |
 
-## Resultat attendu
-
-- Deux boutons d'annee cliquables dans le header de la page
-- Le tableau "Detail lignes" affichera les 51 lignes pour Chicken Street - Angers (et les 1881 lignes en mode Reseau)
