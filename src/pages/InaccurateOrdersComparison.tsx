@@ -105,15 +105,18 @@ const InaccurateOrdersComparison = () => {
       if (!selectedRestaurants?.length) return [];
 
       const { data, error } = await supabase
-        .from("daily_sales_uber_deduped")
-        .select("restaurant_id, date, order_count")
-        .in("restaurant_id", selectedRestaurants.map(r => r.id))
-        .gte("date", format(dateRange.start, "yyyy-MM-dd"))
-        .lte("date", format(dateRange.end, "yyyy-MM-dd"))
-        .order("date", { ascending: true });
+        .rpc("get_daily_revenue_from_orders", {
+          p_start_date: format(dateRange.start, "yyyy-MM-dd"),
+          p_end_date: format(dateRange.end, "yyyy-MM-dd"),
+          p_restaurant_ids: selectedRestaurants.map(r => r.id),
+        });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map((d: any) => ({
+        restaurant_id: d.restaurant_id,
+        date: d.date,
+        order_count: Number(d.order_count),
+      }));
     },
     enabled: !!selectedRestaurants?.length,
   });

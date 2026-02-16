@@ -70,30 +70,30 @@ serve(async (req) => {
       const restaurantId = restaurant.id;
       const managerName = `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim();
 
-      // Fetch sales data for current week (use deduped view to avoid double-counting)
+      // Fetch sales data for current week from orders table
       const { data: currentSales } = await supabase
-        .from('daily_sales_uber_deduped')
-        .select('revenue_ttc, order_count')
+        .from('orders')
+        .select('sales_incl_vat')
         .eq('restaurant_id', restaurantId)
-        .gte('date', start_date)
-        .lte('date', end_date);
+        .gte('order_datetime', `${start_date}T00:00:00`)
+        .lte('order_datetime', `${end_date}T23:59:59`);
 
-      // Fetch sales data for previous week (use deduped view to avoid double-counting)
+      // Fetch sales data for previous week from orders table
       const { data: prevSales } = await supabase
-        .from('daily_sales_uber_deduped')
-        .select('revenue_ttc, order_count')
+        .from('orders')
+        .select('sales_incl_vat')
         .eq('restaurant_id', restaurantId)
-        .gte('date', prevStartStr)
-        .lte('date', prevEndStr);
+        .gte('order_datetime', `${prevStartStr}T00:00:00`)
+        .lte('order_datetime', `${prevEndStr}T23:59:59`);
 
       // Calculate current week totals
-      const orderCount = currentSales?.reduce((sum, d) => sum + (d.order_count || 0), 0) || 0;
-      const revenue = currentSales?.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0) || 0;
+      const orderCount = currentSales?.length || 0;
+      const revenue = currentSales?.reduce((sum, d) => sum + Number(d.sales_incl_vat || 0), 0) || 0;
       const averageBasket = orderCount > 0 ? revenue / orderCount : 0;
 
       // Calculate previous week totals for variation
-      const prevOrderCount = prevSales?.reduce((sum, d) => sum + (d.order_count || 0), 0) || 0;
-      const prevRevenue = prevSales?.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0) || 0;
+      const prevOrderCount = prevSales?.length || 0;
+      const prevRevenue = prevSales?.reduce((sum, d) => sum + Number(d.sales_incl_vat || 0), 0) || 0;
 
       const orderVariation = prevOrderCount > 0 ? ((orderCount - prevOrderCount) / prevOrderCount) * 100 : null;
       const revenueVariation = prevRevenue > 0 ? ((revenue - prevRevenue) / prevRevenue) * 100 : null;

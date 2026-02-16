@@ -101,36 +101,19 @@ export function useNetworkStats({
     queryFn: async () => {
       if (restaurantIds.length === 0) return [];
       
-      let allData: Array<{
-        restaurant_id: string;
-        revenue_ttc: number;
-        order_count: number;
-      }> = [];
-      let offset = 0;
-      let hasMore = true;
-      const PAGE_SIZE = 1000;
+      const { data, error } = await supabase
+        .rpc("get_daily_revenue_from_orders", {
+          p_start_date: startDateStr,
+          p_end_date: endDateStr,
+          p_restaurant_ids: restaurantIds,
+        });
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("daily_sales_uber_deduped")
-          .select("restaurant_id, revenue_ttc, order_count")
-          .gte("date", startDateStr)
-          .lte("date", endDateStr)
-          .in("restaurant_id", restaurantIds)
-          .order("date", { ascending: true })
-          .order("restaurant_id", { ascending: true })
-          .range(offset, offset + PAGE_SIZE - 1);
-
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      return allData;
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        restaurant_id: d.restaurant_id,
+        revenue_ttc: Number(d.revenue_ttc),
+        order_count: Number(d.order_count),
+      }));
     },
     enabled: restaurantIds.length > 0,
   });
@@ -142,14 +125,18 @@ export function useNetworkStats({
       if (restaurantIds.length === 0) return [];
       
       const { data, error } = await supabase
-        .from("daily_sales_uber_deduped")
-        .select("restaurant_id, revenue_ttc, order_count")
-        .gte("date", prevStartDateStr)
-        .lte("date", prevEndDateStr)
-        .in("restaurant_id", restaurantIds);
+        .rpc("get_daily_revenue_from_orders", {
+          p_start_date: prevStartDateStr,
+          p_end_date: prevEndDateStr,
+          p_restaurant_ids: restaurantIds,
+        });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map((d: any) => ({
+        restaurant_id: d.restaurant_id,
+        revenue_ttc: Number(d.revenue_ttc),
+        order_count: Number(d.order_count),
+      }));
     },
     enabled: restaurantIds.length > 0 && includeN1Comparison,
   });

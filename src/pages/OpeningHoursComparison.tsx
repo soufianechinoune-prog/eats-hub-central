@@ -88,15 +88,13 @@ const OpeningHoursComparison = () => {
     queryFn: async () => {
       if (!visibleRestaurants.length) return [];
       
-      let query = supabase
-        .from("daily_sales_uber_deduped")
-        .select("restaurant_id, revenue_ttc, order_count, date")
-        .in("restaurant_id", visibleRestaurants)
-        .gte("date", startDate)
-        .lte("date", endDate)
-        .order("date", { ascending: true });
-      
-      const { data, error } = await query;
+      const { data, error } = await supabase
+        .rpc("get_daily_revenue_from_orders", {
+          p_start_date: startDate,
+          p_end_date: endDate,
+          p_restaurant_ids: visibleRestaurants,
+        });
+
       if (error) throw error;
       
       // Aggregate by restaurant
