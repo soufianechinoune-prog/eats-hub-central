@@ -520,13 +520,17 @@ Deno.serve(async (req) => {
           const isEcoContribution = !!payoutRefId && candidateAmount !== 0 && isEcoKeyword && !isExcluded;
 
           if (isEcoContribution) {
-            const normalizedAmount = Math.abs(candidateAmount);
             const existing = ecoContributionByPayout.get(payoutRefId);
             if (existing) {
-              existing.amount += normalizedAmount;
+              if (candidateAmount > 0) {
+                existing.refund += candidateAmount;
+              } else if (candidateAmount < 0) {
+                existing.charge += Math.abs(candidateAmount);
+              }
             } else {
               ecoContributionByPayout.set(payoutRefId, {
-                amount: normalizedAmount,
+                refund: candidateAmount > 0 ? candidateAmount : 0,
+                charge: candidateAmount < 0 ? Math.abs(candidateAmount) : 0,
                 restaurantId: '',
               });
             }
@@ -837,18 +841,21 @@ Deno.serve(async (req) => {
     if (!dryRun && ecoContributionByPayout.size > 0) {
       console.log('Phase 3: Updating payouts with eco-contribution for', ecoContributionByPayout.size, 'payouts');
       
-      for (const [payoutRefId, { amount }] of ecoContributionByPayout) {
+      for (const [payoutRefId, { refund, charge }] of ecoContributionByPayout) {
         // Update payout by payout_reference_id ONLY (works even without restaurant mapping)
         const { data: updateData, error: updateError } = await supabase
           .from('payouts')
-          .update({ eco_contribution_refund: amount })
+          .update({ 
+            eco_contribution_refund: refund,
+            eco_contribution_charge: charge,
+          })
           .eq('payout_reference_id', payoutRefId)
           .select('id, restaurant_id');
         
         if (!updateError && updateData && updateData.length > 0) {
           ecoContributionPayoutsUpdated++;
-          ecoContributionTotalAmount += amount;
-          console.log(`[eco-contrib] Updated payout ${payoutRefId}: ${amount} € (matched ${updateData.length} row(s))`);
+          ecoContributionTotalAmount += refund + charge;
+          console.log(`[eco-contrib] Updated payout ${payoutRefId}: refund=${refund}€, charge=${charge}€ (matched ${updateData.length} row(s))`);
         } else if (updateError) {
           console.warn('Failed to update payout eco-contribution:', payoutRefId, updateError.message);
         } else {

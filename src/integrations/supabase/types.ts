@@ -1916,6 +1916,7 @@ export type Database = {
           delivery_fee_gain: number | null
           delivery_promo_excl_vat: number | null
           delivery_promo_incl_vat: number | null
+          eco_contribution_charge: number | null
           eco_contribution_refund: number | null
           id: string
           item_promo_excl_vat: number | null
@@ -1971,6 +1972,7 @@ export type Database = {
           delivery_fee_gain?: number | null
           delivery_promo_excl_vat?: number | null
           delivery_promo_incl_vat?: number | null
+          eco_contribution_charge?: number | null
           eco_contribution_refund?: number | null
           id?: string
           item_promo_excl_vat?: number | null
@@ -2026,6 +2028,7 @@ export type Database = {
           delivery_fee_gain?: number | null
           delivery_promo_excl_vat?: number | null
           delivery_promo_incl_vat?: number | null
+          eco_contribution_charge?: number | null
           eco_contribution_refund?: number | null
           id?: string
           item_promo_excl_vat?: number | null
@@ -3102,6 +3105,7 @@ export type Database = {
         Returns: {
           delivery_promo_excl_vat: number
           delivery_promo_incl_vat: number
+          eco_contribution_charge: number
           eco_contribution_refund: number
           item_promo_excl_vat: number
           item_promo_incl_vat: number
