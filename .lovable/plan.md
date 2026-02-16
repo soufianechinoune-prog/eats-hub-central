@@ -1,60 +1,70 @@
 
+# Distinguer Prelevement et Remboursement Eco-Contribution
 
-# Remplacer la source CA/CMDS par la table `orders`
+## Probleme actuel
 
-## Contexte
+Le parser (`parse-payment-report`) utilise `Math.abs()` sur les montants eco-contribution (ligne 523), ce qui fait perdre le signe. Resultat :
+- **La Roche-sur-Yon** : les remboursements (+28.02, +29.72...) sont stockes en positif -> OK
+- **Melun** : les prelevements (-52.68, -55.78...) sont aussi stockes en **positif** -> FAUX
 
-Le tableau "Comparatif des restaurants" (Overview) et les KPIs reseau utilisent la vue `daily_sales_uber_deduped` pour le CA (revenue) et le nombre de commandes. Cette vue est alimentee par le fichier "Sales Over Time" d'Uber Eats.
+Dans le tableau, on voit une seule colonne "Eco-contrib." avec un montant positif dans les deux cas, impossible de distinguer remboursement vs prelevement.
 
-**Probleme** : ce fichier n'a ete importe que pour 4 restaurants sur 94. Les 90 autres affichent 0 EUR / 0 commandes.
+## Solution
 
-**Solution** : la table `orders` (alimentee par le fichier "Detail par commande", deja importe pour 94 restaurants / 1,6M lignes) contient toutes les donnees necessaires : `sales_incl_vat` (CA TTC) et le comptage des lignes (nombre de commandes).
+### 1. Ajouter une colonne `eco_contribution_charge` a la table `payouts`
 
-## Plan technique
+- `eco_contribution_refund` (existant) : garde uniquement les **remboursements** (montants positifs)
+- `eco_contribution_charge` (nouveau) : stocke les **prelevements** (montants negatifs, stockes en valeur absolue positive)
 
-### 1. Creer une fonction RPC d'agregation `get_daily_sales_from_orders`
+Migration SQL :
+```sql
+ALTER TABLE payouts ADD COLUMN IF NOT EXISTS eco_contribution_charge NUMERIC DEFAULT 0;
+```
 
-Creer une fonction SQL qui agrege la table `orders` par restaurant et par jour, retournant les memes colonnes que `daily_sales_uber_deduped` :
+### 2. Modifier le parser `parse-payment-report`
 
-- `restaurant_id`
-- `date` (extrait de `order_datetime`)
-- `revenue_ttc` = SUM(`sales_incl_vat`)
-- `order_count` = COUNT(*)
-- `average_basket` = revenue_ttc / order_count
+Remplacer la logique actuelle (ligne 522-533) qui fait `Math.abs()` par une separation :
+- Si `candidateAmount > 0` : c'est un **remboursement** -> accumuler dans `eco_contribution_refund`
+- Si `candidateAmount < 0` : c'est un **prelevement** -> accumuler dans `eco_contribution_charge` (stocke en positif)
 
-Filtres : periode (start_date, end_date) et optionnellement liste de restaurant_ids.
+Mettre a jour la Phase 3 (lignes 840-857) pour ecrire les deux colonnes.
 
-### 2. Modifier `useNetworkStats.ts`
+### 3. Mettre a jour la RPC `get_monthly_payouts_detail`
 
-Remplacer la requete sur `daily_sales_uber_deduped` par un appel a la nouvelle RPC `get_daily_sales_from_orders`. Les colonnes retournees sont identiques, donc le reste du hook ne change pas.
+Ajouter `eco_contribution_charge` dans le `RETURNS TABLE` et le `SELECT`.
 
-### 3. Modifier `Overview.tsx`
+### 4. Modifier le tableau `ProfitabilityComparisonTable.tsx`
 
-Meme remplacement : la requete paginee sur `daily_sales_uber_deduped` (lignes ~367-390) devient un appel RPC. Le format de sortie reste le meme (`restaurant_id, date, revenue_ttc, order_count, average_basket`).
+Remplacer la colonne unique "Eco-contrib." par deux colonnes :
+- **Eco Remb.** (vert) : remboursements recus d'Uber
+- **Eco Prel.** (rouge) : prelevements factures par Uber
 
-### 4. Verifier les autres consommateurs
+Cela permet de suivre si un prelevement a ete compense par un remboursement ulterieur.
 
-Rechercher tous les usages de `daily_sales_uber_deduped` dans le code et les migrer vers la nouvelle RPC :
-- `useNetworkStats.ts` (KPIs reseau)
-- `Overview.tsx` (tableau comparatif)
-- `generate-weekly-report` (edge function pour rapports WhatsApp)
-- Tout autre fichier referençant cette vue
-
-### 5. Conservation de `daily_sales_uber` comme source secondaire
-
-La table `daily_sales_uber` et sa vue ne sont pas supprimees. Elles restent disponibles comme reference mais ne sont plus la source primaire pour CA/CMDS.
+Propager dans les agregations (semaine, mois, totaux).
 
 ## Fichiers modifies
 
 | Fichier | Changement |
 |---------|-----------|
-| Migration SQL | Creer la RPC `get_daily_sales_from_orders` |
-| `src/hooks/useNetworkStats.ts` | Remplacer `daily_sales_uber_deduped` par appel RPC |
-| `src/pages/Overview.tsx` | Remplacer `daily_sales_uber_deduped` par appel RPC |
-| `supabase/functions/generate-weekly-report/index.ts` | Remplacer `daily_sales_uber_deduped` par requete directe sur `orders` |
+| Migration SQL | Ajouter colonne `eco_contribution_charge` |
+| Migration SQL | Mettre a jour RPC `get_monthly_payouts_detail` |
+| `supabase/functions/parse-payment-report/index.ts` | Separer remboursement/prelevement par signe |
+| `src/components/analytics/ProfitabilityComparisonTable.tsx` | 2 colonnes distinctes avec couleurs |
 
-## Resultat attendu
+## Donnees existantes
 
-- Les 94 restaurants afficheront leur vrai CA et nombre de commandes
-- Plus besoin d'importer le fichier "Sales Over Time" un par un
-- Les donnees sont coherentes avec le fichier "Detail par commande" deja importe en masse
+Les payouts deja importes devront etre re-calcules. On peut le faire via une requete UPDATE qui relit `payout_adjustments` (qui conserve le signe original) pour recalculer `eco_contribution_refund` et `eco_contribution_charge` correctement.
+
+```sql
+-- Recalcul depuis payout_adjustments (qui a le bon signe)
+UPDATE payouts p SET
+  eco_contribution_refund = COALESCE(pos.total, 0),
+  eco_contribution_charge = COALESCE(neg.total, 0)
+FROM (
+  SELECT restaurant_id, payout_date, SUM(amount) as total
+  FROM payout_adjustments WHERE category = 'other_fee' AND amount > 0
+  GROUP BY restaurant_id, payout_date
+) pos
+...
+```
