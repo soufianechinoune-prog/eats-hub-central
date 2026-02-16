@@ -27,6 +27,7 @@ import {
   ShoppingBag,
   Megaphone,
   Award,
+  Leaf,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,7 @@ const analyticsSubItems = [
   { title: "Opérations", url: "/analytics/operations", icon: Settings2 },
   { title: "Avis", url: "/analytics/reviews", icon: Star },
   { title: "Score de Réussite", url: "/success-score", icon: Award },
+  { title: "Éco-Contribution", url: "/analytics/eco-contribution", icon: Leaf },
 ];
 
 // Navigation principale (after Analytics)

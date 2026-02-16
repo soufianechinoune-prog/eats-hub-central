@@ -20,6 +20,7 @@ import { useDataGranularity } from "@/hooks/useDataGranularity";
 import Reviews from "@/pages/Reviews";
 import { OperationsAnalytics } from "@/components/analytics/OperationsAnalytics";
 import { ActionFilterPopover } from "@/components/analytics/ActionFilterPopover";
+import { EcoContributionSection } from "@/components/analytics/EcoContributionSection";
 import { useFrenchHolidays } from "@/hooks/useFrenchHolidays";
 import { useSchoolHolidays } from "@/hooks/useSchoolHolidays";
 import { useFootballMatches } from "@/hooks/useFootballMatches";
@@ -45,7 +46,7 @@ const currentMonth = new Date().getMonth() + 1;
 
 export default function Analytics() {
   const { viewMode: viewModeParam } = useParams<{ viewMode: string }>();
-  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews" | "operations";
+  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews" | "operations" | "eco-contribution";
   
   const {
     selectedRestaurants,
@@ -1133,6 +1134,8 @@ export default function Analytics() {
         return { title: "Conversion", subtitle: "Analyse du funnel de conversion" };
       case "finances":
         return { title: "Finances & Frais", subtitle: "Analyse des frais et de la rentabilité" };
+      case "eco-contribution":
+        return { title: "Éco-Contribution", subtitle: "Suivi des éco-contributions et prélèvements" };
       case "reviews":
         return { title: "Avis", subtitle: "Analyse des avis clients et produits" };
       case "overview":
@@ -1186,7 +1189,7 @@ export default function Analytics() {
       <AnalyticsHeader />
 
       {/* Granularity Badge and Actions Toggle - hidden entirely on finances view */}
-      {viewMode !== "finances" && (
+      {viewMode !== "finances" && viewMode !== "eco-contribution" && (
         <div className="flex flex-col gap-3 p-4 bg-muted/30 rounded-lg border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1294,7 +1297,16 @@ export default function Analytics() {
             ];
 
             // Render appropriate view
-            if (viewMode === "reviews") {
+            if (viewMode === "eco-contribution") {
+              return (
+                <EcoContributionSection
+                  restaurants={restaurants || []}
+                  selectedRestaurants={selectedRestaurants}
+                  selectedYear={selectedYear}
+                  selectedMonth={drillDownMonth}
+                />
+              );
+            } else if (viewMode === "reviews") {
               return <Reviews />;
             } else if (viewMode === "operations") {
               return <OperationsAnalytics />;
