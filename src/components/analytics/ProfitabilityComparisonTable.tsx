@@ -58,6 +58,7 @@ interface PayoutData {
   order_count: number;
   meal_voucher_amount?: number;
   eco_contribution_refund?: number;
+  eco_contribution_charge?: number;
 }
 
 interface RestaurantData {
@@ -97,6 +98,7 @@ interface ComparisonRow {
   netPayout: number;
   mealVoucher: number;       // Versement Titre Restaurant
   ecoContribution: number;   // Remboursement éco-contribution
+  ecoCharge: number;         // Prélèvement éco-contribution
   totalPayout: number;       // Versement Total (net + mealVoucher)
   profitability: number;
   // Commission breakdown
@@ -137,6 +139,7 @@ interface MonthRestaurantData {
   netPayout: number;
   mealVoucher: number;
   ecoContribution: number;
+  ecoCharge: number;
   totalPayout: number;
   profitability: number;
   uberFeeRate: number;
@@ -304,8 +307,8 @@ export function ProfitabilityComparisonTable({
       // Base = CA TTC (gross) ou CA TTC - Promos (net)
       const mealVoucher = Math.abs(Number(payout.meal_voucher_amount) || 0);
       const ecoContribution = Math.abs(Number(payout.eco_contribution_refund) || 0);
+      const ecoCharge = Math.abs(Number(payout.eco_contribution_charge) || 0);
       const totalToReceive = netPayout + mealVoucher;
-      
       // Dénominateur pour le calcul de rentabilité selon la base choisie
       const profitabilityDenominator = profitabilityBase === 'net' ? netSalesTTC : sales;
       
@@ -331,6 +334,7 @@ export function ProfitabilityComparisonTable({
         netPayout,
         mealVoucher,
         ecoContribution,
+        ecoCharge,
         totalPayout: totalToReceive,
         profitability: profitabilityDenominator > 0 ? (totalToReceive / profitabilityDenominator) * 100 : 0,
         uberFeeGross,
@@ -471,6 +475,7 @@ export function ProfitabilityComparisonTable({
           netPayout: number;
           mealVoucher: number;
           ecoContribution: number;
+          ecoCharge: number;
           promo: number;
           refund: number;
           uberFee: number;
@@ -486,8 +491,9 @@ export function ProfitabilityComparisonTable({
               sales: 0,
               netPayout: 0,
               mealVoucher: 0,
-              ecoContribution: 0,
-              promo: 0,
+            ecoContribution: 0,
+            ecoCharge: 0,
+            promo: 0,
               refund: 0,
               uberFee: 0,
               orderCount: 0,
@@ -499,6 +505,7 @@ export function ProfitabilityComparisonTable({
           agg.netPayout += row.netPayout;
           agg.mealVoucher += row.mealVoucher;
           agg.ecoContribution += row.ecoContribution;
+          agg.ecoCharge += row.ecoCharge;
           agg.promo += row.promoAmount;
           agg.refund += row.refundAmount;
           agg.orderCount += row.orderCount;
@@ -520,6 +527,7 @@ export function ProfitabilityComparisonTable({
               netPayout: agg.netPayout,
               mealVoucher: agg.mealVoucher,
               ecoContribution: agg.ecoContribution,
+              ecoCharge: agg.ecoCharge,
               totalPayout: restoTotalPayout,
               profitability: restoProfitDenominator > 0 ? (restoTotalPayout / restoProfitDenominator) * 100 : 0,
               uberFeeRate: restoNetSales > 0 ? (agg.uberFee / restoNetSales) * 100 : 0,
@@ -589,6 +597,8 @@ export function ProfitabilityComparisonTable({
     const avgRefundAmount = comparisonData.reduce((sum, d) => sum + d.refundAmount, 0) / comparisonData.length;
     const avgMealVoucherAmount = totalMealVoucher / comparisonData.length;
     const avgEcoContributionAmount = totalEcoContribution / comparisonData.length;
+    const totalEcoCharge = comparisonData.reduce((sum, d) => sum + d.ecoCharge, 0);
+    const avgEcoChargeAmount = totalEcoCharge / comparisonData.length;
     const avgTotalPayoutAmount = totalPayout / comparisonData.length;
     const totalAdvertising = comparisonData.reduce((sum, d) => sum + d.advertisingAmount, 0);
     const avgAdvertisingAmount = totalAdvertising / comparisonData.length;
@@ -604,6 +614,7 @@ export function ProfitabilityComparisonTable({
       refundAmount: avgRefundAmount,
       mealVoucherAmount: avgMealVoucherAmount,
       ecoContributionAmount: avgEcoContributionAmount,
+      ecoChargeAmount: avgEcoChargeAmount,
       totalPayoutAmount: avgTotalPayoutAmount,
       advertisingAmount: avgAdvertisingAmount,
     };
@@ -878,15 +889,28 @@ export function ProfitabilityComparisonTable({
                 <TableHead className="text-right text-muted-foreground">
                   Titre Resto
                 </TableHead>
-                <TableHead className="text-right text-blue-600">
+                <TableHead className="text-right text-emerald-600">
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger className="flex items-center gap-1 ml-auto">
-                        Éco-contrib.
+                        Éco Remb.
                         <HelpCircle className="h-3 w-3" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p className="text-xs">Remboursement annuel de l'éco-contribution (généralement versé en janvier)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableHead>
+                <TableHead className="text-right text-red-600">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                        Éco Prél.
+                        <HelpCircle className="h-3 w-3" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-xs">Prélèvement éco-contribution facturé par Uber Eats</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -967,8 +991,11 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {row.mealVoucher > 0 ? formatCurrency(row.mealVoucher) : '-'}
                       </TableCell>
-                      <TableCell className="text-right text-blue-600 tabular-nums">
+                      <TableCell className="text-right text-emerald-600 tabular-nums">
                         {row.ecoContribution > 0 ? formatCurrency(row.ecoContribution) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right text-red-600 tabular-nums">
+                        {row.ecoCharge > 0 ? `-${formatCurrency(row.ecoCharge)}` : '-'}
                       </TableCell>
                       <TableCell className="text-right text-orange-500 tabular-nums">
                         {row.advertisingAmount > 0 ? `-${formatCurrency(row.advertisingAmount)}` : '-'}
@@ -1012,8 +1039,11 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {averages.mealVoucherAmount > 0 ? formatCurrency(averages.mealVoucherAmount) : '-'}
                       </TableCell>
-                      <TableCell className="text-right text-blue-600 tabular-nums">
+                      <TableCell className="text-right text-emerald-600 tabular-nums">
                         {averages.ecoContributionAmount > 0 ? formatCurrency(averages.ecoContributionAmount) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right text-red-600 tabular-nums">
+                        {averages.ecoChargeAmount > 0 ? `-${formatCurrency(averages.ecoChargeAmount)}` : '-'}
                       </TableCell>
                       <TableCell className="text-right text-orange-500 tabular-nums">
                         {averages.advertisingAmount > 0 ? `-${formatCurrency(averages.advertisingAmount)}` : '-'}
@@ -1047,7 +1077,7 @@ export function ProfitabilityComparisonTable({
                       <>
                         {/* Week header row */}
                         <TableRow key={group.weekKey} className="bg-muted/30 hover:bg-muted/40">
-                          <TableCell colSpan={11} className="py-2">
+                          <TableCell colSpan={12} className="py-2">
                             <div className="flex items-center gap-2 font-medium">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
                               {group.weekLabel}
@@ -1120,8 +1150,11 @@ export function ProfitabilityComparisonTable({
                               <TableCell className="text-right text-muted-foreground tabular-nums">
                                 {row.mealVoucher > 0 ? formatCurrency(row.mealVoucher) : '-'}
                               </TableCell>
-                              <TableCell className="text-right text-blue-600 tabular-nums">
+                              <TableCell className="text-right text-emerald-600 tabular-nums">
                                 {row.ecoContribution > 0 ? formatCurrency(row.ecoContribution) : '-'}
+                              </TableCell>
+                              <TableCell className="text-right text-red-600 tabular-nums">
+                                {row.ecoCharge > 0 ? `-${formatCurrency(row.ecoCharge)}` : '-'}
                               </TableCell>
                               <TableCell className="text-right text-orange-500 tabular-nums">
                                 {row.advertisingAmount > 0 ? `-${formatCurrency(row.advertisingAmount)}` : '-'}
@@ -1167,6 +1200,9 @@ export function ProfitabilityComparisonTable({
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
                               {(bestInGroup.netPayout - worstInGroup.netPayout) >= 0 ? '+' : ''}{formatCurrency(bestInGroup.netPayout - worstInGroup.netPayout)}
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              -
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
                               -
@@ -1244,9 +1280,14 @@ export function ProfitabilityComparisonTable({
                           <TableCell className="text-right text-muted-foreground tabular-nums">
                             {group.totalMealVoucher > 0 ? formatCurrency(group.totalMealVoucher) : '-'}
                           </TableCell>
-                          <TableCell className="text-right text-blue-600 tabular-nums">
+                          <TableCell className="text-right text-emerald-600 tabular-nums">
                             {group.rows.reduce((sum, r) => sum + r.ecoContribution, 0) > 0 
                               ? formatCurrency(group.rows.reduce((sum, r) => sum + r.ecoContribution, 0)) 
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="text-right text-red-600 tabular-nums">
+                            {group.rows.reduce((sum, r) => sum + r.ecoCharge, 0) > 0 
+                              ? `-${formatCurrency(group.rows.reduce((sum, r) => sum + r.ecoCharge, 0))}` 
                               : '-'}
                           </TableCell>
                           <TableCell className="text-right text-orange-500 tabular-nums">
@@ -1305,8 +1346,11 @@ export function ProfitabilityComparisonTable({
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               {resto.mealVoucher > 0 ? formatCurrency(resto.mealVoucher) : '-'}
                             </TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                            <TableCell className="text-right tabular-nums text-emerald-600">
                               {resto.ecoContribution > 0 ? formatCurrency(resto.ecoContribution) : '-'}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-red-600">
+                              {resto.ecoCharge > 0 ? `-${formatCurrency(resto.ecoCharge)}` : '-'}
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-orange-500">
                               {resto.advertisingAmount > 0 ? `-${formatCurrency(resto.advertisingAmount)}` : '-'}
@@ -1360,6 +1404,9 @@ export function ProfitabilityComparisonTable({
                               -
                             </TableCell>
                             <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              -
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
                               {(bestResto.totalPayout - worstResto.totalPayout) >= 0 ? '+' : ''}{formatCurrency(bestResto.totalPayout - worstResto.totalPayout)}
                             </TableCell>
                           </TableRow>
@@ -1401,8 +1448,14 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalMealVoucher, 0))}
                       </TableCell>
-                      <TableCell className="text-right text-blue-600 tabular-nums">
+                      <TableCell className="text-right text-emerald-600 tabular-nums">
                         {formatCurrency(monthGroups.reduce((sum, g) => g.rows.reduce((s, r) => s + r.ecoContribution, 0) + sum, 0))}
+                      </TableCell>
+                      <TableCell className="text-right text-red-600 tabular-nums">
+                        {(() => {
+                          const totalCharge = monthGroups.reduce((sum, g) => g.rows.reduce((s, r) => s + r.ecoCharge, 0) + sum, 0);
+                          return totalCharge > 0 ? `-${formatCurrency(totalCharge)}` : '-';
+                        })()}
                       </TableCell>
                       <TableCell className="text-right text-orange-500 tabular-nums">
                         {(() => {
