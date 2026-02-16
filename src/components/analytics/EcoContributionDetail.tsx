@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronRight, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface DetailLine {
   id: string;
@@ -23,10 +24,18 @@ interface EcoContributionDetailProps {
   restaurantMap: Map<string, string>;
 }
 
-const PAGE_SIZE = 50;
+const MONTH_NAMES = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+];
+
+const fmt = (v: number) => v.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+const fmtDate = (d: string | null) => {
+  if (!d) return "-";
+  return new Date(d).toLocaleDateString("fr-FR");
+};
 
 export function EcoContributionDetail({ detailLines, restaurantMap }: EcoContributionDetailProps) {
-  const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -42,18 +51,58 @@ export function EcoContributionDetail({ detailLines, restaurantMap }: EcoContrib
     });
   }, [detailLines, search, restaurantMap]);
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const pageData = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  // Group by month then by restaurant
+  const grouped = useMemo(() => {
+    const byMonth = new Map<number, DetailLine[]>();
+    for (const line of filtered) {
+      const m = line.payout_date ? new Date(line.payout_date).getMonth() + 1 : 0;
+      const arr = byMonth.get(m) || [];
+      arr.push(line);
+      byMonth.set(m, arr);
+    }
+
+    return Array.from(byMonth.entries())
+      .sort(([a], [b]) => b - a) // most recent first
+      .map(([month, lines]) => {
+        // Group by restaurant
+        const byResto = new Map<string, DetailLine[]>();
+        for (const line of lines) {
+          const arr = byResto.get(line.restaurant_id) || [];
+          arr.push(line);
+          byResto.set(line.restaurant_id, arr);
+        }
+
+        const monthRefund = lines.filter(l => Number(l.amount) >= 0).reduce((s, l) => s + Number(l.amount), 0);
+        const monthCharge = lines.filter(l => Number(l.amount) < 0).reduce((s, l) => s + Number(l.amount), 0);
+
+        const restaurants = Array.from(byResto.entries())
+          .map(([restoId, restoLines]) => {
+            const net = restoLines.reduce((s, l) => s + Number(l.amount), 0);
+            return {
+              restoId,
+              name: restaurantMap.get(restoId) || restoLines[0]?.restaurant_name || restoId,
+              lines: restoLines.sort((a, b) => (a.payout_date || "").localeCompare(b.payout_date || "")),
+              net: Math.round(net * 100) / 100,
+              count: restoLines.length,
+            };
+          })
+          .sort((a, b) => b.net - a.net);
+
+        return {
+          month,
+          monthLabel: month === 0 ? "Sans date" : MONTH_NAMES[month - 1],
+          refund: Math.round(monthRefund * 100) / 100,
+          charge: Math.round(monthCharge * 100) / 100,
+          net: Math.round((monthRefund + monthCharge) * 100) / 100,
+          count: lines.length,
+          restaurants,
+        };
+      });
+  }, [filtered, restaurantMap]);
 
   const totalAmount = useMemo(() => {
     return filtered.reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
   }, [filtered]);
-
-  const fmt = (v: number) => v.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
-  const fmtDate = (d: string | null) => {
-    if (!d) return "-";
-    return new Date(d).toLocaleDateString("fr-FR");
-  };
 
   return (
     <Card>
@@ -62,77 +111,116 @@ export function EcoContributionDetail({ detailLines, restaurantMap }: EcoContrib
           <CardTitle className="text-sm font-medium">
             Lignes individuelles
           </CardTitle>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-xs">
-              {filtered.length} lignes · Total: {fmt(totalAmount)}
-            </Badge>
-          </div>
+          <Badge variant="outline" className="text-xs">
+            {filtered.length} lignes · Total: {fmt(totalAmount)}
+          </Badge>
         </div>
         <div className="relative mt-2">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Rechercher restaurant, référence..."
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            onChange={(e) => setSearch(e.target.value)}
             className="pl-9 h-9 text-sm"
           />
         </div>
       </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Restaurant</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="text-right">Montant</TableHead>
-              <TableHead>Réf. versement</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pageData.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                  Aucune ligne trouvée
-                </TableCell>
-              </TableRow>
-            ) : (
-              pageData.map((line) => (
-                <TableRow key={line.id}>
-                  <TableCell className="text-sm">{fmtDate(line.payout_date)}</TableCell>
-                  <TableCell className="text-sm font-medium">
-                    {restaurantMap.get(line.restaurant_id) || line.restaurant_name || "-"}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{line.description || "-"}</TableCell>
-                  <TableCell className={`text-right text-sm font-medium ${Number(line.amount) >= 0 ? "text-green-600" : "text-red-500"}`}>
-                    {fmt(Number(line.amount))}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground font-mono">
-                    {line.payout_reference_id ? line.payout_reference_id.slice(0, 12) + "…" : "-"}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <span className="text-xs text-muted-foreground">
-              Page {page + 1} / {totalPages}
-            </span>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+      <CardContent className="space-y-1">
+        {grouped.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8 text-sm">Aucune ligne trouvée</p>
+        ) : (
+          grouped.map((monthGroup) => (
+            <MonthAccordion key={monthGroup.month} group={monthGroup} />
+          ))
         )}
       </CardContent>
     </Card>
+  );
+}
+
+interface MonthGroup {
+  month: number;
+  monthLabel: string;
+  refund: number;
+  charge: number;
+  net: number;
+  count: number;
+  restaurants: {
+    restoId: string;
+    name: string;
+    lines: DetailLine[];
+    net: number;
+    count: number;
+  }[];
+}
+
+function MonthAccordion({ group }: { group: MonthGroup }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2.5 rounded-md hover:bg-muted/50 transition-colors text-left">
+        <div className="flex items-center gap-2">
+          <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-90")} />
+          <span className="font-semibold text-sm">{group.monthLabel}</span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>Remb: <span className="text-green-600 font-medium">{fmt(group.refund)}</span></span>
+          <span>Prél: <span className="text-red-500 font-medium">{fmt(group.charge)}</span></span>
+          <span>Solde: <span className="font-semibold text-foreground">{fmt(group.net)}</span></span>
+          <Badge variant="secondary" className="text-[10px] h-5">{group.count} lignes</Badge>
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pl-4 space-y-0.5 mt-0.5">
+        {group.restaurants.map((resto) => (
+          <RestaurantAccordion key={resto.restoId} resto={resto} />
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function RestaurantAccordion({ resto }: { resto: MonthGroup["restaurants"][number] }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-muted/30 transition-colors text-left">
+        <div className="flex items-center gap-2">
+          <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-90")} />
+          <span className="text-sm">{resto.name}</span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>Solde: <span className={cn("font-medium", resto.net >= 0 ? "text-green-600" : "text-red-500")}>{fmt(resto.net)}</span></span>
+          <Badge variant="secondary" className="text-[10px] h-5">{resto.count}</Badge>
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pl-2 mt-1 mb-2">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="h-8 text-xs">Date</TableHead>
+              <TableHead className="h-8 text-xs">Description</TableHead>
+              <TableHead className="h-8 text-xs text-right">Montant</TableHead>
+              <TableHead className="h-8 text-xs">Réf.</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {resto.lines.map((line) => (
+              <TableRow key={line.id}>
+                <TableCell className="text-xs py-1.5">{fmtDate(line.payout_date)}</TableCell>
+                <TableCell className="text-xs py-1.5 text-muted-foreground">{line.description || "-"}</TableCell>
+                <TableCell className={cn("text-xs py-1.5 text-right font-medium", Number(line.amount) >= 0 ? "text-green-600" : "text-red-500")}>
+                  {fmt(Number(line.amount))}
+                </TableCell>
+                <TableCell className="text-[10px] py-1.5 text-muted-foreground font-mono">
+                  {line.payout_reference_id ? line.payout_reference_id.slice(0, 12) + "…" : "-"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
