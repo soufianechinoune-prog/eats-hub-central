@@ -1,90 +1,65 @@
 
 
-# Nouvel onglet "Eco Contribution" dans Finances
+# Ajouter "Eco-Contribution" comme onglet dans le menu lateral
 
 ## Objectif
 
-Creer un onglet dedie au suivi complet des eco-contributions, avec une vue agrégée (par mois, par restaurant) ET une vue ligne par ligne pour verification.
+Deplacer l'Eco-Contribution d'un sous-onglet dans "Finances & Frais" vers un onglet a part entiere dans le menu de gauche, sous "Score de Reussite".
 
-## Sources de données existantes
+## Ce qui change
 
-| Source | Table | Contenu |
-|--------|-------|---------|
-| Agrégé par versement | `payouts` | `eco_contribution_refund` et `eco_contribution_charge` (2 218 lignes) |
-| Lignes individuelles | `payout_adjustments` | `description = 'Autres frais'`, category `other_fee` (2 295 lignes, ~42k euros) |
+### 1. Nouveau menu dans la sidebar
 
-Les lignes individuelles sont actuellement mal categorisées (`other_fee` au lieu de `eco_contribution`) car le parseur ne reconnait "Autres frais" que pour la mise a jour des payouts, pas pour la categorisation.
+**Fichier** : `src/components/layout/AppSidebar.tsx`
 
-## Plan de mise en oeuvre
+Ajouter une entree dans `analyticsSubItems` apres "Score de Reussite" :
 
-### 1. Corriger la categorisation (Edge Function)
+```text
+Avant :
+  Score de Reussite  /success-score
 
-**Fichier** : `supabase/functions/parse-payment-report/index.ts`
-
-Ajouter `'autres frais'` dans la fonction `categorizeAdjustment` pour que les futures lignes soient etiquetées `eco_contribution` au lieu de `other_fee`.
-
-### 2. Migration : re-categoriser les lignes existantes
-
-Mettre a jour les 2 295 lignes existantes dans `payout_adjustments` :
-```
-UPDATE payout_adjustments 
-SET category = 'eco_contribution' 
-WHERE description = 'Autres frais' AND category = 'other_fee'
+Apres :
+  Score de Reussite  /success-score
+  Eco-Contribution   /analytics/eco-contribution   (icone: Leaf)
 ```
 
-### 3. Creer le composant principal
+Mettre a jour `isAnalyticsActive()` pour inclure `/analytics/eco-contribution`.
 
-**Fichier** : `src/components/analytics/EcoContributionSection.tsx`
+### 2. Nouvelle route
 
-Structure en 3 parties :
+**Fichier** : `src/App.tsx`
 
-**a) KPI Cards** (haut de page)
-- Total Remboursements (vert)
-- Total Prélèvements (rouge)  
-- Solde Net (remboursements - prélèvements)
-- Nombre de lignes
+La route `/analytics/:viewMode` gere deja tous les sous-chemins d'analytics. Le viewMode `eco-contribution` sera automatiquement capte par cette route existante. Aucune nouvelle route a ajouter.
 
-**b) Evolution mensuelle** (graphique Recharts)
-- Barres empilées : remboursements vs prélèvements par mois
-- Ligne pour le solde net
-- Source : table `payouts` agrégée par mois
-
-**c) Classement par restaurant**
-- Tableau triable avec colonnes : Restaurant, Remb., Prél., Solde, Nb lignes
-- Source : table `payouts` agrégée par restaurant
-
-### 4. Vue detail ligne par ligne
-
-**Fichier** : `src/components/analytics/EcoContributionDetail.tsx`
-
-- Tableau paginé avec toutes les lignes individuelles
-- Colonnes : Date, Restaurant, Description, Montant, Ref. versement
-- Filtrable par restaurant et par période
-- Source : table `payout_adjustments` WHERE `category = 'eco_contribution'`
-- Tri par date descendant, pagination cote client (les 2 295 lignes sont gérables)
-
-### 5. Intégrer dans Analytics
+### 3. Integrer dans la page Analytics
 
 **Fichier** : `src/pages/Analytics.tsx`
 
-- Ajouter un sub-tab "Eco Contribution" dans la vue finances (via un onglet interne ou un bouton toggle)
-- Le composant recoit les memes filtres (restaurants, année, mois) que le reste
+Ajouter le viewMode `eco-contribution` qui affiche directement les composants `EcoContributionSection` et `EcoContributionDetail` deja crees, avec les memes filtres (restaurants, annee, mois).
 
-### 6. Hook de données
+### 4. Nettoyer l'ancien sous-onglet dans Finances
 
-**Fichier** : `src/hooks/useEcoContribution.ts`
+**Fichier** : `src/components/analytics/FinancesSection.tsx`
 
-- Fetch des données agrégées depuis `payouts` (eco_contribution_refund, eco_contribution_charge)
-- Fetch des lignes individuelles depuis `payout_adjustments` (category = 'eco_contribution')
-- Groupement par mois et par restaurant cote client
+Retirer le systeme de sous-onglets "Rentabilite" / "Eco-Contribution" pour que la page Finances retrouve son affichage direct (uniquement Rentabilite).
 
-## Fichiers crees/modifies
+## Fichiers modifies
 
-| Fichier | Action |
-|---------|--------|
-| `supabase/functions/parse-payment-report/index.ts` | Modifier categorizeAdjustment |
-| `src/hooks/useEcoContribution.ts` | Creer |
-| `src/components/analytics/EcoContributionSection.tsx` | Creer |
-| `src/components/analytics/EcoContributionDetail.tsx` | Creer |
-| `src/pages/Analytics.tsx` | Ajouter le sub-tab |
+| Fichier | Modification |
+|---------|-------------|
+| `src/components/layout/AppSidebar.tsx` | Ajouter l'entree "Eco-Contribution" dans analyticsSubItems |
+| `src/pages/Analytics.tsx` | Gerer le viewMode "eco-contribution" |
+| `src/components/analytics/FinancesSection.tsx` | Retirer le sous-onglet eco-contribution |
 
+## Resultat
+
+Le menu lateral affichera :
+- Dashboard
+- Revenus & Ventes
+- Ventes Articles
+- Conversion
+- Finances & Frais
+- Operations
+- Avis
+- Score de Reussite
+- **Eco-Contribution** (nouveau)
