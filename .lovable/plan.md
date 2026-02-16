@@ -1,49 +1,90 @@
 
-# Corriger la vue "Mois" quand un mois specifique est selectionne
 
-## Probleme
+# Nouvel onglet "Eco Contribution" dans Finances
 
-Quand vous selectionnez un mois precis (ex: "Mars 2025"), le tableau "Mois" affiche quand meme toute l'annee (12 mois). C'est parce que le code actuel en mode finances recupere systematiquement les 12 mois, sans tenir compte du filtre mensuel.
+## Objectif
 
-## Comportement attendu
+Creer un onglet dedie au suivi complet des eco-contributions, avec une vue agrégée (par mois, par restaurant) ET une vue ligne par ligne pour verification.
 
-- **Selection "2025" (annee entiere)** : affiche les 12 lignes mensuelles (Janvier a Decembre) -- fonctionne deja
-- **Selection "Mars 2025" (mois specifique)** : affiche uniquement la ligne Mars avec le detail par restaurant en dessous (pas d'accordeon necessaire, on montre directement les restaurants)
+## Sources de données existantes
 
-## Solution technique
+| Source | Table | Contenu |
+|--------|-------|---------|
+| Agrégé par versement | `payouts` | `eco_contribution_refund` et `eco_contribution_charge` (2 218 lignes) |
+| Lignes individuelles | `payout_adjustments` | `description = 'Autres frais'`, category `other_fee` (2 295 lignes, ~42k euros) |
 
-**Fichier** : `src/pages/Analytics.tsx` (lignes 330-352)
+Les lignes individuelles sont actuellement mal categorisées (`other_fee` au lieu de `eco_contribution`) car le parseur ne reconnait "Autres frais" que pour la mise a jour des payouts, pas pour la categorisation.
 
-Modifier la logique de fetch dans le mode finances pour distinguer deux cas :
+## Plan de mise en oeuvre
 
-| Situation | Comportement |
-|-----------|-------------|
-| `periodMode` = "year" (pas de drillDownMonth) | Fetch les 12 mois via 12 appels RPC en parallele (code actuel) |
-| `periodMode` = "month" (drillDownMonth defini) | Fetch uniquement le mois selectionne via 1 appel RPC |
+### 1. Corriger la categorisation (Edge Function)
 
-```text
-Avant :
-  if (viewMode === "finances") {
-    // Fetch TOUJOURS les 12 mois
-    const monthPromises = Array.from({ length: 12 }, ...)
-  }
+**Fichier** : `supabase/functions/parse-payment-report/index.ts`
 
-Apres :
-  if (viewMode === "finances") {
-    if (drillDownMonth) {
-      // Un seul mois selectionne -> fetch ce mois uniquement
-      const { data, error } = await supabase.rpc('get_monthly_payouts_detail', {
-        p_year: selectedYear,
-        p_month: drillDownMonth,
-        p_restaurant_ids: restaurantFilter || null,
-      });
-      return data || [];
-    } else {
-      // Annee entiere -> fetch les 12 mois
-      const monthPromises = Array.from({ length: 12 }, ...)
-      ...
-    }
-  }
+Ajouter `'autres frais'` dans la fonction `categorizeAdjustment` pour que les futures lignes soient etiquetées `eco_contribution` au lieu de `other_fee`.
+
+### 2. Migration : re-categoriser les lignes existantes
+
+Mettre a jour les 2 295 lignes existantes dans `payout_adjustments` :
+```
+UPDATE payout_adjustments 
+SET category = 'eco_contribution' 
+WHERE description = 'Autres frais' AND category = 'other_fee'
 ```
 
-Modification de quelques lignes dans un seul fichier. Le tableau recevra les bonnes donnees et affichera soit 1 mois (vue mensuelle) soit 12 mois (vue annuelle).
+### 3. Creer le composant principal
+
+**Fichier** : `src/components/analytics/EcoContributionSection.tsx`
+
+Structure en 3 parties :
+
+**a) KPI Cards** (haut de page)
+- Total Remboursements (vert)
+- Total Prélèvements (rouge)  
+- Solde Net (remboursements - prélèvements)
+- Nombre de lignes
+
+**b) Evolution mensuelle** (graphique Recharts)
+- Barres empilées : remboursements vs prélèvements par mois
+- Ligne pour le solde net
+- Source : table `payouts` agrégée par mois
+
+**c) Classement par restaurant**
+- Tableau triable avec colonnes : Restaurant, Remb., Prél., Solde, Nb lignes
+- Source : table `payouts` agrégée par restaurant
+
+### 4. Vue detail ligne par ligne
+
+**Fichier** : `src/components/analytics/EcoContributionDetail.tsx`
+
+- Tableau paginé avec toutes les lignes individuelles
+- Colonnes : Date, Restaurant, Description, Montant, Ref. versement
+- Filtrable par restaurant et par période
+- Source : table `payout_adjustments` WHERE `category = 'eco_contribution'`
+- Tri par date descendant, pagination cote client (les 2 295 lignes sont gérables)
+
+### 5. Intégrer dans Analytics
+
+**Fichier** : `src/pages/Analytics.tsx`
+
+- Ajouter un sub-tab "Eco Contribution" dans la vue finances (via un onglet interne ou un bouton toggle)
+- Le composant recoit les memes filtres (restaurants, année, mois) que le reste
+
+### 6. Hook de données
+
+**Fichier** : `src/hooks/useEcoContribution.ts`
+
+- Fetch des données agrégées depuis `payouts` (eco_contribution_refund, eco_contribution_charge)
+- Fetch des lignes individuelles depuis `payout_adjustments` (category = 'eco_contribution')
+- Groupement par mois et par restaurant cote client
+
+## Fichiers crees/modifies
+
+| Fichier | Action |
+|---------|--------|
+| `supabase/functions/parse-payment-report/index.ts` | Modifier categorizeAdjustment |
+| `src/hooks/useEcoContribution.ts` | Creer |
+| `src/components/analytics/EcoContributionSection.tsx` | Creer |
+| `src/components/analytics/EcoContributionDetail.tsx` | Creer |
+| `src/pages/Analytics.tsx` | Ajouter le sub-tab |
+
