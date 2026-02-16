@@ -328,9 +328,22 @@ export default function Analytics() {
   const { data: dailyPayoutsData } = useQuery({
     queryKey: ["analytics_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
     queryFn: async () => {
-      // In finances mode, ALWAYS fetch all payouts for the full year (needed for "Mois" view)
-      // Use RPC calls (no PostgREST row limit) - fetch all 12 months in parallel
       if (viewMode === "finances") {
+        // If a specific month is selected, fetch only that month
+        if (drillDownMonth) {
+          const { data, error } = await supabase.rpc('get_monthly_payouts_detail', {
+            p_year: selectedYear,
+            p_month: drillDownMonth,
+            p_restaurant_ids: restaurantFilter || null,
+          });
+          if (error) {
+            console.error("[Analytics] get_monthly_payouts_detail error:", error);
+            throw error;
+          }
+          console.log("[Analytics] Finances single month payouts:", data?.length, "rows");
+          return data || [];
+        }
+        // Full year: fetch all 12 months in parallel via RPC
         const monthPromises = Array.from({ length: 12 }, (_, i) =>
           supabase.rpc('get_monthly_payouts_detail', {
             p_year: selectedYear,
