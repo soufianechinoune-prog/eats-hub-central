@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Leaf, TrendingUp, TrendingDown, Hash } from "lucide-react";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 import { EcoContributionDetail } from "./EcoContributionDetail";
@@ -29,6 +29,7 @@ export function EcoContributionSection({
   selectedMonth,
 }: EcoContributionSectionProps) {
   const [activeTab, setActiveTab] = useState<"synthese" | "detail">("synthese");
+  const [localYear, setLocalYear] = useState(selectedYear);
 
   const restaurantIds = selectedRestaurants.length > 0
     ? selectedRestaurants
@@ -36,7 +37,7 @@ export function EcoContributionSection({
 
   const { monthlyData, byRestaurant, totals, detailLines, isLoading } = useEcoContribution({
     restaurantIds,
-    year: selectedYear,
+    year: localYear,
     month: selectedMonth,
   });
 
@@ -86,7 +87,19 @@ export function EcoContributionSection({
       <div className="flex items-center gap-2">
         <Leaf className="h-5 w-5 text-green-600" />
         <h2 className="text-lg font-semibold">Éco-Contribution</h2>
-        <Badge variant="secondary" className="text-xs">{selectedYear}</Badge>
+        <div className="flex items-center gap-1 ml-2">
+          {[2025, 2026].map((y) => (
+            <Button
+              key={y}
+              size="sm"
+              variant={localYear === y ? "default" : "outline"}
+              className="h-7 px-3 text-xs"
+              onClick={() => setLocalYear(y)}
+            >
+              {y}
+            </Button>
+          ))}
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "synthese" | "detail")}>
