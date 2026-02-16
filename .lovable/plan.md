@@ -1,20 +1,39 @@
 
 
-# Corriger la limite de 1000 lignes sur le détail Éco-Contribution
+# Corriger la limite de 1000 lignes -- pagination par lots
 
-## Problème
+## Probleme
 
-La requête qui récupère les lignes de détail (`payout_adjustments`) ne spécifie pas de `.limit()`, donc PostgREST applique sa limite par défaut de **1000 lignes**. Il y a en réalité **1881 lignes** en base pour 2025.
+PostgREST impose une limite serveur de 1000 lignes par requete. Meme avec `.limit(10000)` cote client, le serveur tronque a 1000. Il y a 1881 lignes en base pour 2025.
 
 ## Solution
 
-Ajouter `.limit(10000)` à la requête `payout_adjustments` dans le hook `useEcoContribution.ts`, exactement comme c'est déjà fait pour la requête `payouts` juste au-dessus.
+Modifier le hook `useEcoContribution.ts` pour fetcher les lignes de `payout_adjustments` en plusieurs lots de 1000 via `.range()`, puis les concatener.
 
-## Détail technique
+## Detail technique
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/hooks/useEcoContribution.ts` | Ajouter `.limit(10000)` sur la requête `payout_adjustments` (ligne ~78, avant le `const { data, error }`) |
+| `src/hooks/useEcoContribution.ts` | Remplacer la requete unique par une boucle de pagination qui fetch par lots de 1000 lignes |
 
-C'est un correctif d'une seule ligne.
+### Logique de pagination
 
+```text
+async function fetchAllPages():
+  allData = []
+  offset = 0
+  batchSize = 1000
+  loop:
+    data = query.range(offset, offset + batchSize - 1)
+    allData.push(...data)
+    if data.length < batchSize: break
+    offset += batchSize
+  return allData
+```
+
+La requete `payouts` (KPIs/graphique) reste inchangee car elle ne depasse pas 1000 lignes (une ligne par versement, pas par ajustement).
+
+## Resultat attendu
+
+- Le KPI "Lignes individuelles" affichera **1881** au lieu de 1000
+- Le detail lignes contiendra toutes les transactions
