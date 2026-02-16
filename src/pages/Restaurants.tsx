@@ -69,18 +69,24 @@ const Restaurants = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
   }, [statusFilter, sortColumn, sortDirection]);
 
-  const { data: restaurants, refetch } = useQuery({
+  const { data: restaurants, refetch, isError, error: fetchError } = useQuery({
     queryKey: ["restaurants"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("restaurants")
         .select(`
           *
         `)
         .order("postal_code", { ascending: true })
         .order("city", { ascending: true });
-      return data || [];
+      if (error) {
+        console.error("Error fetching restaurants:", error);
+        throw error;
+      }
+      return data;
     },
+    retry: 4,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   // Helper to get Uber status based on csv_verified
@@ -319,6 +325,13 @@ const Restaurants = () => {
           </div>
         </CardHeader>
         <CardContent>
+          {isError ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <p className="text-destructive font-medium">Erreur de chargement des restaurants</p>
+              <p className="text-muted-foreground text-sm">La base de données est temporairement surchargée. Réessayez dans quelques instants.</p>
+              <Button variant="outline" onClick={() => refetch()}>Réessayer</Button>
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -513,6 +526,7 @@ const Restaurants = () => {
               )}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
