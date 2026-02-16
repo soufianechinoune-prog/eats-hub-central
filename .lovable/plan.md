@@ -1,43 +1,25 @@
 
-# Vue mensuelle avec accordeon depliable
+# Corriger l'affichage de tous les mois en vue annuelle
 
-## Objectif
+## Probleme
 
-Transformer la vue "Mois" du tableau de rentabilite pour qu'elle fonctionne en mode accordeon :
-- Par defaut : seules les lignes de synthese mensuelle sont visibles (Janvier, Fevrier, Mars...) + ligne Total
-- Clic sur une fleche : deroule la liste des restaurants de ce mois
-- Cela permet d'avoir une vue d'ensemble annuelle claire, puis de zoomer sur un mois specifique
+La requete qui charge les donnees "payouts" pour toute l'annee ne specifie pas de limite, donc Supabase applique sa limite par defaut de **1 000 lignes**. L'annee 2025 contient **5 207 lignes** au total. Comme le tri est decroissant par date, seuls les 1 000 derniers enregistrements sont charges (Decembre + Novembre + un bout d'Octobre).
 
-## Comportement
+## Solution
+
+Modifier la requete dans `src/pages/Analytics.tsx` (lignes 348-360) pour paginer les resultats ou utiliser une approche RPC agrégée.
+
+**Approche retenue** : Ajouter `.limit(10000)` a la requete pour s'assurer de recuperer toutes les lignes. Supabase supporte des limites bien superieures a 1000, il suffit de la specifier explicitement.
 
 ```text
-+------------------------------------------------------------------+
-| Restaurant      | CA TTC  | Rentab. | Commission | ... | Total   |
-+------------------------------------------------------------------+
-| > Fevrier 2026  | 585 931 | 56.0%   | 26.9%      | ... | 327 962 |
-| > Janvier 2026  | 3 153 k | 55.1%   | 27.1%      | ... | 1 738 k |
-|   (clic sur >)                                                    |
-|   CS Toulouse   | 29 286  | 67.3%   | 26.9%      | ... | 19 720  |
-|   CS Arras      | 18 322  | 63.9%   | 26.9%      | ... | 11 701  |
-|   ...           |         |         |            |     |         |
-|   Ecart         |         | +X pts  |            |     |         |
-| Total 2026      | ...     | 56.5%   |            | ... | ...     |
-+------------------------------------------------------------------+
+Avant:  query = supabase.from('payouts').select('*').gte(...).lte(...).order(...)
+Apres:  query = supabase.from('payouts').select('*').gte(...).lte(...).order(...).limit(10000)
 ```
 
-- Fleche ChevronRight (>) quand replie, ChevronDown (v) quand deplie
-- Par defaut, tous les mois sont replies
-- Cliquer sur la fleche deroule/replie les restaurants de ce mois
-- Le bouton "Detail" (loupe) reste present pour ouvrir le panneau lateral
+## Fichier modifie
 
-## Modification technique
+| Fichier | Changement |
+|---------|-----------|
+| `src/pages/Analytics.tsx` | Ajouter `.limit(10000)` a la requete payouts annuelle (ligne ~360) |
 
-**Fichier unique** : `src/components/analytics/ProfitabilityComparisonTable.tsx`
-
-1. Ajouter un state `expandedMonths` (Set de monthKey) pour tracker les mois depliés
-2. Ajouter un bouton chevron dans la cellule du mois (colonne Restaurant)
-3. Conditionner l'affichage des lignes restaurant : visible uniquement si le mois est dans `expandedMonths`
-4. La ligne "Ecart" suit la meme logique (visible quand deplie)
-5. La ligne "Total" en bas reste toujours visible
-
-Pas de changement de base de donnees, pas de nouveau fichier. Modification purement UI dans le rendu du `viewMode === 'month'`.
+Modification d'une seule ligne, impact immediat : tous les mois de janvier a decembre seront visibles.
