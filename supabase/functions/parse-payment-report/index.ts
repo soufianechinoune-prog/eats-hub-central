@@ -228,7 +228,7 @@ interface RestaurantStats {
   orderCount: number;
 }
 
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 50;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -857,6 +857,11 @@ Deno.serve(async (req) => {
         if ((i + BATCH_SIZE) % 500 === 0 || i + BATCH_SIZE >= deduplicatedOrders.length) {
           console.log(`Processed ${Math.min(i + BATCH_SIZE, deduplicatedOrders.length)}/${deduplicatedOrders.length} orders`);
         }
+        
+        // Delay between batches to avoid saturating the database
+        if (i + BATCH_SIZE < deduplicatedOrders.length) {
+          await new Promise(r => setTimeout(r, 500));
+        }
       }
     }
 
@@ -935,6 +940,11 @@ Deno.serve(async (req) => {
           errors.push(`Adjustments batch: ${adjError.message}`);
         } else {
           adjustmentsInserted += batch.length;
+        }
+        
+        // Delay between batches
+        if (i + BATCH_SIZE < deduplicatedAdjustments.length) {
+          await new Promise(r => setTimeout(r, 500));
         }
       }
       
