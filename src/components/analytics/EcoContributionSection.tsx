@@ -224,6 +224,7 @@ export function EcoContributionSection({
                         name={restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8)}
                         detailLines={detailLines.filter(l => l.restaurant_id === r.restaurant_id)}
                         fmt={fmt}
+                        isHistorique={localYear === null}
                       />
                     ))}
                   </TableBody>
@@ -264,37 +265,46 @@ function RestaurantDrilldown({
   name,
   detailLines,
   fmt,
+  isHistorique,
 }: {
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
   name: string;
   detailLines: DetailLine[];
   fmt: (v: number) => string;
+  isHistorique?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
   const monthlyBreakdown = useMemo(() => {
-    const byMonth = new Map<number, DetailLine[]>();
+    const byKey = new Map<string, DetailLine[]>();
     for (const line of detailLines) {
-      const m = line.payout_date ? new Date(line.payout_date).getMonth() + 1 : 0;
-      const arr = byMonth.get(m) || [];
+      const d = line.payout_date ? new Date(line.payout_date) : null;
+      const y = d ? d.getFullYear() : 0;
+      const m = d ? d.getMonth() + 1 : 0;
+      const key = isHistorique ? `${y}-${m}` : `${m}`;
+      const arr = byKey.get(key) || [];
       arr.push(line);
-      byMonth.set(m, arr);
+      byKey.set(key, arr);
     }
-    return Array.from(byMonth.entries())
-      .sort(([a], [b]) => b - a)
-      .map(([month, lines]) => {
+    return Array.from(byKey.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, lines]) => {
+        const parts = key.split("-");
+        const month = isHistorique ? Number(parts[1]) : Number(parts[0]);
+        const year = isHistorique ? Number(parts[0]) : 0;
         const refund = lines.filter(l => Number(l.amount) >= 0).reduce((s, l) => s + Number(l.amount), 0);
         const charge = lines.filter(l => Number(l.amount) < 0).reduce((s, l) => s + Number(l.amount), 0);
+        const label = month === 0 ? "Sans date" : (isHistorique ? `${MONTH_NAMES[month - 1]} ${year}` : MONTH_NAMES[month - 1]);
         return {
           month,
-          label: month === 0 ? "Sans date" : MONTH_NAMES[month - 1],
+          label,
           refund: Math.round(refund * 100) / 100,
           charge: Math.round(charge * 100) / 100,
           net: Math.round((refund + charge) * 100) / 100,
           lines: lines.sort((a, b) => (a.payout_date || "").localeCompare(b.payout_date || "")),
         };
       });
-  }, [detailLines]);
+  }, [detailLines, isHistorique]);
 
   const r = restaurant;
 
