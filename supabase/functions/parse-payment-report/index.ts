@@ -442,7 +442,7 @@ Deno.serve(async (req) => {
 
     // Helper: categorize adjustment description
     // marketingAmount: if non-zero, this is a marketing_adjustment even if description says "autres frais"
-    const categorizeAdjustment = (description: string, marketingAmount: number = 0): string => {
+    const categorizeAdjustment = (description: string, marketingAmount: number = 0, amount: number = 0): string => {
       const lower = description.toLowerCase();
       if (lower.includes('publicitaire') || lower.includes('advertising') || lower.includes(' ads') || lower.includes('dépenses publicitaires') || lower.includes('depenses publicitaires')) {
         return 'advertising';
@@ -452,6 +452,11 @@ Deno.serve(async (req) => {
         return 'marketing_adjustment';
       }
       if (lower.includes('eco') || lower.includes('éco') || lower.includes('contribution') || lower.includes('environnement') || lower.includes('autres frais')) {
+        // Dissociate tax rounding adjustments from eco-contribution using threshold
+        // Real eco-contribution minimum is 0.1381 EUR per line
+        if (Math.abs(amount) < 0.1381) {
+          return 'tax_rounding';
+        }
         return 'eco_contribution';
       }
       if (lower.includes('ajustement') || lower.includes('adjustment')) {
@@ -524,7 +529,7 @@ Deno.serve(async (req) => {
             otherDesc.includes('autres frais');
 
           // If marketing column has a value, it's NOT eco-contribution
-          const isEcoContribution = !!payoutRefId && candidateAmount !== 0 && isEcoKeyword && !isExcluded && marketingFeeAdj === 0;
+          const isEcoContribution = !!payoutRefId && candidateAmount !== 0 && isEcoKeyword && !isExcluded && marketingFeeAdj === 0 && Math.abs(candidateAmount) >= 0.1381;
 
           if (isEcoContribution) {
             const existing = ecoContributionByPayout.get(payoutRefId);
@@ -547,7 +552,7 @@ Deno.serve(async (req) => {
           // Insert into payout_adjustments (ALL non-order rows, including eco)
           if (payoutRefId && uberStoreIdVal) {
             const matchedRestaurant = restaurantMap.get(uberStoreIdVal);
-            const category = otherDesc ? categorizeAdjustment(otherDesc, marketingFeeAdj) : 'other_fee';
+            const category = otherDesc ? categorizeAdjustment(otherDesc, marketingFeeAdj, candidateAmount) : 'other_fee';
             
             adjustmentsToUpsert.push({
               restaurant_id: matchedRestaurant?.id || null,
