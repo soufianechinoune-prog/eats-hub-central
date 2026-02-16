@@ -31,7 +31,7 @@ export function EcoContributionSection({
   selectedMonth,
 }: EcoContributionSectionProps) {
   const [activeTab, setActiveTab] = useState<"synthese" | "detail">("synthese");
-  const [localYear, setLocalYear] = useState(selectedYear);
+  const [localYear, setLocalYear] = useState<number | null>(selectedYear);
 
   const restaurantIds = selectedRestaurants.length > 0
     ? selectedRestaurants
@@ -51,12 +51,14 @@ export function EcoContributionSection({
 
   const chartData = useMemo(() => {
     return monthlyData.map(d => ({
-      name: MONTHS[d.month - 1],
+      name: localYear === null
+        ? `${MONTHS[d.month - 1]} ${String(d.year).slice(2)}`
+        : MONTHS[d.month - 1],
       Remboursements: d.refund,
       Prélèvements: d.charge,
       "Solde net": d.net,
     }));
-  }, [monthlyData]);
+  }, [monthlyData, localYear]);
 
   const fmt = (v: number) => v.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
@@ -90,6 +92,14 @@ export function EcoContributionSection({
         <Leaf className="h-5 w-5 text-green-600" />
         <h2 className="text-lg font-semibold">Éco-Contribution</h2>
         <div className="flex items-center gap-1 ml-2">
+          <Button
+            size="sm"
+            variant={localYear === null ? "default" : "outline"}
+            className="h-7 px-3 text-xs"
+            onClick={() => setLocalYear(null)}
+          >
+            Historique
+          </Button>
           {[2025, 2026].map((y) => (
             <Button
               key={y}
