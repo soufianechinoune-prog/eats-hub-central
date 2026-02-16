@@ -1,56 +1,39 @@
 
-# Dissocier les ajustements d'arrondi TVA de l'eco-contribution
 
-## Probleme
+# Resoudre la saturation de la base de donnees
 
-Uber Eats utilise la meme description "Autres frais" pour deux types de flux differents :
-1. **Eco-contribution** (minimum 0,1381 EUR par ligne)
-2. **Ajustement d'arrondi de TVA** ("Adjustment for invoice tax rounding discrepancy") avec des montants tres faibles (0,01 EUR, 0,08 EUR, etc.)
+## Diagnostic
 
-Actuellement, les 67 lignes d'arrondi TVA sont melangees avec les vraies lignes d'eco-contribution, faussant les totaux.
+La base de donnees est en etat de saturation complete. Les logs montrent des dizaines de "canceling statement due to statement timeout" en cascade, y compris des "connection to client lost" et "FATAL" errors. Cela signifie que **toutes les requetes echouent**, pas seulement l'eco-contribution.
 
-## Solution
+La cause probable : les batch upserts massifs du `parse-payment-report` (qui traitent des milliers de lignes) ont sature les connexions et verrouille des tables, creant un effet domino ou meme les requetes SELECT simples ne passent plus.
 
-Utiliser le seuil de 0,1381 EUR comme critere de dissociation :
-- `ABS(amount) >= 0.1381` : eco-contribution
-- `ABS(amount) < 0.1381` : arrondi TVA (nouvelle categorie `tax_rounding`)
+## Plan d'action
 
-## Modifications
+### 1. Reduire la taille des batches dans parse-payment-report
 
-### 1. Migration SQL
+Le probleme principal est que les upserts envoient trop de lignes d'un coup, ce qui verrouille la base trop longtemps. On va :
+- Reduire la taille des batches de 200 a **50 lignes**
+- Ajouter un **delai de 500ms** entre chaque batch pour laisser respirer la base
+- Ajouter un timeout plus court sur chaque batch individuel
 
-Reclassifier les 67 lignes existantes :
+### 2. Ajouter une protection contre les requetes concurrentes
 
-```sql
-UPDATE payout_adjustments
-SET category = 'tax_rounding'
-WHERE category = 'eco_contribution'
-  AND ABS(amount) < 0.1381;
-```
-
-### 2. Edge Function `parse-payment-report`
-
-Modifier la logique de categorisation pour que les futures importations appliquent automatiquement le seuil :
-
-- Si description = "Autres frais" ET pas de marketing adjustment :
-  - Si `ABS(montant) >= 0.1381` : categorie = `eco_contribution`
-  - Si `ABS(montant) < 0.1381` : categorie = `tax_rounding`
-
-### 3. Aucun changement UI necessaire
-
-Le dashboard eco-contribution filtre deja sur `category = 'eco_contribution'`, donc les lignes reclassifiees en `tax_rounding` disparaitront automatiquement de la vue.
-
-## Impact
-
-| Avant | Apres |
-|-------|-------|
-| 2038 lignes eco-contribution | 1971 lignes eco-contribution |
-| 67 lignes parasites incluses | 67 lignes reclassees en `tax_rounding` |
-| Totaux fausses par des centimes | Totaux precis |
+Quand un import est en cours, les requetes du dashboard ne devraient pas entrer en competition. On va s'assurer que la fonction edge ne lance pas de requetes inutiles en parallele.
 
 ## Detail technique
 
-| Fichier / Outil | Modification |
-|-----------------|-------------|
-| Migration SQL | `UPDATE payout_adjustments SET category = 'tax_rounding' WHERE category = 'eco_contribution' AND ABS(amount) < 0.1381` |
-| `supabase/functions/parse-payment-report/index.ts` | Ajouter condition sur le montant pour dissocier eco vs tax_rounding lors de l'import |
+| Fichier | Modification |
+|---------|-------------|
+| `supabase/functions/parse-payment-report/index.ts` | Reduire batch size de 200 a 50, ajouter delai inter-batch de 500ms |
+
+### Impact attendu
+
+- Les imports seront un peu plus lents (quelques secondes de plus) mais ne bloqueront plus la base
+- Le dashboard redeviendra accessible pendant et apres les imports
+- Les donnees existantes ne sont pas affectees (elles sont toujours la, juste inaccessibles a cause de la saturation)
+
+### Action immediate apres deploiement
+
+Rafraichir la page -- la base devrait se liberer naturellement une fois que les requetes en timeout sont annulees (quelques minutes).
+
