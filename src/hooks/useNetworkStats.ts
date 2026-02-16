@@ -52,9 +52,18 @@ interface UseNetworkStatsParams {
   includeN1Comparison?: boolean;
 }
 
+const RETRY_CONFIG = {
+  retry: 3,
+  retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
+};
+
 /**
  * Centralized hook for fetching network-wide restaurant statistics
- * Uses the same data sources and formulas as individual comparison pages
+ * Queries are staggered in 4 waves to avoid I/O contention:
+ * Wave 1: restaurants + sales (lightweight)
+ * Wave 2: reviews + accuracy (small tables)
+ * Wave 3: orders payout (heavy pagination)
+ * Wave 4: order_history + availability (heavy pagination)
  */
 export function useNetworkStats({
   restaurantIds,
@@ -74,11 +83,16 @@ export function useNetworkStats({
   const prevStartDateStr = prevStartDate.toISOString().split("T")[0];
   const prevEndDateStr = prevEndDate.toISOString().split("T")[0];
 
-  // Fetch restaurants info
+  const hasIds = restaurantIds.length > 0;
+
+  // ═══════════════════════════════════════════════
+  // WAVE 1: Restaurants + Sales (lightweight)
+  // ═══════════════════════════════════════════════
+
   const { data: restaurantsRaw } = useQuery({
     queryKey: ["network-stats-restaurants", restaurantIds],
     queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
+      if (!hasIds) return [];
       const { data, error } = await supabase
         .from("restaurants")
         .select("id, name, city, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
@@ -86,28 +100,25 @@ export function useNetworkStats({
       if (error) throw error;
       return data || [];
     },
-    enabled: restaurantIds.length > 0,
+    enabled: hasIds,
+    ...RETRY_CONFIG,
   });
 
-  // Filter restaurants to only those active during the selected period
   const restaurants = useMemo(() => {
     if (!restaurantsRaw) return [];
     return filterActiveRestaurants(restaurantsRaw, startDate, endDate);
   }, [restaurantsRaw, startDate, endDate]);
 
-  // Fetch daily sales (CA & orders)
   const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: ["network-stats-sales", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
-      
+      if (!hasIds) return [];
       const { data, error } = await supabase
         .rpc("get_daily_revenue_from_orders", {
           p_start_date: startDateStr,
           p_end_date: endDateStr,
           p_restaurant_ids: restaurantIds,
         });
-
       if (error) throw error;
       return (data || []).map((d: any) => ({
         restaurant_id: d.restaurant_id,
@@ -115,22 +126,21 @@ export function useNetworkStats({
         order_count: Number(d.order_count),
       }));
     },
-    enabled: restaurantIds.length > 0,
+    enabled: hasIds,
+    ...RETRY_CONFIG,
   });
 
-  // Fetch N-1 sales if requested
+  // N-1 sales (part of wave 1 since it's lightweight)
   const { data: prevSalesData } = useQuery({
     queryKey: ["network-stats-sales-prev", restaurantIds, prevStartDateStr, prevEndDateStr],
     queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
-      
+      if (!hasIds) return [];
       const { data, error } = await supabase
         .rpc("get_daily_revenue_from_orders", {
           p_start_date: prevStartDateStr,
           p_end_date: prevEndDateStr,
           p_restaurant_ids: restaurantIds,
         });
-
       if (error) throw error;
       return (data || []).map((d: any) => ({
         restaurant_id: d.restaurant_id,
@@ -138,35 +148,63 @@ export function useNetworkStats({
         order_count: Number(d.order_count),
       }));
     },
-    enabled: restaurantIds.length > 0 && includeN1Comparison,
+    enabled: hasIds && includeN1Comparison,
+    ...RETRY_CONFIG,
   });
 
-  // Fetch customer reviews for ratings
+  // Wave 1 is done when sales are loaded
+  const wave1Done = !!salesData;
+
+  // ═══════════════════════════════════════════════
+  // WAVE 2: Reviews + Accuracy (wait for wave 1)
+  // ═══════════════════════════════════════════════
+
   const { data: reviewsData, isLoading: reviewsLoading } = useQuery({
     queryKey: ["network-stats-reviews", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
-      
+      if (!hasIds) return [];
       const { data, error } = await supabase
         .from("customer_reviews")
         .select("restaurant_id, overall_rating")
         .gte("review_date", startDateStr)
         .lte("review_date", endDateStr)
         .in("restaurant_id", restaurantIds);
-
       if (error) throw error;
       return data || [];
     },
-    enabled: restaurantIds.length > 0,
+    enabled: hasIds && wave1Done,
+    ...RETRY_CONFIG,
   });
 
-  // Fetch orders for profitability (aligned with Finances page - uses order_datetime, not payout_date)
+  const { data: accuracyData, isLoading: accuracyLoading } = useQuery({
+    queryKey: ["network-stats-accuracy", restaurantIds, startDateStr, endDateStr],
+    queryFn: async () => {
+      if (!hasIds) return [];
+      const { data, error } = await supabase
+        .from("daily_order_accuracy")
+        .select("restaurant_id, incorrect_orders_count")
+        .eq("period_type", "current")
+        .gte("date", startDateStr)
+        .lte("date", endDateStr)
+        .in("restaurant_id", restaurantIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: hasIds && wave1Done,
+    ...RETRY_CONFIG,
+  });
+
+  // Wave 2 is done when both reviews and accuracy are loaded
+  const wave2Done = !!reviewsData && !!accuracyData;
+
+  // ═══════════════════════════════════════════════
+  // WAVE 3: Orders payout (wait for wave 2)
+  // ═══════════════════════════════════════════════
+
   const { data: ordersPayoutData, isLoading: ordersPayoutLoading } = useQuery({
     queryKey: ["network-stats-orders-payout", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
-      
-      // Pagination to bypass 1000-row limit
+      if (!hasIds) return [];
       const PAGE_SIZE = 1000;
       let allData: Array<{
         restaurant_id: string;
@@ -188,7 +226,6 @@ export function useNetworkStats({
           .order("order_datetime", { ascending: true })
           .order("id", { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1);
-        
         if (error) throw error;
         if (data && data.length > 0) {
           allData = [...allData, ...data];
@@ -200,15 +237,21 @@ export function useNetworkStats({
       }
       return allData;
     },
-    enabled: restaurantIds.length > 0,
+    enabled: hasIds && wave2Done,
+    ...RETRY_CONFIG,
   });
 
-  // Fetch order history for prep times (paginated)
+  // Wave 3 is done when orders payout is loaded
+  const wave3Done = !!ordersPayoutData;
+
+  // ═══════════════════════════════════════════════
+  // WAVE 4: Order history + Availability (wait for wave 3)
+  // ═══════════════════════════════════════════════
+
   const { data: orderHistoryData, isLoading: historyLoading } = useQuery({
     queryKey: ["network-stats-history", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
-      
+      if (!hasIds) return [];
       let allData: Array<{ 
         restaurant_id: string; 
         initial_prep_time_minutes: number | null;
@@ -228,9 +271,7 @@ export function useNetworkStats({
           .order("order_datetime", { ascending: true })
           .order("restaurant_id", { ascending: true })
           .range(page * pageSize, (page + 1) * pageSize - 1);
-
         if (error) throw error;
-
         if (pageData && pageData.length > 0) {
           allData = [...allData, ...pageData];
           hasMore = pageData.length === pageSize;
@@ -241,35 +282,14 @@ export function useNetworkStats({
       }
       return allData;
     },
-    enabled: restaurantIds.length > 0,
+    enabled: hasIds && wave3Done,
+    ...RETRY_CONFIG,
   });
 
-  // Fetch order accuracy for error rate
-  const { data: accuracyData, isLoading: accuracyLoading } = useQuery({
-    queryKey: ["network-stats-accuracy", restaurantIds, startDateStr, endDateStr],
-    queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
-      
-      const { data, error } = await supabase
-        .from("daily_order_accuracy")
-        .select("restaurant_id, incorrect_orders_count")
-        .eq("period_type", "current")
-        .gte("date", startDateStr)
-        .lte("date", endDateStr)
-        .in("restaurant_id", restaurantIds);
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: restaurantIds.length > 0,
-  });
-
-  // Fetch availability for downtime
   const { data: availabilityData, isLoading: availabilityLoading } = useQuery({
     queryKey: ["network-stats-availability", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
-      
+      if (!hasIds) return [];
       const { data, error } = await supabase
         .from("hourly_availability")
         .select("restaurant_id, offline_minutes")
@@ -277,30 +297,30 @@ export function useNetworkStats({
         .lte("hour_start", endDate.toISOString())
         .in("restaurant_id", restaurantIds)
         .range(0, 50000);
-
       if (error) throw error;
       return data || [];
     },
-    enabled: restaurantIds.length > 0,
+    enabled: hasIds && wave3Done,
+    ...RETRY_CONFIG,
   });
 
-  // Calculate per-restaurant statistics
+  // ═══════════════════════════════════════════════
+  // CALCULATION: Per-restaurant statistics
+  // ═══════════════════════════════════════════════
+
   const stats = useMemo<RestaurantNetworkStats[]>(() => {
     if (!restaurants?.length) return [];
 
     return restaurants.map((resto) => {
-      // Sales metrics
       const restoSales = salesData?.filter((s) => s.restaurant_id === resto.id) || [];
       const revenue = restoSales.reduce((sum, s) => sum + Number(s.revenue_ttc || 0), 0);
       const orders = restoSales.reduce((sum, s) => sum + Number(s.order_count || 0), 0);
       const avgBasket = orders > 0 ? revenue / orders : 0;
 
-      // N-1 Sales
       const restoPrevSales = prevSalesData?.filter((s) => s.restaurant_id === resto.id) || [];
       const prevRevenue = restoPrevSales.reduce((sum, s) => sum + Number(s.revenue_ttc || 0), 0);
       const prevOrders = restoPrevSales.reduce((sum, s) => sum + Number(s.order_count || 0), 0);
 
-      // Rating (same formula as Overview.tsx line 427-429)
       const restoReviews = reviewsData?.filter((r) => r.restaurant_id === resto.id) || [];
       const rating =
         restoReviews.length > 0
@@ -308,7 +328,6 @@ export function useNetworkStats({
             restoReviews.length
           : null;
 
-      // Profitability & Net Payout from orders (consistent with Finances page)
       const restoOrders = ordersPayoutData?.filter((o) => o.restaurant_id === resto.id) || [];
       let profitability: number | null = null;
       let netPayout = 0;
@@ -330,8 +349,6 @@ export function useNetworkStats({
           (sum, o) => sum + Number(o.meal_voucher_amount || 0),
           0
         );
-        
-        // Versement net total = net_payout + meal_voucher
         netPayout = totalNetPayoutRaw + totalMealVoucher;
 
         const denominator =
@@ -345,7 +362,6 @@ export function useNetworkStats({
             : null;
       }
 
-      // Prep time (same formula as PrepTimeComparison.tsx line 84-86)
       const restoHistory =
         orderHistoryData?.filter((h) => h.restaurant_id === resto.id) || [];
       const validPrepTimes = restoHistory.filter(
@@ -359,7 +375,6 @@ export function useNetworkStats({
             ) / validPrepTimes.length
           : null;
 
-      // Total delivery time (prep + delivery)
       const validTotalDelivery = restoHistory.filter(
         (h) => h.total_prep_delivery_time_minutes != null
       );
@@ -371,7 +386,6 @@ export function useNetworkStats({
             ) / validTotalDelivery.length
           : null;
 
-      // Error rate (same formula as InaccurateOrdersComparison.tsx line 163-164)
       const restoAccuracy =
         accuracyData?.filter((a) => a.restaurant_id === resto.id) || [];
       const totalIncorrect = restoAccuracy.reduce(
@@ -380,17 +394,14 @@ export function useNetworkStats({
       );
       const errorRate = orders > 0 ? (totalIncorrect / orders) * 100 : null;
 
-      // Downtime (same formula as DowntimeComparison.tsx line 82-83)
       const restoAvail =
         availabilityData?.filter((a) => a.restaurant_id === resto.id) || [];
       const totalOfflineMinutes = restoAvail.reduce(
         (sum, a) => sum + Number(a.offline_minutes || 0),
         0
       );
-      // Show 0 if there's availability data but no downtime, null only if no data at all
       const downtime = restoAvail.length > 0 ? totalOfflineMinutes / 60 : null;
 
-      // Variations
       const revenueVariation =
         includeN1Comparison && prevRevenue > 0
           ? ((revenue - prevRevenue) / prevRevenue) * 100
@@ -410,7 +421,6 @@ export function useNetworkStats({
         rating: rating != null ? parseFloat(rating.toFixed(2)) : null,
         profitability:
           profitability != null ? parseFloat(profitability.toFixed(1)) : null,
-        // Keep full precision; UI formatting will handle rounding to seconds.
         prepTime: prepTime != null ? prepTime : null,
         totalDeliveryTime: totalDeliveryTime != null ? totalDeliveryTime : null,
         errorRate: errorRate != null ? parseFloat(errorRate.toFixed(2)) : null,
@@ -448,7 +458,6 @@ export function useNetworkStats({
     const avgBasket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const totalNetPayout = stats.reduce((sum, s) => sum + s.netPayout, 0);
 
-    // Average of non-null values
     const validRatings = stats.filter((s) => s.rating != null);
     const avgRating =
       validRatings.length > 0
@@ -490,7 +499,6 @@ export function useNetworkStats({
         ? validDowntimes.reduce((sum, s) => sum + (s.downtime ?? 0), 0)
         : null;
 
-    // N-1 totals
     const prevTotalRevenue = includeN1Comparison
       ? stats.reduce((sum, s) => sum + (s.prevRevenue ?? 0), 0)
       : undefined;
@@ -512,9 +520,8 @@ export function useNetworkStats({
         avgProfitability != null
           ? parseFloat(avgProfitability.toFixed(1))
           : null,
-       // Keep full precision; UI formatting will handle rounding to seconds.
-       avgPrepTime: avgPrepTime != null ? avgPrepTime : null,
-       avgTotalDeliveryTime: avgTotalDeliveryTime != null ? avgTotalDeliveryTime : null,
+      avgPrepTime: avgPrepTime != null ? avgPrepTime : null,
+      avgTotalDeliveryTime: avgTotalDeliveryTime != null ? avgTotalDeliveryTime : null,
       avgErrorRate:
         avgErrorRate != null ? parseFloat(avgErrorRate.toFixed(2)) : null,
       totalDowntime:
