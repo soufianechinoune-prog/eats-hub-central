@@ -213,7 +213,7 @@ export function EcoContributionSection({
                       <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("net")}>
                         Solde {sortKey === "net" && (sortDir === "desc" ? "↓" : "↑")}
                       </TableHead>
-                      <TableHead className="text-right">Versements</TableHead>
+                      <TableHead className="text-right">Lignes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -325,7 +325,7 @@ function RestaurantDrilldown({
         <TableCell className={cn("text-right font-medium text-sm", r.net >= 0 ? "text-green-600" : "text-red-500")}>
           {fmt(r.net)}
         </TableCell>
-        <TableCell className="text-right text-sm text-muted-foreground">{r.count}</TableCell>
+        <TableCell className="text-right text-sm text-muted-foreground">{detailLines.length}</TableCell>
       </TableRow>
       {open && monthlyBreakdown.map((mg) => (
         <MonthDrilldownRow key={mg.month} monthGroup={mg} fmt={fmt} />
