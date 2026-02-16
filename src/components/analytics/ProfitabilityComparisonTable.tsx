@@ -34,6 +34,7 @@ import {
   Euro,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   ZoomIn
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -189,6 +190,7 @@ export function ProfitabilityComparisonTable({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('profitability');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('percent');
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [sortColumn, setSortColumn] = useState<SortColumn>('profitability');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
@@ -1231,6 +1233,20 @@ export function ProfitabilityComparisonTable({
                     const hasMultipleRestaurantsInMonth = group.restaurantData.length > 1;
                     const bestResto = group.restaurantData[0];
                     const worstResto = group.restaurantData[group.restaurantData.length - 1];
+                    const isExpanded = expandedMonths.has(group.monthKey);
+                    
+                    const toggleMonth = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      setExpandedMonths(prev => {
+                        const next = new Set(prev);
+                        if (next.has(group.monthKey)) {
+                          next.delete(group.monthKey);
+                        } else {
+                          next.add(group.monthKey);
+                        }
+                        return next;
+                      });
+                    };
                     
                     return (
                       <>
@@ -1238,18 +1254,32 @@ export function ProfitabilityComparisonTable({
                         <TableRow 
                           key={group.monthKey}
                           className={cn(
-                            "hover:bg-muted/50 transition-colors bg-muted/30",
+                            "hover:bg-muted/50 transition-colors bg-muted/30 cursor-pointer",
                           )}
+                          onClick={toggleMonth}
                         >
                           <TableCell>
                             <div className="flex items-center gap-2">
+                              {hasMultipleRestaurantsInMonth && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={toggleMonth}
+                                >
+                                  {isExpanded 
+                                    ? <ChevronDown className="h-4 w-4" /> 
+                                    : <ChevronRight className="h-4 w-4" />
+                                  }
+                                </Button>
+                              )}
                               <Calendar className="h-4 w-4 text-muted-foreground" />
                               <span className="font-medium">{group.monthLabel}</span>
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
                                 className="h-6 gap-1 text-xs ml-auto"
-                                onClick={() => handleMonthDrillDown(group)}
+                                onClick={(e) => { e.stopPropagation(); handleMonthDrillDown(group); }}
                               >
                                 <ZoomIn className="h-3 w-3" />
                                 Détail
@@ -1301,8 +1331,8 @@ export function ProfitabilityComparisonTable({
                           </TableCell>
                         </TableRow>
                         
-                        {/* Per-restaurant rows - only if multiple restaurants */}
-                        {hasMultipleRestaurantsInMonth && group.restaurantData.map((resto, restoIdx) => (
+                        {/* Per-restaurant rows - only if multiple restaurants AND expanded */}
+                        {isExpanded && hasMultipleRestaurantsInMonth && group.restaurantData.map((resto, restoIdx) => (
                           <TableRow 
                             key={`${group.monthKey}-${resto.restaurantId}`}
                             className={cn(
@@ -1362,7 +1392,7 @@ export function ProfitabilityComparisonTable({
                         ))}
                         
                         {/* Gap row between best and worst restaurant */}
-                        {hasMultipleRestaurantsInMonth && (
+                        {isExpanded && hasMultipleRestaurantsInMonth && (
                           <TableRow className="bg-muted/10 border-b-2 border-border text-xs">
                             <TableCell className="py-1.5 pl-8 text-muted-foreground italic">
                               Écart
