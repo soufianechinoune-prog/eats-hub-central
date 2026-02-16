@@ -1,39 +1,58 @@
 
 
-# Corriger la limite de 1000 lignes -- pagination par lots
+# Corriger la categorisation : separer eco-contribution vs ajustement marketing
 
-## Probleme
+## Probleme identifie
 
-PostgREST impose une limite serveur de 1000 lignes par requete. Meme avec `.limit(10000)` cote client, le serveur tronque a 1000. Il y a 1881 lignes en base pour 2025.
+Quand une ligne sans commande a la description "Autres frais", le parser la categorise automatiquement comme `eco_contribution` (car "autres frais" matche le mot-cle). Mais en realite, certaines de ces lignes sont des **ajustements marketing** : leur montant provient de la colonne CSV "Ajustement marketing (TVA incluse)" et non de "Autres paiements".
 
-## Solution
+**Chiffres** : sur 2295 lignes `eco_contribution`, **257 sont en realite des ajustements marketing** (colonne "Ajustement marketing" non nulle).
 
-Modifier le hook `useEcoContribution.ts` pour fetcher les lignes de `payout_adjustments` en plusieurs lots de 1000 via `.range()`, puis les concatener.
+**Regle de distinction** :
+- Si la colonne "Ajustement marketing (TVA incluse)" a une valeur non nulle --> c'est un `marketing_adjustment`
+- Si cette colonne est vide ou 0 --> c'est bien une `eco_contribution`
 
-## Detail technique
+## Modifications
 
-| Fichier | Modification |
-|---------|-------------|
-| `src/hooks/useEcoContribution.ts` | Remplacer la requete unique par une boucle de pagination qui fetch par lots de 1000 lignes |
+### 1. Edge Function : `supabase/functions/parse-payment-report/index.ts`
 
-### Logique de pagination
+Modifier la logique de categorisation des lignes sans commande (lignes ~494-566) :
 
-```text
-async function fetchAllPages():
-  allData = []
-  offset = 0
-  batchSize = 1000
-  loop:
-    data = query.range(offset, offset + batchSize - 1)
-    allData.push(...data)
-    if data.length < batchSize: break
-    offset += batchSize
-  return allData
+- **Lire la valeur** de la colonne "Ajustement marketing (TVA incluse)" via `getValue('marketing_fee_adjustment')`
+- **Ajouter une condition** : si `marketing_fee_adjustment != 0`, la ligne n'est PAS eco_contribution meme si la description dit "Autres frais"
+- **Mettre a jour `categorizeAdjustment`** pour accepter un parametre optionnel `marketingAmount` : si non nul, retourner `'marketing_adjustment'` avant de tester les mots-cles eco
+- **Exclure ces lignes** de l'accumulation `ecoContributionByPayout` (qui met a jour les colonnes eco sur la table payouts)
+
+### 2. Migration SQL : corriger les donnees existantes
+
+Mettre a jour les 257 lignes deja en base :
+
+```sql
+UPDATE payout_adjustments 
+SET category = 'marketing_adjustment'
+WHERE category = 'eco_contribution'
+  AND raw_columns->>'Ajustement marketing (TVA incluse)' IS NOT NULL
+  AND raw_columns->>'Ajustement marketing (TVA incluse)' != '0'
+  AND raw_columns->>'Ajustement marketing (TVA incluse)' != '';
 ```
 
-La requete `payouts` (KPIs/graphique) reste inchangee car elle ne depasse pas 1000 lignes (une ligne par versement, pas par ajustement).
+Puis recalculer les montants eco-contribution sur la table `payouts` pour les versements concernes (soustraire les montants marketing qui avaient ete inclus a tort).
+
+### 3. Frontend : pas de changement necessaire
+
+Le hook `useEcoContribution` filtre deja par `category = 'eco_contribution'`. Une fois la correction en base, les lignes marketing disparaitront automatiquement de la section eco-contribution.
 
 ## Resultat attendu
 
-- Le KPI "Lignes individuelles" affichera **1881** au lieu de 1000
-- Le detail lignes contiendra toutes les transactions
+| Avant | Apres |
+|-------|-------|
+| 2295 lignes eco_contribution | ~2038 lignes eco_contribution |
+| 257 lignes marketing melangees | 257 lignes `marketing_adjustment` separees |
+| Solde eco fausse par les ajustements marketing | Solde eco propre et fiable |
+
+## Fichiers modifies
+
+| Fichier | Modification |
+|---------|-------------|
+| `supabase/functions/parse-payment-report/index.ts` | Logique de categorisation enrichie avec detection colonne marketing |
+| Migration SQL | Correction des 257 lignes existantes + recalcul eco sur payouts |
