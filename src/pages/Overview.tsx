@@ -105,32 +105,26 @@ const Overview = () => {
     localStorage.setItem(OVERVIEW_STORAGE_KEY, JSON.stringify(state));
   }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView]);
 
-  // Fetch pinned restaurant count for toggle
-  const { data: pinnedRestaurants } = useQuery({
-    queryKey: ["pinned-restaurants-count"],
+  // Single unified query for all active restaurants (deduplicated)
+  const { data: allActiveRestaurants, error: restaurantsError } = useQuery({
+    queryKey: ["all-active-restaurants"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id")
-        .eq("is_pinned", true)
+        .select("id, is_pinned")
         .eq("is_active", true);
       if (error) throw error;
       return data || [];
     },
+    retry: 4,
+    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Fetch all active restaurant count for toggle
-  const { data: allActiveRestaurants } = useQuery({
-    queryKey: ["active-restaurants-count"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id")
-        .eq("is_active", true);
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  // Derive pinned from the single query
+  const pinnedRestaurants = useMemo(
+    () => allActiveRestaurants?.filter((r) => r.is_pinned) || [],
+    [allActiveRestaurants]
+  );
   
   // Fetch latest Success Score for network overview (Uber Eats only)
   const { data: successScoreData } = useQuery({
@@ -880,22 +874,14 @@ const Overview = () => {
            [];
   }, [networkData?.topByRevenue, networkData?.topByRating]);
 
-  // Fetch pinned restaurant IDs directly for the table
-  const { data: pinnedIds } = useQuery({
-    queryKey: ["pinned-restaurant-ids"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id")
-        .eq("is_active", true)
-        .eq("is_pinned", true);
-      if (error) throw error;
-      return data?.map(r => r.id) || [];
-    },
-  });
+  // Derive pinned IDs from the unified restaurants query (no extra fetch)
+  const pinnedIds = useMemo(
+    () => pinnedRestaurants?.map((r) => r.id) || [],
+    [pinnedRestaurants]
+  );
 
   const { stats: comparisonStats, networkTotals, isLoading: statsLoading } = useNetworkStats({
-    restaurantIds: pinnedIds || [],
+    restaurantIds: pinnedIds,
     startDate,
     endDate,
     profitabilityBase: "gross",
@@ -1068,9 +1054,25 @@ const Overview = () => {
         <div className="text-center py-12">
           <div className="animate-pulse">Chargement des données...</div>
         </div>
-      ) : error ? (
-        <div className="text-center py-12 text-destructive">
-          Erreur lors du chargement des données: {String(error)}
+      ) : (error || restaurantsError) ? (
+        <div className="text-center py-12 space-y-4">
+          <p className="text-destructive font-medium">
+            Erreur lors du chargement des données
+          </p>
+          <p className="text-sm text-muted-foreground">
+            La base de données est temporairement surchargée. Réessayez dans quelques secondes.
+          </p>
+          <Button
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["network-health"] });
+              queryClient.invalidateQueries({ queryKey: ["all-active-restaurants"] });
+            }}
+            variant="outline"
+            className="gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Réessayer
+          </Button>
         </div>
       ) : (
         <div>
