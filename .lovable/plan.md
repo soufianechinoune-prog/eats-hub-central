@@ -1,44 +1,39 @@
 
-# Ajouter une vue "Historique" (tous les ans) a l'eco-contribution
+# Corriger le comptage "Versements" dans le tableau par restaurant
 
-## Contexte
+## Probleme
 
-Actuellement, le selecteur d'annee propose uniquement 2025 et 2026. Mais un remboursement en 2026 peut concerner un prelevement de 2025, donc il manque une vue globale pour voir le solde reel toutes annees confondues.
+La colonne "Versements" affiche le nombre total de **versements hebdomadaires** (lignes dans la table `payouts`) pour chaque restaurant. Par exemple, Toulouse affiche 540 parce qu'il y a 540 lignes de versement au total, alors que seules quelques-unes concernent l'eco-contribution. Ce chiffre n'a aucun rapport avec l'eco-contribution.
 
-## Modification
+## Solution
 
-### 1. Composant `src/components/analytics/EcoContributionSection.tsx`
-
-- Ajouter un bouton "Historique" (ou "Tout") a cote des boutons 2025 / 2026
-- Utiliser `localYear` avec une valeur speciale (par exemple `null` ou `0`) pour representer "toutes les annees"
-- Changer le type de `localYear` de `number` a `number | null`
-- Quand "Historique" est selectionne, le graphique mensuel affichera les donnees par annee-mois au lieu de juste par mois
-- Adapter le label du graphique pour inclure l'annee quand on est en mode historique (ex: "Jan 25", "Fev 25", ... "Jan 26")
-
-### 2. Hook `src/hooks/useEcoContribution.ts`
-
-- Rendre le parametre `year` optionnel (`year?: number | null`)
-- Quand `year` est `null` : ne pas appliquer les filtres `.gte`/`.lte` sur `payout_date` pour les deux requetes (payouts et payout_adjustments)
-- Cela remontera toutes les donnees historiques
-- Adapter l'aggregation mensuelle pour inclure l'annee dans la cle de regroupement (ex: `202501`, `202502`, ..., `202601`) afin de ne pas fusionner les janvier de differentes annees
-- Le type de retour `monthlyData` contiendra un champ `year` en plus du champ `month`
-
-### 3. Affichage
-
-- Les KPIs (Remboursements, Prelevements, Solde Net, Lignes) afficheront les totaux globaux
-- Le graphique mensuel montrera l'evolution sur toute la periode avec des labels annee-mois
-- Le tableau par restaurant affichera les cumuls tous exercices confondus
-- Le drill-down restaurant > mois > lignes fonctionnera de la meme maniere
+Remplacer le comptage des versements (`r.count` issu de la requete `payouts`) par le nombre de **lignes eco-contribution** (`detailLines.length`) pour chaque restaurant. Renommer aussi l'en-tete de colonne en "Lignes" pour plus de clarte.
 
 ## Detail technique
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/hooks/useEcoContribution.ts` | Rendre `year` optionnel, supprimer les filtres de date quand null, adapter l'aggregation mensuelle pour inclure l'annee |
-| `src/components/analytics/EcoContributionSection.tsx` | Ajouter bouton "Historique", gerer `localYear = null`, adapter labels du graphique |
+| `src/components/analytics/EcoContributionSection.tsx` | Ligne 216 : renommer "Versements" en "Lignes" |
+| `src/components/analytics/EcoContributionSection.tsx` | Dans `RestaurantDrilldown`, remplacer `r.count` par `detailLines.length` dans la derniere cellule |
+
+### Avant
+
+```text
+<TableHead>Versements</TableHead>
+...
+<TableCell>{r.count}</TableCell>   <!-- compte TOUS les payouts -->
+```
+
+### Apres
+
+```text
+<TableHead>Lignes</TableHead>
+...
+<TableCell>{detailLines.length}</TableCell>   <!-- compte les lignes eco-contribution -->
+```
 
 ## Resultat attendu
 
-Le selecteur affichera : **Historique** | 2025 | 2026
-
-En mode Historique, l'utilisateur verra le solde net reel toutes annees confondues, ce qui permet de verifier que les remboursements 2026 compensent bien les prelevements 2025.
+- Toulouse affichera le vrai nombre de lignes eco-contribution (environ 9) au lieu de 540
+- Marseille Belsunce affichera environ 9 au lieu de 107
+- L'information sera coherente avec le drill-down mensuel
