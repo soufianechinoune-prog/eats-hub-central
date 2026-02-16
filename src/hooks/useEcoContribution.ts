@@ -60,28 +60,43 @@ export function useEcoContribution({
   const { data: detailLines, isLoading: loadingDetail } = useQuery({
     queryKey: ["eco_contribution_detail", restaurantIds, year, month],
     queryFn: async () => {
-      let query = supabase
-        .from("payout_adjustments")
-        .select("id, restaurant_id, restaurant_name, payout_reference_id, payout_date, description, amount")
-        .eq("category", "eco_contribution")
-        .gte("payout_date", `${year}-01-01`)
-        .lte("payout_date", `${year}-12-31`)
-        .order("payout_date", { ascending: false });
+      const allData: EcoDetailLine[] = [];
+      let offset = 0;
+      const batchSize = 1000;
 
-      if (restaurantIds && restaurantIds.length > 0) {
-        query = query.in("restaurant_id", restaurantIds);
+      while (true) {
+        let query = supabase
+          .from("payout_adjustments")
+          .select("id, restaurant_id, restaurant_name, payout_reference_id, payout_date, description, amount")
+          .eq("category", "eco_contribution")
+          .gte("payout_date", `${year}-01-01`)
+          .lte("payout_date", `${year}-12-31`)
+          .order("payout_date", { ascending: false });
+
+        if (restaurantIds && restaurantIds.length > 0) {
+          query = query.in("restaurant_id", restaurantIds);
+        }
+
+        if (month) {
+          const monthStr = String(month).padStart(2, "0");
+          query = query
+            .gte("payout_date", `${year}-${monthStr}-01`)
+            .lte("payout_date", `${year}-${monthStr}-31`);
+        }
+
+        const { data, error } = await query.range(offset, offset + batchSize - 1);
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allData.push(...(data as EcoDetailLine[]));
+          if (data.length < batchSize) break;
+          offset += batchSize;
+        } else {
+          break;
+        }
       }
 
-      if (month) {
-        const monthStr = String(month).padStart(2, "0");
-        query = query
-          .gte("payout_date", `${year}-${monthStr}-01`)
-          .lte("payout_date", `${year}-${monthStr}-31`);
-      }
-
-      const { data, error } = await query.limit(10000);
-      if (error) throw error;
-      return (data || []) as EcoDetailLine[];
+      return allData;
     },
   });
 
