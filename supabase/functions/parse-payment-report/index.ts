@@ -353,18 +353,32 @@ Deno.serve(async (req) => {
       console.warn('WARNING: sales_incl_vat column NOT FOUND! Unrecognized headers:', unrecognizedColumns.slice(0, 10));
     }
 
-    const { data: restaurants, error: restaurantError } = await supabase
-      .from('restaurants')
-      .select('id, name, uber_store_id');
+    // Fetch restaurants with timeout-safe limits
+    let restaurants: any[] | null = null;
+    let restaurantError: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await supabase
+        .from('restaurants')
+        .select('id, name, uber_store_id')
+        .limit(500);
+      if (!result.error) {
+        restaurants = result.data;
+        break;
+      }
+      restaurantError = result.error;
+      console.warn(`Restaurant fetch attempt ${attempt + 1} failed: ${result.error.message}`);
+      if (attempt < 2) await new Promise(r => setTimeout(r, 1000));
+    }
 
-    if (restaurantError) {
+    if (restaurantError && !restaurants) {
       throw new Error('Failed to fetch restaurants: ' + restaurantError.message);
     }
 
     // Also fetch from the multi-UUID mapping table
     const { data: uberIdMappings } = await supabase
       .from('restaurant_uber_ids')
-      .select('restaurant_id, uber_store_id');
+      .select('restaurant_id, uber_store_id')
+      .limit(500);
 
     const restaurantMap = new Map<string, { id: string; name: string }>();
     
