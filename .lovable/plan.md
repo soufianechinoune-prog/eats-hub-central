@@ -1,48 +1,44 @@
 
-# Corriger la limite de 1000 lignes sur la requete payouts
+# Ajouter une vue "Historique" (tous les ans) a l'eco-contribution
 
-## Probleme
+## Contexte
 
-La requete qui charge les donnees de la table `payouts` (utilisee pour le resume par restaurant, les KPIs et le graphique mensuel) est aussi limitee a 1000 lignes par PostgREST. Or il y a **5 207 versements** en 2025. Resultat : les restaurants dont les versements ne font pas partie des 1000 premiers (ex: Perpignan, Villeneuve La Garenne) affichent 0,00 EUR dans le resume, et les totaux sont faux.
+Actuellement, le selecteur d'annee propose uniquement 2025 et 2026. Mais un remboursement en 2026 peut concerner un prelevement de 2025, donc il manque une vue globale pour voir le solde reel toutes annees confondues.
 
-## Solution
+## Modification
 
-Appliquer la meme logique de pagination par lots de 1000 a la requete `payouts`, identique a ce qui a ete fait pour `payout_adjustments`.
+### 1. Composant `src/components/analytics/EcoContributionSection.tsx`
+
+- Ajouter un bouton "Historique" (ou "Tout") a cote des boutons 2025 / 2026
+- Utiliser `localYear` avec une valeur speciale (par exemple `null` ou `0`) pour representer "toutes les annees"
+- Changer le type de `localYear` de `number` a `number | null`
+- Quand "Historique" est selectionne, le graphique mensuel affichera les donnees par annee-mois au lieu de juste par mois
+- Adapter le label du graphique pour inclure l'annee quand on est en mode historique (ex: "Jan 25", "Fev 25", ... "Jan 26")
+
+### 2. Hook `src/hooks/useEcoContribution.ts`
+
+- Rendre le parametre `year` optionnel (`year?: number | null`)
+- Quand `year` est `null` : ne pas appliquer les filtres `.gte`/`.lte` sur `payout_date` pour les deux requetes (payouts et payout_adjustments)
+- Cela remontera toutes les donnees historiques
+- Adapter l'aggregation mensuelle pour inclure l'annee dans la cle de regroupement (ex: `202501`, `202502`, ..., `202601`) afin de ne pas fusionner les janvier de differentes annees
+- Le type de retour `monthlyData` contiendra un champ `year` en plus du champ `month`
+
+### 3. Affichage
+
+- Les KPIs (Remboursements, Prelevements, Solde Net, Lignes) afficheront les totaux globaux
+- Le graphique mensuel montrera l'evolution sur toute la periode avec des labels annee-mois
+- Le tableau par restaurant affichera les cumuls tous exercices confondus
+- Le drill-down restaurant > mois > lignes fonctionnera de la meme maniere
 
 ## Detail technique
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/hooks/useEcoContribution.ts` | Remplacer la requete unique `payouts` (lignes 33-57) par une boucle de pagination avec `.range()` |
-
-### Code actuel (problematique)
-
-```text
-const { data, error } = await query.limit(10000);  // PostgREST tronque a 1000
-```
-
-### Code cible
-
-```text
-const allData = [];
-let offset = 0;
-const batchSize = 1000;
-while (true) {
-  const { data } = await query.range(offset, offset + batchSize - 1);
-  if (data && data.length > 0) {
-    allData.push(...data);
-    if (data.length < batchSize) break;
-    offset += batchSize;
-  } else {
-    break;
-  }
-}
-return allData;
-```
+| `src/hooks/useEcoContribution.ts` | Rendre `year` optionnel, supprimer les filtres de date quand null, adapter l'aggregation mensuelle pour inclure l'annee |
+| `src/components/analytics/EcoContributionSection.tsx` | Ajouter bouton "Historique", gerer `localYear = null`, adapter labels du graphique |
 
 ## Resultat attendu
 
-- Les 5 207 versements seront charges (en 6 lots)
-- Le resume par restaurant sera exact pour TOUS les restaurants
-- Les KPIs totaux et le graphique mensuel seront corrects
-- Perpignan affichera son vrai solde (~-128 EUR) au lieu de 0
+Le selecteur affichera : **Historique** | 2025 | 2026
+
+En mode Historique, l'utilisateur verra le solde net reel toutes annees confondues, ce qui permet de verifier que les remboursements 2026 compensent bien les prelevements 2025.
