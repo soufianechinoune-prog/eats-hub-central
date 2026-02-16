@@ -3355,8 +3355,6 @@ export function AnalyticsCharts({
           onSchoolHolidaysToggle={onSchoolHolidaysToggle}
           onFootballMatchesToggle={onFootballMatchesToggle}
           granularity={granularity}
-          selectedYear={selectedYear}
-          selectedMonth={drillDownMonth}
         />
       )}
     </div>
