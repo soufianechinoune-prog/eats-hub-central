@@ -2,14 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
 
-interface EcoAggregated {
-  restaurant_id: string;
-  month: number;
-  total_refund: number;
-  total_charge: number;
-  payout_count: number;
-}
-
 interface EcoDetailLine {
   id: string;
   restaurant_id: string;
@@ -26,10 +18,9 @@ export function useEcoContribution({
   month,
 }: {
   restaurantIds?: string[];
-  year: number;
+  year: number | null;
   month?: number | null;
 }) {
-  // Aggregated data from payouts table
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
     queryKey: ["eco_contribution_payouts", restaurantIds, year, month],
     queryFn: async () => {
@@ -40,15 +31,17 @@ export function useEcoContribution({
       while (true) {
         let query = supabase
           .from("payouts")
-          .select("restaurant_id, payout_date, eco_contribution_refund, eco_contribution_charge")
-          .gte("payout_date", `${year}-01-01`)
-          .lte("payout_date", `${year}-12-31`);
+          .select("restaurant_id, payout_date, eco_contribution_refund, eco_contribution_charge");
+
+        if (year) {
+          query = query.gte("payout_date", `${year}-01-01`).lte("payout_date", `${year}-12-31`);
+        }
 
         if (restaurantIds && restaurantIds.length > 0) {
           query = query.in("restaurant_id", restaurantIds);
         }
 
-        if (month) {
+        if (month && year) {
           const monthStr = String(month).padStart(2, "0");
           query = query
             .gte("payout_date", `${year}-${monthStr}-01`)
@@ -71,7 +64,6 @@ export function useEcoContribution({
     },
   });
 
-  // Detail lines from payout_adjustments
   const { data: detailLines, isLoading: loadingDetail } = useQuery({
     queryKey: ["eco_contribution_detail", restaurantIds, year, month],
     queryFn: async () => {
@@ -84,15 +76,17 @@ export function useEcoContribution({
           .from("payout_adjustments")
           .select("id, restaurant_id, restaurant_name, payout_reference_id, payout_date, description, amount")
           .eq("category", "eco_contribution")
-          .gte("payout_date", `${year}-01-01`)
-          .lte("payout_date", `${year}-12-31`)
           .order("payout_date", { ascending: false });
+
+        if (year) {
+          query = query.gte("payout_date", `${year}-01-01`).lte("payout_date", `${year}-12-31`);
+        }
 
         if (restaurantIds && restaurantIds.length > 0) {
           query = query.in("restaurant_id", restaurantIds);
         }
 
-        if (month) {
+        if (month && year) {
           const monthStr = String(month).padStart(2, "0");
           query = query
             .gte("payout_date", `${year}-${monthStr}-01`)
@@ -115,29 +109,33 @@ export function useEcoContribution({
     },
   });
 
-  // Aggregate by month
+  // Aggregate by year-month
   const monthlyData = useMemo(() => {
     if (!payoutsData) return [];
-    const byMonth = new Map<number, { refund: number; charge: number; count: number }>();
+    const byKey = new Map<string, { year: number; month: number; refund: number; charge: number; count: number }>();
     
     for (const row of payoutsData) {
-      const m = new Date(row.payout_date).getMonth() + 1;
-      const existing = byMonth.get(m) || { refund: 0, charge: 0, count: 0 };
+      const d = new Date(row.payout_date);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const key = `${y}-${m}`;
+      const existing = byKey.get(key) || { year: y, month: m, refund: 0, charge: 0, count: 0 };
       existing.refund += Number(row.eco_contribution_refund) || 0;
       existing.charge += Number(row.eco_contribution_charge) || 0;
       existing.count += 1;
-      byMonth.set(m, existing);
+      byKey.set(key, existing);
     }
 
-    return Array.from(byMonth.entries())
-      .map(([m, d]) => ({
-        month: m,
+    return Array.from(byKey.values())
+      .map(d => ({
+        year: d.year,
+        month: d.month,
         refund: Math.round(d.refund * 100) / 100,
         charge: Math.round(d.charge * 100) / 100,
         net: Math.round((d.refund - d.charge) * 100) / 100,
         count: d.count,
       }))
-      .sort((a, b) => a.month - b.month);
+      .sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
   }, [payoutsData]);
 
   // Aggregate by restaurant
