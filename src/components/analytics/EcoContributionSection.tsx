@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Leaf, TrendingUp, TrendingDown, Hash } from "lucide-react";
+import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight } from "lucide-react";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 import { EcoContributionDetail } from "./EcoContributionDetail";
 import {
@@ -12,6 +12,8 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 
@@ -206,17 +208,13 @@ export function EcoContributionSection({
                   </TableHeader>
                   <TableBody>
                     {sortedRestaurants.map((r) => (
-                      <TableRow key={r.restaurant_id}>
-                        <TableCell className="font-medium text-sm">
-                          {restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8)}
-                        </TableCell>
-                        <TableCell className="text-right text-green-600 text-sm">{fmt(r.refund)}</TableCell>
-                        <TableCell className="text-right text-red-500 text-sm">{fmt(r.charge)}</TableCell>
-                        <TableCell className={`text-right font-medium text-sm ${r.net >= 0 ? "text-green-600" : "text-red-500"}`}>
-                          {fmt(r.net)}
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-muted-foreground">{r.count}</TableCell>
-                      </TableRow>
+                      <RestaurantDrilldown
+                        key={r.restaurant_id}
+                        restaurant={r}
+                        name={restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8)}
+                        detailLines={detailLines.filter(l => l.restaurant_id === r.restaurant_id)}
+                        fmt={fmt}
+                      />
                     ))}
                   </TableBody>
                 </Table>
@@ -233,5 +231,133 @@ export function EcoContributionSection({
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+const MONTH_NAMES = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+];
+
+interface DetailLine {
+  id: string;
+  restaurant_id: string;
+  restaurant_name: string | null;
+  payout_reference_id: string | null;
+  payout_date: string | null;
+  description: string | null;
+  amount: number;
+}
+
+function RestaurantDrilldown({
+  restaurant,
+  name,
+  detailLines,
+  fmt,
+}: {
+  restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
+  name: string;
+  detailLines: DetailLine[];
+  fmt: (v: number) => string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const monthlyBreakdown = useMemo(() => {
+    const byMonth = new Map<number, DetailLine[]>();
+    for (const line of detailLines) {
+      const m = line.payout_date ? new Date(line.payout_date).getMonth() + 1 : 0;
+      const arr = byMonth.get(m) || [];
+      arr.push(line);
+      byMonth.set(m, arr);
+    }
+    return Array.from(byMonth.entries())
+      .sort(([a], [b]) => b - a)
+      .map(([month, lines]) => {
+        const refund = lines.filter(l => Number(l.amount) >= 0).reduce((s, l) => s + Number(l.amount), 0);
+        const charge = lines.filter(l => Number(l.amount) < 0).reduce((s, l) => s + Number(l.amount), 0);
+        return {
+          month,
+          label: month === 0 ? "Sans date" : MONTH_NAMES[month - 1],
+          refund: Math.round(refund * 100) / 100,
+          charge: Math.round(charge * 100) / 100,
+          net: Math.round((refund + charge) * 100) / 100,
+          lines: lines.sort((a, b) => (a.payout_date || "").localeCompare(b.payout_date || "")),
+        };
+      });
+  }, [detailLines]);
+
+  const r = restaurant;
+
+  return (
+    <>
+      <TableRow
+        className="cursor-pointer hover:bg-muted/50"
+        onClick={() => setOpen(!open)}
+      >
+        <TableCell className="font-medium text-sm">
+          <div className="flex items-center gap-1.5">
+            <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-90")} />
+            {name}
+          </div>
+        </TableCell>
+        <TableCell className="text-right text-green-600 text-sm">{fmt(r.refund)}</TableCell>
+        <TableCell className="text-right text-red-500 text-sm">{fmt(r.charge)}</TableCell>
+        <TableCell className={cn("text-right font-medium text-sm", r.net >= 0 ? "text-green-600" : "text-red-500")}>
+          {fmt(r.net)}
+        </TableCell>
+        <TableCell className="text-right text-sm text-muted-foreground">{r.count}</TableCell>
+      </TableRow>
+      {open && monthlyBreakdown.map((mg) => (
+        <MonthDrilldownRow key={mg.month} monthGroup={mg} fmt={fmt} />
+      ))}
+    </>
+  );
+}
+
+function MonthDrilldownRow({
+  monthGroup,
+  fmt,
+}: {
+  monthGroup: { month: number; label: string; refund: number; charge: number; net: number; lines: DetailLine[] };
+  fmt: (v: number) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("fr-FR") : "-";
+
+  return (
+    <>
+      <TableRow
+        className="cursor-pointer hover:bg-muted/30 bg-muted/10"
+        onClick={() => setOpen(!open)}
+      >
+        <TableCell className="text-sm pl-10">
+          <div className="flex items-center gap-1.5">
+            <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform", open && "rotate-90")} />
+            <span className="font-medium">{monthGroup.label}</span>
+          </div>
+        </TableCell>
+        <TableCell className="text-right text-green-600 text-xs">{fmt(monthGroup.refund)}</TableCell>
+        <TableCell className="text-right text-red-500 text-xs">{fmt(monthGroup.charge)}</TableCell>
+        <TableCell className={cn("text-right font-medium text-xs", monthGroup.net >= 0 ? "text-green-600" : "text-red-500")}>
+          {fmt(monthGroup.net)}
+        </TableCell>
+        <TableCell className="text-right text-xs text-muted-foreground">{monthGroup.lines.length}</TableCell>
+      </TableRow>
+      {open && monthGroup.lines.map((line) => (
+        <TableRow key={line.id} className="bg-muted/5">
+          <TableCell className="text-xs pl-16 text-muted-foreground">
+            {fmtDate(line.payout_date)} — {line.description || "-"}
+          </TableCell>
+          <TableCell />
+          <TableCell />
+          <TableCell className={cn("text-right text-xs font-medium", Number(line.amount) >= 0 ? "text-green-600" : "text-red-500")}>
+            {fmt(Number(line.amount))}
+          </TableCell>
+          <TableCell className="text-right text-[10px] text-muted-foreground font-mono">
+            {line.payout_reference_id ? line.payout_reference_id.slice(0, 12) + "…" : "-"}
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
   );
 }
