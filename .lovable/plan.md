@@ -1,58 +1,85 @@
 
 
-# Decharger la page Overview pour eviter les timeouts en cascade
+# Corriger definitivement le chargement de la page Overview
 
-## Probleme identifie
+## Diagnostic
 
-La base de donnees fonctionne normalement (requete simple = quelques ms). Mais la page Overview (route `/`) lance **~15 requetes simultanees** au chargement :
-- 3 requetes restaurants (pinned, active, all)
-- 1 RPC `get_daily_revenue_from_orders`
-- 1 requete `customer_reviews`
-- 1 requete `orders` avec pagination (potentiellement 5+ sous-requetes)
-- 1 requete `order_history` avec pagination (potentiellement 5+ sous-requetes)
-- 1 requete `daily_order_accuracy`
-- 1 requete `hourly_availability` (jusqu'a 50,000 lignes)
-- 1 requete `success_scores`
-- 1 requete `order_errors`
+La page Overview contient une **requete monolithique** (`network-health`, lignes 314-780 de Overview.tsx) qui enchaine **12 sous-requetes** dans une seule fonction :
+1. restaurants
+2. daily sales (RPC)
+3. payouts
+4. reviews (pagine)
+5. order history (pagine)
+6. order errors
+7. daily order accuracy
+8. menu item reviews (jusqu'a 50,000 lignes)
+9. hourly availability (jusqu'a 50,000 lignes)
+10. daily conversion
+11. orders pour items (pagine)
+12. order items par chunks
 
-Toutes ces requetes se disputent les memes ressources I/O et finissent en timeout (2 min), d'ou "aucune data".
+Si UNE SEULE de ces sous-requetes depasse le timeout de 2 minutes, **toute la fonction echoue** et la page affiche zero donnee.
+
+Les modifications precedentes sur `useNetworkStats` n'ont aucun effet car la page Overview utilise sa propre requete inline, pas ce hook.
+
+## Solution : pas besoin de changer de serveur
+
+Le probleme est purement logiciel. La base de donnees repond correctement (quelques secondes par requete individuelle). C'est l'accumulation de 12 requetes sequentielles qui depasse le timeout.
 
 ## Plan d'action
 
-### 1. Echelonner les requetes dans le hook useNetworkStats
+### 1. Decouper la requete monolithique en requetes independantes
 
-Actuellement, toutes les requetes sont lancees en parallele des que `restaurantIds` est rempli. On va les **chainer** pour qu'elles se lancent les unes apres les autres :
-- **Vague 1** : restaurants + sales (RPC legere)
-- **Vague 2** : reviews + accuracy (petites tables)
-- **Vague 3** : orders payout (pagination lourde)
-- **Vague 4** : order_history + availability (pagination lourde)
+Remplacer la mega-requete `network-health` par **8 requetes React Query separees**, chacune avec son propre retry et son propre etat de chargement :
 
-Chaque vague attend que la precedente soit terminee avant de demarrer (via `enabled`).
+| Requete | Donnees | Priorite |
+|---------|---------|----------|
+| `overview-restaurants` | Restaurants epingles | Immediate |
+| `overview-sales` | CA et commandes (RPC) | Immediate |
+| `overview-reviews` | Avis clients | Apres sales |
+| `overview-prep-times` | Temps de preparation | Apres reviews |
+| `overview-accuracy` | Taux d'erreurs | Apres reviews |
+| `overview-availability` | Temps d'inactivite | Apres accuracy |
+| `overview-products` | Produits top/flop | Derniere |
+| `overview-conversion` | Donnees conversion | Derniere |
 
-### 2. Dedupliquer les requetes restaurants sur Overview
+### 2. Chargement progressif avec echelonnement
 
-La page Overview fait 3 requetes separees sur la table `restaurants` :
-- `pinned-restaurants-count` 
-- `active-restaurants-count`
-- La requete dans `network-health`
+Chaque vague attend que la precedente soit terminee (via `enabled`), exactement comme dans `useNetworkStats` :
+- **Vague 1** : restaurants + sales (ce qui permet d'afficher le CA immediatement)
+- **Vague 2** : reviews + accuracy (notes et erreurs)
+- **Vague 3** : prep times + availability (operations)
+- **Vague 4** : products + conversion (rankings)
 
-On les fusionne en **une seule requete** qui recupere tous les restaurants actifs, puis on filtre en memoire pour les pinned.
+L'utilisateur verra les donnees **apparaitre progressivement** au lieu d'attendre que tout soit charge.
 
-### 3. Ajouter une gestion d'erreur avec retry sur l'Overview
+### 3. Affichage des etats intermediaires
 
-Comme sur la page Restaurants, ajouter un affichage d'erreur avec bouton "Reessayer" au lieu d'un ecran vide.
+- Chaque section affiche un skeleton/spinner independant
+- Les sections chargees s'affichent immediatement, meme si d'autres sont encore en cours
+- En cas d'echec d'une section, seule cette section affiche une erreur (pas toute la page)
+
+### 4. Retry resilient sur chaque requete
+
+Chaque requete individuelle aura :
+- `retry: 3` avec backoff exponentiel
+- Timeout individuel de 2 min (au lieu de 2 min pour les 12 requetes combinees)
 
 ## Detail technique
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/hooks/useNetworkStats.ts` | Chainer les requetes via `enabled` : vague 1 (restaurants+sales), vague 2 (reviews+accuracy), vague 3 (orders), vague 4 (history+availability). Ajouter `retry: 3` et `retryDelay` exponentiel sur chaque requete. |
-| `src/pages/Overview.tsx` | Fusionner les 3 requetes restaurants en une seule. Ajouter un etat d'erreur visible avec bouton "Reessayer". |
+| `src/hooks/useOverviewData.ts` | **Nouveau fichier** - Hook dedie qui decoupe les 12 sous-requetes en 8 hooks React Query independants, avec echelonnement par vagues et retry exponentiel |
+| `src/pages/Overview.tsx` | Remplacer la mega-requete `network-health` (lignes 314-780) par l'appel au nouveau hook `useOverviewData`. Ajouter des skeletons par section pour le chargement progressif. Ajouter un bouton "Reessayer" global en cas d'echec |
 
-### Impact attendu
+## Impact attendu
 
-- Au lieu de 15 requetes simultanees, maximum 2-3 a la fois
-- Chaque requete individuelle aura les ressources I/O necessaires pour terminer en quelques secondes
-- Les donnees apparaitront progressivement (d'abord les restaurants, puis le CA, puis les notes, etc.)
-- En cas d'echec partiel, l'utilisateur verra un message clair
+- Au lieu d'UNE requete de 12 etapes qui echoue completement, 8 requetes independantes qui reussissent individuellement
+- Le CA et les restaurants s'affichent en quelques secondes
+- Les notes, erreurs, et rankings apparaissent progressivement
+- En cas de lenteur sur une requete, les autres sections restent visibles
+- **Aucun changement de serveur necessaire** - le meme serveur suffit largement
 
+## Pourquoi ne pas changer de serveur ?
+
+Le serveur actuel n'est pas en surcharge. Le probleme vient du fait que le code envoie 12 requetes en serie dans une seule transaction. Meme un serveur 10x plus puissant aurait le meme probleme si le code reste identique. La solution est de **paralleliser intelligemment** les requetes.
