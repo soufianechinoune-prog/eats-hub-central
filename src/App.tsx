@@ -48,7 +48,8 @@ import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 2,
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       staleTime: 30000,
       refetchOnWindowFocus: false,
     },
