@@ -1,85 +1,35 @@
 
+# Securiser l'import de l'historique des commandes contre la saturation
 
-# Corriger definitivement le chargement de la page Overview
+## Probleme
 
-## Diagnostic
+La fonction backend `parse-order-history` insere les donnees par lots de 500 lignes **sans aucune pause** entre les lots. Un fichier 2024 complet (50 000 a 200 000 lignes) genere 100 a 400 lots envoyes en rafale, ce qui sature les I/O de la base exactement comme ce qui s'est passe precedemment.
 
-La page Overview contient une **requete monolithique** (`network-health`, lignes 314-780 de Overview.tsx) qui enchaine **12 sous-requetes** dans une seule fonction :
-1. restaurants
-2. daily sales (RPC)
-3. payouts
-4. reviews (pagine)
-5. order history (pagine)
-6. order errors
-7. daily order accuracy
-8. menu item reviews (jusqu'a 50,000 lignes)
-9. hourly availability (jusqu'a 50,000 lignes)
-10. daily conversion
-11. orders pour items (pagine)
-12. order items par chunks
-
-Si UNE SEULE de ces sous-requetes depasse le timeout de 2 minutes, **toute la fonction echoue** et la page affiche zero donnee.
-
-Les modifications precedentes sur `useNetworkStats` n'ont aucun effet car la page Overview utilise sa propre requete inline, pas ce hook.
-
-## Solution : pas besoin de changer de serveur
-
-Le probleme est purement logiciel. La base de donnees repond correctement (quelques secondes par requete individuelle). C'est l'accumulation de 12 requetes sequentielles qui depasse le timeout.
+A titre de comparaison, la fonction `parse-payment-report` est deja protegee avec des lots de 50 lignes et 500ms de pause entre chaque lot.
 
 ## Plan d'action
 
-### 1. Decouper la requete monolithique en requetes independantes
+### 1. Reduire la taille des lots et ajouter un delai
 
-Remplacer la mega-requete `network-health` par **8 requetes React Query separees**, chacune avec son propre retry et son propre etat de chargement :
+Dans `supabase/functions/parse-order-history/index.ts` :
+- Reduire le batch size de **500 a 100** lignes
+- Ajouter un **delai de 300ms** entre chaque lot (via `await new Promise(resolve => setTimeout(resolve, 300))`)
+- Cela espace les ecritures et laisse la base respirer entre chaque insertion
 
-| Requete | Donnees | Priorite |
-|---------|---------|----------|
-| `overview-restaurants` | Restaurants epingles | Immediate |
-| `overview-sales` | CA et commandes (RPC) | Immediate |
-| `overview-reviews` | Avis clients | Apres sales |
-| `overview-prep-times` | Temps de preparation | Apres reviews |
-| `overview-accuracy` | Taux d'erreurs | Apres reviews |
-| `overview-availability` | Temps d'inactivite | Apres accuracy |
-| `overview-products` | Produits top/flop | Derniere |
-| `overview-conversion` | Donnees conversion | Derniere |
+### 2. Impact sur la vitesse d'import
 
-### 2. Chargement progressif avec echelonnement
+| Taille fichier | Avant (sans pause) | Apres (avec pauses) |
+|---------------|--------------------|--------------------|
+| 10 000 lignes | ~5 secondes (mais sature la base) | ~35 secondes (base stable) |
+| 50 000 lignes | ~20 secondes (saturation severe) | ~2.5 minutes (base stable) |
+| 200 000 lignes | ~60 secondes (crash probable) | ~10 minutes (base stable) |
 
-Chaque vague attend que la precedente soit terminee (via `enabled`), exactement comme dans `useNetworkStats` :
-- **Vague 1** : restaurants + sales (ce qui permet d'afficher le CA immediatement)
-- **Vague 2** : reviews + accuracy (notes et erreurs)
-- **Vague 3** : prep times + availability (operations)
-- **Vague 4** : products + conversion (rankings)
-
-L'utilisateur verra les donnees **apparaitre progressivement** au lieu d'attendre que tout soit charge.
-
-### 3. Affichage des etats intermediaires
-
-- Chaque section affiche un skeleton/spinner independant
-- Les sections chargees s'affichent immediatement, meme si d'autres sont encore en cours
-- En cas d'echec d'une section, seule cette section affiche une erreur (pas toute la page)
-
-### 4. Retry resilient sur chaque requete
-
-Chaque requete individuelle aura :
-- `retry: 3` avec backoff exponentiel
-- Timeout individuel de 2 min (au lieu de 2 min pour les 12 requetes combinees)
+L'import sera plus lent mais la base restera accessible pendant tout le processus.
 
 ## Detail technique
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/hooks/useOverviewData.ts` | **Nouveau fichier** - Hook dedie qui decoupe les 12 sous-requetes en 8 hooks React Query independants, avec echelonnement par vagues et retry exponentiel |
-| `src/pages/Overview.tsx` | Remplacer la mega-requete `network-health` (lignes 314-780) par l'appel au nouveau hook `useOverviewData`. Ajouter des skeletons par section pour le chargement progressif. Ajouter un bouton "Reessayer" global en cas d'echec |
+| `supabase/functions/parse-order-history/index.ts` | Reduire batchSize de 500 a 100. Ajouter `await new Promise(r => setTimeout(r, 300))` apres chaque upsert reussi. |
 
-## Impact attendu
-
-- Au lieu d'UNE requete de 12 etapes qui echoue completement, 8 requetes independantes qui reussissent individuellement
-- Le CA et les restaurants s'affichent en quelques secondes
-- Les notes, erreurs, et rankings apparaissent progressivement
-- En cas de lenteur sur une requete, les autres sections restent visibles
-- **Aucun changement de serveur necessaire** - le meme serveur suffit largement
-
-## Pourquoi ne pas changer de serveur ?
-
-Le serveur actuel n'est pas en surcharge. Le probleme vient du fait que le code envoie 12 requetes en serie dans une seule transaction. Meme un serveur 10x plus puissant aurait le meme probleme si le code reste identique. La solution est de **paralleliser intelligemment** les requetes.
+## Fichier unique modifie, changement minimal, impact maximal sur la stabilite.
