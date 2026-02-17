@@ -343,11 +343,11 @@ serve(async (req) => {
     // Upsert records if not dry run
     if (!dryRun && deduplicatedRecords.length > 0) {
       // Process in batches of 500
-      const batchSize = 500;
+      const batchSize = 100;
       for (let i = 0; i < deduplicatedRecords.length; i += batchSize) {
         const batch = deduplicatedRecords.slice(i, i + batchSize);
         
-        const { error: upsertError, count } = await supabase
+        const { error: upsertError } = await supabase
           .from('order_history')
           .upsert(batch, { 
             onConflict: 'restaurant_id,uber_order_id',
@@ -360,6 +360,11 @@ serve(async (req) => {
           result.stats.errors += batch.length;
         } else {
           result.stats.inserted += batch.length;
+        }
+
+        // Throttle: 300ms pause between batches to prevent DB saturation
+        if (i + batchSize < deduplicatedRecords.length) {
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
     } else if (dryRun) {
