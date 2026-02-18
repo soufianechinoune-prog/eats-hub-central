@@ -16,6 +16,7 @@ interface ParseResult {
     updated: number;
     skipped: number;
     errors: number;
+    expandedRecords?: number;
   };
   validation?: {
     dateRange: {
@@ -426,7 +427,12 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Parsed ${result.stats.totalRows} rows, prepared ${recordsToUpsert.length} records to upsert`);
+    // Track expanded records count (items split from CSV rows)
+    if (recordsToUpsert.length > result.stats.totalRows) {
+      result.stats.expandedRecords = recordsToUpsert.length;
+    }
+
+    console.log(`Parsed ${result.stats.totalRows} rows, prepared ${recordsToUpsert.length} records to upsert (expanded: ${result.stats.expandedRecords ?? 'none'})`);
 
     // Set date range
     if (minDate && maxDate) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle, Trash2, Layers, Award } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Send, History, ShieldCheck, Building2, Calendar, Download, TrendingUp, BookOpen, Megaphone, Star, MessageSquare, Clock, HelpCircle, Trash2, Layers, Award, Info } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -2144,6 +2144,20 @@ export default function ReportImport() {
                 {(() => {
                   const accounted = importResult.stats.inserted + importResult.stats.updated + importResult.stats.skipped + (importResult.stats.merged ?? 0) + importResult.stats.errors;
                   const total = importResult.stats.totalRows;
+                  const expandedRecords = (importResult.stats as any).expandedRecords;
+                  
+                  // If records were expanded (e.g. multiple items per order), show info instead of warning
+                  if (expandedRecords && expandedRecords > total) {
+                    return (
+                      <Alert className="border-blue-500 bg-blue-500/10">
+                        <Info className="h-4 w-4 text-blue-600" />
+                        <AlertDescription className="text-sm text-blue-700">
+                          ℹ️ {accounted.toLocaleString()} enregistrements créés à partir de {total.toLocaleString()} lignes (articles multiples par commande)
+                        </AlertDescription>
+                      </Alert>
+                    );
+                  }
+                  
                   if (accounted !== total && total > 0) {
                     return (
                       <Alert variant="destructive" className="border-amber-500 bg-amber-500/10">
