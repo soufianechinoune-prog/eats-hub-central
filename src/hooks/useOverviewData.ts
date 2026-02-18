@@ -140,6 +140,7 @@ function useOverviewAccuracy(
         .gte("date", startDateStr)
         .lte("date", endDateStr)
         .in("restaurant_id", restaurantIds)
+        .eq("period_type", "current")
         .range(0, 10000);
       if (error) throw error;
       return data || [];
@@ -296,7 +297,7 @@ function useOverviewErrors(
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_errors")
-        .select("restaurant_id, error_date, financial_impact")
+        .select("restaurant_id, error_date, financial_impact, uber_order_id")
         .gte("error_date", startDate.toISOString())
         .lte("error_date", endDate.toISOString())
         .in("restaurant_id", restaurantIds)
@@ -414,7 +415,17 @@ export function useOverviewData(
     const errorRate = totalOrders > 0 ? (totalErrors / totalOrders) * 100 : null;
 
     const totalIncorrectOrders = accuracyData.reduce((sum, a: any) => sum + Number(a.incorrect_orders_count || 0), 0);
-    const incorrectOrderRate = totalOrders > 0 ? (totalIncorrectOrders / totalOrders) * 100 : null;
+
+    let incorrectOrderRate: number | null = null;
+    if (totalIncorrectOrders > 0 && totalOrders > 0) {
+      incorrectOrderRate = (totalIncorrectOrders / totalOrders) * 100;
+    } else if (errorsData.length > 0 && totalOrders > 0) {
+      // Fallback: count distinct orders from order_errors
+      const distinctErrorOrderIds = new Set(
+        errorsData.map((e: any) => e.uber_order_id).filter(Boolean)
+      );
+      incorrectOrderRate = (distinctErrorOrderIds.size / totalOrders) * 100;
+    }
 
     const productApprovalRate = menuReviewsData.length > 0
       ? (menuReviewsData.filter((r: any) => r.thumb_up === 1).length / menuReviewsData.length) * 100
