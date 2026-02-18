@@ -1,35 +1,48 @@
 
+## Correction : afficher "Commandes incorrectes" sur la Vue d'ensemble
 
-## Correction de l'incohérence affichée pour les imports "Commandes incorrectes"
+### Probleme
 
-### Probleme identifie
-
-Le rapport "Commandes incorrectes" (`inaccurate_orders`) divise chaque ligne CSV en plusieurs enregistrements quand la colonne "Articles incorrects" contient plusieurs articles separes par `|`. Cela signifie que `inserted` (2 495) peut legitimement depasser `totalRows` (1 808).
-
-Le compteur de coherence dans l'UI compare `inserted + updated + skipped + errors` avec `totalRows`, ce qui declenche un faux avertissement.
+La Vue d'ensemble affiche "--" pour "Commandes incorrectes" car elle utilise uniquement la table `daily_order_accuracy`, qui est vide pour la periode selectionnee (9-15 fev). Pourtant, la table `order_errors` contient 867 commandes en erreur pour cette meme periode -- c'est cette table que la page "Comparaison Commandes incorrectes" utilise, d'ou le fait que les donnees y apparaissent.
 
 ### Solution
 
-Deux modifications complementaires :
-
-1. **Edge Function `parse-inaccurate-orders`** : Ajouter un champ `expandedRecords` dans la reponse pour indiquer combien d'enregistrements ont ete generes par l'expansion des articles (le nombre total de records crees vs le nombre de lignes CSV).
-
-2. **Frontend `ReportImport.tsx`** : Adapter le calcul de coherence pour prendre en compte cette expansion. Quand `inserted > totalRows` et que le rapport est de type `inaccurate_orders`, ne pas afficher l'alerte d'incoherence, ou afficher un message explicatif neutre (info, pas warning).
+Ajouter un fallback dans `src/hooks/useOverviewData.ts` : quand `daily_order_accuracy` ne retourne aucune donnee, utiliser `order_errors` (deja chargee via le hook `useOverviewErrors`) pour calculer le taux de commandes incorrectes.
 
 ### Details techniques
 
-**Fichier : `supabase/functions/parse-inaccurate-orders/index.ts`**
-- Ajouter `stats.expandedFromRows = result.stats.totalRows` dans la reponse
-- Modifier `totalRows` pour refleter le nombre reel de records generes (`recordsToUpsert.length`) au lieu du nombre de lignes CSV
-- Alternative plus simple : garder `totalRows` = lignes CSV et laisser le frontend gerer
+**Fichier : `src/hooks/useOverviewData.ts`** (lignes 416-417)
 
-**Fichier : `src/pages/ReportImport.tsx`** (zone du coherence check, lignes ~2144-2158)
-- Modifier la condition de coherence pour tolerer `accounted > total` quand le type de rapport genere naturellement plus de records que de lignes (inaccurate_orders, potentiellement item_issues_leaderboard)
-- Remplacer l'alerte d'avertissement par un message informatif neutre : "2 495 enregistrements crees a partir de 1 808 lignes (articles multiples par commande)"
+Code actuel :
+```
+const totalIncorrectOrders = accuracyData.reduce(
+  (sum, a) => sum + Number(a.incorrect_orders_count || 0), 0
+);
+const incorrectOrderRate = totalOrders > 0
+  ? (totalIncorrectOrders / totalOrders) * 100 : null;
+```
 
-### Approche retenue
+Nouveau code avec fallback :
+```
+const totalIncorrectOrders = accuracyData.reduce(
+  (sum, a) => sum + Number(a.incorrect_orders_count || 0), 0
+);
 
-La solution la plus propre : la fonction edge retourne un nouveau champ `stats.expandedRecords` indiquant le nombre de records generes. Le frontend utilise ce champ pour ajuster l'affichage :
-- Si `expandedRecords` existe et est superieur a `totalRows`, afficher un badge informatif bleu au lieu d'une alerte orange
-- Le message explique : "X enregistrements crees a partir de Y lignes (articles multiples par commande)"
+let incorrectOrderRate: number | null = null;
+if (totalIncorrectOrders > 0 && totalOrders > 0) {
+  incorrectOrderRate = (totalIncorrectOrders / totalOrders) * 100;
+} else if (errorsData.length > 0 && totalOrders > 0) {
+  // Fallback: count distinct orders from order_errors
+  const distinctErrorOrderIds = new Set(
+    errorsData.map((e: any) => e.uber_order_id)
+  );
+  incorrectOrderRate = (distinctErrorOrderIds.size / totalOrders) * 100;
+}
+```
 
+La logique :
+1. Si `daily_order_accuracy` contient des donnees, on les utilise (source officielle)
+2. Sinon, on compte les `uber_order_id` distincts dans `order_errors` pour eviter le double-comptage (un meme ordre peut avoir plusieurs articles en erreur)
+3. On divise par le nombre total de commandes deja calcule depuis `daily_sales_uber`
+
+Egalement, ajouter le filtre `.eq('period_type', 'current')` a la requete `useOverviewAccuracy` (ligne 139) pour eviter le double-comptage entre periodes, conformement aux regles du projet.
