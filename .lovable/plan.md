@@ -1,35 +1,35 @@
 
-# Securiser l'import de l'historique des commandes contre la saturation
 
-## Probleme
+## Correction de l'incohérence affichée pour les imports "Commandes incorrectes"
 
-La fonction backend `parse-order-history` insere les donnees par lots de 500 lignes **sans aucune pause** entre les lots. Un fichier 2024 complet (50 000 a 200 000 lignes) genere 100 a 400 lots envoyes en rafale, ce qui sature les I/O de la base exactement comme ce qui s'est passe precedemment.
+### Probleme identifie
 
-A titre de comparaison, la fonction `parse-payment-report` est deja protegee avec des lots de 50 lignes et 500ms de pause entre chaque lot.
+Le rapport "Commandes incorrectes" (`inaccurate_orders`) divise chaque ligne CSV en plusieurs enregistrements quand la colonne "Articles incorrects" contient plusieurs articles separes par `|`. Cela signifie que `inserted` (2 495) peut legitimement depasser `totalRows` (1 808).
 
-## Plan d'action
+Le compteur de coherence dans l'UI compare `inserted + updated + skipped + errors` avec `totalRows`, ce qui declenche un faux avertissement.
 
-### 1. Reduire la taille des lots et ajouter un delai
+### Solution
 
-Dans `supabase/functions/parse-order-history/index.ts` :
-- Reduire le batch size de **500 a 100** lignes
-- Ajouter un **delai de 300ms** entre chaque lot (via `await new Promise(resolve => setTimeout(resolve, 300))`)
-- Cela espace les ecritures et laisse la base respirer entre chaque insertion
+Deux modifications complementaires :
 
-### 2. Impact sur la vitesse d'import
+1. **Edge Function `parse-inaccurate-orders`** : Ajouter un champ `expandedRecords` dans la reponse pour indiquer combien d'enregistrements ont ete generes par l'expansion des articles (le nombre total de records crees vs le nombre de lignes CSV).
 
-| Taille fichier | Avant (sans pause) | Apres (avec pauses) |
-|---------------|--------------------|--------------------|
-| 10 000 lignes | ~5 secondes (mais sature la base) | ~35 secondes (base stable) |
-| 50 000 lignes | ~20 secondes (saturation severe) | ~2.5 minutes (base stable) |
-| 200 000 lignes | ~60 secondes (crash probable) | ~10 minutes (base stable) |
+2. **Frontend `ReportImport.tsx`** : Adapter le calcul de coherence pour prendre en compte cette expansion. Quand `inserted > totalRows` et que le rapport est de type `inaccurate_orders`, ne pas afficher l'alerte d'incoherence, ou afficher un message explicatif neutre (info, pas warning).
 
-L'import sera plus lent mais la base restera accessible pendant tout le processus.
+### Details techniques
 
-## Detail technique
+**Fichier : `supabase/functions/parse-inaccurate-orders/index.ts`**
+- Ajouter `stats.expandedFromRows = result.stats.totalRows` dans la reponse
+- Modifier `totalRows` pour refleter le nombre reel de records generes (`recordsToUpsert.length`) au lieu du nombre de lignes CSV
+- Alternative plus simple : garder `totalRows` = lignes CSV et laisser le frontend gerer
 
-| Fichier | Modification |
-|---------|-------------|
-| `supabase/functions/parse-order-history/index.ts` | Reduire batchSize de 500 a 100. Ajouter `await new Promise(r => setTimeout(r, 300))` apres chaque upsert reussi. |
+**Fichier : `src/pages/ReportImport.tsx`** (zone du coherence check, lignes ~2144-2158)
+- Modifier la condition de coherence pour tolerer `accounted > total` quand le type de rapport genere naturellement plus de records que de lignes (inaccurate_orders, potentiellement item_issues_leaderboard)
+- Remplacer l'alerte d'avertissement par un message informatif neutre : "2 495 enregistrements crees a partir de 1 808 lignes (articles multiples par commande)"
 
-## Fichier unique modifie, changement minimal, impact maximal sur la stabilite.
+### Approche retenue
+
+La solution la plus propre : la fonction edge retourne un nouveau champ `stats.expandedRecords` indiquant le nombre de records generes. Le frontend utilise ce champ pour ajuster l'affichage :
+- Si `expandedRecords` existe et est superieur a `totalRows`, afficher un badge informatif bleu au lieu d'une alerte orange
+- Le message explique : "X enregistrements crees a partir de Y lignes (articles multiples par commande)"
+
