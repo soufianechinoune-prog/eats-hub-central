@@ -1,48 +1,30 @@
 
-## Correction : afficher "Commandes incorrectes" sur la Vue d'ensemble
+
+## Correction : lignes de resume non comptabilisees dans parse-item-report
 
 ### Probleme
 
-La Vue d'ensemble affiche "--" pour "Commandes incorrectes" car elle utilise uniquement la table `daily_order_accuracy`, qui est vide pour la periode selectionnee (9-15 fev). Pourtant, la table `order_errors` contient 867 commandes en erreur pour cette meme periode -- c'est cette table que la page "Comparaison Commandes incorrectes" utilise, d'ou le fait que les donnees y apparaissent.
+Le rapport "Informations de paiement (articles)" contient deux types de lignes CSV :
+- **Lignes article** : avec un nom d'article dans la colonne "Nom du plat" (116 667 lignes)
+- **Lignes resume** : lignes de commande sans nom d'article, contenant juste l'ID commande et le flux (71 318 lignes)
+
+La edge function `parse-item-report` ignore correctement les lignes resume (variable `skippedRows`, ligne 255) mais ne les inclut **pas** dans les statistiques retournees. Elle retourne `skipped: orphanCount` au lieu de `skipped: orphanCount + skippedRows`.
+
+Le frontend, lui, calcule `totalRows = dataLines.length` (toutes les lignes CSV = 187 985), ce qui cree l'incoherence :
+- Comptabilisees : 116 667 (inserted) + 0 (updated) + 0 (skipped) + 0 (errors) = 116 667
+- Total : 187 985
+- Ecart : 71 318 lignes non comptabilisees
 
 ### Solution
 
-Ajouter un fallback dans `src/hooks/useOverviewData.ts` : quand `daily_order_accuracy` ne retourne aucune donnee, utiliser `order_errors` (deja chargee via le hook `useOverviewErrors`) pour calculer le taux de commandes incorrectes.
+Ajouter `skippedRows` au compteur `skipped` dans les deux reponses de la edge function (dry run et import reel).
 
 ### Details techniques
 
-**Fichier : `src/hooks/useOverviewData.ts`** (lignes 416-417)
+**Fichier : `supabase/functions/parse-item-report/index.ts`**
 
-Code actuel :
-```
-const totalIncorrectOrders = accuracyData.reduce(
-  (sum, a) => sum + Number(a.incorrect_orders_count || 0), 0
-);
-const incorrectOrderRate = totalOrders > 0
-  ? (totalIncorrectOrders / totalOrders) * 100 : null;
-```
+1. **Reponse dry run** (ligne 489) : remplacer `skipped: orphanCount` par `skipped: orphanCount + skippedRows`
 
-Nouveau code avec fallback :
-```
-const totalIncorrectOrders = accuracyData.reduce(
-  (sum, a) => sum + Number(a.incorrect_orders_count || 0), 0
-);
+2. **Reponse import reel** (ligne 595) : remplacer `skipped: orphanCount` par `skipped: orphanCount + skippedRows`
 
-let incorrectOrderRate: number | null = null;
-if (totalIncorrectOrders > 0 && totalOrders > 0) {
-  incorrectOrderRate = (totalIncorrectOrders / totalOrders) * 100;
-} else if (errorsData.length > 0 && totalOrders > 0) {
-  // Fallback: count distinct orders from order_errors
-  const distinctErrorOrderIds = new Set(
-    errorsData.map((e: any) => e.uber_order_id)
-  );
-  incorrectOrderRate = (distinctErrorOrderIds.size / totalOrders) * 100;
-}
-```
-
-La logique :
-1. Si `daily_order_accuracy` contient des donnees, on les utilise (source officielle)
-2. Sinon, on compte les `uber_order_id` distincts dans `order_errors` pour eviter le double-comptage (un meme ordre peut avoir plusieurs articles en erreur)
-3. On divise par le nombre total de commandes deja calcule depuis `daily_sales_uber`
-
-Egalement, ajouter le filtre `.eq('period_type', 'current')` a la requete `useOverviewAccuracy` (ligne 139) pour eviter le double-comptage entre periodes, conformement aux regles du projet.
+Cela garantit que inserted + skipped + errors = totalRows cote frontend, eliminant le faux avertissement d'incoherence.
