@@ -1,30 +1,53 @@
 
 
-## Correction : lignes de resume non comptabilisees dans parse-item-report
+## Tri interactif dans la vue "Mois"
 
 ### Probleme
 
-Le rapport "Informations de paiement (articles)" contient deux types de lignes CSV :
-- **Lignes article** : avec un nom d'article dans la colonne "Nom du plat" (116 667 lignes)
-- **Lignes resume** : lignes de commande sans nom d'article, contenant juste l'ID commande et le flux (71 318 lignes)
-
-La edge function `parse-item-report` ignore correctement les lignes resume (variable `skippedRows`, ligne 255) mais ne les inclut **pas** dans les statistiques retournees. Elle retourne `skipped: orphanCount` au lieu de `skipped: orphanCount + skippedRows`.
-
-Le frontend, lui, calcule `totalRows = dataLines.length` (toutes les lignes CSV = 187 985), ce qui cree l'incoherence :
-- Comptabilisees : 116 667 (inserted) + 0 (updated) + 0 (skipped) + 0 (errors) = 116 667
-- Total : 187 985
-- Ecart : 71 318 lignes non comptabilisees
+Dans la vue "Mois" du Comparatif de Rentabilite, les colonnes sont cliquables (tri) mais les restaurants a l'interieur de chaque mois sont toujours tries par rentabilite decroissante. Le tri selectionne par l'utilisateur (CA, Commission, Promos, etc.) n'est pas applique aux lignes restaurant dans les accordeons mensuels.
 
 ### Solution
 
-Ajouter `skippedRows` au compteur `skipped` dans les deux reponses de la edge function (dry run et import reel).
+Appliquer la logique de tri (`sortColumn` / `sortDirection`) aux `restaurantData` de chaque mois, au lieu du tri fixe `.sort((a, b) => b.profitability - a.profitability)`.
 
 ### Details techniques
 
-**Fichier : `supabase/functions/parse-item-report/index.ts`**
+**Fichier : `src/components/analytics/ProfitabilityComparisonTable.tsx`**
 
-1. **Reponse dry run** (ligne 489) : remplacer `skipped: orphanCount` par `skipped: orphanCount + skippedRows`
+**Ligne 545** - Remplacer le tri fixe des `restaurantData` par un tri dynamique base sur `sortColumn` et `sortDirection` :
 
-2. **Reponse import reel** (ligne 595) : remplacer `skipped: orphanCount` par `skipped: orphanCount + skippedRows`
+```typescript
+// Avant (ligne 545)
+.sort((a, b) => b.profitability - a.profitability);
 
-Cela garantit que inserted + skipped + errors = totalRows cote frontend, eliminant le faux avertissement d'incoherence.
+// Apres
+.sort((a, b) => {
+  let comparison = 0;
+  switch (sortColumn) {
+    case 'sales':
+      comparison = a.sales - b.sales;
+      break;
+    case 'profitability':
+      comparison = a.profitability - b.profitability;
+      break;
+    case 'commission':
+      comparison = a.uberFeeRate - b.uberFeeRate;
+      break;
+    case 'promo':
+      comparison = a.promoRate - b.promoRate;
+      break;
+    case 'refund':
+      comparison = a.refundRate - b.refundRate;
+      break;
+    case 'payout':
+      comparison = a.totalPayout - b.totalPayout;
+      break;
+    default:
+      comparison = a.profitability - b.profitability;
+  }
+  return sortDirection === 'asc' ? comparison : -comparison;
+});
+```
+
+Il faut egalement ajouter `sortColumn` et `sortDirection` aux dependances du `useMemo` de `monthGroups` (ligne ~575) pour que le tri se recalcule quand l'utilisateur clique sur un en-tete de colonne.
+
