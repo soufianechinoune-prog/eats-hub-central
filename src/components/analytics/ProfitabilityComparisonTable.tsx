@@ -542,7 +542,32 @@ export function ProfitabilityComparisonTable({
               advertisingAmount: agg.advertisingAmount,
             };
           })
-          .sort((a, b) => b.profitability - a.profitability);
+          .sort((a, b) => {
+            let comparison = 0;
+            switch (sortColumn) {
+              case 'sales':
+                comparison = a.sales - b.sales;
+                break;
+              case 'profitability':
+                comparison = a.profitability - b.profitability;
+                break;
+              case 'commission':
+                comparison = a.uberFeeRate - b.uberFeeRate;
+                break;
+              case 'promo':
+                comparison = a.promoRate - b.promoRate;
+                break;
+              case 'refund':
+                comparison = a.refundRate - b.refundRate;
+                break;
+              case 'payout':
+                comparison = a.totalPayout - b.totalPayout;
+                break;
+              default:
+                comparison = a.profitability - b.profitability;
+            }
+            return sortDirection === 'asc' ? comparison : -comparison;
+          });
         
         return {
           monthKey: key,
@@ -569,7 +594,7 @@ export function ProfitabilityComparisonTable({
         if (a.year !== b.year) return b.year - a.year;
         return b.monthNumber - a.monthNumber;
       });
-  }, [comparisonData, payouts, profitabilityBase]);
+  }, [comparisonData, payouts, profitabilityBase, sortColumn, sortDirection]);
   
   // Calculate averages for comparison
   const averages = useMemo(() => {
