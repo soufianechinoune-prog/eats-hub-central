@@ -542,8 +542,10 @@ serve(async (req) => {
     const recordsToUpsert = Array.from(recordsMap.values());
     console.log(`Prepared ${recordsToUpsert.length} unique records for batch upsert, ${orphanCount} orphans, ${duplicateCount} duplicates merged`);
 
-    // Batch upsert by lots of 100
-    const BATCH_SIZE = 100;
+    // Batch upsert by lots of 50 with retry mechanism
+    const BATCH_SIZE = 50;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY_MS = 2000;
     let insertedCount = 0;
     let updatedCount = 0;
     let errorCount = 0;
@@ -553,20 +555,40 @@ serve(async (req) => {
       const batch = recordsToUpsert.slice(i, i + BATCH_SIZE);
       const batchIndex = Math.floor(i / BATCH_SIZE);
       
-      const { error: upsertError, count } = await supabase
-        .from('order_items')
-        .upsert(batch, { 
-          onConflict: 'order_id,item_id',
-          ignoreDuplicates: false 
-        });
+      let success = false;
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const { error: upsertError } = await supabase
+          .from('order_items')
+          .upsert(batch, { 
+            onConflict: 'order_id,item_id',
+            ignoreDuplicates: false 
+          });
 
-      if (upsertError) {
-        console.error(`Batch ${batchIndex} error:`, upsertError.message);
-        errorCount += batch.length;
-        errors.push({ batch: batchIndex, error: upsertError.message });
-      } else {
-        insertedCount += batch.length;
-        console.log(`Batch ${batchIndex}: ${batch.length} items upserted`);
+        if (!upsertError) {
+          insertedCount += batch.length;
+          if (attempt > 1) {
+            console.log(`Batch ${batchIndex}: ${batch.length} items upserted (retry ${attempt})`);
+          } else {
+            console.log(`Batch ${batchIndex}: ${batch.length} items upserted`);
+          }
+          success = true;
+          break;
+        }
+
+        console.warn(`Batch ${batchIndex} attempt ${attempt}/${MAX_RETRIES} failed: ${upsertError.message}`);
+        
+        if (attempt < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+        } else {
+          console.error(`Batch ${batchIndex} failed after ${MAX_RETRIES} attempts`);
+          errorCount += batch.length;
+          errors.push({ batch: batchIndex, error: upsertError.message });
+        }
+      }
+
+      // Small delay between batches to reduce DB pressure
+      if (success && i + BATCH_SIZE < recordsToUpsert.length) {
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
     }
 
