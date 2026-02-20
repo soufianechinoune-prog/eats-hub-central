@@ -51,27 +51,40 @@ export default function ImportHistory() {
   const [imports, setImports] = useState<CsvImport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>("all");
+  const [hasError, setHasError] = useState(false);
 
   const fetchImports = async () => {
     setIsLoading(true);
+    setHasError(false);
     try {
       let query = supabase
         .from("csv_imports")
         .select("*")
-        .order("imported_at", { ascending: false });
+        .order("imported_at", { ascending: false })
+        .limit(100);
 
       if (filterType !== "all") {
         query = query.eq("report_type", filterType);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      let { data, error } = await query;
+      
+      if (error) {
+        // Retry once after 2s on timeout
+        console.warn("Initial fetch failed, retrying in 2s...", error);
+        await new Promise(r => setTimeout(r, 2000));
+        const { data: retryData, error: retryError } = await query;
+        if (retryError) throw retryError;
+        data = retryData;
+      }
+      
       setImports(data || []);
     } catch (error: any) {
       console.error("Error fetching imports:", error);
+      setHasError(true);
       toast({
         title: "Erreur",
-        description: "Impossible de charger l'historique",
+        description: "Impossible de charger l'historique. La base de données est peut-être surchargée.",
         variant: "destructive",
       });
     } finally {
@@ -205,7 +218,17 @@ export default function ImportHistory() {
         </div>
       </CardHeader>
       <CardContent>
-        {imports.length === 0 ? (
+        {hasError ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-amber-500" />
+            <p className="font-medium text-foreground">Impossible de charger l'historique</p>
+            <p className="text-sm mb-4">La base de données est temporairement surchargée</p>
+            <Button variant="outline" onClick={fetchImports}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Réessayer
+            </Button>
+          </div>
+        ) : imports.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>Aucun import enregistré</p>
