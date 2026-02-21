@@ -339,7 +339,7 @@ serve(async (req) => {
     console.log(`Looking up ${uniqueFlowIds.length} unique flow IDs...`);
 
     // Chunk the flow IDs to avoid URL too long errors
-    const LOOKUP_CHUNK_SIZE = 200;
+    const LOOKUP_CHUNK_SIZE = 100;
     const flowIdChunks: string[][] = [];
     for (let j = 0; j < uniqueFlowIds.length; j += LOOKUP_CHUNK_SIZE) {
       flowIdChunks.push(uniqueFlowIds.slice(j, j + LOOKUP_CHUNK_SIZE));
@@ -349,19 +349,29 @@ serve(async (req) => {
 
     let allExistingOrders: { id: string; uber_flow_id: string; uber_order_id: string; restaurant_id: string }[] = [];
     for (const chunk of flowIdChunks) {
-      const { data: chunkOrders, error: chunkError } = await supabase
-        .from('orders')
-        .select('id, uber_flow_id, uber_order_id, restaurant_id')
-        .in('uber_flow_id', chunk);
-      
-      if (chunkError) {
-        console.error('Error fetching orders chunk:', chunkError);
-        continue;
+      let chunkSuccess = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { data: chunkOrders, error: chunkError } = await supabase
+          .from('orders')
+          .select('id, uber_flow_id, uber_order_id, restaurant_id')
+          .in('uber_flow_id', chunk);
+        
+        if (!chunkError && chunkOrders) {
+          allExistingOrders = allExistingOrders.concat(chunkOrders);
+          chunkSuccess = true;
+          break;
+        }
+        
+        console.warn(`Lookup chunk attempt ${attempt}/3 failed: ${chunkError?.message}`);
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, 2000 * attempt));
+        }
       }
-      
-      if (chunkOrders) {
-        allExistingOrders = allExistingOrders.concat(chunkOrders);
+      if (!chunkSuccess) {
+        console.error('Lookup chunk failed after 3 attempts, continuing...');
       }
+      // Small delay between lookup chunks
+      await new Promise(r => setTimeout(r, 100));
     }
 
     console.log(`Found ${allExistingOrders.length} matching orders from chunks`);
@@ -545,7 +555,7 @@ serve(async (req) => {
     // Batch upsert with parallel processing (2 concurrent batches)
     const BATCH_SIZE = 50;
     const CONCURRENCY = 2;
-    const INTER_BATCH_DELAY = 150;
+    const INTER_BATCH_DELAY = 250;
     let insertedCount = 0;
     let updatedCount = 0;
     let errorCount = 0;
