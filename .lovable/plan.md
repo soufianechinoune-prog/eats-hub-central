@@ -1,51 +1,91 @@
 
 
-## Correction : Historique des imports ne charge pas (timeout DB)
+## Accelerer l'import des articles sans surcharger la base
 
-### Diagnostic
+### Probleme actuel
 
-La table `csv_imports` contient 996 lignes, ce qui est raisonnable. Le timeout survient parce que la base de donnees est encore sous pression apres le gros import d'articles (batches d'upsert sur `order_items` avec retries). Pendant cette periode de charge, meme les petites requetes peuvent depasser le delai.
+L'import traite les batches de 50 articles **un par un** avec 300ms de pause entre chaque. Pour un fichier de ~85k lignes, cela prend beaucoup de temps.
 
-### Corrections
+### Optimisations
 
-**Fichier : `src/components/reports/ImportHistory.tsx`**
+**Fichier : `supabase/functions/parse-item-report/index.ts`**
 
-1. **Ajouter un `.limit(100)`** a la requete pour ne charger que les 100 derniers imports (largement suffisant pour l'historique visible). Cela reduit la charge et accelere la reponse.
+#### 1. Paralleliser les upserts (2 batches simultanes)
 
-2. **Ajouter un retry automatique** cote frontend : si la requete echoue (timeout), retenter une fois apres 2 secondes avant d'afficher l'erreur.
+Au lieu de traiter batch 1, attendre, batch 2, attendre... on lance 2 batches en parallele. Cela double le debit tout en restant sous le seuil de connexions.
 
-3. **Afficher un message d'erreur avec bouton "Reessayer"** au lieu d'un ecran vide quand la requete echoue, pour que l'utilisateur puisse retenter manuellement.
+```
+Avant:  [batch1] --300ms-- [batch2] --300ms-- [batch3] --300ms-- [batch4]
+Apres:  [batch1 + batch2] --150ms-- [batch3 + batch4] --150ms-- ...
+```
+
+#### 2. Augmenter la taille des chunks de lecture (flow ID lookup)
+
+Passer de 50 a 200 pour la recherche des commandes parentes. Les lectures sont legeres et ne bloquent pas la base.
+
+- Ligne 342 : `CHUNK_SIZE = 50` -> `LOOKUP_CHUNK_SIZE = 200`
+- Appliquer aux lookups de flow IDs et d'items existants (dry run)
+
+#### 3. Reduire le delai inter-batch
+
+Passer de 300ms a 150ms entre les paires de batches paralleles.
 
 ### Details techniques
 
-```typescript
-// Ligne 61 - Ajouter un limit
-.order("imported_at", { ascending: false })
-.limit(100);
-```
+**Changement principal (lignes 554-593)** - Remplacer la boucle sequentielle par une boucle parallele :
 
 ```typescript
-// Ajouter un retry automatique dans fetchImports
-const { data, error } = await query;
-if (error) {
-  // Retry once after 2s on timeout
-  await new Promise(r => setTimeout(r, 2000));
-  const { data: retryData, error: retryError } = await query;
-  if (retryError) throw retryError;
-  setImports(retryData || []);
-  return;
+const CONCURRENCY = 2;
+const INTER_BATCH_DELAY = 150;
+
+for (let i = 0; i < recordsToUpsert.length; i += BATCH_SIZE * CONCURRENCY) {
+  const batchPromises = [];
+  
+  for (let c = 0; c < CONCURRENCY; c++) {
+    const start = i + c * BATCH_SIZE;
+    if (start >= recordsToUpsert.length) break;
+    const batch = recordsToUpsert.slice(start, start + BATCH_SIZE);
+    batchPromises.push(upsertWithRetry(supabase, batch, Math.floor(start / BATCH_SIZE)));
+  }
+  
+  const results = await Promise.all(batchPromises);
+  // aggregate counts...
+  
+  if (i + BATCH_SIZE * CONCURRENCY < recordsToUpsert.length) {
+    await new Promise(resolve => setTimeout(resolve, INTER_BATCH_DELAY));
+  }
 }
 ```
 
+**Changement lookup (ligne 342)** :
 ```typescript
-// Ajouter un etat d'erreur pour afficher un bouton "Reessayer"
-const [hasError, setHasError] = useState(false);
+const LOOKUP_CHUNK_SIZE = 200; // was 50
 ```
 
-Avec un rendu conditionnel affichant un message d'erreur et un bouton de retry quand `hasError` est vrai.
+**Extraire la logique retry dans une fonction helper** pour garder le code lisible :
+```typescript
+async function upsertWithRetry(supabase, batch, batchIndex, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const { error } = await supabase
+      .from('order_items')
+      .upsert(batch, { onConflict: 'order_id,item_id', ignoreDuplicates: false });
+    if (!error) return { success: true, count: batch.length };
+    if (attempt < maxRetries) {
+      await new Promise(r => setTimeout(r, 2000 * attempt));
+    }
+  }
+  return { success: false, count: batch.length };
+}
+```
 
-### Resultat attendu
+### Gains estimes
 
-- Chargement plus rapide grace au limit
-- Retry automatique en cas de timeout temporaire
-- Message clair avec bouton "Reessayer" si la DB est toujours surchargee
+- Debit upsert : x2 (2 batches en parallele)
+- Lookups : x4 plus rapide (chunks 200 vs 50)
+- Delai total reduit de moitie environ
+- Risque de surcharge : faible (2 connexions simultanees reste conservateur)
+
+### Fichiers modifies
+
+- `supabase/functions/parse-item-report/index.ts`
+
