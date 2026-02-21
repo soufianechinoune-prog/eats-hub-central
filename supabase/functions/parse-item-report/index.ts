@@ -338,14 +338,14 @@ serve(async (req) => {
     const uniqueFlowIds = [...new Set(itemsToUpsert.map(item => item.uber_flow_id).filter(Boolean))];
     console.log(`Looking up ${uniqueFlowIds.length} unique flow IDs...`);
 
-    // Chunk the flow IDs to avoid URL too long errors (reduced from 500 to 50)
-    const CHUNK_SIZE = 50;
+    // Chunk the flow IDs to avoid URL too long errors
+    const LOOKUP_CHUNK_SIZE = 200;
     const flowIdChunks: string[][] = [];
-    for (let j = 0; j < uniqueFlowIds.length; j += CHUNK_SIZE) {
-      flowIdChunks.push(uniqueFlowIds.slice(j, j + CHUNK_SIZE));
+    for (let j = 0; j < uniqueFlowIds.length; j += LOOKUP_CHUNK_SIZE) {
+      flowIdChunks.push(uniqueFlowIds.slice(j, j + LOOKUP_CHUNK_SIZE));
     }
 
-    console.log(`Fetching orders in ${flowIdChunks.length} chunks of max ${CHUNK_SIZE}...`);
+    console.log(`Fetching orders in ${flowIdChunks.length} chunks of max ${LOOKUP_CHUNK_SIZE}...`);
 
     let allExistingOrders: { id: string; uber_flow_id: string; uber_order_id: string; restaurant_id: string }[] = [];
     for (const chunk of flowIdChunks) {
@@ -429,8 +429,8 @@ serve(async (req) => {
 
       if (orderIds.length > 0) {
         const orderIdChunks: string[][] = [];
-        for (let j = 0; j < orderIds.length; j += CHUNK_SIZE) {
-          orderIdChunks.push(orderIds.slice(j, j + CHUNK_SIZE));
+        for (let j = 0; j < orderIds.length; j += LOOKUP_CHUNK_SIZE) {
+          orderIdChunks.push(orderIds.slice(j, j + LOOKUP_CHUNK_SIZE));
         }
 
         for (const chunk of orderIdChunks) {
@@ -542,21 +542,18 @@ serve(async (req) => {
     const recordsToUpsert = Array.from(recordsMap.values());
     console.log(`Prepared ${recordsToUpsert.length} unique records for batch upsert, ${orphanCount} orphans, ${duplicateCount} duplicates merged`);
 
-    // Batch upsert by lots of 50 with retry mechanism
+    // Batch upsert with parallel processing (2 concurrent batches)
     const BATCH_SIZE = 50;
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY_MS = 2000;
+    const CONCURRENCY = 2;
+    const INTER_BATCH_DELAY = 150;
     let insertedCount = 0;
     let updatedCount = 0;
     let errorCount = 0;
     const errors: { batch: number; error: string }[] = [];
 
-    for (let i = 0; i < recordsToUpsert.length; i += BATCH_SIZE) {
-      const batch = recordsToUpsert.slice(i, i + BATCH_SIZE);
-      const batchIndex = Math.floor(i / BATCH_SIZE);
-      
-      let success = false;
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    // Helper: upsert a single batch with retry
+    async function upsertWithRetry(batch: any[], batchIndex: number, maxRetries = 3): Promise<{ success: boolean; count: number }> {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
         const { error: upsertError } = await supabase
           .from('order_items')
           .upsert(batch, { 
@@ -565,30 +562,51 @@ serve(async (req) => {
           });
 
         if (!upsertError) {
-          insertedCount += batch.length;
           if (attempt > 1) {
             console.log(`Batch ${batchIndex}: ${batch.length} items upserted (retry ${attempt})`);
           } else {
             console.log(`Batch ${batchIndex}: ${batch.length} items upserted`);
           }
-          success = true;
-          break;
+          return { success: true, count: batch.length };
         }
 
-        console.warn(`Batch ${batchIndex} attempt ${attempt}/${MAX_RETRIES} failed: ${upsertError.message}`);
+        console.warn(`Batch ${batchIndex} attempt ${attempt}/${maxRetries} failed: ${upsertError.message}`);
         
-        if (attempt < MAX_RETRIES) {
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
         } else {
-          console.error(`Batch ${batchIndex} failed after ${MAX_RETRIES} attempts`);
-          errorCount += batch.length;
+          console.error(`Batch ${batchIndex} failed after ${maxRetries} attempts`);
           errors.push({ batch: batchIndex, error: upsertError.message });
+          return { success: false, count: batch.length };
+        }
+      }
+      return { success: false, count: 0 };
+    }
+
+    // Process batches in pairs (CONCURRENCY = 2)
+    for (let i = 0; i < recordsToUpsert.length; i += BATCH_SIZE * CONCURRENCY) {
+      const batchPromises: Promise<{ success: boolean; count: number }>[] = [];
+      
+      for (let c = 0; c < CONCURRENCY; c++) {
+        const start = i + c * BATCH_SIZE;
+        if (start >= recordsToUpsert.length) break;
+        const batch = recordsToUpsert.slice(start, start + BATCH_SIZE);
+        const batchIndex = Math.floor(start / BATCH_SIZE);
+        batchPromises.push(upsertWithRetry(batch, batchIndex));
+      }
+      
+      const results = await Promise.all(batchPromises);
+      for (const result of results) {
+        if (result.success) {
+          insertedCount += result.count;
+        } else {
+          errorCount += result.count;
         }
       }
 
-      // Small delay between batches to reduce DB pressure
-      if (success && i + BATCH_SIZE < recordsToUpsert.length) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+      // Small delay between batch pairs to reduce DB pressure
+      if (i + BATCH_SIZE * CONCURRENCY < recordsToUpsert.length) {
+        await new Promise(resolve => setTimeout(resolve, INTER_BATCH_DELAY));
       }
     }
 
