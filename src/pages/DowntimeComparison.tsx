@@ -316,11 +316,11 @@ const DowntimeComparison = () => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
   }, [dateRange]);
 
-  const imperfectCount = useMemo(() => restaurantStats.filter(s => s.availabilityRate < 100).length, [restaurantStats]);
+  const imperfectCount = useMemo(() => restaurantStats.filter(s => Math.round(s.availabilityRate * 10) / 10 < 100).length, [restaurantStats]);
 
   // Unified export handler
   const handleExport = (type: "pdf" | "excel", onlyImperfect: boolean) => {
-    const stats = onlyImperfect ? restaurantStats.filter(s => s.availabilityRate < 100) : restaurantStats;
+    const stats = onlyImperfect ? restaurantStats.filter(s => Math.round(s.availabilityRate * 10) / 10 < 100) : restaurantStats;
     if (stats.length === 0) return;
 
     const totalDowntime = stats.reduce((sum, s) => sum + s.totalOfflineMinutes, 0);
