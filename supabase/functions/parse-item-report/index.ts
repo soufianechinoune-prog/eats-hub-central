@@ -339,7 +339,7 @@ serve(async (req) => {
     console.log(`Looking up ${uniqueFlowIds.length} unique flow IDs...`);
 
     // Chunk the flow IDs to avoid URL too long errors
-    const LOOKUP_CHUNK_SIZE = 50;
+    const LOOKUP_CHUNK_SIZE = 20;
     const flowIdChunks: string[][] = [];
     for (let j = 0; j < uniqueFlowIds.length; j += LOOKUP_CHUNK_SIZE) {
       flowIdChunks.push(uniqueFlowIds.slice(j, j + LOOKUP_CHUNK_SIZE));
@@ -371,7 +371,7 @@ serve(async (req) => {
         console.error('Lookup chunk failed after 3 attempts, continuing...');
       }
       // Delay between lookup chunks to reduce DB pressure
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 500));
     }
 
     console.log(`Found ${allExistingOrders.length} matching orders from chunks`);
