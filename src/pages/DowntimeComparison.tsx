@@ -8,7 +8,7 @@ import { ArrowLeft, FileDown, FileSpreadsheet, AlertTriangle } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DowntimeRankingBars } from "@/components/compare/DowntimeRankingBars";
+import { DowntimeRankingBars, type SortDirection } from "@/components/compare/DowntimeRankingBars";
 import { DowntimeInsightsSection } from "@/components/compare/DowntimeInsightsSection";
 import { DowntimeHeatmapGrid } from "@/components/compare/DowntimeHeatmapGrid";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
@@ -54,6 +54,9 @@ const DowntimeComparison = () => {
   const [isNetworkView, setIsNetworkView] = useState(
     () => storedState?.isNetworkView ?? false
   );
+  const [sortDirection, setSortDirection] = useState<SortDirection>(
+    () => storedState?.sortDirection || "desc"
+  );
 
   const { exportPdf, exportExcel, isExporting } = useDowntimeExport();
 
@@ -83,9 +86,10 @@ const DowntimeComparison = () => {
         to: customDateRange.to?.toISOString(),
       } : undefined,
       isNetworkView,
+      sortDirection,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [periodMode, selectedYear, selectedMonth, customDateRange, isNetworkView]);
+  }, [periodMode, selectedYear, selectedMonth, customDateRange, isNetworkView, sortDirection]);
 
   // Calculate date range based on period mode
   const dateRange = useMemo(() => {
@@ -292,6 +296,7 @@ const DowntimeComparison = () => {
       period: periodLabel,
       dateRange,
       stats: restaurantStats,
+      sortDirection,
       insights: {
         bestPerformer: { name: bestPerformer.name, downtime: bestPerformer.totalOfflineMinutes },
         worstPerformer: { name: worstPerformer.name, downtime: worstPerformer.totalOfflineMinutes },
@@ -316,6 +321,7 @@ const DowntimeComparison = () => {
       period: periodLabel,
       dateRange,
       stats: restaurantStats,
+      sortDirection,
       insights: {
         bestPerformer: { name: bestPerformer.name, downtime: bestPerformer.totalOfflineMinutes },
         worstPerformer: { name: worstPerformer.name, downtime: worstPerformer.totalOfflineMinutes },
@@ -424,7 +430,7 @@ const DowntimeComparison = () => {
                 <CardTitle className="text-lg">Classement par disponibilité ({restaurantStats.length} restaurants)</CardTitle>
               </CardHeader>
               <CardContent>
-                <DowntimeRankingBars stats={restaurantStats} dateRange={dateRange} />
+                <DowntimeRankingBars stats={restaurantStats} dateRange={dateRange} sortDirection={sortDirection} onSortDirectionChange={setSortDirection} />
               </CardContent>
             </Card>
 

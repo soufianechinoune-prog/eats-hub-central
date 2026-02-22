@@ -20,6 +20,7 @@ interface ExportData {
   period: string;
   dateRange: { start: Date; end: Date };
   stats: RestaurantStat[];
+  sortDirection?: "asc" | "desc";
   insights: {
     bestPerformer: { name: string; downtime: number };
     worstPerformer: { name: string; downtime: number };
@@ -46,6 +47,14 @@ export const useDowntimeExport = () => {
   const exportPdf = async (data: ExportData) => {
     setIsExporting(true);
     try {
+      // Sort stats according to user's chosen direction
+      const sortedStats = [...data.stats].sort((a, b) => {
+        if (data.sortDirection === "asc") {
+          return a.availabilityRate - b.availabilityRate;
+        }
+        return b.availabilityRate - a.availabilityRate;
+      });
+      const sortedData = { ...data, stats: sortedStats };
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -59,7 +68,7 @@ export const useDowntimeExport = () => {
 
       // Build restaurant page mapping (page 2 = first restaurant, etc.)
       const restaurantPages: Record<string, number> = {};
-      data.stats.forEach((stat, index) => {
+      sortedData.stats.forEach((stat, index) => {
         restaurantPages[stat.id] = index + 2; // Page 1 is summary
       });
 
@@ -75,7 +84,7 @@ export const useDowntimeExport = () => {
 
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
-      doc.text(`${data.stats.length} restaurants | ${data.period}`, margin, 28);
+      doc.text(`${sortedData.stats.length} restaurants | ${data.period}`, margin, 28);
 
       const exportDate = format(new Date(), "dd/MM/yyyy HH:mm", { locale: fr });
       doc.setFontSize(9);
@@ -172,7 +181,7 @@ export const useDowntimeExport = () => {
 
       // Table rows
       doc.setFont("helvetica", "normal");
-      data.stats.forEach((stat, index) => {
+      sortedData.stats.forEach((stat, index) => {
         if (yPos > pageHeight - 20) {
           doc.addPage();
           yPos = margin;
@@ -231,7 +240,7 @@ export const useDowntimeExport = () => {
       );
 
       // ============ DETAIL PAGES: One per restaurant ============
-      data.stats.forEach((stat) => {
+      sortedData.stats.forEach((stat) => {
         doc.addPage();
         let detailY = margin;
 
@@ -391,6 +400,14 @@ export const useDowntimeExport = () => {
   const exportExcel = async (data: ExportData) => {
     setIsExporting(true);
     try {
+      // Sort stats according to user's chosen direction
+      const sortedStats = [...data.stats].sort((a, b) => {
+        if (data.sortDirection === "asc") {
+          return a.availabilityRate - b.availabilityRate;
+        }
+        return b.availabilityRate - a.availabilityRate;
+      });
+      const sortedData = { ...data, stats: sortedStats };
       const wb = XLSX.utils.book_new();
 
       // Header style
@@ -429,7 +446,7 @@ export const useDowntimeExport = () => {
         ["Periode", data.period],
         ["Date debut", format(data.dateRange.start, "dd/MM/yyyy", { locale: fr })],
         ["Date fin", format(data.dateRange.end, "dd/MM/yyyy", { locale: fr })],
-        ["Nombre de restaurants", data.stats.length],
+        ["Nombre de restaurants", sortedData.stats.length],
         [""],
         ["Resume"],
         ["Disponibilite moyenne", `${data.insights.avgAvailability.toFixed(1)}%`],
@@ -450,7 +467,7 @@ export const useDowntimeExport = () => {
 
       // Detail sheet
       const detailHeaders = ["#", "Restaurant", "Ville", "Disponibilite (%)", "Temps hors ligne", "Statut"];
-      const detailData = data.stats.map((stat, index) => [
+      const detailData = sortedData.stats.map((stat, index) => [
         index + 1,
         stat.name,
         extractCityName(stat.name),
@@ -490,10 +507,10 @@ export const useDowntimeExport = () => {
       XLSX.utils.book_append_sheet(wb, detailWs, "Detail");
 
       // Hourly analysis sheet (if data available)
-      if (data.stats.some(s => s.hourlyData)) {
+      if (sortedData.stats.some(s => s.hourlyData)) {
         const hours = Array.from({ length: 24 }, (_, i) => `${i}h`);
         const hourlyHeaders = ["Restaurant", ...hours];
-        const hourlyData = data.stats.map(stat => {
+        const hourlyData = sortedData.stats.map(stat => {
           const hourValues = hours.map((_, i) => 
             stat.hourlyData?.[i] ? formatMinutesToDisplay(stat.hourlyData[i]) : "0min"
           );
@@ -518,16 +535,16 @@ export const useDowntimeExport = () => {
       }
 
       // Daily breakdown sheet
-      if (data.stats.some(s => s.dailyData && Object.keys(s.dailyData).length > 0)) {
+      if (sortedData.stats.some(s => s.dailyData && Object.keys(s.dailyData).length > 0)) {
         // Collect all dates
         const allDates = new Set<string>();
-        data.stats.forEach(stat => {
+        sortedData.stats.forEach(stat => {
           Object.keys(stat.dailyData || {}).forEach(d => allDates.add(d));
         });
         const sortedDates = Array.from(allDates).sort();
 
         const dailyHeaders = ["Restaurant", ...sortedDates.map(d => format(parseISO(d), "dd/MM"))];
-        const dailyRows = data.stats.map(stat => {
+        const dailyRows = sortedData.stats.map(stat => {
           const values = sortedDates.map(d => 
             stat.dailyData?.[d] !== undefined ? formatMinutesToDisplay(stat.dailyData[d]) : "-"
           );

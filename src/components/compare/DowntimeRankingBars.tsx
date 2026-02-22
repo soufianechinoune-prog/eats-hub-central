@@ -16,12 +16,14 @@ interface RestaurantStat {
   availabilityRate: number;
 }
 
+export type SortDirection = "asc" | "desc";
+
 interface DowntimeRankingBarsProps {
   stats: RestaurantStat[];
   dateRange: { start: Date; end: Date };
+  sortDirection: SortDirection;
+  onSortDirectionChange: (dir: SortDirection) => void;
 }
-
-type SortDirection = "asc" | "desc";
 
 const formatMinutesToDisplay = (minutes: number): string => {
   if (minutes === 0) return "0min";
@@ -55,10 +57,9 @@ const getStatusLabel = (availabilityRate: number): { text: string; color: string
   return { text: "Critique", color: "text-red-500" };
 };
 
-export const DowntimeRankingBars = ({ stats, dateRange }: DowntimeRankingBarsProps) => {
+export const DowntimeRankingBars = ({ stats, dateRange, sortDirection, onSortDirectionChange }: DowntimeRankingBarsProps) => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc"); // desc = best first (100%)
   
   const { 
     setSelectedRestaurants, 
@@ -90,7 +91,7 @@ export const DowntimeRankingBars = ({ stats, dateRange }: DowntimeRankingBarsPro
   }, [stats, searchQuery, sortDirection]);
 
   const toggleSort = () => {
-    setSortDirection(prev => prev === "desc" ? "asc" : "desc");
+    onSortDirectionChange(sortDirection === "desc" ? "asc" : "desc");
   };
 
   const handleRestaurantClick = (restaurantId: string) => {
