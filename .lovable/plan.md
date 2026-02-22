@@ -1,31 +1,58 @@
 
 
-## Correction du jour supplementaire dans l'export PDF
+## Correction des timeouts sur l'import articles (parse-item-report)
 
 ### Probleme
 
-Quand tu selectionnes 19/02 au 20/02, le PDF affiche aussi le 21/02. La base de donnees retourne bien uniquement les 19 et 20, mais le traitement dans le navigateur convertit les timestamps UTC en heure locale (CET = UTC+1). Un enregistrement a `2026-02-20T23:00:00Z` (23h UTC) devient `2026-02-21T00:00:00` en heure de Paris, creant un faux jour "21/02".
+La table `order_items` a grandi suffisamment pour que les operations `upsert` et les lookups par `flow_id` depassent le timeout de la base de donnees. Chaque chunk echoue avec "canceling statement due to statement timeout", produisant 5000 erreurs.
+
+### Cause racine
+
+1. **Lookup des flow IDs** : 1700 IDs cherches en chunks de 100 via `.in('uber_flow_id', chunk)` -- chaque requete scanne trop de donnees
+2. **Upsert en batches de 50** avec `ON CONFLICT (order_id, item_id)` -- la resolution de conflit est lente sur une grosse table
+3. **Concurrence de 2 batches simultanes** qui amplifie la charge
 
 ### Solution
 
-Dans `src/pages/DowntimeComparison.tsx`, au lieu de parser le timestamp complet et le reformater en date locale :
+Modifier `supabase/functions/parse-item-report/index.ts` pour reduire la pression sur la base :
 
-```text
-// Avant (bug timezone)
-const date = format(parseISO(d.hour_start), "yyyy-MM-dd");
+**1. Reduire la taille des lookups et batches :**
 
-// Apres (extrait directement les 10 premiers caracteres du timestamp)
-const date = d.hour_start.substring(0, 10);
-```
+| Parametre | Avant | Apres |
+|-----------|-------|-------|
+| LOOKUP_CHUNK_SIZE | 100 | 50 |
+| BATCH_SIZE (upsert) | 50 | 25 |
+| CONCURRENCY | 2 | 1 (sequentiel) |
+| INTER_BATCH_DELAY | 250ms | 500ms |
 
-Cela concerne **4 endroits** dans le `useMemo` de `restaurantStats` ou `format(parseISO(d.hour_start), "yyyy-MM-dd")` est utilise pour grouper par jour, et **1 endroit** ou `parseISO(d.hour_start).getHours()` est utilise pour obtenir l'heure (meme probleme potentiel -- une heure UTC de 23h deviendrait 0h le jour suivant).
+**2. Ajouter un timeout explicite plus long sur le client Supabase :**
+- Actuellement le client utilise le timeout par defaut
+- Ajouter une option de timeout etendu ou utiliser `.rpc()` avec un statement_timeout plus eleve n'est pas possible directement depuis le SDK
+- La solution est de reduire la charge par requete pour rester sous le timeout existant
 
-Pour l'heure, on utilisera `parseInt(d.hour_start.substring(11, 13))` pour extraire directement l'heure UTC sans conversion.
+**3. Ajouter un delai entre les chunks de lookup :**
+- Actuellement les 18 chunks de lookup sont lances sans pause
+- Ajouter un delai de 200ms entre chaque chunk pour laisser la base respirer
+
+### Detail technique des modifications
+
+Dans `supabase/functions/parse-item-report/index.ts` :
+
+- Ligne ~342 : `LOOKUP_CHUNK_SIZE = 100` devient `50`
+- Ajouter un `await sleep(200)` entre chaque chunk de lookup (boucle ligne ~350)
+- Ligne ~556 : `BATCH_SIZE = 50` devient `25`
+- Ligne ~557 : `CONCURRENCY = 2` devient `1`
+- Ligne ~558 : `INTER_BATCH_DELAY = 250` devient `500`
 
 ### Fichier concerne
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/pages/DowntimeComparison.tsx` | Remplacer tous les `format(parseISO(...), "yyyy-MM-dd")` par `substring(0, 10)` et les `parseISO(...).getHours()` par `parseInt(substring(11, 13))` dans le calcul de `restaurantStats` |
+| `supabase/functions/parse-item-report/index.ts` | Reduire tailles de batch/lookup, passer en sequentiel, ajouter delais entre chunks |
 
-Aucune modification du hook d'export -- le probleme est uniquement dans la preparation des donnees.
+### Impact
+
+- Import plus lent unitairement (~25-30 min au lieu de 12-15 min pour un fichier de 147K lignes)
+- Mais les chunks ne seront plus en timeout, donc l'import aboutira au lieu d'echouer a 100%
+- Une fois que ca fonctionne, on pourra optimiser davantage si necessaire (index supplementaires, etc.)
+
