@@ -1,37 +1,60 @@
 
-## Deux corrections pour la page "Temps d'inactivite"
 
-### Probleme 1 : L'ordre du PDF ne respecte pas le tri de l'ecran
+## Ajouter des graphiques en barres dans le PDF d'inactivite
 
-**Cause** : Le classement affiche a l'ecran est gere par un etat local `sortDirection` dans le composant `DowntimeRankingBars`. Mais quand tu cliques sur "PDF", la fonction d'export recoit les donnees dans leur ordre par defaut (meilleurs en premier), sans tenir compte du tri que tu as choisi a l'ecran.
+### Ce que tu veux
+Au lieu du simple tableau de detail journalier actuel, chaque page restaurant du PDF contiendra :
+1. Un **graphique en barres journalier** (comme ton premier screenshot) : une barre par jour avec le % de disponibilite, coloree en vert (>=95%) ou rouge (<95%)
+2. Pour chaque jour, un **graphique en barres horaire** (comme ton deuxieme screenshot) : 24 barres montrant le % de disponibilite par heure, colorees vert/rouge
 
-**Solution** : Remonter l'etat de tri (`sortDirection`) dans la page `DowntimeComparison.tsx` pour qu'il soit partage entre le composant d'affichage ET la fonction d'export PDF. Avant d'exporter, les stats seront re-triees selon le sens choisi par l'utilisateur.
-
-Fichiers concernes :
-- `src/pages/DowntimeComparison.tsx` : ajouter un etat `sortDirection`, le passer au composant et a la fonction d'export
-- `src/components/compare/DowntimeRankingBars.tsx` : recevoir `sortDirection` et `onSortDirectionChange` en props au lieu de gerer l'etat en interne
-- `src/hooks/useDowntimeExport.ts` : appliquer le tri recu dans `data.stats` avant de generer le tableau PDF (et Excel)
-
----
-
-### Probleme 2 : Le 21 fevrier affiche 100% alors qu'il n'y a pas de donnees
-
-**Cause** : La table `hourly_availability` ne contient des donnees que jusqu'au **20 fevrier 2026**. Le 21 fevrier n'a aucun enregistrement. Or le code utilise cette logique :
+### Structure du PDF par restaurant
 
 ```text
-availabilityRate = totalMinutes > 0 ? (online / total * 100) : 100
+Page restaurant :
++------------------------------------------+
+| [Header vert] Restaurant - Dispo XX%     |
+|                                          |
+| "Disponibilite journaliere"              |
+| [Barres verticales : 1 par jour]         |
+|  16   17   18   19   20   21             |
+| 92%  98%  87%  76%  76% 100%            |
+|                                          |
+| "Detail horaire - Lundi 16/02"           |
+| [24 barres : 0h a 23h]                  |
+|                                          |
+| "Detail horaire - Mardi 17/02"           |
+| [24 barres : 0h a 23h]                  |
+| ...                                      |
++------------------------------------------+
 ```
 
-Quand il n'y a aucune donnee pour une journee, le systeme affiche 100% par defaut au lieu d'indiquer que la donnee est absente.
+Si la periode depasse 7 jours, les barres journalieres seront plus fines mais resteront lisibles (jusqu'a ~30 jours). Au-dela de 30 jours, les barres horaires par jour ne seront pas incluses (seulement le graphique journalier + le tableau existant).
 
-**Solution** : Ce n'est pas un bug de code mais un **manque de donnees**. Le rapport "Disponibilite" d'Uber Eats pour la semaine du 17-21 fevrier n'a probablement pas encore ete importe, ou bien seules les journees du 18-20 ont ete couvertes. Il faut importer le dernier rapport de disponibilite pour que les jours recents apparaissent avec leurs vraies valeurs.
+### Enrichissement des donnees
 
----
+Le `RestaurantStat` actuel ne stocke que les minutes offline par jour. Pour afficher des % en barres, il faut aussi connaitre les minutes **en ligne** par jour et par heure.
 
-### Resume des modifications de code
+Nouvelles donnees a ajouter a l'interface :
+- `dailyAvailability: Record<string, { online: number; offline: number; rate: number }>`
+- `hourlyByDay: Record<string, Record<number, { online: number; offline: number; rate: number }>>`
+
+### Rendu des barres dans jsPDF
+
+Les barres seront dessinees directement avec `doc.rect()` (rectangles colores) -- pas besoin de capturer du HTML. Chaque barre :
+- Hauteur proportionnelle au % (ex: 50mm max pour 100%)
+- Verte si rate >= 95%, rouge sinon
+- Label du % au-dessus de la barre
+- Label du jour/heure en dessous
+
+### Modifications de code
 
 | Fichier | Modification |
 |---------|-------------|
-| `DowntimeComparison.tsx` | Ajouter etat `sortDirection`, le passer au ranking et a l'export |
-| `DowntimeRankingBars.tsx` | Recevoir le tri en props (controlled component) |
-| `useDowntimeExport.ts` | Trier les stats selon la direction recue avant d'ecrire le PDF/Excel |
+| `src/pages/DowntimeComparison.tsx` | Enrichir `restaurantStats` avec `dailyAvailability` et `hourlyByDay` calcules depuis `availabilityData` |
+| `src/hooks/useDowntimeExport.ts` | Mettre a jour `RestaurantStat` + remplacer le tableau de detail par des graphiques en barres (journalier + horaire par jour) dessines avec `doc.rect()` |
+
+### Limite de pages
+
+- Periode <= 14 jours : graphique journalier + detail horaire par jour (1-2 pages par restaurant)
+- Periode > 14 jours : graphique journalier uniquement + tableau existant (pas de detail horaire pour eviter un PDF trop long)
+
