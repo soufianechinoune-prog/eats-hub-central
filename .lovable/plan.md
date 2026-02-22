@@ -1,60 +1,35 @@
 
 
-## Ajouter des graphiques en barres dans le PDF d'inactivite
+## Ajouter une option "Exporter uniquement les restaurants pas a 100%"
 
-### Ce que tu veux
-Au lieu du simple tableau de detail journalier actuel, chaque page restaurant du PDF contiendra :
-1. Un **graphique en barres journalier** (comme ton premier screenshot) : une barre par jour avec le % de disponibilite, coloree en vert (>=95%) ou rouge (<95%)
-2. Pour chaque jour, un **graphique en barres horaire** (comme ton deuxieme screenshot) : 24 barres montrant le % de disponibilite par heure, colorees vert/rouge
+### Ce qui change
 
-### Structure du PDF par restaurant
+Ajout d'un **menu deroulant** sur les boutons PDF et Excel pour proposer deux options :
+- **Tous les restaurants** (comportement actuel)
+- **Hors 100% uniquement** (filtre les restaurants a 100% de disponibilite)
 
-```text
-Page restaurant :
-+------------------------------------------+
-| [Header vert] Restaurant - Dispo XX%     |
-|                                          |
-| "Disponibilite journaliere"              |
-| [Barres verticales : 1 par jour]         |
-|  16   17   18   19   20   21             |
-| 92%  98%  87%  76%  76% 100%            |
-|                                          |
-| "Detail horaire - Lundi 16/02"           |
-| [24 barres : 0h a 23h]                  |
-|                                          |
-| "Detail horaire - Mardi 17/02"           |
-| [24 barres : 0h a 23h]                  |
-| ...                                      |
-+------------------------------------------+
-```
+### Implementation
 
-Si la periode depasse 7 jours, les barres journalieres seront plus fines mais resteront lisibles (jusqu'a ~30 jours). Au-dela de 30 jours, les barres horaires par jour ne seront pas incluses (seulement le graphique journalier + le tableau existant).
+**Fichier : `src/pages/DowntimeComparison.tsx`**
 
-### Enrichissement des donnees
+Modifier les boutons PDF et Excel pour utiliser un `DropdownMenu` avec deux options chacun :
+- "Tous les restaurants" → exporte `restaurantStats` tel quel
+- "Hors 100% uniquement" → exporte `restaurantStats.filter(s => s.availabilityRate < 100)`
 
-Le `RestaurantStat` actuel ne stocke que les minutes offline par jour. Pour afficher des % en barres, il faut aussi connaitre les minutes **en ligne** par jour et par heure.
+Les KPIs (insights) seront recalcules en fonction du sous-ensemble filtre pour que le resume du PDF/Excel soit coherent avec les donnees exportees.
 
-Nouvelles donnees a ajouter a l'interface :
-- `dailyAvailability: Record<string, { online: number; offline: number; rate: number }>`
-- `hourlyByDay: Record<string, Record<number, { online: number; offline: number; rate: number }>>`
+**Fichier : `src/hooks/useDowntimeExport.ts`**
 
-### Rendu des barres dans jsPDF
+Aucune modification necessaire -- le filtrage se fait en amont, avant d'appeler `exportPdf` / `exportExcel`.
 
-Les barres seront dessinees directement avec `doc.rect()` (rectangles colores) -- pas besoin de capturer du HTML. Chaque barre :
-- Hauteur proportionnelle au % (ex: 50mm max pour 100%)
-- Verte si rate >= 95%, rouge sinon
-- Label du % au-dessus de la barre
-- Label du jour/heure en dessous
+### Detail technique
 
-### Modifications de code
+Dans `DowntimeComparison.tsx`, les deux handlers (`handleExportPdf`, `handleExportExcel`) seront transformes en une seule fonction parametree `handleExport(type: "pdf" | "excel", onlyImperfect: boolean)` qui :
+1. Filtre les stats si `onlyImperfect` est vrai
+2. Recalcule les insights sur le sous-ensemble
+3. Appelle `exportPdf` ou `exportExcel`
 
-| Fichier | Modification |
-|---------|-------------|
-| `src/pages/DowntimeComparison.tsx` | Enrichir `restaurantStats` avec `dailyAvailability` et `hourlyByDay` calcules depuis `availabilityData` |
-| `src/hooks/useDowntimeExport.ts` | Mettre a jour `RestaurantStat` + remplacer le tableau de detail par des graphiques en barres (journalier + horaire par jour) dessines avec `doc.rect()` |
-
-### Limite de pages
-
-- Periode <= 14 jours : graphique journalier + detail horaire par jour (1-2 pages par restaurant)
-- Periode > 14 jours : graphique journalier uniquement + tableau existant (pas de detail horaire pour eviter un PDF trop long)
+Les boutons "PDF" et "Excel" deviennent chacun un `DropdownMenu` avec :
+- "Tous les restaurants (14)"
+- "Hors 100% (9)" ← le nombre est dynamique
 
