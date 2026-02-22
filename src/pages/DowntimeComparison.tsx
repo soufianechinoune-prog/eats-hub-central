@@ -249,6 +249,38 @@ const DowntimeComparison = () => {
         dailyData[date] = (dailyData[date] || 0) + (d.offline_minutes || 0);
       });
 
+      // Daily availability with online/offline/rate for bar charts
+      const dailyAvailability: Record<string, { online: number; offline: number; rate: number }> = {};
+      restaurantData.forEach(d => {
+        const date = format(parseISO(d.hour_start), "yyyy-MM-dd");
+        if (!dailyAvailability[date]) {
+          dailyAvailability[date] = { online: 0, offline: 0, rate: 0 };
+        }
+        dailyAvailability[date].online += (d.online_minutes || 0);
+        dailyAvailability[date].offline += (d.offline_minutes || 0);
+      });
+      Object.values(dailyAvailability).forEach(v => {
+        const total = v.online + v.offline;
+        v.rate = total > 0 ? (v.online / total) * 100 : 100;
+      });
+
+      // Hourly availability grouped by day for hourly bar charts
+      const hourlyByDay: Record<string, Record<number, { online: number; offline: number; rate: number }>> = {};
+      restaurantData.forEach(d => {
+        const date = format(parseISO(d.hour_start), "yyyy-MM-dd");
+        const hour = parseISO(d.hour_start).getHours();
+        if (!hourlyByDay[date]) hourlyByDay[date] = {};
+        if (!hourlyByDay[date][hour]) hourlyByDay[date][hour] = { online: 0, offline: 0, rate: 0 };
+        hourlyByDay[date][hour].online += (d.online_minutes || 0);
+        hourlyByDay[date][hour].offline += (d.offline_minutes || 0);
+      });
+      Object.values(hourlyByDay).forEach(hours => {
+        Object.values(hours).forEach(v => {
+          const total = v.online + v.offline;
+          v.rate = total > 0 ? (v.online / total) * 100 : 100;
+        });
+      });
+
       // Group by hour for heatmap
       const hourlyData: Record<number, number> = {};
       restaurantData.forEach(d => {
@@ -269,6 +301,8 @@ const DowntimeComparison = () => {
         totalOfflineMinutes: totalOffline,
         availabilityRate,
         dailyData,
+        dailyAvailability,
+        hourlyByDay,
         hourlyData,
         weekdayData,
       };
