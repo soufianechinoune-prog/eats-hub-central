@@ -1,33 +1,31 @@
 
 
-## Correction du filtre "Hors 100%"
+## Correction du jour supplementaire dans l'export PDF
 
 ### Probleme
 
-Le filtre utilise la valeur brute (`availabilityRate < 100`) alors que l'affichage arrondit a une decimale (`.toFixed(1)`). Resultat : un restaurant a 99.96% s'affiche comme "100.0%" mais passe quand meme le filtre car 99.96 < 100.
-
-Meaux, Melun et Montigny sont dans ce cas -- ils ont quelques minutes hors ligne mais un taux arrondi a 100.0%.
+Quand tu selectionnes 19/02 au 20/02, le PDF affiche aussi le 21/02. La base de donnees retourne bien uniquement les 19 et 20, mais le traitement dans le navigateur convertit les timestamps UTC en heure locale (CET = UTC+1). Un enregistrement a `2026-02-20T23:00:00Z` (23h UTC) devient `2026-02-21T00:00:00` en heure de Paris, creant un faux jour "21/02".
 
 ### Solution
 
-Remplacer le filtre brut par un filtre sur la valeur **arrondie**, coherent avec l'affichage :
+Dans `src/pages/DowntimeComparison.tsx`, au lieu de parser le timestamp complet et le reformater en date locale :
 
 ```text
-// Avant
-s.availabilityRate < 100
+// Avant (bug timezone)
+const date = format(parseISO(d.hour_start), "yyyy-MM-dd");
 
-// Apres  
-Math.round(s.availabilityRate * 10) / 10 < 100
+// Apres (extrait directement les 10 premiers caracteres du timestamp)
+const date = d.hour_start.substring(0, 10);
 ```
 
-Cela s'applique a **deux endroits** dans `src/pages/DowntimeComparison.tsx` :
-1. Le calcul de `imperfectCount` (ligne ~319)
-2. Le filtre dans `handleExport` (ligne ~323)
+Cela concerne **4 endroits** dans le `useMemo` de `restaurantStats` ou `format(parseISO(d.hour_start), "yyyy-MM-dd")` est utilise pour grouper par jour, et **1 endroit** ou `parseISO(d.hour_start).getHours()` est utilise pour obtenir l'heure (meme probleme potentiel -- une heure UTC de 23h deviendrait 0h le jour suivant).
+
+Pour l'heure, on utilisera `parseInt(d.hour_start.substring(11, 13))` pour extraire directement l'heure UTC sans conversion.
 
 ### Fichier concerne
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/pages/DowntimeComparison.tsx` | Remplacer `s.availabilityRate < 100` par `Math.round(s.availabilityRate * 10) / 10 < 100` aux deux endroits |
+| `src/pages/DowntimeComparison.tsx` | Remplacer tous les `format(parseISO(...), "yyyy-MM-dd")` par `substring(0, 10)` et les `parseISO(...).getHours()` par `parseInt(substring(11, 13))` dans le calcul de `restaurantStats` |
 
-Aucun autre fichier n'est impacte.
+Aucune modification du hook d'export -- le probleme est uniquement dans la preparation des donnees.
