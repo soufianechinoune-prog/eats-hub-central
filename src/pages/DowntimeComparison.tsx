@@ -246,14 +246,14 @@ const DowntimeComparison = () => {
       // Group by date for daily evolution
       const dailyData: Record<string, number> = {};
       restaurantData.forEach(d => {
-        const date = format(parseISO(d.hour_start), "yyyy-MM-dd");
+        const date = d.hour_start.substring(0, 10);
         dailyData[date] = (dailyData[date] || 0) + (d.offline_minutes || 0);
       });
 
       // Daily availability with online/offline/rate for bar charts
       const dailyAvailability: Record<string, { online: number; offline: number; rate: number }> = {};
       restaurantData.forEach(d => {
-        const date = format(parseISO(d.hour_start), "yyyy-MM-dd");
+        const date = d.hour_start.substring(0, 10);
         if (!dailyAvailability[date]) {
           dailyAvailability[date] = { online: 0, offline: 0, rate: 0 };
         }
@@ -268,8 +268,8 @@ const DowntimeComparison = () => {
       // Hourly availability grouped by day for hourly bar charts
       const hourlyByDay: Record<string, Record<number, { online: number; offline: number; rate: number }>> = {};
       restaurantData.forEach(d => {
-        const date = format(parseISO(d.hour_start), "yyyy-MM-dd");
-        const hour = parseISO(d.hour_start).getHours();
+        const date = d.hour_start.substring(0, 10);
+        const hour = parseInt(d.hour_start.substring(11, 13));
         if (!hourlyByDay[date]) hourlyByDay[date] = {};
         if (!hourlyByDay[date][hour]) hourlyByDay[date][hour] = { online: 0, offline: 0, rate: 0 };
         hourlyByDay[date][hour].online += (d.online_minutes || 0);
@@ -285,14 +285,14 @@ const DowntimeComparison = () => {
       // Group by hour for heatmap
       const hourlyData: Record<number, number> = {};
       restaurantData.forEach(d => {
-        const hour = parseISO(d.hour_start).getHours();
+        const hour = parseInt(d.hour_start.substring(11, 13));
         hourlyData[hour] = (hourlyData[hour] || 0) + (d.offline_minutes || 0);
       });
 
       // Group by day of week
       const weekdayData: Record<number, number> = {};
       restaurantData.forEach(d => {
-        const weekday = parseISO(d.hour_start).getDay();
+        const weekday = new Date(d.hour_start.substring(0, 10) + "T12:00:00").getDay();
         weekdayData[weekday] = (weekdayData[weekday] || 0) + (d.offline_minutes || 0);
       });
       
