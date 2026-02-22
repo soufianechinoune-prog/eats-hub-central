@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, FileDown, FileSpreadsheet, AlertTriangle } from "lucide-react";
+import { ArrowLeft, FileDown, FileSpreadsheet, AlertTriangle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DowntimeRankingBars, type SortDirection } from "@/components/compare/DowntimeRankingBars";
 import { DowntimeInsightsSection } from "@/components/compare/DowntimeInsightsSection";
@@ -315,21 +316,26 @@ const DowntimeComparison = () => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
   }, [dateRange]);
 
-  // Export handlers
-  const handleExportPdf = () => {
-    const totalDowntime = restaurantStats.reduce((sum, s) => sum + s.totalOfflineMinutes, 0);
-    const avgAvailability = restaurantStats.length > 0
-      ? restaurantStats.reduce((sum, s) => sum + s.availabilityRate, 0) / restaurantStats.length
-      : 100;
-    const perfectCount = restaurantStats.filter(s => s.totalOfflineMinutes === 0).length;
-    const bestPerformer = restaurantStats[0] || { name: "-", totalOfflineMinutes: 0 };
-    const worstPerformer = restaurantStats[restaurantStats.length - 1] || { name: "-", totalOfflineMinutes: 0 };
+  const imperfectCount = useMemo(() => restaurantStats.filter(s => s.availabilityRate < 100).length, [restaurantStats]);
 
-    exportPdf({
-      title: "Comparaison Temps d'inactivite",
+  // Unified export handler
+  const handleExport = (type: "pdf" | "excel", onlyImperfect: boolean) => {
+    const stats = onlyImperfect ? restaurantStats.filter(s => s.availabilityRate < 100) : restaurantStats;
+    if (stats.length === 0) return;
+
+    const totalDowntime = stats.reduce((sum, s) => sum + s.totalOfflineMinutes, 0);
+    const avgAvailability = stats.length > 0
+      ? stats.reduce((sum, s) => sum + s.availabilityRate, 0) / stats.length
+      : 100;
+    const perfectCount = stats.filter(s => s.totalOfflineMinutes === 0).length;
+    const bestPerformer = stats[0] || { name: "-", totalOfflineMinutes: 0 };
+    const worstPerformer = stats[stats.length - 1] || { name: "-", totalOfflineMinutes: 0 };
+
+    const payload = {
+      title: onlyImperfect ? "Inactivite - Restaurants hors 100%" : "Comparaison Temps d'inactivite",
       period: periodLabel,
       dateRange,
-      stats: restaurantStats,
+      stats,
       sortDirection,
       insights: {
         bestPerformer: { name: bestPerformer.name, downtime: bestPerformer.totalOfflineMinutes },
@@ -338,32 +344,10 @@ const DowntimeComparison = () => {
         avgAvailability,
         perfectCount,
       },
-    });
-  };
+    };
 
-  const handleExportExcel = () => {
-    const totalDowntime = restaurantStats.reduce((sum, s) => sum + s.totalOfflineMinutes, 0);
-    const avgAvailability = restaurantStats.length > 0
-      ? restaurantStats.reduce((sum, s) => sum + s.availabilityRate, 0) / restaurantStats.length
-      : 100;
-    const perfectCount = restaurantStats.filter(s => s.totalOfflineMinutes === 0).length;
-    const bestPerformer = restaurantStats[0] || { name: "-", totalOfflineMinutes: 0 };
-    const worstPerformer = restaurantStats[restaurantStats.length - 1] || { name: "-", totalOfflineMinutes: 0 };
-
-    exportExcel({
-      title: "Comparaison Temps d'inactivite",
-      period: periodLabel,
-      dateRange,
-      stats: restaurantStats,
-      sortDirection,
-      insights: {
-        bestPerformer: { name: bestPerformer.name, downtime: bestPerformer.totalOfflineMinutes },
-        worstPerformer: { name: worstPerformer.name, downtime: worstPerformer.totalOfflineMinutes },
-        totalDowntime,
-        avgAvailability,
-        perfectCount,
-      },
-    });
+    if (type === "pdf") exportPdf(payload);
+    else exportExcel(payload);
   };
 
   return (
@@ -396,24 +380,41 @@ const DowntimeComparison = () => {
               networkCount={allActiveRestaurants?.length || 0}
             />
             
-            <Button
-              onClick={handleExportPdf}
-              disabled={isExporting || restaurantStats.length === 0}
-              variant="outline"
-              className="gap-2"
-            >
-              <FileDown className="h-4 w-4" />
-              PDF
-            </Button>
-            <Button
-              onClick={handleExportExcel}
-              disabled={isExporting || restaurantStats.length === 0}
-              variant="outline"
-              className="gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Excel
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button disabled={isExporting || restaurantStats.length === 0} variant="outline" className="gap-2">
+                  <FileDown className="h-4 w-4" />
+                  PDF
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-popover">
+                <DropdownMenuItem onClick={() => handleExport("pdf", false)}>
+                  Tous les restaurants ({restaurantStats.length})
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf", true)} disabled={imperfectCount === 0}>
+                  Hors 100% uniquement ({imperfectCount})
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button disabled={isExporting || restaurantStats.length === 0} variant="outline" className="gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Excel
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-popover">
+                <DropdownMenuItem onClick={() => handleExport("excel", false)}>
+                  Tous les restaurants ({restaurantStats.length})
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("excel", true)} disabled={imperfectCount === 0}>
+                  Hors 100% uniquement ({imperfectCount})
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             
             <OverviewPeriodSelector
               periodMode={periodMode}
