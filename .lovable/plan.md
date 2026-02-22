@@ -1,35 +1,33 @@
 
 
-## Ajouter une option "Exporter uniquement les restaurants pas a 100%"
+## Correction du filtre "Hors 100%"
 
-### Ce qui change
+### Probleme
 
-Ajout d'un **menu deroulant** sur les boutons PDF et Excel pour proposer deux options :
-- **Tous les restaurants** (comportement actuel)
-- **Hors 100% uniquement** (filtre les restaurants a 100% de disponibilite)
+Le filtre utilise la valeur brute (`availabilityRate < 100`) alors que l'affichage arrondit a une decimale (`.toFixed(1)`). Resultat : un restaurant a 99.96% s'affiche comme "100.0%" mais passe quand meme le filtre car 99.96 < 100.
 
-### Implementation
+Meaux, Melun et Montigny sont dans ce cas -- ils ont quelques minutes hors ligne mais un taux arrondi a 100.0%.
 
-**Fichier : `src/pages/DowntimeComparison.tsx`**
+### Solution
 
-Modifier les boutons PDF et Excel pour utiliser un `DropdownMenu` avec deux options chacun :
-- "Tous les restaurants" → exporte `restaurantStats` tel quel
-- "Hors 100% uniquement" → exporte `restaurantStats.filter(s => s.availabilityRate < 100)`
+Remplacer le filtre brut par un filtre sur la valeur **arrondie**, coherent avec l'affichage :
 
-Les KPIs (insights) seront recalcules en fonction du sous-ensemble filtre pour que le resume du PDF/Excel soit coherent avec les donnees exportees.
+```text
+// Avant
+s.availabilityRate < 100
 
-**Fichier : `src/hooks/useDowntimeExport.ts`**
+// Apres  
+Math.round(s.availabilityRate * 10) / 10 < 100
+```
 
-Aucune modification necessaire -- le filtrage se fait en amont, avant d'appeler `exportPdf` / `exportExcel`.
+Cela s'applique a **deux endroits** dans `src/pages/DowntimeComparison.tsx` :
+1. Le calcul de `imperfectCount` (ligne ~319)
+2. Le filtre dans `handleExport` (ligne ~323)
 
-### Detail technique
+### Fichier concerne
 
-Dans `DowntimeComparison.tsx`, les deux handlers (`handleExportPdf`, `handleExportExcel`) seront transformes en une seule fonction parametree `handleExport(type: "pdf" | "excel", onlyImperfect: boolean)` qui :
-1. Filtre les stats si `onlyImperfect` est vrai
-2. Recalcule les insights sur le sous-ensemble
-3. Appelle `exportPdf` ou `exportExcel`
+| Fichier | Modification |
+|---------|-------------|
+| `src/pages/DowntimeComparison.tsx` | Remplacer `s.availabilityRate < 100` par `Math.round(s.availabilityRate * 10) / 10 < 100` aux deux endroits |
 
-Les boutons "PDF" et "Excel" deviennent chacun un `DropdownMenu` avec :
-- "Tous les restaurants (14)"
-- "Hors 100% (9)" ← le nombre est dynamique
-
+Aucun autre fichier n'est impacte.
