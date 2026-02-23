@@ -2,9 +2,13 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight } from "lucide-react";
+import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Filter } from "lucide-react";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 import { EcoContributionDetail } from "./EcoContributionDetail";
+import { useEcoContributionExport } from "@/hooks/useEcoContributionExport";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, Line, ComposedChart,
@@ -32,6 +36,8 @@ export function EcoContributionSection({
 }: EcoContributionSectionProps) {
   const [activeTab, setActiveTab] = useState<"synthese" | "detail">("synthese");
   const [localYear, setLocalYear] = useState<number | null>(selectedYear);
+  const [soldeFilter, setSoldeFilter] = useState<"all" | "positive" | "negative">("all");
+  const { exportPDF, exportExcel } = useEcoContributionExport();
 
   const restaurantIds = selectedRestaurants.length > 0
     ? selectedRestaurants
@@ -67,11 +73,16 @@ export function EcoContributionSection({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const sortedRestaurants = useMemo(() => {
-    return [...byRestaurant].sort((a, b) => {
+    const filtered = soldeFilter === "all"
+      ? byRestaurant
+      : soldeFilter === "positive"
+        ? byRestaurant.filter(r => r.net >= 0)
+        : byRestaurant.filter(r => r.net < 0);
+    return [...filtered].sort((a, b) => {
       const diff = a[sortKey] - b[sortKey];
       return sortDir === "desc" ? -diff : diff;
     });
-  }, [byRestaurant, sortKey, sortDir]);
+  }, [byRestaurant, sortKey, sortDir, soldeFilter]);
 
   const handleSort = (key: "net" | "refund" | "charge") => {
     if (sortKey === key) {
@@ -82,35 +93,71 @@ export function EcoContributionSection({
     }
   };
 
+  const yearLabel = localYear === null ? "Historique" : String(localYear);
+
+  const handleExport = (type: "pdf" | "excel") => {
+    const exportRestaurants = sortedRestaurants.map(r => ({
+      ...r,
+      name: restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8),
+    }));
+    const params = { restaurants: exportRestaurants, monthlyData, totals, yearLabel };
+    if (type === "pdf") exportPDF(params);
+    else exportExcel(params);
+  };
+
   if (isLoading) {
     return <div className="flex items-center justify-center py-12 text-muted-foreground">Chargement éco-contribution...</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Leaf className="h-5 w-5 text-green-600" />
-        <h2 className="text-lg font-semibold">Éco-Contribution</h2>
-        <div className="flex items-center gap-1 ml-2">
-          <Button
-            size="sm"
-            variant={localYear === null ? "default" : "outline"}
-            className="h-7 px-3 text-xs"
-            onClick={() => setLocalYear(null)}
-          >
-            Historique
-          </Button>
-          {[2025, 2026].map((y) => (
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Leaf className="h-5 w-5 text-green-600" />
+          <h2 className="text-lg font-semibold">Éco-Contribution</h2>
+          <div className="flex items-center gap-1 ml-2">
             <Button
-              key={y}
               size="sm"
-              variant={localYear === y ? "default" : "outline"}
+              variant={localYear === null ? "default" : "outline"}
               className="h-7 px-3 text-xs"
-              onClick={() => setLocalYear(y)}
+              onClick={() => setLocalYear(null)}
             >
-              {y}
+              Historique
             </Button>
-          ))}
+            {[2025, 2026].map((y) => (
+              <Button
+                key={y}
+                size="sm"
+                variant={localYear === y ? "default" : "outline"}
+                className="h-7 px-3 text-xs"
+                onClick={() => setLocalYear(y)}
+              >
+                {y}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Export Buttons */}
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                <Download className="h-3.5 w-3.5" />
+                Exporter
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                <Download className="h-4 w-4 mr-2" />
+                Export PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("excel")}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -194,10 +241,38 @@ export function EcoContributionSection({
           )}
 
           {/* Restaurant Ranking Table */}
-          {sortedRestaurants.length > 0 && (
+          {byRestaurant.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Par restaurant</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">Par restaurant</CardTitle>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant={soldeFilter === "all" ? "default" : "outline"}
+                      className="h-6 px-2.5 text-[11px]"
+                      onClick={() => setSoldeFilter("all")}
+                    >
+                      Tous ({byRestaurant.length})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={soldeFilter === "positive" ? "default" : "outline"}
+                      className="h-6 px-2.5 text-[11px]"
+                      onClick={() => setSoldeFilter("positive")}
+                    >
+                      Solde + ({byRestaurant.filter(r => r.net >= 0).length})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={soldeFilter === "negative" ? "default" : "outline"}
+                      className="h-6 px-2.5 text-[11px]"
+                      onClick={() => setSoldeFilter("negative")}
+                    >
+                      Solde − ({byRestaurant.filter(r => r.net < 0).length})
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
