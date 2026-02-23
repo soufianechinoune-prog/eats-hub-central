@@ -38,12 +38,14 @@ interface CsvImport {
   restaurants_count: number;
   file_url: string | null;
   status: string;
+  label: string | null;
 }
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
   payment_order_level: "Niveau commande",
   payment_item_level: "Niveau articles",
   payout_summary: "Versements",
+  deliveroo_statement: "Relevé Deliveroo",
 };
 
 export default function ImportHistory() {
@@ -209,6 +211,7 @@ export default function ImportHistory() {
                 <SelectItem value="payment_order_level">Niveau commande</SelectItem>
                 <SelectItem value="payment_item_level">Niveau articles</SelectItem>
                 <SelectItem value="payout_summary">Versements</SelectItem>
+                <SelectItem value="deliveroo_statement">Relevé Deliveroo</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="icon" onClick={fetchImports}>
@@ -240,6 +243,7 @@ export default function ImportHistory() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
+                  <TableHead>Nom</TableHead>
                   <TableHead>Fichier</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead className="text-center">Lignes</TableHead>
@@ -262,6 +266,9 @@ export default function ImportHistory() {
                           {format(new Date(imp.imported_at), "HH:mm")}
                         </p>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm font-medium">{imp.label || "—"}</span>
                     </TableCell>
                     <TableCell>
                       <div className="max-w-[200px]">

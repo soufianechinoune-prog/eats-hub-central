@@ -1,0 +1,1 @@
+ALTER TABLE public.csv_imports ADD COLUMN label text;
