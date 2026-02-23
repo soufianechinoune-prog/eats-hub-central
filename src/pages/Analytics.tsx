@@ -331,9 +331,10 @@ export default function Analytics() {
     queryKey: ["analytics_deliveroo_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
     queryFn: async () => {
       const MEAL_VOUCHER_TYPES = ["Montant commande Edenred", "Montant commande Swile", "Montant commande Sodexo", "Montant commande Up", "Montant commande Bimpli"];
-      const REFUND_TYPES = ["Remboursement client"];
+      const REFUND_TYPES = ["Remboursement client", "Remboursement client refusé", "Facture précédente: Remboursement client"];
       const PROMO_TYPES = ["Partner funding from agreed voucher campaign", "Contribution marketing", "Bon de réduction à payer par le restaurant"];
-      const ORDER_TYPES = ["Livraison", "À emporter", "Nouvelle livraison"];
+      const ORDER_TYPES = ["Livraison", "À emporter", "Nouvelle livraison", "Facture précédente: Livraison", "Montant de la repréparation de commande"];
+      const EXTRA_COMMISSION_TYPES = ["Commission Deliveroo sur repréparation de commande"];
 
       // Determine date range
       let queryStartDate: string;
@@ -431,12 +432,17 @@ export default function Analytics() {
           g.net_payout += Number(row.total_payable) || 0;
           g.order_count += 1;
         } else if (MEAL_VOUCHER_TYPES.includes(ht)) {
-          g.meal_voucher_amount += Number(row.total_payable) || 0;
+          g.meal_voucher_amount += Math.abs(Number(row.total_payable) || 0);
+          g.net_payout += Number(row.total_payable) || 0;
         } else if (REFUND_TYPES.includes(ht)) {
-          g.refund_incl_vat += Math.abs(Number(row.order_amount) || 0);
+          g.refund_incl_vat += Math.abs(Number(row.total_payable) || 0);
           g.net_payout += Number(row.total_payable) || 0;
         } else if (PROMO_TYPES.includes(ht)) {
           g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
+          g.net_payout += Number(row.total_payable) || 0;
+        } else if (EXTRA_COMMISSION_TYPES.includes(ht)) {
+          g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
+          g.uber_fee_after_promo_excl_vat += Math.abs(Number(row.total_payable) || 0);
           g.net_payout += Number(row.total_payable) || 0;
         } else {
           g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
