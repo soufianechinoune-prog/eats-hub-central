@@ -164,6 +164,180 @@ export const containsSameKeywords = (name1: string, name2: string): boolean => {
   return minWords > 0 && commonCount >= minWords * 0.5;
 };
 
+/**
+ * Clean a Deliveroo restaurant name for matching
+ * Removes brand prefix, emojis, accents, normalizes spacing
+ */
+export const cleanDeliverooName = (name: string): string => {
+  let cleaned = name
+    .replace(/chicken\s*street\s*[-–—]\s*/gi, "")
+    .replace(/cs\s+orign?ial\s+by\s+chicken\s+street/gi, "")
+    .replace(/cs\s+/gi, "");
+  
+  return normalizeName(cleaned).trim();
+};
+
+/**
+ * Clean a database restaurant name for matching
+ * Removes "Chicken Street - " prefix, normalizes
+ */
+export const cleanDbRestaurantName = (name: string): string => {
+  let cleaned = name
+    .replace(/chicken\s*street\s*[-–—]\s*/gi, "");
+  
+  return normalizeName(cleaned).trim();
+};
+
+/**
+ * Hardcoded overrides for known Deliveroo name discrepancies
+ * Maps cleaned Deliveroo city name -> cleaned DB restaurant city name
+ */
+const DELIVEROO_OVERRIDES: Record<string, string> = {
+  "grenoble": "echirolles",
+  "lille centre": "lille flandres",
+  "lille": "lille wazemmes",
+  "boulogne": "boulogne-billancourt",
+  "bussy": "bussy-saint-georges",
+  "evry-courcouronnes": "courcouronnes",
+  "crimee": "paris 19",
+  "la chapelle": "paris 18 la chapelle",
+  "gare de l'est": "paris gare de l'est",
+  "marseille plombieres": "plombieres",
+};
+
+/** Brands to ignore (not part of the network) */
+const IGNORED_BRANDS = ["bangkok factory", "tous les etablissements"];
+
+export interface DeliverooMatchResult {
+  deliverooName: string;
+  matchedRestaurantId: string | null;
+  matchedRestaurantName: string | null;
+  confidence: number;
+  isOverride: boolean;
+  isIgnored: boolean;
+  isAlreadyLinked: boolean;
+}
+
+/**
+ * Match a Deliveroo name against a list of restaurants from the database
+ */
+export const matchDeliverooToRestaurant = (
+  deliverooName: string,
+  restaurants: { id: string; name: string; deliveroo_store_id: string | null }[]
+): DeliverooMatchResult => {
+  // Check if already linked
+  const alreadyLinked = restaurants.find(r => r.deliveroo_store_id === deliverooName);
+  if (alreadyLinked) {
+    return {
+      deliverooName,
+      matchedRestaurantId: alreadyLinked.id,
+      matchedRestaurantName: alreadyLinked.name,
+      confidence: 100,
+      isOverride: false,
+      isIgnored: false,
+      isAlreadyLinked: true,
+    };
+  }
+
+  const cleanedDeliveroo = cleanDeliverooName(deliverooName);
+
+  // Check if should be ignored
+  if (IGNORED_BRANDS.some(b => cleanedDeliveroo.includes(b) || normalizeName(deliverooName).includes(b))) {
+    return {
+      deliverooName,
+      matchedRestaurantId: null,
+      matchedRestaurantName: null,
+      confidence: 0,
+      isOverride: false,
+      isIgnored: true,
+      isAlreadyLinked: false,
+    };
+  }
+
+  // Check hardcoded overrides
+  const overrideTarget = DELIVEROO_OVERRIDES[cleanedDeliveroo];
+  if (overrideTarget) {
+    const match = restaurants.find(r => {
+      const cleanedDb = cleanDbRestaurantName(r.name);
+      return cleanedDb === overrideTarget || cleanedDb.includes(overrideTarget);
+    });
+    if (match) {
+      return {
+        deliverooName,
+        matchedRestaurantId: match.id,
+        matchedRestaurantName: match.name,
+        confidence: 95,
+        isOverride: true,
+        isIgnored: false,
+        isAlreadyLinked: false,
+      };
+    }
+  }
+
+  // Fuzzy matching: compare cleaned names
+  let bestMatch: { id: string; name: string } | null = null;
+  let bestScore = 0;
+
+  for (const r of restaurants) {
+    const cleanedDb = cleanDbRestaurantName(r.name);
+    
+    // Exact match after cleaning
+    if (cleanedDeliveroo === cleanedDb) {
+      return {
+        deliverooName,
+        matchedRestaurantId: r.id,
+        matchedRestaurantName: r.name,
+        confidence: 100,
+        isOverride: false,
+        isIgnored: false,
+        isAlreadyLinked: false,
+      };
+    }
+
+    // Loose match (removing hyphens, suffixes)
+    const looseDeliveroo = normalizeForLooseMatch(cleanedDeliveroo);
+    const looseDb = normalizeForLooseMatch(cleanedDb);
+    if (looseDeliveroo === looseDb) {
+      return {
+        deliverooName,
+        matchedRestaurantId: r.id,
+        matchedRestaurantName: r.name,
+        confidence: 95,
+        isOverride: false,
+        isIgnored: false,
+        isAlreadyLinked: false,
+      };
+    }
+
+    // City starts with check
+    if (cityStartsWith(cleanedDeliveroo, cleanedDb) || cityStartsWith(cleanedDb, cleanedDeliveroo)) {
+      const score = 85;
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = r;
+      }
+      continue;
+    }
+
+    // Levenshtein similarity
+    const similarity = calculateSimilarity(cleanedDeliveroo, cleanedDb);
+    if (similarity > bestScore) {
+      bestScore = similarity;
+      bestMatch = r;
+    }
+  }
+
+  return {
+    deliverooName,
+    matchedRestaurantId: bestMatch?.id || null,
+    matchedRestaurantName: bestMatch?.name || null,
+    confidence: bestScore,
+    isOverride: false,
+    isIgnored: false,
+    isAlreadyLinked: false,
+  };
+};
+
 export interface MatchCandidate {
   id: string;
   name: string;
