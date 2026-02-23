@@ -1,101 +1,51 @@
 
-# Afficher les donnees Deliveroo dans Finances & Frais
 
-## Probleme
+# Corriger l'affichage de la Commission Deliveroo dans le tableau de Rentabilite
 
-Quand on selectionne l'onglet "Deliveroo" sur la page Finances & Frais, les donnees affichees proviennent toujours des tables Uber Eats (`orders`, `payouts`). Il faut que chaque composant de la page lise la table `deliveroo_orders` lorsque la plateforme Deliveroo est selectionnee.
+## Diagnostic
 
-## Donnees disponibles dans `deliveroo_orders`
+Les donnees de commission existent bien dans la base de donnees (`commission_amount = -3.42` pour une commande de 14.24 EUR, soit 24%). Le probleme vient du calcul du taux dans le tableau :
 
-Pour les lignes "Livraison" (17 156 enregistrements) :
-- **CA** : `order_amount`
-- **Commission** : `commission_amount` (avec `commission_rate`)
-- **TVA** : `vat_amount`
-- **Versement** : `total_payable`
-- **Ajustements** : `adjustment_amount`
+- Pour Uber, le taux est calcule via `uber_fee_after_promo_excl_vat` (commission HT), un champ specifique aux donnees Uber
+- Pour Deliveroo, ce champ n'existe pas dans les donnees mappees. Seul `uber_fee_after_promo_incl_vat` (commission TTC) est rempli
+- Resultat : le taux affiche est `0 / CA = 0%`
 
-Autres types exploitables :
-- Titres restaurant (Edenred, Swile, Sodexo, Up, Bimpli) : equivalents de `meal_voucher_amount`
-- Remboursements clients : equivalent de `refund_incl_vat`
-- Promos/marketing : "Partner funding", "Contribution marketing", "Bon de reduction"
-- Publicite : "Publicites Marketer"
-- Eco-contribution : une seule ligne
+## Correction
 
-## Plan de modifications
+Dans `ProfitabilityComparisonTable.tsx`, ajouter un fallback : quand `uber_fee_after_promo_excl_vat` n'est pas disponible (cas Deliveroo), utiliser `uber_fee_after_promo_incl_vat` directement pour calculer le taux de commission.
 
-### 1. Hook `useFinancesDrilldown.ts` - Ajouter le support plateforme
+La commission Deliveroo est deja un montant HT dans les releves (24% HT applique sur le CA TTC), donc utiliser la valeur TTC telle quelle est correct.
 
-Ajouter un parametre `platform?: "uber_eats" | "deliveroo" | "global"` au hook.
+### Fichier modifie : `src/components/analytics/ProfitabilityComparisonTable.tsx`
 
-Quand `platform === "deliveroo"` :
-- Requeter `deliveroo_orders` au lieu de `orders`
-- Filtrer sur `delivery_datetime` au lieu de `order_datetime`
-- Mapper les colonnes Deliveroo vers l'interface existante :
-  - `order_amount` vers `sales_incl_vat`
-  - `commission_amount` vers `uber_fee_incl_vat` (renomme conceptuellement en "commission")
-  - `total_payable` vers `net_payout`
-  - Agreger les lignes "titre restaurant" pour `meal_voucher_amount`
-  - Agreger les "Remboursement client" pour `refund_incl_vat`
-  - Agreger les promos pour `promo_incl_vat`
+Ligne 306 : remplacer le calcul du taux de commission pour gerer le cas ou `excl_vat` est absent :
 
-Quand `platform === "global"` : fusionner les resultats des deux sources.
+```typescript
+// Avant
+const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0);
 
-### 2. `FinancesSection.tsx` - Propager la plateforme
-
-Transmettre `selectedPlatform` au hook `useFinancesDrilldown` utilise dans ce composant pour le graphique de rentabilite.
-
-### 3. `ProfitabilityComparisonTable` - Version Deliveroo
-
-Pour la plateforme Deliveroo, creer une source de donnees alternative :
-- Au lieu d'utiliser `dailyPayoutsData` (RPC Uber), agreger les donnees depuis `deliveroo_orders` groupees par semaine/mois
-- Adapter les colonnes du tableau : remplacer "Versement Uber" par "Versement Deliveroo", masquer les colonnes non pertinentes (Eco Remb., Eco Prel., Pub) sauf si les donnees existent
-- Les colonnes affichees seront : Restaurant, CA TTC, Rentabilite, Commission, Promos, Remb., Titre Resto, Versement Total
-
-### 4. `Analytics.tsx` - Conditionner les requetes par plateforme
-
-Quand `selectedPlatform === "deliveroo"` :
-- Ne pas appeler le RPC `get_monthly_payouts_detail` (specifique Uber)
-- A la place, creer une requete sur `deliveroo_orders` avec la meme structure temporelle (mois par mois)
-- Passer les resultats mappes au composant `AnalyticsCharts`
-
-### 5. `AnalyticsCharts.tsx` - Routage conditionnel
-
-Dans le rendu de `FinancesSection`, passer les donnees Deliveroo quand la plateforme est selectionnee :
-- `dailyPayoutsData` : donnees Deliveroo agregees si platform === "deliveroo"
-- `selectedPlatform` : deja transmis (ligne 3342)
-
-## Details techniques
-
-### Mapping des colonnes Deliveroo vers le format Uber
-
-```text
-Deliveroo                    -->  Interface existante
-------------------------------------------------------
-order_amount                 -->  sales_incl_vat
-commission_amount            -->  uber_fee_after_promo_incl_vat
-total_payable                -->  net_payout
-SUM(titre resto types)       -->  meal_voucher_amount
-SUM(Remboursement client)    -->  refund_incl_vat
-SUM(Partner funding + ...)   -->  item_promo_incl_vat
-SUM(Publicites Marketer)     -->  other_payments (ads)
-delivery_datetime            -->  order_datetime / payout_date
+// Apres
+const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0)
+  || Math.abs(Number(payout.uber_fee_after_promo_incl_vat) || 0);
 ```
 
-### Requete Deliveroo type (pour remplir le tableau mensuel)
+Cela garantit que si le champ HT specifique Uber n'est pas present, on utilise le montant de commission disponible (qui pour Deliveroo represente deja le bon montant).
 
-Pour chaque mois, agreger les lignes par `restaurant_id` et `history_type`, puis pivoter pour obtenir la meme structure que les payouts Uber. Le regroupement se fait cote client car il n'y a pas de RPC existante pour Deliveroo.
+### Fichier modifie : `src/pages/Analytics.tsx`
 
-### Fichiers modifies
+Dans la requete `deliverooPayoutsData`, ajouter le champ `uber_fee_after_promo_excl_vat` au mapping pour plus de coherence. Puisque Deliveroo fournit une commission sans decomposition HT/TTC, on peut dupliquer la valeur :
 
-1. `src/hooks/useFinancesDrilldown.ts` - Ajouter parametre `platform`, logique de requete conditionnelle
-2. `src/components/analytics/FinancesSection.tsx` - Propager `selectedPlatform` au hook
-3. `src/components/analytics/ProfitabilityComparisonTable.tsx` - Accepter les donnees Deliveroo (meme interface, colonnes adaptees)
-4. `src/pages/Analytics.tsx` - Ajouter requete Deliveroo pour les payouts finances
-5. `src/components/analytics/AnalyticsCharts.tsx` - Router les bonnes donnees selon la plateforme
+```typescript
+// Dans le grouped initializer
+uber_fee_after_promo_excl_vat: 0,
 
-### Colonnes masquees pour Deliveroo
+// Dans le bloc ORDER_TYPES
+g.uber_fee_after_promo_excl_vat += Math.abs(Number(row.commission_amount) || 0);
+```
 
-Les colonnes suivantes n'ont pas d'equivalent dans les releves Deliveroo et seront masquees ou affichees a zero :
-- Commission brute vs nette (Deliveroo ne fournit qu'un taux unique)
-- "Reduction Uber" (specifique Uber)
-- Marketing fee adjustment (pas dans les releves)
+Cela alimentera directement le champ attendu par le tableau sans necessiter de fallback.
+
+## Resultat attendu
+
+La colonne "Commission" affichera ~24% pour les semaines Deliveroo au lieu de 0.0%.
+
