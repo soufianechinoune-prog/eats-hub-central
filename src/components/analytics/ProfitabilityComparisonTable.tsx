@@ -303,7 +303,8 @@ export function ProfitabilityComparisonTable({
       // Calcul du taux de commission contractuel (~27%) :
       // Taux = |uber_fee_after_promo_excl_vat| / (sales_incl_vat - |item_promo_incl_vat|) * 100
       // C'est le taux HT sur CA Net TTC (après promos) = le vrai taux contractuel
-      const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0);
+      const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0)
+        || Math.abs(Number(payout.uber_fee_after_promo_incl_vat) || 0);
       const netSalesTTC = sales - promoAmount; // CA net après promos
       const uberFeeRateHT = netSalesTTC > 0 ? (uberFeeHT / netSalesTTC) * 100 : 0;
       
