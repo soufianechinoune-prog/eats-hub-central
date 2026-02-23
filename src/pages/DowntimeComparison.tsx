@@ -240,8 +240,6 @@ const DowntimeComparison = () => {
       const restaurantData = safeAvailabilityData.filter(d => d.restaurant_id === restaurant.id);
       const totalOffline = restaurantData.reduce((sum, d) => sum + (d.offline_minutes || 0), 0);
       const totalOnline = restaurantData.reduce((sum, d) => sum + (d.online_minutes || 0), 0);
-      const totalMinutes = totalOffline + totalOnline;
-      const availabilityRate = totalMinutes > 0 ? ((totalOnline / totalMinutes) * 100) : 100;
       
       // Group by date for daily evolution
       const dailyData: Record<string, number> = {};
@@ -264,6 +262,12 @@ const DowntimeComparison = () => {
         const total = v.online + v.offline;
         v.rate = total > 0 ? (v.online / total) * 100 : 100;
       });
+
+      // Availability rate = average of daily rates (consistent with Analytics page)
+      const dailyRates = Object.values(dailyAvailability).map(v => v.rate);
+      const availabilityRate = dailyRates.length > 0
+        ? dailyRates.reduce((a, b) => a + b, 0) / dailyRates.length
+        : 100;
 
       // Hourly availability grouped by day for hourly bar charts
       const hourlyByDay: Record<string, Record<number, { online: number; offline: number; rate: number }>> = {};
