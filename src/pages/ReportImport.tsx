@@ -14,6 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 import ImportHistory from "@/components/reports/ImportHistory";
 import BulkImportTab from "@/components/reports/BulkImportTab";
 import UnknownStoreMapping from "@/components/reports/UnknownStoreMapping";
+import DeliverooImportTab from "@/components/reports/DeliverooImportTab";
+import uberEatsLogo from "@/assets/uber-eats-logo.png";
+import deliverooLogo from "@/assets/deliveroo-logo.png";
 import { SuccessScorePreviewEditor } from "@/components/success-score/SuccessScorePreviewEditor";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -217,6 +220,7 @@ export default function ReportImport() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [platform, setPlatform] = useState<"uber" | "deliveroo">("uber");
   const [activeTab, setActiveTab] = useState("import");
   const [file, setFile] = useState<File | null>(null);
   const [csvContent, setCsvContent] = useState<string>("");
@@ -1381,7 +1385,7 @@ export default function ReportImport() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Import des rapports Uber Eats</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Import des rapports</h1>
           <p className="text-muted-foreground mt-1">
             Importez vos rapports CSV pour alimenter automatiquement la base de données
           </p>
@@ -1395,6 +1399,37 @@ export default function ReportImport() {
           Guide d'import
         </Button>
       </div>
+
+      {/* Platform-level tabs */}
+      <div className="flex gap-2 border-b">
+        <button
+          onClick={() => setPlatform("uber")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            platform === "uber"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <img src={uberEatsLogo} alt="Uber Eats" className="h-5 w-5 object-contain" />
+          Uber Eats
+        </button>
+        <button
+          onClick={() => setPlatform("deliveroo")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            platform === "deliveroo"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <img src={deliverooLogo} alt="Deliveroo" className="h-5 w-5 object-contain" />
+          Deliveroo
+        </button>
+      </div>
+
+      {platform === "deliveroo" ? (
+        <DeliverooImportTab restaurants={restaurants} />
+      ) : (
+      <>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -2451,6 +2486,8 @@ export default function ReportImport() {
           <ImportHistory />
         </TabsContent>
       </Tabs>
+      </>
+      )}
     </div>
   );
 }
