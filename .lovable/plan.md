@@ -1,60 +1,39 @@
 
 
-## Matching des restaurants Deliveroo
+## Ajouter un statut "En attente" pour le matching Deliveroo
 
 ### Objectif
-Creer une page dediee pour associer les noms Deliveroo (CSV) aux restaurants en base, et stocker le nom exact Deliveroo dans le champ `deliveroo_store_id` (deja existant, actuellement vide pour tous les restaurants).
+Permettre de mettre certains restaurants en attente quand tu n'as pas encore l'info, et ne sauvegarder que ceux dont tu es sur. Tu pourras y revenir plus tard.
 
-### Fonctionnement
+### Ce qui change
 
-1. L'utilisateur uploade un CSV Deliveroo (ex: `rs-performance-report_xxx.csv`)
-2. Le systeme parse la colonne "Etablissement" et extrait les noms
-3. Pour chaque nom Deliveroo :
-   - Nettoyage : retirer "CHICKEN STREET - ", emojis, accents
-   - Comparaison fuzzy avec les noms en base (meme nettoyage)
-   - Affichage du match propose avec un score de confiance
-4. L'utilisateur valide/corrige chaque correspondance via un dropdown
-5. Bouton "Enregistrer" : sauvegarde le nom exact Deliveroo dans `restaurants.deliveroo_store_id`
+#### 1. Bouton "En attente" par ligne
+- Ajouter un bouton pause/horloge sur chaque ligne non resolue
+- Quand tu cliques, la ligne passe en statut "en attente" (fond jaune pale, badge "En attente")
+- Le restaurant n'est pas sauvegarde et ne compte pas dans les correspondances a enregistrer
+- Tu peux annuler le statut "en attente" pour revenir au mode normal
 
-### Cas particuliers geres automatiquement (overrides)
+#### 2. Nouveau badge dans les compteurs
+- Ajouter un compteur "X en attente" (badge jaune) dans la barre de stats en haut
+- Les restaurants en attente sont exclus du bouton "Enregistrer"
 
-| CSV Deliveroo | Restaurant en base |
-|---|---|
-| "Grenoble" | Echirolles |
-| "Lille Centre" | Lille Flandres |
-| "Lille" (seul) | Lille Wazemmes |
-| "Boulogne" | Boulogne-Billancourt |
-| "Bussy" | Bussy-Saint-Georges |
-| "CS Orignial by Chicken Street" | Oberkampf |
-| "Evry-Courcouronnes" | Courcouronnes |
-| "Crimee" | Paris 19 (si existe) |
+#### 3. Tri adapte
+- Les lignes en attente se regroupent apres les non-matches mais avant les deja lies et les ignores
+- L'ordre devient : non trouves > a verifier > en attente > auto-matches > deja lies > ignores
 
-Les restaurants hors reseau (ex: "Bangkok Factory") sont ignores automatiquement.
+#### 4. Option "En attente" dans le dropdown
+- Ajouter une option "En attente" dans le Select a cote de "Aucun", pour marquer directement depuis le dropdown
 
-### Interface
+### Comportement
+- "En attente" = je ne sais pas encore, je reviendrai plus tard
+- "Aucun" = ce restaurant n'a pas de correspondance (ne sera pas sauvegarde)
+- Seules les lignes avec un restaurant selectionne (ni "aucun", ni "en attente") sont sauvegardees
 
-Tableau avec 4 colonnes :
-- Nom Deliveroo (depuis CSV)
-- Restaurant en base (dropdown modifiable)
-- Score de confiance (badge vert >= 90%, orange >= 70%, rouge < 70%)
-- Statut : deja lie / a confirmer / non trouve
-
-En haut : upload CSV + compteurs
-En bas : bouton "Enregistrer les correspondances"
-
-### Acces
-
-- Nouvelle route `/deliveroo-matching`
-- Accessible depuis le menu lateral, dans la section ou se trouve deja "Uber Mapping"
-
-### Fichiers concernes
+### Fichier concerne
 
 | Fichier | Action |
 |---|---|
-| `src/pages/DeliverooMatching.tsx` | Nouveau - page complete de matching |
-| `src/lib/fuzzyMatch.ts` | Ajouter `matchDeliverooToRestaurant()` avec overrides et nettoyage emojis |
-| `src/App.tsx` | Ajouter route `/deliveroo-matching` |
-| `src/components/layout/AppSidebar.tsx` | Ajouter lien "Deliveroo Matching" a cote de "Uber Mapping" |
+| `src/pages/DeliverooMatching.tsx` | Ajouter le state `isPending` par ligne, le bouton, le badge, le tri, et l'option dropdown |
 
-Pas de migration SQL necessaire : le champ `deliveroo_store_id` existe deja dans la table `restaurants`.
+Pas de changement en base ni dans d'autres fichiers.
 
