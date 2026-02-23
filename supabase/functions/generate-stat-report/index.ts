@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Template types
-type TemplateType = 'errors' | 'revenue' | 'rating' | 'operations' | 'promotions';
+type TemplateType = 'errors' | 'revenue' | 'rating' | 'operations' | 'promotions' | 'downtime';
 type DetailLevel = 'basic' | 'detailed';
 
 interface StatReportRequest {
@@ -103,6 +103,12 @@ serve(async (req) => {
         generatedMessage = await generatePromotionsTemplate(
           supabase, restaurant_id, restaurant.name, managerFirstName,
           start_date, end_date, detail_level
+        );
+        break;
+      case 'downtime':
+        generatedMessage = await generateDowntimeTemplate(
+          supabase, restaurant_id, restaurant.name, managerFirstName,
+          start_date, end_date, prevStartStr, prevEndStr, detail_level
         );
         break;
       default:
@@ -813,6 +819,142 @@ Vérifie si les offres complexifient les préparations.`;
 
 💡 Conseil :
 Analyse la corrélation promos/erreurs dans le dashboard pour optimiser.`;
+  }
+
+  message += `
+
+🤲 Qu'Allah nous accorde la réussite !`;
+
+  return message;
+}
+
+// ============ TEMPLATE 6: DOWNTIME ============
+async function generateDowntimeTemplate(
+  supabase: any,
+  restaurantId: string,
+  restaurantName: string,
+  managerFirstName: string,
+  startDate: string,
+  endDate: string,
+  prevStartStr: string,
+  prevEndStr: string,
+  detailLevel: DetailLevel
+): Promise<string> {
+  // Fetch current week availability data
+  const { data: currentData } = await supabase
+    .from('hourly_availability')
+    .select('hour_start, online_minutes, offline_minutes')
+    .eq('restaurant_id', restaurantId)
+    .eq('platform', 'uber_eats')
+    .gte('hour_start', startDate)
+    .lte('hour_start', endDate + 'T23:59:59');
+
+  const totalOnline = currentData?.reduce((sum: number, d: any) => sum + (d.online_minutes || 0), 0) || 0;
+  const totalOffline = currentData?.reduce((sum: number, d: any) => sum + (d.offline_minutes || 0), 0) || 0;
+  const totalMinutes = totalOnline + totalOffline;
+  const availabilityRate = totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 100;
+
+  // Fetch previous week
+  const { data: prevData } = await supabase
+    .from('hourly_availability')
+    .select('online_minutes, offline_minutes')
+    .eq('restaurant_id', restaurantId)
+    .eq('platform', 'uber_eats')
+    .gte('hour_start', prevStartStr)
+    .lte('hour_start', prevEndStr + 'T23:59:59');
+
+  const prevOnline = prevData?.reduce((sum: number, d: any) => sum + (d.online_minutes || 0), 0) || 0;
+  const prevOffline = prevData?.reduce((sum: number, d: any) => sum + (d.offline_minutes || 0), 0) || 0;
+  const prevTotal = prevOnline + prevOffline;
+  const prevAvailabilityRate = prevTotal > 0 ? (prevOnline / prevTotal) * 100 : 100;
+
+  const rateChange = availabilityRate - prevAvailabilityRate;
+  const trendArrow = rateChange > 0 ? '↗️' : rateChange < 0 ? '↘️' : '➡️';
+  const trendEmoji = availabilityRate >= 98 ? '✅' : availabilityRate >= 95 ? '⚠️' : '❌';
+
+  // Format minutes to hours
+  const formatTime = (minutes: number) => {
+    const h = Math.floor(minutes / 60);
+    const m = Math.round(minutes % 60);
+    if (h === 0) return `${m}min`;
+    return `${h}h ${m.toString().padStart(2, '0')}min`;
+  };
+
+  let message = `⏸️ TEMPS D'INACTIVITÉ - ${restaurantName}
+
+📊 Cette semaine :
+• Taux de disponibilité : ${availabilityRate.toFixed(1)}% ${trendEmoji}
+• Temps hors ligne : ${formatTime(totalOffline)}
+• Sur 7 jours
+
+📈 Évolution :
+${trendArrow} ${rateChange >= 0 ? '+' : ''}${rateChange.toFixed(1)}% vs semaine précédente
+(Était : ${prevAvailabilityRate.toFixed(1)}% | ${formatTime(prevOffline)})`;
+
+  if (detailLevel === 'detailed' && currentData && currentData.length > 0) {
+    // Group by day
+    const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    const dayOffline: Record<string, { name: string; offline: number }> = {};
+
+    currentData.forEach((d: any) => {
+      const date = new Date(d.hour_start);
+      const dateKey = date.toISOString().split('T')[0];
+      const dayName = dayNames[date.getDay()];
+      if (!dayOffline[dateKey]) {
+        dayOffline[dateKey] = { name: dayName, offline: 0 };
+      }
+      dayOffline[dateKey].offline += d.offline_minutes || 0;
+    });
+
+    // Top 3 worst days
+    const sortedDays = Object.values(dayOffline)
+      .filter(d => d.offline > 0)
+      .sort((a, b) => b.offline - a.offline)
+      .slice(0, 3);
+
+    if (sortedDays.length > 0) {
+      message += `
+
+📅 Jours les plus impactés :`;
+      sortedDays.forEach((d, i) => {
+        message += `\n${i + 1}. ${d.name} : ${formatTime(d.offline)} hors ligne`;
+      });
+    }
+
+    // Critical time slots
+    const hourlyOffline: Record<number, number> = {};
+    currentData.forEach((d: any) => {
+      const hour = new Date(d.hour_start).getHours();
+      hourlyOffline[hour] = (hourlyOffline[hour] || 0) + (d.offline_minutes || 0);
+    });
+
+    const sortedHours = Object.entries(hourlyOffline)
+      .filter(([, mins]) => mins > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    if (sortedHours.length > 0) {
+      message += `
+
+⏰ Créneaux critiques :`;
+      sortedHours.forEach(([hour, mins]) => {
+        const h = parseInt(hour);
+        message += `\n• ${h}h-${h + 1}h : ${formatTime(mins)} cumulées`;
+      });
+    }
+
+    // Days at 100%
+    const totalDays = Object.keys(dayOffline).length;
+    const perfectDays = Object.values(dayOffline).filter(d => d.offline === 0).length;
+    // Also count days with no data as 100%
+    const daysInPeriod = 7;
+    const daysWithData = totalDays;
+    const daysWithoutData = daysInPeriod - daysWithData;
+    const totalPerfectDays = perfectDays + daysWithoutData;
+
+    message += `
+
+✅ Jours à 100% : ${totalPerfectDays}/${daysInPeriod}`;
   }
 
   message += `

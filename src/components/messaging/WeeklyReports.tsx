@@ -65,6 +65,7 @@ import {
   MessageSquare,
   CheckSquare,
   Square,
+  PauseCircle,
 } from "lucide-react";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import {
@@ -147,7 +148,7 @@ interface WeeklyKPIs {
 }
 
 // Report type options
-type ReportType = "ai_global" | "errors" | "revenue" | "rating" | "operations" | "promotions";
+type ReportType = "ai_global" | "errors" | "revenue" | "rating" | "operations" | "promotions" | "downtime";
 type DetailLevel = "basic" | "detailed";
 
 const REPORT_TYPE_OPTIONS: {
@@ -205,6 +206,14 @@ const REPORT_TYPE_OPTIONS: {
     icon: <Zap className="h-6 w-6" />,
     gradient: "from-pink-500/20 to-rose-500/20",
     color: "text-pink-500",
+  },
+  {
+    id: "downtime",
+    label: "Temps d'inactivité",
+    description: "Disponibilité et interruptions de service",
+    icon: <PauseCircle className="h-6 w-6" />,
+    gradient: "from-slate-500/20 to-gray-500/20",
+    color: "text-slate-500",
   },
 ];
 
