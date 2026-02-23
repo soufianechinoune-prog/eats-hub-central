@@ -130,6 +130,45 @@ export function useNetworkStats({
     ...RETRY_CONFIG,
   });
 
+  // Deliveroo sales (wave 1b - lightweight)
+  const { data: deliverooSalesData, isLoading: deliverooLoading } = useQuery({
+    queryKey: ["network-stats-deliveroo", restaurantIds, startDateStr, endDateStr],
+    queryFn: async () => {
+      if (!hasIds) return [];
+      const PAGE_SIZE = 1000;
+      let allData: Array<{
+        restaurant_id: string;
+        order_amount: number | null;
+        total_payable: number | null;
+      }> = [];
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("deliveroo_orders")
+          .select("restaurant_id, order_amount, total_payable")
+          .eq("history_type", "Livraison")
+          .gte("delivery_datetime", `${startDateStr}T00:00:00`)
+          .lte("delivery_datetime", `${endDateStr}T23:59:59`)
+          .in("restaurant_id", restaurantIds)
+          .order("delivery_datetime", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          hasMore = data.length === PAGE_SIZE;
+          offset += PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      return allData;
+    },
+    enabled: hasIds,
+    ...RETRY_CONFIG,
+  });
+
   // N-1 sales (part of wave 1 since it's lightweight)
   const { data: prevSalesData } = useQuery({
     queryKey: ["network-stats-sales-prev", restaurantIds, prevStartDateStr, prevEndDateStr],
@@ -313,8 +352,18 @@ export function useNetworkStats({
 
     return restaurants.map((resto) => {
       const restoSales = salesData?.filter((s) => s.restaurant_id === resto.id) || [];
-      const revenue = restoSales.reduce((sum, s) => sum + Number(s.revenue_ttc || 0), 0);
-      const orders = restoSales.reduce((sum, s) => sum + Number(s.order_count || 0), 0);
+      const uberRevenue = restoSales.reduce((sum, s) => sum + Number(s.revenue_ttc || 0), 0);
+      const uberOrders = restoSales.reduce((sum, s) => sum + Number(s.order_count || 0), 0);
+
+      // Deliveroo data
+      const restoDeliveroo = deliverooSalesData?.filter((d) => d.restaurant_id === resto.id) || [];
+      const deliverooRevenue = restoDeliveroo.reduce((sum, d) => sum + Number(d.order_amount || 0), 0);
+      const deliverooOrders = restoDeliveroo.length;
+      const deliverooNetPayout = restoDeliveroo.reduce((sum, d) => sum + Number(d.total_payable || 0), 0);
+
+      // Combined metrics
+      const revenue = uberRevenue + deliverooRevenue;
+      const orders = uberOrders + deliverooOrders;
       const avgBasket = orders > 0 ? revenue / orders : 0;
 
       const restoPrevSales = prevSalesData?.filter((s) => s.restaurant_id === resto.id) || [];
@@ -332,8 +381,9 @@ export function useNetworkStats({
       let profitability: number | null = null;
       let netPayout = 0;
       
-      if (restoOrders.length > 0) {
-        const totalSales = restoOrders.reduce(
+      if (restoOrders.length > 0 || restoDeliveroo.length > 0) {
+        // Uber part
+        const uberSales = restoOrders.reduce(
           (sum, o) => sum + Math.max(0, Number(o.sales_incl_vat || 0)),
           0
         );
@@ -349,16 +399,19 @@ export function useNetworkStats({
           (sum, o) => sum + Number(o.meal_voucher_amount || 0),
           0
         );
-        netPayout = totalNetPayoutRaw + totalMealVoucher;
+        const uberNetPayout = totalNetPayoutRaw + totalMealVoucher;
+        
+        // Combined payout (Uber + Deliveroo)
+        netPayout = uberNetPayout + deliverooNetPayout;
 
-        const denominator =
-          profitabilityBase === "net"
-            ? Math.max(0, totalSales - totalPromo)
-            : totalSales;
+        // Combined profitability
+        const combinedSales = profitabilityBase === "net"
+          ? Math.max(0, uberSales - totalPromo) + deliverooRevenue
+          : uberSales + deliverooRevenue;
 
         profitability =
-          denominator > 0
-            ? (netPayout / denominator) * 100
+          combinedSales > 0
+            ? (netPayout / combinedSales) * 100
             : null;
       }
 
@@ -441,6 +494,7 @@ export function useNetworkStats({
   }, [
     restaurants,
     salesData,
+    deliverooSalesData,
     prevSalesData,
     reviewsData,
     ordersPayoutData,
@@ -537,6 +591,7 @@ export function useNetworkStats({
 
   const isLoading =
     salesLoading ||
+    deliverooLoading ||
     reviewsLoading ||
     ordersPayoutLoading ||
     historyLoading ||

@@ -262,6 +262,34 @@ function useOverviewProducts(
   });
 }
 
+function useOverviewDeliverooSales(
+  restaurantIds: string[],
+  startDateStr: string,
+  endDateStr: string,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ["overview-deliveroo-sales", restaurantIds, startDateStr, endDateStr],
+    queryFn: async () => {
+      if (restaurantIds.length === 0) return [];
+      return fetchAllPages<any>((offset) =>
+        supabase
+          .from("deliveroo_orders")
+          .select("restaurant_id, order_amount, total_payable")
+          .eq("history_type", "Livraison")
+          .gte("delivery_datetime", `${startDateStr}T00:00:00`)
+          .lte("delivery_datetime", `${endDateStr}T23:59:59`)
+          .in("restaurant_id", restaurantIds)
+          .order("delivery_datetime", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1),
+      );
+    },
+    enabled,
+    ...RETRY_CONFIG,
+  });
+}
+
 function useOverviewConversion(
   restaurantIds: string[],
   startDateStr: string,
@@ -363,9 +391,10 @@ export function useOverviewData(
   const restaurantIds = restaurants.data?.map((r) => r.id) || [];
   const hasIds = restaurantIds.length > 0;
 
-  // Wave 1b: Sales + Payouts (as soon as we have IDs)
+  // Wave 1b: Sales + Payouts + Deliveroo Sales (as soon as we have IDs)
   const sales = useOverviewSales(restaurantIds, startDateStr, endDateStr, hasIds);
   const payouts = useOverviewPayouts(restaurantIds, startDateStr, endDateStr, hasIds);
+  const deliverooSales = useOverviewDeliverooSales(restaurantIds, startDateStr, endDateStr, hasIds);
 
   // Wave 2: Reviews + Accuracy + Errors (after sales)
   const wave1Done = hasIds && !!sales.data;
@@ -440,7 +469,19 @@ export function useOverviewData(
 
     const totalPayoutSales = payoutsData.reduce((sum, p: any) => sum + Number(p.sales_incl_vat || 0), 0);
     const totalNetPayout = payoutsData.reduce((sum, p: any) => sum + Number(p.net_payout || 0), 0);
-    const globalProfitability = totalPayoutSales > 0 ? (totalNetPayout / totalPayoutSales) * 100 : null;
+    const uberProfitability = totalPayoutSales > 0 ? (totalNetPayout / totalPayoutSales) * 100 : null;
+
+    // Deliveroo financial metrics
+    const deliverooData = deliverooSales.data || [];
+    const deliverooRevenue = deliverooData.reduce((sum, d: any) => sum + Number(d.order_amount || 0), 0);
+    const deliverooNetPayout = deliverooData.reduce((sum, d: any) => sum + Number(d.total_payable || 0), 0);
+    const deliverooOrderCount = deliverooData.length;
+    const deliverooProfitability = deliverooRevenue > 0 ? (deliverooNetPayout / deliverooRevenue) * 100 : null;
+
+    // Global profitability (weighted Uber + Deliveroo)
+    const globalSales = totalPayoutSales + deliverooRevenue;
+    const globalPayout = totalNetPayout + deliverooNetPayout;
+    const globalProfitability = globalSales > 0 ? (globalPayout / globalSales) * 100 : null;
 
     // Per-restaurant metrics
     const restaurantMetrics = restos.map((resto) => {
@@ -584,7 +625,7 @@ export function useOverviewData(
         prepTime: uberPrepTime != null ? Math.round(uberPrepTime) : null,
         errorRate: uberOrders > 0 ? (errorsData.length / uberOrders) * 100 : null,
         incorrectOrderRate,
-        profitability: globalProfitability,
+        profitability: uberProfitability,
         downtime: uberDowntimeHours,
       },
       deliveroo: {
@@ -592,7 +633,7 @@ export function useOverviewData(
         prepTime: null,
         errorRate: null,
         incorrectOrderRate: null,
-        profitability: null,
+        profitability: deliverooProfitability,
         downtime: null,
       },
       topByRating,
@@ -613,7 +654,7 @@ export function useOverviewData(
   const data = computedData();
 
   // Loading states
-  const wave1Loading = restaurants.isLoading || sales.isLoading;
+  const wave1Loading = restaurants.isLoading || sales.isLoading || deliverooSales.isLoading;
   const wave2Loading = reviews.isLoading || accuracy.isLoading || errors.isLoading;
   const wave3Loading = prepTimes.isLoading || availability.isLoading;
   const wave4Loading = products.isLoading || conversion.isLoading;
@@ -637,6 +678,7 @@ export function useOverviewData(
       ["overview-restaurants"],
       ["overview-sales"],
       ["overview-payouts"],
+      ["overview-deliveroo-sales"],
       ["overview-reviews"],
       ["overview-accuracy"],
       ["overview-errors"],
