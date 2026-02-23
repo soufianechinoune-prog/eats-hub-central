@@ -321,10 +321,15 @@ const DowntimeComparison = () => {
   }, [dateRange]);
 
   const imperfectCount = useMemo(() => restaurantStats.filter(s => Math.round(s.availabilityRate * 10) / 10 < 100).length, [restaurantStats]);
+  const below99Count = useMemo(() => restaurantStats.filter(s => Math.round(s.availabilityRate * 10) / 10 < 99).length, [restaurantStats]);
 
   // Unified export handler
-  const handleExport = (type: "pdf" | "excel", onlyImperfect: boolean) => {
-    const stats = onlyImperfect ? restaurantStats.filter(s => Math.round(s.availabilityRate * 10) / 10 < 100) : restaurantStats;
+  const handleExport = (type: "pdf" | "excel", filter: "all" | "imperfect" | "below99") => {
+    const stats = filter === "below99"
+      ? restaurantStats.filter(s => Math.round(s.availabilityRate * 10) / 10 < 99)
+      : filter === "imperfect"
+        ? restaurantStats.filter(s => Math.round(s.availabilityRate * 10) / 10 < 100)
+        : restaurantStats;
     if (stats.length === 0) return;
 
     const totalDowntime = stats.reduce((sum, s) => sum + s.totalOfflineMinutes, 0);
@@ -336,7 +341,7 @@ const DowntimeComparison = () => {
     const worstPerformer = stats[stats.length - 1] || { name: "-", totalOfflineMinutes: 0 };
 
     const payload = {
-      title: onlyImperfect ? "Inactivite - Restaurants hors 100%" : "Comparaison Temps d'inactivite",
+      title: filter === "below99" ? "Inactivite - Restaurants sous 99%" : filter === "imperfect" ? "Inactivite - Restaurants hors 100%" : "Comparaison Temps d'inactivite",
       period: periodLabel,
       dateRange,
       stats,
@@ -393,11 +398,14 @@ const DowntimeComparison = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-popover">
-                <DropdownMenuItem onClick={() => handleExport("pdf", false)}>
+                <DropdownMenuItem onClick={() => handleExport("pdf", "all")}>
                   Tous les restaurants ({restaurantStats.length})
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("pdf", true)} disabled={imperfectCount === 0}>
+                <DropdownMenuItem onClick={() => handleExport("pdf", "imperfect")} disabled={imperfectCount === 0}>
                   Hors 100% uniquement ({imperfectCount})
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf", "below99")} disabled={below99Count === 0}>
+                  Sous 99% uniquement ({below99Count})
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -411,11 +419,14 @@ const DowntimeComparison = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-popover">
-                <DropdownMenuItem onClick={() => handleExport("excel", false)}>
+                <DropdownMenuItem onClick={() => handleExport("excel", "all")}>
                   Tous les restaurants ({restaurantStats.length})
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("excel", true)} disabled={imperfectCount === 0}>
+                <DropdownMenuItem onClick={() => handleExport("excel", "imperfect")} disabled={imperfectCount === 0}>
                   Hors 100% uniquement ({imperfectCount})
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("excel", "below99")} disabled={below99Count === 0}>
+                  Sous 99% uniquement ({below99Count})
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
