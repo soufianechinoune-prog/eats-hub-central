@@ -384,6 +384,7 @@ export default function Analytics() {
         restaurant_id: string;
         sales_incl_vat: number;
         uber_fee_after_promo_incl_vat: number;
+        uber_fee_after_promo_excl_vat: number;
         item_promo_incl_vat: number;
         refund_incl_vat: number;
         net_payout: number;
@@ -407,8 +408,9 @@ export default function Analytics() {
           grouped[key] = {
             payout_date: weekKey,
             restaurant_id: row.restaurant_id,
-            sales_incl_vat: 0,
+        sales_incl_vat: 0,
             uber_fee_after_promo_incl_vat: 0,
+            uber_fee_after_promo_excl_vat: 0,
             item_promo_incl_vat: 0,
             refund_incl_vat: 0,
             net_payout: 0,
@@ -425,6 +427,7 @@ export default function Analytics() {
         if (ORDER_TYPES.includes(ht)) {
           g.sales_incl_vat += Math.abs(Number(row.order_amount) || 0);
           g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.commission_amount) || 0);
+          g.uber_fee_after_promo_excl_vat += Math.abs(Number(row.commission_amount) || 0);
           g.net_payout += Number(row.total_payable) || 0;
           g.order_count += 1;
         } else if (MEAL_VOUCHER_TYPES.includes(ht)) {
