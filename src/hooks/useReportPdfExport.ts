@@ -285,28 +285,29 @@ export function useReportPdfExport() {
           },
         ];
 
+        console.log("[PDF] Drawing KPI cards with NEW white design v2");
         kpiCards.forEach((card, index) => {
           const x = margin + index * (kpiCardWidth + 5);
           
           // White background with light gray border
           doc.setFillColor(255, 255, 255);
           doc.setDrawColor(229, 231, 235);
-          doc.setLineWidth(0.4);
+          doc.setLineWidth(0.5);
           doc.roundedRect(x, y, kpiCardWidth, kpiCardHeight, 2, 2, "FD");
           
-          // Label in dark gray
+          // Label in dark gray at top
           doc.setTextColor(75, 85, 99);
           doc.setFontSize(7);
           doc.setFont("helvetica", "normal");
           doc.text(card.label, x + 3, y + 7);
           
-          // Value in status color
+          // Value in status color - large and bold
           doc.setTextColor(card.color[0], card.color[1], card.color[2]);
           doc.setFontSize(14);
           doc.setFont("helvetica", "bold");
           doc.text(card.value, x + 3, y + 17);
           
-          // Subtitle in light gray
+          // Subtitle in light gray at bottom
           doc.setTextColor(156, 163, 175);
           doc.setFontSize(5.5);
           doc.setFont("helvetica", "normal");

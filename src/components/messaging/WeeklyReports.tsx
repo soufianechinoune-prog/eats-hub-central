@@ -812,7 +812,8 @@ export default function WeeklyReports() {
 
             // Upload to whatsapp-media bucket
             const safeName = kpi.restaurant_name.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 30);
-            const fileName = `report-${safeName}-${format(periodStart, "yyyyMMdd")}.pdf`;
+            const timestamp = Date.now();
+            const fileName = `report-${safeName}-${format(periodStart, "yyyyMMdd")}-${timestamp}.pdf`;
             const filePath = `reports/${fileName}`;
 
             const { error: uploadError } = await supabase.storage
