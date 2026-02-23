@@ -894,14 +894,14 @@ ${trendArrow} ${rateChange >= 0 ? '+' : ''}${rateChange.toFixed(1)}% vs semaine 
   if (detailLevel === 'detailed' && currentData && currentData.length > 0) {
     // Group by day
     const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-    const dayOffline: Record<string, { name: string; offline: number }> = {};
+    const dayOffline: Record<string, { name: string; offline: number; date: string }> = {};
 
     currentData.forEach((d: any) => {
       const date = new Date(d.hour_start);
       const dateKey = date.toISOString().split('T')[0];
       const dayName = dayNames[date.getDay()];
       if (!dayOffline[dateKey]) {
-        dayOffline[dateKey] = { name: dayName, offline: 0 };
+        dayOffline[dateKey] = { name: dayName, offline: 0, date: dateKey };
       }
       dayOffline[dateKey].offline += d.offline_minutes || 0;
     });
@@ -946,7 +946,6 @@ ${trendArrow} ${rateChange >= 0 ? '+' : ''}${rateChange.toFixed(1)}% vs semaine 
     // Days at 100%
     const totalDays = Object.keys(dayOffline).length;
     const perfectDays = Object.values(dayOffline).filter(d => d.offline === 0).length;
-    // Also count days with no data as 100%
     const daysInPeriod = 7;
     const daysWithData = totalDays;
     const daysWithoutData = daysInPeriod - daysWithData;
@@ -955,6 +954,98 @@ ${trendArrow} ${rateChange >= 0 ? '+' : ''}${rateChange.toFixed(1)}% vs semaine 
     message += `
 
 ✅ Jours à 100% : ${totalPerfectDays}/${daysInPeriod}`;
+
+    // ============ AI ANALYSIS ============
+    try {
+      // Fetch revenue data for the period to estimate lost revenue
+      const { data: salesData } = await supabase
+        .from('daily_sales_uber_deduped')
+        .select('revenue_ttc, order_count')
+        .eq('restaurant_id', restaurantId)
+        .gte('date', startDate)
+        .lte('date', endDate);
+
+      const weekRevenue = salesData?.reduce((sum: number, d: any) => sum + Number(d.revenue_ttc || 0), 0) || 0;
+      const weekOrders = salesData?.reduce((sum: number, d: any) => sum + (d.order_count || 0), 0) || 0;
+      const revenuePerHour = totalOnline > 0 ? (weekRevenue / (totalOnline / 60)) : 0;
+      const estimatedLostRevenue = revenuePerHour * (totalOffline / 60);
+
+      // Build context for AI
+      const aiContext = {
+        restaurant: restaurantName,
+        period: `${startDate} au ${endDate}`,
+        availabilityRate: availabilityRate.toFixed(1),
+        prevAvailabilityRate: prevAvailabilityRate.toFixed(1),
+        rateChange: rateChange.toFixed(1),
+        totalOfflineMinutes: Math.round(totalOffline),
+        prevOfflineMinutes: Math.round(prevOffline),
+        worstDays: sortedDays.map(d => ({ day: d.name, offlineMinutes: Math.round(d.offline) })),
+        criticalSlots: sortedHours.map(([hour, mins]) => ({ slot: `${hour}h-${parseInt(hour) + 1}h`, offlineMinutes: Math.round(mins as number) })),
+        perfectDays: totalPerfectDays,
+        totalDays: daysInPeriod,
+        weekRevenue: Math.round(weekRevenue),
+        weekOrders,
+        revenuePerHour: Math.round(revenuePerHour),
+        estimatedLostRevenue: Math.round(estimatedLostRevenue),
+      };
+
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+      if (LOVABLE_API_KEY) {
+        const aiPrompt = `Tu es un expert en opérations de restaurants delivery (Uber Eats, Deliveroo). Tu analyses les données de temps d'inactivité d'un restaurant et tu dois fournir une analyse concise et actionnable pour le manager.
+
+CONTEXTE BUSINESS CRITIQUE :
+- Chaque minute hors ligne = des commandes perdues définitivement (les clients commandent chez un concurrent)
+- L'algorithme Uber Eats PÉNALISE fortement les restaurants avec un faible taux de disponibilité (moins de visibilité, classement plus bas)
+- Les causes sont souvent humaines : oubli de rallumer la tablette après le service, pause manuelle non désactivée, tablette déchargée
+- Un restaurant doit viser 98%+ de disponibilité pour maximiser son ranking
+
+DONNÉES DU RESTAURANT :
+${JSON.stringify(aiContext, null, 2)}
+
+INSTRUCTIONS :
+- Écris une analyse en 5-8 lignes MAX (c'est pour WhatsApp, pas un rapport)
+- Commence par le diagnostic principal (quel est le vrai problème ?)
+- Estime le manque à gagner si les données le permettent (CA perdu ≈ ${aiContext.estimatedLostRevenue}€)
+- Identifie les patterns (concentration sur certains jours/créneaux ? récurrence ?)
+- Donne 2-3 recommandations CONCRÈTES et ACTIONNABLES (pas de généralités)
+- Utilise un ton direct et professionnel, pas de flatterie
+- N'utilise PAS d'emojis (ils sont déjà dans le message)
+- Ne répète pas les chiffres déjà mentionnés dans le rapport ci-dessus
+- Écris en français`;
+
+        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              { role: 'user', content: aiPrompt }
+            ],
+          }),
+        });
+
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          const analysis = aiData.choices?.[0]?.message?.content?.trim();
+          if (analysis) {
+            message += `
+
+🧠 Analyse IA :
+${analysis}`;
+          }
+        } else {
+          console.error('AI gateway error:', aiResponse.status, await aiResponse.text());
+        }
+      } else {
+        console.warn('LOVABLE_API_KEY not configured, skipping AI analysis');
+      }
+    } catch (aiError) {
+      console.error('Error generating AI analysis for downtime:', aiError);
+      // Don't fail the whole report if AI fails
+    }
   }
 
   message += `
