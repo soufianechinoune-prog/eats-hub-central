@@ -10,6 +10,7 @@ export const extractCityName = (fullName: string): string => {
   let cityPart = fullName
     .replace(/^CHICKEN STREET\s*/i, "")
     .replace(/^CS\s*/i, "")
+    .replace(/^-\s*/, "")
     .trim();
   
   if (!cityPart) return fullName;
