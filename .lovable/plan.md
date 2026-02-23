@@ -1,46 +1,79 @@
 
-## Correction du calcul du taux de disponibilite (KPI inconsistant)
 
-### Probleme identifie
+## Ajouter un PDF en piece jointe aux rapports WhatsApp
 
-Quand une heure n'a aucune donnee (online_minutes = 0 ET offline_minutes = 0), les KPI affichent **0%** de disponibilite alors que le graphique affiche **100%**. Les deux se contredisent.
+### Contexte
 
-Cas concrets observes :
-- **20 fevrier** : Restaurant ferme toute la journee, KPI = "0.0%" mais graphique = "100%" sur toutes les heures
-- **21 fevrier** : Seulement 2h d'activite (48 min online, 158 min offline), KPI = "23.3%" alors que le graphique montre 100% pour les 22 heures sans donnees
+Le rapport IA inclut deja les donnees de temps d'inactivite (downtime_minutes) dans le prompt envoye a l'IA. Aucune modification necessaire pour le point 1.
 
-### Cause racine
+Pour le point 2, on va generer un PDF de synthese par restaurant et l'envoyer en piece jointe WhatsApp apres le message texte.
 
-Deux formules differentes dans `OperationsAnalytics.tsx` :
+### Architecture du flux
 
 ```text
-KPI (ligne 261/369) : totalMinutes > 0 ? (online/total)*100 : 0     --> defaut 0%
-Graphique (ligne 351) : total > 0 ? (online/total)*100 : 100         --> defaut 100%
+1. Generation rapports IA (existant)
+      |
+2. Generation PDF par restaurant (NOUVEAU - client-side jsPDF)
+      |
+3. Upload PDF vers storage "whatsapp-media" 
+      |
+4. Envoi message texte WhatsApp (existant)
+      |
+5. Envoi PDF via send-whatsapp-media (existant)
 ```
 
-### Correction
+### Modifications
 
-Aligner les KPI sur la meme logique que le graphique : quand il n'y a aucune minute enregistree, c'est "pas de downtime detecte" = **100%** par defaut.
+#### 1. Nouveau hook : `src/hooks/useReportPdfExport.ts`
 
-### Modifications dans `src/components/analytics/OperationsAnalytics.tsx`
+Hook qui genere un PDF de synthese KPI pour un restaurant donne, sans html2canvas (100% jsPDF vectoriel pour la rapidite) :
 
-1. **Ligne 261** (KPI general) : changer le defaut de `0` a `100`
-   - Avant : `avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 0`
-   - Apres : `avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 100`
+- Header avec logo CS + nom du restaurant + periode
+- Section KPIs : CA, Commandes, Panier moyen, Note, Taux d'erreur, Temps de prep, Downtime
+- Indicateurs de tendance (fleches haut/bas + couleurs vert/rouge)
+- Comparaison semaine precedente
+- Le PDF est retourne en tant que Blob
 
-2. **Ligne 369** (KPI jour) : meme correction
-   - Avant : `avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 0`
-   - Apres : `avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 100`
+#### 2. Modification : `src/components/messaging/WeeklyReports.tsx`
 
-### Impact
+Dans la fonction `sendReports` (ligne ~733), apres l'envoi du message texte :
 
-- Les KPI et le graphique seront maintenant coherents
-- Un jour sans donnees affichera 100% (pas de downtime) au lieu de 0%
-- Le 21 fevrier affichera toujours 23.3% car les heures avec donnees ne changent pas
-- Aucun impact sur les autres pages (la comparaison reseau utilise sa propre logique)
+- Option "Joindre le PDF" : ajouter un toggle/checkbox dans l'interface d'envoi (onglet "Envoi")
+- Pour chaque restaurant selectionne :
+  1. Generer le PDF avec les KPIs du `generatedKPIs`
+  2. Uploader le PDF dans le bucket `whatsapp-media` avec un nom unique (ex: `report-{restaurant}-{date}.pdf`)
+  3. Recuperer l'URL publique
+  4. Appeler `send-whatsapp-media` avec `mediaType: 'document'` et le `filename`
+  5. Ajouter un delai de 1s entre chaque envoi PDF pour eviter le rate-limiting
 
-### Fichier concerne
+#### 3. Interface utilisateur
+
+- Ajouter un toggle "Joindre le PDF de synthese" dans l'onglet Envoi, au-dessus du bouton "Envoyer"
+- Indicateur de progression : "Envoi PDF 2/4..."
+- Le toggle est desactive par defaut pour ne pas changer le comportement existant
+
+### Contenu du PDF de synthese
+
+| Section | Contenu |
+|---------|---------|
+| En-tete | Logo CS, nom restaurant, periode |
+| CA et Commandes | CA actuel vs precedent, variation %, nb commandes, panier moyen |
+| Satisfaction | Note moyenne vs precedent, nb avis |
+| Operations | Temps de prep, attente coursier |
+| Erreurs | Taux d'erreur vs precedent, nb erreurs |
+| Disponibilite | Minutes d'inactivite vs precedent |
+| Pied de page | Date de generation, "CS Delivery Performance" |
+
+### Fichiers concernes
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/components/analytics/OperationsAnalytics.tsx` | Corriger le defaut de 0 a 100 quand aucune donnee n'est disponible (2 lignes) |
+| `src/hooks/useReportPdfExport.ts` | NOUVEAU - Generation PDF vectoriel par restaurant |
+| `src/components/messaging/WeeklyReports.tsx` | Ajouter toggle PDF + logique upload/envoi dans sendReports |
+
+### Limites et considerations
+
+- Les PDFs sont generes cote client (rapide, ~100ms par PDF)
+- Le bucket `whatsapp-media` est deja configure et utilise pour d'autres medias
+- Le delai entre envois PDF (1s) evite le rate-limiting UltraMsg
+- Pour 4 restaurants : ~8s supplementaires d'envoi (4 PDFs x 1s + 4 textes x 0.5s)
