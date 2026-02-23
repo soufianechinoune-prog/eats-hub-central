@@ -278,8 +278,14 @@ export function useReportPdfExport() {
           hourlyByDay[dayKey][hour].offline += row.offline_minutes;
         }
 
-        const totalMinutes = totalOnline + totalOffline;
-        const availabilityRate = totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 100;
+        // Availability rate = average of daily rates (consistent with Analytics page)
+        const dailyRates = Object.values(dailyMap).map(({ online, offline }) => {
+          const total = online + offline;
+          return total > 0 ? (online / total) * 100 : 100;
+        });
+        const availabilityRate = dailyRates.length > 0
+          ? dailyRates.reduce((a, b) => a + b, 0) / dailyRates.length
+          : 100;
         
         // Count incidents (consecutive offline hours > 15min)
         let incidentCount = 0;
