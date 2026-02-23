@@ -1,30 +1,64 @@
 
 
-# Correction des erreurs d'import Deliveroo - Deduplication
+# Integrer les donnees Deliveroo dans la Vue d'ensemble
 
-## Probleme identifie
+## Contexte
 
-Les logs montrent l'erreur PostgreSQL : **"ON CONFLICT DO UPDATE command cannot affect row a second time"**. Cela arrive quand un meme fichier CSV contient deux lignes identiques sur la cle unique `(deliveroo_uuid, history_type, delivery_datetime)`. PostgreSQL refuse de traiter deux fois la meme cle dans un seul batch d'upsert.
+Les releves Deliveroo importes contiennent des donnees financieres exploitables pour la Vue d'ensemble. Actuellement, la carte Deliveroo affiche "--" sur presque toutes les metriques. L'objectif est d'alimenter cette carte et la carte Global avec les donnees reelles de la table `deliveroo_orders`.
 
-936 lignes sur 27 233 sont concernees (environ 3,4%).
+## Donnees disponibles dans `deliveroo_orders`
 
-## Solution
+A partir des lignes de type "Livraison", on peut extraire :
+- **CA (Chiffre d'affaires)** : somme de `order_amount`
+- **Versement** : somme de `total_payable`
+- **Nombre de commandes** : nombre de lignes "Livraison"
+- **Panier moyen** : CA / nombre de commandes
+- **Rentabilite** : (total_payable / order_amount) * 100
 
-Ajouter une etape de **deduplication** dans la fonction `parse-deliveroo-statement` avant l'upsert en base, comme c'est deja fait pour les rapports Uber Eats.
+Les metriques suivantes restent indisponibles (pas de source Deliveroo) :
+- Note moyenne (deja alimentee via `customer_reviews`)
+- Temps de preparation (pas dans les releves de paiement)
+- Commandes incorrectes (pas dans les releves)
+- Temps d'inactivite (pas dans les releves)
+
+## Modifications prevues
+
+### 1. `src/hooks/useOverviewData.ts` - Ajouter un hook Deliveroo
+
+Creer un hook `useOverviewDeliverooSales` qui interroge `deliveroo_orders` :
+- Filtre sur `history_type = 'Livraison'` et la periode selectionnee
+- Filtre sur les restaurant_ids epingles
+- Agregation : SUM(order_amount), SUM(total_payable), COUNT(*)
+
+Integrer ces donnees dans le calcul `computedData()` pour :
+- Remplir `deliveroo.profitability` avec le ratio versement/CA
+- Fusionner dans `global.profitability` (ponderation Uber + Deliveroo)
+- Ajouter les champs `deliverooRevenue`, `deliverooOrders`, `deliverooNetPayout` a l'interface `OverviewData`
+
+### 2. `src/pages/Overview.tsx` - Afficher les nouvelles metriques Deliveroo
+
+Ajouter dans la carte Deliveroo :
+- **CA** : chiffre d'affaires total Deliveroo
+- **Versement** : total payable Deliveroo
+- **Rentabilite** : pourcentage calcule
+
+Mettre a jour la carte Global pour combiner les donnees des deux plateformes dans le calcul de rentabilite.
+
+### 3. `src/hooks/useNetworkStats.ts` - Integrer Deliveroo dans le tableau comparatif
+
+Ajouter une requete sur `deliveroo_orders` par restaurant pour enrichir :
+- Le CA total (Uber + Deliveroo)
+- Le versement total
+- Le nombre de commandes total
+- La rentabilite combinee
+
+Cela permettra au tableau "Comparatif des restaurants" d'afficher des totaux multi-plateformes.
 
 ## Details techniques
 
-### Fichier modifie : `supabase/functions/parse-deliveroo-statement/index.ts`
-
-Entre l'etape de construction des `dbRecords` (etape 4) et l'upsert (etape 5), ajouter une phase de deduplication :
-
-1. Pour chaque enregistrement, generer une cle composite : `deliveroo_uuid|history_type|delivery_datetime`
-2. Si plusieurs lignes partagent la meme cle, ne garder que la derniere occurrence (qui ecrase les precedentes)
-3. Envoyer uniquement les enregistrements dedupliques a l'upsert
-
-Cela corrigera les erreurs sans perte de donnees, puisque les doublons sont des lignes identiques.
-
-### Aucune modification de base de donnees necessaire
-
-L'index unique est deja en place. Seule la logique de l'edge function doit etre ajustee.
+- La requete Deliveroo utilise `delivery_datetime` (timestamp) pour le filtrage temporel, similaire a `order_datetime` pour Uber
+- Seules les lignes `history_type = 'Livraison'` comptent comme commandes
+- Les remboursements et ajustements sont exclus du comptage de commandes mais peuvent etre inclus dans le calcul financier global
+- La deduplication est deja geree cote import (index unique)
+- Le hook suit le pattern existant de chargement par vagues (wave 1b avec les ventes)
 
