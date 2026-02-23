@@ -4,6 +4,8 @@ import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getMetricStatus } from "@/lib/performanceThresholds";
 import { supabase } from "@/integrations/supabase/client";
+import { extractCityName } from "@/lib/restaurantUtils";
+import csLogoUrl from "@/assets/cs-logo.jpeg";
 
 interface ReportKPIs {
   restaurant_name: string;
@@ -172,6 +174,22 @@ async function fetchHourlyAvailability(restaurantId: string, startDate: string, 
 
 export function useReportPdfExport() {
 
+  // Load logo as base64 once
+  const loadLogoBase64 = async (): Promise<string | null> => {
+    try {
+      const response = await fetch(csLogoUrl);
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
   const generateReportPdf = useCallback(async (kpi: ReportKPIs, options: PdfOptions): Promise<Blob> => {
     const reportType = options.reportType || "ai_global";
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -181,34 +199,49 @@ export function useReportPdfExport() {
     const contentW = pw - margin * 2;
     let y = 0;
 
-    // ========== HEADER ==========
-    doc.setFillColor(16, 185, 129);
-    doc.rect(0, 0, pw, 28, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
+    // ========== HEADER (white + logo + emerald line) ==========
+    const cityName = extractCityName(kpi.restaurant_name);
+    const logoBase64 = await loadLogoBase64();
+
+    // Logo
+    const logoSize = 14;
+    let textStartX = margin;
+    if (logoBase64) {
+      doc.addImage(logoBase64, "JPEG", margin, 8, logoSize, logoSize, undefined, "FAST");
+      textStartX = margin + logoSize + 4;
+    }
+
+    // Title
+    doc.setTextColor(31, 41, 55);
+    doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text("CS Delivery", margin, 12);
+    doc.text(`Rapport CS ${cityName}`, textStartX, 15);
+
+    // Subtitle (report type)
+    doc.setTextColor(107, 114, 128);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(REPORT_TITLES[reportType], margin, 18);
-    
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text(kpi.restaurant_name, margin, 25);
-    
-    // Format period for display (convert ISO dates to readable format)
+    doc.text(REPORT_TITLES[reportType], textStartX, 21);
+
+    // Period (right-aligned)
     const formatPeriodDate = (dateStr: string) => {
       try {
         const d = parseISO(dateStr);
         return format(d, "d MMM yyyy", { locale: fr });
       } catch { return dateStr; }
     };
-    const periodText = `${formatPeriodDate(options.periodStart)} -- ${formatPeriodDate(options.periodEnd)}`;
+    const periodText = `${formatPeriodDate(options.periodStart)} — ${formatPeriodDate(options.periodEnd)}`;
     doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.text(periodText, pw - margin - doc.getTextWidth(periodText), 25);
+    doc.setTextColor(107, 114, 128);
+    doc.text(periodText, pw - margin, 15, { align: "right" });
 
-    y = 35;
+    // Emerald separation line
+    y = 26;
+    doc.setDrawColor(16, 185, 129);
+    doc.setLineWidth(0.8);
+    doc.line(margin, y, pw - margin, y);
+
+    y = 33;
 
     // ========== DOWNTIME REPORT WITH CHARTS ==========
     if (reportType === "downtime" && options.restaurant_id) {
@@ -350,43 +383,58 @@ export function useReportPdfExport() {
         y = drawBarChart(doc, margin, y, chartWidth, maxBarHeight, labels, values);
         y += 8;
 
-        // ===== HOURLY BAR CHARTS PER DAY (only if real data exists and <= 14 days) =====
+        // ===== HOURLY BAR CHARTS PER DAY (only for days with <100% availability) =====
         if (rows.length > 0 && sortedDays.length <= 14) {
-          for (const dateStr of sortedDays) {
+          // Check if a day has any offline time
+          const daysWithIssues = sortedDays.filter(dateStr => {
             const hourlyForDay = hourlyByDay[dateStr];
-            if (!hourlyForDay) continue;
+            if (!hourlyForDay) return false;
+            return Object.values(hourlyForDay).some(hd => hd.offline > 0);
+          });
 
-            const neededHeight = 50;
-            if (y + neededHeight > ph - 15) {
-              doc.addPage();
-              y = margin;
-            }
-
-            const dateObj = parseISO(dateStr);
-            const dayLabel = format(dateObj, "EEEE dd/MM", { locale: fr });
-            const capitalizedDay = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
-
-            doc.setTextColor(0, 0, 0);
-            doc.setFontSize(9);
+          if (daysWithIssues.length === 0) {
+            // All days are 100% — show a simple confirmation message
+            doc.setTextColor(16, 185, 129);
+            doc.setFontSize(10);
             doc.setFont("helvetica", "bold");
-            doc.text(`Detail horaire - ${capitalizedDay}`, margin, y);
-            y += 4;
+            doc.text("✓  Tous les jours de la periode ont un taux de disponibilite de 100%.", margin, y);
+            y += 8;
+          } else {
+            for (const dateStr of daysWithIssues) {
+              const hourlyForDay = hourlyByDay[dateStr]!;
 
-            const hourLabels: string[] = [];
-            const hourValues: number[] = [];
-            for (let h = 0; h < 24; h++) {
-              hourLabels.push(`${h}h`);
-              const hd = hourlyForDay[h];
-              if (hd) {
-                const total = hd.online + hd.offline;
-                hourValues.push(total > 0 ? (hd.online / total) * 100 : 100);
-              } else {
-                hourValues.push(100);
+              const neededHeight = 50;
+              if (y + neededHeight > ph - 15) {
+                doc.addPage();
+                y = margin;
               }
-            }
 
-            y = drawBarChart(doc, margin, y, chartWidth, 30, hourLabels, hourValues, { fontSize: 5 });
-            y += 4;
+              const dateObj = parseISO(dateStr);
+              const dayLabel = format(dateObj, "EEEE dd/MM", { locale: fr });
+              const capitalizedDay = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
+
+              doc.setTextColor(0, 0, 0);
+              doc.setFontSize(9);
+              doc.setFont("helvetica", "bold");
+              doc.text(`Detail horaire - ${capitalizedDay}`, margin, y);
+              y += 4;
+
+              const hourLabels: string[] = [];
+              const hourValues: number[] = [];
+              for (let h = 0; h < 24; h++) {
+                hourLabels.push(`${h}h`);
+                const hd = hourlyForDay[h];
+                if (hd) {
+                  const total = hd.online + hd.offline;
+                  hourValues.push(total > 0 ? (hd.online / total) * 100 : 100);
+                } else {
+                  hourValues.push(100);
+                }
+              }
+
+              y = drawBarChart(doc, margin, y, chartWidth, 30, hourLabels, hourValues, { fontSize: 5 });
+              y += 4;
+            }
           }
         }
 
