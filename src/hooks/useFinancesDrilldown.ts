@@ -4,6 +4,151 @@ import { useMemo } from "react";
 import { format, startOfWeek, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
 
+// Deliveroo history_type categories for mapping
+const DELIVEROO_MEAL_VOUCHER_TYPES = [
+  "Montant commande Edenred",
+  "Montant commande Swile",
+  "Montant commande Sodexo",
+  "Montant commande Up",
+  "Montant commande Bimpli",
+];
+
+const DELIVEROO_REFUND_TYPES = [
+  "Remboursement client",
+];
+
+const DELIVEROO_PROMO_TYPES = [
+  "Partner funding from agreed voucher campaign",
+  "Contribution marketing",
+  "Bon de réduction à payer par le restaurant",
+];
+
+const DELIVEROO_ORDER_TYPES = [
+  "Livraison",
+  "À emporter",
+  "Nouvelle livraison",
+];
+
+// Helper: fetch Uber orders data with pagination
+async function fetchUberOrdersData(restaurantIds: string[] | undefined, startStr: string, endStr: string) {
+  const PAGE_SIZE = 1000;
+  const allOrders: any[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("orders")
+      .select("order_datetime, sales_incl_vat, refund_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, net_payout, meal_voucher_amount, restaurant_id")
+      .gte("order_datetime", `${startStr}T00:00:00`)
+      .lte("order_datetime", `${endStr}T23:59:59`)
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (restaurantIds && restaurantIds.length > 0) {
+      query = query.in("restaurant_id", restaurantIds);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data) {
+      allOrders.push(...data);
+      hasMore = data.length === PAGE_SIZE;
+      from += PAGE_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allOrders;
+}
+
+// Helper: fetch Deliveroo orders data and map to common format
+async function fetchDeliverooOrdersData(restaurantIds: string[] | undefined, startStr: string, endStr: string) {
+  const PAGE_SIZE = 1000;
+  const allRows: any[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("deliveroo_orders")
+      .select("delivery_datetime, order_amount, commission_amount, total_payable, adjustment_amount, vat_amount, history_type, restaurant_id")
+      .gte("delivery_datetime", `${startStr}T00:00:00`)
+      .lte("delivery_datetime", `${endStr}T23:59:59`)
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (restaurantIds && restaurantIds.length > 0) {
+      query = query.in("restaurant_id", restaurantIds);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data) {
+      allRows.push(...data);
+      hasMore = data.length === PAGE_SIZE;
+      from += PAGE_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  // Group by date+restaurant and aggregate by history_type
+  const groupKey = (row: any) => {
+    const date = row.delivery_datetime?.split("T")[0] || "unknown";
+    return `${date}|${row.restaurant_id}`;
+  };
+
+  const grouped: Record<string, {
+    order_datetime: string;
+    restaurant_id: string;
+    sales_incl_vat: number;
+    uber_fee_after_promo_incl_vat: number;
+    item_promo_incl_vat: number;
+    refund_incl_vat: number;
+    net_payout: number;
+    meal_voucher_amount: number;
+  }> = {};
+
+  allRows.forEach(row => {
+    const key = groupKey(row);
+    if (!grouped[key]) {
+      grouped[key] = {
+        order_datetime: row.delivery_datetime,
+        restaurant_id: row.restaurant_id,
+        sales_incl_vat: 0,
+        uber_fee_after_promo_incl_vat: 0,
+        item_promo_incl_vat: 0,
+        refund_incl_vat: 0,
+        net_payout: 0,
+        meal_voucher_amount: 0,
+      };
+    }
+    const g = grouped[key];
+    const ht = row.history_type;
+
+    if (DELIVEROO_ORDER_TYPES.includes(ht)) {
+      g.sales_incl_vat += Math.abs(Number(row.order_amount) || 0);
+      g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.commission_amount) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_MEAL_VOUCHER_TYPES.includes(ht)) {
+      g.meal_voucher_amount += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_REFUND_TYPES.includes(ht)) {
+      g.refund_incl_vat += Math.abs(Number(row.order_amount) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_PROMO_TYPES.includes(ht)) {
+      g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else {
+      // Other types (Remboursement de commission, Publicités, etc.) → add to net_payout
+      g.net_payout += Number(row.total_payable) || 0;
+    }
+  });
+
+  return Object.values(grouped);
+}
+
 export type DrilldownGranularity = "daily" | "hourly" | "product" | "order";
 
 interface DailyFinanceData {
@@ -77,6 +222,7 @@ interface UseFinancesDrilldownParams {
   orderLimit?: number;
   orderSortField?: OrderSortField;
   orderSortDirection?: SortDirection;
+  platform?: "uber_eats" | "deliveroo" | "global";
 }
 
 export function useFinancesDrilldown({
@@ -89,44 +235,26 @@ export function useFinancesDrilldown({
   orderLimit = 50,
   orderSortField = "order_datetime",
   orderSortDirection = "desc",
+  platform = "uber_eats",
 }: UseFinancesDrilldownParams) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
 
   // Fetch orders data for daily/hourly breakdown - include financial fields with pagination
   const { data: ordersData, isLoading: loadingOrders } = useQuery({
-    queryKey: ["finances-drilldown-orders", restaurantIds, startStr, endStr, granularity],
+    queryKey: ["finances-drilldown-orders", restaurantIds, startStr, endStr, granularity, platform],
     queryFn: async () => {
-      const PAGE_SIZE = 1000;
-      const allOrders: any[] = [];
-      let from = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
-          .from("orders")
-          .select("order_datetime, sales_incl_vat, refund_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, net_payout, meal_voucher_amount, restaurant_id")
-          .gte("order_datetime", `${startStr}T00:00:00`)
-          .lte("order_datetime", `${endStr}T23:59:59`)
-          .range(from, from + PAGE_SIZE - 1);
-
-        if (restaurantIds && restaurantIds.length > 0) {
-          query = query.in("restaurant_id", restaurantIds);
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        if (data) {
-          allOrders.push(...data);
-          hasMore = data.length === PAGE_SIZE;
-          from += PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
+      if (platform === "deliveroo") {
+        return fetchDeliverooOrdersData(restaurantIds, startStr, endStr);
       }
-
-      return allOrders;
+      if (platform === "global") {
+        const [uberData, deliverooData] = await Promise.all([
+          fetchUberOrdersData(restaurantIds, startStr, endStr),
+          fetchDeliverooOrdersData(restaurantIds, startStr, endStr),
+        ]);
+        return [...uberData, ...deliverooData];
+      }
+      return fetchUberOrdersData(restaurantIds, startStr, endStr);
     },
     enabled: enabled && (granularity === "daily" || granularity === "hourly"),
   });

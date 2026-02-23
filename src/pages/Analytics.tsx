@@ -326,6 +326,126 @@ export default function Analytics() {
   });
 
   // Fetch detailed payouts data - always fetch for the full year in finances mode
+  // For Deliveroo: fetch from deliveroo_orders and map to PayoutData format
+  const { data: deliverooPayoutsData } = useQuery({
+    queryKey: ["analytics_deliveroo_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
+    queryFn: async () => {
+      const MEAL_VOUCHER_TYPES = ["Montant commande Edenred", "Montant commande Swile", "Montant commande Sodexo", "Montant commande Up", "Montant commande Bimpli"];
+      const REFUND_TYPES = ["Remboursement client"];
+      const PROMO_TYPES = ["Partner funding from agreed voucher campaign", "Contribution marketing", "Bon de réduction à payer par le restaurant"];
+      const ORDER_TYPES = ["Livraison", "À emporter", "Nouvelle livraison"];
+
+      // Determine date range
+      let queryStartDate: string;
+      let queryEndDate: string;
+      if (drillDownMonth) {
+        queryStartDate = `${selectedYear}-${String(drillDownMonth).padStart(2, '0')}-01`;
+        const lastDay = new Date(selectedYear, drillDownMonth, 0).getDate();
+        queryEndDate = `${selectedYear}-${String(drillDownMonth).padStart(2, '0')}-${lastDay}`;
+      } else {
+        queryStartDate = `${selectedYear}-01-01`;
+        queryEndDate = `${selectedYear}-12-31`;
+      }
+
+      // Fetch all deliveroo_orders in range with pagination
+      const PAGE_SIZE = 1000;
+      const allRows: any[] = [];
+      let from = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        let query = supabase
+          .from("deliveroo_orders")
+          .select("delivery_datetime, order_amount, commission_amount, total_payable, adjustment_amount, vat_amount, history_type, restaurant_id")
+          .gte("delivery_datetime", `${queryStartDate}T00:00:00`)
+          .lte("delivery_datetime", `${queryEndDate}T23:59:59`)
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (restaurantFilter && restaurantFilter.length > 0) {
+          query = query.in("restaurant_id", restaurantFilter);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        if (data) {
+          allRows.push(...data);
+          hasMore = data.length === PAGE_SIZE;
+          from += PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // Group by payout_date (weekly-ish, using delivery date) + restaurant_id
+      // For Deliveroo we group by week to match the Uber payout cadence
+      const grouped: Record<string, {
+        payout_date: string;
+        restaurant_id: string;
+        sales_incl_vat: number;
+        uber_fee_after_promo_incl_vat: number;
+        item_promo_incl_vat: number;
+        refund_incl_vat: number;
+        net_payout: number;
+        meal_voucher_amount: number;
+        order_count: number;
+        other_payments_incl_vat: number;
+        marketing_fee_adjustment: number;
+      }> = {};
+
+      allRows.forEach(row => {
+        if (!row.delivery_datetime || !row.restaurant_id) return;
+        // Group by week start (Monday)
+        const dt = new Date(row.delivery_datetime);
+        const dayOfWeek = dt.getDay();
+        const diff = dt.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        const weekStart = new Date(dt.setDate(diff));
+        const weekKey = format(weekStart, "yyyy-MM-dd");
+        const key = `${weekKey}|${row.restaurant_id}`;
+
+        if (!grouped[key]) {
+          grouped[key] = {
+            payout_date: weekKey,
+            restaurant_id: row.restaurant_id,
+            sales_incl_vat: 0,
+            uber_fee_after_promo_incl_vat: 0,
+            item_promo_incl_vat: 0,
+            refund_incl_vat: 0,
+            net_payout: 0,
+            meal_voucher_amount: 0,
+            order_count: 0,
+            other_payments_incl_vat: 0,
+            marketing_fee_adjustment: 0,
+          };
+        }
+
+        const g = grouped[key];
+        const ht = row.history_type;
+
+        if (ORDER_TYPES.includes(ht)) {
+          g.sales_incl_vat += Math.abs(Number(row.order_amount) || 0);
+          g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.commission_amount) || 0);
+          g.net_payout += Number(row.total_payable) || 0;
+          g.order_count += 1;
+        } else if (MEAL_VOUCHER_TYPES.includes(ht)) {
+          g.meal_voucher_amount += Number(row.total_payable) || 0;
+        } else if (REFUND_TYPES.includes(ht)) {
+          g.refund_incl_vat += Math.abs(Number(row.order_amount) || 0);
+          g.net_payout += Number(row.total_payable) || 0;
+        } else if (PROMO_TYPES.includes(ht)) {
+          g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
+          g.net_payout += Number(row.total_payable) || 0;
+        } else {
+          g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
+          g.net_payout += Number(row.total_payable) || 0;
+        }
+      });
+
+      return Object.values(grouped);
+    },
+    enabled: (selectedPlatform === "deliveroo" || selectedPlatform === "global") && (!!drillDownMonth || viewMode === "finances"),
+  });
+
   const { data: dailyPayoutsData } = useQuery({
     queryKey: ["analytics_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
     queryFn: async () => {
@@ -341,7 +461,6 @@ export default function Analytics() {
             console.error("[Analytics] get_monthly_payouts_detail error:", error);
             throw error;
           }
-          console.log("[Analytics] Finances single month payouts:", data?.length, "rows");
           return data || [];
         }
         // Full year: fetch all 12 months in parallel via RPC
@@ -361,7 +480,6 @@ export default function Analytics() {
           }
           if (data) allData.push(...data);
         }
-        console.log("[Analytics] Full year payouts data (RPC):", allData.length, "rows");
         return allData;
       }
       
@@ -376,14 +494,20 @@ export default function Analytics() {
           console.error("[Analytics] get_monthly_payouts_detail error:", error);
           throw error;
         }
-        console.log("[Analytics] Daily payouts data for month", drillDownMonth, ":", data?.length, "rows");
         return data || [];
       }
       
       return null;
     },
-    enabled: !!drillDownMonth || viewMode === "finances",
+    enabled: (selectedPlatform !== "deliveroo") && (!!drillDownMonth || viewMode === "finances"),
   });
+
+  // Select the right payouts data based on platform
+  const effectiveDailyPayoutsData = useMemo(() => {
+    if (selectedPlatform === "deliveroo") return deliverooPayoutsData || [];
+    if (selectedPlatform === "global") return [...(dailyPayoutsData || []), ...(deliverooPayoutsData || [])];
+    return dailyPayoutsData;
+  }, [selectedPlatform, dailyPayoutsData, deliverooPayoutsData]);
 
   // ========== PROFITABILITY DATA ==========
   // Calculate previous period range for profitability comparison
@@ -1335,7 +1459,7 @@ export default function Analytics() {
                   prevFeesData={currentPrevFeesData}
                   payoutsData={payoutsData}
                   prevPayoutsData={prevPayoutsData}
-                  dailyPayoutsData={dailyPayoutsData}
+                  dailyPayoutsData={effectiveDailyPayoutsData}
                   startMonth={effectiveStartMonth}
                   endMonth={effectiveEndMonth}
                   selectedYear={selectedYear}
