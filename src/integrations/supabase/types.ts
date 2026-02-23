@@ -517,6 +517,77 @@ export type Database = {
           },
         ]
       }
+      deliveroo_orders: {
+        Row: {
+          adjustment_amount: number | null
+          commission_amount: number | null
+          commission_rate: string | null
+          created_at: string
+          deliveroo_order_id: string | null
+          deliveroo_uuid: string | null
+          delivery_datetime: string | null
+          history_type: string
+          id: string
+          note: string | null
+          order_amount: number | null
+          restaurant_id: string | null
+          restaurant_name: string
+          section: string | null
+          statement_file: string | null
+          total_payable: number | null
+          vat_amount: number | null
+          vat_rate: number | null
+        }
+        Insert: {
+          adjustment_amount?: number | null
+          commission_amount?: number | null
+          commission_rate?: string | null
+          created_at?: string
+          deliveroo_order_id?: string | null
+          deliveroo_uuid?: string | null
+          delivery_datetime?: string | null
+          history_type: string
+          id?: string
+          note?: string | null
+          order_amount?: number | null
+          restaurant_id?: string | null
+          restaurant_name: string
+          section?: string | null
+          statement_file?: string | null
+          total_payable?: number | null
+          vat_amount?: number | null
+          vat_rate?: number | null
+        }
+        Update: {
+          adjustment_amount?: number | null
+          commission_amount?: number | null
+          commission_rate?: string | null
+          created_at?: string
+          deliveroo_order_id?: string | null
+          deliveroo_uuid?: string | null
+          delivery_datetime?: string | null
+          history_type?: string
+          id?: string
+          note?: string | null
+          order_amount?: number | null
+          restaurant_id?: string | null
+          restaurant_name?: string
+          section?: string | null
+          statement_file?: string | null
+          total_payable?: number | null
+          vat_amount?: number | null
+          vat_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliveroo_orders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_stats: {
         Row: {
           courier_id: string | null
