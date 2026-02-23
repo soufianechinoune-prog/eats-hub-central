@@ -1,30 +1,46 @@
 
+## Correction du calcul du taux de disponibilite (KPI inconsistant)
 
-## Acceleration de l'import articles pour instance Medium
+### Probleme identifie
 
-### Contexte
+Quand une heure n'a aucune donnee (online_minutes = 0 ET offline_minutes = 0), les KPI affichent **0%** de disponibilite alors que le graphique affiche **100%**. Les deux se contredisent.
 
-L'instance passe de Tiny a Medium, ce qui augmente significativement la capacite CPU, memoire et I/O de la base. On peut donc desserrer les parametres de throttling sans risquer de saturer la base.
+Cas concrets observes :
+- **20 fevrier** : Restaurant ferme toute la journee, KPI = "0.0%" mais graphique = "100%" sur toutes les heures
+- **21 fevrier** : Seulement 2h d'activite (48 min online, 158 min offline), KPI = "23.3%" alors que le graphique montre 100% pour les 22 heures sans donnees
 
-### Modifications dans `supabase/functions/parse-item-report/index.ts`
+### Cause racine
 
-| Parametre | Actuel (Tiny) | Nouveau (Medium) | Explication |
-|-----------|---------------|-------------------|-------------|
-| LOOKUP_CHUNK_SIZE | 20 | 80 | Medium supporte des requetes plus larges |
-| Delai entre lookups | 500ms | 100ms | Moins de pause necessaire |
-| BATCH_SIZE (upsert) | 25 | 50 | Retour a la taille d'origine |
-| CONCURRENCY | 1 | 2 | 2 batches en parallele a nouveau |
-| INTER_BATCH_DELAY | 500ms | 200ms | Delai reduit mais toujours present |
+Deux formules differentes dans `OperationsAnalytics.tsx` :
 
-### Impact estime
+```text
+KPI (ligne 261/369) : totalMinutes > 0 ? (online/total)*100 : 0     --> defaut 0%
+Graphique (ligne 351) : total > 0 ? (online/total)*100 : 100         --> defaut 100%
+```
 
-- Temps d'import pour un fichier de 147K lignes : **~8-12 min** au lieu de 25-30 min
-- La base Medium a suffisamment de ressources pour gerer ces parametres sans timeout
-- Les mecanismes de retry (3 tentatives avec backoff) restent en place comme filet de securite
+### Correction
+
+Aligner les KPI sur la meme logique que le graphique : quand il n'y a aucune minute enregistree, c'est "pas de downtime detecte" = **100%** par defaut.
+
+### Modifications dans `src/components/analytics/OperationsAnalytics.tsx`
+
+1. **Ligne 261** (KPI general) : changer le defaut de `0` a `100`
+   - Avant : `avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 0`
+   - Apres : `avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 100`
+
+2. **Ligne 369** (KPI jour) : meme correction
+   - Avant : `avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 0`
+   - Apres : `avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 100`
+
+### Impact
+
+- Les KPI et le graphique seront maintenant coherents
+- Un jour sans donnees affichera 100% (pas de downtime) au lieu de 0%
+- Le 21 fevrier affichera toujours 23.3% car les heures avec donnees ne changent pas
+- Aucun impact sur les autres pages (la comparaison reseau utilise sa propre logique)
 
 ### Fichier concerne
 
 | Fichier | Modification |
 |---------|-------------|
-| `supabase/functions/parse-item-report/index.ts` | Remonter les parametres de batch/lookup/concurrence pour profiter de l'instance Medium |
-
+| `src/components/analytics/OperationsAnalytics.tsx` | Corriger le defaut de 0 a 100 quand aucune donnee n'est disponible (2 lignes) |
