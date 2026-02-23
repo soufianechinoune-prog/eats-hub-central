@@ -1,39 +1,25 @@
 
 
-## Ajouter un statut "En attente" pour le matching Deliveroo
+## Exclure les restaurants deja assignes des dropdowns
 
-### Objectif
-Permettre de mettre certains restaurants en attente quand tu n'as pas encore l'info, et ne sauvegarder que ceux dont tu es sur. Tu pourras y revenir plus tard.
+### Probleme
+Actuellement, quand un restaurant en base est selectionne pour un nom Deliveroo, il reste disponible dans les dropdowns des autres lignes. Cela permet d'assigner le meme restaurant a plusieurs noms Deliveroo par erreur.
 
-### Ce qui change
+### Solution
+Filtrer la liste des restaurants dans chaque dropdown pour exclure ceux qui sont deja selectionnes par une autre ligne (ou deja lies en base via `deliveroo_store_id`).
 
-#### 1. Bouton "En attente" par ligne
-- Ajouter un bouton pause/horloge sur chaque ligne non resolue
-- Quand tu cliques, la ligne passe en statut "en attente" (fond jaune pale, badge "En attente")
-- Le restaurant n'est pas sauvegarde et ne compte pas dans les correspondances a enregistrer
-- Tu peux annuler le statut "en attente" pour revenir au mode normal
+### Comportement attendu
+- Un restaurant choisi pour "CHICKEN STREET - Besancon" disparait des dropdowns de toutes les autres lignes
+- Si on change la selection ou qu'on remet "Aucun" / "En attente", le restaurant redevient disponible
+- Les restaurants deja lies en base (badge "Deja lie") sont aussi exclus des dropdowns des autres lignes
+- Chaque ligne garde toujours acces a son propre restaurant selectionne (pour ne pas casser l'affichage)
 
-#### 2. Nouveau badge dans les compteurs
-- Ajouter un compteur "X en attente" (badge jaune) dans la barre de stats en haut
-- Les restaurants en attente sont exclus du bouton "Enregistrer"
+### Detail technique
 
-#### 3. Tri adapte
-- Les lignes en attente se regroupent apres les non-matches mais avant les deja lies et les ignores
-- L'ordre devient : non trouves > a verifier > en attente > auto-matches > deja lies > ignores
+**Fichier** : `src/pages/DeliverooMatching.tsx`
 
-#### 4. Option "En attente" dans le dropdown
-- Ajouter une option "En attente" dans le Select a cote de "Aucun", pour marquer directement depuis le dropdown
-
-### Comportement
-- "En attente" = je ne sais pas encore, je reviendrai plus tard
-- "Aucun" = ce restaurant n'a pas de correspondance (ne sera pas sauvegarde)
-- Seules les lignes avec un restaurant selectionne (ni "aucun", ni "en attente") sont sauvegardees
-
-### Fichier concerne
-
-| Fichier | Action |
-|---|---|
-| `src/pages/DeliverooMatching.tsx` | Ajouter le state `isPending` par ligne, le bouton, le badge, le tri, et l'option dropdown |
-
-Pas de changement en base ni dans d'autres fichiers.
+1. Calculer un `Set` des `selectedRestaurantId` deja utilises par les autres lignes (en excluant la ligne courante)
+2. Ajouter les `restaurant.id` des restaurants qui ont deja un `deliveroo_store_id` non vide en base (deja lies a un autre nom Deliveroo)
+3. Dans le `SelectContent`, filtrer les `restaurants` pour n'afficher que ceux dont l'id n'est pas dans ce Set
+4. Ce calcul se fait via un `useMemo` qui depend de `matches` et `restaurants`
 
