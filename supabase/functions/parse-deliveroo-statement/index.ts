@@ -89,6 +89,18 @@ Deno.serve(async (req) => {
       statement_file: row.statement_file,
     }));
 
+    // Step 4.5: Deduplicate records to avoid "ON CONFLICT DO UPDATE command cannot affect row a second time"
+    const uniqueMap = new Map<string, typeof dbRecords[0]>();
+    for (const record of dbRecords) {
+      const key = `${record.deliveroo_uuid}|${record.history_type}|${record.delivery_datetime}`;
+      uniqueMap.set(key, record);
+    }
+    const deduplicatedRecords = Array.from(uniqueMap.values());
+    const duplicatesRemoved = dbRecords.length - deduplicatedRecords.length;
+    if (duplicatesRemoved > 0) {
+      console.log(`Deduplication: removed ${duplicatesRemoved} duplicate records`);
+    }
+
     if (dryRun) {
       // Compute date range
       const dates = dbRecords
@@ -127,8 +139,8 @@ Deno.serve(async (req) => {
     const errorDetails: string[] = [];
     const BATCH_SIZE = 100;
 
-    for (let i = 0; i < dbRecords.length; i += BATCH_SIZE) {
-      const batch = dbRecords.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < deduplicatedRecords.length; i += BATCH_SIZE) {
+      const batch = deduplicatedRecords.slice(i, i + BATCH_SIZE);
 
       const { data, error } = await supabase
         .from('deliveroo_orders')
@@ -148,14 +160,14 @@ Deno.serve(async (req) => {
     }
 
     // Compute date range
-    const dates = dbRecords
+    const dates = deduplicatedRecords
       .filter(r => r.delivery_datetime)
       .map(r => r.delivery_datetime!);
     dates.sort();
 
     // Build restaurant stats
     const restStats: Record<string, { id: string; name: string; count: number }> = {};
-    for (const r of dbRecords) {
+    for (const r of deduplicatedRecords) {
       const rid = r.restaurant_id || 'unknown';
       if (!restStats[rid]) {
         restStats[rid] = { id: rid, name: r.restaurant_name, count: 0 };
@@ -163,7 +175,7 @@ Deno.serve(async (req) => {
       restStats[rid].count++;
     }
 
-    console.log(`Import done: ${inserted} inserted, ${errors} errors`);
+    console.log(`Import done: ${inserted} inserted, ${errors} errors, ${duplicatesRemoved} duplicates removed`);
 
     return new Response(JSON.stringify({
       success: true,
@@ -173,6 +185,7 @@ Deno.serve(async (req) => {
         updated,
         skipped,
         errors,
+        duplicatesRemoved,
       },
       restaurants: Object.values(restStats),
       unmatchedNames,
