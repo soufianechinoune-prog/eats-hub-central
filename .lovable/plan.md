@@ -1,51 +1,91 @@
 
+# Corriger les calculs financiers Deliveroo
 
-# Corriger l'affichage de la Commission Deliveroo dans le tableau de Rentabilite
+## Bugs identifies
 
-## Diagnostic
+### Bug 1 : Versement Deliveroo et Total incorrects (ecart +1000 EUR/semaine)
+Les lignes "titre restaurant" (Edenred, Swile, etc.) ont un `total_payable` negatif dans `deliveroo_orders` (c'est une deduction du versement Deliveroo). Or le code actuel :
+- N'ajoute PAS ce `total_payable` negatif dans `net_payout`
+- Stocke `meal_voucher_amount` en negatif
+- Le tableau applique `Math.abs()` sur `meal_voucher_amount`, le rendant positif
+- Resultat : `totalToReceive = 5194 + 967 = 6161` au lieu de `4227 + 967 = 5194`
 
-Les donnees de commission existent bien dans la base de donnees (`commission_amount = -3.42` pour une commande de 14.24 EUR, soit 24%). Le probleme vient du calcul du taux dans le tableau :
+**Correction** : Dans l'agregation Deliveroo, pour les MEAL_VOUCHER_TYPES :
+- Stocker `meal_voucher_amount` en positif (Math.abs)
+- Ajouter `total_payable` (negatif) dans `net_payout` pour refleter la deduction
 
-- Pour Uber, le taux est calcule via `uber_fee_after_promo_excl_vat` (commission HT), un champ specifique aux donnees Uber
-- Pour Deliveroo, ce champ n'existe pas dans les donnees mappees. Seul `uber_fee_after_promo_incl_vat` (commission TTC) est rempli
-- Resultat : le taux affiche est `0 / CA = 0%`
+### Bug 2 : Types d'historique manquants dans les listes de classification
+Certains `history_type` Deliveroo tombent dans le bucket "other" alors qu'ils devraient etre classes :
 
-## Correction
+**ORDER_TYPES** - ajouter :
+- "Facture precedente: Livraison" (CA et commission de la semaine precedente, 56.80 EUR manquants)
 
-Dans `ProfitabilityComparisonTable.tsx`, ajouter un fallback : quand `uber_fee_after_promo_excl_vat` n'est pas disponible (cas Deliveroo), utiliser `uber_fee_after_promo_incl_vat` directement pour calculer le taux de commission.
+**REFUND_TYPES** - ajouter :
+- "Remboursement client refuse" (contestation refusee = argent recupere)
+- "Facture precedente: Remboursement client"
 
-La commission Deliveroo est deja un montant HT dans les releves (24% HT applique sur le CA TTC), donc utiliser la valeur TTC telle quelle est correct.
+**Types a gerer specifiquement** :
+- "Commission Deliveroo sur repreparation de commande" : commission supplementaire
+- "Montant de la repreparation de commande" : order supplementaire
 
-### Fichier modifie : `src/components/analytics/ProfitabilityComparisonTable.tsx`
+### Bug 3 : Remboursements affiches a 0
+Le code utilise `Math.abs(Number(row.order_amount))` pour les remboursements, mais `order_amount` est 0 pour les lignes "Remboursement client". Le montant est dans `total_payable`. Il faut utiliser `Math.abs(total_payable)` a la place.
 
-Ligne 306 : remplacer le calcul du taux de commission pour gerer le cas ou `excl_vat` est absent :
+### Bug 4 : Rentabilite fausse (96.9% au lieu de ~81.7%)
+Consequence directe des bugs 1 et 2. La formule `totalToReceive / CA` donne un resultat gonfle car `totalToReceive` est trop eleve.
 
-```typescript
-// Avant
-const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0);
+## Plan de modifications
 
-// Apres
-const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0)
-  || Math.abs(Number(payout.uber_fee_after_promo_incl_vat) || 0);
+### Fichier : `src/pages/Analytics.tsx` (agregation Deliveroo)
+
+1. Etendre les listes de types :
+
+```text
+ORDER_TYPES += "Facture precedente: Livraison",
+               "Montant de la repreparation de commande"
+
+REFUND_TYPES += "Remboursement client refuse",
+                "Facture precedente: Remboursement client"
 ```
 
-Cela garantit que si le champ HT specifique Uber n'est pas present, on utilise le montant de commission disponible (qui pour Deliveroo represente deja le bon montant).
+2. Corriger le bloc MEAL_VOUCHER_TYPES :
 
-### Fichier modifie : `src/pages/Analytics.tsx`
+```text
+Avant :
+  g.meal_voucher_amount += Number(row.total_payable)     // negatif
 
-Dans la requete `deliverooPayoutsData`, ajouter le champ `uber_fee_after_promo_excl_vat` au mapping pour plus de coherence. Puisque Deliveroo fournit une commission sans decomposition HT/TTC, on peut dupliquer la valeur :
-
-```typescript
-// Dans le grouped initializer
-uber_fee_after_promo_excl_vat: 0,
-
-// Dans le bloc ORDER_TYPES
-g.uber_fee_after_promo_excl_vat += Math.abs(Number(row.commission_amount) || 0);
+Apres :
+  g.meal_voucher_amount += Math.abs(Number(row.total_payable))  // positif
+  g.net_payout += Number(row.total_payable)                      // deduction
 ```
 
-Cela alimentera directement le champ attendu par le tableau sans necessiter de fallback.
+3. Corriger le bloc REFUND_TYPES :
 
-## Resultat attendu
+```text
+Avant :
+  g.refund_incl_vat += Math.abs(Number(row.order_amount))  // = 0
 
-La colonne "Commission" affichera ~24% pour les semaines Deliveroo au lieu de 0.0%.
+Apres :
+  g.refund_incl_vat += Math.abs(Number(row.total_payable))  // montant reel
+```
 
+4. Ajouter un type "Commission supplementaire" pour "Commission Deliveroo sur repreparation" :
+
+```text
+g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.total_payable))
+g.uber_fee_after_promo_excl_vat += Math.abs(Number(row.total_payable))
+g.net_payout += Number(row.total_payable)
+```
+
+### Resultat attendu apres correction (semaine du 19 janvier)
+
+```text
+CA TTC        : 6 413 EUR (inclut facture precedente)
+Commission    : 1 542 EUR (inclut commission repreparation)
+Promos        : 614 EUR
+Remb.         : 26 EUR (montant reel des remboursements)
+Titre Resto   : 967 EUR
+Versement Del.: 4 227 EUR (ce que Deliveroo transfere reellement)
+Versement Tot.: 5 194 EUR (Deliveroo + Titres restaurant)
+Rentabilite   : ~81% (ratio reel)
+```
