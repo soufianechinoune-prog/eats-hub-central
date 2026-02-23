@@ -258,7 +258,7 @@ export function OperationsAnalytics() {
 
     const totalMinutes = totalOnline + totalOffline;
     return {
-      avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 0,
+      avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 100,
       totalOfflineHours: totalOffline / 60,
       totalOnlineHours: totalOnline / 60,
       incidentCount: 0, // Not available from aggregated data
@@ -366,7 +366,7 @@ export function OperationsAnalytics() {
     const totalMinutes = totalOnline + totalOffline;
 
     return {
-      avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 0,
+      avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 100,
       totalOfflineMinutes: totalOffline,
       totalOnlineMinutes: totalOnline,
       incidentCount: hourlyEvolution.filter((d) => d.offlineMinutes > 15).length,
