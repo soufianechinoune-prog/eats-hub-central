@@ -81,6 +81,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useReportPdfExport } from "@/hooks/useReportPdfExport";
 import { Progress } from "@/components/ui/progress";
+import { extractCityName } from "@/lib/restaurantUtils";
 
 // Types
 interface Restaurant {
@@ -811,9 +812,10 @@ export default function WeeklyReports() {
             });
 
             // Upload to whatsapp-media bucket
-            const safeName = kpi.restaurant_name.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 30);
+            const cityName = extractCityName(kpi.restaurant_name);
+            const periodLabel = `${format(periodStart, "d")}-${format(periodEnd, "d MMM yyyy", { locale: fr })}`;
             const timestamp = Date.now();
-            const fileName = `report-${safeName}-${format(periodStart, "yyyyMMdd")}-${timestamp}.pdf`;
+            const fileName = `Rapport CS ${cityName} ${periodLabel}-${timestamp}.pdf`.replace(/\s+/g, " ");
             const filePath = `reports/${fileName}`;
 
             const { error: uploadError } = await supabase.storage
@@ -839,7 +841,7 @@ export default function WeeklyReports() {
                 phone: kpi.manager_whatsapp,
                 mediaUrl: urlData.publicUrl,
                 mediaType: "document",
-                filename: `Rapport_${safeName}.pdf`,
+                filename: `Rapport CS ${cityName}.pdf`,
                 caption: `📊 Rapport de synthèse - ${kpi.restaurant_name}`,
                 restaurant_id: kpi.restaurant_id,
                 recipient_name: kpi.manager_name,
