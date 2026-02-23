@@ -105,6 +105,11 @@ const dataItems = [
     icon: Store,
   },
   {
+    title: "Mapping Deliveroo",
+    url: "/deliveroo-matching",
+    icon: Store,
+  },
+  {
     title: "Catalogue Produits",
     url: "/menu-items",
     icon: UtensilsCrossed,

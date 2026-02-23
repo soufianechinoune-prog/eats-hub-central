@@ -39,6 +39,7 @@ import PrepTimeComparison from "./pages/PrepTimeComparison";
 import TotalDeliveryTimeComparison from "./pages/TotalDeliveryTimeComparison";
 import InaccurateOrdersComparison from "./pages/InaccurateOrdersComparison";
 import UberStoreMapping from "./pages/UberStoreMapping";
+import DeliverooMatching from "./pages/DeliverooMatching";
 
 import ItemSales from "./pages/ItemSales";
 import MarketingAnalytics from "./pages/MarketingAnalytics";
@@ -312,7 +313,14 @@ const App = () => {
                   </AppLayout>
                 }
               />
-              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route
+                path="/deliveroo-matching"
+                element={
+                  <AppLayout>
+                    <DeliverooMatching />
+                  </AppLayout>
+                }
+              />
               <Route path="*" element={<NotFound />} />
             </Routes>
               </BrowserRouter>
