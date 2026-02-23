@@ -78,6 +78,8 @@ import { format, startOfWeek, endOfWeek, subWeeks, addWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useReportPdfExport } from "@/hooks/useReportPdfExport";
+import { Progress } from "@/components/ui/progress";
 
 // Types
 interface Restaurant {
@@ -339,6 +341,11 @@ export default function WeeklyReports() {
   const [isSending, setIsSending] = useState(false);
   const [generatedKPIs, setGeneratedKPIs] = useState<WeeklyKPIs[]>([]);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [attachPdf, setAttachPdf] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<{ current: number; total: number } | null>(null);
+  
+  // PDF export hook
+  const { generateReportPdf } = useReportPdfExport();
   
   // History state
   const [expandedHistoryMessages, setExpandedHistoryMessages] = useState<Set<string>>(new Set());
@@ -776,8 +783,70 @@ export default function WeeklyReports() {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
+      // Send PDFs if toggle is on
+      if (attachPdf && sentCount > 0) {
+        const pdfTargets = toSend.filter(k => editedMessages[k.restaurant_id]);
+        setPdfProgress({ current: 0, total: pdfTargets.length });
+        
+        for (let i = 0; i < pdfTargets.length; i++) {
+          const kpi = pdfTargets[i];
+          setPdfProgress({ current: i + 1, total: pdfTargets.length });
+          
+          try {
+            // Generate PDF blob
+            const pdfBlob = generateReportPdf(kpi, {
+              periodStart: format(periodStart, "d MMM yyyy", { locale: fr }),
+              periodEnd: format(periodEnd, "d MMM yyyy", { locale: fr }),
+            });
+
+            // Upload to whatsapp-media bucket
+            const safeName = kpi.restaurant_name.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 30);
+            const fileName = `report-${safeName}-${format(periodStart, "yyyyMMdd")}.pdf`;
+            const filePath = `reports/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from("whatsapp-media")
+              .upload(filePath, pdfBlob, {
+                contentType: "application/pdf",
+                upsert: true,
+              });
+
+            if (uploadError) {
+              console.error(`PDF upload error for ${kpi.restaurant_name}:`, uploadError);
+              continue;
+            }
+
+            // Get public URL
+            const { data: urlData } = supabase.storage
+              .from("whatsapp-media")
+              .getPublicUrl(filePath);
+
+            // Send via WhatsApp media
+            await supabase.functions.invoke("send-whatsapp-media", {
+              body: {
+                phone: kpi.manager_whatsapp,
+                mediaUrl: urlData.publicUrl,
+                mediaType: "document",
+                filename: `Rapport_${safeName}.pdf`,
+                caption: `📊 Rapport de synthèse - ${kpi.restaurant_name}`,
+                restaurant_id: kpi.restaurant_id,
+                recipient_name: kpi.manager_name,
+                restaurant_name: kpi.restaurant_name,
+              },
+            });
+          } catch (pdfErr) {
+            console.error(`PDF send error for ${kpi.restaurant_name}:`, pdfErr);
+          }
+
+          // Rate limiting delay
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        setPdfProgress(null);
+      }
+
       if (failedCount === 0) {
-        toast.success(`${sentCount} rapport(s) envoyé(s) avec succès`);
+        toast.success(`${sentCount} rapport(s) envoyé(s) avec succès${attachPdf ? " + PDFs" : ""}`);
         setGeneratedKPIs([]);
         setSelectedReports(new Set());
         setEditedMessages({});
@@ -792,6 +861,7 @@ export default function WeeklyReports() {
       toast.error("Erreur lors de l'envoi des rapports");
     } finally {
       setIsSending(false);
+      setPdfProgress(null);
     }
   };
 
@@ -1297,20 +1367,46 @@ export default function WeeklyReports() {
                       {selectedReports.size} / {generatedKPIs.filter(k => k.manager_whatsapp).length} sélectionné(s)
                     </span>
                   </div>
-                  <Button
-                    onClick={sendReports}
-                    disabled={isSending || selectedReports.size === 0}
-                    className="gap-2 bg-[#25D366] hover:bg-[#25D366]/90 text-white shadow-lg"
-                    size="lg"
-                  >
-                    {isSending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                    Envoyer via WhatsApp
-                  </Button>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="attach-pdf"
+                        checked={attachPdf}
+                        onCheckedChange={setAttachPdf}
+                      />
+                      <Label htmlFor="attach-pdf" className="text-sm cursor-pointer flex items-center gap-1.5">
+                        <FileText className="h-4 w-4" />
+                        Joindre le PDF de synthèse
+                      </Label>
+                    </div>
+                    <Button
+                      onClick={sendReports}
+                      disabled={isSending || selectedReports.size === 0}
+                      className="gap-2 bg-[#25D366] hover:bg-[#25D366]/90 text-white shadow-lg"
+                      size="lg"
+                    >
+                      {isSending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      Envoyer via WhatsApp
+                    </Button>
+                  </div>
                 </CardContent>
+                {/* PDF progress indicator */}
+                {pdfProgress && (
+                  <div className="px-6 pb-4 space-y-2">
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5" />
+                        Envoi PDF {pdfProgress.current}/{pdfProgress.total}...
+                      </span>
+                      <span>{Math.round((pdfProgress.current / pdfProgress.total) * 100)}%</span>
+                    </div>
+                    <Progress value={(pdfProgress.current / pdfProgress.total) * 100} className="h-2" />
+                  </div>
+                )}
               </Card>
 
               {/* Report cards */}
