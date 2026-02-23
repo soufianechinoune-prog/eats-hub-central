@@ -180,6 +180,7 @@ export type Database = {
           id: string
           imported_at: string | null
           inserted_count: number | null
+          label: string | null
           report_type: string
           restaurant_ids: string[] | null
           restaurants_count: number | null
@@ -199,6 +200,7 @@ export type Database = {
           id?: string
           imported_at?: string | null
           inserted_count?: number | null
+          label?: string | null
           report_type: string
           restaurant_ids?: string[] | null
           restaurants_count?: number | null
@@ -218,6 +220,7 @@ export type Database = {
           id?: string
           imported_at?: string | null
           inserted_count?: number | null
+          label?: string | null
           report_type?: string
           restaurant_ids?: string[] | null
           restaurants_count?: number | null

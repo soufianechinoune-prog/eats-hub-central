@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Upload, CheckCircle, AlertTriangle, Loader2, Calendar, History, Building2, FileSpreadsheet } from "lucide-react";
+import { Upload, CheckCircle, AlertTriangle, Loader2, Calendar, History, Building2, FileSpreadsheet, Tag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -43,6 +45,7 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [csvContent, setCsvContent] = useState("");
+  const [importLabel, setImportLabel] = useState("");
   const [step, setStep] = useState<"upload" | "preview" | "importing" | "complete">("upload");
   const [isLoading, setIsLoading] = useState(false);
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
@@ -56,6 +59,7 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
   const resetImport = () => {
     setFile(null);
     setCsvContent("");
+    setImportLabel("");
     setStep("upload");
     setPreviewRows([]);
     setDetectedRestaurants([]);
@@ -160,6 +164,7 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
         file_name: file.name,
         file_size: file.size,
         report_type: "deliveroo_statement",
+        label: importLabel || null,
         total_rows: data.stats.totalRows,
         inserted_count: data.stats.inserted,
         updated_count: data.stats.updated,
@@ -236,7 +241,19 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
               Importez le fichier CSV "statement" téléchargé depuis Deliveroo Partner Hub
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="import-label" className="flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Nom de l'import
+              </Label>
+              <Input
+                id="import-label"
+                placeholder="Ex: Facture février 2026, Relevé S8..."
+                value={importLabel}
+                onChange={(e) => setImportLabel(e.target.value)}
+              />
+            </div>
             <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
                 {isLoading ? (
