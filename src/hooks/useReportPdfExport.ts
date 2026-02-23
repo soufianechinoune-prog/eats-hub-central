@@ -298,72 +298,78 @@ export function useReportPdfExport() {
 
         y += kpiCardHeight + 12;
 
-        // ===== DAILY BAR CHART =====
-        const sortedDays = Object.keys(dailyMap).sort();
-        
-        if (sortedDays.length > 0) {
-          doc.setTextColor(0, 0, 0);
-          doc.setFontSize(12);
-          doc.setFont("helvetica", "bold");
-          doc.text("Disponibilite journaliere", margin, y);
-          y += 6;
-
-          const chartWidth = contentW;
-          const maxBarHeight = sortedDays.length > 14 ? 35 : 45;
-          const labels = sortedDays.map(d => format(parseISO(d), "dd/MM"));
-          const values = sortedDays.map(d => {
-            const total = dailyMap[d].online + dailyMap[d].offline;
-            return total > 0 ? (dailyMap[d].online / total) * 100 : 100;
-          });
-
-          y = drawBarChart(doc, margin, y, chartWidth, maxBarHeight, labels, values);
-          y += 8;
-
-          // ===== HOURLY BAR CHARTS PER DAY (only if <= 14 days) =====
-          if (sortedDays.length <= 14) {
-            for (const dateStr of sortedDays) {
-              const hourlyForDay = hourlyByDay[dateStr];
-              if (!hourlyForDay) continue;
-
-              const neededHeight = 50;
-              if (y + neededHeight > ph - 15) {
-                doc.addPage();
-                y = margin;
-              }
-
-              const dateObj = parseISO(dateStr);
-              const dayLabel = format(dateObj, "EEEE dd/MM", { locale: fr });
-              const capitalizedDay = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
-
-              doc.setTextColor(0, 0, 0);
-              doc.setFontSize(9);
-              doc.setFont("helvetica", "bold");
-              doc.text(`Detail horaire - ${capitalizedDay}`, margin, y);
-              y += 4;
-
-              const hourLabels: string[] = [];
-              const hourValues: number[] = [];
-              for (let h = 0; h < 24; h++) {
-                hourLabels.push(`${h}h`);
-                const hd = hourlyForDay[h];
-                if (hd) {
-                  const total = hd.online + hd.offline;
-                  hourValues.push(total > 0 ? (hd.online / total) * 100 : 100);
-                } else {
-                  hourValues.push(100);
-                }
-              }
-
-              y = drawBarChart(doc, margin, y, chartWidth, 30, hourLabels, hourValues, { fontSize: 5 });
-              y += 4;
-            }
+        // ===== DAILY BAR CHART (always displayed) =====
+        // Generate all days in the period, even if no data
+        const allPeriodDays: string[] = [];
+        {
+          const startD = parseISO(options.periodStart);
+          const endD = parseISO(options.periodEnd);
+          let cur = startD;
+          while (cur <= endD) {
+            allPeriodDays.push(format(cur, "yyyy-MM-dd"));
+            cur = new Date(cur.getTime() + 86400000);
           }
-        } else {
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(107, 114, 128);
-          doc.text("Aucune donnee de disponibilite pour cette periode", margin, y + 10);
-          y += 20;
+        }
+
+        const sortedDays = allPeriodDays.length > 0 ? allPeriodDays : Object.keys(dailyMap).sort();
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Disponibilite journaliere", margin, y);
+        y += 6;
+
+        const chartWidth = contentW;
+        const maxBarHeight = sortedDays.length > 14 ? 35 : 45;
+        const labels = sortedDays.map(d => format(parseISO(d), "dd/MM"));
+        const values = sortedDays.map(d => {
+          const dayData = dailyMap[d];
+          if (!dayData) return 100; // No data = 100% available
+          const total = dayData.online + dayData.offline;
+          return total > 0 ? (dayData.online / total) * 100 : 100;
+        });
+
+        y = drawBarChart(doc, margin, y, chartWidth, maxBarHeight, labels, values);
+        y += 8;
+
+        // ===== HOURLY BAR CHARTS PER DAY (only if real data exists and <= 14 days) =====
+        if (rows.length > 0 && sortedDays.length <= 14) {
+          for (const dateStr of sortedDays) {
+            const hourlyForDay = hourlyByDay[dateStr];
+            if (!hourlyForDay) continue;
+
+            const neededHeight = 50;
+            if (y + neededHeight > ph - 15) {
+              doc.addPage();
+              y = margin;
+            }
+
+            const dateObj = parseISO(dateStr);
+            const dayLabel = format(dateObj, "EEEE dd/MM", { locale: fr });
+            const capitalizedDay = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
+
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "bold");
+            doc.text(`Detail horaire - ${capitalizedDay}`, margin, y);
+            y += 4;
+
+            const hourLabels: string[] = [];
+            const hourValues: number[] = [];
+            for (let h = 0; h < 24; h++) {
+              hourLabels.push(`${h}h`);
+              const hd = hourlyForDay[h];
+              if (hd) {
+                const total = hd.online + hd.offline;
+                hourValues.push(total > 0 ? (hd.online / total) * 100 : 100);
+              } else {
+                hourValues.push(100);
+              }
+            }
+
+            y = drawBarChart(doc, margin, y, chartWidth, 30, hourLabels, hourValues, { fontSize: 5 });
+            y += 4;
+          }
         }
 
       } catch (err) {
