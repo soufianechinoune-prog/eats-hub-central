@@ -378,7 +378,10 @@ export function useReportPdfExport() {
 
         const chartWidth = contentW;
         const maxBarHeight = sortedDays.length > 14 ? 35 : 45;
-        const labels = sortedDays.map(d => format(parseISO(d), "dd/MM"));
+        const labels = sortedDays.map(d => {
+          const dayName = format(parseISO(d), "EEE", { locale: fr });
+          return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${format(parseISO(d), "dd/MM")}`;
+        });
         const values = sortedDays.map(d => {
           const dayData = dailyMap[d];
           if (!dayData) return 100; // No data = 100% available

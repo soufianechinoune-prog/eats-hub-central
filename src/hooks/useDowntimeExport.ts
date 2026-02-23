@@ -413,7 +413,10 @@ export const useDowntimeExport = () => {
 
           const chartWidth = contentW;
           const maxBarHeight = sortedDays.length > 14 ? 35 : 45;
-          const labels = sortedDays.map(d => format(parseISO(d), "dd/MM"));
+          const labels = sortedDays.map(d => {
+            const dayName = format(parseISO(d), "EEE", { locale: fr });
+            return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${format(parseISO(d), "dd/MM")}`;
+          });
           const values = sortedDays.map(d => dailyAvail[d].rate);
 
           detailY = drawBarChart(doc, margin, detailY, chartWidth, maxBarHeight, labels, values);
