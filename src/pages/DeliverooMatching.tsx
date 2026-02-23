@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { matchDeliverooToRestaurant, type DeliverooMatchResult } from "@/lib/fuzzyMatch";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Save, CheckCircle2, AlertTriangle, XCircle, Ban, Link2 } from "lucide-react";
+import { Upload, Save, CheckCircle2, AlertTriangle, XCircle, Ban, Link2, Clock, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 interface MatchRow extends DeliverooMatchResult {
   selectedRestaurantId: string | null;
+  isPending: boolean;
 }
 
 export default function DeliverooMatching() {
@@ -48,7 +49,6 @@ export default function DeliverooMatching() {
         if (!text) return;
 
         const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-        // Find header line
         const headerIdx = lines.findIndex((l) =>
           l.toLowerCase().includes("etablissement") || l.toLowerCase().includes("établissement")
         );
@@ -64,7 +64,6 @@ export default function DeliverooMatching() {
 
         const deliverooNames: string[] = [];
         for (let i = headerIdx + 1; i < lines.length; i++) {
-          // Simple CSV parse (handle commas inside quotes)
           const row = parseCSVLine(lines[i]);
           if (row[etabIdx]) {
             const name = row[etabIdx].replace(/"/g, "").trim();
@@ -74,22 +73,16 @@ export default function DeliverooMatching() {
           }
         }
 
-        // Run matching
         const results: MatchRow[] = deliverooNames.map((name) => {
           const result = matchDeliverooToRestaurant(name, restaurants);
           return {
             ...result,
             selectedRestaurantId: result.matchedRestaurantId,
+            isPending: false,
           };
         });
 
-        // Sort: unmatched first, then low confidence, then matched
-        results.sort((a, b) => {
-          if (a.isIgnored !== b.isIgnored) return a.isIgnored ? 1 : -1;
-          if (a.isAlreadyLinked !== b.isAlreadyLinked) return a.isAlreadyLinked ? 1 : -1;
-          return a.confidence - b.confidence;
-        });
-
+        results.sort(sortMatches);
         setMatches(results);
       };
       reader.readAsText(file);
@@ -97,19 +90,36 @@ export default function DeliverooMatching() {
     [restaurants, toast]
   );
 
-  const handleRestaurantChange = useCallback((deliverooName: string, restaurantId: string) => {
-    setMatches((prev) =>
-      prev.map((m) =>
-        m.deliverooName === deliverooName
-          ? { ...m, selectedRestaurantId: restaurantId === "none" ? null : restaurantId }
-          : m
-      )
-    );
+  const handleRestaurantChange = useCallback((deliverooName: string, value: string) => {
+    setMatches((prev) => {
+      const updated = prev.map((m) => {
+        if (m.deliverooName !== deliverooName) return m;
+        if (value === "pending") {
+          return { ...m, isPending: true, selectedRestaurantId: null };
+        }
+        return {
+          ...m,
+          isPending: false,
+          selectedRestaurantId: value === "none" ? null : value,
+        };
+      });
+      return [...updated].sort(sortMatches);
+    });
+  }, []);
+
+  const togglePending = useCallback((deliverooName: string) => {
+    setMatches((prev) => {
+      const updated = prev.map((m) => {
+        if (m.deliverooName !== deliverooName) return m;
+        return { ...m, isPending: !m.isPending, selectedRestaurantId: m.isPending ? m.matchedRestaurantId : null };
+      });
+      return [...updated].sort(sortMatches);
+    });
   }, []);
 
   const handleSave = useCallback(async () => {
     const toSave = matches.filter(
-      (m) => !m.isIgnored && m.selectedRestaurantId && !m.isAlreadyLinked
+      (m) => !m.isIgnored && !m.isPending && m.selectedRestaurantId && !m.isAlreadyLinked
     );
     if (toSave.length === 0) {
       toast({ title: "Rien à enregistrer", description: "Aucune nouvelle correspondance à sauvegarder." });
@@ -125,11 +135,8 @@ export default function DeliverooMatching() {
         .from("restaurants")
         .update({ deliveroo_store_id: match.deliverooName })
         .eq("id", match.selectedRestaurantId!);
-      if (error) {
-        errorCount++;
-      } else {
-        successCount++;
-      }
+      if (error) errorCount++;
+      else successCount++;
     }
 
     setSaving(false);
@@ -138,7 +145,6 @@ export default function DeliverooMatching() {
       description: `${successCount} correspondance(s) sauvegardée(s)${errorCount > 0 ? `, ${errorCount} erreur(s)` : ""}`,
     });
 
-    // Mark saved ones as already linked
     setMatches((prev) =>
       prev.map((m) =>
         toSave.some((s) => s.deliverooName === m.deliverooName)
@@ -154,20 +160,28 @@ export default function DeliverooMatching() {
       total: matches.length,
       ignored: matches.filter((m) => m.isIgnored).length,
       alreadyLinked: active.filter((m) => m.isAlreadyLinked).length,
-      highConfidence: active.filter((m) => !m.isAlreadyLinked && m.confidence >= 90).length,
-      mediumConfidence: active.filter((m) => !m.isAlreadyLinked && m.confidence >= 70 && m.confidence < 90).length,
-      lowConfidence: active.filter((m) => !m.isAlreadyLinked && m.confidence < 70).length,
-      toSave: active.filter((m) => !m.isAlreadyLinked && m.selectedRestaurantId).length,
+      pending: active.filter((m) => m.isPending && !m.isAlreadyLinked).length,
+      highConfidence: active.filter((m) => !m.isAlreadyLinked && !m.isPending && m.confidence >= 90).length,
+      mediumConfidence: active.filter((m) => !m.isAlreadyLinked && !m.isPending && m.confidence >= 70 && m.confidence < 90).length,
+      lowConfidence: active.filter((m) => !m.isAlreadyLinked && !m.isPending && m.confidence < 70).length,
+      toSave: active.filter((m) => !m.isAlreadyLinked && !m.isPending && m.selectedRestaurantId).length,
     };
   }, [matches]);
 
-  const getConfidenceBadge = (confidence: number, isAlreadyLinked: boolean, isIgnored: boolean, isOverride: boolean) => {
+  const getConfidenceBadge = (match: MatchRow) => {
+    const { confidence, isAlreadyLinked, isIgnored, isOverride, isPending } = match;
     if (isIgnored) return <Badge variant="outline" className="gap-1"><Ban className="h-3 w-3" /> Ignoré</Badge>;
     if (isAlreadyLinked) return <Badge className="gap-1 bg-blue-500 hover:bg-blue-600"><Link2 className="h-3 w-3" /> Déjà lié</Badge>;
+    if (isPending) return <Badge className="gap-1 bg-yellow-500 hover:bg-yellow-600 text-white"><Clock className="h-3 w-3" /> En attente</Badge>;
     if (isOverride) return <Badge className="gap-1 bg-purple-500 hover:bg-purple-600">Override</Badge>;
     if (confidence >= 90) return <Badge className="gap-1 bg-green-500 hover:bg-green-600"><CheckCircle2 className="h-3 w-3" /> {confidence}%</Badge>;
     if (confidence >= 70) return <Badge className="gap-1 bg-orange-500 hover:bg-orange-600"><AlertTriangle className="h-3 w-3" /> {confidence}%</Badge>;
     return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> {confidence}%</Badge>;
+  };
+
+  const getSelectValue = (match: MatchRow) => {
+    if (match.isPending) return "pending";
+    return match.selectedRestaurantId || "none";
   };
 
   return (
@@ -211,6 +225,7 @@ export default function DeliverooMatching() {
             <Badge className="text-sm py-1 px-3 bg-green-500">{stats.highConfidence} auto-matchés</Badge>
             <Badge className="text-sm py-1 px-3 bg-orange-500">{stats.mediumConfidence} à vérifier</Badge>
             <Badge variant="destructive" className="text-sm py-1 px-3">{stats.lowConfidence} non trouvés</Badge>
+            <Badge className="text-sm py-1 px-3 bg-yellow-500 text-white">{stats.pending} en attente</Badge>
             <Badge className="text-sm py-1 px-3 bg-blue-500">{stats.alreadyLinked} déjà liés</Badge>
             <Badge variant="outline" className="text-sm py-1 px-3">{stats.ignored} ignorés</Badge>
           </div>
@@ -223,13 +238,17 @@ export default function DeliverooMatching() {
                     <TableHead>Nom Deliveroo</TableHead>
                     <TableHead>Restaurant en base</TableHead>
                     <TableHead className="w-[140px]">Confiance</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {matches.map((match) => (
                     <TableRow
                       key={match.deliverooName}
-                      className={match.isIgnored ? "opacity-40" : ""}
+                      className={
+                        match.isIgnored ? "opacity-40" :
+                        match.isPending ? "bg-yellow-50 dark:bg-yellow-950/20" : ""
+                      }
                     >
                       <TableCell className="font-medium text-sm max-w-[300px] truncate">
                         {match.deliverooName}
@@ -239,7 +258,7 @@ export default function DeliverooMatching() {
                           <span className="text-muted-foreground text-sm italic">Hors réseau</span>
                         ) : (
                           <Select
-                            value={match.selectedRestaurantId || "none"}
+                            value={getSelectValue(match)}
                             onValueChange={(v) => handleRestaurantChange(match.deliverooName, v)}
                             disabled={match.isAlreadyLinked}
                           >
@@ -248,6 +267,11 @@ export default function DeliverooMatching() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">— Aucun —</SelectItem>
+                              <SelectItem value="pending" className="text-yellow-600">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="h-3 w-3" /> En attente
+                                </span>
+                              </SelectItem>
                               {restaurants.map((r) => (
                                 <SelectItem key={r.id} value={r.id}>
                                   {r.name}
@@ -258,7 +282,20 @@ export default function DeliverooMatching() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {getConfidenceBadge(match.confidence, match.isAlreadyLinked, match.isIgnored, match.isOverride)}
+                        {getConfidenceBadge(match)}
+                      </TableCell>
+                      <TableCell>
+                        {!match.isIgnored && !match.isAlreadyLinked && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => togglePending(match.deliverooName)}
+                            title={match.isPending ? "Remettre actif" : "Mettre en attente"}
+                          >
+                            {match.isPending ? <Undo2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5 text-yellow-600" />}
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -277,6 +314,19 @@ export default function DeliverooMatching() {
       )}
     </div>
   );
+}
+
+/** Sort: low confidence > medium > pending > high > already linked > ignored */
+function sortMatches(a: MatchRow, b: MatchRow): number {
+  const priority = (m: MatchRow): number => {
+    if (m.isIgnored) return 6;
+    if (m.isAlreadyLinked) return 5;
+    if (m.isPending) return 3;
+    if (m.confidence >= 90) return 4;
+    if (m.confidence >= 70) return 2;
+    return 1; // low confidence first
+  };
+  return priority(a) - priority(b);
 }
 
 /** Simple CSV line parser that handles quoted fields with commas */
