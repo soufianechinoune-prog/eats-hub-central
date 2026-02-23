@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, Line, ComposedChart,
+  ResponsiveContainer,
 } from "recharts";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -62,7 +62,6 @@ export function EcoContributionSection({
         : MONTHS[d.month - 1],
       Remboursements: d.refund,
       Prélèvements: d.charge,
-      "Solde net": d.net,
     }));
   }, [monthlyData, localYear]);
 
@@ -221,7 +220,7 @@ export function EcoContributionSection({
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData}>
+                    <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                       <XAxis dataKey="name" className="text-xs" />
                       <YAxis className="text-xs" tickFormatter={(v) => `${v}€`} />
@@ -232,8 +231,7 @@ export function EcoContributionSection({
                       <Legend />
                       <Bar dataKey="Remboursements" fill="hsl(142, 76%, 36%)" radius={[2, 2, 0, 0]} />
                       <Bar dataKey="Prélèvements" fill="hsl(0, 84%, 60%)" radius={[2, 2, 0, 0]} />
-                      <Line type="monotone" dataKey="Solde net" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-                    </ComposedChart>
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               </CardContent>
