@@ -1,45 +1,30 @@
 
 
-## Correction du calcul du KPI "Taux de disponibilite"
+## Correction du calcul de disponibilite sur la page Comparaison et l'export PDF
 
 ### Le probleme
 
-Le KPI affiche **23.3%** alors que le graphique montre :
-- 19 fev : 100%
-- 20 fev : 100%
-- 21 fev : 23.3%
-- 22 fev : 100%
+Le meme bug que sur la page Analytics : le taux de disponibilite est calcule comme un ratio brut (total online / total minutes) au lieu d'une **moyenne des taux journaliers**. Juvisy affiche 52.9% sur la comparaison au lieu de 84.4% (la bonne valeur, coherente avec le graphique).
 
-La moyenne devrait etre **(100 + 100 + 23.3 + 100) / 4 = ~80.8%**
+### Fichiers a corriger
 
-### Cause technique
+**1. `src/pages/DowntimeComparison.tsx` (ligne 244)**
 
-Le calcul actuel additionne tous les `online_minutes` et `offline_minutes` bruts de la periode, puis fait le ratio. Quand un restaurant a des enregistrements avec `online=0, offline=0` (jours sans activite tracee), ces jours ne contribuent rien au total -- ils sont ignores. Le KPI ne reflete donc que les jours avec de vrais donnees (ici uniquement le 21).
-
-Le graphique, lui, applique la regle "0/0 = 100%", d'ou l'incoherence.
-
-### La solution
-
-Calculer le KPI comme **moyenne des taux journaliers** au lieu d'un ratio de totaux bruts. Chaque jour avec `online=0, offline=0` sera traite comme 100% (coherent avec le graphique).
-
-### Modifications
-
-**Fichier : `src/components/analytics/OperationsAnalytics.tsx` (lignes 236-266)**
-
-Modifier le calcul du `kpis` dans le `useMemo` :
-
+Remplacer le calcul brut :
 ```text
 Avant : totalOnline / (totalOnline + totalOffline) * 100
-Apres : moyenne des (dayOnline / (dayOnline + dayOffline) * 100) par jour
-        avec la regle : si dayOnline + dayOffline == 0, le taux = 100%
 ```
 
-Concretement, pour le mode `useDailyView` (periodes courtes), on boucle sur `dailyRpcData` et on calcule le taux de chaque jour individuellement, puis on fait la moyenne. Pour le mode annuel (`monthlyRpcData`), meme logique par mois.
+Par une moyenne des taux journaliers, en reutilisant le `dailyAvailability` qui est deja calcule juste en dessous (lignes 254-266) et qui applique correctement la regle "0/0 = 100%".
 
-Les heures en ligne et hors ligne (KPIs secondaires) restent calcules par somme brute -- seul le pourcentage de disponibilite change.
+Concretement : apres avoir construit `dailyAvailability`, calculer `availabilityRate` comme la moyenne des `v.rate` de chaque jour.
+
+**2. `src/hooks/useReportPdfExport.ts` (ligne 282)**
+
+Meme correction pour l'export PDF : calculer le taux comme moyenne des taux journaliers a partir du `dailyMap` deja construit (lignes 270-273), au lieu du ratio brut.
 
 ### Impact
 
-- Coherence parfaite entre le KPI et le graphique
-- Les restaurants avec des jours "sans donnees" ne seront plus penalises artificiellement
-- Aucun impact sur les autres pages (comparaison, exports) qui ont leur propre calcul
+- La page Comparaison affichera les memes taux que la page Analytics (84.4% pour Juvisy)
+- Les exports PDF seront coherents
+- Le classement et les badges (Critique, Bon, Excellent) refleteront les bonnes valeurs
