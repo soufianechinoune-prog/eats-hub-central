@@ -154,6 +154,33 @@ export default function DeliverooMatching() {
     );
   }, [matches, toast]);
 
+  // Set of restaurant IDs already used by other rows or already linked in DB
+  const usedRestaurantIds = useMemo(() => {
+    const used = new Set<string>();
+    // Add IDs selected in current matches
+    matches.forEach((m) => {
+      if (m.selectedRestaurantId && !m.isIgnored) {
+        used.add(m.selectedRestaurantId);
+      }
+    });
+    // Add IDs of restaurants already linked in DB (have deliveroo_store_id)
+    restaurants.forEach((r) => {
+      if (r.deliveroo_store_id) {
+        used.add(r.id);
+      }
+    });
+    return used;
+  }, [matches, restaurants]);
+
+  const getAvailableRestaurants = useCallback((currentMatch: MatchRow) => {
+    return restaurants.filter((r) => {
+      // Always show the currently selected restaurant for this row
+      if (r.id === currentMatch.selectedRestaurantId) return true;
+      // Hide if used by another row or already linked in DB
+      return !usedRestaurantIds.has(r.id);
+    });
+  }, [restaurants, usedRestaurantIds]);
+
   const stats = useMemo(() => {
     const active = matches.filter((m) => !m.isIgnored);
     return {
@@ -272,7 +299,7 @@ export default function DeliverooMatching() {
                                   <Clock className="h-3 w-3" /> En attente
                                 </span>
                               </SelectItem>
-                              {restaurants.map((r) => (
+                              {getAvailableRestaurants(match).map((r) => (
                                 <SelectItem key={r.id} value={r.id}>
                                   {r.name}
                                 </SelectItem>
