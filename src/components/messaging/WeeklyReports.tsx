@@ -806,6 +806,7 @@ export default function WeeklyReports() {
             const pdfBlob = generateReportPdf(kpi, {
               periodStart: format(periodStart, "d MMM yyyy", { locale: fr }),
               periodEnd: format(periodEnd, "d MMM yyyy", { locale: fr }),
+              reportType: reportType as any,
             });
 
             // Upload to whatsapp-media bucket
