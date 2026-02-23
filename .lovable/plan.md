@@ -1,30 +1,21 @@
 
 
-## Correction du calcul de disponibilite sur la page Comparaison et l'export PDF
+## Improve Tab Readability in Operations Analytics
 
-### Le probleme
+The operations sub-tabs ("Disponibilite", "Temps de prepa initial", "Temps d'attente du coursier (restaurant)", "Temps de prepa total", "Erreurs", "Uber One") are hard to read because the 6 tabs are forced into a fixed grid, causing long labels to overlap.
 
-Le meme bug que sur la page Analytics : le taux de disponibilite est calcule comme un ratio brut (total online / total minutes) au lieu d'une **moyenne des taux journaliers**. Juvisy affiche 52.9% sur la comparaison au lieu de 84.4% (la bonne valeur, coherente avec le graphique).
+### Changes
 
-### Fichiers a corriger
+**File: `src/components/analytics/OperationsAnalytics.tsx`**
 
-**1. `src/pages/DowntimeComparison.tsx` (ligne 244)**
+1. Replace the rigid `grid grid-cols-6` layout with a flexible layout (`flex flex-wrap`) so tabs can take the space they need without overlapping
+2. Shorten the longest label: "Temps d'attente du coursier (restaurant)" becomes "Attente coursier" on desktop too (the full label is unnecessarily verbose)
+3. Reduce text size slightly (`text-xs`) to give more breathing room
+4. Add `whitespace-nowrap` to prevent text wrapping inside individual tabs
 
-Remplacer le calcul brut :
-```text
-Avant : totalOnline / (totalOnline + totalOffline) * 100
-```
+### Technical Details
 
-Par une moyenne des taux journaliers, en reutilisant le `dailyAvailability` qui est deja calcule juste en dessous (lignes 254-266) et qui applique correctement la regle "0/0 = 100%".
+- **Line 570**: Change `TabsList` className from `grid w-full max-w-5xl grid-cols-6 h-12` to `flex flex-wrap w-full max-w-5xl h-auto gap-1`
+- **Line 592**: Shorten desktop label from "Temps d'attente du coursier (restaurant)" to "Attente coursier"
+- All `TabsTrigger` elements: add `whitespace-nowrap` and adjust padding for better fit
 
-Concretement : apres avoir construit `dailyAvailability`, calculer `availabilityRate` comme la moyenne des `v.rate` de chaque jour.
-
-**2. `src/hooks/useReportPdfExport.ts` (ligne 282)**
-
-Meme correction pour l'export PDF : calculer le taux comme moyenne des taux journaliers a partir du `dailyMap` deja construit (lignes 270-273), au lieu du ratio brut.
-
-### Impact
-
-- La page Comparaison affichera les memes taux que la page Analytics (84.4% pour Juvisy)
-- Les exports PDF seront coherents
-- Le classement et les badges (Critique, Bon, Excellent) refleteront les bonnes valeurs
