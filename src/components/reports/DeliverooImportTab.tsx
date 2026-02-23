@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -231,45 +232,77 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
 
       {/* Upload step */}
       {step === "upload" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <img src={deliverooLogo} alt="Deliveroo" className="h-6 w-6 object-contain" />
-              Relevé de paiement Deliveroo
-            </CardTitle>
-            <CardDescription>
-              Importez le fichier CSV "statement" téléchargé depuis Deliveroo Partner Hub
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="import-label" className="flex items-center gap-2">
-                <Tag className="h-4 w-4" />
-                Nom de l'import
-              </Label>
-              <Input
-                id="import-label"
-                placeholder="Ex: Facture février 2026, Relevé S8..."
-                value={importLabel}
-                onChange={(e) => setImportLabel(e.target.value)}
-              />
-            </div>
-            <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                {isLoading ? (
-                  <Loader2 className="h-10 w-10 animate-spin text-primary mb-3" />
-                ) : (
-                  <Upload className="h-10 w-10 text-muted-foreground mb-3" />
-                )}
-                <p className="mb-2 text-sm text-muted-foreground">
-                  <span className="font-semibold">Cliquez pour sélectionner</span> ou glissez-déposez
-                </p>
-                <p className="text-xs text-muted-foreground">Fichier CSV uniquement</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left: Type selector + Label */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5" />
+                Type de rapport
+              </CardTitle>
+              <CardDescription>
+                Sélectionnez le type de rapport que vous importez
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Select value="deliveroo_statement" disabled>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="deliveroo_statement">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">Relevé de paiement</span>
+                      <span className="text-xs text-muted-foreground">Facture / Statement depuis Partner Hub</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="space-y-2">
+                <Label htmlFor="import-label" className="flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  Nom de l'import
+                </Label>
+                <Input
+                  id="import-label"
+                  placeholder="Ex: Facture février 2026, Relevé S8..."
+                  value={importLabel}
+                  onChange={(e) => setImportLabel(e.target.value)}
+                />
               </div>
-              <input type="file" className="hidden" accept=".csv" onChange={handleFileChange} disabled={isLoading} />
-            </label>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {/* Right: File upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                Fichier CSV
+              </CardTitle>
+              <CardDescription>
+                Glissez-déposez ou sélectionnez votre fichier
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  {isLoading ? (
+                    <Loader2 className="h-10 w-10 animate-spin text-primary mb-3" />
+                  ) : (
+                    <Upload className="h-10 w-10 text-muted-foreground mb-3" />
+                  )}
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    <span className="font-semibold">Cliquez pour sélectionner</span> ou glissez-déposez
+                  </p>
+                  <p className="text-xs text-muted-foreground">Fichier CSV uniquement</p>
+                </div>
+                <input type="file" className="hidden" accept=".csv" onChange={handleFileChange} disabled={isLoading} />
+              </label>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Preview & validation step */}
