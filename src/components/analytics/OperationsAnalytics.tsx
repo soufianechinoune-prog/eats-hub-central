@@ -234,34 +234,34 @@ export function OperationsAnalytics() {
 
   // Calculate KPIs from RPC data
   const kpis = useMemo(() => {
-    // Use whichever RPC data is active
     let totalOnline = 0;
     let totalOffline = 0;
+    const rates: number[] = [];
+
+    const addEntry = (online: number, offline: number) => {
+      totalOnline += online;
+      totalOffline += offline;
+      const total = online + offline;
+      rates.push(total > 0 ? (online / total) * 100 : 100);
+    };
 
     if (selectedDay && dayDrilldownData) {
-      // Day view uses raw data
-      dayDrilldownData.forEach((d: any) => {
-        totalOnline += d.online_minutes;
-        totalOffline += d.offline_minutes;
-      });
+      dayDrilldownData.forEach((d: any) => addEntry(d.online_minutes, d.offline_minutes));
     } else if (useDailyView && dailyRpcData) {
-      dailyRpcData.forEach((d: any) => {
-        totalOnline += Number(d.total_online_minutes) || 0;
-        totalOffline += Number(d.total_offline_minutes) || 0;
-      });
+      dailyRpcData.forEach((d: any) => addEntry(Number(d.total_online_minutes) || 0, Number(d.total_offline_minutes) || 0));
     } else if (monthlyRpcData) {
-      monthlyRpcData.forEach((d: any) => {
-        totalOnline += Number(d.total_online_minutes) || 0;
-        totalOffline += Number(d.total_offline_minutes) || 0;
-      });
+      monthlyRpcData.forEach((d: any) => addEntry(Number(d.total_online_minutes) || 0, Number(d.total_offline_minutes) || 0));
     }
 
-    const totalMinutes = totalOnline + totalOffline;
+    const avgAvailability = rates.length > 0
+      ? rates.reduce((sum, r) => sum + r, 0) / rates.length
+      : 100;
+
     return {
-      avgAvailability: totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 100,
+      avgAvailability,
       totalOfflineHours: totalOffline / 60,
       totalOnlineHours: totalOnline / 60,
-      incidentCount: 0, // Not available from aggregated data
+      incidentCount: 0,
     };
   }, [monthlyRpcData, dailyRpcData, dayDrilldownData, selectedDay, useDailyView]);
 
