@@ -33,7 +33,7 @@ interface FinancesSectionProps {
   onProfitabilityComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
   onMonthDrillDown?: (month: number | null) => void;
   // Platform for actions filtering
-  selectedPlatform?: string;
+  selectedPlatform?: "uber_eats" | "deliveroo" | "global";
   // Action filtering props (aligned with Revenus & Ventes)
   showActions?: boolean;
   onShowActionsChange?: (value: boolean) => void;
@@ -90,6 +90,7 @@ export function FinancesSection({
     startDate,
     endDate,
     granularity: 'daily',
+    platform: selectedPlatform,
   });
 
   // Prepare restaurant details for the chart
@@ -170,6 +171,7 @@ export function FinancesSection({
           payouts={dailyPayoutsData}
           restaurants={restaurants}
           advertisingData={advertisingData}
+          platform={selectedPlatform}
         />
       )}
 

@@ -78,6 +78,7 @@ interface ProfitabilityComparisonTableProps {
   payouts: PayoutData[];
   restaurants: RestaurantData[];
   advertisingData?: AdvertisingDataRow[];
+  platform?: "uber_eats" | "deliveroo" | "global";
 }
 
 // Helper to format percentage
@@ -183,6 +184,7 @@ export function ProfitabilityComparisonTable({
   payouts, 
   restaurants,
   advertisingData = [],
+  platform = "uber_eats",
 }: ProfitabilityComparisonTableProps) {
   const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -843,7 +845,7 @@ export function ProfitabilityComparisonTable({
                         )}
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
-                        <p className="text-xs">Total à encaisser (Versement Uber + Titres restaurant) / CA TTC × 100</p>
+                        <p className="text-xs">Total à encaisser (Versement {platform === "deliveroo" ? "Deliveroo" : "Uber"} + Titres restaurant) / CA TTC × 100</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -863,9 +865,9 @@ export function ProfitabilityComparisonTable({
                           <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
                         )}
                       </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
+                       <TooltipContent className="max-w-xs">
                         <div className="text-xs space-y-1">
-                          <p className="font-medium">Frais Uber après promotions (TTC)</p>
+                          <p className="font-medium">Commission {platform === "deliveroo" ? "Deliveroo" : "Uber après promotions"} (TTC)</p>
                           <p className="text-muted-foreground">
                             Cliquez sur une ligne pour voir la décomposition.
                           </p>
@@ -905,7 +907,7 @@ export function ProfitabilityComparisonTable({
                   onClick={() => handleSort('payout')}
                 >
                   <div className="flex items-center gap-1 justify-end">
-                    Versement Uber
+                    Versement {platform === "deliveroo" ? "Deliveroo" : "Uber"}
                     {sortColumn === 'payout' ? (
                       sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
@@ -916,6 +918,7 @@ export function ProfitabilityComparisonTable({
                 <TableHead className="text-right text-muted-foreground">
                   Titre Resto
                 </TableHead>
+                {platform !== "deliveroo" && (
                 <TableHead className="text-right text-emerald-600">
                   <TooltipProvider>
                     <Tooltip>
@@ -929,6 +932,8 @@ export function ProfitabilityComparisonTable({
                     </Tooltip>
                   </TooltipProvider>
                 </TableHead>
+                )}
+                {platform !== "deliveroo" && (
                 <TableHead className="text-right text-red-600">
                   <TooltipProvider>
                     <Tooltip>
@@ -942,6 +947,8 @@ export function ProfitabilityComparisonTable({
                     </Tooltip>
                   </TooltipProvider>
                 </TableHead>
+                )}
+                {platform !== "deliveroo" && (
                 <TableHead className="text-right text-orange-500">
                   <TooltipProvider>
                     <Tooltip>
@@ -955,6 +962,7 @@ export function ProfitabilityComparisonTable({
                     </Tooltip>
                   </TooltipProvider>
                 </TableHead>
+                )}
                 <TableHead className="text-right text-green-600 font-semibold">
                   Versement Total
                 </TableHead>
@@ -1018,6 +1026,7 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {row.mealVoucher > 0 ? formatCurrency(row.mealVoucher) : '-'}
                       </TableCell>
+                      {platform !== "deliveroo" && <>
                       <TableCell className="text-right text-emerald-600 tabular-nums">
                         {row.ecoContribution > 0 ? formatCurrency(row.ecoContribution) : '-'}
                       </TableCell>
@@ -1027,6 +1036,7 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-orange-500 tabular-nums">
                         {row.advertisingAmount > 0 ? `-${formatCurrency(row.advertisingAmount)}` : '-'}
                       </TableCell>
+                      </>}
                       <TableCell className="text-right font-semibold text-green-600 tabular-nums">
                         {formatCurrency(row.totalPayout)}
                       </TableCell>
@@ -1066,6 +1076,7 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {averages.mealVoucherAmount > 0 ? formatCurrency(averages.mealVoucherAmount) : '-'}
                       </TableCell>
+                      {platform !== "deliveroo" && <>
                       <TableCell className="text-right text-emerald-600 tabular-nums">
                         {averages.ecoContributionAmount > 0 ? formatCurrency(averages.ecoContributionAmount) : '-'}
                       </TableCell>
@@ -1075,6 +1086,7 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-orange-500 tabular-nums">
                         {averages.advertisingAmount > 0 ? `-${formatCurrency(averages.advertisingAmount)}` : '-'}
                       </TableCell>
+                      </>}
                       <TableCell className="text-right text-green-600 tabular-nums">
                         {formatCurrency(averages.totalPayoutAmount)}
                       </TableCell>
@@ -1177,6 +1189,7 @@ export function ProfitabilityComparisonTable({
                               <TableCell className="text-right text-muted-foreground tabular-nums">
                                 {row.mealVoucher > 0 ? formatCurrency(row.mealVoucher) : '-'}
                               </TableCell>
+                              {platform !== "deliveroo" && <>
                               <TableCell className="text-right text-emerald-600 tabular-nums">
                                 {row.ecoContribution > 0 ? formatCurrency(row.ecoContribution) : '-'}
                               </TableCell>
@@ -1186,6 +1199,7 @@ export function ProfitabilityComparisonTable({
                               <TableCell className="text-right text-orange-500 tabular-nums">
                                 {row.advertisingAmount > 0 ? `-${formatCurrency(row.advertisingAmount)}` : '-'}
                               </TableCell>
+                              </>}
                               <TableCell className="text-right font-semibold text-green-600 tabular-nums">
                                 {formatCurrency(row.totalPayout)}
                               </TableCell>
@@ -1335,6 +1349,7 @@ export function ProfitabilityComparisonTable({
                           <TableCell className="text-right text-muted-foreground tabular-nums">
                             {group.totalMealVoucher > 0 ? formatCurrency(group.totalMealVoucher) : '-'}
                           </TableCell>
+                          {platform !== "deliveroo" && <>
                           <TableCell className="text-right text-emerald-600 tabular-nums">
                             {group.rows.reduce((sum, r) => sum + r.ecoContribution, 0) > 0 
                               ? formatCurrency(group.rows.reduce((sum, r) => sum + r.ecoContribution, 0)) 
@@ -1351,6 +1366,7 @@ export function ProfitabilityComparisonTable({
                               return totalAd > 0 ? `-${formatCurrency(totalAd)}` : '-';
                             })()}
                           </TableCell>
+                          </>}
                           <TableCell className="text-right font-semibold text-primary tabular-nums">
                             {formatCurrency(group.totalPayoutWithVoucher)}
                           </TableCell>
@@ -1401,6 +1417,7 @@ export function ProfitabilityComparisonTable({
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               {resto.mealVoucher > 0 ? formatCurrency(resto.mealVoucher) : '-'}
                             </TableCell>
+                            {platform !== "deliveroo" && <>
                             <TableCell className="text-right tabular-nums text-emerald-600">
                               {resto.ecoContribution > 0 ? formatCurrency(resto.ecoContribution) : '-'}
                             </TableCell>
@@ -1410,6 +1427,7 @@ export function ProfitabilityComparisonTable({
                             <TableCell className="text-right tabular-nums text-orange-500">
                               {resto.advertisingAmount > 0 ? `-${formatCurrency(resto.advertisingAmount)}` : '-'}
                             </TableCell>
+                            </>}
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               {formatCurrency(resto.totalPayout)}
                             </TableCell>
@@ -1503,6 +1521,7 @@ export function ProfitabilityComparisonTable({
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalMealVoucher, 0))}
                       </TableCell>
+                      {platform !== "deliveroo" && <>
                       <TableCell className="text-right text-emerald-600 tabular-nums">
                         {formatCurrency(monthGroups.reduce((sum, g) => g.rows.reduce((s, r) => s + r.ecoContribution, 0) + sum, 0))}
                       </TableCell>
@@ -1518,6 +1537,7 @@ export function ProfitabilityComparisonTable({
                           return totalAd > 0 ? `-${formatCurrency(totalAd)}` : '-';
                         })()}
                       </TableCell>
+                      </>}
                       <TableCell className="text-right font-semibold text-primary tabular-nums">
                         {formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalPayoutWithVoucher, 0))}
                       </TableCell>
