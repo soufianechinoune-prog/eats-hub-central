@@ -256,44 +256,61 @@ export function useReportPdfExport() {
 
         // ===== 4 KPI CARDS =====
         const kpiCardWidth = (contentW - 15) / 4;
-        const kpiCardHeight = 22;
+        const kpiCardHeight = 28;
 
         const kpiCards = [
           {
             label: "Taux de disponibilite",
             value: `${availabilityRate.toFixed(1)}%`,
             color: availabilityRate >= 99 ? [16, 185, 129] : availabilityRate >= 95 ? [245, 158, 11] : [239, 68, 68],
+            subtitle: "Moyenne sur la periode",
           },
           {
             label: "Heures en ligne",
             value: formatMinutesToHM(totalOnline),
-            color: [16, 185, 129],
+            color: [16, 185, 129] as number[],
+            subtitle: "Temps de fonctionnement",
           },
           {
             label: "Heures hors ligne",
             value: formatMinutesToHM(totalOffline),
             color: totalOffline > 0 ? [239, 68, 68] : [16, 185, 129],
+            subtitle: "Temps d'indisponibilite",
           },
           {
             label: "Incidents >15min",
             value: `${incidentCount}`,
             color: incidentCount > 0 ? [239, 68, 68] : [16, 185, 129],
+            subtitle: "Periodes hors ligne significatives",
           },
         ];
 
         kpiCards.forEach((card, index) => {
           const x = margin + index * (kpiCardWidth + 5);
-          doc.setFillColor(card.color[0], card.color[1], card.color[2]);
-          doc.roundedRect(x, y, kpiCardWidth, kpiCardHeight, 2, 2, "F");
           
-          doc.setTextColor(255, 255, 255);
+          // White background with light gray border
+          doc.setFillColor(255, 255, 255);
+          doc.setDrawColor(229, 231, 235);
+          doc.setLineWidth(0.4);
+          doc.roundedRect(x, y, kpiCardWidth, kpiCardHeight, 2, 2, "FD");
+          
+          // Label in dark gray
+          doc.setTextColor(75, 85, 99);
           doc.setFontSize(7);
           doc.setFont("helvetica", "normal");
           doc.text(card.label, x + 3, y + 7);
           
-          doc.setFontSize(13);
+          // Value in status color
+          doc.setTextColor(card.color[0], card.color[1], card.color[2]);
+          doc.setFontSize(14);
           doc.setFont("helvetica", "bold");
           doc.text(card.value, x + 3, y + 17);
+          
+          // Subtitle in light gray
+          doc.setTextColor(156, 163, 175);
+          doc.setFontSize(5.5);
+          doc.setFont("helvetica", "normal");
+          doc.text(card.subtitle, x + 3, y + 23);
         });
 
         y += kpiCardHeight + 12;
