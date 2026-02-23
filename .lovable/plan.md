@@ -1,79 +1,74 @@
 
 
-## Ajouter un PDF en piece jointe aux rapports WhatsApp
+## Ajouter le type de rapport "Temps d'inactivite"
 
-### Contexte
+### Objectif
 
-Le rapport IA inclut deja les donnees de temps d'inactivite (downtime_minutes) dans le prompt envoye a l'IA. Aucune modification necessaire pour le point 1.
-
-Pour le point 2, on va generer un PDF de synthese par restaurant et l'envoyer en piece jointe WhatsApp apres le message texte.
-
-### Architecture du flux
-
-```text
-1. Generation rapports IA (existant)
-      |
-2. Generation PDF par restaurant (NOUVEAU - client-side jsPDF)
-      |
-3. Upload PDF vers storage "whatsapp-media" 
-      |
-4. Envoi message texte WhatsApp (existant)
-      |
-5. Envoi PDF via send-whatsapp-media (existant)
-```
+Ajouter une 7eme carte "Temps d'inactivite" dans la grille de selection des types de rapport WhatsApp, a cote de Erreurs, CA & Commandes, Notes clients, Temps operationnels et Promotions.
 
 ### Modifications
 
-#### 1. Nouveau hook : `src/hooks/useReportPdfExport.ts`
+#### 1. Frontend - `src/components/messaging/WeeklyReports.tsx`
 
-Hook qui genere un PDF de synthese KPI pour un restaurant donne, sans html2canvas (100% jsPDF vectoriel pour la rapidite) :
+- Ajouter `"downtime"` au type `ReportType` (ligne 150)
+- Ajouter une nouvelle carte dans `REPORT_TYPE_OPTIONS` (apres Promotions) :
+  - id: `"downtime"`
+  - label: `"Temps d'inactivite"`
+  - description: `"Disponibilite et interruptions de service"`
+  - icone: `PauseCircle` (de lucide-react)
+  - gradient: `"from-slate-500/20 to-gray-500/20"`
+  - couleur: `"text-slate-500"`
 
-- Header avec logo CS + nom du restaurant + periode
-- Section KPIs : CA, Commandes, Panier moyen, Note, Taux d'erreur, Temps de prep, Downtime
-- Indicateurs de tendance (fleches haut/bas + couleurs vert/rouge)
-- Comparaison semaine precedente
-- Le PDF est retourne en tant que Blob
+#### 2. Backend - `supabase/functions/generate-stat-report/index.ts`
 
-#### 2. Modification : `src/components/messaging/WeeklyReports.tsx`
+- Ajouter `"downtime"` au type `TemplateType` (ligne 10)
+- Ajouter un `case 'downtime'` dans le switch (ligne 77-110)
+- Creer la fonction `generateDowntimeTemplate` qui :
+  - Recupere les donnees `hourly_availability` pour la periode (filtre `platform = 'uber_eats'`)
+  - Calcule : minutes offline, minutes online, taux de disponibilite
+  - Recupere les memes donnees pour la semaine precedente (comparaison)
+  - **Mode basique** : taux global, total minutes hors ligne, comparaison semaine precedente
+  - **Mode detaille** : ajoute les 3 pires jours, les creneaux horaires les plus touches, et le nombre de jours a 100%
 
-Dans la fonction `sendReports` (ligne ~733), apres l'envoi du message texte :
+### Contenu du rapport WhatsApp "Temps d'inactivite"
 
-- Option "Joindre le PDF" : ajouter un toggle/checkbox dans l'interface d'envoi (onglet "Envoi")
-- Pour chaque restaurant selectionne :
-  1. Generer le PDF avec les KPIs du `generatedKPIs`
-  2. Uploader le PDF dans le bucket `whatsapp-media` avec un nom unique (ex: `report-{restaurant}-{date}.pdf`)
-  3. Recuperer l'URL publique
-  4. Appeler `send-whatsapp-media` avec `mediaType: 'document'` et le `filename`
-  5. Ajouter un delai de 1s entre chaque envoi PDF pour eviter le rate-limiting
+**Mode basique :**
 
-#### 3. Interface utilisateur
+```text
+⏸️ TEMPS D'INACTIVITE - {restaurant}
 
-- Ajouter un toggle "Joindre le PDF de synthese" dans l'onglet Envoi, au-dessus du bouton "Envoyer"
-- Indicateur de progression : "Envoi PDF 2/4..."
-- Le toggle est desactive par defaut pour ne pas changer le comportement existant
+📊 Cette semaine :
+- Taux de disponibilite : 96.7%
+- Temps hors ligne : 2h 38min
+- Sur 7 jours
 
-### Contenu du PDF de synthese
+📈 Evolution :
+↗️ +1.2% vs semaine precedente
+(Etait : 95.5% | 3h 42min)
 
-| Section | Contenu |
-|---------|---------|
-| En-tete | Logo CS, nom restaurant, periode |
-| CA et Commandes | CA actuel vs precedent, variation %, nb commandes, panier moyen |
-| Satisfaction | Note moyenne vs precedent, nb avis |
-| Operations | Temps de prep, attente coursier |
-| Erreurs | Taux d'erreur vs precedent, nb erreurs |
-| Disponibilite | Minutes d'inactivite vs precedent |
-| Pied de page | Date de generation, "CS Delivery Performance" |
+🤲 Qu'Allah nous accorde la reussite !
+```
+
+**Mode detaille (ajoute) :**
+
+```text
+📅 Jours les plus impactes :
+1. Mardi : 1h 28min hors ligne
+2. Vendredi : 45min hors ligne
+3. Samedi : 25min hors ligne
+
+⏰ Creneaux critiques :
+- 11h-12h : 45min cumulees
+- 19h-20h : 38min cumulees
+- 12h-13h : 22min cumulees
+
+✅ Jours a 100% : 4/7
+```
 
 ### Fichiers concernes
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/hooks/useReportPdfExport.ts` | NOUVEAU - Generation PDF vectoriel par restaurant |
-| `src/components/messaging/WeeklyReports.tsx` | Ajouter toggle PDF + logique upload/envoi dans sendReports |
+| `src/components/messaging/WeeklyReports.tsx` | Ajouter "downtime" au ReportType + nouvelle carte dans REPORT_TYPE_OPTIONS |
+| `supabase/functions/generate-stat-report/index.ts` | Ajouter "downtime" au TemplateType + nouvelle fonction generateDowntimeTemplate |
 
-### Limites et considerations
-
-- Les PDFs sont generes cote client (rapide, ~100ms par PDF)
-- Le bucket `whatsapp-media` est deja configure et utilise pour d'autres medias
-- Le delai entre envois PDF (1s) evite le rate-limiting UltraMsg
-- Pour 4 restaurants : ~8s supplementaires d'envoi (4 PDFs x 1s + 4 textes x 0.5s)
