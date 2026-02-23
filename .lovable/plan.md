@@ -1,76 +1,59 @@
 
+## Ajout d'une analyse IA au rapport "Temps d'inactivite"
 
-## Refonte visuelle du PDF Downtime
+### Objectif
 
-### 1. Renommer le fichier PDF
+Ajouter une analyse intelligente generee par l'IA au rapport WhatsApp "Temps d'inactivite". Au lieu d'envoyer uniquement des chiffres bruts, l'IA va interpreter les donnees et fournir une analyse concise et actionnable : identifier les causes probables, les patterns, et donner des recommandations concretes.
 
-Le nom actuel est `report-Chicken_Street_Juvisy-20260216-xxx.pdf`. Il sera remplace par :
-**`Rapport CS Juvisy 16-22 fev 2026.pdf`**
+### Comment ca marche
 
-- Utilisation de `extractCityName()` (deja existant dans `restaurantUtils.ts`) pour extraire la ville
-- Format de la periode en clair dans le nom du fichier
+Quand tu generes un rapport "Temps d'inactivite", le systeme va :
+1. Collecter toutes les donnees d'inactivite (heures, jours, creneaux critiques)
+2. Envoyer ces donnees a l'IA avec un prompt specialise
+3. L'IA genere une analyse concise qui comprend le contexte delivery (impact sur le ranking Uber, manque a gagner, patterns recurrents)
 
-**Fichiers concernes** : `WeeklyReports.tsx` (ligne 814-816)
+### Ce que l'IA va analyser
 
----
+- **Impact business** : estimation du manque a gagner lie aux heures hors ligne (base sur le CA moyen/heure)
+- **Patterns** : est-ce que l'inactivite est concentree sur le service du midi ? du soir ? un jour precis ?
+- **Causes probables** : tablette eteinte, probleme technique, pause manuelle non desactivee
+- **Impact ranking** : rappel que chaque minute hors ligne degrade le positionnement sur la plateforme
+- **Recommandations** : actions concretes (verifier la tablette avant chaque service, mettre une alarme, etc.)
 
-### 2. Refonte du header (bandeau vert)
+### Modifications techniques
 
-Le bandeau vert plein sera remplace par un design professionnel :
+**Fichier : `supabase/functions/generate-stat-report/index.ts`**
 
-- **Fond blanc** au lieu du vert plein
-- **Logo Chicken Street** (fichier `src/assets/cs-logo.jpeg` deja present) integre en haut a gauche
-- **Titre "Rapport CS [Ville]"** en noir/gris fonce, grand et bold
-- **Sous-titre** avec le type de rapport en gris
-- **Periode** alignee a droite
-- **Ligne de separation** fine en emeraude sous le header pour garder l'identite visuelle
+La fonction `generateDowntimeTemplate` sera modifiee pour :
 
-**Fichier concerne** : `useReportPdfExport.ts` (lignes 184-211)
+1. Collecter les memes donnees qu'actuellement (taux de disponibilite, jours impactes, creneaux critiques)
+2. Recuperer aussi le CA moyen/heure pour estimer le manque a gagner
+3. Appeler l'IA via Lovable AI Gateway avec un prompt expert specialise "downtime delivery"
+4. Integrer la reponse IA dans le message WhatsApp, apres les KPIs chiffres
 
-Pour integrer le logo JPEG dans jsPDF, on utilisera la methode `doc.addImage()` avec un import du fichier en base64 via un `fetch()` au runtime.
+**Structure du message final :**
 
----
+```text
+Partie 1 (deterministe - comme aujourd'hui) :
+- Taux de disponibilite + evolution
+- Temps hors ligne total
+- Jours impactes + creneaux critiques
 
-### 3. Design des KPI cards (deja code mais pas applique)
+Partie 2 (IA - NOUVEAU) :
+- Analyse concise (5-8 lignes max)
+- Diagnostic des patterns identifies
+- Estimation manque a gagner
+- 2-3 recommandations concretes
+```
 
-Le code actuel EST correct (fond blanc + texte colore), mais il semble que le build ne soit pas pris en compte. La refonte complete du header forcera la recompilation. Les cards restent :
+**Prompt IA specialise :**
 
-- Fond blanc, bordure gris clair
-- Valeur coloree (vert/orange/rouge selon seuils)
-- Sous-titre descriptif
+Le prompt sera concu pour un expert en operations delivery qui comprend :
+- Que chaque minute hors ligne = commandes perdues a jamais
+- Que l'algorithme Uber penalise les restaurants avec un taux de disponibilite faible
+- Que les causes sont souvent humaines (oubli de rallumer la tablette, pause non desactivee)
+- Qu'il faut etre concis pour WhatsApp (pas de paves)
 
----
+### Aucun changement cote frontend
 
-### 4. Supprimer les graphiques horaires pour les jours a 100%
-
-Actuellement, les 7 jours affichent un graphique horaire meme quand tout est a 100%. Cela genere 2 pages inutiles.
-
-**Nouvelle logique** : Afficher le graphique horaire UNIQUEMENT pour les jours avec un taux < 100% (au moins une heure avec de l'indisponibilite). 
-
-Si tous les jours sont a 100%, ajouter un simple message de confirmation : "Tous les jours de la periode ont un taux de disponibilite de 100%."
-
-**Fichier concerne** : `useReportPdfExport.ts` (lignes 353-391)
-
----
-
-### 5. Optimisation du layout general
-
-- Reduire les espaces entre sections
-- Ajouter une icone de check (texte) a cote des jours parfaits dans le graphique journalier
-- Footer plus discret
-
----
-
-### Resume des modifications
-
-| Fichier | Modification |
-|---------|-------------|
-| `src/hooks/useReportPdfExport.ts` | Header blanc avec logo, skip des graphiques horaires 100%, optimisation layout |
-| `src/components/messaging/WeeklyReports.tsx` | Nom du fichier PDF avec ville et periode |
-| `src/lib/restaurantUtils.ts` | Aucune modification (reutilisation de `extractCityName`) |
-
-### Details techniques
-
-- Le logo sera charge via `fetch()` sur le chemin relatif du JPEG, converti en base64, puis insere avec `doc.addImage(base64, "JPEG", x, y, w, h)`
-- La fonction `extractCityName` sera importee dans `useReportPdfExport.ts` et `WeeklyReports.tsx`
-- Le filtre des jours 100% comparera chaque heure : si `offline_minutes === 0` pour toutes les heures du jour, le graphique horaire est omis
+Le message WhatsApp est genere cote backend et envoye tel quel. Pas de modification necessaire dans `WeeklyReports.tsx`.
