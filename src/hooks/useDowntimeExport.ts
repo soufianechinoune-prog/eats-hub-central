@@ -407,7 +407,7 @@ export const useDowntimeExport = () => {
         );
       });
 
-      const fileName = `downtime-comparison-${format(data.dateRange.start, "yyyyMMdd")}-${format(data.dateRange.end, "yyyyMMdd")}.pdf`;
+      const fileName = `Temps Inactivité ${format(data.dateRange.start, "dd-MM-yyyy")} au ${format(data.dateRange.end, "dd-MM-yyyy")}.pdf`;
       doc.save(fileName);
     } finally {
       setIsExporting(false);
@@ -577,7 +577,7 @@ export const useDowntimeExport = () => {
         XLSX.utils.book_append_sheet(wb, dailyWs, "Par jour");
       }
 
-      const fileName = `downtime-comparison-${format(data.dateRange.start, "yyyyMMdd")}-${format(data.dateRange.end, "yyyyMMdd")}.xlsx`;
+      const fileName = `Temps Inactivité ${format(data.dateRange.start, "dd-MM-yyyy")} au ${format(data.dateRange.end, "dd-MM-yyyy")}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } finally {
       setIsExporting(false);
