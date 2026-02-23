@@ -1,59 +1,45 @@
 
-## Ajout d'une analyse IA au rapport "Temps d'inactivite"
 
-### Objectif
+## Correction du calcul du KPI "Taux de disponibilite"
 
-Ajouter une analyse intelligente generee par l'IA au rapport WhatsApp "Temps d'inactivite". Au lieu d'envoyer uniquement des chiffres bruts, l'IA va interpreter les donnees et fournir une analyse concise et actionnable : identifier les causes probables, les patterns, et donner des recommandations concretes.
+### Le probleme
 
-### Comment ca marche
+Le KPI affiche **23.3%** alors que le graphique montre :
+- 19 fev : 100%
+- 20 fev : 100%
+- 21 fev : 23.3%
+- 22 fev : 100%
 
-Quand tu generes un rapport "Temps d'inactivite", le systeme va :
-1. Collecter toutes les donnees d'inactivite (heures, jours, creneaux critiques)
-2. Envoyer ces donnees a l'IA avec un prompt specialise
-3. L'IA genere une analyse concise qui comprend le contexte delivery (impact sur le ranking Uber, manque a gagner, patterns recurrents)
+La moyenne devrait etre **(100 + 100 + 23.3 + 100) / 4 = ~80.8%**
 
-### Ce que l'IA va analyser
+### Cause technique
 
-- **Impact business** : estimation du manque a gagner lie aux heures hors ligne (base sur le CA moyen/heure)
-- **Patterns** : est-ce que l'inactivite est concentree sur le service du midi ? du soir ? un jour precis ?
-- **Causes probables** : tablette eteinte, probleme technique, pause manuelle non desactivee
-- **Impact ranking** : rappel que chaque minute hors ligne degrade le positionnement sur la plateforme
-- **Recommandations** : actions concretes (verifier la tablette avant chaque service, mettre une alarme, etc.)
+Le calcul actuel additionne tous les `online_minutes` et `offline_minutes` bruts de la periode, puis fait le ratio. Quand un restaurant a des enregistrements avec `online=0, offline=0` (jours sans activite tracee), ces jours ne contribuent rien au total -- ils sont ignores. Le KPI ne reflete donc que les jours avec de vrais donnees (ici uniquement le 21).
 
-### Modifications techniques
+Le graphique, lui, applique la regle "0/0 = 100%", d'ou l'incoherence.
 
-**Fichier : `supabase/functions/generate-stat-report/index.ts`**
+### La solution
 
-La fonction `generateDowntimeTemplate` sera modifiee pour :
+Calculer le KPI comme **moyenne des taux journaliers** au lieu d'un ratio de totaux bruts. Chaque jour avec `online=0, offline=0` sera traite comme 100% (coherent avec le graphique).
 
-1. Collecter les memes donnees qu'actuellement (taux de disponibilite, jours impactes, creneaux critiques)
-2. Recuperer aussi le CA moyen/heure pour estimer le manque a gagner
-3. Appeler l'IA via Lovable AI Gateway avec un prompt expert specialise "downtime delivery"
-4. Integrer la reponse IA dans le message WhatsApp, apres les KPIs chiffres
+### Modifications
 
-**Structure du message final :**
+**Fichier : `src/components/analytics/OperationsAnalytics.tsx` (lignes 236-266)**
+
+Modifier le calcul du `kpis` dans le `useMemo` :
 
 ```text
-Partie 1 (deterministe - comme aujourd'hui) :
-- Taux de disponibilite + evolution
-- Temps hors ligne total
-- Jours impactes + creneaux critiques
-
-Partie 2 (IA - NOUVEAU) :
-- Analyse concise (5-8 lignes max)
-- Diagnostic des patterns identifies
-- Estimation manque a gagner
-- 2-3 recommandations concretes
+Avant : totalOnline / (totalOnline + totalOffline) * 100
+Apres : moyenne des (dayOnline / (dayOnline + dayOffline) * 100) par jour
+        avec la regle : si dayOnline + dayOffline == 0, le taux = 100%
 ```
 
-**Prompt IA specialise :**
+Concretement, pour le mode `useDailyView` (periodes courtes), on boucle sur `dailyRpcData` et on calcule le taux de chaque jour individuellement, puis on fait la moyenne. Pour le mode annuel (`monthlyRpcData`), meme logique par mois.
 
-Le prompt sera concu pour un expert en operations delivery qui comprend :
-- Que chaque minute hors ligne = commandes perdues a jamais
-- Que l'algorithme Uber penalise les restaurants avec un taux de disponibilite faible
-- Que les causes sont souvent humaines (oubli de rallumer la tablette, pause non desactivee)
-- Qu'il faut etre concis pour WhatsApp (pas de paves)
+Les heures en ligne et hors ligne (KPIs secondaires) restent calcules par somme brute -- seul le pourcentage de disponibilite change.
 
-### Aucun changement cote frontend
+### Impact
 
-Le message WhatsApp est genere cote backend et envoye tel quel. Pas de modification necessaire dans `WeeklyReports.tsx`.
+- Coherence parfaite entre le KPI et le graphique
+- Les restaurants avec des jours "sans donnees" ne seront plus penalises artificiellement
+- Aucun impact sur les autres pages (comparaison, exports) qui ont leur propre calcul
