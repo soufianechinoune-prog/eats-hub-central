@@ -4,6 +4,7 @@ import * as XLSX from "xlsx-js-style";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { extractCityName } from "@/lib/restaurantUtils";
+import csLogoUrl from "@/assets/cs-logo.jpeg";
 
 interface RestaurantStat {
   id: string;
@@ -31,6 +32,19 @@ interface ExportData {
     perfectCount: number;
   };
 }
+
+const loadLogoBase64 = async (): Promise<string | null> => {
+  try {
+    const resp = await fetch(csLogoUrl);
+    const blob = await resp.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return null; }
+};
 
 const formatMinutesToDisplay = (minutes: number): string => {
   if (minutes === 0) return "0min";
@@ -138,8 +152,11 @@ export const useDowntimeExport = () => {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 15;
+      const contentW = pageWidth - margin * 2;
       let yPos = margin;
       const periodDays = differenceInDays(data.dateRange.end, data.dateRange.start) + 1;
+      const logoBase64 = await loadLogoBase64();
+      const exportDate = format(new Date(), "dd/MM/yyyy HH:mm", { locale: fr });
 
       // Build restaurant page mapping (page 2 = first restaurant, etc.)
       const restaurantPages: Record<string, number> = {};
@@ -148,77 +165,105 @@ export const useDowntimeExport = () => {
       });
 
       // ============ PAGE 1: SUMMARY ============
-      // Header
-      doc.setFillColor(16, 185, 129);
-      doc.rect(0, 0, pageWidth, 35, "F");
+      // White header with logo + emerald line
+      const logoSize = 14;
+      let textStartX = margin;
+      if (logoBase64) {
+        doc.addImage(logoBase64, "JPEG", margin, 8, logoSize, logoSize, undefined, "FAST");
+        textStartX = margin + logoSize + 4;
+      }
 
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(20);
+      doc.setTextColor(31, 41, 55);
+      doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
-      doc.text("Comparaison Temps d'inactivite", margin, 18);
+      doc.text("Comparaison Temps d'inactivite", textStartX, 15);
 
-      doc.setFontSize(11);
+      doc.setTextColor(107, 114, 128);
+      doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
-      doc.text(`${sortedData.stats.length} restaurants | ${data.period}`, margin, 28);
+      doc.text(`${sortedData.stats.length} restaurants | ${data.period}`, textStartX, 21);
 
-      const exportDate = format(new Date(), "dd/MM/yyyy HH:mm", { locale: fr });
       doc.setFontSize(9);
-      doc.text(`Export: ${exportDate}`, pageWidth - margin, 28, { align: "right" });
+      doc.setTextColor(107, 114, 128);
+      doc.text(`Export: ${exportDate}`, pageWidth - margin, 15, { align: "right" });
 
-      yPos = 50;
+      // Emerald separation line
+      yPos = 26;
+      doc.setDrawColor(16, 185, 129);
+      doc.setLineWidth(0.8);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
 
-      // KPI Summary Cards
-      doc.setTextColor(0, 0, 0);
+      yPos = 35;
+
+      // KPI Summary Cards (white bg + colored text)
+      doc.setTextColor(31, 41, 55);
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.text("Resume du reseau", margin, yPos);
       yPos += 10;
 
-      const kpiWidth = (pageWidth - margin * 2 - 15) / 4;
-      const kpiHeight = 22;
+      const kpiWidth = (contentW - 15) / 4;
+      const kpiHeight = 28;
 
       const kpis = [
         {
           label: "Disponibilite moyenne",
           value: `${data.insights.avgAvailability.toFixed(1)}%`,
           color: data.insights.avgAvailability >= 99 ? [16, 185, 129] : data.insights.avgAvailability >= 95 ? [245, 158, 11] : [239, 68, 68],
+          subtitle: "Moyenne sur la periode",
         },
         {
           label: "Restaurants 100%",
           value: `${data.insights.perfectCount}`,
           color: [16, 185, 129],
+          subtitle: `sur ${sortedData.stats.length} restaurants`,
         },
         {
           label: "Inactivite totale",
           value: formatMinutesToDisplay(data.insights.totalDowntime),
-          color: [239, 68, 68],
+          color: data.insights.totalDowntime > 0 ? [239, 68, 68] : [16, 185, 129],
+          subtitle: "Temps hors ligne cumule",
         },
         {
           label: "Ecart max",
           value: formatMinutesToDisplay(data.insights.worstPerformer.downtime - data.insights.bestPerformer.downtime),
           color: [59, 130, 246],
+          subtitle: "Entre meilleur et moins bon",
         },
       ];
 
       kpis.forEach((kpi, index) => {
         const x = margin + index * (kpiWidth + 5);
-        doc.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
-        doc.roundedRect(x, yPos, kpiWidth, kpiHeight, 2, 2, "F");
         
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(8);
+        // White background with light gray border
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(229, 231, 235);
+        doc.setLineWidth(0.5);
+        doc.roundedRect(x, yPos, kpiWidth, kpiHeight, 2, 2, "FD");
+        
+        // Label in dark gray
+        doc.setTextColor(75, 85, 99);
+        doc.setFontSize(7);
         doc.setFont("helvetica", "normal");
-        doc.text(kpi.label, x + 4, yPos + 7);
+        doc.text(kpi.label, x + 3, yPos + 7);
         
+        // Value in status color
+        doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2]);
         doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
-        doc.text(kpi.value, x + 4, yPos + 17);
+        doc.text(kpi.value, x + 3, yPos + 17);
+        
+        // Subtitle
+        doc.setTextColor(156, 163, 175);
+        doc.setFontSize(5.5);
+        doc.setFont("helvetica", "normal");
+        doc.text(kpi.subtitle, x + 3, yPos + 23);
       });
 
       yPos += kpiHeight + 15;
 
       // Table Header
-      doc.setTextColor(0, 0, 0);
+      doc.setTextColor(31, 41, 55);
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.text("Classement par disponibilite", margin, yPos);
@@ -235,6 +280,7 @@ export const useDowntimeExport = () => {
       const tableWidth = colWidths.reduce((a, b) => a + b, 0);
       const tableX = margin;
 
+      // Table header row with emerald background
       doc.setFillColor(16, 185, 129);
       doc.rect(tableX, yPos, tableWidth, rowHeight, "F");
       doc.setTextColor(255, 255, 255);
@@ -298,13 +344,20 @@ export const useDowntimeExport = () => {
       });
 
       // Footer on page 1
+      doc.setDrawColor(229, 231, 235);
+      doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
       doc.setFontSize(8);
       doc.setTextColor(156, 163, 175);
       doc.text(
-        `Genere par CS Delivery Performance - ${exportDate}`,
-        pageWidth / 2,
-        pageHeight - 8,
-        { align: "center" }
+        `Genere le ${exportDate}`,
+        margin,
+        pageHeight - 5,
+      );
+      doc.text(
+        "CS Delivery Performance",
+        pageWidth - margin,
+        pageHeight - 5,
+        { align: "right" }
       );
 
       // ============ DETAIL PAGES: One per restaurant ============
@@ -312,41 +365,53 @@ export const useDowntimeExport = () => {
         doc.addPage();
         let detailY = margin;
 
-        // Header with restaurant info
-        doc.setFillColor(16, 185, 129);
-        doc.rect(0, 0, pageWidth, 30, "F");
+        // White header with logo + emerald line
+        let detailTextStartX = margin;
+        if (logoBase64) {
+          doc.addImage(logoBase64, "JPEG", margin, 8, logoSize, logoSize, undefined, "FAST");
+          detailTextStartX = margin + logoSize + 4;
+        }
 
-        doc.setTextColor(255, 255, 255);
+        const cityName = extractCityName(stat.name);
+        doc.setTextColor(31, 41, 55);
         doc.setFontSize(16);
         doc.setFont("helvetica", "bold");
-        doc.text(extractCityName(stat.name), margin, 14);
+        doc.text(cityName, detailTextStartX, 14);
 
+        doc.setTextColor(107, 114, 128);
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
-        doc.text(`Disponibilite: ${stat.availabilityRate.toFixed(1)}% | Hors ligne: ${formatMinutesToDisplay(stat.totalOfflineMinutes)}`, margin, 23);
+        doc.text(`Disponibilite: ${stat.availabilityRate.toFixed(1)}% | Hors ligne: ${formatMinutesToDisplay(stat.totalOfflineMinutes)}`, detailTextStartX, 21);
 
-        doc.setFontSize(9);
-        doc.text("<- Retour synthese", pageWidth - margin - 35, 14);
-        doc.link(pageWidth - margin - 40, 6, 45, 12, { pageNumber: 1 });
-
-        doc.setTextColor(255, 255, 255);
         doc.setFontSize(8);
-        doc.text(data.period, pageWidth - margin, 23, { align: "right" });
+        doc.setTextColor(37, 99, 235);
+        doc.text("<- Retour synthese", pageWidth - margin - 30, 14);
+        doc.link(pageWidth - margin - 35, 6, 40, 12, { pageNumber: 1 });
 
-        detailY = 40;
+        doc.setTextColor(107, 114, 128);
+        doc.setFontSize(9);
+        doc.text(data.period, pageWidth - margin, 21, { align: "right" });
+
+        // Emerald line
+        detailY = 26;
+        doc.setDrawColor(16, 185, 129);
+        doc.setLineWidth(0.8);
+        doc.line(margin, detailY, pageWidth - margin, detailY);
+
+        detailY = 35;
 
         // === DAILY BAR CHART ===
         const dailyAvail = stat.dailyAvailability || {};
         const sortedDays = Object.keys(dailyAvail).sort();
 
         if (sortedDays.length > 0) {
-          doc.setTextColor(0, 0, 0);
+          doc.setTextColor(31, 41, 55);
           doc.setFontSize(12);
           doc.setFont("helvetica", "bold");
           doc.text("Disponibilite journaliere", margin, detailY);
           detailY += 6;
 
-          const chartWidth = pageWidth - margin * 2;
+          const chartWidth = contentW;
           const maxBarHeight = sortedDays.length > 14 ? 35 : 45;
           const labels = sortedDays.map(d => format(parseISO(d), "dd/MM"));
           const values = sortedDays.map(d => dailyAvail[d].rate);
@@ -354,39 +419,53 @@ export const useDowntimeExport = () => {
           detailY = drawBarChart(doc, margin, detailY, chartWidth, maxBarHeight, labels, values);
           detailY += 6;
 
-          // === HOURLY BAR CHARTS PER DAY (only if <= 14 days) ===
+          // === HOURLY BAR CHARTS — only for problematic days ===
           if (periodDays <= 14 && stat.hourlyByDay) {
-            sortedDays.forEach(dateStr => {
+            const daysWithIssues = sortedDays.filter(dateStr => {
               const hourlyForDay = stat.hourlyByDay?.[dateStr];
-              if (!hourlyForDay) return;
-
-              // Check if we need a new page
-              const neededHeight = 50; // title + chart
-              if (detailY + neededHeight > pageHeight - 15) {
-                doc.addPage();
-                detailY = margin;
-              }
-
-              const dateObj = parseISO(dateStr);
-              const dayLabel = format(dateObj, "EEEE dd/MM", { locale: fr });
-              const capitalizedDay = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
-
-              doc.setTextColor(0, 0, 0);
-              doc.setFontSize(9);
-              doc.setFont("helvetica", "bold");
-              doc.text(`Detail horaire - ${capitalizedDay}`, margin, detailY);
-              detailY += 4;
-
-              const hourLabels: string[] = [];
-              const hourValues: number[] = [];
-              for (let h = 0; h < 24; h++) {
-                hourLabels.push(`${h}h`);
-                hourValues.push(hourlyForDay[h]?.rate ?? 100);
-              }
-
-              detailY = drawBarChart(doc, margin, detailY, chartWidth, 30, hourLabels, hourValues, { fontSize: 5 });
-              detailY += 4;
+              if (!hourlyForDay) return false;
+              return Object.values(hourlyForDay).some(hd => hd.offline > 0);
             });
+
+            if (daysWithIssues.length === 0) {
+              // All days 100% — show confirmation
+              doc.setTextColor(16, 185, 129);
+              doc.setFontSize(10);
+              doc.setFont("helvetica", "bold");
+              doc.text("Tous les jours de la periode ont un taux de disponibilite de 100%.", margin, detailY);
+              detailY += 8;
+            } else {
+              for (const dateStr of daysWithIssues) {
+                const hourlyForDay = stat.hourlyByDay![dateStr];
+                if (!hourlyForDay) continue;
+
+                const neededHeight = 50;
+                if (detailY + neededHeight > pageHeight - 15) {
+                  doc.addPage();
+                  detailY = margin;
+                }
+
+                const dateObj = parseISO(dateStr);
+                const dayLabel = format(dateObj, "EEEE dd/MM", { locale: fr });
+                const capitalizedDay = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
+
+                doc.setTextColor(31, 41, 55);
+                doc.setFontSize(9);
+                doc.setFont("helvetica", "bold");
+                doc.text(`Detail horaire - ${capitalizedDay}`, margin, detailY);
+                detailY += 4;
+
+                const hourLabels: string[] = [];
+                const hourValues: number[] = [];
+                for (let h = 0; h < 24; h++) {
+                  hourLabels.push(`${h}h`);
+                  hourValues.push(hourlyForDay[h]?.rate ?? 100);
+                }
+
+                detailY = drawBarChart(doc, margin, detailY, chartWidth, 30, hourLabels, hourValues, { fontSize: 5 });
+                detailY += 4;
+              }
+            }
           }
         } else {
           doc.setFontSize(10);
@@ -396,14 +475,21 @@ export const useDowntimeExport = () => {
         }
 
         // Footer on detail page
+        doc.setDrawColor(229, 231, 235);
+        doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
         doc.setFontSize(8);
         doc.setTextColor(156, 163, 175);
         doc.setFont("helvetica", "normal");
         doc.text(
-          `${extractCityName(stat.name)} - CS Delivery Performance`,
-          pageWidth / 2,
-          pageHeight - 8,
-          { align: "center" }
+          `${cityName} - Genere le ${exportDate}`,
+          margin,
+          pageHeight - 5,
+        );
+        doc.text(
+          "CS Delivery Performance",
+          pageWidth - margin,
+          pageHeight - 5,
+          { align: "right" }
         );
       });
 
