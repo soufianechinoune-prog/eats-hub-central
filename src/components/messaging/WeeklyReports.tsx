@@ -802,11 +802,12 @@ export default function WeeklyReports() {
           setPdfProgress({ current: i + 1, total: pdfTargets.length });
           
           try {
-            // Generate PDF blob
-            const pdfBlob = generateReportPdf(kpi, {
-              periodStart: format(periodStart, "d MMM yyyy", { locale: fr }),
-              periodEnd: format(periodEnd, "d MMM yyyy", { locale: fr }),
+            // Generate PDF blob (async for downtime data fetching)
+            const pdfBlob = await generateReportPdf(kpi, {
+              periodStart: format(periodStart, "yyyy-MM-dd"),
+              periodEnd: format(periodEnd, "yyyy-MM-dd"),
               reportType: reportType as any,
+              restaurant_id: kpi.restaurant_id,
             });
 
             // Upload to whatsapp-media bucket

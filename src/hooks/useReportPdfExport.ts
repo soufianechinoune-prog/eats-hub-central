@@ -1,6 +1,9 @@
 import { useCallback } from "react";
 import jsPDF from "jspdf";
+import { format, parseISO } from "date-fns";
+import { fr } from "date-fns/locale";
 import { getMetricStatus } from "@/lib/performanceThresholds";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ReportKPIs {
   restaurant_name: string;
@@ -25,6 +28,7 @@ interface PdfOptions {
   periodStart: string;
   periodEnd: string;
   reportType?: ReportType;
+  restaurant_id?: string;
 }
 
 const STATUS_COLORS = {
@@ -70,12 +74,109 @@ const REPORT_TITLES: Record<ReportType, string> = {
   promotions: "Rapport Promotions",
 };
 
+// ========== BAR CHART HELPER (same as useDowntimeExport) ==========
+const drawBarChart = (
+  doc: jsPDF,
+  x: number,
+  y: number,
+  chartWidth: number,
+  maxBarHeight: number,
+  labels: string[],
+  values: number[],
+  options?: { showPercentLabel?: boolean; fontSize?: number }
+) => {
+  const barCount = labels.length;
+  if (barCount === 0) return y;
+
+  const gap = Math.max(1, Math.min(3, chartWidth / barCount * 0.15));
+  const barWidth = Math.max(2, (chartWidth - gap * (barCount + 1)) / barCount);
+  const fontSize = options?.fontSize || (barCount > 16 ? 6 : 7);
+  const showPercent = options?.showPercentLabel !== false;
+
+  const baselineY = y + maxBarHeight;
+
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+  doc.line(x, baselineY, x + chartWidth, baselineY);
+
+  // 95% threshold line
+  const thresholdY = baselineY - (maxBarHeight * 0.95);
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineDashPattern([2, 2], 0);
+  doc.line(x, thresholdY, x + chartWidth, thresholdY);
+  doc.setLineDashPattern([], 0);
+
+  doc.setFontSize(5);
+  doc.setTextColor(160, 160, 160);
+  doc.setFont("helvetica", "normal");
+  doc.text("95%", x - 1, thresholdY + 1.5, { align: "right" });
+
+  labels.forEach((label, i) => {
+    const barX = x + gap + i * (barWidth + gap);
+    const rate = Math.min(100, Math.max(0, values[i]));
+    const barH = (rate / 100) * maxBarHeight;
+
+    if (rate >= 95) {
+      doc.setFillColor(16, 185, 129);
+    } else {
+      doc.setFillColor(239, 68, 68);
+    }
+
+    if (barH > 0.5) {
+      doc.rect(barX, baselineY - barH, barWidth, barH, "F");
+    }
+
+    if (showPercent) {
+      doc.setFontSize(fontSize - 1);
+      doc.setTextColor(80, 80, 80);
+      doc.setFont("helvetica", "bold");
+      const pctText = rate === 100 ? "100" : rate.toFixed(0);
+      doc.text(pctText, barX + barWidth / 2, baselineY - barH - 1.5, { align: "center" });
+    }
+
+    doc.setFontSize(fontSize);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(label, barX + barWidth / 2, baselineY + 4, { align: "center" });
+  });
+
+  return baselineY + 8;
+};
+
+// ========== FETCH HOURLY AVAILABILITY ==========
+async function fetchHourlyAvailability(restaurantId: string, startDate: string, endDate: string) {
+  const allRows: any[] = [];
+  let from = 0;
+  const batchSize = 1000;
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from("hourly_availability")
+      .select("hour_start, online_minutes, offline_minutes")
+      .eq("restaurant_id", restaurantId)
+      .eq("platform", "uber_eats")
+      .gte("hour_start", startDate)
+      .lte("hour_start", endDate)
+      .order("hour_start")
+      .range(from, from + batchSize - 1);
+    
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allRows.push(...data);
+    if (data.length < batchSize) break;
+    from += batchSize;
+  }
+  
+  return allRows;
+}
+
 export function useReportPdfExport() {
 
-  const generateReportPdf = useCallback((kpi: ReportKPIs, options: PdfOptions): Blob => {
+  const generateReportPdf = useCallback(async (kpi: ReportKPIs, options: PdfOptions): Promise<Blob> => {
     const reportType = options.reportType || "ai_global";
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
     const margin = 15;
     const contentW = pw - margin * 2;
     let y = 0;
@@ -95,14 +196,199 @@ export function useReportPdfExport() {
     doc.setFont("helvetica", "bold");
     doc.text(kpi.restaurant_name, margin, 25);
     
-    const periodText = `${options.periodStart} -- ${options.periodEnd}`;
+    // Format period for display (convert ISO dates to readable format)
+    const formatPeriodDate = (dateStr: string) => {
+      try {
+        const d = parseISO(dateStr);
+        return format(d, "d MMM yyyy", { locale: fr });
+      } catch { return dateStr; }
+    };
+    const periodText = `${formatPeriodDate(options.periodStart)} -- ${formatPeriodDate(options.periodEnd)}`;
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.text(periodText, pw - margin - doc.getTextWidth(periodText), 25);
 
     y = 35;
 
-    // ========== DRAW SECTION HELPER ==========
+    // ========== DOWNTIME REPORT WITH CHARTS ==========
+    if (reportType === "downtime" && options.restaurant_id) {
+      try {
+        // Parse period dates for fetching
+        // We need ISO dates for Supabase query - derive from the formatted period strings
+        const rows = await fetchHourlyAvailability(
+          options.restaurant_id,
+          options.periodStart,
+          options.periodEnd
+        );
+
+        // Compute aggregates
+        let totalOnline = 0;
+        let totalOffline = 0;
+        const dailyMap: Record<string, { online: number; offline: number }> = {};
+        const hourlyByDay: Record<string, Record<number, { online: number; offline: number }>> = {};
+
+        for (const row of rows) {
+          totalOnline += row.online_minutes;
+          totalOffline += row.offline_minutes;
+          
+          const dateObj = new Date(row.hour_start);
+          const dayKey = format(dateObj, "yyyy-MM-dd");
+          const hour = dateObj.getHours();
+          
+          if (!dailyMap[dayKey]) dailyMap[dayKey] = { online: 0, offline: 0 };
+          dailyMap[dayKey].online += row.online_minutes;
+          dailyMap[dayKey].offline += row.offline_minutes;
+          
+          if (!hourlyByDay[dayKey]) hourlyByDay[dayKey] = {};
+          if (!hourlyByDay[dayKey][hour]) hourlyByDay[dayKey][hour] = { online: 0, offline: 0 };
+          hourlyByDay[dayKey][hour].online += row.online_minutes;
+          hourlyByDay[dayKey][hour].offline += row.offline_minutes;
+        }
+
+        const totalMinutes = totalOnline + totalOffline;
+        const availabilityRate = totalMinutes > 0 ? (totalOnline / totalMinutes) * 100 : 100;
+        
+        // Count incidents (consecutive offline hours > 15min)
+        let incidentCount = 0;
+        for (const row of rows) {
+          if (row.offline_minutes > 15) incidentCount++;
+        }
+
+        // ===== 4 KPI CARDS =====
+        const kpiCardWidth = (contentW - 15) / 4;
+        const kpiCardHeight = 22;
+
+        const kpiCards = [
+          {
+            label: "Taux de disponibilite",
+            value: `${availabilityRate.toFixed(1)}%`,
+            color: availabilityRate >= 99 ? [16, 185, 129] : availabilityRate >= 95 ? [245, 158, 11] : [239, 68, 68],
+          },
+          {
+            label: "Heures en ligne",
+            value: formatMinutesToHM(totalOnline),
+            color: [16, 185, 129],
+          },
+          {
+            label: "Heures hors ligne",
+            value: formatMinutesToHM(totalOffline),
+            color: totalOffline > 0 ? [239, 68, 68] : [16, 185, 129],
+          },
+          {
+            label: "Incidents >15min",
+            value: `${incidentCount}`,
+            color: incidentCount > 0 ? [239, 68, 68] : [16, 185, 129],
+          },
+        ];
+
+        kpiCards.forEach((card, index) => {
+          const x = margin + index * (kpiCardWidth + 5);
+          doc.setFillColor(card.color[0], card.color[1], card.color[2]);
+          doc.roundedRect(x, y, kpiCardWidth, kpiCardHeight, 2, 2, "F");
+          
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "normal");
+          doc.text(card.label, x + 3, y + 7);
+          
+          doc.setFontSize(13);
+          doc.setFont("helvetica", "bold");
+          doc.text(card.value, x + 3, y + 17);
+        });
+
+        y += kpiCardHeight + 12;
+
+        // ===== DAILY BAR CHART =====
+        const sortedDays = Object.keys(dailyMap).sort();
+        
+        if (sortedDays.length > 0) {
+          doc.setTextColor(0, 0, 0);
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.text("Disponibilite journaliere", margin, y);
+          y += 6;
+
+          const chartWidth = contentW;
+          const maxBarHeight = sortedDays.length > 14 ? 35 : 45;
+          const labels = sortedDays.map(d => format(parseISO(d), "dd/MM"));
+          const values = sortedDays.map(d => {
+            const total = dailyMap[d].online + dailyMap[d].offline;
+            return total > 0 ? (dailyMap[d].online / total) * 100 : 100;
+          });
+
+          y = drawBarChart(doc, margin, y, chartWidth, maxBarHeight, labels, values);
+          y += 8;
+
+          // ===== HOURLY BAR CHARTS PER DAY (only if <= 14 days) =====
+          if (sortedDays.length <= 14) {
+            for (const dateStr of sortedDays) {
+              const hourlyForDay = hourlyByDay[dateStr];
+              if (!hourlyForDay) continue;
+
+              const neededHeight = 50;
+              if (y + neededHeight > ph - 15) {
+                doc.addPage();
+                y = margin;
+              }
+
+              const dateObj = parseISO(dateStr);
+              const dayLabel = format(dateObj, "EEEE dd/MM", { locale: fr });
+              const capitalizedDay = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
+
+              doc.setTextColor(0, 0, 0);
+              doc.setFontSize(9);
+              doc.setFont("helvetica", "bold");
+              doc.text(`Detail horaire - ${capitalizedDay}`, margin, y);
+              y += 4;
+
+              const hourLabels: string[] = [];
+              const hourValues: number[] = [];
+              for (let h = 0; h < 24; h++) {
+                hourLabels.push(`${h}h`);
+                const hd = hourlyForDay[h];
+                if (hd) {
+                  const total = hd.online + hd.offline;
+                  hourValues.push(total > 0 ? (hd.online / total) * 100 : 100);
+                } else {
+                  hourValues.push(100);
+                }
+              }
+
+              y = drawBarChart(doc, margin, y, chartWidth, 30, hourLabels, hourValues, { fontSize: 5 });
+              y += 4;
+            }
+          }
+        } else {
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(107, 114, 128);
+          doc.text("Aucune donnee de disponibilite pour cette periode", margin, y + 10);
+          y += 20;
+        }
+
+      } catch (err) {
+        console.error("Error fetching downtime data for PDF:", err);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(107, 114, 128);
+        doc.text("Erreur lors du chargement des donnees de disponibilite", margin, y + 10);
+        y += 20;
+      }
+
+      // Footer
+      doc.setDrawColor(229, 231, 235);
+      doc.line(margin, ph - 10, pw - margin, ph - 10);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(156, 163, 175);
+      const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      doc.text(`Genere le ${now}`, margin, ph - 5);
+      doc.text("CS Delivery Performance", pw - margin - doc.getTextWidth("CS Delivery Performance"), ph - 5);
+
+      return doc.output("blob");
+    }
+
+    // ========== NON-DOWNTIME REPORTS (existing logic) ==========
     const drawSection = (title: string, label: string, items: { label: string; value: string; variation?: string; status?: "good" | "warning" | "critical" | "neutral" }[]) => {
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
@@ -141,10 +427,8 @@ export function useReportPdfExport() {
       y += 4;
     };
 
-    // ========== SECTIONS BY TYPE ==========
     const showAll = reportType === "ai_global";
 
-    // 1. CA & Commandes
     if (showAll || reportType === "revenue") {
       drawSection("Chiffre d'Affaires & Commandes", SECTION_LABELS.revenue, [
         {
@@ -167,7 +451,6 @@ export function useReportPdfExport() {
       ]);
     }
 
-    // 2. Satisfaction
     if (showAll || reportType === "rating") {
       const ratingStatus = kpi.average_rating !== null ? getMetricStatus("rating", kpi.average_rating) : "neutral" as const;
       drawSection("Satisfaction Client", SECTION_LABELS.rating, [
@@ -184,7 +467,6 @@ export function useReportPdfExport() {
       ]);
     }
 
-    // 3. Operations
     if (showAll || reportType === "operations") {
       const prepStatus = kpi.avg_prep_time !== null ? getMetricStatus("prepTime", kpi.avg_prep_time) : "neutral" as const;
       drawSection("Temps Operationnels", SECTION_LABELS.operations, [
@@ -201,7 +483,6 @@ export function useReportPdfExport() {
       ]);
     }
 
-    // 4. Erreurs
     if (showAll || reportType === "errors") {
       const errorStatus = kpi.error_rate !== null ? getMetricStatus("errorRate", kpi.error_rate) : "neutral" as const;
       drawSection("Erreurs", SECTION_LABELS.errors, [
@@ -218,51 +499,6 @@ export function useReportPdfExport() {
       ]);
     }
 
-    // 5. Disponibilite (downtime)
-    if (showAll || reportType === "downtime") {
-      const downtimeMin = kpi.downtime_minutes ?? 0;
-      const prevMin = kpi.prev_downtime_minutes ?? null;
-      const totalPossible = downtimeMin + (downtimeMin > 0 ? 0 : 0); // We compute availability from the data we have
-      const downtimeHours = downtimeMin / 60;
-      const rawStatus = getMetricStatus("downtime", downtimeHours);
-      const downtimeStatus = (rawStatus === "good" || rawStatus === "warning" || rawStatus === "critical") ? rawStatus : "neutral" as const;
-      const downtimeVariation = (prevMin != null && prevMin > 0)
-        ? ((downtimeMin - prevMin) / prevMin) * 100
-        : null;
-
-      const items: { label: string; value: string; variation?: string; status?: "good" | "warning" | "critical" | "neutral" }[] = [
-        {
-          label: "Temps hors ligne",
-          value: formatMinutesToHM(downtimeMin),
-          variation: downtimeVariation !== null ? formatVariation(-downtimeVariation) : undefined,
-          status: downtimeStatus === "neutral" ? "neutral" : downtimeStatus,
-        },
-      ];
-
-      // For downtime-specific report, add more context
-      if (reportType === "downtime") {
-        // Availability rate approximation (if we know previous period too)
-        if (downtimeMin === 0) {
-          items.unshift({
-            label: "Taux de disponibilite",
-            value: "100%",
-            status: "good",
-          });
-        }
-
-        if (prevMin != null) {
-          items.push({
-            label: "Periode precedente",
-            value: formatMinutesToHM(prevMin),
-            status: "neutral",
-          });
-        }
-      }
-
-      drawSection("Disponibilite", SECTION_LABELS.downtime, items);
-    }
-
-    // 6. Promotions - minimal section
     if (reportType === "promotions") {
       drawSection("Promotions", "[PROMO]", [
         {
@@ -273,8 +509,7 @@ export function useReportPdfExport() {
       ]);
     }
 
-    // ========== FOOTER ==========
-    const ph = doc.internal.pageSize.getHeight();
+    // Footer
     doc.setDrawColor(229, 231, 235);
     doc.line(margin, ph - 10, pw - margin, ph - 10);
     doc.setFontSize(8);
