@@ -813,10 +813,10 @@ export default function WeeklyReports() {
 
             // Upload to whatsapp-media bucket
             const cityName = extractCityName(kpi.restaurant_name);
-            const periodLabel = `${format(periodStart, "d")}-${format(periodEnd, "d MMM yyyy", { locale: fr })}`;
+            const periodLabel = `${format(periodStart, "d")}-${format(periodEnd, "d-MMM-yyyy", { locale: fr })}`;
             const timestamp = Date.now();
-            const fileName = `Rapport CS ${cityName} ${periodLabel}-${timestamp}.pdf`.replace(/\s+/g, " ");
-            const filePath = `reports/${fileName}`;
+            const safeFileName = `Rapport-CS-${cityName}-${periodLabel}-${timestamp}.pdf`.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9\-_.]/g, "");
+            const filePath = `reports/${safeFileName}`;
 
             const { error: uploadError } = await supabase.storage
               .from("whatsapp-media")
