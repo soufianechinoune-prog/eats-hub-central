@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, CheckCircle, AlertTriangle, Loader2, Calendar, History, Building2, FileSpreadsheet, Tag } from "lucide-react";
+import { Upload, CheckCircle, AlertTriangle, Loader2, Calendar, History, Building2, FileSpreadsheet, Tag, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,156 +41,188 @@ interface RestaurantStat {
   count: number;
 }
 
+interface FileValidation {
+  file: File;
+  csvContent: string;
+  stats: ImportStats | null;
+  restaurants: RestaurantStat[];
+  unmatchedNames: string[];
+  dateRange: { start: string | null; end: string | null };
+  previewRows: PreviewRow[];
+}
+
+interface FileResult {
+  fileName: string;
+  stats: ImportStats;
+  errorDetails: string[];
+}
+
 export default function DeliverooImportTab({ restaurants }: DeliverooImportTabProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [file, setFile] = useState<File | null>(null);
-  const [csvContent, setCsvContent] = useState("");
   const [importLabel, setImportLabel] = useState("");
   const [step, setStep] = useState<"upload" | "preview" | "importing" | "complete">("upload");
   const [isLoading, setIsLoading] = useState(false);
-  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
-  const [detectedRestaurants, setDetectedRestaurants] = useState<string[]>([]);
-  const [unmatchedNames, setUnmatchedNames] = useState<string[]>([]);
-  const [validationStats, setValidationStats] = useState<ImportStats | null>(null);
-  const [validationRestaurants, setValidationRestaurants] = useState<RestaurantStat[]>([]);
-  const [dateRange, setDateRange] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
-  const [importResult, setImportResult] = useState<{ stats: ImportStats; errorDetails: string[] } | null>(null);
+  const [fileValidations, setFileValidations] = useState<FileValidation[]>([]);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [allResults, setAllResults] = useState<FileResult[]>([]);
 
   const resetImport = () => {
-    setFile(null);
-    setCsvContent("");
     setImportLabel("");
     setStep("upload");
-    setPreviewRows([]);
-    setDetectedRestaurants([]);
-    setUnmatchedNames([]);
-    setValidationStats(null);
-    setValidationRestaurants([]);
-    setDateRange({ start: null, end: null });
-    setImportResult(null);
+    setFileValidations([]);
+    setAllResults([]);
+    setImportProgress({ current: 0, total: 0 });
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length === 0) return;
 
-    if (!selectedFile.name.endsWith(".csv")) {
-      toast({ title: "Format invalide", description: "Veuillez sélectionner un fichier CSV", variant: "destructive" });
+    const csvFiles = selectedFiles.filter(f => f.name.endsWith(".csv"));
+    if (csvFiles.length === 0) {
+      toast({ title: "Format invalide", description: "Veuillez sélectionner des fichiers CSV", variant: "destructive" });
       return;
     }
+    if (csvFiles.length !== selectedFiles.length) {
+      toast({ title: "Fichiers ignorés", description: `${selectedFiles.length - csvFiles.length} fichier(s) non-CSV ignoré(s)` });
+    }
 
-    setFile(selectedFile);
-    setImportResult(null);
+    setIsLoading(true);
+    setAllResults([]);
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const content = event.target?.result as string;
-      setCsvContent(content);
-      await validateFile(content, selectedFile.name);
-    };
-    reader.readAsText(selectedFile);
+    const validations: FileValidation[] = [];
+
+    for (const file of csvFiles) {
+      const content = await readFileAsText(file);
+      try {
+        const { data, error } = await supabase.functions.invoke("parse-deliveroo-statement", {
+          body: { csvContent: content, fileName: file.name, dryRun: true },
+        });
+        if (error) throw error;
+
+        const preview = buildPreview(content);
+        validations.push({
+          file,
+          csvContent: content,
+          stats: data.stats,
+          restaurants: data.restaurants || [],
+          unmatchedNames: data.unmatchedNames || [],
+          dateRange: data.dateRange || { start: null, end: null },
+          previewRows: preview,
+        });
+      } catch (err: any) {
+        toast({ title: `Erreur : ${file.name}`, description: err.message, variant: "destructive" });
+      }
+    }
+
+    if (validations.length > 0) {
+      setFileValidations(validations);
+      setStep("preview");
+    }
+    setIsLoading(false);
   };
 
-  const validateFile = async (content: string, fileName: string) => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("parse-deliveroo-statement", {
-        body: { csvContent: content, fileName, dryRun: true },
-      });
-
-      if (error) throw error;
-
-      setValidationStats(data.stats);
-      setValidationRestaurants(data.restaurants || []);
-      setUnmatchedNames(data.unmatchedNames || []);
-      setDateRange(data.dateRange || { start: null, end: null });
-
-      // Build preview from first lines
-      const lines = content.split('\n').filter((l: string) => l.trim());
-      const preview: PreviewRow[] = [];
-      let foundHeader = false;
-      for (const line of lines) {
-        if (line.includes('Nom du restaurant') && line.includes('Historique')) {
-          foundHeader = true;
-          continue;
-        }
-        if (!foundHeader) continue;
-        if (line.startsWith('Payments for') || line.startsWith('Other payments')) break;
-
-        const fields = parseCSVLine(line);
-        if (fields.length >= 11 && fields[0] && fields[3]) {
-          preview.push({
-            restaurant_name: fields[0],
-            deliveroo_order_id: fields[1],
-            delivery_datetime: fields[2],
-            history_type: fields[3],
-            order_amount: fields[4],
-            total_payable: fields[10],
-          });
-        }
-        if (preview.length >= 20) break;
-      }
-      setPreviewRows(preview);
-
-      // Detect unique restaurant names
-      const names = [...new Set(preview.map(r => r.restaurant_name))];
-      setDetectedRestaurants(names);
-
-      setStep("preview");
-    } catch (err: any) {
-      toast({ title: "Erreur de validation", description: err.message, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
+  const removeFile = (index: number) => {
+    const updated = fileValidations.filter((_, i) => i !== index);
+    if (updated.length === 0) {
+      resetImport();
+    } else {
+      setFileValidations(updated);
     }
+  };
+
+  const readFileAsText = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+
+  const buildPreview = (content: string): PreviewRow[] => {
+    const lines = content.split('\n').filter((l: string) => l.trim());
+    const preview: PreviewRow[] = [];
+    let foundHeader = false;
+    for (const line of lines) {
+      if (line.includes('Nom du restaurant') && line.includes('Historique')) {
+        foundHeader = true;
+        continue;
+      }
+      if (!foundHeader) continue;
+      if (line.startsWith('Payments for') || line.startsWith('Other payments')) break;
+
+      const fields = parseCSVLine(line);
+      if (fields.length >= 11 && fields[0] && fields[3]) {
+        preview.push({
+          restaurant_name: fields[0],
+          deliveroo_order_id: fields[1],
+          delivery_datetime: fields[2],
+          history_type: fields[3],
+          order_amount: fields[4],
+          total_payable: fields[10],
+        });
+      }
+      if (preview.length >= 10) break;
+    }
+    return preview;
   };
 
   const handleImport = async () => {
-    if (!csvContent || !file) return;
-
     setStep("importing");
     setIsLoading(true);
+    setImportProgress({ current: 0, total: fileValidations.length });
 
-    try {
-      const { data, error } = await supabase.functions.invoke("parse-deliveroo-statement", {
-        body: { csvContent, fileName: file.name, dryRun: false },
-      });
+    const results: FileResult[] = [];
 
-      if (error) throw error;
+    for (let i = 0; i < fileValidations.length; i++) {
+      const fv = fileValidations[i];
+      setImportProgress({ current: i + 1, total: fileValidations.length });
 
-      setImportResult({ stats: data.stats, errorDetails: data.errorDetails || [] });
+      try {
+        const { data, error } = await supabase.functions.invoke("parse-deliveroo-statement", {
+          body: { csvContent: fv.csvContent, fileName: fv.file.name, dryRun: false },
+        });
+        if (error) throw error;
 
-      // Save import record
-      await supabase.from("csv_imports").insert({
-        file_name: file.name,
-        file_size: file.size,
-        report_type: "deliveroo_statement",
-        label: importLabel || null,
-        total_rows: data.stats.totalRows,
-        inserted_count: data.stats.inserted,
-        updated_count: data.stats.updated,
-        skipped_count: data.stats.skipped,
-        error_count: data.stats.errors,
-        status: "completed",
-        date_range_start: data.dateRange?.start,
-        date_range_end: data.dateRange?.end,
-        restaurants_count: data.restaurants?.length || 0,
-        restaurant_ids: (data.restaurants || []).map((r: any) => r.id).filter((id: string) => id !== 'unknown'),
-      });
+        results.push({ fileName: fv.file.name, stats: data.stats, errorDetails: data.errorDetails || [] });
 
-      setStep("complete");
-
-      toast({
-        title: data.stats.errors > 0 ? "Import partiel" : "Import réussi",
-        description: `${data.stats.inserted} lignes importées`,
-        variant: data.stats.errors > 0 ? "destructive" : "default",
-      });
-    } catch (err: any) {
-      toast({ title: "Erreur d'import", description: err.message, variant: "destructive" });
-      setStep("preview");
-    } finally {
-      setIsLoading(false);
+        await supabase.from("csv_imports").insert({
+          file_name: fv.file.name,
+          file_size: fv.file.size,
+          report_type: "deliveroo_statement",
+          label: importLabel || null,
+          total_rows: data.stats.totalRows,
+          inserted_count: data.stats.inserted,
+          updated_count: data.stats.updated,
+          skipped_count: data.stats.skipped,
+          error_count: data.stats.errors,
+          status: "completed",
+          date_range_start: data.dateRange?.start,
+          date_range_end: data.dateRange?.end,
+          restaurants_count: data.restaurants?.length || 0,
+          restaurant_ids: (data.restaurants || []).map((r: any) => r.id).filter((id: string) => id !== 'unknown'),
+        });
+      } catch (err: any) {
+        results.push({
+          fileName: fv.file.name,
+          stats: { totalRows: fv.stats?.totalRows || 0, inserted: 0, updated: 0, skipped: 0, errors: fv.stats?.totalRows || 0 },
+          errorDetails: [err.message],
+        });
+      }
     }
+
+    setAllResults(results);
+    setStep("complete");
+    setIsLoading(false);
+
+    const totalInserted = results.reduce((s, r) => s + r.stats.inserted, 0);
+    const totalErrors = results.reduce((s, r) => s + r.stats.errors, 0);
+    toast({
+      title: totalErrors > 0 ? "Import partiel" : "Import réussi",
+      description: `${totalInserted} lignes importées depuis ${results.length} fichier(s)`,
+      variant: totalErrors > 0 ? "destructive" : "default",
+    });
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -222,6 +254,18 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
     return result;
   };
 
+  // Aggregated stats across all files
+  const allUnmatched = [...new Set(fileValidations.flatMap(fv => fv.unmatchedNames))];
+  const totalRows = fileValidations.reduce((s, fv) => s + (fv.stats?.totalRows || 0), 0);
+  const allRestaurants = fileValidations.flatMap(fv => fv.restaurants);
+  const uniqueRestaurantMap = new Map<string, RestaurantStat>();
+  allRestaurants.forEach(r => {
+    const existing = uniqueRestaurantMap.get(r.id);
+    if (existing) existing.count += r.count;
+    else uniqueRestaurantMap.set(r.id, { ...r });
+  });
+  const mergedRestaurants = Array.from(uniqueRestaurantMap.values());
+
   return (
     <div className="space-y-6">
       {step !== "upload" && (
@@ -233,16 +277,13 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
       {/* Upload step */}
       {step === "upload" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Left: Type selector + Label */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileSpreadsheet className="h-5 w-5" />
                 Type de rapport
               </CardTitle>
-              <CardDescription>
-                Sélectionnez le type de rapport que vous importez
-              </CardDescription>
+              <CardDescription>Sélectionnez le type de rapport que vous importez</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Select value="deliveroo_statement" disabled>
@@ -274,16 +315,13 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
             </CardContent>
           </Card>
 
-          {/* Right: File upload */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Upload className="h-5 w-5" />
-                Fichier CSV
+                Fichiers CSV
               </CardTitle>
-              <CardDescription>
-                Glissez-déposez ou sélectionnez votre fichier
-              </CardDescription>
+              <CardDescription>Sélectionnez un ou plusieurs fichiers CSV</CardDescription>
             </CardHeader>
             <CardContent>
               <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
@@ -296,9 +334,9 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
                   <p className="mb-2 text-sm text-muted-foreground">
                     <span className="font-semibold">Cliquez pour sélectionner</span> ou glissez-déposez
                   </p>
-                  <p className="text-xs text-muted-foreground">Fichier CSV uniquement</p>
+                  <p className="text-xs text-muted-foreground">Plusieurs fichiers CSV acceptés</p>
                 </div>
-                <input type="file" className="hidden" accept=".csv" onChange={handleFileChange} disabled={isLoading} />
+                <input type="file" className="hidden" accept=".csv" multiple onChange={handleFileChange} disabled={isLoading} />
               </label>
             </CardContent>
           </Card>
@@ -308,15 +346,14 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
       {/* Preview & validation step */}
       {step === "preview" && (
         <>
-          {/* Unmatched restaurants warning */}
-          {unmatchedNames.length > 0 && (
+          {allUnmatched.length > 0 && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Restaurants non reconnus</AlertTitle>
               <AlertDescription className="space-y-2">
                 <p>Les noms Deliveroo suivants ne sont pas liés à un restaurant :</p>
                 <ul className="list-disc list-inside">
-                  {unmatchedNames.map(name => <li key={name} className="font-mono text-sm">{name}</li>)}
+                  {allUnmatched.map(name => <li key={name} className="font-mono text-sm">{name}</li>)}
                 </ul>
                 <Button variant="outline" size="sm" className="mt-2" onClick={() => navigate("/deliveroo-matching")}>
                   <Building2 className="h-4 w-4 mr-2" />
@@ -326,86 +363,71 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
             </Alert>
           )}
 
-          {/* Validation summary */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileSpreadsheet className="h-5 w-5" />
-                Aperçu du relevé
+                Aperçu — {fileValidations.length} fichier{fileValidations.length > 1 ? 's' : ''}
               </CardTitle>
-              <CardDescription>{file?.name}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Global stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="p-3 bg-muted rounded-lg text-center">
-                  <p className="text-2xl font-bold">{validationStats?.totalRows || 0}</p>
+                  <p className="text-2xl font-bold">{fileValidations.length}</p>
+                  <p className="text-xs text-muted-foreground">Fichier(s)</p>
+                </div>
+                <div className="p-3 bg-muted rounded-lg text-center">
+                  <p className="text-2xl font-bold">{totalRows}</p>
                   <p className="text-xs text-muted-foreground">Lignes</p>
                 </div>
                 <div className="p-3 bg-muted rounded-lg text-center">
-                  <p className="text-2xl font-bold">{validationRestaurants.length}</p>
+                  <p className="text-2xl font-bold">{mergedRestaurants.length}</p>
                   <p className="text-xs text-muted-foreground">Restaurant(s)</p>
                 </div>
                 <div className="p-3 bg-muted rounded-lg text-center">
-                  <p className="text-sm font-medium">{formatDate(dateRange.start)}</p>
-                  <p className="text-xs text-muted-foreground">Début</p>
-                </div>
-                <div className="p-3 bg-muted rounded-lg text-center">
-                  <p className="text-sm font-medium">{formatDate(dateRange.end)}</p>
-                  <p className="text-xs text-muted-foreground">Fin</p>
+                  <p className="text-2xl font-bold">{mergedRestaurants.reduce((s, r) => s + r.count, 0)}</p>
+                  <p className="text-xs text-muted-foreground">Commandes</p>
                 </div>
               </div>
 
-              {/* Restaurant breakdown */}
-              {validationRestaurants.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Restaurants détectés</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {validationRestaurants.map(r => (
-                      <Badge key={r.id} variant={r.id === 'unknown' ? 'destructive' : 'secondary'}>
-                        {r.name} ({r.count})
-                      </Badge>
-                    ))}
+              {/* Per-file details */}
+              <div className="space-y-3">
+                {fileValidations.map((fv, idx) => (
+                  <div key={idx} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileSpreadsheet className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-medium truncate">{fv.file.name}</span>
+                        <Badge variant="outline" className="shrink-0">{fv.stats?.totalRows || 0} lignes</Badge>
+                        {fv.dateRange.start && (
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {formatDate(fv.dateRange.start)} → {formatDate(fv.dateRange.end)}
+                          </span>
+                        )}
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeFile(idx)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {fv.restaurants.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {fv.restaurants.map(r => (
+                          <Badge key={r.id} variant={r.id === 'unknown' ? 'destructive' : 'secondary'} className="text-xs">
+                            {r.name} ({r.count})
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-
-              {/* Preview table */}
-              {previewRows.length > 0 && (
-                <div className="border rounded-lg overflow-auto max-h-80">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Restaurant</TableHead>
-                        <TableHead>N° commande</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Montant</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {previewRows.map((row, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="max-w-[200px] truncate text-sm">{row.restaurant_name}</TableCell>
-                          <TableCell className="font-mono text-xs">{row.deliveroo_order_id}</TableCell>
-                          <TableCell className="text-sm">{row.delivery_datetime?.split(' ')[0] || '—'}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">{row.history_type}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right text-sm">{row.order_amount || '—'}</TableCell>
-                          <TableCell className="text-right text-sm font-medium">{row.total_payable || '—'}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+                ))}
+              </div>
 
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={resetImport}>Annuler</Button>
-                <Button onClick={handleImport} disabled={unmatchedNames.length > 0}>
+                <Button onClick={handleImport} disabled={allUnmatched.length > 0}>
                   <Upload className="h-4 w-4 mr-2" />
-                  Importer {validationStats?.totalRows || 0} lignes
+                  Importer {totalRows} lignes
                 </Button>
               </div>
             </CardContent>
@@ -416,61 +438,82 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
       {/* Importing step */}
       {step === "importing" && (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
+          <CardContent className="flex flex-col items-center justify-center py-16 space-y-4">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="mt-4 text-lg font-medium">Import en cours...</p>
-            <p className="text-sm text-muted-foreground">{file?.name}</p>
+            <p className="text-lg font-medium">Import en cours...</p>
+            <p className="text-sm text-muted-foreground">
+              Fichier {importProgress.current} / {importProgress.total}
+            </p>
+            <Progress value={(importProgress.current / importProgress.total) * 100} className="w-64" />
           </CardContent>
         </Card>
       )}
 
       {/* Complete step */}
-      {step === "complete" && importResult && (
+      {step === "complete" && allResults.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {importResult.stats.errors === 0 ? (
+              {allResults.every(r => r.stats.errors === 0) ? (
                 <CheckCircle className="h-5 w-5 text-green-500" />
               ) : (
                 <AlertTriangle className="h-5 w-5 text-amber-500" />
               )}
-              Import terminé
+              Import terminé — {allResults.length} fichier{allResults.length > 1 ? 's' : ''}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Global totals */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-3 bg-muted rounded-lg text-center">
-                <p className="text-2xl font-bold">{importResult.stats.totalRows}</p>
+                <p className="text-2xl font-bold">{allResults.reduce((s, r) => s + r.stats.totalRows, 0)}</p>
                 <p className="text-xs text-muted-foreground">Total</p>
               </div>
               <div className="p-3 bg-green-500/10 rounded-lg text-center">
-                <p className="text-2xl font-bold text-green-600">{importResult.stats.inserted}</p>
+                <p className="text-2xl font-bold text-green-600">{allResults.reduce((s, r) => s + r.stats.inserted, 0)}</p>
                 <p className="text-xs text-muted-foreground">Insérées</p>
               </div>
               <div className="p-3 bg-blue-500/10 rounded-lg text-center">
-                <p className="text-2xl font-bold text-blue-600">{importResult.stats.updated}</p>
+                <p className="text-2xl font-bold text-blue-600">{allResults.reduce((s, r) => s + r.stats.updated, 0)}</p>
                 <p className="text-xs text-muted-foreground">Mises à jour</p>
               </div>
               <div className="p-3 bg-red-500/10 rounded-lg text-center">
-                <p className="text-2xl font-bold text-red-600">{importResult.stats.errors}</p>
+                <p className="text-2xl font-bold text-red-600">{allResults.reduce((s, r) => s + r.stats.errors, 0)}</p>
                 <p className="text-xs text-muted-foreground">Erreurs</p>
               </div>
             </div>
 
-            {importResult.errorDetails.length > 0 && (
+            {/* Per-file results */}
+            {allResults.length > 1 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Détail par fichier</h4>
+                {allResults.map((r, idx) => (
+                  <div key={idx} className="flex items-center justify-between border rounded-lg p-3">
+                    <span className="text-sm truncate max-w-[250px]">{r.fileName}</span>
+                    <div className="flex gap-3 text-sm">
+                      <span className="text-green-600">+{r.stats.inserted}</span>
+                      <span className="text-blue-600">↻{r.stats.updated}</span>
+                      {r.stats.errors > 0 && <span className="text-red-600">✗{r.stats.errors}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {allResults.some(r => r.errorDetails.length > 0) && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Détail erreurs</AlertTitle>
                 <AlertDescription>
                   <ul className="list-disc list-inside text-sm mt-1">
-                    {importResult.errorDetails.slice(0, 5).map((e, i) => <li key={i}>{e}</li>)}
+                    {allResults.flatMap(r => r.errorDetails).slice(0, 5).map((e, i) => <li key={i}>{e}</li>)}
                   </ul>
                 </AlertDescription>
               </Alert>
             )}
 
             <div className="flex justify-end gap-3">
-              <Button onClick={resetImport}>Importer un autre fichier</Button>
+              <Button onClick={resetImport}>Importer d'autres fichiers</Button>
             </div>
           </CardContent>
         </Card>
