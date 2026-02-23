@@ -339,7 +339,7 @@ serve(async (req) => {
     console.log(`Looking up ${uniqueFlowIds.length} unique flow IDs...`);
 
     // Chunk the flow IDs to avoid URL too long errors
-    const LOOKUP_CHUNK_SIZE = 20;
+    const LOOKUP_CHUNK_SIZE = 80;
     const flowIdChunks: string[][] = [];
     for (let j = 0; j < uniqueFlowIds.length; j += LOOKUP_CHUNK_SIZE) {
       flowIdChunks.push(uniqueFlowIds.slice(j, j + LOOKUP_CHUNK_SIZE));
@@ -371,7 +371,7 @@ serve(async (req) => {
         console.error('Lookup chunk failed after 3 attempts, continuing...');
       }
       // Delay between lookup chunks to reduce DB pressure
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 100));
     }
 
     console.log(`Found ${allExistingOrders.length} matching orders from chunks`);
@@ -553,9 +553,9 @@ serve(async (req) => {
     console.log(`Prepared ${recordsToUpsert.length} unique records for batch upsert, ${orphanCount} orphans, ${duplicateCount} duplicates merged`);
 
     // Batch upsert with parallel processing (2 concurrent batches)
-    const BATCH_SIZE = 25;
-    const CONCURRENCY = 1;
-    const INTER_BATCH_DELAY = 500;
+    const BATCH_SIZE = 50;
+    const CONCURRENCY = 2;
+    const INTER_BATCH_DELAY = 200;
     let insertedCount = 0;
     let updatedCount = 0;
     let errorCount = 0;
