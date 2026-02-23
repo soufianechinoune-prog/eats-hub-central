@@ -254,7 +254,7 @@ export function useReportPdfExport() {
           if (row.offline_minutes > 15) incidentCount++;
         }
 
-        // ===== 4 KPI CARDS =====
+        // ===== 4 KPI CARDS (white bg + colored text) =====
         const kpiCardWidth = (contentW - 15) / 4;
         const kpiCardHeight = 28;
 
