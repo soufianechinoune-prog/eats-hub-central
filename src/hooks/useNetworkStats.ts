@@ -3,6 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
 import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
 
+export interface PlatformBreakdown {
+  revenue: number;
+  orders: number;
+  avgBasket: number;
+  netPayout: number;
+  profitability: number | null;
+}
+
 export interface RestaurantNetworkStats {
   id: string;
   name: string;
@@ -25,6 +33,11 @@ export interface RestaurantNetworkStats {
   prevOrders?: number | null;
   revenueVariation?: number | null;
   ordersVariation?: number | null;
+  // Platform breakdown
+  platformBreakdown: {
+    uber: PlatformBreakdown;
+    deliveroo: PlatformBreakdown;
+  };
 }
 
 export interface NetworkTotals {
@@ -464,6 +477,30 @@ export function useNetworkStats({
           ? ((orders - prevOrders) / prevOrders) * 100
           : null;
 
+      // Platform breakdown calculations
+      const uberAvgBasket = uberOrders > 0 ? uberRevenue / uberOrders : 0;
+      const deliverooAvgBasket = deliverooOrders > 0 ? deliverooRevenue / deliverooOrders : 0;
+
+      // Uber profitability
+      let uberProfitability: number | null = null;
+      if (restoOrders.length > 0) {
+        const uberSalesVal = restoOrders.reduce((sum, o) => sum + Math.max(0, Number(o.sales_incl_vat || 0)), 0);
+        const totalPromoVal = restoOrders.reduce((sum, o) => sum + Math.abs(Number(o.item_promo_incl_vat || 0)), 0);
+        const uberNetPayoutVal = restoOrders.reduce((sum, o) => sum + Number(o.net_payout || 0), 0) + restoOrders.reduce((sum, o) => sum + Number(o.meal_voucher_amount || 0), 0);
+        const uberBase = profitabilityBase === "net" ? Math.max(0, uberSalesVal - totalPromoVal) : uberSalesVal;
+        uberProfitability = uberBase > 0 ? (uberNetPayoutVal / uberBase) * 100 : null;
+      }
+
+      // Deliveroo profitability
+      let delProfitability: number | null = null;
+      if (deliverooRevenue > 0) {
+        delProfitability = (deliverooNetPayout / deliverooRevenue) * 100;
+      }
+
+      const uberNetPayoutFinal = restoOrders.length > 0
+        ? restoOrders.reduce((sum, o) => sum + Number(o.net_payout || 0), 0) + restoOrders.reduce((sum, o) => sum + Number(o.meal_voucher_amount || 0), 0)
+        : 0;
+
       return {
         id: resto.id,
         name: resto.name,
@@ -489,6 +526,22 @@ export function useNetworkStats({
           ordersVariation != null
             ? parseFloat(ordersVariation.toFixed(1))
             : null,
+        platformBreakdown: {
+          uber: {
+            revenue: uberRevenue,
+            orders: uberOrders,
+            avgBasket: parseFloat(uberAvgBasket.toFixed(2)),
+            netPayout: parseFloat(uberNetPayoutFinal.toFixed(2)),
+            profitability: uberProfitability != null ? parseFloat(uberProfitability.toFixed(1)) : null,
+          },
+          deliveroo: {
+            revenue: deliverooRevenue,
+            orders: deliverooOrders,
+            avgBasket: parseFloat(deliverooAvgBasket.toFixed(2)),
+            netPayout: parseFloat(deliverooNetPayout.toFixed(2)),
+            profitability: delProfitability != null ? parseFloat(delProfitability.toFixed(1)) : null,
+          },
+        },
       };
     });
   }, [
