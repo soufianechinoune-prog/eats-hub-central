@@ -348,7 +348,13 @@ async function fetchDeliverooIndividualOrders(
   });
 
   // Filter out fake "#0" entries (non-order transactions like marketing fees, meal vouchers)
-  let orders = Object.values(grouped).filter(o => o.uber_order_id !== "0");
+  // Also filter orphaned meal voucher deductions (0€ CA with only negative adjustments)
+  let orders = Object.values(grouped).filter(o => {
+    if (o.uber_order_id === "0") return false;
+    // Remove phantom orders: 0€ revenue and only meal voucher content
+    if (Math.abs(o.sales_incl_vat) < 0.01 && Math.abs(o.uber_fee_after_promo_incl_vat) < 0.01 && Math.abs(o.meal_voucher_amount) > 0) return false;
+    return true;
+  });
 
   // Filter by search
   if (searchQuery) {
