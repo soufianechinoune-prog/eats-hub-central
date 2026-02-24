@@ -615,7 +615,8 @@ export function ProfitabilityComparisonTable({
     const totalUberFeeHT = payouts.reduce((sum, p) => sum + Math.abs(Number(p.uber_fee_after_promo_excl_vat) || 0), 0);
     const totalPromoTTC = payouts.reduce((sum, p) => sum + Math.abs(Number(p.item_promo_incl_vat) || 0), 0);
     const netSales = totalSales - totalPromoTTC;
-    const avgUberRate = netSales > 0 ? (totalUberFeeHT / netSales) * 100 : 0;
+    const avgRateDenominator = platform === "deliveroo" ? totalSales : netSales;
+    const avgUberRate = avgRateDenominator > 0 ? (totalUberFeeHT / avgRateDenominator) * 100 : 0;
     const avgPromoRate = comparisonData.reduce((sum, d) => sum + d.promoRate, 0) / comparisonData.length;
     const avgRefundRate = comparisonData.reduce((sum, d) => sum + d.refundRate, 0) / comparisonData.length;
     const avgOtherRate = comparisonData.reduce((sum, d) => sum + d.otherRate, 0) / comparisonData.length;
