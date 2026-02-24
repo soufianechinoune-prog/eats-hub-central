@@ -258,7 +258,7 @@ async function fetchDeliverooIndividualOrders(
   while (hasMore) {
     let query = supabase
       .from("deliveroo_orders")
-      .select("id, deliveroo_order_id, delivery_datetime, order_amount, commission_amount, total_payable, adjustment_amount, history_type, restaurant_id")
+      .select("id, deliveroo_order_id, delivery_datetime, order_amount, commission_amount, total_payable, adjustment_amount, history_type, restaurant_id, note")
       .gte("delivery_datetime", `${startStr}T00:00:00`)
       .lte("delivery_datetime", `${endStr}T23:59:59`)
       .range(from, from + PAGE_SIZE - 1);
@@ -286,6 +286,9 @@ async function fetchDeliverooIndividualOrders(
     refund_incl_vat: number;
     net_payout: number;
     meal_voucher_amount: number;
+    has_offer: boolean;
+    offer_note: string;
+    deliveroo_funding: number;
   }> = {};
 
   allRows.forEach(row => {
@@ -301,10 +304,30 @@ async function fetchDeliverooIndividualOrders(
         refund_incl_vat: 0,
         net_payout: 0,
         meal_voucher_amount: 0,
+        has_offer: false,
+        offer_note: "",
+        deliveroo_funding: 0,
       };
     }
     const g = grouped[orderId];
     const ht = row.history_type;
+    const note = row.note || "";
+
+    // Detect offer via "Contribution marketing" row
+    if (ht === "Contribution marketing") {
+      g.has_offer = true;
+      g.deliveroo_funding += Math.abs(Number(row.total_payable) || 0);
+    }
+
+    // Detect offer via note containing "Remise sur offre Marketer"
+    if (note.includes("Remise sur offre Marketer")) {
+      g.has_offer = true;
+      // Extract the offer note part (e.g. "Remise sur offre Marketer: 8,10")
+      const match = note.match(/Remise sur offre Marketer[^,\n]*/);
+      if (match && !g.offer_note) {
+        g.offer_note = match[0].trim();
+      }
+    }
 
     if (DELIVEROO_ORDER_TYPES.includes(ht)) {
       g.sales_incl_vat += Math.abs(Number(row.order_amount) || 0);
@@ -413,6 +436,9 @@ export interface OrderFinanceData {
   meal_voucher_amount: number;
   total_payout: number;
   profitability: number;
+  has_offer?: boolean;
+  offer_note?: string;
+  deliveroo_funding?: number;
 }
 
 
@@ -843,6 +869,9 @@ export function useFinancesDrilldown({
         meal_voucher_amount: mealVoucherAmount,
         total_payout: totalPayout,
         profitability,
+        has_offer: (order as any).has_offer || false,
+        offer_note: (order as any).offer_note || "",
+        deliveroo_funding: Number((order as any).deliveroo_funding) || 0,
       };
     });
   }, [individualOrdersData, granularity]);
