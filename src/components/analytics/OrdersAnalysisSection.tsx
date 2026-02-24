@@ -881,8 +881,8 @@ export function OrdersAnalysisSection({
                                 className="text-right cursor-pointer hover:bg-muted/50 select-none"
                                 onClick={() => handleOrderSort('net_payout')}
                               >
-                                <div className="flex items-center justify-end">
-                                  Vers. Uber
+                                 <div className="flex items-center justify-end">
+                                  {platform === "deliveroo" ? "Vers. Deliv." : "Vers. Uber"}
                                   {renderOrderSortIcon('net_payout')}
                                 </div>
                               </TableHead>
