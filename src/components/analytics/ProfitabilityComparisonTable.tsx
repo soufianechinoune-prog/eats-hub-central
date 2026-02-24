@@ -300,13 +300,14 @@ export function ProfitabilityComparisonTable({
       const other = Math.abs(Number(payout.other_payments_incl_vat) || 0);
       const orderCount = Number(payout.order_count) || 0;
       
-      // Calcul du taux de commission contractuel (~27%) :
-      // Taux = |uber_fee_after_promo_excl_vat| / (sales_incl_vat - |item_promo_incl_vat|) * 100
-      // C'est le taux HT sur CA Net TTC (après promos) = le vrai taux contractuel
+      // Calcul du taux de commission contractuel :
+      // Deliveroo : commission_amount est déjà calculé après réduction → dénominateur = CA TTC brut
+      // Uber : commission HT / CA Net TTC (après promos) = taux contractuel
       const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0)
         || Math.abs(Number(payout.uber_fee_after_promo_incl_vat) || 0);
       const netSalesTTC = sales - promoAmount; // CA net après promos
-      const uberFeeRateHT = netSalesTTC > 0 ? (uberFeeHT / netSalesTTC) * 100 : 0;
+      const rateDenominator = platform === "deliveroo" ? sales : netSalesTTC;
+      const uberFeeRateHT = rateDenominator > 0 ? (uberFeeHT / rateDenominator) * 100 : 0;
       
       // Rentabilité = (Versement Uber + Titres restaurant) / Base
       // Base = CA TTC (gross) ou CA TTC - Promos (net)
@@ -458,9 +459,10 @@ export function ProfitabilityComparisonTable({
         const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
         const totalOrders = rows.reduce((sum, r) => sum + r.orderCount, 0);
         
-        // Calculate rates based on net sales (CA - promos) for contractual rate
+        // Deliveroo: rate on gross sales; Uber: rate on net sales (after promos)
         const netSales = totalSales - totalPromo;
-        const avgUberFeeRate = netSales > 0 ? (totalUberFeeHT / netSales) * 100 : 0;
+        const rateDenominator = platform === "deliveroo" ? totalSales : netSales;
+        const avgUberFeeRate = rateDenominator > 0 ? (totalUberFeeHT / rateDenominator) * 100 : 0;
         const avgPromoRate = totalSales > 0 ? (totalPromo / totalSales) * 100 : 0;
         const avgRefundRate = totalSales > 0 ? (totalRefund / totalSales) * 100 : 0;
         
@@ -523,6 +525,7 @@ export function ProfitabilityComparisonTable({
         const restaurantData: MonthRestaurantData[] = Object.values(restaurantAggregates)
           .map(agg => {
             const restoNetSales = agg.sales - agg.promo;
+            const restoRateDenominator = platform === "deliveroo" ? agg.sales : restoNetSales;
             const restoProfitDenominator = profitabilityBase === 'net' ? restoNetSales : agg.sales;
             const restoTotalPayout = agg.netPayout + agg.mealVoucher;
             return {
@@ -535,7 +538,7 @@ export function ProfitabilityComparisonTable({
               ecoCharge: agg.ecoCharge,
               totalPayout: restoTotalPayout,
               profitability: restoProfitDenominator > 0 ? (restoTotalPayout / restoProfitDenominator) * 100 : 0,
-              uberFeeRate: restoNetSales > 0 ? (agg.uberFee / restoNetSales) * 100 : 0,
+              uberFeeRate: restoRateDenominator > 0 ? (agg.uberFee / restoRateDenominator) * 100 : 0,
               promoRate: agg.sales > 0 ? (agg.promo / agg.sales) * 100 : 0,
               refundRate: agg.sales > 0 ? (agg.refund / agg.sales) * 100 : 0,
               uberFee: agg.uberFee,
