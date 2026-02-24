@@ -1,91 +1,102 @@
 
-# Corriger les calculs financiers Deliveroo
 
-## Bugs identifies
+# Corriger l'agregation Deliveroo : exclure les reports de facture precedente
 
-### Bug 1 : Versement Deliveroo et Total incorrects (ecart +1000 EUR/semaine)
-Les lignes "titre restaurant" (Edenred, Swile, etc.) ont un `total_payable` negatif dans `deliveroo_orders` (c'est une deduction du versement Deliveroo). Or le code actuel :
-- N'ajoute PAS ce `total_payable` negatif dans `net_payout`
-- Stocke `meal_voucher_amount` en negatif
-- Le tableau applique `Math.abs()` sur `meal_voucher_amount`, le rendant positif
-- Resultat : `totalToReceive = 5194 + 967 = 6161` au lieu de `4227 + 967 = 5194`
+## Contexte
 
-**Correction** : Dans l'agregation Deliveroo, pour les MEAL_VOUCHER_TYPES :
-- Stocker `meal_voucher_amount` en positif (Math.abs)
-- Ajouter `total_payable` (negatif) dans `net_payout` pour refleter la deduction
+Le document de reconciliation fourni par l'utilisateur prouve que les lignes "Facture precedente" du CSV sont des reports informatifs de la semaine precedente. Elles ne doivent PAS etre ajoutees au total de la semaine courante.
 
-### Bug 2 : Types d'historique manquants dans les listes de classification
-Certains `history_type` Deliveroo tombent dans le bucket "other" alors qu'ils devraient etre classes :
+Le code actuel (apres le dernier correctif) inclut ces lignes dans ORDER_TYPES et REFUND_TYPES, ce qui fausse le CA et les remboursements.
 
-**ORDER_TYPES** - ajouter :
-- "Facture precedente: Livraison" (CA et commission de la semaine precedente, 56.80 EUR manquants)
-
-**REFUND_TYPES** - ajouter :
-- "Remboursement client refuse" (contestation refusee = argent recupere)
-- "Facture precedente: Remboursement client"
-
-**Types a gerer specifiquement** :
-- "Commission Deliveroo sur repreparation de commande" : commission supplementaire
-- "Montant de la repreparation de commande" : order supplementaire
-
-### Bug 3 : Remboursements affiches a 0
-Le code utilise `Math.abs(Number(row.order_amount))` pour les remboursements, mais `order_amount` est 0 pour les lignes "Remboursement client". Le montant est dans `total_payable`. Il faut utiliser `Math.abs(total_payable)` a la place.
-
-### Bug 4 : Rentabilite fausse (96.9% au lieu de ~81.7%)
-Consequence directe des bugs 1 et 2. La formule `totalToReceive / CA` donne un resultat gonfle car `totalToReceive` est trop eleve.
-
-## Plan de modifications
-
-### Fichier : `src/pages/Analytics.tsx` (agregation Deliveroo)
-
-1. Etendre les listes de types :
+## Chiffres de reference (reconciliation validee)
 
 ```text
-ORDER_TYPES += "Facture precedente: Livraison",
-               "Montant de la repreparation de commande"
+CA brut TTC (383 livraisons)     :  6 356,75 EUR
+Commission HT (24%)             : -1 525,16 EUR
+TVA commission                   :   -305,52 EUR
+Titres-restaurant (65 lignes)    :   -966,90 EUR
+Remboursements clients (5)       :    -26,60 EUR
+Commission repreparation HT      :     -2,78 EUR
+TVA commission repreparation     :     -0,56 EUR
+Contribution marketing (262)     :   +614,00 EUR
+Repreparation commande (1)       :    +11,60 EUR
+Remb. client refuse (1, sem.)    :     +4,50 EUR
+----------------------------------------------
+TOTAL A PERCEVOIR (sem. courante):  4 197,42 EUR
 
-REFUND_TYPES += "Remboursement client refuse",
-                "Facture precedente: Remboursement client"
+Reports facture precedente (informatif, hors total) :
+  Facture prec. Livraison        :    +32,83 EUR
+  Facture prec. Remboursement    :    -38,09 EUR
+  Net reports                    :     -5,26 EUR
 ```
 
-2. Corriger le bloc MEAL_VOUCHER_TYPES :
+## Modifications
+
+### Fichier : `src/pages/Analytics.tsx`
+
+#### 1. Retirer les types "Facture precedente" des listes ORDER_TYPES et REFUND_TYPES
 
 ```text
 Avant :
-  g.meal_voucher_amount += Number(row.total_payable)     // negatif
+  ORDER_TYPES = ["Livraison", "A emporter", "Nouvelle livraison",
+                 "Facture precedente: Livraison",
+                 "Montant de la repreparation de commande"]
+  REFUND_TYPES = ["Remboursement client",
+                  "Remboursement client refuse",
+                  "Facture precedente: Remboursement client"]
 
 Apres :
-  g.meal_voucher_amount += Math.abs(Number(row.total_payable))  // positif
-  g.net_payout += Number(row.total_payable)                      // deduction
+  ORDER_TYPES = ["Livraison", "A emporter", "Nouvelle livraison",
+                 "Montant de la repreparation de commande"]
+  REFUND_TYPES = ["Remboursement client"]
 ```
 
-3. Corriger le bloc REFUND_TYPES :
+#### 2. Creer une liste POSITIVE_ADJUSTMENT_TYPES pour les montants positifs recuperes
+
+Les "Remboursement client refuse" sont des montants POSITIFS (argent recupere par le restaurant). Ils ne sont pas des remboursements a deduire mais des ajouts au versement.
 
 ```text
-Avant :
-  g.refund_incl_vat += Math.abs(Number(row.order_amount))  // = 0
-
-Apres :
-  g.refund_incl_vat += Math.abs(Number(row.total_payable))  // montant reel
+POSITIVE_ADJUSTMENT_TYPES = ["Remboursement client refuse"]
 ```
 
-4. Ajouter un type "Commission supplementaire" pour "Commission Deliveroo sur repreparation" :
+Dans le bloc d'agregation :
+```text
+} else if (POSITIVE_ADJUSTMENT_TYPES.includes(ht)) {
+  g.net_payout += Number(row.total_payable) || 0;  // positif, ajoute au versement
+  g.other_payments_incl_vat += Number(row.total_payable) || 0;  // tracking
+}
+```
+
+#### 3. Creer une liste PREVIOUS_INVOICE_TYPES pour ignorer les reports
+
+Ces lignes ne doivent pas impacter les totaux de la semaine courante. Elles sont deja comptabilisees dans la semaine precedente.
 
 ```text
-g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.total_payable))
-g.uber_fee_after_promo_excl_vat += Math.abs(Number(row.total_payable))
-g.net_payout += Number(row.total_payable)
+PREVIOUS_INVOICE_TYPES = ["Facture precedente: Livraison",
+                          "Facture precedente: Remboursement client"]
+```
+
+Dans le bloc d'agregation :
+```text
+} else if (PREVIOUS_INVOICE_TYPES.includes(ht)) {
+  // Reports de facture precedente : ignores pour le total semaine courante
+  // On peut optionnellement les tracker dans un champ separe pour info
+  continue;
+}
 ```
 
 ### Resultat attendu apres correction (semaine du 19 janvier)
 
 ```text
-CA TTC        : 6 413 EUR (inclut facture precedente)
-Commission    : 1 542 EUR (inclut commission repreparation)
-Promos        : 614 EUR
-Remb.         : 26 EUR (montant reel des remboursements)
-Titre Resto   : 967 EUR
-Versement Del.: 4 227 EUR (ce que Deliveroo transfere reellement)
-Versement Tot.: 5 194 EUR (Deliveroo + Titres restaurant)
-Rentabilite   : ~81% (ratio reel)
+CA TTC         : 6 356,75 EUR (sans facture precedente)
+Commission TTC : 1 833,46 EUR (1 830,68 standard + 2,78 repreparation)
+Promos         :   614,00 EUR (contributions marketing)
+Remb.          :    26,60 EUR (5 remboursements clients)
+Titre Resto    :   966,90 EUR (positif pour affichage)
+Versement Del. : 4 197,42 EUR (ce que Deliveroo transfere reellement)
+Versement Tot. : 5 164,32 EUR (Deliveroo + Titres restaurant)
+Rentabilite    : ~81,3% (versement total / CA)
 ```
+
+Ces chiffres correspondent exactement au document de reconciliation valide par l'utilisateur.
+
