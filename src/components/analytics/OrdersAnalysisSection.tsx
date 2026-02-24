@@ -53,6 +53,7 @@ interface OrdersAnalysisSectionProps {
   selectedRestaurants: string[];
   startDate: Date;
   endDate: Date;
+  platform?: "uber_eats" | "deliveroo" | "global";
 }
 
 const formatCurrency = (value: number) => {
@@ -78,6 +79,7 @@ export function OrdersAnalysisSection({
   selectedRestaurants,
   startDate,
   endDate,
+  platform = "uber_eats",
 }: OrdersAnalysisSectionProps) {
   const [activeTab, setActiveTab] = useState<DrilldownGranularity>('daily');
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(
@@ -143,6 +145,7 @@ export function OrdersAnalysisSection({
     orderLimit,
     orderSortField,
     orderSortDirection: orderSortDir,
+    platform,
   });
   
   // Handle order sort toggle
@@ -818,7 +821,7 @@ export function OrdersAnalysisSection({
                         <Table>
                           <TableHeader className="sticky top-0 bg-background z-10">
                             <TableRow>
-                              <TableHead className="w-8"></TableHead>
+                              {platform !== "deliveroo" && <TableHead className="w-8"></TableHead>}
                               <TableHead>N° Commande</TableHead>
                               <TableHead 
                                 className="cursor-pointer hover:bg-muted/50 select-none"
@@ -908,16 +911,18 @@ export function OrdersAnalysisSection({
                               <>
                                 <TableRow 
                                   key={order.id}
-                                  className="cursor-pointer hover:bg-muted/50"
-                                  onClick={() => toggleOrder(order.id)}
+                                  className={cn("hover:bg-muted/50", platform !== "deliveroo" && "cursor-pointer")}
+                                  onClick={() => platform !== "deliveroo" && toggleOrder(order.id)}
                                 >
-                                  <TableCell className="w-8">
-                                    <ChevronRight className={cn(
-                                      "h-4 w-4 transition-transform",
-                                      expandedOrders.has(order.id) && "rotate-90",
-                                      !orderIdsWithItems.includes(order.id) && "opacity-30"
-                                    )} />
-                                  </TableCell>
+                                  {platform !== "deliveroo" && (
+                                    <TableCell className="w-8">
+                                      <ChevronRight className={cn(
+                                        "h-4 w-4 transition-transform",
+                                        expandedOrders.has(order.id) && "rotate-90",
+                                        !orderIdsWithItems.includes(order.id) && "opacity-30"
+                                      )} />
+                                    </TableCell>
+                                  )}
                                   <TableCell className="font-mono text-xs">
                                     #{order.uber_order_id?.slice(-8) || order.id.slice(0, 8)}
                                   </TableCell>
@@ -957,7 +962,7 @@ export function OrdersAnalysisSection({
                                 </TableRow>
                                 
                                 {/* Expanded row with items */}
-                                {expandedOrders.has(order.id) && (
+                                {platform !== "deliveroo" && expandedOrders.has(order.id) && (
                                   <TableRow key={`${order.id}-items`} className="bg-muted/30">
                                     <TableCell colSpan={11} className="p-0">
                                       <OrderItemsDropdown orderId={order.id} />

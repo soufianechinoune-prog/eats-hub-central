@@ -182,6 +182,7 @@ export function FinancesSection({
           selectedRestaurants={selectedRestaurants}
           startDate={startDate}
           endDate={endDate}
+          platform={selectedPlatform}
         />
       )}
     </div>
