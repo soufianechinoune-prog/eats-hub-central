@@ -1,102 +1,95 @@
 
+# Corriger le decalage timezone et le compteur de commandes Deliveroo
 
-# Corriger l'agregation Deliveroo : exclure les reports de facture precedente
+## Bug identifie
 
-## Contexte
+### Cause racine : `getDay()` / `getDate()` utilisent le fuseau horaire local du navigateur
 
-Le document de reconciliation fourni par l'utilisateur prouve que les lignes "Facture precedente" du CSV sont des reports informatifs de la semaine precedente. Elles ne doivent PAS etre ajoutees au total de la semaine courante.
-
-Le code actuel (apres le dernier correctif) inclut ces lignes dans ORDER_TYPES et REFUND_TYPES, ce qui fausse le CA et les remboursements.
-
-## Chiffres de reference (reconciliation validee)
-
+Le code de regroupement par semaine dans `Analytics.tsx` utilise :
 ```text
-CA brut TTC (383 livraisons)     :  6 356,75 EUR
-Commission HT (24%)             : -1 525,16 EUR
-TVA commission                   :   -305,52 EUR
-Titres-restaurant (65 lignes)    :   -966,90 EUR
-Remboursements clients (5)       :    -26,60 EUR
-Commission repreparation HT      :     -2,78 EUR
-TVA commission repreparation     :     -0,56 EUR
-Contribution marketing (262)     :   +614,00 EUR
-Repreparation commande (1)       :    +11,60 EUR
-Remb. client refuse (1, sem.)    :     +4,50 EUR
-----------------------------------------------
-TOTAL A PERCEVOIR (sem. courante):  4 197,42 EUR
-
-Reports facture precedente (informatif, hors total) :
-  Facture prec. Livraison        :    +32,83 EUR
-  Facture prec. Remboursement    :    -38,09 EUR
-  Net reports                    :     -5,26 EUR
+const dt = new Date(row.delivery_datetime);
+const dayOfWeek = dt.getDay();          // heure LOCALE (Paris UTC+1)
+const diff = dt.getDate() - dayOfWeek;  // heure LOCALE
 ```
+
+Les timestamps en base sont stockes en UTC. Le navigateur en France (UTC+1) decale les commandes tardives du dimanche soir vers le lundi, ce qui les assigne a la semaine suivante.
+
+**Preuve sur la semaine du 19 janvier :**
+- 2 commandes du dim. 25/01 apres 23h UTC (= lun. 26/01 en heure Paris) sont perdues : 8,10 + 28,39 = 36,49 EUR
+- 2 commandes du dim. 18/01 apres 23h UTC (= lun. 19/01 en heure Paris) sont ajoutees : 16,45 + 15,24 = 31,69 EUR
+- Ecart net : -4,80 EUR, ce qui donne 6 356,75 - 4,80 = 6 351,95 EUR (exactement la valeur affichee)
+
+### Bug secondaire : compteur de commandes gonfle (385 au lieu de 383)
+
+Les types "Nouvelle livraison" et "Montant de la repreparation de commande" sont dans ORDER_TYPES et incrementent `order_count` alors qu'ils ne sont pas des commandes reelles :
+- "Nouvelle livraison" : ligne d'en-tete pour une repreparation, order_amount=0, total_payable=0
+- "Montant de la repreparation" : credit de repreparation, order_amount=0, total_payable=11,60
 
 ## Modifications
 
 ### Fichier : `src/pages/Analytics.tsx`
 
-#### 1. Retirer les types "Facture precedente" des listes ORDER_TYPES et REFUND_TYPES
+#### 1. Utiliser les methodes UTC pour le calcul de semaine (lignes ~403-407)
+
+```text
+Avant :
+  const dt = new Date(row.delivery_datetime);
+  const dayOfWeek = dt.getDay();
+  const diff = dt.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+  const weekStart = new Date(dt.setDate(diff));
+  const weekKey = format(weekStart, "yyyy-MM-dd");
+
+Apres :
+  const dt = new Date(row.delivery_datetime);
+  const dayOfWeek = dt.getUTCDay();
+  const diff = dt.getUTCDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+  dt.setUTCDate(diff);
+  const weekKey = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+```
+
+Cela garantit que le regroupement par semaine utilise les memes bornes UTC que le releve Deliveroo (lundi 00:00 UTC a dimanche 23:59 UTC).
+
+#### 2. Sortir "Nouvelle livraison" et "Repreparation" de ORDER_TYPES
+
+Ces types ne doivent pas compter comme des commandes ni contribuer au CA :
 
 ```text
 Avant :
   ORDER_TYPES = ["Livraison", "A emporter", "Nouvelle livraison",
-                 "Facture precedente: Livraison",
                  "Montant de la repreparation de commande"]
-  REFUND_TYPES = ["Remboursement client",
-                  "Remboursement client refuse",
-                  "Facture precedente: Remboursement client"]
 
 Apres :
-  ORDER_TYPES = ["Livraison", "A emporter", "Nouvelle livraison",
-                 "Montant de la repreparation de commande"]
-  REFUND_TYPES = ["Remboursement client"]
+  ORDER_TYPES = ["Livraison", "A emporter"]
 ```
 
-#### 2. Creer une liste POSITIVE_ADJUSTMENT_TYPES pour les montants positifs recuperes
-
-Les "Remboursement client refuse" sont des montants POSITIFS (argent recupere par le restaurant). Ils ne sont pas des remboursements a deduire mais des ajouts au versement.
+#### 3. Creer un type REPREPARATION_TYPES pour gerer separement
 
 ```text
-POSITIVE_ADJUSTMENT_TYPES = ["Remboursement client refuse"]
+REPREPARATION_TYPES = ["Montant de la repreparation de commande", "Nouvelle livraison"]
 ```
 
 Dans le bloc d'agregation :
 ```text
-} else if (POSITIVE_ADJUSTMENT_TYPES.includes(ht)) {
-  g.net_payout += Number(row.total_payable) || 0;  // positif, ajoute au versement
-  g.other_payments_incl_vat += Number(row.total_payable) || 0;  // tracking
+} else if (REPREPARATION_TYPES.includes(ht)) {
+  // Ajout au net_payout sans compter comme commande ni comme CA
+  g.net_payout += Number(row.total_payable) || 0;
 }
 ```
 
-#### 3. Creer une liste PREVIOUS_INVOICE_TYPES pour ignorer les reports
+"Nouvelle livraison" a total_payable=0, donc neutre. "Montant de la repreparation" a total_payable=11,60 et contribue correctement au versement.
 
-Ces lignes ne doivent pas impacter les totaux de la semaine courante. Elles sont deja comptabilisees dans la semaine precedente.
-
-```text
-PREVIOUS_INVOICE_TYPES = ["Facture precedente: Livraison",
-                          "Facture precedente: Remboursement client"]
-```
-
-Dans le bloc d'agregation :
-```text
-} else if (PREVIOUS_INVOICE_TYPES.includes(ht)) {
-  // Reports de facture precedente : ignores pour le total semaine courante
-  // On peut optionnellement les tracker dans un champ separe pour info
-  continue;
-}
-```
-
-### Resultat attendu apres correction (semaine du 19 janvier)
+## Resultats attendus apres correction (semaine du 19 janvier)
 
 ```text
-CA TTC         : 6 356,75 EUR (sans facture precedente)
-Commission TTC : 1 833,46 EUR (1 830,68 standard + 2,78 repreparation)
-Promos         :   614,00 EUR (contributions marketing)
-Remb.          :    26,60 EUR (5 remboursements clients)
-Titre Resto    :   966,90 EUR (positif pour affichage)
-Versement Del. : 4 197,42 EUR (ce que Deliveroo transfere reellement)
-Versement Tot. : 5 164,32 EUR (Deliveroo + Titres restaurant)
-Rentabilite    : ~81,3% (versement total / CA)
+CA TTC         : 6 356,75 EUR (383 Livraisons, methode UTC)
+Commandes      : 383 (sans Nouvelle livraison ni repreparation)
+Commission     : 1 527,94 EUR (1 525,16 + 2,78 repreparation)
+Promos         : 614,00 EUR
+Remb.          : 26,60 EUR
+Titre Resto    : 966,90 EUR
+Versement Del. : 4 197,42 EUR
+Versement Tot. : 5 164,32 EUR
+Rentabilite    : ~81,3%
 ```
 
-Ces chiffres correspondent exactement au document de reconciliation valide par l'utilisateur.
-
+Ces chiffres correspondent exactement au document de reconciliation valide.
