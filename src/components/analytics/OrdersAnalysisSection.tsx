@@ -845,9 +845,9 @@ export function OrdersAnalysisSection({
                 {filteredOrderData && filteredOrderData.length > 0 ? (
                   <div className="space-y-4">
                     <div className="rounded-md border overflow-hidden">
-                      <div className="max-h-[500px] overflow-y-auto">
-                        <Table>
-                          <TableHeader className="sticky top-0 bg-background z-10">
+                      <div className="max-h-[500px] overflow-auto">
+                        <table className="w-full caption-bottom text-sm">
+                          <TableHeader className="sticky top-0 bg-background z-10 shadow-[0_1px_0_0_hsl(var(--border))]">
                             <TableRow>
                               {platform !== "deliveroo" && <TableHead className="w-8"></TableHead>}
                               <TableHead>N° Commande</TableHead>
@@ -1024,7 +1024,7 @@ export function OrdersAnalysisSection({
                               </>
                             ))}
                           </TableBody>
-                        </Table>
+                        </table>
                         
                         {/* Infinite scroll loader */}
                         <div ref={loadMoreRef} className="py-4 flex justify-center">
