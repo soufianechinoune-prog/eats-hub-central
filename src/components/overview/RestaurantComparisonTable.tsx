@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Star, Clock, Percent, AlertTriangle, PauseCircle, ShoppingCart } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Star, ChevronRight, ShoppingCart } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { type RestaurantNetworkStats, type NetworkTotals } from "@/hooks/useNetworkStats";
+import { type RestaurantNetworkStats, type NetworkTotals, type PlatformBreakdown } from "@/hooks/useNetworkStats";
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
@@ -65,6 +65,61 @@ const formatVariation = (value: number | null | undefined) => {
   );
 };
 
+// Platform sub-row component
+function PlatformSubRow({
+  platform,
+  data,
+  showN1Comparison,
+  isUber,
+}: {
+  platform: string;
+  data: PlatformBreakdown;
+  showN1Comparison: boolean;
+  isUber: boolean;
+}) {
+  if (data.orders === 0 && data.revenue === 0) return null;
+
+  return (
+    <TableRow className="bg-muted/10 hover:bg-muted/20 border-border/20">
+      <TableCell></TableCell>
+      <TableCell className="pl-8 text-xs">
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[9px] h-4 px-1.5 font-normal",
+            isUber
+              ? "border-green-500 text-green-600 dark:text-green-400"
+              : "border-cyan-500 text-cyan-600 dark:text-cyan-400"
+          )}
+        >
+          {platform}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-right text-xs whitespace-nowrap">
+        {formatCurrency(data.revenue)}
+      </TableCell>
+      {showN1Comparison && <TableCell></TableCell>}
+      <TableCell className="text-right text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+        {formatCurrency(data.netPayout)}
+      </TableCell>
+      <TableCell className="text-right text-xs">
+        {data.profitability != null ? `${data.profitability.toFixed(1)}%` : "—"}
+      </TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">
+        {data.orders.toLocaleString("fr-FR")}
+      </TableCell>
+      <TableCell className="text-right text-xs whitespace-nowrap">
+        {data.avgBasket.toFixed(2)} €
+      </TableCell>
+      {/* Operational metrics: only available for Uber */}
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+    </TableRow>
+  );
+}
+
 export function RestaurantComparisonTable({
   stats,
   networkTotals,
@@ -76,18 +131,25 @@ export function RestaurantComparisonTable({
   const navigate = useNavigate();
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRow = useCallback((id: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
       setSortColumn(column);
-      // Default to desc for most metrics (higher is better), asc for totalDeliveryTime, errorRate, downtime
       setSortDirection(["totalDeliveryTime", "errorRate", "downtime"].includes(column) ? "asc" : "desc");
     }
   };
 
-  // Format net payout
   const formatNetPayout = (value: number) => {
     return new Intl.NumberFormat("fr-FR", {
       style: "decimal",
@@ -102,58 +164,22 @@ export function RestaurantComparisonTable({
       let bVal: number | string | null = null;
 
       switch (sortColumn) {
-        case "name":
-          aVal = a.name.toLowerCase();
-          bVal = b.name.toLowerCase();
-          break;
-        case "city":
-          aVal = (a.city || "").toLowerCase();
-          bVal = (b.city || "").toLowerCase();
-          break;
-        case "revenue":
-          aVal = a.revenue;
-          bVal = b.revenue;
-          break;
-        case "orders":
-          aVal = a.orders;
-          bVal = b.orders;
-          break;
-        case "avgBasket":
-          aVal = a.avgBasket;
-          bVal = b.avgBasket;
-          break;
-        case "netPayout":
-          aVal = a.netPayout;
-          bVal = b.netPayout;
-          break;
-        case "rating":
-          aVal = a.rating ?? -999;
-          bVal = b.rating ?? -999;
-          break;
-        case "profitability":
-          aVal = a.profitability ?? -999;
-          bVal = b.profitability ?? -999;
-          break;
-        case "totalDeliveryTime":
-          aVal = a.totalDeliveryTime ?? 999;
-          bVal = b.totalDeliveryTime ?? 999;
-          break;
-        case "errorRate":
-          aVal = a.errorRate ?? 999;
-          bVal = b.errorRate ?? 999;
-          break;
-        case "downtime":
-          aVal = a.downtime ?? 999;
-          bVal = b.downtime ?? 999;
-          break;
+        case "name": aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase(); break;
+        case "city": aVal = (a.city || "").toLowerCase(); bVal = (b.city || "").toLowerCase(); break;
+        case "revenue": aVal = a.revenue; bVal = b.revenue; break;
+        case "orders": aVal = a.orders; bVal = b.orders; break;
+        case "avgBasket": aVal = a.avgBasket; bVal = b.avgBasket; break;
+        case "netPayout": aVal = a.netPayout; bVal = b.netPayout; break;
+        case "rating": aVal = a.rating ?? -999; bVal = b.rating ?? -999; break;
+        case "profitability": aVal = a.profitability ?? -999; bVal = b.profitability ?? -999; break;
+        case "totalDeliveryTime": aVal = a.totalDeliveryTime ?? 999; bVal = b.totalDeliveryTime ?? 999; break;
+        case "errorRate": aVal = a.errorRate ?? 999; bVal = b.errorRate ?? 999; break;
+        case "downtime": aVal = a.downtime ?? 999; bVal = b.downtime ?? 999; break;
       }
 
       if (typeof aVal === "string" && typeof bVal === "string") {
-        return sortDirection === "asc"
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
+        return sortDirection === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       }
-
       const numA = aVal as number;
       const numB = bVal as number;
       return sortDirection === "asc" ? numA - numB : numB - numA;
@@ -161,30 +187,13 @@ export function RestaurantComparisonTable({
   }, [stats, sortColumn, sortDirection]);
 
   const SortIcon = ({ column }: { column: SortColumn }) => {
-    if (sortColumn !== column) {
-      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
-    }
-    return sortDirection === "asc" ? (
-      <ArrowUp className="h-3 w-3 ml-1" />
-    ) : (
-      <ArrowDown className="h-3 w-3 ml-1" />
-    );
+    if (sortColumn !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    return sortDirection === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
   };
 
-  const HeaderCell = ({
-    column,
-    children,
-    className,
-  }: {
-    column: SortColumn;
-    children: React.ReactNode;
-    className?: string;
-  }) => (
+  const HeaderCell = ({ column, children, className }: { column: SortColumn; children: React.ReactNode; className?: string }) => (
     <TableHead
-      className={cn(
-        "cursor-pointer select-none hover:bg-muted/50 transition-colors text-xs font-semibold uppercase whitespace-nowrap",
-        className
-      )}
+      className={cn("cursor-pointer select-none hover:bg-muted/50 transition-colors text-xs font-semibold uppercase whitespace-nowrap", className)}
       onClick={() => handleSort(column)}
     >
       <div className="flex items-center">
@@ -223,11 +232,7 @@ export function RestaurantComparisonTable({
             Comparatif des restaurants
           </CardTitle>
           <div className="flex items-center gap-2">
-            <Switch
-              id="n1-toggle"
-              checked={showN1Comparison}
-              onCheckedChange={onToggleN1}
-            />
+            <Switch id="n1-toggle" checked={showN1Comparison} onCheckedChange={onToggleN1} />
             <Label htmlFor="n1-toggle" className="text-sm text-muted-foreground cursor-pointer">
               Afficher N-1
             </Label>
@@ -261,68 +266,92 @@ export function RestaurantComparisonTable({
               const totalDeliveryStatus = getMetricStatus("totalDeliveryTime", resto.totalDeliveryTime);
               const errorStatus = getMetricStatus("errorRate", resto.errorRate);
               const downtimeStatus = getMetricStatus("downtime", resto.downtime);
+              const isExpanded = expandedRows.has(resto.id);
 
               return (
-                <TableRow
-                  key={resto.id}
-                  className="cursor-pointer hover:bg-muted/50 transition-all duration-200 border-border/30 group"
-                  onClick={() => onRestaurantClick ? onRestaurantClick(resto.id) : navigate(`/restaurants/${resto.id}`)}
-                >
-                  <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className="bg-muted text-muted-foreground text-xs h-6 w-6 flex items-center justify-center rounded-md"
-                    >
-                      {idx + 1}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-semibold group-hover:text-primary transition-colors">
-                    {resto.name}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold whitespace-nowrap">
-                    {formatCurrency(resto.revenue)}
-                  </TableCell>
-                  {showN1Comparison && (
-                    <TableCell className="text-right">
-                      {formatVariation(resto.revenueVariation)}
+                <>
+                  <TableRow
+                    key={resto.id}
+                    className="cursor-pointer hover:bg-muted/50 transition-all duration-200 border-border/30 group"
+                    onClick={() => onRestaurantClick ? onRestaurantClick(resto.id) : navigate(`/restaurants/${resto.id}`)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleRow(resto.id); }}
+                          className="p-0.5 rounded hover:bg-muted transition-transform"
+                        >
+                          <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-90")} />
+                        </button>
+                        <Badge variant="secondary" className="bg-muted text-muted-foreground text-xs h-6 w-6 flex items-center justify-center rounded-md">
+                          {idx + 1}
+                        </Badge>
+                      </div>
                     </TableCell>
+                    <TableCell className="font-semibold group-hover:text-primary transition-colors">
+                      {resto.name}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold whitespace-nowrap">
+                      {formatCurrency(resto.revenue)}
+                    </TableCell>
+                    {showN1Comparison && (
+                      <TableCell className="text-right">
+                        {formatVariation(resto.revenueVariation)}
+                      </TableCell>
+                    )}
+                    <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                      {formatNetPayout(resto.netPayout)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
+                        {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {resto.orders.toLocaleString("fr-FR")}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {resto.avgBasket.toFixed(2)} €
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={cn("flex items-center justify-end gap-1 font-medium", getStatusTextClass(ratingStatus))}>
+                        <Star className="h-3 w-3" />
+                        {resto.rating?.toFixed(1) ?? "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={cn("font-medium", getStatusTextClass(errorStatus))}>
+                        {resto.errorRate != null ? `${resto.errorRate.toFixed(1)}%` : "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(totalDeliveryStatus))}>
+                        {formatMinutesLong(resto.totalDeliveryTime)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(downtimeStatus))}>
+                        {formatHours(resto.downtime)}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                  {isExpanded && (
+                    <>
+                      <PlatformSubRow
+                        platform="Uber Eats"
+                        data={resto.platformBreakdown.uber}
+                        showN1Comparison={showN1Comparison}
+                        isUber={true}
+                      />
+                      <PlatformSubRow
+                        platform="Deliveroo"
+                        data={resto.platformBreakdown.deliveroo}
+                        showN1Comparison={showN1Comparison}
+                        isUber={false}
+                      />
+                    </>
                   )}
-                  <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                    {formatNetPayout(resto.netPayout)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
-                      {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {resto.orders.toLocaleString("fr-FR")}
-                  </TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    {resto.avgBasket.toFixed(2)} €
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className={cn("flex items-center justify-end gap-1 font-medium", getStatusTextClass(ratingStatus))}>
-                      <Star className="h-3 w-3" />
-                      {resto.rating?.toFixed(1) ?? "—"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className={cn("font-medium", getStatusTextClass(errorStatus))}>
-                      {resto.errorRate != null ? `${resto.errorRate.toFixed(1)}%` : "—"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(totalDeliveryStatus))}>
-                      {formatMinutesLong(resto.totalDeliveryTime)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(downtimeStatus))}>
-                      {formatHours(resto.downtime)}
-                    </span>
-                  </TableCell>
-                </TableRow>
+                </>
               );
             })}
 
@@ -344,9 +373,7 @@ export function RestaurantComparisonTable({
                 {formatNetPayout(networkTotals.totalNetPayout)}
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground">
-                {networkTotals.avgProfitability != null
-                  ? `${networkTotals.avgProfitability.toFixed(1)}%`
-                  : "—"}
+                {networkTotals.avgProfitability != null ? `${networkTotals.avgProfitability.toFixed(1)}%` : "—"}
               </TableCell>
               <TableCell className="text-right font-semibold">
                 {networkTotals.totalOrders.toLocaleString("fr-FR")}
@@ -361,9 +388,7 @@ export function RestaurantComparisonTable({
                 </span>
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground">
-                {networkTotals.avgErrorRate != null
-                  ? `${networkTotals.avgErrorRate.toFixed(1)}%`
-                  : "—"}
+                {networkTotals.avgErrorRate != null ? `${networkTotals.avgErrorRate.toFixed(1)}%` : "—"}
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
                 {formatMinutesLong(networkTotals.avgTotalDeliveryTime)}
