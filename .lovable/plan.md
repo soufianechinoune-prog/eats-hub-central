@@ -1,52 +1,60 @@
 
 
-# Corriger le montant de la commission Deliveroo : 1 529 → 1 525,16
+# Afficher les commandes Deliveroo dans l'onglet "Par Commande"
 
-## Probleme identifie
+## Probleme
 
-La commission affichee est gonflée par la "Commission Deliveroo sur repreparation de commande" (3,34€) qui est ajoutée aux champs `uber_fee_after_promo_excl_vat` et `uber_fee_after_promo_incl_vat`.
+L'onglet "Par Commande" ne cherche que dans la table `orders` (Uber Eats). Quand tu es sur l'onglet Deliveroo et que tu cherches la commande 50554882242, elle n'apparait pas car le code ne consulte jamais la table `deliveroo_orders`.
+
+La commande existe bien en base (id: `b823fb40`, restaurant Chicken Street - Argenteuil, 19 janvier, 8,10 EUR).
+
+## Cause technique
+
+1. `FinancesSection.tsx` passe `platform` au `ProfitabilityComparisonTable` mais **pas** au `OrdersAnalysisSection`
+2. `useFinancesDrilldown.ts` : le parametre `platform` a un default `"uber_eats"`, donc le bloc "order" (lignes 319-466) ne query que la table `orders`
+3. Les onglets "daily" et "hourly" supportent deja Deliveroo (via `fetchDeliverooOrdersData`), mais le bloc "order" n'a aucune logique Deliveroo
+
+## Modifications
+
+### Fichier 1 : `src/components/analytics/FinancesSection.tsx`
+
+Passer le `platform` selectionne a `OrdersAnalysisSection`.
+
+### Fichier 2 : `src/components/analytics/OrdersAnalysisSection.tsx`
+
+- Ajouter une prop `platform` a l'interface
+- La transmettre au hook `useFinancesDrilldown`
+
+### Fichier 3 : `src/hooks/useFinancesDrilldown.ts` (bloc "order", lignes 319-466)
+
+Ajouter une branche Deliveroo dans la query "order" :
 
 ```text
-Donnees en base (semaine 19 janv.) :
-  Livraison : commission_amount = -1 525,16€  ← LA VRAIE COMMISSION
-  Commission sur repreparation  = -3,34€      ← FRAIS SUPPLEMENTAIRE
+Si platform === "deliveroo" :
+  - Query deliveroo_orders au lieu de orders
+  - Chercher par deliveroo_order_id au lieu de uber_order_id
+  - Mapper les colonnes : order_amount → sales, commission_amount → uber_fee, etc.
+  - Pas de sous-requete order_items (n'existe pas pour Deliveroo)
 
-Calcul actuel (faux) :
-  Commission affichee = 1 525,16 + 3,34 = 1 528,50€
-  Taux = 1 528,50 / 6 356,75 = 24,05%
-
-Calcul correct :
-  Commission affichee = 1 525,16€
-  Taux = 1 525,16 / 6 356,75 = 24,0%
+Si platform === "global" :
+  - Combiner les resultats des deux tables
 ```
 
-## Modification
+Le mapping des colonnes Deliveroo pour chaque commande individuelle :
+- `deliveroo_order_id` → affiche comme ID commande
+- `delivery_datetime` → date
+- `order_amount` → CA TTC
+- `commission_amount` → commission
+- `total_payable` → versement net
+- Regrouper les lignes du meme `deliveroo_order_id` (Livraison + Contribution marketing + Titre resto) en une seule ligne
 
-### Fichier : `src/pages/Analytics.tsx` (lignes 446-449)
+### Fichier 4 : `src/components/analytics/OrdersAnalysisSection.tsx` (rendu tableau)
 
-Retirer l'ajout de la "Commission Deliveroo sur repreparation" aux champs commission. Ce montant est un frais supplementaire, pas la commission contractuelle. Il doit uniquement impacter le `net_payout` et etre classe dans `other_payments_incl_vat` (comme les "Debit : frais supplementaires" du releve PDF).
-
-```text
-Avant (lignes 446-449) :
-  } else if (EXTRA_COMMISSION_TYPES.includes(ht)) {
-    g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
-    g.uber_fee_after_promo_excl_vat += Math.abs(Number(row.total_payable) || 0);
-    g.net_payout += Number(row.total_payable) || 0;
-
-Apres :
-  } else if (EXTRA_COMMISSION_TYPES.includes(ht)) {
-    // Frais supplementaires (repreparation) : pas dans la commission contractuelle
-    g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
-    g.net_payout += Number(row.total_payable) || 0;
-```
+Adapter le rendu pour afficher `deliveroo_order_id` au lieu de `uber_order_id` quand la plateforme est Deliveroo, et masquer le bouton d'expansion (pas de donnees `order_items` pour Deliveroo).
 
 ## Resultat attendu
 
-| Metrique | Avant | Apres |
-|----------|-------|-------|
-| Commission | 1 529€ | 1 525,16€ |
-| Taux | ~24,05% | 24,0% |
-| Versement | Inchange | Inchange |
-
-Le versement total reste identique (4 197,42€) car le `net_payout` n'est pas modifie. Seul le classement du montant change : de "commission" vers "frais supplementaires".
+- Sur l'onglet Deliveroo, chercher "50554882242" affiche la commande du 19 janvier
+- Les onglets Jour/Heure continuent de fonctionner comme avant
+- Sur Global, les commandes des deux plateformes apparaissent
 
