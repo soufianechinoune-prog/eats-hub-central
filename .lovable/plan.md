@@ -1,70 +1,43 @@
 
 
-# Identifier les commandes Deliveroo avec offres marketing
+# Filtrer l'éco-contribution par plateforme (Uber / Deliveroo / Global)
 
-## Contexte
+## Problème
 
-Dans la base, les commandes Deliveroo avec une offre marketing se distinguent de deux facons :
-1. **Ligne "Contribution marketing"** separee (meme `deliveroo_order_id`) avec `total_payable > 0` et note "Marketer offer Deliveroo funding"
-2. **Note sur la ligne "Livraison"** contenant "Remise sur offre Marketer: X,XX" (indique le montant de la remise appliquee au client)
+Actuellement, la page Éco-Contribution affiche toujours les données des deux plateformes mélangées, quel que soit l'onglet sélectionné (Uber Eats, Deliveroo, Global). C'est trompeur : sur l'onglet Deliveroo, on voit des lignes Uber et inversement.
 
-Certaines commandes n'ont que la note "Remise sur offre Marketer" sans ligne "Contribution marketing" (ex: 50602588242 avec 2,37€ de remise mais pas de co-financement Deliveroo).
+## Solution
+
+Propager le `selectedPlatform` depuis le contexte Analytics jusqu'au composant `EcoContributionSection`, puis filtrer les données en conséquence.
 
 ## Modifications
 
-### Fichier 1 : `src/hooks/useFinancesDrilldown.ts`
+### 1. `src/pages/Analytics.tsx`
+- Passer la prop `selectedPlatform` au composant `EcoContributionSection`
 
-**a) Ajouter `note` a la requete** (ligne 261) : inclure le champ `note` dans le SELECT de `fetchDeliverooIndividualOrders`.
+### 2. `src/components/analytics/EcoContributionSection.tsx`
+- Ajouter `selectedPlatform` dans l'interface des props
+- Passer cette valeur au hook `useEcoContribution`
 
-**b) Tracker `has_offer` dans le groupement** (lignes 279-325) : ajouter un champ `has_offer: boolean` et `offer_note: string` au groupe. Le mettre a `true` si :
-- La ligne est de type "Contribution marketing" (co-financement Deliveroo), OU
-- La note contient "Remise sur offre Marketer"
+### 3. `src/hooks/useEcoContribution.ts`
+- Ajouter le paramètre `platform?: "uber_eats" | "deliveroo" | "global"` aux options du hook
+- **Onglet "uber_eats"** : exécuter uniquement les requêtes `payouts` et `payout_adjustments` (Uber). Désactiver la requête `deliveroo_orders` (`enabled: false`)
+- **Onglet "deliveroo"** : exécuter uniquement la requête `deliveroo_orders`. Désactiver les requêtes Uber (`enabled: false`)
+- **Onglet "global"** : exécuter les trois requêtes (comportement actuel)
+- Adapter les agrégations (`monthlyData`, `byRestaurant`, `totals`) pour ne prendre en compte que les sources actives
 
-**c) Propager dans le resultat** : retourner `has_offer` et `offer_note` dans chaque commande groupee.
+### 4. `src/components/analytics/EcoContributionDetail.tsx`
+- Sur l'onglet **Global** : afficher les badges plateforme (Uber / Deliveroo) comme actuellement
+- Sur l'onglet **Uber Eats** ou **Deliveroo** : masquer la colonne "Plateforme" (inutile puisque tout est de la même source)
 
-### Fichier 2 : `src/hooks/useFinancesDrilldown.ts` — Interface `OrderFinanceData`
+### 5. Drilldown dans `EcoContributionSection.tsx`
+- Les petits dots colorés sur les lignes individuelles : même logique — afficher uniquement en mode Global, masquer en mono-plateforme
 
-Ajouter deux champs optionnels :
-```
-has_offer?: boolean;
-offer_note?: string;
-```
+## Résultat attendu
 
-Et les mapper dans le `useMemo` du `orderData` (ligne 824-847).
-
-### Fichier 3 : `src/components/analytics/OrdersAnalysisSection.tsx`
-
-**a) Badge visuel** : sur chaque ligne de commande Deliveroo qui a `has_offer === true`, afficher un petit badge vert "Offre" a cote du numero de commande.
-
-**b) Tooltip** : au survol du badge, afficher le detail de l'offre (ex: "Remise sur offre Marketer: 8,10 — Co-financement Deliveroo: +2,00€").
-
-**c) Filtre optionnel** : ajouter un toggle ou filtre "Avec offre uniquement" pour ne voir que les commandes avec promotions Deliveroo.
-
-## Detail technique du flag
-
-```text
-Donnees en base pour 50556820623 :
-  Livraison : note = "Contribution marketing, Remise sur offre Marketer: 8,10"
-  Contrib.  : note = "Marketer offer Deliveroo funding", total_payable = 2.00
-
-→ has_offer = true
-→ offer_note = "Remise sur offre Marketer: 8,10"
-
-Donnees pour 50602588242 (sans co-financement) :
-  Livraison : note = "Remise sur offre Marketer: 2,37"
-  (pas de ligne Contribution marketing)
-
-→ has_offer = true  
-→ offer_note = "Remise sur offre Marketer: 2,37"
-
-Commande sans offre (ex: 50602590898) :
-  Livraison : note = null
-→ has_offer = false
-```
-
-## Resultat attendu
-
-- Les commandes avec offres marketing sont visuellement identifiables par un badge vert
-- On peut filtrer pour ne voir que ces commandes
-- Le detail de la remise est accessible au survol
+| Onglet | Données affichées | Badge plateforme |
+|--------|-------------------|-----------------|
+| Uber Eats | Uniquement `payouts` + `payout_adjustments` | Non |
+| Deliveroo | Uniquement `deliveroo_orders` eco-contribution | Non |
+| Global | Les deux sources combinées | Oui (distingue Uber/Deliveroo) |
 
