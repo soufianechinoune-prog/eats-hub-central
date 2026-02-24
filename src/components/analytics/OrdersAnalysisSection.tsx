@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { 
   Table, 
   TableBody, 
@@ -21,6 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
   Calendar, 
   Clock, 
@@ -35,6 +42,7 @@ import {
   ChevronRight,
   Receipt,
   Search,
+  Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinancesDrilldown, type DrilldownGranularity, type OrderSortField, type SortDirection as OrderSortDirection } from "@/hooks/useFinancesDrilldown";
@@ -91,6 +99,7 @@ export function OrdersAnalysisSection({
   const [orderLimit, setOrderLimit] = useState(ORDER_PAGE_SIZE);
   const [orderSearchQuery, setOrderSearchQuery] = useState(""); // Searches by order ID and item title
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [showOffersOnly, setShowOffersOnly] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   // Expanded orders state for dropdown
@@ -338,6 +347,12 @@ export function OrdersAnalysisSection({
       sales: productData.reduce((sum, d) => sum + d.sales_incl_vat, 0),
     };
   }, [productData]);
+
+  // Filter orders by offer status
+  const filteredOrderData = useMemo(() => {
+    if (!showOffersOnly) return orderData;
+    return orderData.filter(o => o.has_offer);
+  }, [orderData, showOffersOnly]);
 
   return (
     <Card>
@@ -796,7 +811,7 @@ export function OrdersAnalysisSection({
               
               {/* Order Tab */}
               <TabsContent value="order" className="mt-0">
-                {/* Search field */}
+                {/* Search field + offer filter */}
                 <div className="flex items-center gap-4 mb-4">
                   <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -807,14 +822,27 @@ export function OrdersAnalysisSection({
                       className="pl-9"
                     />
                   </div>
+                  {platform === "deliveroo" && (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={showOffersOnly}
+                        onCheckedChange={setShowOffersOnly}
+                        id="offers-filter"
+                      />
+                      <label htmlFor="offers-filter" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-1">
+                        <Tag className="h-3.5 w-3.5" />
+                        Avec offre
+                      </label>
+                    </div>
+                  )}
                   {orderPagination && (
                     <span className="text-sm text-muted-foreground">
-                      {orderData.length.toLocaleString('fr-FR')} / {orderPagination.totalCount.toLocaleString('fr-FR')} commandes
+                      {filteredOrderData.length.toLocaleString('fr-FR')} / {orderPagination.totalCount.toLocaleString('fr-FR')} commandes
                     </span>
                   )}
                 </div>
                 
-                {orderData && orderData.length > 0 ? (
+                {filteredOrderData && filteredOrderData.length > 0 ? (
                   <div className="space-y-4">
                     <div className="rounded-md border overflow-hidden">
                       <div className="max-h-[500px] overflow-y-auto">
@@ -907,7 +935,7 @@ export function OrdersAnalysisSection({
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {orderData.map((order) => (
+                            {filteredOrderData.map((order) => (
                               <>
                                 <TableRow 
                                   key={order.id}
@@ -924,7 +952,31 @@ export function OrdersAnalysisSection({
                                     </TableCell>
                                   )}
                                   <TableCell className="font-mono text-xs">
-                                    #{order.uber_order_id?.slice(-8) || order.id.slice(0, 8)}
+                                    <div className="flex items-center gap-1.5">
+                                      <span>#{order.uber_order_id?.slice(-8) || order.id.slice(0, 8)}</span>
+                                      {platform === "deliveroo" && order.has_offer && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25 text-[10px] px-1.5 py-0 cursor-default">
+                                                <Tag className="h-2.5 w-2.5 mr-0.5" />
+                                                Offre
+                                              </Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" className="max-w-xs">
+                                              <div className="text-xs space-y-1">
+                                                {order.offer_note && <p>{order.offer_note}</p>}
+                                                {(order.deliveroo_funding ?? 0) > 0 && (
+                                                  <p className="text-emerald-600 dark:text-emerald-400">
+                                                    Co-financement Deliveroo : +{order.deliveroo_funding?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                    </div>
                                   </TableCell>
                                   <TableCell className="text-sm">
                                     {order.order_datetime 
@@ -976,10 +1028,10 @@ export function OrdersAnalysisSection({
                         
                         {/* Infinite scroll loader */}
                         <div ref={loadMoreRef} className="py-4 flex justify-center">
-                          {isLoading && orderData.length > 0 && (
+                          {isLoading && filteredOrderData.length > 0 && (
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                           )}
-                          {!orderPagination?.hasMore && orderData.length > 0 && (
+                          {!orderPagination?.hasMore && filteredOrderData.length > 0 && (
                             <span className="text-muted-foreground text-sm">
                               Toutes les commandes sont affichées
                             </span>
