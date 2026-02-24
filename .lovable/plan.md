@@ -1,43 +1,35 @@
 
 
-# Filtrer l'éco-contribution par plateforme (Uber / Deliveroo / Global)
+# Distinguer visuellement les lignes Uber / Deliveroo dans l'éco-contribution
 
-## Problème
+## Probleme
 
-Actuellement, la page Éco-Contribution affiche toujours les données des deux plateformes mélangées, quel que soit l'onglet sélectionné (Uber Eats, Deliveroo, Global). C'est trompeur : sur l'onglet Deliveroo, on voit des lignes Uber et inversement.
+Dans la vue Global, les lignes individuelles (drilldown "Par restaurant") affichent un minuscule point coloré (1.5px) pour indiquer la plateforme. C'est quasi invisible et non identifiable sans legende.
+
+De meme, dans la vue "Lignes individuelles" (onglet Detail), la colonne "Plateforme" avec les badges est correcte mais le drilldown du tableau "Par restaurant" (onglet Synthese) manque de clarte.
 
 ## Solution
 
-Propager le `selectedPlatform` depuis le contexte Analytics jusqu'au composant `EcoContributionSection`, puis filtrer les données en conséquence.
+Remplacer le petit dot par un **badge texte compact** (similaire a ceux dans `EcoContributionDetail.tsx`) directement dans les lignes du drilldown "Par restaurant".
 
 ## Modifications
 
-### 1. `src/pages/Analytics.tsx`
-- Passer la prop `selectedPlatform` au composant `EcoContributionSection`
+### `src/components/analytics/EcoContributionSection.tsx` (lignes 452-456)
 
-### 2. `src/components/analytics/EcoContributionSection.tsx`
-- Ajouter `selectedPlatform` dans l'interface des props
-- Passer cette valeur au hook `useEcoContribution`
+Remplacer le dot de 1.5px par un badge textuel :
 
-### 3. `src/hooks/useEcoContribution.ts`
-- Ajouter le paramètre `platform?: "uber_eats" | "deliveroo" | "global"` aux options du hook
-- **Onglet "uber_eats"** : exécuter uniquement les requêtes `payouts` et `payout_adjustments` (Uber). Désactiver la requête `deliveroo_orders` (`enabled: false`)
-- **Onglet "deliveroo"** : exécuter uniquement la requête `deliveroo_orders`. Désactiver les requêtes Uber (`enabled: false`)
-- **Onglet "global"** : exécuter les trois requêtes (comportement actuel)
-- Adapter les agrégations (`monthlyData`, `byRestaurant`, `totals`) pour ne prendre en compte que les sources actives
+```
+// Avant
+<span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 bg-cyan-500/bg-green-500" />
 
-### 4. `src/components/analytics/EcoContributionDetail.tsx`
-- Sur l'onglet **Global** : afficher les badges plateforme (Uber / Deliveroo) comme actuellement
-- Sur l'onglet **Uber Eats** ou **Deliveroo** : masquer la colonne "Plateforme" (inutile puisque tout est de la même source)
+// Apres
+<Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-cyan-500 text-cyan-600">Deliveroo</Badge>
+// ou
+<Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-green-500 text-green-600">Uber</Badge>
+```
 
-### 5. Drilldown dans `EcoContributionSection.tsx`
-- Les petits dots colorés sur les lignes individuelles : même logique — afficher uniquement en mode Global, masquer en mono-plateforme
+Concretement, dans la `MonthDrilldownRow`, quand `showPlatformDot` est true, afficher un petit badge avec le nom de la plateforme au lieu du point invisible.
 
-## Résultat attendu
-
-| Onglet | Données affichées | Badge plateforme |
-|--------|-------------------|-----------------|
-| Uber Eats | Uniquement `payouts` + `payout_adjustments` | Non |
-| Deliveroo | Uniquement `deliveroo_orders` eco-contribution | Non |
-| Global | Les deux sources combinées | Oui (distingue Uber/Deliveroo) |
+### Fichiers a modifier
+- `src/components/analytics/EcoContributionSection.tsx` : remplacer le dot par un Badge dans `MonthDrilldownRow` (~ligne 454-456)
 
