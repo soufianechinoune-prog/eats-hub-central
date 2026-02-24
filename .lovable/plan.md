@@ -1,60 +1,53 @@
 
 
-# Afficher les commandes Deliveroo dans l'onglet "Par Commande"
+# Corriger l'affichage de la "Contribution marketing" Deliveroo
 
 ## Probleme
 
-L'onglet "Par Commande" ne cherche que dans la table `orders` (Uber Eats). Quand tu es sur l'onglet Deliveroo et que tu cherches la commande 50554882242, elle n'apparait pas car le code ne consulte jamais la table `deliveroo_orders`.
+La commande 50554882242 affiche **-2,00€** en violet dans la colonne "Promos". C'est faux : la "Contribution marketing" Deliveroo est un **credit** versé par Deliveroo au restaurant (+2,00€ dans le CSV). Ce n'est pas une promo déduite du restaurant comme sur Uber Eats.
 
-La commande existe bien en base (id: `b823fb40`, restaurant Chicken Street - Argenteuil, 19 janvier, 8,10 EUR).
+```text
+Données en base pour la commande 50554882242 :
+  Livraison      : order_amount=8.10, commission=-1.94, total_payable=5.77
+  Contrib. mktg  : order_amount=0,    commission=0,     total_payable=+2.00  ← CREDIT
 
-## Cause technique
-
-1. `FinancesSection.tsx` passe `platform` au `ProfitabilityComparisonTable` mais **pas** au `OrdersAnalysisSection`
-2. `useFinancesDrilldown.ts` : le parametre `platform` a un default `"uber_eats"`, donc le bloc "order" (lignes 319-466) ne query que la table `orders`
-3. Les onglets "daily" et "hourly" supportent deja Deliveroo (via `fetchDeliverooOrdersData`), mais le bloc "order" n'a aucune logique Deliveroo
+Affichage actuel (faux) :  Promos = -2,00€ (violet, comme une déduction)
+Affichage correct :        Contrib. Deliveroo = +2,00€ (vert, c'est un crédit)
+```
 
 ## Modifications
 
-### Fichier 1 : `src/components/analytics/FinancesSection.tsx`
+### Fichier 1 : `src/components/analytics/OrdersAnalysisSection.tsx`
 
-Passer le `platform` selectionne a `OrdersAnalysisSection`.
+**Onglet "Par Commande"** — Adapter la colonne "Promos" selon la plateforme :
 
-### Fichier 2 : `src/components/analytics/OrdersAnalysisSection.tsx`
+- Quand `platform === "deliveroo"` : renommer l'en-tete en **"Contrib. Mktg"** et afficher la valeur en **vert avec un signe +** (c'est un crédit)
+- Quand `platform === "uber_eats"` : garder "Promos" en violet avec un signe − (c'est une déduction)
+- Quand `platform === "global"` : garder "Promos" (comportement mixte)
 
-- Ajouter une prop `platform` a l'interface
-- La transmettre au hook `useFinancesDrilldown`
+Meme logique pour les onglets "Par Jour" et les totaux.
 
-### Fichier 3 : `src/hooks/useFinancesDrilldown.ts` (bloc "order", lignes 319-466)
+### Fichier 2 : `src/hooks/useFinancesDrilldown.ts`
 
-Ajouter une branche Deliveroo dans la query "order" :
+Aucun changement dans le hook — la valeur `item_promo_incl_vat = 2.00` (absolue positive) est correcte. Seul l'affichage change.
 
-```text
-Si platform === "deliveroo" :
-  - Query deliveroo_orders au lieu de orders
-  - Chercher par deliveroo_order_id au lieu de uber_order_id
-  - Mapper les colonnes : order_amount → sales, commission_amount → uber_fee, etc.
-  - Pas de sous-requete order_items (n'existe pas pour Deliveroo)
+## Detail technique
 
-Si platform === "global" :
-  - Combiner les resultats des deux tables
-```
+Dans `OrdersAnalysisSection.tsx`, 3 endroits à modifier :
 
-Le mapping des colonnes Deliveroo pour chaque commande individuelle :
-- `deliveroo_order_id` → affiche comme ID commande
-- `delivery_datetime` → date
-- `order_amount` → CA TTC
-- `commission_amount` → commission
-- `total_payable` → versement net
-- Regrouper les lignes du meme `deliveroo_order_id` (Livraison + Contribution marketing + Titre resto) en une seule ligne
-
-### Fichier 4 : `src/components/analytics/OrdersAnalysisSection.tsx` (rendu tableau)
-
-Adapter le rendu pour afficher `deliveroo_order_id` au lieu de `uber_order_id` quand la plateforme est Deliveroo, et masquer le bouton d'expansion (pas de donnees `order_items` pour Deliveroo).
+1. **En-tete de colonne** (ligne ~867) : `platform === "deliveroo" ? "Contrib. Mktg" : "Promos"`
+2. **Cellule par commande** (ligne ~947-948) : 
+   - Deliveroo : `+2,00€` en `text-green-600`
+   - Uber : `-2,00€` en `text-purple-600`
+3. **Ligne totaux "Par Jour"** (lignes ~586, ~548) : meme logique de signe et couleur
 
 ## Resultat attendu
 
-- Sur l'onglet Deliveroo, chercher "50554882242" affiche la commande du 19 janvier
-- Les onglets Jour/Heure continuent de fonctionner comme avant
-- Sur Global, les commandes des deux plateformes apparaissent
+| Colonne | Uber Eats | Deliveroo |
+|---------|-----------|-----------|
+| En-tete | Promos | Contrib. Mktg |
+| Valeur | -2,00€ (violet) | +2,00€ (vert) |
+| Signification | Déduction du CA | Crédit Deliveroo |
+
+Les montants de Versement et Rentabilité restent inchangés (déjà corrects).
 
