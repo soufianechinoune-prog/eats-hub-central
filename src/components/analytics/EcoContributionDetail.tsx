@@ -23,6 +23,7 @@ interface DetailLine {
 interface EcoContributionDetailProps {
   detailLines: DetailLine[];
   restaurantMap: Map<string, string>;
+  showPlatformColumn?: boolean;
 }
 
 const MONTH_NAMES = [
@@ -36,7 +37,7 @@ const fmtDate = (d: string | null) => {
   return new Date(d).toLocaleDateString("fr-FR");
 };
 
-export function EcoContributionDetail({ detailLines, restaurantMap }: EcoContributionDetailProps) {
+export function EcoContributionDetail({ detailLines, restaurantMap, showPlatformColumn = true }: EcoContributionDetailProps) {
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -131,7 +132,7 @@ export function EcoContributionDetail({ detailLines, restaurantMap }: EcoContrib
           <p className="text-center text-muted-foreground py-8 text-sm">Aucune ligne trouvée</p>
         ) : (
           grouped.map((monthGroup) => (
-            <MonthAccordion key={monthGroup.month} group={monthGroup} />
+            <MonthAccordion key={monthGroup.month} group={monthGroup} showPlatformColumn={showPlatformColumn} />
           ))
         )}
       </CardContent>
@@ -155,7 +156,7 @@ interface MonthGroup {
   }[];
 }
 
-function MonthAccordion({ group }: { group: MonthGroup }) {
+function MonthAccordion({ group, showPlatformColumn = true }: { group: MonthGroup; showPlatformColumn?: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -174,14 +175,14 @@ function MonthAccordion({ group }: { group: MonthGroup }) {
       </CollapsibleTrigger>
       <CollapsibleContent className="pl-4 space-y-0.5 mt-0.5">
         {group.restaurants.map((resto) => (
-          <RestaurantAccordion key={resto.restoId} resto={resto} />
+          <RestaurantAccordion key={resto.restoId} resto={resto} showPlatformColumn={showPlatformColumn} />
         ))}
       </CollapsibleContent>
     </Collapsible>
   );
 }
 
-function RestaurantAccordion({ resto }: { resto: MonthGroup["restaurants"][number] }) {
+function RestaurantAccordion({ resto, showPlatformColumn = true }: { resto: MonthGroup["restaurants"][number]; showPlatformColumn?: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -203,7 +204,7 @@ function RestaurantAccordion({ resto }: { resto: MonthGroup["restaurants"][numbe
               <TableHead className="h-8 text-xs">Date</TableHead>
               <TableHead className="h-8 text-xs">Description</TableHead>
               <TableHead className="h-8 text-xs text-right">Montant</TableHead>
-              <TableHead className="h-8 text-xs">Plateforme</TableHead>
+              {showPlatformColumn && <TableHead className="h-8 text-xs">Plateforme</TableHead>}
               <TableHead className="h-8 text-xs">Réf.</TableHead>
             </TableRow>
           </TableHeader>
@@ -215,11 +216,13 @@ function RestaurantAccordion({ resto }: { resto: MonthGroup["restaurants"][numbe
                 <TableCell className={cn("text-xs py-1.5 text-right font-medium", Number(line.amount) >= 0 ? "text-green-600" : "text-red-500")}>
                   {fmt(Number(line.amount))}
                 </TableCell>
-                <TableCell className="text-[10px] py-1.5">
-                  <Badge variant="outline" className={cn("text-[9px] h-4 px-1", line.platform === "deliveroo" ? "border-cyan-500 text-cyan-600" : "border-green-500 text-green-600")}>
-                    {line.platform === "deliveroo" ? "Deliveroo" : "Uber"}
-                  </Badge>
-                </TableCell>
+                {showPlatformColumn && (
+                  <TableCell className="text-[10px] py-1.5">
+                    <Badge variant="outline" className={cn("text-[9px] h-4 px-1", line.platform === "deliveroo" ? "border-cyan-500 text-cyan-600" : "border-green-500 text-green-600")}>
+                      {line.platform === "deliveroo" ? "Deliveroo" : "Uber"}
+                    </Badge>
+                  </TableCell>
+                )}
                 <TableCell className="text-[10px] py-1.5 text-muted-foreground font-mono">
                   {line.payout_reference_id ? line.payout_reference_id.slice(0, 12) + "…" : "-"}
                 </TableCell>
