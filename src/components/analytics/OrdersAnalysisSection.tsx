@@ -954,7 +954,7 @@ export function OrdersAnalysisSection({
                                   <TableCell className="font-mono text-xs">
                                     <div className="flex items-center gap-1.5">
                                       <span>#{order.uber_order_id?.slice(-8) || order.id.slice(0, 8)}</span>
-                                      {platform === "deliveroo" && order.has_offer && (
+                                      {order.has_offer && (
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
