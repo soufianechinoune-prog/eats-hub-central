@@ -331,10 +331,12 @@ export default function Analytics() {
     queryKey: ["analytics_deliveroo_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
     queryFn: async () => {
       const MEAL_VOUCHER_TYPES = ["Montant commande Edenred", "Montant commande Swile", "Montant commande Sodexo", "Montant commande Up", "Montant commande Bimpli"];
-      const REFUND_TYPES = ["Remboursement client", "Remboursement client refusé", "Facture précédente: Remboursement client"];
+      const REFUND_TYPES = ["Remboursement client"];
       const PROMO_TYPES = ["Partner funding from agreed voucher campaign", "Contribution marketing", "Bon de réduction à payer par le restaurant"];
-      const ORDER_TYPES = ["Livraison", "À emporter", "Nouvelle livraison", "Facture précédente: Livraison", "Montant de la repréparation de commande"];
+      const ORDER_TYPES = ["Livraison", "À emporter", "Nouvelle livraison", "Montant de la repréparation de commande"];
       const EXTRA_COMMISSION_TYPES = ["Commission Deliveroo sur repréparation de commande"];
+      const POSITIVE_ADJUSTMENT_TYPES = ["Remboursement client refusé"];
+      const PREVIOUS_INVOICE_TYPES = ["Facture précédente: Livraison", "Facture précédente: Remboursement client"];
 
       // Determine date range
       let queryStartDate: string;
@@ -444,6 +446,12 @@ export default function Analytics() {
           g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
           g.uber_fee_after_promo_excl_vat += Math.abs(Number(row.total_payable) || 0);
           g.net_payout += Number(row.total_payable) || 0;
+        } else if (POSITIVE_ADJUSTMENT_TYPES.includes(ht)) {
+          g.net_payout += Number(row.total_payable) || 0;
+          g.other_payments_incl_vat += Number(row.total_payable) || 0;
+        } else if (PREVIOUS_INVOICE_TYPES.includes(ht)) {
+          // Reports de facture précédente : ignorés pour le total semaine courante
+          return;
         } else {
           g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
           g.net_payout += Number(row.total_payable) || 0;
