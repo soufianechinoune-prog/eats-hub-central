@@ -444,8 +444,8 @@ export default function Analytics() {
           g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
           g.net_payout += Number(row.total_payable) || 0;
         } else if (EXTRA_COMMISSION_TYPES.includes(ht)) {
-          g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
-          g.uber_fee_after_promo_excl_vat += Math.abs(Number(row.total_payable) || 0);
+          // Frais supplémentaires (repréparation) : pas dans la commission contractuelle
+          g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
           g.net_payout += Number(row.total_payable) || 0;
         } else if (REPREPARATION_TYPES.includes(ht)) {
           // Repréparations: add to net_payout without counting as order or CA
