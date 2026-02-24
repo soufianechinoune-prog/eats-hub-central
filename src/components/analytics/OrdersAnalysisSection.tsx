@@ -472,7 +472,7 @@ export function OrdersAnalysisSection({
                               onClick={() => handleSort('promos')}
                             >
                               <div className="flex items-center justify-end">
-                                Promos
+                                {platform === "deliveroo" ? "Contrib. Mktg" : "Promos"}
                                 <SortIcon field="promos" />
                               </div>
                             </TableHead>
@@ -544,8 +544,8 @@ export function OrdersAnalysisSection({
                                 <TableCell className="text-right tabular-nums text-orange-600">
                                   {day.uber_fee_incl_vat > 0 ? `-${formatCurrency(day.uber_fee_incl_vat)}` : '-'}
                                 </TableCell>
-                                <TableCell className="text-right tabular-nums text-purple-600">
-                                  {day.promo_incl_vat > 0 ? `-${formatCurrency(day.promo_incl_vat)}` : '-'}
+                                <TableCell className={cn("text-right tabular-nums", platform === "deliveroo" ? "text-green-600" : "text-purple-600")}>
+                                  {day.promo_incl_vat > 0 ? `${platform === "deliveroo" ? "+" : "-"}${formatCurrency(day.promo_incl_vat)}` : '-'}
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums text-red-600">
                                   {day.refund_incl_vat > 0 ? `-${formatCurrency(day.refund_incl_vat)}` : '-'}
@@ -582,8 +582,8 @@ export function OrdersAnalysisSection({
                               <TableCell className="text-right tabular-nums text-orange-600">
                                 {dailyTotals.commission > 0 ? `-${formatCurrency(dailyTotals.commission)}` : '-'}
                               </TableCell>
-                              <TableCell className="text-right tabular-nums text-purple-600">
-                                {dailyTotals.promos > 0 ? `-${formatCurrency(dailyTotals.promos)}` : '-'}
+                              <TableCell className={cn("text-right tabular-nums", platform === "deliveroo" ? "text-green-600" : "text-purple-600")}>
+                                {dailyTotals.promos > 0 ? `${platform === "deliveroo" ? "+" : "-"}${formatCurrency(dailyTotals.promos)}` : '-'}
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-red-600">
                                 {dailyTotals.refunds > 0 ? `-${formatCurrency(dailyTotals.refunds)}` : '-'}
@@ -863,8 +863,8 @@ export function OrdersAnalysisSection({
                                 className="text-right cursor-pointer hover:bg-muted/50 select-none"
                                 onClick={() => handleOrderSort('promo')}
                               >
-                                <div className="flex items-center justify-end">
-                                  Promos
+                                 <div className="flex items-center justify-end">
+                                  {platform === "deliveroo" ? "Contrib. Mktg" : "Promos"}
                                   {renderOrderSortIcon('promo')}
                                 </div>
                               </TableHead>
@@ -944,8 +944,8 @@ export function OrdersAnalysisSection({
                                   <TableCell className="text-right tabular-nums text-orange-600">
                                     {order.uber_fee_incl_vat > 0 ? `-${formatCurrencyPrecise(order.uber_fee_incl_vat)}` : '-'}
                                   </TableCell>
-                                  <TableCell className="text-right tabular-nums text-purple-600">
-                                    {order.promo_incl_vat > 0 ? `-${formatCurrencyPrecise(order.promo_incl_vat)}` : '-'}
+                                  <TableCell className={cn("text-right tabular-nums", platform === "deliveroo" ? "text-green-600" : "text-purple-600")}>
+                                    {order.promo_incl_vat > 0 ? `${platform === "deliveroo" ? "+" : "-"}${formatCurrencyPrecise(order.promo_incl_vat)}` : '-'}
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums text-red-600">
                                     {order.refund_incl_vat > 0 ? `-${formatCurrencyPrecise(order.refund_incl_vat)}` : '-'}
