@@ -17,11 +17,15 @@ export function useEcoContribution({
   restaurantIds,
   year,
   month,
+  platform = "global",
 }: {
   restaurantIds?: string[];
   year: number | null;
   month?: number | null;
+  platform?: "uber_eats" | "deliveroo" | "global";
 }) {
+  const isUberEnabled = platform === "uber_eats" || platform === "global";
+  const isDeliverooEnabled = platform === "deliveroo" || platform === "global";
   // ── Uber Eats: payouts table ──
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
     queryKey: ["eco_contribution_payouts", restaurantIds, year, month],
@@ -64,6 +68,7 @@ export function useEcoContribution({
 
       return allData;
     },
+    enabled: isUberEnabled,
   });
 
   // ── Uber Eats: payout_adjustments detail lines ──
@@ -110,6 +115,7 @@ export function useEcoContribution({
 
       return allData;
     },
+    enabled: isUberEnabled,
   });
 
   // ── Deliveroo: deliveroo_orders with eco-contribution type ──
@@ -164,6 +170,7 @@ export function useEcoContribution({
 
       return allData;
     },
+    enabled: isDeliverooEnabled,
   });
 
   // Convert Deliveroo data to detail lines format

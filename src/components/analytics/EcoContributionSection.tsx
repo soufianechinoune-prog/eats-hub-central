@@ -26,6 +26,7 @@ interface EcoContributionSectionProps {
   selectedRestaurants: string[];
   selectedYear: number;
   selectedMonth?: number | null;
+  selectedPlatform?: "uber_eats" | "deliveroo" | "global";
 }
 
 export function EcoContributionSection({
@@ -33,6 +34,7 @@ export function EcoContributionSection({
   selectedRestaurants,
   selectedYear,
   selectedMonth,
+  selectedPlatform = "global",
 }: EcoContributionSectionProps) {
   const [activeTab, setActiveTab] = useState<"synthese" | "detail">("synthese");
   const [localYear, setLocalYear] = useState<number | null>(selectedYear);
@@ -47,7 +49,10 @@ export function EcoContributionSection({
     restaurantIds,
     year: localYear,
     month: selectedMonth,
+    platform: selectedPlatform,
   });
+
+  const isGlobal = selectedPlatform === "global";
 
   const restaurantMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -298,6 +303,7 @@ export function EcoContributionSection({
                         detailLines={detailLines.filter(l => l.restaurant_id === r.restaurant_id)}
                         fmt={fmt}
                         isHistorique={localYear === null}
+                        showPlatformDot={isGlobal}
                       />
                     ))}
                   </TableBody>
@@ -311,6 +317,7 @@ export function EcoContributionSection({
           <EcoContributionDetail
             detailLines={detailLines}
             restaurantMap={restaurantMap}
+            showPlatformColumn={isGlobal}
           />
         </TabsContent>
       </Tabs>
@@ -340,12 +347,14 @@ function RestaurantDrilldown({
   detailLines,
   fmt,
   isHistorique,
+  showPlatformDot = true,
 }: {
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
   name: string;
   detailLines: DetailLine[];
   fmt: (v: number) => string;
   isHistorique?: boolean;
+  showPlatformDot?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -402,7 +411,7 @@ function RestaurantDrilldown({
         <TableCell className="text-right text-sm text-muted-foreground">{detailLines.length}</TableCell>
       </TableRow>
       {open && monthlyBreakdown.map((mg) => (
-        <MonthDrilldownRow key={mg.month} monthGroup={mg} fmt={fmt} />
+        <MonthDrilldownRow key={mg.month} monthGroup={mg} fmt={fmt} showPlatformDot={showPlatformDot} />
       ))}
     </>
   );
@@ -411,9 +420,11 @@ function RestaurantDrilldown({
 function MonthDrilldownRow({
   monthGroup,
   fmt,
+  showPlatformDot = true,
 }: {
   monthGroup: { month: number; label: string; refund: number; charge: number; net: number; lines: DetailLine[] };
   fmt: (v: number) => string;
+  showPlatformDot?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("fr-FR") : "-";
@@ -440,7 +451,9 @@ function MonthDrilldownRow({
       {open && monthGroup.lines.map((line) => (
         <TableRow key={line.id} className="bg-muted/5">
           <TableCell className="text-xs pl-16 text-muted-foreground">
-            <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1.5", line.platform === "deliveroo" ? "bg-cyan-500" : "bg-green-500")} />
+            {showPlatformDot && (
+              <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1.5", line.platform === "deliveroo" ? "bg-cyan-500" : "bg-green-500")} />
+            )}
             {fmtDate(line.payout_date)} — {line.description || "-"}
           </TableCell>
           <TableCell />

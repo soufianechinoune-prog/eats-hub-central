@@ -1449,6 +1449,7 @@ export default function Analytics() {
                   selectedRestaurants={selectedRestaurants}
                   selectedYear={selectedYear}
                   selectedMonth={drillDownMonth}
+                  selectedPlatform={selectedPlatform}
                 />
               );
             } else if (viewMode === "reviews") {
