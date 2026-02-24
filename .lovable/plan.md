@@ -1,35 +1,44 @@
 
 
-# Distinguer visuellement les lignes Uber / Deliveroo dans l'éco-contribution
+# Détail Uber / Deliveroo par restaurant dans le Comparatif
 
-## Probleme
+## Concept
 
-Dans la vue Global, les lignes individuelles (drilldown "Par restaurant") affichent un minuscule point coloré (1.5px) pour indiquer la plateforme. C'est quasi invisible et non identifiable sans legende.
+Ajouter une flèche d'expansion sur chaque ligne du tableau. Au clic, deux sous-lignes apparaissent sous le restaurant : une ligne **Uber Eats** et une ligne **Deliveroo**, chacune avec un badge plateforme et ses propres métriques.
 
-De meme, dans la vue "Lignes individuelles" (onglet Detail), la colonne "Plateforme" avec les badges est correcte mais le drilldown du tableau "Par restaurant" (onglet Synthese) manque de clarte.
+## Données disponibles
 
-## Solution
-
-Remplacer le petit dot par un **badge texte compact** (similaire a ceux dans `EcoContributionDetail.tsx`) directement dans les lignes du drilldown "Par restaurant".
+Le hook `useNetworkStats` calcule déjà en interne les métriques par plateforme (variables `uberRevenue`, `deliverooRevenue`, `uberOrders`, `deliverooOrders`, `uberNetPayout`, `deliverooNetPayout`) mais ne les expose pas. Les métriques opérationnelles (note, erreurs, prépa+livr, inactivité) restent Uber-only car les sources Deliveroo ne fournissent pas ces données.
 
 ## Modifications
 
-### `src/components/analytics/EcoContributionSection.tsx` (lignes 452-456)
-
-Remplacer le dot de 1.5px par un badge textuel :
-
+### 1. `src/hooks/useNetworkStats.ts`
+- Ajouter à l'interface `RestaurantNetworkStats` un objet `platformBreakdown` :
+```typescript
+platformBreakdown: {
+  uber: { revenue: number; orders: number; avgBasket: number; netPayout: number; profitability: number | null };
+  deliveroo: { revenue: number; orders: number; avgBasket: number; netPayout: number; profitability: number | null };
+}
 ```
-// Avant
-<span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 bg-cyan-500/bg-green-500" />
+- Dans le `useMemo` de calcul (ligne ~353-492), construire cet objet à partir des variables déjà existantes (`uberRevenue`, `deliverooRevenue`, etc.) et l'inclure dans le return
 
-// Apres
-<Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-cyan-500 text-cyan-600">Deliveroo</Badge>
-// ou
-<Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-green-500 text-green-600">Uber</Badge>
+### 2. `src/components/overview/RestaurantComparisonTable.tsx`
+- Importer `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent` et `Badge` et l'icône `ChevronRight`
+- Ajouter un state `expandedRows: Set<string>` pour tracker quelles lignes sont ouvertes
+- Sur chaque `TableRow` de restaurant, ajouter une icône chevron dans la première colonne (à côté du numéro) qui toggle l'expansion
+- Sous chaque ligne principale, rendre conditionnellement 2 sous-lignes :
+  - **Ligne Uber** : badge vert "Uber Eats", CA Uber, Versement Uber, Rentab Uber, Cmds Uber, Panier Uber + les métriques opérationnelles (note, erreurs, etc.) car Uber-only
+  - **Ligne Deliveroo** : badge cyan "Deliveroo", CA Deliveroo, Versement Deliveroo, Rentab Deliveroo, Cmds Deliveroo, Panier Deliveroo + "—" pour les colonnes opérationnelles non disponibles
+- Style : fond légèrement plus clair (`bg-muted/10`), texte plus petit (`text-xs`), indentation via padding-left sur le nom
+- Le clic sur la ligne principale conserve la navigation vers le détail restaurant ; seul le clic sur le chevron toggle l'expansion (stopPropagation)
+
+### Résultat visuel
+
+```text
+#  RESTAURANT                    CA        VERSEMENT   RENTAB.  CMDS  ...
+▸ 1  Chicken Street - Argenteuil  19 304 €   12 685 €   65.7%   929   ...
+     [Uber Eats]                  14 200 €    9 100 €   64.1%   680   ...
+     [Deliveroo]                   5 104 €    3 585 €   70.2%   249   ...
+  2  Chicken Street - Reims       10 690 €    6 661 €   62.3%   459   ...
 ```
-
-Concretement, dans la `MonthDrilldownRow`, quand `showPlatformDot` est true, afficher un petit badge avec le nom de la plateforme au lieu du point invisible.
-
-### Fichiers a modifier
-- `src/components/analytics/EcoContributionSection.tsx` : remplacer le dot par un Badge dans `MonthDrilldownRow` (~ligne 454-456)
 
