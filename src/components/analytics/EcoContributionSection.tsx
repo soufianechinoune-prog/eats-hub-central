@@ -331,6 +331,7 @@ interface DetailLine {
   payout_date: string | null;
   description: string | null;
   amount: number;
+  platform?: "uber_eats" | "deliveroo";
 }
 
 function RestaurantDrilldown({
@@ -439,6 +440,7 @@ function MonthDrilldownRow({
       {open && monthGroup.lines.map((line) => (
         <TableRow key={line.id} className="bg-muted/5">
           <TableCell className="text-xs pl-16 text-muted-foreground">
+            <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1.5", line.platform === "deliveroo" ? "bg-cyan-500" : "bg-green-500")} />
             {fmtDate(line.payout_date)} — {line.description || "-"}
           </TableCell>
           <TableCell />

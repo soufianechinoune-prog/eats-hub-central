@@ -17,6 +17,7 @@ interface DetailLine {
   payout_date: string | null;
   description: string | null;
   amount: number;
+  platform?: "uber_eats" | "deliveroo";
 }
 
 interface EcoContributionDetailProps {
@@ -202,6 +203,7 @@ function RestaurantAccordion({ resto }: { resto: MonthGroup["restaurants"][numbe
               <TableHead className="h-8 text-xs">Date</TableHead>
               <TableHead className="h-8 text-xs">Description</TableHead>
               <TableHead className="h-8 text-xs text-right">Montant</TableHead>
+              <TableHead className="h-8 text-xs">Plateforme</TableHead>
               <TableHead className="h-8 text-xs">Réf.</TableHead>
             </TableRow>
           </TableHeader>
@@ -212,6 +214,11 @@ function RestaurantAccordion({ resto }: { resto: MonthGroup["restaurants"][numbe
                 <TableCell className="text-xs py-1.5 text-muted-foreground">{line.description || "-"}</TableCell>
                 <TableCell className={cn("text-xs py-1.5 text-right font-medium", Number(line.amount) >= 0 ? "text-green-600" : "text-red-500")}>
                   {fmt(Number(line.amount))}
+                </TableCell>
+                <TableCell className="text-[10px] py-1.5">
+                  <Badge variant="outline" className={cn("text-[9px] h-4 px-1", line.platform === "deliveroo" ? "border-cyan-500 text-cyan-600" : "border-green-500 text-green-600")}>
+                    {line.platform === "deliveroo" ? "Deliveroo" : "Uber"}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-[10px] py-1.5 text-muted-foreground font-mono">
                   {line.payout_reference_id ? line.payout_reference_id.slice(0, 12) + "…" : "-"}
