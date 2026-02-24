@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 
@@ -452,7 +453,9 @@ function MonthDrilldownRow({
         <TableRow key={line.id} className="bg-muted/5">
           <TableCell className="text-xs pl-16 text-muted-foreground">
             {showPlatformDot && (
-              <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1.5", line.platform === "deliveroo" ? "bg-cyan-500" : "bg-green-500")} />
+              line.platform === "deliveroo"
+                ? <Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-cyan-500 text-cyan-600 font-normal">Deliveroo</Badge>
+                : <Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-green-500 text-green-600 font-normal">Uber</Badge>
             )}
             {fmtDate(line.payout_date)} — {line.description || "-"}
           </TableCell>
