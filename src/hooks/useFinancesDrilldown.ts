@@ -213,7 +213,7 @@ async function fetchUberIndividualOrders(
 
   let query = supabase
     .from("orders")
-    .select(`id, uber_order_id, order_datetime, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount`)
+    .select(`id, uber_order_id, order_datetime, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount, promotion_discount`)
     .gte("order_datetime", `${startStr}T00:00:00`)
     .lte("order_datetime", `${endStr}T23:59:59`)
     .order(dbSortColumn, { ascending: isAscending })
@@ -869,8 +869,8 @@ export function useFinancesDrilldown({
         meal_voucher_amount: mealVoucherAmount,
         total_payout: totalPayout,
         profitability,
-        has_offer: (order as any).has_offer || false,
-        offer_note: (order as any).offer_note || "",
+        has_offer: (order as any).has_offer || Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 || Math.abs(Number((order as any).promotion_discount) || 0) > 0,
+        offer_note: (order as any).offer_note || (Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 ? `Promo article : ${Number(order.item_promo_incl_vat).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` : ""),
         deliveroo_funding: Number((order as any).deliveroo_funding) || 0,
       };
     });
