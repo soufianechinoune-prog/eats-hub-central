@@ -347,7 +347,8 @@ async function fetchDeliverooIndividualOrders(
     }
   });
 
-  let orders = Object.values(grouped);
+  // Filter out fake "#0" entries (non-order transactions like marketing fees, meal vouchers)
+  let orders = Object.values(grouped).filter(o => o.uber_order_id !== "0");
 
   // Filter by search
   if (searchQuery) {
