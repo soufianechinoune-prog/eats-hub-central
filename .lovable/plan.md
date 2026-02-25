@@ -1,32 +1,52 @@
 
 
-# Afficher les métriques opérationnelles Uber dans les sous-lignes
+# Barre animée de répartition CA Uber / Deliveroo
 
-## Problème
-Les sous-lignes Uber Eats affichent "—" pour Note, Erreurs, Prépa+Livr et Inactivité, alors que ces données existent déjà au niveau du restaurant (elles sont 100% Uber). Il suffit de les passer à la sous-ligne Uber.
+## Concept
 
-## Logique
-Les métriques opérationnelles (`rating`, `errorRate`, `prepTime`/`totalDeliveryTime`, `downtime`) sont exclusivement Uber Eats. La ligne parent les affiche déjà. Il faut simplement les transmettre à `PlatformSubRow` pour la ligne Uber, et garder "—" pour Deliveroo.
+Ajouter un composant visuel au-dessus du tableau "Comparatif des restaurants" montrant la répartition du chiffre d'affaires entre Uber Eats et Deliveroo sur l'ensemble du réseau. Une barre horizontale animée avec les deux segments colorés (vert Uber, cyan Deliveroo) qui se "remplissent" au chargement avec une animation fluide.
+
+## Design visuel
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  Répartition du CA réseau                                   │
+│                                                             │
+│  ██████████████████████████████░░░░░░░░░░░░░░  total: XX €  │
+│  ◄──── Uber Eats 65.1% ─────►◄─ Deliveroo 34.9% ─►        │
+│                                                             │
+│  [🟢 Uber Eats]  80 485 €    [🔵 Deliveroo]  24 408 €      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+- Barre horizontale avec coins arrondis
+- Segment gauche vert (Uber Eats) et segment droit cyan (Deliveroo)
+- Animation d'entrée : la barre se remplit de 0% à sa valeur réelle (via CSS transition ou framer-motion)
+- Les montants affichés avec le hook `useAnimatedCounter` pour un compteur animé
+- Pourcentages affichés dans chaque segment si suffisamment large
+- Légende en dessous avec badges plateforme + montants
+
+## Données
+
+Les données sont déjà disponibles : on agrège `stats[].platformBreakdown.uber.revenue` et `stats[].platformBreakdown.deliveroo.revenue` depuis le tableau `stats` retourné par `useNetworkStats`. Aucune requête supplémentaire nécessaire.
 
 ## Modifications
 
-### `src/components/overview/RestaurantComparisonTable.tsx`
+### 1. Nouveau composant `src/components/overview/PlatformRevenueSplit.tsx`
 
-1. **Étendre les props de `PlatformSubRow`** : ajouter des props optionnelles pour les métriques opérationnelles :
-   - `rating?: number | null`
-   - `errorRate?: number | null`
-   - `prepTime?: number | null` (totalDeliveryTime)
-   - `downtime?: number | null`
+- Props : `stats: RestaurantNetworkStats[]`, `isLoading: boolean`
+- Calcul : somme des `platformBreakdown.uber.revenue` et `platformBreakdown.deliveroo.revenue` sur tout le réseau
+- Barre horizontale animée avec `framer-motion` (motion.div avec animate width de 0 à X%)
+- Compteur animé pour les montants via `useAnimatedCounter`
+- Skeleton pendant le chargement
+- Style : Card avec la même charte graphique que le reste (border-border/50, backdrop-blur)
 
-2. **Dans le rendu des sous-lignes** (lignes 114-118) : si `isUber` et que les valeurs sont fournies, afficher les vraies valeurs avec le même formatage que la ligne parent (note avec ★, erreurs en %, temps en min, inactivité en h). Sinon garder "—".
+### 2. `src/pages/Overview.tsx` (~ligne 621)
 
-3. **Lors de l'appel** (lignes 340-345) : passer `rating={resto.rating}`, `errorRate={resto.errorRate}`, `prepTime={resto.totalDeliveryTime}`, `downtime={resto.downtime}` uniquement à la sous-ligne Uber.
+- Importer et placer `PlatformRevenueSplit` juste avant le `RestaurantComparisonTable`
+- Passer `stats={comparisonStats}` et `isLoading={statsLoading}`
 
-### Résultat visuel
-
-```text
-▸ 1  Chicken Street   104 893 €  64 178 €  61.2%  4 550  23.05 €  ★ —  0.0%  16min  —
-      [Uber Eats]       80 485 €  46 800 €  58.1%  3 383  23.79 €  ★ —  0.0%  16min  —
-      [Deliveroo]       24 408 €  17 378 €  71.2%  1 167  20.92 €   —    —     —     —
-```
+### Fichiers
+- **Créer** : `src/components/overview/PlatformRevenueSplit.tsx`
+- **Modifier** : `src/pages/Overview.tsx` (2 lignes : import + placement)
 
