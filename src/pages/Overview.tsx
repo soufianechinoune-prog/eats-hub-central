@@ -19,6 +19,7 @@ import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/ov
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
+import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 
 const OVERVIEW_STORAGE_KEY = "overview-state";
 
@@ -618,8 +619,13 @@ const Overview = () => {
             </Card>
           </div>
 
-          {/* Comprehensive Restaurant Comparison Table */}
+          {/* Platform Revenue Split */}
           <div className="mt-10">
+            <PlatformRevenueSplit stats={comparisonStats} isLoading={statsLoading} />
+          </div>
+
+          {/* Comprehensive Restaurant Comparison Table */}
+          <div className="mt-6">
             <RestaurantComparisonTable
               stats={comparisonStats}
               networkTotals={networkTotals}
