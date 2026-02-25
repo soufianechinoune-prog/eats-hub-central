@@ -113,6 +113,17 @@ export function OperationsAnalytics() {
                        periodMode === "current_month" || 
                        periodMode === "range";
 
+  // Auto-drill into hourly view when period is a single day
+  useEffect(() => {
+    const start = format(dateRange.start, "yyyy-MM-dd");
+    const end = format(dateRange.end, "yyyy-MM-dd");
+    if (start === end && useDailyView) {
+      setSelectedDay(start);
+    } else if (selectedDay && start !== end) {
+      setSelectedDay(null);
+    }
+  }, [dateRange.start, dateRange.end, useDailyView]);
+
   const platformFilter = (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") ? selectedPlatform : null;
 
   // Fetch restaurants for names and pinned status (must be before queries that use restaurantIdsFilter)
