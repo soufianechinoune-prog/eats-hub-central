@@ -1,47 +1,47 @@
 
 
-# Bug : sélection du 22 affiche aussi le 23
+# Skip daily chart when a single day is selected
 
-## Diagnostic
+## Problem
 
-Le problème vient d'un décalage timezone dans les fonctions SQL d'availability.
+When a single day is selected (via custom range or period selector), two issues occur:
+1. **UI**: The daily chart shows one massive bar taking the full width, which is useless. The user then has to click it again to see the hourly breakdown.
+2. **PDF**: The "Disponibilite journaliere" section renders one enormous bar for that single day, wasting space.
 
-**WHERE clause** : filtre sur `hour_start` en UTC brut
-```sql
-WHERE h.hour_start >= '2026-02-22'::timestamp   -- UTC
-  AND h.hour_start < '2026-02-23'::timestamp     -- UTC
+The fix is to detect single-day periods and bypass the daily view entirely.
+
+## Changes
+
+### 1. `src/components/analytics/OperationsAnalytics.tsx`
+
+**Auto-detect single-day period and set `selectedDay` automatically.**
+
+After `dateRange` is computed (~line 106), add an `useEffect` that checks if `startDate` and `endDate` are the same calendar day. If so, automatically set `selectedDay` to that date string. This skips the daily bar chart and jumps directly to the hourly drill-down view.
+
+When the period changes back to a multi-day range, `selectedDay` is cleared.
+
+```typescript
+// Auto-drill into hourly view when period is a single day
+useEffect(() => {
+  const start = format(dateRange.start, "yyyy-MM-dd");
+  const end = format(dateRange.end, "yyyy-MM-dd");
+  if (start === end && useDailyView) {
+    setSelectedDay(start);
+  } else if (selectedDay && start !== end) {
+    setSelectedDay(null);
+  }
+}, [dateRange.start, dateRange.end, useDailyView]);
 ```
 
-**GROUP BY** : agrège par jour en timezone Paris
-```sql
-GROUP BY (h.hour_start AT TIME ZONE 'Europe/Paris')::date
-```
+### 2. `src/hooks/useReportPdfExport.ts`
 
-Conséquence : un enregistrement à `2026-02-22T23:00:00 UTC` est inclus par le WHERE (c'est bien le 22 en UTC), mais converti en `2026-02-23T00:00:00 Paris` dans le GROUP BY. Il apparait donc comme une barre "23" dans le graphique.
+**Skip the daily bar chart in PDF when there is only 1 day.**
 
-Ce même problème affecte les 4 fonctions RPC d'availability : `get_availability_daily`, `get_availability_by_restaurant`, `get_availability_heatmap`, et `get_availability_monthly`.
+Around line 358 ("DAILY BAR CHART"), wrap the daily bar chart rendering in a condition: only draw it if `sortedDays.length > 1`. When it is a single day, skip directly to the hourly detail section which already handles the breakdown.
 
-## Correction
+Also adjust the hourly section (line 396): remove the `sortedDays.length <= 14` guard for single-day exports so the hourly chart always renders, and show the hourly chart for all hours (not just days with issues) when it is a single day.
 
-Aligner le WHERE sur la timezone Paris pour que le filtrage et le regroupement soient cohérents. Modifier les 4 fonctions RPC :
-
-```sql
--- Avant (UTC brut)
-WHERE h.hour_start >= p_start_date::timestamp
-  AND h.hour_start < (p_end_date + interval '1 day')::timestamp
-
--- Après (timezone-aware)
-WHERE (h.hour_start AT TIME ZONE 'Europe/Paris')::date >= p_start_date
-  AND (h.hour_start AT TIME ZONE 'Europe/Paris')::date <= p_end_date
-```
-
-Cela garantit que les enregistrements sont filtrés selon le même jour calendaire Paris que celui utilisé pour le regroupement. Un enregistrement à 23h UTC le 22 (= minuit le 23 à Paris) sera correctement exclu quand on sélectionne uniquement le 22.
-
-### Fichier modifié
-- **Migration SQL** : nouvelle migration pour recréer les 4 fonctions avec le WHERE corrigé
-
-### Impact
-- Aucun changement côté frontend
-- Les données filtrées et agrégées seront cohérentes quelle que soit l'heure de la journée
-- Légère différence de performance SQL (utilisation de AT TIME ZONE dans le WHERE) mais négligeable sur ce volume de données
+### Files modified
+- `src/components/analytics/OperationsAnalytics.tsx` (add useEffect for single-day auto-drill)
+- `src/hooks/useReportPdfExport.ts` (skip daily chart when 1 day, always show hourly detail)
 
