@@ -71,13 +71,26 @@ function PlatformSubRow({
   data,
   showN1Comparison,
   isUber,
+  rating,
+  errorRate,
+  prepTime,
+  downtime,
 }: {
   platform: string;
   data: PlatformBreakdown;
   showN1Comparison: boolean;
   isUber: boolean;
+  rating?: number | null;
+  errorRate?: number | null;
+  prepTime?: number | null;
+  downtime?: number | null;
 }) {
   if (data.orders === 0 && data.revenue === 0) return null;
+
+  const ratingStatus = isUber ? getMetricStatus("rating", rating) : "warning";
+  const errorStatus = isUber ? getMetricStatus("errorRate", errorRate) : "warning";
+  const totalDeliveryStatus = isUber ? getMetricStatus("totalDeliveryTime", prepTime) : "warning";
+  const downtimeStatus = isUber ? getMetricStatus("downtime", downtime) : "warning";
 
   return (
     <TableRow className="bg-muted/10 hover:bg-muted/20 border-border/20">
@@ -111,11 +124,28 @@ function PlatformSubRow({
       <TableCell className="text-right text-xs whitespace-nowrap">
         {data.avgBasket.toFixed(2)} €
       </TableCell>
-      {/* Operational metrics: only available for Uber */}
-      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs">
+        {isUber && rating != null ? (
+          <span className={cn("flex items-center justify-end gap-1", getStatusTextClass(ratingStatus))}>
+            <Star className="h-3 w-3" />{rating.toFixed(1)}
+          </span>
+        ) : <span className="text-muted-foreground">—</span>}
+      </TableCell>
+      <TableCell className="text-right text-xs">
+        {isUber && errorRate != null ? (
+          <span className={getStatusTextClass(errorStatus)}>{errorRate.toFixed(1)}%</span>
+        ) : <span className="text-muted-foreground">—</span>}
+      </TableCell>
+      <TableCell className="text-right text-xs">
+        {isUber && prepTime != null ? (
+          <span className={cn("whitespace-nowrap", getStatusTextClass(totalDeliveryStatus))}>{formatMinutesLong(prepTime)}</span>
+        ) : <span className="text-muted-foreground">—</span>}
+      </TableCell>
+      <TableCell className="text-right text-xs">
+        {isUber && downtime != null ? (
+          <span className={cn("whitespace-nowrap", getStatusTextClass(downtimeStatus))}>{formatHours(downtime)}</span>
+        ) : <span className="text-muted-foreground">—</span>}
+      </TableCell>
     </TableRow>
   );
 }
@@ -342,6 +372,10 @@ export function RestaurantComparisonTable({
                         data={resto.platformBreakdown.uber}
                         showN1Comparison={showN1Comparison}
                         isUber={true}
+                        rating={resto.rating}
+                        errorRate={resto.errorRate}
+                        prepTime={resto.totalDeliveryTime}
+                        downtime={resto.downtime}
                       />
                       <PlatformSubRow
                         platform="Deliveroo"
