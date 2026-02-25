@@ -1,44 +1,32 @@
 
 
-# Détail Uber / Deliveroo par restaurant dans le Comparatif
+# Afficher les métriques opérationnelles Uber dans les sous-lignes
 
-## Concept
+## Problème
+Les sous-lignes Uber Eats affichent "—" pour Note, Erreurs, Prépa+Livr et Inactivité, alors que ces données existent déjà au niveau du restaurant (elles sont 100% Uber). Il suffit de les passer à la sous-ligne Uber.
 
-Ajouter une flèche d'expansion sur chaque ligne du tableau. Au clic, deux sous-lignes apparaissent sous le restaurant : une ligne **Uber Eats** et une ligne **Deliveroo**, chacune avec un badge plateforme et ses propres métriques.
-
-## Données disponibles
-
-Le hook `useNetworkStats` calcule déjà en interne les métriques par plateforme (variables `uberRevenue`, `deliverooRevenue`, `uberOrders`, `deliverooOrders`, `uberNetPayout`, `deliverooNetPayout`) mais ne les expose pas. Les métriques opérationnelles (note, erreurs, prépa+livr, inactivité) restent Uber-only car les sources Deliveroo ne fournissent pas ces données.
+## Logique
+Les métriques opérationnelles (`rating`, `errorRate`, `prepTime`/`totalDeliveryTime`, `downtime`) sont exclusivement Uber Eats. La ligne parent les affiche déjà. Il faut simplement les transmettre à `PlatformSubRow` pour la ligne Uber, et garder "—" pour Deliveroo.
 
 ## Modifications
 
-### 1. `src/hooks/useNetworkStats.ts`
-- Ajouter à l'interface `RestaurantNetworkStats` un objet `platformBreakdown` :
-```typescript
-platformBreakdown: {
-  uber: { revenue: number; orders: number; avgBasket: number; netPayout: number; profitability: number | null };
-  deliveroo: { revenue: number; orders: number; avgBasket: number; netPayout: number; profitability: number | null };
-}
-```
-- Dans le `useMemo` de calcul (ligne ~353-492), construire cet objet à partir des variables déjà existantes (`uberRevenue`, `deliverooRevenue`, etc.) et l'inclure dans le return
+### `src/components/overview/RestaurantComparisonTable.tsx`
 
-### 2. `src/components/overview/RestaurantComparisonTable.tsx`
-- Importer `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent` et `Badge` et l'icône `ChevronRight`
-- Ajouter un state `expandedRows: Set<string>` pour tracker quelles lignes sont ouvertes
-- Sur chaque `TableRow` de restaurant, ajouter une icône chevron dans la première colonne (à côté du numéro) qui toggle l'expansion
-- Sous chaque ligne principale, rendre conditionnellement 2 sous-lignes :
-  - **Ligne Uber** : badge vert "Uber Eats", CA Uber, Versement Uber, Rentab Uber, Cmds Uber, Panier Uber + les métriques opérationnelles (note, erreurs, etc.) car Uber-only
-  - **Ligne Deliveroo** : badge cyan "Deliveroo", CA Deliveroo, Versement Deliveroo, Rentab Deliveroo, Cmds Deliveroo, Panier Deliveroo + "—" pour les colonnes opérationnelles non disponibles
-- Style : fond légèrement plus clair (`bg-muted/10`), texte plus petit (`text-xs`), indentation via padding-left sur le nom
-- Le clic sur la ligne principale conserve la navigation vers le détail restaurant ; seul le clic sur le chevron toggle l'expansion (stopPropagation)
+1. **Étendre les props de `PlatformSubRow`** : ajouter des props optionnelles pour les métriques opérationnelles :
+   - `rating?: number | null`
+   - `errorRate?: number | null`
+   - `prepTime?: number | null` (totalDeliveryTime)
+   - `downtime?: number | null`
+
+2. **Dans le rendu des sous-lignes** (lignes 114-118) : si `isUber` et que les valeurs sont fournies, afficher les vraies valeurs avec le même formatage que la ligne parent (note avec ★, erreurs en %, temps en min, inactivité en h). Sinon garder "—".
+
+3. **Lors de l'appel** (lignes 340-345) : passer `rating={resto.rating}`, `errorRate={resto.errorRate}`, `prepTime={resto.totalDeliveryTime}`, `downtime={resto.downtime}` uniquement à la sous-ligne Uber.
 
 ### Résultat visuel
 
 ```text
-#  RESTAURANT                    CA        VERSEMENT   RENTAB.  CMDS  ...
-▸ 1  Chicken Street - Argenteuil  19 304 €   12 685 €   65.7%   929   ...
-     [Uber Eats]                  14 200 €    9 100 €   64.1%   680   ...
-     [Deliveroo]                   5 104 €    3 585 €   70.2%   249   ...
-  2  Chicken Street - Reims       10 690 €    6 661 €   62.3%   459   ...
+▸ 1  Chicken Street   104 893 €  64 178 €  61.2%  4 550  23.05 €  ★ —  0.0%  16min  —
+      [Uber Eats]       80 485 €  46 800 €  58.1%  3 383  23.79 €  ★ —  0.0%  16min  —
+      [Deliveroo]       24 408 €  17 378 €  71.2%  1 167  20.92 €   —    —     —     —
 ```
 
