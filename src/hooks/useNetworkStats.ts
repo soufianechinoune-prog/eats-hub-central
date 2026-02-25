@@ -345,8 +345,8 @@ export function useNetworkStats({
       const { data, error } = await supabase
         .from("hourly_availability")
         .select("restaurant_id, offline_minutes")
-        .gte("hour_start", startDate.toISOString())
-        .lte("hour_start", endDate.toISOString())
+        .gte("hour_start", `${startDateStr}T00:00:00`)
+        .lte("hour_start", `${endDateStr}T23:59:59`)
         .in("restaurant_id", restaurantIds)
         .range(0, 50000);
       if (error) throw error;
