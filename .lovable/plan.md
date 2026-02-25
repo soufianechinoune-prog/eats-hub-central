@@ -1,53 +1,58 @@
 
 
-# Corriger les graphiques Promotions et Analyse Croisée pour Deliveroo et Global
+# Afficher l'historique des UUID Uber Eats sur la fiche restaurant
 
-## Problèmes identifiés
+## Contexte
 
-### Problème 1 : Promotions et Analyse Croisée toujours en mode Uber
+La table `restaurant_uber_ids` stocke deja les UUID multiples par restaurant, avec un flag `is_primary`, un `label` (ex: "ancien compte (ferme 2025-06-11)") et un `created_at`. Certains restaurants ont change de societe/UUID, et il est utile de voir cette information directement sur la fiche pour analyser l'impact sur l'algorithme.
 
-Les graphiques "Évolution des Promotions" et "Analyse Croisée CA / Promos / Rentabilité" utilisent les données de `useFinancesDrilldown` (ligne 612 de `AnalyticsCharts.tsx`). Ce hook est appelé **sans le prop `platform`**, ce qui fait qu'il utilise la valeur par défaut `"uber_eats"`. Résultat : même en sélectionnant Deliveroo ou Global, ces deux graphiques affichent toujours les données Uber.
+## Modification
 
-### Problème 2 : Vue Global fonctionne pour les graphiques principaux
+### Fichier : `src/pages/RestaurantDetail.tsx`
 
-La vue Global pour CA, Commandes et Panier Moyen fonctionne correctement car `globalRevenueData` combine bien `uberRevenueData` et `deliverooRevenueData` (lignes 1207-1209 de `Analytics.tsx`). Ce n'est pas un bug.
-
-## Correction
-
-### Fichier : `src/components/analytics/AnalyticsCharts.tsx`
-
-**Passer `platform: selectedPlatform` au hook `useFinancesDrilldown`** (lignes 612 et 621)
+**A. Ajouter une query pour fetcher les UUID historiques**
 
 ```typescript
-// Ligne 612 — données période courante
-const { dailyData: revenueProfitabilityData, isLoading: isProfitabilityLoading } = useFinancesDrilldown({
-  restaurantIds,
-  startDate: profitStartDate,
-  endDate: profitEndDate,
-  granularity: 'daily',
-  enabled: viewMode === 'revenue' && restaurantIds.length > 0,
-  platform: selectedPlatform,  // ← AJOUT
-});
-
-// Ligne 621 — données N-1
-const { dailyData: revenueProfitabilityPrevData, isLoading: isProfitabilityPrevLoading } = useFinancesDrilldown({
-  restaurantIds,
-  startDate: profitPrevStartDate,
-  endDate: profitPrevEndDate,
-  granularity: 'daily',
-  enabled: viewMode === 'revenue' && restaurantIds.length > 0,
-  platform: selectedPlatform,  // ← AJOUT
+const { data: uberIds = [] } = useQuery({
+  queryKey: ["restaurant-uber-ids", id],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("restaurant_uber_ids")
+      .select("*")
+      .eq("restaurant_id", id)
+      .order("is_primary", { ascending: false })
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!id,
 });
 ```
 
-Le hook `useFinancesDrilldown` supporte déjà les trois valeurs (`"uber_eats"`, `"deliveroo"`, `"global"`) — il fetch les données de la bonne source selon la plateforme (lignes 484-494 du hook). Aucune modification du hook nécessaire.
+**B. Modifier la section "Connexions API" (lignes 574-630)**
 
-### Résultat
+Sous le bloc Uber Eats existant (qui affiche le Store ID principal), ajouter la liste des UUID historiques issus de `restaurant_uber_ids` :
 
-- Onglet **Deliveroo** : les graphiques Promotions et Analyse Croisée afficheront les contributions marketing Deliveroo
-- Onglet **Global** : ces graphiques combineront les données Uber + Deliveroo
-- Onglet **Uber Eats** : comportement inchangé
+- Afficher chaque UUID avec son label et sa date `created_at`
+- Le primaire est marque avec un badge "Actuel" (vert)
+- Les secondaires avec un badge "Ancien" (gris) et leur label descriptif
+- Format : UUID tronque + label + date d'ajout
 
-### Fichier modifié
-- `src/components/analytics/AnalyticsCharts.tsx` (2 lignes ajoutées)
+```text
+Connexions API
+┌─────────────────────────────────────────────┐
+│ Uber Eats                         Validé    │
+│ Store ID: abc123-...                        │
+│                                             │
+│ Historique des UUID :                       │
+│ ● abc123-def4... [Actuel]   depuis 2024-06  │
+│ ○ xyz789-ghi0... [Ancien]   ferme 2025-06   │
+│   "ancien compte (fermé 2025-06-11)"        │
+└─────────────────────────────────────────────┘
+```
+
+Cela permet de voir d'un coup d'oeil si un restaurant a eu un changement d'UUID et quand, pour correler avec d'eventuels impacts sur les performances algorithmiques.
+
+### Fichier modifie
+- `src/pages/RestaurantDetail.tsx` (~30 lignes ajoutees)
 
