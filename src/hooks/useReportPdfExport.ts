@@ -355,7 +355,7 @@ export function useReportPdfExport() {
 
         y += kpiCardHeight + 12;
 
-        // ===== DAILY BAR CHART (always displayed) =====
+        // ===== DAILY BAR CHART (skip when single day) =====
         // Generate all days in the period, even if no data
         const allPeriodDays: string[] = [];
         {
@@ -369,48 +369,53 @@ export function useReportPdfExport() {
         }
 
         const sortedDays = allPeriodDays.length > 0 ? allPeriodDays : Object.keys(dailyMap).sort();
+        const isSingleDay = sortedDays.length <= 1;
 
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
-        doc.text("Disponibilite journaliere", margin, y);
-        y += 6;
+        if (!isSingleDay) {
+          doc.setTextColor(0, 0, 0);
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.text("Disponibilite journaliere", margin, y);
+          y += 6;
 
-        const chartWidth = contentW;
-        const maxBarHeight = sortedDays.length > 14 ? 35 : 45;
-        const labels = sortedDays.map(d => {
-          const dayName = format(parseISO(d), "EEE", { locale: fr });
-          return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${format(parseISO(d), "dd/MM")}`;
-        });
-        const values = sortedDays.map(d => {
-          const dayData = dailyMap[d];
-          if (!dayData) return 100; // No data = 100% available
-          const total = dayData.online + dayData.offline;
-          return total > 0 ? (dayData.online / total) * 100 : 100;
-        });
-
-        y = drawBarChart(doc, margin, y, chartWidth, maxBarHeight, labels, values);
-        y += 8;
-
-        // ===== HOURLY BAR CHARTS PER DAY (only for days with <100% availability) =====
-        if (rows.length > 0 && sortedDays.length <= 14) {
-          // Check if a day has any offline time
-          const daysWithIssues = sortedDays.filter(dateStr => {
-            const hourlyForDay = hourlyByDay[dateStr];
-            if (!hourlyForDay) return false;
-            return Object.values(hourlyForDay).some(hd => hd.offline > 0);
+          const chartWidth = contentW;
+          const maxBarHeight = sortedDays.length > 14 ? 35 : 45;
+          const labels = sortedDays.map(d => {
+            const dayName = format(parseISO(d), "EEE", { locale: fr });
+            return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${format(parseISO(d), "dd/MM")}`;
+          });
+          const values = sortedDays.map(d => {
+            const dayData = dailyMap[d];
+            if (!dayData) return 100;
+            const total = dayData.online + dayData.offline;
+            return total > 0 ? (dayData.online / total) * 100 : 100;
           });
 
-          if (daysWithIssues.length === 0) {
-            // All days are 100% — show a simple confirmation message
+          y = drawBarChart(doc, margin, y, chartWidth, maxBarHeight, labels, values);
+          y += 8;
+        }
+
+        // ===== HOURLY BAR CHARTS PER DAY =====
+        const chartWidth = contentW;
+        if (rows.length > 0 && (isSingleDay || sortedDays.length <= 14)) {
+          // For single day: show all hours; for multi-day: only days with issues
+          const daysToShow = isSingleDay
+            ? sortedDays
+            : sortedDays.filter(dateStr => {
+                const hourlyForDay = hourlyByDay[dateStr];
+                if (!hourlyForDay) return false;
+                return Object.values(hourlyForDay).some(hd => hd.offline > 0);
+              });
+
+          if (daysToShow.length === 0) {
             doc.setTextColor(16, 185, 129);
             doc.setFontSize(10);
             doc.setFont("helvetica", "bold");
             doc.text("✓  Tous les jours de la periode ont un taux de disponibilite de 100%.", margin, y);
             y += 8;
           } else {
-            for (const dateStr of daysWithIssues) {
-              const hourlyForDay = hourlyByDay[dateStr]!;
+            for (const dateStr of daysToShow) {
+              const hourlyForDay = hourlyByDay[dateStr] || {};
 
               const neededHeight = 50;
               if (y + neededHeight > ph - 15) {
