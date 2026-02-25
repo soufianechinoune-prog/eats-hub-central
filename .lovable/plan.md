@@ -1,47 +1,41 @@
 
 
-# Skip daily chart when a single day is selected
+# Bug : l'Overview affiche 12min d'inactivité au lieu de 6h14 pour Villeurbanne
 
-## Problem
+## Diagnostic
 
-When a single day is selected (via custom range or period selector), two issues occur:
-1. **UI**: The daily chart shows one massive bar taking the full width, which is useless. The user then has to click it again to see the hourly breakdown.
-2. **PDF**: The "Disponibilite journaliere" section renders one enormous bar for that single day, wasting space.
+Le problème est dans `useNetworkStats.ts`, lignes 348-349. La requête d'availability utilise `startDate.toISOString()` et `endDate.toISOString()` (timestamps UTC complets) au lieu des chaînes de date `startDateStr`/`endDateStr` utilisées par toutes les autres requêtes du hook.
 
-The fix is to detect single-day periods and bypass the daily view entirely.
+Pour le 22/02/2026 en timezone Paris (UTC+1) :
+- `startDate.toISOString()` = `"2026-02-21T23:00:00.000Z"`
+- `endDate.toISOString()` = `"2026-02-21T23:00:00.000Z"`
 
-## Changes
+La requête filtre donc `hour_start >= 2026-02-21T23:00:00Z AND hour_start <= 2026-02-21T23:00:00Z`, ce qui ne retourne que les enregistrements d'un SEUL créneau horaire (minuit heure Paris). Seuls 12 minutes d'offline apparaissent dans ce créneau, au lieu des 6h14 de la journée entière.
 
-### 1. `src/components/analytics/OperationsAnalytics.tsx`
+La page DowntimeComparison, elle, utilise `format(dateRange.start, "yyyy-MM-dd")` qui produit `"2026-02-22"` et couvre toute la journée correctement.
 
-**Auto-detect single-day period and set `selectedDay` automatically.**
+## Correction
 
-After `dateRange` is computed (~line 106), add an `useEffect` that checks if `startDate` and `endDate` are the same calendar day. If so, automatically set `selectedDay` to that date string. This skips the daily bar chart and jumps directly to the hourly drill-down view.
+### `src/hooks/useNetworkStats.ts`
 
-When the period changes back to a multi-day range, `selectedDay` is cleared.
+Remplacer les lignes 348-349 pour utiliser `startDateStr` et `endDateStr` (date-only strings) avec des bornes de journée complètes, comme le font les autres requêtes du hook :
 
 ```typescript
-// Auto-drill into hourly view when period is a single day
-useEffect(() => {
-  const start = format(dateRange.start, "yyyy-MM-dd");
-  const end = format(dateRange.end, "yyyy-MM-dd");
-  if (start === end && useDailyView) {
-    setSelectedDay(start);
-  } else if (selectedDay && start !== end) {
-    setSelectedDay(null);
-  }
-}, [dateRange.start, dateRange.end, useDailyView]);
+// Avant (lignes 348-349)
+.gte("hour_start", startDate.toISOString())
+.lte("hour_start", endDate.toISOString())
+
+// Après
+.gte("hour_start", `${startDateStr}T00:00:00`)
+.lte("hour_start", `${endDateStr}T23:59:59`)
 ```
 
-### 2. `src/hooks/useReportPdfExport.ts`
+Cela couvre toute la journée en UTC, ce qui est cohérent avec le comportement attendu et les autres requêtes du même hook.
 
-**Skip the daily bar chart in PDF when there is only 1 day.**
+### Fichier modifié
+- `src/hooks/useNetworkStats.ts` (2 lignes)
 
-Around line 358 ("DAILY BAR CHART"), wrap the daily bar chart rendering in a condition: only draw it if `sortedDays.length > 1`. When it is a single day, skip directly to the hourly detail section which already handles the breakdown.
-
-Also adjust the hourly section (line 396): remove the `sortedDays.length <= 14` guard for single-day exports so the hourly chart always renders, and show the hourly chart for all hours (not just days with issues) when it is a single day.
-
-### Files modified
-- `src/components/analytics/OperationsAnalytics.tsx` (add useEffect for single-day auto-drill)
-- `src/hooks/useReportPdfExport.ts` (skip daily chart when 1 day, always show hourly detail)
+### Impact
+- Les KPI d'inactivité de l'Overview et du tableau comparatif afficheront les valeurs correctes pour toutes les périodes
+- Aucun changement sur les autres métriques (elles utilisent déjà `startDateStr`/`endDateStr`)
 
