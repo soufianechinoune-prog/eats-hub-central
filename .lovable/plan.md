@@ -1,40 +1,47 @@
 
 
-# Bug : le toggle Epinglés/Réseau ne met pas a jour la data
+# Bug : sélection du 22 affiche aussi le 23
 
 ## Diagnostic
 
-Le problème est clair dans `Overview.tsx` :
+Le problème vient d'un décalage timezone dans les fonctions SQL d'availability.
 
-1. **`useOverviewData`** (ligne 328) : ce hook fetche toujours TOUS les restaurants actifs en interne (ligne 391 de `useOverviewData.ts`). Il ne reçoit aucun paramètre lié à `isNetworkView`. Les KPI cards (Global, Uber Eats, Deliveroo) affichent donc toujours la data de tout le réseau, que le toggle soit sur Épinglés ou Réseau.
-
-2. **`useNetworkStats`** (ligne 338) : ce hook reçoit toujours `pinnedIds` (ligne 339), jamais les IDs de tout le réseau. Le tableau "Comparatif" et la barre de répartition CA affichent donc toujours les restaurants épinglés, même quand on switche sur Réseau.
-
-3. **`isNetworkView`** est bien géré en state et persisté dans localStorage, mais il n'est jamais utilisé pour conditionner les données affichées.
-
-## Corrections
-
-### `src/pages/Overview.tsx`
-
-1. **Calculer les IDs selon le toggle** : créer un `useMemo` qui retourne soit `pinnedIds` soit tous les IDs actifs selon `isNetworkView` :
-```typescript
-const activeIds = useMemo(
-  () => isNetworkView 
-    ? (allActiveRestaurants?.map(r => r.id) || [])
-    : pinnedIds,
-  [isNetworkView, allActiveRestaurants, pinnedIds]
-);
+**WHERE clause** : filtre sur `hour_start` en UTC brut
+```sql
+WHERE h.hour_start >= '2026-02-22'::timestamp   -- UTC
+  AND h.hour_start < '2026-02-23'::timestamp     -- UTC
 ```
 
-2. **Passer `activeIds` a `useNetworkStats`** (ligne 339) : remplacer `restaurantIds: pinnedIds` par `restaurantIds: activeIds` pour que le tableau comparatif et la barre de répartition reflètent le bon scope.
+**GROUP BY** : agrège par jour en timezone Paris
+```sql
+GROUP BY (h.hour_start AT TIME ZONE 'Europe/Paris')::date
+```
 
-3. **Passer `activeIds` a `useOverviewData`** : ajouter un paramètre `restaurantIds` au hook pour filtrer les données des KPI cards selon le toggle.
+Conséquence : un enregistrement à `2026-02-22T23:00:00 UTC` est inclus par le WHERE (c'est bien le 22 en UTC), mais converti en `2026-02-23T00:00:00 Paris` dans le GROUP BY. Il apparait donc comme une barre "23" dans le graphique.
 
-### `src/hooks/useOverviewData.ts`
+Ce même problème affecte les 4 fonctions RPC d'availability : `get_availability_daily`, `get_availability_by_restaurant`, `get_availability_heatmap`, et `get_availability_monthly`.
 
-4. **Accepter un paramètre `filterRestaurantIds`** optionnel dans la signature de `useOverviewData`. Si fourni, utiliser ces IDs au lieu de tous les IDs actifs pour les sous-requêtes (sales, reviews, etc.). Cela permet aux 3 cards (Global, Uber, Deliveroo) de refléter le bon périmètre.
+## Correction
 
-### Fichiers modifiés
-- `src/pages/Overview.tsx` (ajouter `activeIds`, les passer aux 2 hooks)
-- `src/hooks/useOverviewData.ts` (accepter et utiliser `filterRestaurantIds`)
+Aligner le WHERE sur la timezone Paris pour que le filtrage et le regroupement soient cohérents. Modifier les 4 fonctions RPC :
+
+```sql
+-- Avant (UTC brut)
+WHERE h.hour_start >= p_start_date::timestamp
+  AND h.hour_start < (p_end_date + interval '1 day')::timestamp
+
+-- Après (timezone-aware)
+WHERE (h.hour_start AT TIME ZONE 'Europe/Paris')::date >= p_start_date
+  AND (h.hour_start AT TIME ZONE 'Europe/Paris')::date <= p_end_date
+```
+
+Cela garantit que les enregistrements sont filtrés selon le même jour calendaire Paris que celui utilisé pour le regroupement. Un enregistrement à 23h UTC le 22 (= minuit le 23 à Paris) sera correctement exclu quand on sélectionne uniquement le 22.
+
+### Fichier modifié
+- **Migration SQL** : nouvelle migration pour recréer les 4 fonctions avec le WHERE corrigé
+
+### Impact
+- Aucun changement côté frontend
+- Les données filtrées et agrégées seront cohérentes quelle que soit l'heure de la journée
+- Légère différence de performance SQL (utilisation de AT TIME ZONE dans le WHERE) mais négligeable sur ce volume de données
 
