@@ -1,41 +1,58 @@
 
 
-# Bug : l'Overview affiche 12min d'inactivité au lieu de 6h14 pour Villeurbanne
+# Ajouter le % du CA Brut à côté du badge plateforme dans les sous-lignes
 
-## Diagnostic
+## Objectif
 
-Le problème est dans `useNetworkStats.ts`, lignes 348-349. La requête d'availability utilise `startDate.toISOString()` et `endDate.toISOString()` (timestamps UTC complets) au lieu des chaînes de date `startDateStr`/`endDateStr` utilisées par toutes les autres requêtes du hook.
+Dans les sous-lignes extensibles du tableau "Comparatif des restaurants", afficher le pourcentage de contribution au CA total du restaurant à gauche du badge plateforme (ex: "71% Uber Eats", "29% Deliveroo").
 
-Pour le 22/02/2026 en timezone Paris (UTC+1) :
-- `startDate.toISOString()` = `"2026-02-21T23:00:00.000Z"`
-- `endDate.toISOString()` = `"2026-02-21T23:00:00.000Z"`
+## Changements
 
-La requête filtre donc `hour_start >= 2026-02-21T23:00:00Z AND hour_start <= 2026-02-21T23:00:00Z`, ce qui ne retourne que les enregistrements d'un SEUL créneau horaire (minuit heure Paris). Seuls 12 minutes d'offline apparaissent dans ce créneau, au lieu des 6h14 de la journée entière.
+### `src/components/overview/RestaurantComparisonTable.tsx`
 
-La page DowntimeComparison, elle, utilise `format(dateRange.start, "yyyy-MM-dd")` qui produit `"2026-02-22"` et couvre toute la journée correctement.
+**1. Ajouter un prop `revenueShare` au composant `PlatformSubRow`**
 
-## Correction
+Ajouter un prop `revenueShare` (number, pourcentage 0-100) à l'interface du composant. Il sera calculé par le parent : `(data.revenue / resto.revenue) * 100`.
 
-### `src/hooks/useNetworkStats.ts`
+**2. Afficher le pourcentage à gauche du badge**
 
-Remplacer les lignes 348-349 pour utiliser `startDateStr` et `endDateStr` (date-only strings) avec des bornes de journée complètes, comme le font les autres requêtes du hook :
+Dans la cellule du nom de plateforme (ligne 98-110), ajouter un `<span>` avec le pourcentage avant le `<Badge>` :
 
-```typescript
-// Avant (lignes 348-349)
-.gte("hour_start", startDate.toISOString())
-.lte("hour_start", endDate.toISOString())
-
-// Après
-.gte("hour_start", `${startDateStr}T00:00:00`)
-.lte("hour_start", `${endDateStr}T23:59:59`)
+```tsx
+<TableCell className="pl-8 text-xs">
+  <div className="flex items-center gap-1.5">
+    <span className="text-[10px] text-muted-foreground font-medium min-w-[28px] text-right">
+      {revenueShare.toFixed(0)}%
+    </span>
+    <Badge ...>
+      {platform}
+    </Badge>
+  </div>
+</TableCell>
 ```
 
-Cela couvre toute la journée en UTC, ce qui est cohérent avec le comportement attendu et les autres requêtes du même hook.
+**3. Passer le prop depuis les appels**
+
+Aux lignes 370-385, calculer et passer le pourcentage :
+
+```tsx
+<PlatformSubRow
+  platform="Uber Eats"
+  data={resto.platformBreakdown.uber}
+  revenueShare={resto.revenue > 0 ? (resto.platformBreakdown.uber.revenue / resto.revenue) * 100 : 0}
+  ...
+/>
+<PlatformSubRow
+  platform="Deliveroo"
+  data={resto.platformBreakdown.deliveroo}
+  revenueShare={resto.revenue > 0 ? (resto.platformBreakdown.deliveroo.revenue / resto.revenue) * 100 : 0}
+  ...
+/>
+```
 
 ### Fichier modifié
-- `src/hooks/useNetworkStats.ts` (2 lignes)
+- `src/components/overview/RestaurantComparisonTable.tsx`
 
-### Impact
-- Les KPI d'inactivité de l'Overview et du tableau comparatif afficheront les valeurs correctes pour toutes les périodes
-- Aucun changement sur les autres métriques (elles utilisent déjà `startDateStr`/`endDateStr`)
+### Résultat visuel
+Chaque sous-ligne affichera par exemple : `71% [Uber Eats]` et `29% [Deliveroo]`, donnant immédiatement la répartition du CA par plateforme.
 
