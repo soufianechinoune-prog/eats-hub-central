@@ -71,6 +71,7 @@ function PlatformSubRow({
   data,
   showN1Comparison,
   isUber,
+  revenueShare,
   rating,
   errorRate,
   prepTime,
@@ -80,6 +81,7 @@ function PlatformSubRow({
   data: PlatformBreakdown;
   showN1Comparison: boolean;
   isUber: boolean;
+  revenueShare: number;
   rating?: number | null;
   errorRate?: number | null;
   prepTime?: number | null;
@@ -96,17 +98,22 @@ function PlatformSubRow({
     <TableRow className="bg-muted/10 hover:bg-muted/20 border-border/20">
       <TableCell></TableCell>
       <TableCell className="pl-8 text-xs">
-        <Badge
-          variant="outline"
-          className={cn(
-            "text-[9px] h-4 px-1.5 font-normal",
-            isUber
-              ? "border-green-500 text-green-600 dark:text-green-400"
-              : "border-cyan-500 text-cyan-600 dark:text-cyan-400"
-          )}
-        >
-          {platform}
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground font-medium min-w-[28px] text-right">
+            {revenueShare.toFixed(0)}%
+          </span>
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-[9px] h-4 px-1.5 font-normal",
+              isUber
+                ? "border-green-500 text-green-600 dark:text-green-400"
+                : "border-cyan-500 text-cyan-600 dark:text-cyan-400"
+            )}
+          >
+            {platform}
+          </Badge>
+        </div>
       </TableCell>
       <TableCell className="text-right text-xs whitespace-nowrap">
         {formatCurrency(data.revenue)}
@@ -372,6 +379,7 @@ export function RestaurantComparisonTable({
                         data={resto.platformBreakdown.uber}
                         showN1Comparison={showN1Comparison}
                         isUber={true}
+                        revenueShare={resto.revenue > 0 ? (resto.platformBreakdown.uber.revenue / resto.revenue) * 100 : 0}
                         rating={resto.rating}
                         errorRate={resto.errorRate}
                         prepTime={resto.totalDeliveryTime}
@@ -382,6 +390,7 @@ export function RestaurantComparisonTable({
                         data={resto.platformBreakdown.deliveroo}
                         showN1Comparison={showN1Comparison}
                         isUber={false}
+                        revenueShare={resto.revenue > 0 ? (resto.platformBreakdown.deliveroo.revenue / resto.revenue) * 100 : 0}
                       />
                     </>
                   )}
