@@ -615,6 +615,7 @@ export function AnalyticsCharts({
     endDate: profitEndDate,
     granularity: 'daily',
     enabled: viewMode === 'revenue' && restaurantIds.length > 0,
+    platform: selectedPlatform,
   });
   
   // Fetch N-1 profitability data for comparison
@@ -624,6 +625,7 @@ export function AnalyticsCharts({
     endDate: profitPrevEndDate,
     granularity: 'daily',
     enabled: viewMode === 'revenue' && restaurantIds.length > 0,
+    platform: selectedPlatform,
   });
   
   // Fetch Uber One stats for the Cross Data Analysis chart
