@@ -987,46 +987,93 @@ export default function Analytics() {
   });
 
   // ========== DELIVEROO DATA (Current Year) ==========
+  // Shared helper: fetch all deliveroo_orders rows in a date range with pagination
+  const fetchAllDeliverooOrderRows = useCallback(async (qStart: string, qEnd: string) => {
+    const PAGE_SIZE = 1000;
+    const allRows: any[] = [];
+    let from = 0;
+    let hasMore = true;
+    while (hasMore) {
+      let query = supabase
+        .from("deliveroo_orders")
+        .select("delivery_datetime, order_amount, history_type, restaurant_id")
+        .gte("delivery_datetime", `${qStart}T00:00:00`)
+        .lte("delivery_datetime", `${qEnd}T23:59:59`)
+        .range(from, from + PAGE_SIZE - 1);
+      if (restaurantFilter && restaurantFilter.length > 0) {
+        query = query.in("restaurant_id", restaurantFilter);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      if (data) {
+        allRows.push(...data);
+        hasMore = data.length === PAGE_SIZE;
+        from += PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+    return allRows;
+  }, [restaurantFilter]);
+
+  // Shared helper: aggregate deliveroo order rows into revenue data
+  const aggregateDeliverooRevenue = useCallback((rows: any[], gran: typeof granularity) => {
+    const ORDER_TYPES = ["Livraison", "À emporter"];
+    const orderRows = rows.filter(r => ORDER_TYPES.includes(r.history_type));
+
+    const grouped: Record<string, { revenue: number; count: number; restaurantId: string }[]> = {};
+
+    for (const row of orderRows) {
+      if (!row.delivery_datetime) continue;
+      const dt = new Date(row.delivery_datetime);
+      const key = gran === "daily"
+        ? format(dt, "yyyy-MM-dd")
+        : `${dt.getFullYear()}-${dt.getMonth() + 1}`;
+
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push({
+        revenue: Math.abs(Number(row.order_amount) || 0),
+        count: 1,
+        restaurantId: row.restaurant_id,
+      });
+    }
+
+    return Object.entries(grouped).map(([key, items]) => {
+      const totalRevenue = items.reduce((s, i) => s + i.revenue, 0);
+      const totalCount = items.length;
+      if (gran === "daily") {
+        return {
+          id: key,
+          date: key,
+          platform: "deliveroo",
+          restaurant_id: items[0].restaurantId,
+          revenue_ttc: totalRevenue,
+          order_count: totalCount,
+          average_basket: totalCount > 0 ? totalRevenue / totalCount : 0,
+          month: new Date(key).getMonth() + 1,
+          year: new Date(key).getFullYear(),
+        };
+      } else {
+        const [y, m] = key.split("-").map(Number);
+        return {
+          id: key,
+          platform: "deliveroo",
+          restaurant_id: items[0].restaurantId,
+          revenue_ttc: totalRevenue,
+          order_count: totalCount,
+          average_basket: totalCount > 0 ? totalRevenue / totalCount : 0,
+          month: m,
+          year: y,
+        };
+      }
+    });
+  }, []);
+
   const { data: deliverooRevenueData, isLoading: loadingDeliverooRevenue } = useQuery({
     queryKey: ["analytics_revenue_deliveroo", restaurantFilter, selectedYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      if (granularity === "daily") {
-        let query = supabase
-          .from("daily_revenue")
-          .select("*")
-          .eq("platform", "deliveroo")
-          .gte("date", format(startDate, "yyyy-MM-dd"))
-          .lte("date", format(endDate, "yyyy-MM-dd"))
-          .order("date");
-        
-        if (restaurantFilter) {
-          query = query.in("restaurant_id", restaurantFilter);
-        }
-        
-        const { data, error } = await query;
-        if (error) throw error;
-        
-        return data?.map(item => ({
-          ...item,
-          month: new Date(item.date).getMonth() + 1,
-          year: new Date(item.date).getFullYear(),
-        })) || [];
-      } else {
-        let query = supabase
-          .from("monthly_revenue")
-          .select("*")
-          .eq("year", selectedYear)
-          .eq("platform", "deliveroo")
-          .order("month");
-        
-        if (restaurantFilter) {
-          query = query.in("restaurant_id", restaurantFilter);
-        }
-        
-        const { data, error } = await query;
-        if (error) throw error;
-        return data;
-      }
+      const rows = await fetchAllDeliverooOrderRows(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"));
+      return aggregateDeliverooRevenue(rows, granularity);
     },
     placeholderData: (previousData) => previousData,
   });
@@ -1089,48 +1136,12 @@ export default function Analytics() {
   const { data: deliverooPrevRevenueData } = useQuery({
     queryKey: ["analytics_revenue_deliveroo_prev", restaurantFilter, prevYear, granularity, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      if (granularity === "daily") {
-        const prevStartDate = new Date(startDate);
-        prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
-        const prevEndDate = new Date(endDate);
-        prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
-        
-        let query = supabase
-          .from("daily_revenue")
-          .select("*")
-          .eq("platform", "deliveroo")
-          .gte("date", format(prevStartDate, "yyyy-MM-dd"))
-          .lte("date", format(prevEndDate, "yyyy-MM-dd"))
-          .order("date");
-        
-        if (restaurantFilter) {
-          query = query.in("restaurant_id", restaurantFilter);
-        }
-        
-        const { data, error } = await query;
-        if (error) throw error;
-        
-        return data?.map(item => ({
-          ...item,
-          month: new Date(item.date).getMonth() + 1,
-          year: new Date(item.date).getFullYear(),
-        })) || [];
-      } else {
-        let query = supabase
-          .from("monthly_revenue")
-          .select("*")
-          .eq("year", prevYear)
-          .eq("platform", "deliveroo")
-          .order("month");
-        
-        if (restaurantFilter) {
-          query = query.in("restaurant_id", restaurantFilter);
-        }
-        
-        const { data, error } = await query;
-        if (error) throw error;
-        return data;
-      }
+      const prevStartDate = new Date(startDate);
+      prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
+      const prevEndDate = new Date(endDate);
+      prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
+      const rows = await fetchAllDeliverooOrderRows(format(prevStartDate, "yyyy-MM-dd"), format(prevEndDate, "yyyy-MM-dd"));
+      return aggregateDeliverooRevenue(rows, granularity);
     },
   });
 
