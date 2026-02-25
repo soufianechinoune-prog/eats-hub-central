@@ -1,58 +1,60 @@
 
 
-# Ajouter le % du CA Brut à côté du badge plateforme dans les sous-lignes
+# Alimenter la page "Revenus & Ventes" avec les données Deliveroo
 
-## Objectif
+## Diagnostic
 
-Dans les sous-lignes extensibles du tableau "Comparatif des restaurants", afficher le pourcentage de contribution au CA total du restaurant à gauche du badge plateforme (ex: "71% Uber Eats", "29% Deliveroo").
+La page "Revenus & Ventes" avec le filtre Deliveroo affiche 0 partout parce que les requetes cherchent dans les tables `daily_revenue` et `monthly_revenue` avec `platform = "deliveroo"`, mais ces tables ne sont jamais peuplees lors de l'import des releves Deliveroo. L'import ne remplit que la table `deliveroo_orders`.
 
-## Changements
+La vue "Finances", elle, fonctionne deja car elle agregee directement depuis `deliveroo_orders` (lignes 330-467 de Analytics.tsx).
 
-### `src/components/overview/RestaurantComparisonTable.tsx`
+## Solution
 
-**1. Ajouter un prop `revenueShare` au composant `PlatformSubRow`**
+Modifier la requete `deliverooRevenueData` dans `Analytics.tsx` (lignes 990-1032) pour agreger directement depuis `deliveroo_orders` au lieu de querier des tables vides. Meme approche pour `deliverooPrevRevenueData` (lignes 1089+).
 
-Ajouter un prop `revenueShare` (number, pourcentage 0-100) à l'interface du composant. Il sera calculé par le parent : `(data.revenue / resto.revenue) * 100`.
+### Fichier modifie : `src/pages/Analytics.tsx`
 
-**2. Afficher le pourcentage à gauche du badge**
+**A. Remplacer la query `deliverooRevenueData` (lignes 990-1032)**
 
-Dans la cellule du nom de plateforme (ligne 98-110), ajouter un `<span>` avec le pourcentage avant le `<Badge>` :
+Au lieu de querier `daily_revenue` / `monthly_revenue`, agreger depuis `deliveroo_orders` :
 
-```tsx
-<TableCell className="pl-8 text-xs">
-  <div className="flex items-center gap-1.5">
-    <span className="text-[10px] text-muted-foreground font-medium min-w-[28px] text-right">
-      {revenueShare.toFixed(0)}%
-    </span>
-    <Badge ...>
-      {platform}
-    </Badge>
-  </div>
-</TableCell>
+- Filtrer par `history_type IN ('Livraison', 'À emporter')` pour ne compter que les commandes reelles (coherent avec la logique finances existante)
+- Grouper par jour (granularite daily) ou par mois (granularite monthly)
+- Calculer `revenue_ttc` = somme des `order_amount`, `order_count` = nombre de lignes, `average_basket` = revenue / count
+- Paginer avec des chunks de 1000 lignes (meme pattern que la query finances Deliveroo existante)
+
+```typescript
+// Pseudo-code de la nouvelle query
+const allRows = await fetchAllDeliverooOrders(startDate, endDate, restaurantFilter);
+const orderRows = allRows.filter(r => ORDER_TYPES.includes(r.history_type));
+
+// Grouper par jour ou mois
+const grouped = groupBy(orderRows, granularity === "daily" ? "day" : "month");
+return Object.entries(grouped).map(([key, rows]) => ({
+  date: key,
+  revenue_ttc: sum(rows, r => Math.abs(r.order_amount)),
+  order_count: rows.length,
+  average_basket: revenue / count,
+  month: ...,
+  year: ...,
+}));
 ```
 
-**3. Passer le prop depuis les appels**
+**B. Remplacer la query `deliverooPrevRevenueData` (lignes 1089-1130)**
 
-Aux lignes 370-385, calculer et passer le pourcentage :
+Meme logique mais pour l'annee N-1 (dates decalees d'un an).
 
-```tsx
-<PlatformSubRow
-  platform="Uber Eats"
-  data={resto.platformBreakdown.uber}
-  revenueShare={resto.revenue > 0 ? (resto.platformBreakdown.uber.revenue / resto.revenue) * 100 : 0}
-  ...
-/>
-<PlatformSubRow
-  platform="Deliveroo"
-  data={resto.platformBreakdown.deliveroo}
-  revenueShare={resto.revenue > 0 ? (resto.platformBreakdown.deliveroo.revenue / resto.revenue) * 100 : 0}
-  ...
-/>
-```
+**C. Factoriser la fonction de fetch paginee**
 
-### Fichier modifié
-- `src/components/overview/RestaurantComparisonTable.tsx`
+Extraire une fonction `fetchAllDeliverooOrders(start, end, restaurantFilter)` reutilisable, car le meme pattern de pagination existe deja dans la query finances Deliveroo (lignes 354-382). Les deux queries pourront partager cette fonction.
 
-### Résultat visuel
-Chaque sous-ligne affichera par exemple : `71% [Uber Eats]` et `29% [Deliveroo]`, donnant immédiatement la répartition du CA par plateforme.
+### Resultat
+
+- Les graphiques CA, Commandes, Panier Moyen et la vue Tableau afficheront les donnees Deliveroo correctement
+- La comparaison N-1 fonctionnera aussi
+- La vue "Global" combinera Uber + Deliveroo comme prevu (lignes 1196-1198)
+- Aucune modification de base de donnees necessaire
+
+### Fichiers modifies
+- `src/pages/Analytics.tsx` (~50 lignes modifiees)
 
