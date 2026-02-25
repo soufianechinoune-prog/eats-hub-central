@@ -385,10 +385,13 @@ export function useOverviewData(
   endDate: Date,
   startDateStr: string,
   endDateStr: string,
+  filterRestaurantIds?: string[],
 ) {
-  // Wave 1: Restaurants (immediate)
+  // Wave 1: Restaurants (immediate) — use provided IDs if available, otherwise fetch pinned
   const restaurants = useOverviewRestaurants();
-  const restaurantIds = restaurants.data?.map((r) => r.id) || [];
+  const restaurantIds = filterRestaurantIds && filterRestaurantIds.length > 0
+    ? filterRestaurantIds
+    : (restaurants.data?.map((r) => r.id) || []);
   const hasIds = restaurantIds.length > 0;
 
   // Wave 1b: Sales + Payouts + Deliveroo Sales (as soon as we have IDs)

@@ -314,6 +314,20 @@ const Overview = () => {
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
+  // Derive pinned IDs for the comparison table
+  const pinnedIds = useMemo(
+    () => pinnedRestaurants?.map((r) => r.id) || [],
+    [pinnedRestaurants]
+  );
+
+  // Compute active IDs based on toggle: pinned or all network
+  const activeIds = useMemo(
+    () => isNetworkView
+      ? (allActiveRestaurants?.map(r => r.id) || [])
+      : pinnedIds,
+    [isNetworkView, allActiveRestaurants, pinnedIds]
+  );
+
   // Use the new decomposed hook instead of the monolithic query
   const {
     data: networkData,
@@ -325,18 +339,12 @@ const Overview = () => {
     wave4Loading,
     criticalError: overviewError,
     queryKeys: overviewQueryKeys,
-  } = useOverviewData(startDate, endDate, startDateStr, endDateStr);
+  } = useOverviewData(startDate, endDate, startDateStr, endDateStr, activeIds);
 
   const error = overviewError;
 
-  // Derive pinned IDs for the comparison table
-  const pinnedIds = useMemo(
-    () => pinnedRestaurants?.map((r) => r.id) || [],
-    [pinnedRestaurants]
-  );
-
   const { stats: comparisonStats, networkTotals, isLoading: statsLoading } = useNetworkStats({
-    restaurantIds: pinnedIds,
+    restaurantIds: activeIds,
     startDate,
     endDate,
     profitabilityBase: "gross",
