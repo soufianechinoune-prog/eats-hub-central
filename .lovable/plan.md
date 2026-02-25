@@ -1,52 +1,40 @@
 
 
-# Barre animée de répartition CA Uber / Deliveroo
+# Bug : le toggle Epinglés/Réseau ne met pas a jour la data
 
-## Concept
+## Diagnostic
 
-Ajouter un composant visuel au-dessus du tableau "Comparatif des restaurants" montrant la répartition du chiffre d'affaires entre Uber Eats et Deliveroo sur l'ensemble du réseau. Une barre horizontale animée avec les deux segments colorés (vert Uber, cyan Deliveroo) qui se "remplissent" au chargement avec une animation fluide.
+Le problème est clair dans `Overview.tsx` :
 
-## Design visuel
+1. **`useOverviewData`** (ligne 328) : ce hook fetche toujours TOUS les restaurants actifs en interne (ligne 391 de `useOverviewData.ts`). Il ne reçoit aucun paramètre lié à `isNetworkView`. Les KPI cards (Global, Uber Eats, Deliveroo) affichent donc toujours la data de tout le réseau, que le toggle soit sur Épinglés ou Réseau.
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  Répartition du CA réseau                                   │
-│                                                             │
-│  ██████████████████████████████░░░░░░░░░░░░░░  total: XX €  │
-│  ◄──── Uber Eats 65.1% ─────►◄─ Deliveroo 34.9% ─►        │
-│                                                             │
-│  [🟢 Uber Eats]  80 485 €    [🔵 Deliveroo]  24 408 €      │
-└─────────────────────────────────────────────────────────────┘
+2. **`useNetworkStats`** (ligne 338) : ce hook reçoit toujours `pinnedIds` (ligne 339), jamais les IDs de tout le réseau. Le tableau "Comparatif" et la barre de répartition CA affichent donc toujours les restaurants épinglés, même quand on switche sur Réseau.
+
+3. **`isNetworkView`** est bien géré en state et persisté dans localStorage, mais il n'est jamais utilisé pour conditionner les données affichées.
+
+## Corrections
+
+### `src/pages/Overview.tsx`
+
+1. **Calculer les IDs selon le toggle** : créer un `useMemo` qui retourne soit `pinnedIds` soit tous les IDs actifs selon `isNetworkView` :
+```typescript
+const activeIds = useMemo(
+  () => isNetworkView 
+    ? (allActiveRestaurants?.map(r => r.id) || [])
+    : pinnedIds,
+  [isNetworkView, allActiveRestaurants, pinnedIds]
+);
 ```
 
-- Barre horizontale avec coins arrondis
-- Segment gauche vert (Uber Eats) et segment droit cyan (Deliveroo)
-- Animation d'entrée : la barre se remplit de 0% à sa valeur réelle (via CSS transition ou framer-motion)
-- Les montants affichés avec le hook `useAnimatedCounter` pour un compteur animé
-- Pourcentages affichés dans chaque segment si suffisamment large
-- Légende en dessous avec badges plateforme + montants
+2. **Passer `activeIds` a `useNetworkStats`** (ligne 339) : remplacer `restaurantIds: pinnedIds` par `restaurantIds: activeIds` pour que le tableau comparatif et la barre de répartition reflètent le bon scope.
 
-## Données
+3. **Passer `activeIds` a `useOverviewData`** : ajouter un paramètre `restaurantIds` au hook pour filtrer les données des KPI cards selon le toggle.
 
-Les données sont déjà disponibles : on agrège `stats[].platformBreakdown.uber.revenue` et `stats[].platformBreakdown.deliveroo.revenue` depuis le tableau `stats` retourné par `useNetworkStats`. Aucune requête supplémentaire nécessaire.
+### `src/hooks/useOverviewData.ts`
 
-## Modifications
+4. **Accepter un paramètre `filterRestaurantIds`** optionnel dans la signature de `useOverviewData`. Si fourni, utiliser ces IDs au lieu de tous les IDs actifs pour les sous-requêtes (sales, reviews, etc.). Cela permet aux 3 cards (Global, Uber, Deliveroo) de refléter le bon périmètre.
 
-### 1. Nouveau composant `src/components/overview/PlatformRevenueSplit.tsx`
-
-- Props : `stats: RestaurantNetworkStats[]`, `isLoading: boolean`
-- Calcul : somme des `platformBreakdown.uber.revenue` et `platformBreakdown.deliveroo.revenue` sur tout le réseau
-- Barre horizontale animée avec `framer-motion` (motion.div avec animate width de 0 à X%)
-- Compteur animé pour les montants via `useAnimatedCounter`
-- Skeleton pendant le chargement
-- Style : Card avec la même charte graphique que le reste (border-border/50, backdrop-blur)
-
-### 2. `src/pages/Overview.tsx` (~ligne 621)
-
-- Importer et placer `PlatformRevenueSplit` juste avant le `RestaurantComparisonTable`
-- Passer `stats={comparisonStats}` et `isLoading={statsLoading}`
-
-### Fichiers
-- **Créer** : `src/components/overview/PlatformRevenueSplit.tsx`
-- **Modifier** : `src/pages/Overview.tsx` (2 lignes : import + placement)
+### Fichiers modifiés
+- `src/pages/Overview.tsx` (ajouter `activeIds`, les passer aux 2 hooks)
+- `src/hooks/useOverviewData.ts` (accepter et utiliser `filterRestaurantIds`)
 
