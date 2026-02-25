@@ -70,6 +70,21 @@ const RestaurantDetail = () => {
     enabled: !!id,
   });
 
+  const { data: uberIds = [] } = useQuery({
+    queryKey: ["restaurant-uber-ids", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurant_uber_ids")
+        .select("*")
+        .eq("restaurant_id", id!)
+        .order("is_primary", { ascending: false })
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
   const updateMutation = useMutation({
     mutationFn: async (updates: Record<string, string | null | boolean>) => {
       const { error } = await supabase
@@ -593,6 +608,34 @@ const RestaurantDetail = () => {
                   <p className="text-xs text-muted-foreground mt-1">
                     Store ID: {restaurant.uber_store_id}
                   </p>
+                )}
+                {uberIds.length > 1 && (
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Historique des UUID :</p>
+                    <div className="space-y-1.5">
+                      {uberIds.map((uid) => (
+                        <div key={uid.id} className="flex items-start gap-2 text-xs">
+                          <span className={`mt-1 h-1.5 w-1.5 rounded-full shrink-0 ${uid.is_primary ? 'bg-green-500' : 'bg-muted-foreground/50'}`} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <code className="text-[11px] text-muted-foreground truncate max-w-[160px]">{uid.uber_store_id}</code>
+                              {uid.is_primary ? (
+                                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30 text-[10px] px-1.5 py-0">Actuel</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-muted-foreground text-[10px] px-1.5 py-0">Ancien</Badge>
+                              )}
+                              <span className="text-muted-foreground/70">
+                                {uid.created_at ? new Date(uid.created_at).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : ''}
+                              </span>
+                            </div>
+                            {uid.label && (
+                              <p className="text-muted-foreground/70 italic mt-0.5">{uid.label}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
               {restaurant.csv_verified ? (
