@@ -3251,6 +3251,50 @@ export type Database = {
           year: number
         }[]
       }
+      get_network_deliveroo_summary: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          order_count: number
+          restaurant_id: string
+          total_payable: number
+          total_revenue: number
+        }[]
+      }
+      get_network_orders_summary: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          order_count: number
+          restaurant_id: string
+          total_item_promo_incl_vat: number
+          total_meal_voucher: number
+          total_net_payout: number
+          total_sales_incl_vat: number
+        }[]
+      }
+      get_network_prep_time_summary: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          avg_avoidable_wait_time: number
+          avg_prep_time: number
+          avg_total_delivery_time: number
+          avoidable_wait_count: number
+          delivery_count: number
+          prep_count: number
+          restaurant_id: string
+        }[]
+      }
       get_order_counts_for_accuracy: {
         Args: {
           p_end_date: string
