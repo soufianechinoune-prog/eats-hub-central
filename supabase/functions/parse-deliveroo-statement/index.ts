@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
     let skipped = 0;
     let errors = 0;
     const errorDetails: string[] = [];
-    const BATCH_SIZE = 100;
+    const BATCH_SIZE = 50;
 
     for (let i = 0; i < deduplicatedRecords.length; i += BATCH_SIZE) {
       const batch = deduplicatedRecords.slice(i, i + BATCH_SIZE);
@@ -156,6 +156,11 @@ Deno.serve(async (req) => {
         errorDetails.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`);
       } else {
         inserted += data?.length || 0;
+      }
+
+      // Inter-batch delay to prevent connection exhaustion / timeout
+      if (i + BATCH_SIZE < deduplicatedRecords.length) {
+        await new Promise(r => setTimeout(r, 50));
       }
     }
 
