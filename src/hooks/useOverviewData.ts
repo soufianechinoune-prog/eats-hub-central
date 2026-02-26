@@ -55,19 +55,17 @@ function useOverviewSales(
   return useQuery({
     queryKey: ["overview-sales", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_daily_revenue_from_orders", {
+      if (restaurantIds.length === 0) return [];
+      const { data, error } = await supabase.rpc("get_network_orders_summary", {
+        p_restaurant_ids: restaurantIds,
         p_start_date: startDateStr,
         p_end_date: endDateStr,
-        p_restaurant_ids: restaurantIds,
       });
       if (error) throw error;
       return (data || []).map((d: any) => ({
         restaurant_id: d.restaurant_id,
-        date: d.date,
-        revenue_ttc: Number(d.revenue_ttc),
+        revenue_ttc: Number(d.total_sales_incl_vat),
         order_count: Number(d.order_count),
-        average_basket: Number(d.average_basket),
-        platform: d.platform || "uber_eats",
       }));
     },
     enabled,
@@ -481,13 +479,14 @@ export function useOverviewData(
 
     // Per-restaurant metrics
     const restaurantMetrics = restos.map((resto) => {
-      const restoSales = dailySalesData.filter((d) => d.restaurant_id === resto.id);
+      // Revenue from aggregated RPC (one row per restaurant)
+      const restoSales = dailySalesData.find((d) => d.restaurant_id === resto.id);
       const restoReviews = reviewsData.filter((r: any) => r.restaurant_id === resto.id);
       const restoErrors = errorsData.filter((e: any) => e.restaurant_id === resto.id);
       const restoPayouts = payoutsData.filter((p: any) => p.restaurant_id === resto.id);
 
-      const revenue = restoSales.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0);
-      const orders = restoSales.reduce((sum, d) => sum + Number(d.order_count || 0), 0);
+      const revenue = restoSales?.revenue_ttc || 0;
+      const orders = restoSales?.order_count || 0;
       const rating = restoReviews.length > 0
         ? restoReviews.reduce((sum, r: any) => sum + Number(r.overall_rating || 0), 0) / restoReviews.length
         : null;
@@ -511,7 +510,7 @@ export function useOverviewData(
         errorRate: restoErrorRate != null ? parseFloat(restoErrorRate.toFixed(1)) : null,
         profitability,
         revenue,
-        salesRows: restoSales.length,
+        salesRows: restoSales ? 1 : 0,
       };
     });
 
@@ -545,11 +544,10 @@ export function useOverviewData(
     const topByConversion = sortedByConversion.slice(0, 5);
     const flopByConversion = sortedByConversion.slice(-5).reverse();
 
-    // Platform-specific
-    const uberSales = dailySalesData.filter((d) => d.platform === "uber_eats");
+    // Platform-specific: sales data is Uber-only (from get_network_orders_summary on orders table)
+    const uberOrders = totalOrders; // orders table = Uber only
     const uberReviews = reviewsData.filter((r: any) => r.platform === "uber_eats");
 
-    const uberOrders = uberSales.reduce((sum, d) => sum + Number(d.order_count || 0), 0);
     const uberRating = uberReviews.length > 0
       ? uberReviews.reduce((sum, r: any) => sum + Number(r.overall_rating || 0), 0) / uberReviews.length
       : null;

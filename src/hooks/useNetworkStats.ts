@@ -100,7 +100,7 @@ export function useNetworkStats({
   const hasIds = restaurantIds.length > 0;
 
   // ═══════════════════════════════════════════════
-  // WAVE 1: Restaurants + Sales + Deliveroo RPC (lightweight)
+  // WAVE 1: Restaurants + Deliveroo RPC (lightweight)
   // ═══════════════════════════════════════════════
 
   const { data: restaurantsRaw } = useQuery({
@@ -123,28 +123,7 @@ export function useNetworkStats({
     return filterActiveRestaurants(restaurantsRaw, startDate, endDate);
   }, [restaurantsRaw, startDate, endDate]);
 
-  const { data: salesData, isLoading: salesLoading } = useQuery({
-    queryKey: ["network-stats-sales", restaurantIds, startDateStr, endDateStr],
-    queryFn: async () => {
-      if (!hasIds) return [];
-      const { data, error } = await supabase
-        .rpc("get_daily_revenue_from_orders", {
-          p_start_date: startDateStr,
-          p_end_date: endDateStr,
-          p_restaurant_ids: restaurantIds,
-        });
-      if (error) throw error;
-      return (data || []).map((d: any) => ({
-        restaurant_id: d.restaurant_id,
-        revenue_ttc: Number(d.revenue_ttc),
-        order_count: Number(d.order_count),
-      }));
-    },
-    enabled: hasIds,
-    ...RETRY_CONFIG,
-  });
-
-  // Deliveroo sales via RPC (replaces paginated fetch)
+  // Deliveroo sales via RPC
   const { data: deliverooSummaryData, isLoading: deliverooLoading } = useQuery({
     queryKey: ["network-stats-deliveroo", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
@@ -166,21 +145,20 @@ export function useNetworkStats({
     ...RETRY_CONFIG,
   });
 
-  // N-1 sales (part of wave 1 since it's lightweight)
+  // N-1 sales via aggregated RPC (no row limit issue)
   const { data: prevSalesData } = useQuery({
     queryKey: ["network-stats-sales-prev", restaurantIds, prevStartDateStr, prevEndDateStr],
     queryFn: async () => {
       if (!hasIds) return [];
-      const { data, error } = await supabase
-        .rpc("get_daily_revenue_from_orders", {
-          p_start_date: prevStartDateStr,
-          p_end_date: prevEndDateStr,
-          p_restaurant_ids: restaurantIds,
-        });
+      const { data, error } = await supabase.rpc("get_network_orders_summary", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: prevStartDateStr,
+        p_end_date: prevEndDateStr,
+      });
       if (error) throw error;
       return (data || []).map((d: any) => ({
         restaurant_id: d.restaurant_id,
-        revenue_ttc: Number(d.revenue_ttc),
+        total_sales_incl_vat: Number(d.total_sales_incl_vat),
         order_count: Number(d.order_count),
       }));
     },
@@ -188,11 +166,11 @@ export function useNetworkStats({
     ...RETRY_CONFIG,
   });
 
-  // Wave 1 is done when sales are loaded
-  const wave1Done = !!salesData;
+  // Wave 1 is done when restaurants are loaded
+  const wave1Done = !!restaurantsRaw;
 
   // ═══════════════════════════════════════════════
-  // WAVE 2: Reviews + Accuracy (wait for wave 1)
+  // WAVE 2: Reviews + Accuracy + Orders payout (wait for wave 1)
   // ═══════════════════════════════════════════════
 
   const { data: reviewsData, isLoading: reviewsLoading } = useQuery({
@@ -230,13 +208,7 @@ export function useNetworkStats({
     ...RETRY_CONFIG,
   });
 
-  // Wave 2 is done when both reviews and accuracy are loaded
-  const wave2Done = !!reviewsData && !!accuracyData;
-
-  // ═══════════════════════════════════════════════
-  // WAVE 3: Orders payout via RPC (wait for wave 2)
-  // ═══════════════════════════════════════════════
-
+  // Orders payout via RPC (also in wave 2 — single call, no dependency on reviews)
   const { data: ordersPayoutData, isLoading: ordersPayoutLoading } = useQuery({
     queryKey: ["network-stats-orders-payout", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
@@ -256,15 +228,15 @@ export function useNetworkStats({
         order_count: Number(d.order_count),
       }));
     },
-    enabled: hasIds && wave2Done,
+    enabled: hasIds && wave1Done,
     ...RETRY_CONFIG,
   });
 
-  // Wave 3 is done when orders payout is loaded
-  const wave3Done = !!ordersPayoutData;
+  // Wave 2 is done when reviews, accuracy and orders payout are loaded
+  const wave2Done = !!reviewsData && !!accuracyData && !!ordersPayoutData;
 
   // ═══════════════════════════════════════════════
-  // WAVE 4: Prep time RPC + Availability RPC (wait for wave 3)
+  // WAVE 3: Prep time RPC + Availability RPC (wait for wave 2)
   // ═══════════════════════════════════════════════
 
   const { data: prepTimeSummaryData, isLoading: historyLoading } = useQuery({
@@ -285,7 +257,7 @@ export function useNetworkStats({
         delivery_count: Number(d.delivery_count),
       }));
     },
-    enabled: hasIds && wave3Done,
+    enabled: hasIds && wave2Done,
     ...RETRY_CONFIG,
   });
 
@@ -304,7 +276,7 @@ export function useNetworkStats({
         total_offline_minutes: Number(d.total_offline_minutes),
       }));
     },
-    enabled: hasIds && wave3Done,
+    enabled: hasIds && wave2Done,
     ...RETRY_CONFIG,
   });
 
@@ -316,9 +288,10 @@ export function useNetworkStats({
     if (!restaurants?.length) return [];
 
     return restaurants.map((resto) => {
-      const restoSales = salesData?.filter((s) => s.restaurant_id === resto.id) || [];
-      const uberRevenue = restoSales.reduce((sum, s) => sum + Number(s.revenue_ttc || 0), 0);
-      const uberOrders = restoSales.reduce((sum, s) => sum + Number(s.order_count || 0), 0);
+      // Uber data from orders payout RPC (replaces salesData)
+      const restoOrdersSummary = ordersPayoutData?.find((o) => o.restaurant_id === resto.id);
+      const uberRevenue = restoOrdersSummary?.total_sales_incl_vat || 0;
+      const uberOrders = restoOrdersSummary?.order_count || 0;
 
       // Deliveroo data from RPC summary
       const restoDeliveroo = deliverooSummaryData?.find((d) => d.restaurant_id === resto.id);
@@ -331,9 +304,10 @@ export function useNetworkStats({
       const orders = uberOrders + deliverooOrders;
       const avgBasket = orders > 0 ? revenue / orders : 0;
 
-      const restoPrevSales = prevSalesData?.filter((s) => s.restaurant_id === resto.id) || [];
-      const prevRevenue = restoPrevSales.reduce((sum, s) => sum + Number(s.revenue_ttc || 0), 0);
-      const prevOrders = restoPrevSales.reduce((sum, s) => sum + Number(s.order_count || 0), 0);
+      // N-1 comparison from aggregated RPC
+      const restoPrevSales = prevSalesData?.find((s) => s.restaurant_id === resto.id);
+      const prevRevenue = restoPrevSales?.total_sales_incl_vat || 0;
+      const prevOrders = restoPrevSales?.order_count || 0;
 
       const restoReviews = reviewsData?.filter((r) => r.restaurant_id === resto.id) || [];
       const rating =
@@ -342,8 +316,7 @@ export function useNetworkStats({
             restoReviews.length
           : null;
 
-      // Orders payout from RPC summary
-      const restoOrdersSummary = ordersPayoutData?.find((o) => o.restaurant_id === resto.id);
+      // Profitability from orders payout RPC
       let profitability: number | null = null;
       let netPayout = 0;
       
@@ -465,7 +438,6 @@ export function useNetworkStats({
     });
   }, [
     restaurants,
-    salesData,
     deliverooSummaryData,
     prevSalesData,
     reviewsData,
@@ -562,7 +534,6 @@ export function useNetworkStats({
   }, [stats, includeN1Comparison]);
 
   const isLoading =
-    salesLoading ||
     deliverooLoading ||
     reviewsLoading ||
     ordersPayoutLoading ||
