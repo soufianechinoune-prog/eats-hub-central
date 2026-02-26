@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Filter } from "lucide-react";
+import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Trophy, AlertTriangle } from "lucide-react";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 import { EcoContributionDetail } from "./EcoContributionDetail";
 import { useEcoContributionExport } from "@/hooks/useEcoContributionExport";
@@ -11,14 +11,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer,
+  ResponsiveContainer, Line, ComposedChart, ReferenceLine,
 } from "recharts";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 
@@ -40,6 +40,7 @@ export function EcoContributionSection({
   const [activeTab, setActiveTab] = useState<"synthese" | "detail">("synthese");
   const [localYear, setLocalYear] = useState<number | null>(selectedYear);
   const [soldeFilter, setSoldeFilter] = useState<"all" | "positive" | "negative">("all");
+  const [showAll, setShowAll] = useState(false);
   const { exportPDF, exportExcel } = useEcoContributionExport();
 
   const restaurantIds = selectedRestaurants.length > 0
@@ -67,13 +68,13 @@ export function EcoContributionSection({
         ? `${MONTHS[d.month - 1]} ${String(d.year).slice(2)}`
         : MONTHS[d.month - 1],
       Remboursements: d.refund,
-      Prélèvements: d.charge,
+      Prélèvements: Math.abs(d.charge),
+      Solde: Math.round((d.refund + d.charge) * 100) / 100,
     }));
   }, [monthlyData, localYear]);
 
   const fmt = (v: number) => v.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
-  // Sort restaurant data
   const [sortKey, setSortKey] = useState<"net" | "refund" | "charge">("net");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -99,6 +100,21 @@ export function EcoContributionSection({
   };
 
   const yearLabel = localYear === null ? "Historique" : String(localYear);
+
+  // Recovery ratio
+  const absCharge = Math.abs(totals.charge);
+  const recoveryRatio = absCharge > 0 ? Math.round((totals.refund / absCharge) * 100) : 0;
+
+  // Top 3 / Flop 3
+  const top3 = useMemo(() => {
+    return [...byRestaurant].sort((a, b) => b.net - a.net).slice(0, 3);
+  }, [byRestaurant]);
+
+  const flop3 = useMemo(() => {
+    return [...byRestaurant].sort((a, b) => a.net - b.net).slice(0, 3);
+  }, [byRestaurant]);
+
+  const displayedRestaurants = showAll ? sortedRestaurants : sortedRestaurants.slice(0, 20);
 
   const handleExport = (type: "pdf" | "excel") => {
     const exportRestaurants = sortedRestaurants.map(r => ({
@@ -143,7 +159,6 @@ export function EcoContributionSection({
           </div>
         </div>
 
-        {/* Export Buttons */}
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -175,8 +190,33 @@ export function EcoContributionSection({
         </TabsList>
 
         <TabsContent value="synthese" className="space-y-6 mt-4">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* KPI Cards with hierarchy */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {/* Solde Net - Primary card, col-span-2 */}
+            <Card className={cn(
+              "md:col-span-2 border-2",
+              totals.net >= 0
+                ? "border-green-500/30 bg-green-500/5 dark:bg-green-500/10"
+                : "border-red-500/30 bg-red-500/5 dark:bg-red-500/10"
+            )}>
+              <CardContent className="pt-5 pb-4 px-5">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                  <Leaf className="h-4 w-4" />
+                  Solde Net
+                </div>
+                <div className={cn("text-3xl font-bold tracking-tight", totals.net >= 0 ? "text-green-600" : "text-red-500")}>
+                  {fmt(totals.net)}
+                </div>
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Taux de récupération</span>
+                    <span className="font-medium">{recoveryRatio}%</span>
+                  </div>
+                  <Progress value={Math.min(recoveryRatio, 100)} className="h-2" />
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardContent className="pt-4 pb-3 px-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -198,26 +238,15 @@ export function EcoContributionSection({
             <Card>
               <CardContent className="pt-4 pb-3 px-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <Leaf className="h-4 w-4" />
-                  Solde Net
-                </div>
-                <div className={`text-xl font-bold ${totals.net >= 0 ? "text-green-600" : "text-red-500"}`}>
-                  {fmt(totals.net)}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-3 px-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                   <Hash className="h-4 w-4" />
-                  Lignes individuelles
+                  Lignes
                 </div>
                 <div className="text-xl font-bold">{totals.lineCount}</div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Monthly Chart */}
+          {/* Monthly Chart - Stacked bars + Net line */}
           {chartData.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
@@ -226,22 +255,84 @@ export function EcoContributionSection({
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
+                    <ComposedChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                       <XAxis dataKey="name" className="text-xs" />
                       <YAxis className="text-xs" tickFormatter={(v) => `${v}€`} />
                       <Tooltip
-                        formatter={(value: number) => fmt(value)}
-                        contentStyle={{ backgroundColor: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
+                        formatter={(value: number, name: string) => [fmt(name === "Prélèvements" ? -value : value), name]}
+                        contentStyle={{ backgroundColor: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
                       />
                       <Legend />
-                      <Bar dataKey="Remboursements" fill="hsl(142, 76%, 36%)" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="Prélèvements" fill="hsl(0, 84%, 60%)" radius={[2, 2, 0, 0]} />
-                    </BarChart>
+                      <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                      <Bar dataKey="Remboursements" stackId="eco" fill="hsl(142, 76%, 36%)" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="Prélèvements" stackId="eco" fill="hsl(0, 84%, 60%)" radius={[2, 2, 0, 0]} />
+                      <Line
+                        type="monotone"
+                        dataKey="Solde"
+                        stroke="hsl(var(--foreground))"
+                        strokeWidth={2}
+                        dot={{ fill: "hsl(var(--foreground))", r: 3 }}
+                        name="Solde Net"
+                      />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Top 3 / Flop 3 */}
+          {byRestaurant.length > 3 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-green-600" />
+                    Top 3 — Meilleurs soldes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3">
+                  <div className="space-y-2">
+                    {top3.map((r, i) => (
+                      <div key={r.restaurant_id} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-muted-foreground w-4">{i + 1}.</span>
+                          <span className="truncate max-w-[200px]">{restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8)}</span>
+                        </div>
+                        <span className={cn("font-semibold tabular-nums", r.net >= 0 ? "text-green-600" : "text-red-500")}>
+                          {fmt(r.net)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    Flop 3 — Pires soldes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3">
+                  <div className="space-y-2">
+                    {flop3.map((r, i) => (
+                      <div key={r.restaurant_id} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-muted-foreground w-4">{i + 1}.</span>
+                          <span className="truncate max-w-[200px]">{restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8)}</span>
+                        </div>
+                        <span className={cn("font-semibold tabular-nums", r.net >= 0 ? "text-green-600" : "text-red-500")}>
+                          {fmt(r.net)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {/* Restaurant Ranking Table */}
@@ -289,14 +380,14 @@ export function EcoContributionSection({
                       <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("charge")}>
                         Prél. {sortKey === "charge" && (sortDir === "desc" ? "↓" : "↑")}
                       </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("net")}>
+                      <TableHead className="text-right cursor-pointer hover:text-foreground min-w-[180px]" onClick={() => handleSort("net")}>
                         Solde {sortKey === "net" && (sortDir === "desc" ? "↓" : "↑")}
                       </TableHead>
                       <TableHead className="text-right">Lignes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedRestaurants.map((r) => (
+                    {displayedRestaurants.map((r) => (
                       <RestaurantDrilldown
                         key={r.restaurant_id}
                         restaurant={r}
@@ -309,6 +400,18 @@ export function EcoContributionSection({
                     ))}
                   </TableBody>
                 </Table>
+                {sortedRestaurants.length > 20 && (
+                  <div className="flex justify-center pt-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setShowAll(!showAll)}
+                    >
+                      {showAll ? "Réduire" : `Voir tout (${sortedRestaurants.length} restaurants)`}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -359,6 +462,11 @@ function RestaurantDrilldown({
 }) {
   const [open, setOpen] = useState(false);
 
+  const r = restaurant;
+  const absCharge = Math.abs(r.charge);
+  const total = r.refund + absCharge;
+  const refundPct = total > 0 ? Math.round((r.refund / total) * 100) : 0;
+
   const monthlyBreakdown = useMemo(() => {
     const byKey = new Map<string, DetailLine[]>();
     for (const line of detailLines) {
@@ -390,8 +498,6 @@ function RestaurantDrilldown({
       });
   }, [detailLines, isHistorique]);
 
-  const r = restaurant;
-
   return (
     <>
       <TableRow
@@ -406,8 +512,19 @@ function RestaurantDrilldown({
         </TableCell>
         <TableCell className="text-right text-green-600 text-sm">{fmt(r.refund)}</TableCell>
         <TableCell className="text-right text-red-500 text-sm">{fmt(r.charge)}</TableCell>
-        <TableCell className={cn("text-right font-medium text-sm", r.net >= 0 ? "text-green-600" : "text-red-500")}>
-          {fmt(r.net)}
+        <TableCell className="text-right text-sm">
+          <div className="flex items-center justify-end gap-2">
+            {/* Mini ratio bar */}
+            <div className="w-16 h-2 rounded-full overflow-hidden bg-red-500/20 hidden sm:block">
+              <div
+                className="h-full bg-green-500 rounded-full transition-all"
+                style={{ width: `${refundPct}%` }}
+              />
+            </div>
+            <span className={cn("font-medium tabular-nums", r.net >= 0 ? "text-green-600" : "text-red-500")}>
+              {fmt(r.net)}
+            </span>
+          </div>
         </TableCell>
         <TableCell className="text-right text-sm text-muted-foreground">{detailLines.length}</TableCell>
       </TableRow>
