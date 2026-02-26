@@ -28,7 +28,7 @@ export function useEcoContribution({
   const isDeliverooEnabled = platform === "deliveroo" || platform === "global";
   // ── Uber Eats: payouts table ──
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
-    queryKey: ["eco_contribution_payouts", restaurantIds, year, month],
+    queryKey: ["eco_contribution_payouts", restaurantIds, year, month, platform],
     queryFn: async () => {
       const allData: { restaurant_id: string; payout_date: string; eco_contribution_refund: number | null; eco_contribution_charge: number | null }[] = [];
       let offset = 0;
@@ -73,7 +73,7 @@ export function useEcoContribution({
 
   // ── Uber Eats: payout_adjustments detail lines ──
   const { data: uberDetailLines, isLoading: loadingUberDetail } = useQuery({
-    queryKey: ["eco_contribution_detail", restaurantIds, year, month],
+    queryKey: ["eco_contribution_detail", restaurantIds, year, month, platform],
     queryFn: async () => {
       const allData: EcoDetailLine[] = [];
       let offset = 0;
@@ -120,7 +120,7 @@ export function useEcoContribution({
 
   // ── Deliveroo: deliveroo_orders with eco-contribution type ──
   const { data: deliverooEcoData, isLoading: loadingDeliveroo } = useQuery({
-    queryKey: ["eco_contribution_deliveroo", restaurantIds, year, month],
+    queryKey: ["eco_contribution_deliveroo", restaurantIds, year, month, platform],
     queryFn: async () => {
       const allData: {
         id: string;
