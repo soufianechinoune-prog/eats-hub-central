@@ -1,30 +1,28 @@
 
 
-# Corrections Eco-Contribution : retrait ligne Solde Net + fix plateforme
+# Fix Deliveroo import 500 timeout errors
 
-## Problemes identifies
+## Root cause
 
-1. **Ligne "Solde Net" sur le chart** : la `Line` dataKey="Solde" est affichee sur le ComposedChart. A retirer selon la demande.
+The `parse-deliveroo-statement` edge function receives the entire CSV content in one HTTP request and processes all upsert batches synchronously without delays. For large files (700+ rows), the cumulative DB round-trips exceed Cloudflare's execution timeout (typically 25-30s for Deno edge functions), resulting in a 500 error.
 
-2. **Le filtre plateforme ne fonctionne pas** : dans `useEcoContribution.ts`, les trois `queryKey` n'incluent pas `platform`. Quand on passe d'Uber a Deliveroo, React Query retourne le cache existant au lieu de re-executer la requete. Le flag `enabled` empeche le fetch initial, mais si on revient sur "Global" apres "Deliveroo", les donnees Uber sont deja en cache avec la meme cle.
+The edge function logs confirm that most files succeed (125-475 rows), but the largest file (701 rows / 708 raw records) likely triggers the timeout.
 
-## Corrections
+## Fix strategy
 
-### 1. Retirer la ligne Solde Net du chart (`EcoContributionSection.tsx`, lignes 270-277)
+Add a small inter-batch delay (50ms) in the upsert loop inside `parse-deliveroo-statement/index.ts` to prevent connection exhaustion, and reduce batch size from 100 to 50 for more predictable timing. This matches the pattern already used in other edge functions per the memory note on performance and resilience.
 
-Supprimer le composant `<Line>` qui trace le Solde Net sur le chart. Supprimer aussi le calcul `Solde` dans `chartData` (ligne 72) pour nettoyer.
+### File: `supabase/functions/parse-deliveroo-statement/index.ts`
 
-### 2. Ajouter `platform` aux queryKey (`useEcoContribution.ts`)
+1. **Reduce BATCH_SIZE** from 100 to 50 (line 140)
+2. **Add 50ms delay between batches** after each upsert call in the loop (after line 159)
 
-Ajouter `platform` dans les 3 tableaux `queryKey` :
+```typescript
+// After each batch upsert:
+if (i + BATCH_SIZE < deduplicatedRecords.length) {
+  await new Promise(r => setTimeout(r, 50));
+}
+```
 
-- Ligne 31 : `["eco_contribution_payouts", restaurantIds, year, month]` → ajouter `platform`
-- Ligne 71 : `["eco_contribution_detail", restaurantIds, year, month]` → ajouter `platform`  
-- Ligne 105 : `["eco_contribution_deliveroo", restaurantIds, year, month]` → ajouter `platform`
-
-Cela force React Query a invalider le cache quand on change de plateforme.
-
-### Fichiers modifies
-- `src/components/analytics/EcoContributionSection.tsx` : suppression de la Line Solde Net + suppression du champ Solde dans chartData
-- `src/hooks/useEcoContribution.ts` : ajout de `platform` dans les 3 queryKey
+This is a minimal, targeted fix. No frontend changes needed.
 
