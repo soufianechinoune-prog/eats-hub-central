@@ -69,7 +69,7 @@ export function EcoContributionSection({
         : MONTHS[d.month - 1],
       Remboursements: d.refund,
       Prélèvements: Math.abs(d.charge),
-      Solde: Math.round((d.refund + d.charge) * 100) / 100,
+      
     }));
   }, [monthlyData, localYear]);
 
@@ -267,14 +267,6 @@ export function EcoContributionSection({
                       <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
                       <Bar dataKey="Remboursements" stackId="eco" fill="hsl(142, 76%, 36%)" radius={[0, 0, 0, 0]} />
                       <Bar dataKey="Prélèvements" stackId="eco" fill="hsl(0, 84%, 60%)" radius={[2, 2, 0, 0]} />
-                      <Line
-                        type="monotone"
-                        dataKey="Solde"
-                        stroke="hsl(var(--foreground))"
-                        strokeWidth={2}
-                        dot={{ fill: "hsl(var(--foreground))", r: 3 }}
-                        name="Solde Net"
-                      />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
