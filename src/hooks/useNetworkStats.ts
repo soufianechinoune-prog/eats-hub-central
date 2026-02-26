@@ -72,11 +72,12 @@ const RETRY_CONFIG = {
 
 /**
  * Centralized hook for fetching network-wide restaurant statistics
- * Queries are staggered in 4 waves to avoid I/O contention:
- * Wave 1: restaurants + sales (lightweight)
+ * Uses server-side RPC aggregation for heavy tables (orders, order_history, deliveroo_orders)
+ * Queries are staggered in waves to avoid I/O contention:
+ * Wave 1: restaurants + sales + deliveroo RPC (lightweight)
  * Wave 2: reviews + accuracy (small tables)
- * Wave 3: orders payout (heavy pagination)
- * Wave 4: order_history + availability (heavy pagination)
+ * Wave 3: orders payout RPC (single call)
+ * Wave 4: prep time RPC + availability RPC (single calls)
  */
 export function useNetworkStats({
   restaurantIds,
@@ -99,7 +100,7 @@ export function useNetworkStats({
   const hasIds = restaurantIds.length > 0;
 
   // ═══════════════════════════════════════════════
-  // WAVE 1: Restaurants + Sales (lightweight)
+  // WAVE 1: Restaurants + Sales + Deliveroo RPC (lightweight)
   // ═══════════════════════════════════════════════
 
   const { data: restaurantsRaw } = useQuery({
@@ -143,40 +144,23 @@ export function useNetworkStats({
     ...RETRY_CONFIG,
   });
 
-  // Deliveroo sales (wave 1b - lightweight)
-  const { data: deliverooSalesData, isLoading: deliverooLoading } = useQuery({
+  // Deliveroo sales via RPC (replaces paginated fetch)
+  const { data: deliverooSummaryData, isLoading: deliverooLoading } = useQuery({
     queryKey: ["network-stats-deliveroo", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (!hasIds) return [];
-      const PAGE_SIZE = 1000;
-      let allData: Array<{
-        restaurant_id: string;
-        order_amount: number | null;
-        total_payable: number | null;
-      }> = [];
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("deliveroo_orders")
-          .select("restaurant_id, order_amount, total_payable")
-          .eq("history_type", "Livraison")
-          .gte("delivery_datetime", `${startDateStr}T00:00:00`)
-          .lte("delivery_datetime", `${endDateStr}T23:59:59`)
-          .in("restaurant_id", restaurantIds)
-          .order("delivery_datetime", { ascending: true })
-          .order("id", { ascending: true })
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          hasMore = data.length === PAGE_SIZE;
-          offset += PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      return allData;
+      const { data, error } = await supabase.rpc("get_network_deliveroo_summary", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
+      });
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        restaurant_id: d.restaurant_id,
+        total_revenue: Number(d.total_revenue),
+        total_payable: Number(d.total_payable),
+        order_count: Number(d.order_count),
+      }));
     },
     enabled: hasIds,
     ...RETRY_CONFIG,
@@ -250,44 +234,27 @@ export function useNetworkStats({
   const wave2Done = !!reviewsData && !!accuracyData;
 
   // ═══════════════════════════════════════════════
-  // WAVE 3: Orders payout (wait for wave 2)
+  // WAVE 3: Orders payout via RPC (wait for wave 2)
   // ═══════════════════════════════════════════════
 
   const { data: ordersPayoutData, isLoading: ordersPayoutLoading } = useQuery({
     queryKey: ["network-stats-orders-payout", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (!hasIds) return [];
-      const PAGE_SIZE = 1000;
-      let allData: Array<{
-        restaurant_id: string;
-        sales_incl_vat: number | null;
-        net_payout: number | null;
-        item_promo_incl_vat: number | null;
-        meal_voucher_amount: number | null;
-      }> = [];
-      let offset = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("orders")
-          .select("restaurant_id, sales_incl_vat, net_payout, item_promo_incl_vat, meal_voucher_amount")
-          .gte("order_datetime", `${startDateStr}T00:00:00`)
-          .lte("order_datetime", `${endDateStr}T23:59:59`)
-          .in("restaurant_id", restaurantIds)
-          .order("order_datetime", { ascending: true })
-          .order("id", { ascending: true })
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          hasMore = data.length === PAGE_SIZE;
-          offset += PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      return allData;
+      const { data, error } = await supabase.rpc("get_network_orders_summary", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
+      });
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        restaurant_id: d.restaurant_id,
+        total_sales_incl_vat: Number(d.total_sales_incl_vat),
+        total_net_payout: Number(d.total_net_payout),
+        total_item_promo_incl_vat: Number(d.total_item_promo_incl_vat),
+        total_meal_voucher: Number(d.total_meal_voucher),
+        order_count: Number(d.order_count),
+      }));
     },
     enabled: hasIds && wave2Done,
     ...RETRY_CONFIG,
@@ -297,42 +264,26 @@ export function useNetworkStats({
   const wave3Done = !!ordersPayoutData;
 
   // ═══════════════════════════════════════════════
-  // WAVE 4: Order history + Availability (wait for wave 3)
+  // WAVE 4: Prep time RPC + Availability RPC (wait for wave 3)
   // ═══════════════════════════════════════════════
 
-  const { data: orderHistoryData, isLoading: historyLoading } = useQuery({
+  const { data: prepTimeSummaryData, isLoading: historyLoading } = useQuery({
     queryKey: ["network-stats-history", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (!hasIds) return [];
-      let allData: Array<{ 
-        restaurant_id: string; 
-        initial_prep_time_minutes: number | null;
-        total_prep_delivery_time_minutes: number | null;
-      }> = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data: pageData, error } = await supabase
-          .from("order_history")
-          .select("restaurant_id, initial_prep_time_minutes, total_prep_delivery_time_minutes")
-          .gte("order_datetime", startDate.toISOString())
-          .lte("order_datetime", endDate.toISOString())
-          .in("restaurant_id", restaurantIds)
-          .order("order_datetime", { ascending: true })
-          .order("restaurant_id", { ascending: true })
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-        if (error) throw error;
-        if (pageData && pageData.length > 0) {
-          allData = [...allData, ...pageData];
-          hasMore = pageData.length === pageSize;
-          page++;
-        } else {
-          hasMore = false;
-        }
-      }
-      return allData;
+      const { data, error } = await supabase.rpc("get_network_prep_time_summary", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      });
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        restaurant_id: d.restaurant_id,
+        avg_prep_time: d.avg_prep_time != null ? Number(d.avg_prep_time) : null,
+        avg_total_delivery_time: d.avg_total_delivery_time != null ? Number(d.avg_total_delivery_time) : null,
+        prep_count: Number(d.prep_count),
+        delivery_count: Number(d.delivery_count),
+      }));
     },
     enabled: hasIds && wave3Done,
     ...RETRY_CONFIG,
@@ -342,15 +293,16 @@ export function useNetworkStats({
     queryKey: ["network-stats-availability", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (!hasIds) return [];
-      const { data, error } = await supabase
-        .from("hourly_availability")
-        .select("restaurant_id, offline_minutes")
-        .gte("hour_start", `${startDateStr}T00:00:00`)
-        .lte("hour_start", `${endDateStr}T23:59:59`)
-        .in("restaurant_id", restaurantIds)
-        .range(0, 50000);
+      const { data, error } = await supabase.rpc("get_availability_by_restaurant", {
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
+        p_restaurant_ids: restaurantIds,
+      });
       if (error) throw error;
-      return data || [];
+      return (data || []).map((d: any) => ({
+        restaurant_id: d.restaurant_id,
+        total_offline_minutes: Number(d.total_offline_minutes),
+      }));
     },
     enabled: hasIds && wave3Done,
     ...RETRY_CONFIG,
@@ -368,11 +320,11 @@ export function useNetworkStats({
       const uberRevenue = restoSales.reduce((sum, s) => sum + Number(s.revenue_ttc || 0), 0);
       const uberOrders = restoSales.reduce((sum, s) => sum + Number(s.order_count || 0), 0);
 
-      // Deliveroo data
-      const restoDeliveroo = deliverooSalesData?.filter((d) => d.restaurant_id === resto.id) || [];
-      const deliverooRevenue = restoDeliveroo.reduce((sum, d) => sum + Number(d.order_amount || 0), 0);
-      const deliverooOrders = restoDeliveroo.length;
-      const deliverooNetPayout = restoDeliveroo.reduce((sum, d) => sum + Number(d.total_payable || 0), 0);
+      // Deliveroo data from RPC summary
+      const restoDeliveroo = deliverooSummaryData?.find((d) => d.restaurant_id === resto.id);
+      const deliverooRevenue = restoDeliveroo?.total_revenue || 0;
+      const deliverooOrders = restoDeliveroo?.order_count || 0;
+      const deliverooNetPayout = restoDeliveroo?.total_payable || 0;
 
       // Combined metrics
       const revenue = uberRevenue + deliverooRevenue;
@@ -390,28 +342,17 @@ export function useNetworkStats({
             restoReviews.length
           : null;
 
-      const restoOrders = ordersPayoutData?.filter((o) => o.restaurant_id === resto.id) || [];
+      // Orders payout from RPC summary
+      const restoOrdersSummary = ordersPayoutData?.find((o) => o.restaurant_id === resto.id);
       let profitability: number | null = null;
       let netPayout = 0;
       
-      if (restoOrders.length > 0 || restoDeliveroo.length > 0) {
+      if (restoOrdersSummary || restoDeliveroo) {
         // Uber part
-        const uberSales = restoOrders.reduce(
-          (sum, o) => sum + Math.max(0, Number(o.sales_incl_vat || 0)),
-          0
-        );
-        const totalPromo = restoOrders.reduce(
-          (sum, o) => sum + Math.abs(Number(o.item_promo_incl_vat || 0)),
-          0
-        );
-        const totalNetPayoutRaw = restoOrders.reduce(
-          (sum, o) => sum + Number(o.net_payout || 0),
-          0
-        );
-        const totalMealVoucher = restoOrders.reduce(
-          (sum, o) => sum + Number(o.meal_voucher_amount || 0),
-          0
-        );
+        const uberSales = restoOrdersSummary?.total_sales_incl_vat || 0;
+        const totalPromo = restoOrdersSummary?.total_item_promo_incl_vat || 0;
+        const totalNetPayoutRaw = restoOrdersSummary?.total_net_payout || 0;
+        const totalMealVoucher = restoOrdersSummary?.total_meal_voucher || 0;
         const uberNetPayout = totalNetPayoutRaw + totalMealVoucher;
         
         // Combined payout (Uber + Deliveroo)
@@ -428,29 +369,10 @@ export function useNetworkStats({
             : null;
       }
 
-      const restoHistory =
-        orderHistoryData?.filter((h) => h.restaurant_id === resto.id) || [];
-      const validPrepTimes = restoHistory.filter(
-        (h) => h.initial_prep_time_minutes != null
-      );
-      const prepTime =
-        validPrepTimes.length > 0
-          ? validPrepTimes.reduce(
-              (sum, h) => sum + Number(h.initial_prep_time_minutes || 0),
-              0
-            ) / validPrepTimes.length
-          : null;
-
-      const validTotalDelivery = restoHistory.filter(
-        (h) => h.total_prep_delivery_time_minutes != null
-      );
-      const totalDeliveryTime =
-        validTotalDelivery.length > 0
-          ? validTotalDelivery.reduce(
-              (sum, h) => sum + Number(h.total_prep_delivery_time_minutes || 0),
-              0
-            ) / validTotalDelivery.length
-          : null;
+      // Prep time from RPC summary
+      const restoPrepSummary = prepTimeSummaryData?.find((h) => h.restaurant_id === resto.id);
+      const prepTime = restoPrepSummary?.avg_prep_time ?? null;
+      const totalDeliveryTime = restoPrepSummary?.avg_total_delivery_time ?? null;
 
       const restoAccuracy =
         accuracyData?.filter((a) => a.restaurant_id === resto.id) || [];
@@ -460,13 +382,10 @@ export function useNetworkStats({
       );
       const errorRate = orders > 0 ? (totalIncorrect / orders) * 100 : null;
 
-      const restoAvail =
-        availabilityData?.filter((a) => a.restaurant_id === resto.id) || [];
-      const totalOfflineMinutes = restoAvail.reduce(
-        (sum, a) => sum + Number(a.offline_minutes || 0),
-        0
-      );
-      const downtime = restoAvail.length > 0 ? totalOfflineMinutes / 60 : null;
+      // Availability from RPC summary
+      const restoAvail = availabilityData?.find((a) => a.restaurant_id === resto.id);
+      const totalOfflineMinutes = restoAvail?.total_offline_minutes || 0;
+      const downtime = restoAvail ? totalOfflineMinutes / 60 : null;
 
       const revenueVariation =
         includeN1Comparison && prevRevenue > 0
@@ -483,10 +402,10 @@ export function useNetworkStats({
 
       // Uber profitability
       let uberProfitability: number | null = null;
-      if (restoOrders.length > 0) {
-        const uberSalesVal = restoOrders.reduce((sum, o) => sum + Math.max(0, Number(o.sales_incl_vat || 0)), 0);
-        const totalPromoVal = restoOrders.reduce((sum, o) => sum + Math.abs(Number(o.item_promo_incl_vat || 0)), 0);
-        const uberNetPayoutVal = restoOrders.reduce((sum, o) => sum + Number(o.net_payout || 0), 0) + restoOrders.reduce((sum, o) => sum + Number(o.meal_voucher_amount || 0), 0);
+      if (restoOrdersSummary) {
+        const uberSalesVal = restoOrdersSummary.total_sales_incl_vat;
+        const totalPromoVal = restoOrdersSummary.total_item_promo_incl_vat;
+        const uberNetPayoutVal = restoOrdersSummary.total_net_payout + restoOrdersSummary.total_meal_voucher;
         const uberBase = profitabilityBase === "net" ? Math.max(0, uberSalesVal - totalPromoVal) : uberSalesVal;
         uberProfitability = uberBase > 0 ? (uberNetPayoutVal / uberBase) * 100 : null;
       }
@@ -497,8 +416,8 @@ export function useNetworkStats({
         delProfitability = (deliverooNetPayout / deliverooRevenue) * 100;
       }
 
-      const uberNetPayoutFinal = restoOrders.length > 0
-        ? restoOrders.reduce((sum, o) => sum + Number(o.net_payout || 0), 0) + restoOrders.reduce((sum, o) => sum + Number(o.meal_voucher_amount || 0), 0)
+      const uberNetPayoutFinal = restoOrdersSummary
+        ? restoOrdersSummary.total_net_payout + restoOrdersSummary.total_meal_voucher
         : 0;
 
       return {
@@ -547,11 +466,11 @@ export function useNetworkStats({
   }, [
     restaurants,
     salesData,
-    deliverooSalesData,
+    deliverooSummaryData,
     prevSalesData,
     reviewsData,
     ordersPayoutData,
-    orderHistoryData,
+    prepTimeSummaryData,
     accuracyData,
     availabilityData,
     profitabilityBase,
