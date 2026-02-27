@@ -1,24 +1,36 @@
 
 
-# Ajouter les 2 types Deliveroo 2024 manquants dans l'agregation client
+# Ajouter les types Deliveroo 2026 (annulations) dans l'agrégation client
 
 ## Contexte
 
-Sur les 5 types mentionnes, 3 sont deja geres (A emporter, Bon de reduction, Eco-contribution). Les 2 manquants tombent dans le `else` generique avec `Math.abs()` ce qui peut inverser leur signe dans les KPIs.
+Le parser backend accepte déjà tous les types sans filtrage. Les 4 types suivants doivent être catégorisés dans l'agrégation client pour des KPIs corrects :
+
+- **"Montant commande annulée"** → CA annulé, à traiter comme un remboursement (négatif)
+- **"Commission Deliveroo sur la commande annulée"** → commission remboursée sur annulation
+- **"Frais d'annulation de commande"** → frais facturé au restaurant (débit)
+- **"Eco-contribution – article L.541-10 du Code de l'environnement"** → éco-taxe (débit)
+
+Sans catégorisation explicite, ces types tombent dans le `else` générique avec `Math.abs()`, ce qui peut fausser les montants.
 
 ## Changements
 
-### 1. `src/pages/Analytics.tsx` (ligne ~335 et ~1021)
+### 1. `src/pages/Analytics.tsx` (2 occurrences d'agrégation)
 
-- Ajouter `"Publicités Marketer"` dans `PROMO_TYPES` (c'est une depense marketing facturee, meme logique que "Contribution marketing")
-- Creer `CREDIT_ADJUSTMENT_TYPES = ["Crédit pour rectification de facture"]` et les ajouter au `net_payout` sans `Math.abs()` (credit = positif)
+- Créer `CANCELLATION_ORDER_TYPES = ["Montant commande annulée"]` → traiter comme refund (ajout à `refund_incl_vat` + `net_payout`)
+- Créer `CANCELLATION_FEE_TYPES = ["Frais d'annulation de commande"]` → débit, ajout à `other_payments_incl_vat` + `net_payout`
+- Ajouter `"Commission Deliveroo sur la commande annulée"` dans `EXTRA_COMMISSION_TYPES`
+- Ajouter `"Eco-contribution – article L.541-10 du Code de l'environnement"` dans un nouveau `ECO_CONTRIBUTION_TYPES` → débit, ajout à `other_payments_incl_vat` + `net_payout`
 
-### 2. `src/hooks/useFinancesDrilldown.ts` (ligne ~20-30)
+### 2. `src/hooks/useFinancesDrilldown.ts`
 
-- Ajouter `"Publicités Marketer"` dans `DELIVEROO_PROMO_TYPES`
-- Creer une categorie pour "Credit pour rectification de facture" avec la meme logique (ajout au net sans inversion de signe)
+- Mêmes ajouts dans les constantes et la logique d'agrégation
 
-### 3 fichiers modifies, 4 points d'edition
+### 3. Note sur les 7 fichiers en échec
 
-Chaque point = ajouter 1-2 lignes dans une liste existante ou creer un petit bloc `else if` de 3 lignes.
+Les logs montrent 0 appels au parser pour ces fichiers → l'échec est probablement côté lecture navigateur (avant l'envoi). Le `catch {}` silencieux (ligne 183 de DeliverooImportTab.tsx) masque l'erreur native. Un correctif séparé (exposer l'erreur native) est recommandé en complément.
+
+## Fichiers modifiés
+- `src/pages/Analytics.tsx` — 2 blocs d'agrégation
+- `src/hooks/useFinancesDrilldown.ts` — 2 blocs d'agrégation
 
