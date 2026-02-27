@@ -1,36 +1,33 @@
 
 
-# Ajouter les types Deliveroo 2026 (annulations) dans l'agrégation client
+# Corriger l'import des fichiers Deliveroo + RPC incomplet
 
-## Contexte
+## Diagnostic
 
-Le parser backend accepte déjà tous les types sans filtrage. Les 4 types suivants doivent être catégorisés dans l'agrégation client pour des KPIs corrects :
+- Bussy a 5659 lignes Deliveroo en base, mais les plus recentes datent du **8 fevrier 2026**
+- La vue d'ensemble affiche la semaine du 16-22 fevrier → zero donnees Deliveroo pour Bussy
+- Les 7 fichiers en echec d'import contiennent les releves recents (apres le 9 fevrier)
+- Argenteuil a des donnees jusqu'au 22 fevrier → ligne Deliveroo visible
 
-- **"Montant commande annulée"** → CA annulé, à traiter comme un remboursement (négatif)
-- **"Commission Deliveroo sur la commande annulée"** → commission remboursée sur annulation
-- **"Frais d'annulation de commande"** → frais facturé au restaurant (débit)
-- **"Eco-contribution – article L.541-10 du Code de l'environnement"** → éco-taxe (débit)
+## Deux correctifs
 
-Sans catégorisation explicite, ces types tombent dans le `else` générique avec `Math.abs()`, ce qui peut fausser les montants.
+### 1. Robustifier la lecture fichier dans `DeliverooImportTab.tsx`
 
-## Changements
+La fonction `readFileAsText` a un `catch` silencieux qui masque l'erreur native du navigateur. Correctifs :
 
-### 1. `src/pages/Analytics.tsx` (2 occurrences d'agrégation)
+- Remplacer par une chaine de fallback : `file.arrayBuffer()` + `TextDecoder` → `FileReader.readAsText` → `FileReader.readAsArrayBuffer`
+- Propager `error.name` et `error.message` dans le toast d'erreur
+- Ajouter un message d'aide specifique pour `NotReadableError` (fermer Excel, copier en local hors iCloud/OneDrive/Drive)
 
-- Créer `CANCELLATION_ORDER_TYPES = ["Montant commande annulée"]` → traiter comme refund (ajout à `refund_incl_vat` + `net_payout`)
-- Créer `CANCELLATION_FEE_TYPES = ["Frais d'annulation de commande"]` → débit, ajout à `other_payments_incl_vat` + `net_payout`
-- Ajouter `"Commission Deliveroo sur la commande annulée"` dans `EXTRA_COMMISSION_TYPES`
-- Ajouter `"Eco-contribution – article L.541-10 du Code de l'environnement"` dans un nouveau `ECO_CONTRIBUTION_TYPES` → débit, ajout à `other_payments_incl_vat` + `net_payout`
+### 2. Mettre a jour le RPC `get_network_deliveroo_summary`
 
-### 2. `src/hooks/useFinancesDrilldown.ts`
+Actuellement filtre `history_type = 'Livraison'` uniquement. Ajouter `'À emporter'` et `'Nouvelle livraison'` pour etre coherent avec l'agregation client.
 
-- Mêmes ajouts dans les constantes et la logique d'agrégation
+```sql
+WHERE d.history_type IN ('Livraison', 'À emporter', 'Nouvelle livraison')
+```
 
-### 3. Note sur les 7 fichiers en échec
-
-Les logs montrent 0 appels au parser pour ces fichiers → l'échec est probablement côté lecture navigateur (avant l'envoi). Le `catch {}` silencieux (ligne 183 de DeliverooImportTab.tsx) masque l'erreur native. Un correctif séparé (exposer l'erreur native) est recommandé en complément.
-
-## Fichiers modifiés
-- `src/pages/Analytics.tsx` — 2 blocs d'agrégation
-- `src/hooks/useFinancesDrilldown.ts` — 2 blocs d'agrégation
+## Fichiers modifies
+- `src/components/reports/DeliverooImportTab.tsx` — readFileAsText + messages d'erreur
+- Migration SQL — mise a jour du RPC
 
