@@ -1,40 +1,24 @@
 
 
-# Fix: 7 fichiers sur 66 echouent a la lecture
+# Ajouter les 2 types Deliveroo 2024 manquants dans l'agregation client
 
-## Cause racine
+## Contexte
 
-Le code lit les fichiers **sequentiellement** : pour chaque fichier, il appelle `readFileAsText()` puis fait un appel reseau `parse-deliveroo-statement` (dry-run). Avec 66 fichiers, le traitement prend plusieurs minutes. Les references aux derniers fichiers (`File` objects) deviennent invalides car le navigateur peut les garbage-collecter ou invalider les handles apres un certain temps/nombre de lectures.
+Sur les 5 types mentionnes, 3 sont deja geres (A emporter, Bon de reduction, Eco-contribution). Les 2 manquants tombent dans le `else` generique avec `Math.abs()` ce qui peut inverser leur signe dans les KPIs.
 
-Les 7 fichiers en echec sont les derniers (dates 20251229 a 20260209) -- ils ne sont pas corrompus, ils sont simplement lus trop tard.
+## Changements
 
-## Fix
+### 1. `src/pages/Analytics.tsx` (ligne ~335 et ~1021)
 
-### `src/components/reports/DeliverooImportTab.tsx`
+- Ajouter `"Publicités Marketer"` dans `PROMO_TYPES` (c'est une depense marketing facturee, meme logique que "Contribution marketing")
+- Creer `CREDIT_ADJUSTMENT_TYPES = ["Crédit pour rectification de facture"]` et les ajouter au `net_payout` sans `Math.abs()` (credit = positif)
 
-**Lire TOUS les fichiers en memoire d'abord, PUIS traiter les dry-runs.**
+### 2. `src/hooks/useFinancesDrilldown.ts` (ligne ~20-30)
 
-1. Ajouter une premiere boucle qui lit tous les fichiers (`readFileAsText`) immediatement et stocke leur contenu dans un `Map<File, string>`
-2. Dans la seconde boucle (dry-run), utiliser le contenu deja lu depuis la Map au lieu de relire le fichier
-3. Cela garantit que les File handles sont consommes immediatement avant qu'ils ne deviennent invalides
+- Ajouter `"Publicités Marketer"` dans `DELIVEROO_PROMO_TYPES`
+- Creer une categorie pour "Credit pour rectification de facture" avec la meme logique (ajout au net sans inversion de signe)
 
-```text
-AVANT:
-  for file in csvFiles:
-    content = readFileAsText(file)     // peut echouer apres 5min
-    dryRun(content)                     // appel reseau ~1s
+### 3 fichiers modifies, 4 points d'edition
 
-APRES:
-  // Phase 1: lecture immediate de tous les fichiers
-  fileContents = new Map()
-  for file in csvFiles:
-    fileContents.set(file, readFileAsText(file))  // rapide, tout en memoire
-
-  // Phase 2: dry-runs avec le contenu deja lu
-  for file in csvFiles:
-    content = fileContents.get(file)
-    dryRun(content)
-```
-
-Un seul fichier modifie, une seule zone de code changee (la fonction `handleFileChange`).
+Chaque point = ajouter 1-2 lignes dans une liste existante ou creer un petit bloc `else if` de 3 lignes.
 
