@@ -66,6 +66,7 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
   const [fileValidations, setFileValidations] = useState<FileValidation[]>([]);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [allResults, setAllResults] = useState<FileResult[]>([]);
+  const [excludedRestaurantNames, setExcludedRestaurantNames] = useState<Set<string>>(new Set());
 
   const resetImport = () => {
     setImportLabel("");
@@ -73,6 +74,7 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
     setFileValidations([]);
     setAllResults([]);
     setImportProgress({ current: 0, total: 0 });
+    setExcludedRestaurantNames(new Set());
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,7 +124,7 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
           const timeout = setTimeout(() => controller.abort(), 90_000);
 
           const { data, error } = await supabase.functions.invoke("parse-deliveroo-statement", {
-            body: { csvContent: content, fileName: file.name, dryRun: true },
+            body: { csvContent: content, fileName: file.name, dryRun: true, excludeRestaurantNames: Array.from(excludedRestaurantNames) },
           });
           clearTimeout(timeout);
 
@@ -274,7 +276,7 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
           const timeout = setTimeout(() => controller.abort(), 90_000);
 
           const { data, error } = await supabase.functions.invoke("parse-deliveroo-statement", {
-            body: { csvContent: fv.csvContent, fileName: fv.file.name, dryRun: false },
+            body: { csvContent: fv.csvContent, fileName: fv.file.name, dryRun: false, excludeRestaurantNames: Array.from(excludedRestaurantNames) },
           });
           clearTimeout(timeout);
 
@@ -354,7 +356,10 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
 
   // Aggregated stats across all files
   const allUnmatched = [...new Set(fileValidations.flatMap(fv => fv.unmatchedNames))];
-  const totalRows = fileValidations.reduce((s, fv) => s + (fv.stats?.totalRows || 0), 0);
+  const excludedCounts = fileValidations.reduce((s, fv) => {
+    return s + fv.restaurants.filter(r => excludedRestaurantNames.has(r.name)).reduce((a, r) => a + r.count, 0);
+  }, 0);
+  const totalRows = fileValidations.reduce((s, fv) => s + (fv.stats?.totalRows || 0), 0) - excludedCounts;
   const allRestaurants = fileValidations.flatMap(fv => fv.restaurants);
   const uniqueRestaurantMap = new Map<string, RestaurantStat>();
   allRestaurants.forEach(r => {
@@ -510,11 +515,27 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
                     </div>
                     {fv.restaurants.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        {fv.restaurants.map(r => (
-                          <Badge key={r.id} variant={r.id === 'unknown' ? 'destructive' : 'secondary'} className="text-xs">
-                            {r.name} ({r.count})
-                          </Badge>
-                        ))}
+                        {fv.restaurants.map(r => {
+                          const isExcluded = excludedRestaurantNames.has(r.name);
+                          return (
+                            <Badge
+                              key={r.id}
+                              variant={r.id === 'unknown' ? 'destructive' : isExcluded ? 'outline' : 'secondary'}
+                              className={`text-xs cursor-pointer select-none transition-opacity ${isExcluded ? 'opacity-50 line-through' : ''}`}
+                              onClick={() => {
+                                setExcludedRestaurantNames(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(r.name)) next.delete(r.name);
+                                  else next.add(r.name);
+                                  return next;
+                                });
+                              }}
+                            >
+                              {r.name} ({r.count})
+                              {!isExcluded && <X className="h-3 w-3 ml-1" />}
+                            </Badge>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

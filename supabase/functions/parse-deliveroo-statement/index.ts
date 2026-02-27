@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { csvContent, fileName, dryRun } = await req.json();
+    const { csvContent, fileName, dryRun, excludeRestaurantNames } = await req.json();
 
     if (!csvContent) {
       throw new Error('csvContent is required');
@@ -35,8 +35,16 @@ Deno.serve(async (req) => {
     console.log(`Total raw records: ${records.length}`);
 
     // Step 2: Detect sections and parse rows
-    const parsedRows = extractRows(records, fileName || '');
+    let parsedRows = extractRows(records, fileName || '');
     console.log(`Parsed rows: ${parsedRows.length}`);
+
+    // Step 2.5: Exclude specific restaurant names if requested
+    const excludeSet = new Set<string>(Array.isArray(excludeRestaurantNames) ? excludeRestaurantNames : []);
+    if (excludeSet.size > 0) {
+      const before = parsedRows.length;
+      parsedRows = parsedRows.filter(r => !excludeSet.has(r.restaurant_name));
+      console.log(`Excluded ${before - parsedRows.length} rows for restaurants: ${[...excludeSet].join(', ')}`);
+    }
 
     if (parsedRows.length === 0) {
       return new Response(JSON.stringify({
