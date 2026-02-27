@@ -1,38 +1,23 @@
 
 
-# Fix data mismatch: replace truncated RPC with existing aggregation
+# Fix: Deliveroo order count always showing 1 (daily) or 31 (monthly) in profitability chart
 
-## Analysis
+## Root cause
 
-`useOverviewData` calls `get_daily_revenue_from_orders` which returns **per-restaurant per-day** rows. For 92 restaurants × 31 days = ~2,852 rows, this exceeds the default 1,000-row limit and truncates data.
+In `src/hooks/useFinancesDrilldown.ts`, the `fetchDeliverooOrdersData` function (lines 67-149) groups all Deliveroo rows by `date|restaurant_id` into a single aggregated object per day. This aggregated object does **not** track the number of individual orders (Livraison rows).
 
-Looking at how `dailySalesData` is actually used in `computedData()`:
-- `totalRevenue` = sum of all `revenue_ttc` (line 426)
-- `totalOrders` = sum of all `order_count` (line 427)
-- Per-restaurant: filter by `restaurant_id`, then sum `revenue_ttc` and `order_count` (lines 484-490)
-- Platform filter: `dailySalesData.filter(d => d.platform === "uber_eats")` (line 549)
+Later, `dailyData` (line 617) increments `count += 1` for each element in the array. Since each Deliveroo day is collapsed into 1 element, the count is always 1 per day, hence 31 for a full month.
 
-**None of this requires daily granularity.** It's all per-restaurant sums. The existing `get_network_orders_summary` RPC already returns exactly this data, aggregated per restaurant with no row limit issue.
+For Uber, each raw row is an individual order so this works correctly. For Deliveroo and Global mode, the count is wrong.
 
-Using `.range(0, 5000)` would be a fragile workaround — it could still break with more restaurants or longer periods. The clean fix is to reuse the same RPC already created.
+## Fix
 
-## Plan
+### `src/hooks/useFinancesDrilldown.ts`
 
-### 1. Remove redundant `salesData` query in `useNetworkStats.ts`
-- Remove the `get_daily_revenue_from_orders` call (Wave 1)
-- Derive Uber revenue/orders from `ordersPayoutData` (`get_network_orders_summary`) which returns `total_sales_incl_vat` and `order_count` per restaurant
-- Remove `salesLoading` from `isLoading`, remove `salesData` from `useMemo` deps
-- Adjust wave gating: Wave 2 (reviews/accuracy) starts after restaurants load, not after salesData
+1. **Add `order_count` field** to the grouped object in `fetchDeliverooOrdersData` (line 103-112), initialized to 0
+2. **Increment `order_count`** inside the `DELIVEROO_ORDER_TYPES` branch (line 131) — each "Livraison"/"À emporter"/"Nouvelle livraison" row represents one real order
+3. **In `dailyData` computation** (line 617), change `byDate[date].count += 1` to use `order.order_count || 1` — this way Deliveroo records contribute their aggregated count while Uber records (which have no `order_count` field) default to 1
+4. **Same fix in `dailyDataByRestaurant`** (line 673)
 
-### 2. Replace `useOverviewSales` in `useOverviewData.ts`
-- Replace `get_daily_revenue_from_orders` call with `get_network_orders_summary` RPC
-- Returns ~92 rows (one per restaurant) instead of ~2,852
-- Update `computedData()` to work with per-restaurant summary rows instead of daily rows
-- The `platform` filter (line 549) becomes unnecessary since `get_network_orders_summary` only covers Uber orders — Deliveroo is already handled separately via `get_network_deliveroo_summary`
-
-### Files modified
-- `src/hooks/useNetworkStats.ts` — remove `salesData` query, derive from `ordersPayoutData`
-- `src/hooks/useOverviewData.ts` — replace `useOverviewSales` with `get_network_orders_summary` RPC, update `computedData()`
-
-No new migration needed — all required RPCs already exist.
+This ensures the tooltip shows the real number of Deliveroo orders per day/month instead of the number of aggregated records.
 
