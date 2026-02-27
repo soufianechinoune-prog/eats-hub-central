@@ -338,6 +338,10 @@ export default function Analytics() {
       const EXTRA_COMMISSION_TYPES = ["Commission Deliveroo sur repréparation de commande"];
       const POSITIVE_ADJUSTMENT_TYPES = ["Remboursement client refusé"];
       const CREDIT_ADJUSTMENT_TYPES = ["Crédit pour rectification de facture"];
+      const CANCELLATION_ORDER_TYPES = ["Montant commande annulée"];
+      const CANCELLATION_COMMISSION_TYPES = ["Commission Deliveroo sur la commande annulée"];
+      const CANCELLATION_FEE_TYPES = ["Frais d'annulation de commande"];
+      const ECO_CONTRIBUTION_TYPES = ["Eco-contribution – article L.541-10 du Code de l'environnement"];
       const PREVIOUS_INVOICE_TYPES = ["Facture précédente: Livraison", "Facture précédente: Remboursement client"];
 
       // Determine date range
@@ -459,6 +463,22 @@ export default function Analytics() {
           return;
         } else if (CREDIT_ADJUSTMENT_TYPES.includes(ht)) {
           // Crédits de rectification : ajout direct au net sans Math.abs (positif = crédit)
+          g.net_payout += Number(row.total_payable) || 0;
+        } else if (CANCELLATION_ORDER_TYPES.includes(ht)) {
+          // Montant commande annulée : remboursement (négatif)
+          g.refund_incl_vat += Math.abs(Number(row.total_payable) || 0);
+          g.net_payout += Number(row.total_payable) || 0;
+        } else if (CANCELLATION_COMMISSION_TYPES.includes(ht)) {
+          // Commission sur commande annulée : crédit commission
+          g.uber_fee_after_promo_incl_vat -= Math.abs(Number(row.total_payable) || 0);
+          g.net_payout += Number(row.total_payable) || 0;
+        } else if (CANCELLATION_FEE_TYPES.includes(ht)) {
+          // Frais d'annulation de commande : débit
+          g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
+          g.net_payout += Number(row.total_payable) || 0;
+        } else if (ECO_CONTRIBUTION_TYPES.includes(ht)) {
+          // Éco-contribution : débit
+          g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
           g.net_payout += Number(row.total_payable) || 0;
         } else {
           g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
