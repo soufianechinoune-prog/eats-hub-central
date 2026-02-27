@@ -163,22 +163,32 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
     }
   };
 
-  const readFileAsText = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        if (!result || result.trim().length === 0) {
-          reject(new Error(`Le fichier est vide (${(file.size / 1024).toFixed(1)} Ko)`));
-          return;
+  const readFileAsText = async (file: File): Promise<string> => {
+    const fileSizeLabel = `${(file.size / 1024).toFixed(1)} Ko`;
+    const encodings = ["utf-8", "windows-1252", "iso-8859-1"] as const;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const buffer = await file.arrayBuffer();
+        if (!buffer || buffer.byteLength === 0) {
+          throw new Error(`Le fichier est vide (${fileSizeLabel})`);
         }
-        resolve(result);
-      };
-      reader.onerror = () => {
-        reject(new Error(`Impossible de lire le fichier (${(file.size / 1024).toFixed(1)} Ko). Essayez de le ré-exporter depuis Deliveroo.`));
-      };
-      reader.readAsText(file, 'UTF-8');
-    });
+
+        for (const encoding of encodings) {
+          const text = new TextDecoder(encoding).decode(buffer);
+          if (text.trim().length > 0) return text;
+        }
+
+        throw new Error(`Le fichier est vide (${fileSizeLabel})`);
+      } catch {
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+      }
+    }
+
+    throw new Error(`Impossible de lire le fichier (${fileSizeLabel}). Essayez de le ré-exporter depuis Deliveroo.`);
+  };
 
   const buildPreview = (content: string): PreviewRow[] => {
     const lines = content.split('\n').filter((l: string) => l.trim());
