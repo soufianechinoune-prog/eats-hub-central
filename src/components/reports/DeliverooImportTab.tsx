@@ -93,34 +93,53 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
 
     const validations: FileValidation[] = [];
 
-    for (const file of csvFiles) {
-      const content = await readFileAsText(file);
-      try {
-        const { data, error } = await supabase.functions.invoke("parse-deliveroo-statement", {
-          body: { csvContent: content, fileName: file.name, dryRun: true },
-        });
-        if (error) throw error;
+    try {
+      for (const file of csvFiles) {
+        let content: string;
+        try {
+          content = await readFileAsText(file);
+        } catch (readErr: any) {
+          console.error(`[Deliveroo] Failed to read file: ${file.name}`, readErr);
+          toast({ title: `Erreur lecture : ${file.name}`, description: readErr.message, variant: "destructive" });
+          continue;
+        }
 
-        const preview = buildPreview(content);
-        validations.push({
-          file,
-          csvContent: content,
-          stats: data.stats,
-          restaurants: data.restaurants || [],
-          unmatchedNames: data.unmatchedNames || [],
-          dateRange: data.dateRange || { start: null, end: null },
-          previewRows: preview,
-        });
-      } catch (err: any) {
-        toast({ title: `Erreur : ${file.name}`, description: err.message, variant: "destructive" });
+        try {
+          console.log(`[Deliveroo] Dry-run starting: ${file.name}`);
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 90_000);
+
+          const { data, error } = await supabase.functions.invoke("parse-deliveroo-statement", {
+            body: { csvContent: content, fileName: file.name, dryRun: true },
+          });
+          clearTimeout(timeout);
+
+          if (error) throw error;
+
+          console.log(`[Deliveroo] Dry-run done: ${file.name}, rows: ${data.stats?.totalRows}`);
+          const preview = buildPreview(content);
+          validations.push({
+            file,
+            csvContent: content,
+            stats: data.stats,
+            restaurants: data.restaurants || [],
+            unmatchedNames: data.unmatchedNames || [],
+            dateRange: data.dateRange || { start: null, end: null },
+            previewRows: preview,
+          });
+        } catch (err: any) {
+          console.error(`[Deliveroo] Dry-run error: ${file.name}`, err);
+          toast({ title: `Erreur : ${file.name}`, description: err.message, variant: "destructive" });
+        }
       }
-    }
 
-    if (validations.length > 0) {
-      setFileValidations(validations);
-      setStep("preview");
+      if (validations.length > 0) {
+        setFileValidations(validations);
+        setStep("preview");
+      }
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const removeFile = (index: number) => {
@@ -175,54 +194,64 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
 
     const results: FileResult[] = [];
 
-    for (let i = 0; i < fileValidations.length; i++) {
-      const fv = fileValidations[i];
-      setImportProgress({ current: i + 1, total: fileValidations.length });
+    try {
+      for (let i = 0; i < fileValidations.length; i++) {
+        const fv = fileValidations[i];
+        setImportProgress({ current: i + 1, total: fileValidations.length });
 
-      try {
-        const { data, error } = await supabase.functions.invoke("parse-deliveroo-statement", {
-          body: { csvContent: fv.csvContent, fileName: fv.file.name, dryRun: false },
-        });
-        if (error) throw error;
+        try {
+          console.log(`[Deliveroo] Import starting (${i + 1}/${fileValidations.length}): ${fv.file.name}`);
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 90_000);
 
-        results.push({ fileName: fv.file.name, stats: data.stats, errorDetails: data.errorDetails || [] });
+          const { data, error } = await supabase.functions.invoke("parse-deliveroo-statement", {
+            body: { csvContent: fv.csvContent, fileName: fv.file.name, dryRun: false },
+          });
+          clearTimeout(timeout);
 
-        await supabase.from("csv_imports").insert({
-          file_name: fv.file.name,
-          file_size: fv.file.size,
-          report_type: "deliveroo_statement",
-          label: importLabel || null,
-          total_rows: data.stats.totalRows,
-          inserted_count: data.stats.inserted,
-          updated_count: data.stats.updated,
-          skipped_count: data.stats.skipped,
-          error_count: data.stats.errors,
-          status: "completed",
-          date_range_start: data.dateRange?.start,
-          date_range_end: data.dateRange?.end,
-          restaurants_count: data.restaurants?.length || 0,
-          restaurant_ids: (data.restaurants || []).map((r: any) => r.id).filter((id: string) => id !== 'unknown'),
-        });
-      } catch (err: any) {
-        results.push({
-          fileName: fv.file.name,
-          stats: { totalRows: fv.stats?.totalRows || 0, inserted: 0, updated: 0, skipped: 0, errors: fv.stats?.totalRows || 0 },
-          errorDetails: [err.message],
-        });
+          if (error) throw error;
+
+          console.log(`[Deliveroo] Import done: ${fv.file.name}, inserted: ${data.stats?.inserted}`);
+          results.push({ fileName: fv.file.name, stats: data.stats, errorDetails: data.errorDetails || [] });
+
+          await supabase.from("csv_imports").insert({
+            file_name: fv.file.name,
+            file_size: fv.file.size,
+            report_type: "deliveroo_statement",
+            label: importLabel || null,
+            total_rows: data.stats.totalRows,
+            inserted_count: data.stats.inserted,
+            updated_count: data.stats.updated,
+            skipped_count: data.stats.skipped,
+            error_count: data.stats.errors,
+            status: "completed",
+            date_range_start: data.dateRange?.start,
+            date_range_end: data.dateRange?.end,
+            restaurants_count: data.restaurants?.length || 0,
+            restaurant_ids: (data.restaurants || []).map((r: any) => r.id).filter((id: string) => id !== 'unknown'),
+          });
+        } catch (err: any) {
+          console.error(`[Deliveroo] Import error: ${fv.file.name}`, err);
+          results.push({
+            fileName: fv.file.name,
+            stats: { totalRows: fv.stats?.totalRows || 0, inserted: 0, updated: 0, skipped: 0, errors: fv.stats?.totalRows || 0 },
+            errorDetails: [err.message],
+          });
+        }
       }
+    } finally {
+      setAllResults(results);
+      setStep("complete");
+      setIsLoading(false);
+
+      const totalInserted = results.reduce((s, r) => s + r.stats.inserted, 0);
+      const totalErrors = results.reduce((s, r) => s + r.stats.errors, 0);
+      toast({
+        title: totalErrors > 0 ? "Import partiel" : "Import réussi",
+        description: `${totalInserted} lignes importées depuis ${results.length} fichier(s)`,
+        variant: totalErrors > 0 ? "destructive" : "default",
+      });
     }
-
-    setAllResults(results);
-    setStep("complete");
-    setIsLoading(false);
-
-    const totalInserted = results.reduce((s, r) => s + r.stats.inserted, 0);
-    const totalErrors = results.reduce((s, r) => s + r.stats.errors, 0);
-    toast({
-      title: totalErrors > 0 ? "Import partiel" : "Import réussi",
-      description: `${totalInserted} lignes importées depuis ${results.length} fichier(s)`,
-      variant: totalErrors > 0 ? "destructive" : "default",
-    });
   };
 
   const formatDate = (dateStr: string | null) => {

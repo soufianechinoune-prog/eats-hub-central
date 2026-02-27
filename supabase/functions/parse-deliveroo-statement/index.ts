@@ -25,7 +25,10 @@ Deno.serve(async (req) => {
       throw new Error('csvContent is required');
     }
 
-    console.log(`Parsing Deliveroo statement: ${fileName || 'unknown'}`);
+    console.log(`Parsing Deliveroo statement: ${fileName || 'unknown'}, dryRun: ${dryRun}`);
+    if (!dryRun) {
+      console.log(`Starting actual import for: ${fileName}`);
+    }
 
     // Step 1: Parse CSV with multi-line support
     const records = parseCSVWithMultiline(csvContent);
