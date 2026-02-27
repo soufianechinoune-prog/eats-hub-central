@@ -1,33 +1,36 @@
 
 
-# Corriger l'import des fichiers Deliveroo + RPC incomplet
+# Exclure des restaurants spécifiques de l'import Deliveroo
 
-## Diagnostic
+## Contexte
 
-- Bussy a 5659 lignes Deliveroo en base, mais les plus recentes datent du **8 fevrier 2026**
-- La vue d'ensemble affiche la semaine du 16-22 fevrier → zero donnees Deliveroo pour Bussy
-- Les 7 fichiers en echec d'import contiennent les releves recents (apres le 9 fevrier)
-- Argenteuil a des donnees jusqu'au 22 fevrier → ligne Deliveroo visible
+Les fichiers Deliveroo de Melun (HORTENSIA) contiennent 2 restaurants : **CHICKEN STREET - Melun** et **Bangkok Factory - Melun**. L'utilisateur veut pouvoir exclure Bangkok Factory de l'import.
 
-## Deux correctifs
+## Approche
 
-### 1. Robustifier la lecture fichier dans `DeliverooImportTab.tsx`
+Ajouter un mécanisme d'exclusion par restaurant dans l'étape de preview, côté client ET backend.
 
-La fonction `readFileAsText` a un `catch` silencieux qui masque l'erreur native du navigateur. Correctifs :
+## Changements
 
-- Remplacer par une chaine de fallback : `file.arrayBuffer()` + `TextDecoder` → `FileReader.readAsText` → `FileReader.readAsArrayBuffer`
-- Propager `error.name` et `error.message` dans le toast d'erreur
-- Ajouter un message d'aide specifique pour `NotReadableError` (fermer Excel, copier en local hors iCloud/OneDrive/Drive)
+### 1. `src/components/reports/DeliverooImportTab.tsx`
 
-### 2. Mettre a jour le RPC `get_network_deliveroo_summary`
+- Ajouter un state `excludedRestaurantNames: Set<string>` pour tracker les restaurants exclus
+- Sur chaque badge restaurant dans le preview (ligne 513-516), ajouter un bouton X pour exclure/ré-inclure le restaurant
+- Badge exclu : style barré/grisé avec possibilité de cliquer pour ré-inclure
+- Passer `excludedRestaurantNames` comme paramètre au body de l'appel edge function (dry-run ET import)
+- Recalculer `totalRows` et stats en excluant les lignes des restaurants exclus
 
-Actuellement filtre `history_type = 'Livraison'` uniquement. Ajouter `'À emporter'` et `'Nouvelle livraison'` pour etre coherent avec l'agregation client.
+### 2. `supabase/functions/parse-deliveroo-statement/index.ts`
 
-```sql
-WHERE d.history_type IN ('Livraison', 'À emporter', 'Nouvelle livraison')
-```
+- Accepter un nouveau paramètre optionnel `excludeRestaurantNames: string[]`
+- Après `extractRows()`, filtrer les lignes dont `restaurant_name` est dans la liste d'exclusion
+- Cela s'applique au dry-run (stats recalculées sans ces restaurants) ET à l'import réel
 
-## Fichiers modifies
-- `src/components/reports/DeliverooImportTab.tsx` — readFileAsText + messages d'erreur
-- Migration SQL — mise a jour du RPC
+## Résultat
+
+Dans le preview, l'utilisateur verra les badges de chaque restaurant avec un X pour exclure. Bangkok Factory sera exclu du comptage ET de l'insertion en base.
+
+## Fichiers modifiés
+- `src/components/reports/DeliverooImportTab.tsx` — UI d'exclusion + passage du paramètre
+- `supabase/functions/parse-deliveroo-statement/index.ts` — filtrage des lignes exclues
 
