@@ -28,6 +28,22 @@ const DELIVEROO_CREDIT_ADJUSTMENT_TYPES = [
   "Crédit pour rectification de facture",
 ];
 
+const DELIVEROO_CANCELLATION_ORDER_TYPES = [
+  "Montant commande annulée",
+];
+
+const DELIVEROO_CANCELLATION_COMMISSION_TYPES = [
+  "Commission Deliveroo sur la commande annulée",
+];
+
+const DELIVEROO_CANCELLATION_FEE_TYPES = [
+  "Frais d'annulation de commande",
+];
+
+const DELIVEROO_ECO_CONTRIBUTION_TYPES = [
+  "Eco-contribution – article L.541-10 du Code de l'environnement",
+];
+
 const DELIVEROO_ORDER_TYPES = [
   "Livraison",
   "À emporter",
@@ -150,6 +166,20 @@ async function fetchDeliverooOrdersData(restaurantIds: string[] | undefined, sta
       g.net_payout += Number(row.total_payable) || 0;
     } else if (DELIVEROO_CREDIT_ADJUSTMENT_TYPES.includes(ht)) {
       // Crédits de rectification : ajout direct au net sans Math.abs (positif = crédit)
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CANCELLATION_ORDER_TYPES.includes(ht)) {
+      // Montant commande annulée : remboursement (négatif)
+      g.refund_incl_vat += Math.abs(Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CANCELLATION_COMMISSION_TYPES.includes(ht)) {
+      // Commission sur commande annulée : crédit commission
+      g.uber_fee_after_promo_incl_vat -= Math.abs(Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CANCELLATION_FEE_TYPES.includes(ht)) {
+      // Frais d'annulation : débit
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_ECO_CONTRIBUTION_TYPES.includes(ht)) {
+      // Éco-contribution : débit
       g.net_payout += Number(row.total_payable) || 0;
     } else {
       // Other types (Remboursement de commission, etc.) → add to net_payout
@@ -354,6 +384,16 @@ async function fetchDeliverooIndividualOrders(
       g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
       g.net_payout += Number(row.total_payable) || 0;
     } else if (DELIVEROO_CREDIT_ADJUSTMENT_TYPES.includes(ht)) {
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CANCELLATION_ORDER_TYPES.includes(ht)) {
+      g.refund_incl_vat += Math.abs(Number(row.order_amount) || Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CANCELLATION_COMMISSION_TYPES.includes(ht)) {
+      g.uber_fee_after_promo_incl_vat -= Math.abs(Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CANCELLATION_FEE_TYPES.includes(ht)) {
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_ECO_CONTRIBUTION_TYPES.includes(ht)) {
       g.net_payout += Number(row.total_payable) || 0;
     } else {
       g.net_payout += Number(row.total_payable) || 0;
