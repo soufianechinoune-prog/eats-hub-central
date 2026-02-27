@@ -21,6 +21,11 @@ const DELIVEROO_PROMO_TYPES = [
   "Partner funding from agreed voucher campaign",
   "Contribution marketing",
   "Bon de réduction à payer par le restaurant",
+  "Publicités Marketer",
+];
+
+const DELIVEROO_CREDIT_ADJUSTMENT_TYPES = [
+  "Crédit pour rectification de facture",
 ];
 
 const DELIVEROO_ORDER_TYPES = [
@@ -143,8 +148,11 @@ async function fetchDeliverooOrdersData(restaurantIds: string[] | undefined, sta
     } else if (DELIVEROO_PROMO_TYPES.includes(ht)) {
       g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
       g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CREDIT_ADJUSTMENT_TYPES.includes(ht)) {
+      // Crédits de rectification : ajout direct au net sans Math.abs (positif = crédit)
+      g.net_payout += Number(row.total_payable) || 0;
     } else {
-      // Other types (Remboursement de commission, Publicités, etc.) → add to net_payout
+      // Other types (Remboursement de commission, etc.) → add to net_payout
       g.net_payout += Number(row.total_payable) || 0;
     }
   });
@@ -344,6 +352,8 @@ async function fetchDeliverooIndividualOrders(
       g.net_payout += Number(row.total_payable) || 0;
     } else if (DELIVEROO_PROMO_TYPES.includes(ht)) {
       g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CREDIT_ADJUSTMENT_TYPES.includes(ht)) {
       g.net_payout += Number(row.total_payable) || 0;
     } else {
       g.net_payout += Number(row.total_payable) || 0;

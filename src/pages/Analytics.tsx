@@ -332,11 +332,12 @@ export default function Analytics() {
     queryFn: async () => {
       const MEAL_VOUCHER_TYPES = ["Montant commande Edenred", "Montant commande Swile", "Montant commande Sodexo", "Montant commande Up", "Montant commande Bimpli"];
       const REFUND_TYPES = ["Remboursement client"];
-      const PROMO_TYPES = ["Partner funding from agreed voucher campaign", "Contribution marketing", "Bon de réduction à payer par le restaurant"];
+      const PROMO_TYPES = ["Partner funding from agreed voucher campaign", "Contribution marketing", "Bon de réduction à payer par le restaurant", "Publicités Marketer"];
       const ORDER_TYPES = ["Livraison", "À emporter"];
       const REPREPARATION_TYPES = ["Montant de la repréparation de commande", "Nouvelle livraison"];
       const EXTRA_COMMISSION_TYPES = ["Commission Deliveroo sur repréparation de commande"];
       const POSITIVE_ADJUSTMENT_TYPES = ["Remboursement client refusé"];
+      const CREDIT_ADJUSTMENT_TYPES = ["Crédit pour rectification de facture"];
       const PREVIOUS_INVOICE_TYPES = ["Facture précédente: Livraison", "Facture précédente: Remboursement client"];
 
       // Determine date range
@@ -456,6 +457,9 @@ export default function Analytics() {
         } else if (PREVIOUS_INVOICE_TYPES.includes(ht)) {
           // Reports de facture précédente : ignorés pour le total semaine courante
           return;
+        } else if (CREDIT_ADJUSTMENT_TYPES.includes(ht)) {
+          // Crédits de rectification : ajout direct au net sans Math.abs (positif = crédit)
+          g.net_payout += Number(row.total_payable) || 0;
         } else {
           g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
           g.net_payout += Number(row.total_payable) || 0;
