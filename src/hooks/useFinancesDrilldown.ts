@@ -109,6 +109,7 @@ async function fetchDeliverooOrdersData(restaurantIds: string[] | undefined, sta
     refund_incl_vat: number;
     net_payout: number;
     meal_voucher_amount: number;
+    order_count: number;
   }> = {};
 
   allRows.forEach(row => {
@@ -123,6 +124,7 @@ async function fetchDeliverooOrdersData(restaurantIds: string[] | undefined, sta
         refund_incl_vat: 0,
         net_payout: 0,
         meal_voucher_amount: 0,
+        order_count: 0,
       };
     }
     const g = grouped[key];
@@ -132,6 +134,7 @@ async function fetchDeliverooOrdersData(restaurantIds: string[] | undefined, sta
       g.sales_incl_vat += Math.abs(Number(row.order_amount) || 0);
       g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.commission_amount) || 0);
       g.net_payout += Number(row.total_payable) || 0;
+      g.order_count += 1;
     } else if (DELIVEROO_MEAL_VOUCHER_TYPES.includes(ht)) {
       g.meal_voucher_amount += Number(row.total_payable) || 0;
     } else if (DELIVEROO_REFUND_TYPES.includes(ht)) {
@@ -614,7 +617,7 @@ export function useFinancesDrilldown({
       byDate[date].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
       byDate[date].netPayout += Number(order.net_payout) || 0;
       byDate[date].mealVoucher += Number(order.meal_voucher_amount) || 0;
-      byDate[date].count += 1;
+      byDate[date].count += (order as any).order_count || 1;
     });
 
     return Object.entries(byDate)
@@ -670,7 +673,7 @@ export function useFinancesDrilldown({
       byRestaurantAndDate[restaurantId][date].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
       byRestaurantAndDate[restaurantId][date].netPayout += Number(order.net_payout) || 0;
       byRestaurantAndDate[restaurantId][date].mealVoucher += Number(order.meal_voucher_amount) || 0;
-      byRestaurantAndDate[restaurantId][date].count += 1;
+      byRestaurantAndDate[restaurantId][date].count += (order as any).order_count || 1;
     });
 
     // Convert to output format
@@ -726,7 +729,7 @@ export function useFinancesDrilldown({
       byHour[hour].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
       byHour[hour].netPayout += Number(order.net_payout) || 0;
       byHour[hour].mealVoucher += Number(order.meal_voucher_amount) || 0;
-      byHour[hour].count += 1;
+      byHour[hour].count += (order as any).order_count || 1;
     });
 
     return Object.entries(byHour)
