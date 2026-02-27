@@ -93,26 +93,29 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
 
     const validations: FileValidation[] = [];
 
+    // Phase 1: Read ALL files into memory immediately to avoid stale File handles
+    const fileContents = new Map<File, string>();
+    for (const file of csvFiles) {
+      if (file.size === 0) {
+        toast({ title: `Fichier vide : ${file.name}`, description: "Ce fichier ne contient aucune donnée", variant: "destructive" });
+        continue;
+      }
+      try {
+        const content = await readFileAsText(file);
+        fileContents.set(file, content);
+      } catch (readErr: any) {
+        console.error(`[Deliveroo] Failed to read file: ${file.name} (${file.size} bytes)`, readErr);
+        toast({
+          title: `Erreur lecture : ${file.name}`,
+          description: readErr?.message || "Erreur inconnue lors de la lecture du fichier. Vérifiez que le fichier n'est pas corrompu.",
+          variant: "destructive",
+        });
+      }
+    }
+
+    // Phase 2: Process dry-runs using pre-read content
     try {
-      for (const file of csvFiles) {
-        let content: string;
-        if (file.size === 0) {
-          toast({ title: `Fichier vide : ${file.name}`, description: "Ce fichier ne contient aucune donnée", variant: "destructive" });
-          continue;
-        }
-
-        try {
-          content = await readFileAsText(file);
-        } catch (readErr: any) {
-          console.error(`[Deliveroo] Failed to read file: ${file.name} (${file.size} bytes)`, readErr);
-          toast({
-            title: `Erreur lecture : ${file.name}`,
-            description: readErr?.message || "Erreur inconnue lors de la lecture du fichier. Vérifiez que le fichier n'est pas corrompu.",
-            variant: "destructive",
-          });
-          continue;
-        }
-
+      for (const [file, content] of fileContents) {
         try {
           console.log(`[Deliveroo] Dry-run starting: ${file.name}`);
           const controller = new AbortController();
