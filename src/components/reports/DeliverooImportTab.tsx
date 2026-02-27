@@ -96,11 +96,20 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
     try {
       for (const file of csvFiles) {
         let content: string;
+        if (file.size === 0) {
+          toast({ title: `Fichier vide : ${file.name}`, description: "Ce fichier ne contient aucune donnée", variant: "destructive" });
+          continue;
+        }
+
         try {
           content = await readFileAsText(file);
         } catch (readErr: any) {
-          console.error(`[Deliveroo] Failed to read file: ${file.name}`, readErr);
-          toast({ title: `Erreur lecture : ${file.name}`, description: readErr.message, variant: "destructive" });
+          console.error(`[Deliveroo] Failed to read file: ${file.name} (${file.size} bytes)`, readErr);
+          toast({
+            title: `Erreur lecture : ${file.name}`,
+            description: readErr?.message || "Erreur inconnue lors de la lecture du fichier. Vérifiez que le fichier n'est pas corrompu.",
+            variant: "destructive",
+          });
           continue;
         }
 
@@ -154,9 +163,18 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
   const readFileAsText = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string);
-      reader.onerror = reject;
-      reader.readAsText(file);
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        if (!result || result.trim().length === 0) {
+          reject(new Error(`Le fichier est vide (${(file.size / 1024).toFixed(1)} Ko)`));
+          return;
+        }
+        resolve(result);
+      };
+      reader.onerror = () => {
+        reject(new Error(`Impossible de lire le fichier (${(file.size / 1024).toFixed(1)} Ko). Essayez de le ré-exporter depuis Deliveroo.`));
+      };
+      reader.readAsText(file, 'UTF-8');
     });
 
   const buildPreview = (content: string): PreviewRow[] => {
