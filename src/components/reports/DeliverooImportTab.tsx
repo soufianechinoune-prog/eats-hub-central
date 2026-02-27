@@ -355,7 +355,7 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
   };
 
   // Aggregated stats across all files
-  const allUnmatched = [...new Set(fileValidations.flatMap(fv => fv.unmatchedNames))];
+  const allUnmatched = [...new Set(fileValidations.flatMap(fv => fv.unmatchedNames))].filter(name => !excludedRestaurantNames.has(name));
   const excludedCounts = fileValidations.reduce((s, fv) => {
     return s + fv.restaurants.filter(r => excludedRestaurantNames.has(r.name)).reduce((a, r) => a + r.count, 0);
   }, 0);
