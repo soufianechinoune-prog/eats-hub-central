@@ -166,28 +166,66 @@ export default function DeliverooImportTab({ restaurants }: DeliverooImportTabPr
   const readFileAsText = async (file: File): Promise<string> => {
     const fileSizeLabel = `${(file.size / 1024).toFixed(1)} Ko`;
     const encodings = ["utf-8", "windows-1252", "iso-8859-1"] as const;
+    let lastError: any = null;
 
+    // Method A: file.arrayBuffer() + TextDecoder (3 retries)
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const buffer = await file.arrayBuffer();
         if (!buffer || buffer.byteLength === 0) {
           throw new Error(`Le fichier est vide (${fileSizeLabel})`);
         }
-
         for (const encoding of encodings) {
           const text = new TextDecoder(encoding).decode(buffer);
           if (text.trim().length > 0) return text;
         }
-
         throw new Error(`Le fichier est vide (${fileSizeLabel})`);
-      } catch {
-        if (attempt < 3) {
-          await new Promise((resolve) => setTimeout(resolve, 150));
-        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[readFileAsText] Method A attempt ${attempt} failed for ${file.name}:`, err?.name, err?.message);
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 200));
       }
     }
 
-    throw new Error(`Impossible de lire le fichier (${fileSizeLabel}). Essayez de le ré-exporter depuis Deliveroo.`);
+    // Method B: FileReader.readAsText fallback
+    try {
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(file, "utf-8");
+      });
+      if (text.trim().length > 0) return text;
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[readFileAsText] Method B (FileReader) failed for ${file.name}:`, err?.name, err?.message);
+    }
+
+    // Method C: FileReader.readAsArrayBuffer fallback
+    try {
+      const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(file);
+      });
+      for (const encoding of encodings) {
+        const text = new TextDecoder(encoding).decode(buffer);
+        if (text.trim().length > 0) return text;
+      }
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[readFileAsText] Method C (FileReader+ArrayBuffer) failed for ${file.name}:`, err?.name, err?.message);
+    }
+
+    // Build actionable error message
+    const errName = lastError?.name || "UnknownError";
+    const errMsg = lastError?.message || "Erreur inconnue";
+    const isNotReadable = errName === "NotReadableError";
+    const helpText = isNotReadable
+      ? "Le fichier est verrouillé ou inaccessible. Fermez Excel/Numbers, copiez le fichier dans un dossier local (pas iCloud/OneDrive/Drive), puis réessayez."
+      : `Impossible de lire le fichier (${fileSizeLabel}). Essayez de le ré-exporter depuis Deliveroo.`;
+    throw new Error(`${helpText} [${errName}: ${errMsg}]`);
   };
 
   const buildPreview = (content: string): PreviewRow[] => {
