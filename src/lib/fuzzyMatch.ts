@@ -223,9 +223,25 @@ export interface DeliverooMatchResult {
  */
 export const matchDeliverooToRestaurant = (
   deliverooName: string,
-  restaurants: { id: string; name: string; deliveroo_store_id: string | null }[]
+  restaurants: { id: string; name: string; deliveroo_store_id: string | null }[],
+  existingMappings: { restaurant_id: string; deliveroo_store_name: string }[] = []
 ): DeliverooMatchResult => {
-  // Check if already linked
+  // Check if already linked via multi-mapping table
+  const multiMapping = existingMappings.find(m => m.deliveroo_store_name === deliverooName);
+  if (multiMapping) {
+    const linkedRestaurant = restaurants.find(r => r.id === multiMapping.restaurant_id);
+    return {
+      deliverooName,
+      matchedRestaurantId: multiMapping.restaurant_id,
+      matchedRestaurantName: linkedRestaurant?.name || null,
+      confidence: 100,
+      isOverride: false,
+      isIgnored: false,
+      isAlreadyLinked: true,
+    };
+  }
+
+  // Fallback: check legacy single-mapping column
   const alreadyLinked = restaurants.find(r => r.deliveroo_store_id === deliverooName);
   if (alreadyLinked) {
     return {

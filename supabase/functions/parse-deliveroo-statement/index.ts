@@ -55,10 +55,16 @@ Deno.serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Step 3: Resolve restaurants via deliveroo_store_id
+    // Step 3: Resolve restaurants via restaurant_deliveroo_ids (multi-mapping) + fallback
     const uniqueNames = [...new Set(parsedRows.map(r => r.restaurant_name))];
     console.log(`Unique restaurant names: ${uniqueNames.join(', ')}`);
 
+    // Primary: multi-mapping table
+    const { data: deliverooMappings } = await supabase
+      .from('restaurant_deliveroo_ids')
+      .select('restaurant_id, deliveroo_store_name');
+
+    // Fallback: legacy single-mapping column
     const { data: restaurants } = await supabase
       .from('restaurants')
       .select('id, name, deliveroo_store_id')
@@ -67,13 +73,37 @@ Deno.serve(async (req) => {
     const nameToRestaurantId: Record<string, string> = {};
     const unmatchedNames: string[] = [];
 
-    for (const csvName of uniqueNames) {
-      const match = (restaurants || []).find(r => r.deliveroo_store_id === csvName);
-      if (match) {
-        nameToRestaurantId[csvName] = match.id;
-      } else {
-        unmatchedNames.push(csvName);
+    // Build a normalized lookup from multi-mapping table
+    const multiMap = new Map<string, string>();
+    for (const m of (deliverooMappings || [])) {
+      multiMap.set(m.deliveroo_store_name, m.restaurant_id);
+      multiMap.set(normalizeName(m.deliveroo_store_name), m.restaurant_id);
+    }
+
+    // Build a normalized lookup from legacy column
+    const legacyMap = new Map<string, string>();
+    for (const r of (restaurants || [])) {
+      if (r.deliveroo_store_id) {
+        legacyMap.set(r.deliveroo_store_id, r.id);
+        legacyMap.set(normalizeName(r.deliveroo_store_id), r.id);
       }
+    }
+
+    for (const csvName of uniqueNames) {
+      const normalized = normalizeName(csvName);
+      // Priority 1: exact match in multi-mapping
+      const multiMatch = multiMap.get(csvName) || multiMap.get(normalized);
+      if (multiMatch) {
+        nameToRestaurantId[csvName] = multiMatch;
+        continue;
+      }
+      // Priority 2: fallback to legacy column
+      const legacyMatch = legacyMap.get(csvName) || legacyMap.get(normalized);
+      if (legacyMatch) {
+        nameToRestaurantId[csvName] = legacyMatch;
+        continue;
+      }
+      unmatchedNames.push(csvName);
     }
 
     if (unmatchedNames.length > 0) {
@@ -220,6 +250,20 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// ========== Helpers ==========
+
+/**
+ * Normalize a name for resilient matching:
+ * lowercase, replace long dashes, trim, collapse whitespace.
+ */
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 // ========== CSV Parsing Helpers ==========
 
