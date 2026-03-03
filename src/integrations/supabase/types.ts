@@ -2487,6 +2487,41 @@ export type Database = {
           },
         ]
       }
+      restaurant_deliveroo_ids: {
+        Row: {
+          created_at: string
+          deliveroo_store_name: string
+          id: string
+          is_primary: boolean | null
+          label: string | null
+          restaurant_id: string
+        }
+        Insert: {
+          created_at?: string
+          deliveroo_store_name: string
+          id?: string
+          is_primary?: boolean | null
+          label?: string | null
+          restaurant_id: string
+        }
+        Update: {
+          created_at?: string
+          deliveroo_store_name?: string
+          id?: string
+          is_primary?: boolean | null
+          label?: string | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_deliveroo_ids_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_documents: {
         Row: {
           created_at: string
