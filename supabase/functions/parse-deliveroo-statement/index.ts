@@ -55,24 +55,34 @@ Deno.serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Step 3: Resolve restaurants via deliveroo_store_id
+    // Step 3: Resolve restaurants via restaurant_deliveroo_ids (multi-mapping) + fallback
     const uniqueNames = [...new Set(parsedRows.map(r => r.restaurant_name))];
     console.log(`Unique restaurant names: ${uniqueNames.join(', ')}`);
 
-    const { data: restaurants } = await supabase
-      .from('restaurants')
-      .select('id, name, deliveroo_store_id')
-      .not('deliveroo_store_id', 'is', null);
+    // Primary: use the new multi-mapping table
+    const { data: deliverooMappings } = await supabase
+      .from('restaurant_deliveroo_ids')
+      .select('restaurant_id, deliveroo_store_name');
 
     const nameToRestaurantId: Record<string, string> = {};
     const unmatchedNames: string[] = [];
 
     for (const csvName of uniqueNames) {
-      const match = (restaurants || []).find(r => r.deliveroo_store_id === csvName);
-      if (match) {
-        nameToRestaurantId[csvName] = match.id;
+      const mapping = (deliverooMappings || []).find(m => m.deliveroo_store_name === csvName);
+      if (mapping) {
+        nameToRestaurantId[csvName] = mapping.restaurant_id;
       } else {
-        unmatchedNames.push(csvName);
+        // Fallback: check restaurants.deliveroo_store_id for backwards compatibility
+        const { data: fallbackRestaurants } = await supabase
+          .from('restaurants')
+          .select('id')
+          .eq('deliveroo_store_id', csvName)
+          .limit(1);
+        if (fallbackRestaurants && fallbackRestaurants.length > 0) {
+          nameToRestaurantId[csvName] = fallbackRestaurants[0].id;
+        } else {
+          unmatchedNames.push(csvName);
+        }
       }
     }
 
