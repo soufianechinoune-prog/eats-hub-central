@@ -37,6 +37,18 @@ export default function DeliverooMatching() {
     },
   });
 
+  // Load existing multi-mappings from restaurant_deliveroo_ids
+  const { data: existingMappings = [] } = useQuery({
+    queryKey: ["deliveroo-multi-mappings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurant_deliveroo_ids")
+        .select("restaurant_id, deliveroo_store_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -73,8 +85,8 @@ export default function DeliverooMatching() {
           }
         }
 
-        const results: MatchRow[] = deliverooNames.map((name) => {
-          const result = matchDeliverooToRestaurant(name, restaurants);
+      const results: MatchRow[] = deliverooNames.map((name) => {
+          const result = matchDeliverooToRestaurant(name, restaurants, existingMappings);
           return {
             ...result,
             selectedRestaurantId: result.matchedRestaurantId,
@@ -87,7 +99,7 @@ export default function DeliverooMatching() {
       };
       reader.readAsText(file);
     },
-    [restaurants, toast]
+    [restaurants, existingMappings, toast]
   );
 
   const handleRestaurantChange = useCallback((deliverooName: string, value: string) => {
@@ -132,9 +144,13 @@ export default function DeliverooMatching() {
 
     for (const match of toSave) {
       const { error } = await supabase
-        .from("restaurants")
-        .update({ deliveroo_store_id: match.deliverooName })
-        .eq("id", match.selectedRestaurantId!);
+        .from("restaurant_deliveroo_ids")
+        .upsert({
+          restaurant_id: match.selectedRestaurantId!,
+          deliveroo_store_name: match.deliverooName,
+          is_primary: false,
+          label: `Ajouté via matching (${new Date().toISOString().slice(0, 10)})`,
+        }, { onConflict: "deliveroo_store_name" });
       if (error) errorCount++;
       else successCount++;
     }
@@ -154,23 +170,16 @@ export default function DeliverooMatching() {
     );
   }, [matches, toast]);
 
-  // Set of restaurant IDs already used by other rows or already linked in DB
+  // Set of restaurant IDs already used by other rows (don't block multi-mapping to same restaurant)
   const usedRestaurantIds = useMemo(() => {
     const used = new Set<string>();
-    // Add IDs selected in current matches
     matches.forEach((m) => {
       if (m.selectedRestaurantId && !m.isIgnored) {
         used.add(m.selectedRestaurantId);
       }
     });
-    // Add IDs of restaurants already linked in DB (have deliveroo_store_id)
-    restaurants.forEach((r) => {
-      if (r.deliveroo_store_id) {
-        used.add(r.id);
-      }
-    });
     return used;
-  }, [matches, restaurants]);
+  }, [matches]);
 
   const getAvailableRestaurants = useCallback((currentMatch: MatchRow) => {
     return restaurants.filter((r) => {
