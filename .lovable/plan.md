@@ -1,29 +1,75 @@
 
 
-# Pourquoi la courbe Deliveroo tombe a 0 en fin de mois
+# Support multi-mapping Deliveroo (comme Uber)
 
-## Diagnostic
+## Probleme
 
-Le probleme vient d'un decalage de fuseau horaire entre le stockage et l'affichage des donnees Deliveroo.
+Le restaurant **Chicken Street - Nice** a deux noms differents dans les fichiers Deliveroo :
+- `CHICKEN STREET - Nice 🌯` (deja configure)
+- `CHICKEN STREET - Nice Promenade 🌯` (non reconnu)
 
-1. **Stockage** : Les dates de livraison Deliveroo sont stockees en UTC (ISO format, ex: `2025-05-31T22:30:00.000Z`)
-2. **Requete** : Le filtre utilise `lte("delivery_datetime", "2025-05-31T23:59:59")` — ce qui est en UTC et inclut correctement les donnees du dernier jour
-3. **Agregation JS** : Le code fait `new Date(row.delivery_datetime)` puis `format(dt, "yyyy-MM-dd")` — cette conversion utilise le **fuseau horaire local du navigateur** (Paris, UTC+1 en hiver / UTC+2 en ete)
+Le champ `deliveroo_store_id` ne supporte qu'une seule valeur, contrairement a Uber qui a la table `restaurant_uber_ids` pour le multi-mapping.
 
-Resultat : une livraison du 31 mai a 23h30 heure de Paris est stockee comme `2025-05-31T21:30:00Z` en UTC. A l'inverse, une livraison du 1er juin a 00h30 Paris = `2025-05-31T22:30:00Z` passe le filtre (avant 23:59:59 UTC) mais s'affiche comme "1er juin" dans le graphique car `new Date("2025-05-31T22:30:00Z")` en timezone Paris = 1er juin 00h30.
+## Solution
 
-Cela cree un faux point de donnees pour le 1er du mois suivant avec tres peu de commandes (seulement celles entre minuit et 2h du matin heure de Paris), d'ou la chute brutale vers 0.
+Creer une table `restaurant_deliveroo_ids` (identique au pattern `restaurant_uber_ids`) et adapter le parser pour l'utiliser.
 
-## Correctif
+### 1. Migration : creer `restaurant_deliveroo_ids`
 
-Modifier la fonction `aggregateDeliverooRevenue` dans `src/pages/Analytics.tsx` pour convertir les dates UTC en dates locales Paris avant l'agregation par jour :
+```sql
+CREATE TABLE public.restaurant_deliveroo_ids (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  restaurant_id uuid NOT NULL REFERENCES public.restaurants(id) ON DELETE CASCADE,
+  deliveroo_store_name text NOT NULL,
+  is_primary boolean DEFAULT false,
+  label text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(deliveroo_store_name)
+);
 
-1. **`src/pages/Analytics.tsx`** — Dans `aggregateDeliverooRevenue`, remplacer `format(dt, "yyyy-MM-dd")` par une conversion explicite qui extrait la date en heure de Paris. Utiliser `toLocaleDateString` avec le fuseau `Europe/Paris` ou ajouter manuellement le decalage horaire avant le formatage.
+ALTER TABLE public.restaurant_deliveroo_ids ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on restaurant_deliveroo_ids" ON public.restaurant_deliveroo_ids FOR ALL USING (true) WITH CHECK (true);
 
-2. **Meme fichier** — Appliquer la meme correction dans `fetchAllDeliverooOrderRows` et dans la query `deliverooPayoutsData` (lignes 406-410) ou le groupement par semaine utilise `getUTCDay()` au lieu du jour local.
+-- Migrer les deliveroo_store_id existants
+INSERT INTO public.restaurant_deliveroo_ids (restaurant_id, deliveroo_store_name, is_primary, label)
+SELECT id, deliveroo_store_id, true, 'principal'
+FROM public.restaurants
+WHERE deliveroo_store_id IS NOT NULL AND deliveroo_store_id != '';
+```
 
-3. **Impact** : Le point fantome du 1er du mois suivant disparaitra, et les quelques commandes tardives seront correctement rattachees au dernier jour du mois en cours.
+### 2. Inserer le mapping manquant
+
+```sql
+INSERT INTO public.restaurant_deliveroo_ids (restaurant_id, deliveroo_store_name, is_primary, label)
+VALUES ('b7b52b9d-...', 'CHICKEN STREET - Nice Promenade 🌯', false, 'ancien nom');
+```
+(L'ID exact sera lu depuis la base)
+
+### 3. Modifier le parser Edge Function
+
+Dans `supabase/functions/parse-deliveroo-statement/index.ts`, remplacer la resolution via `restaurants.deliveroo_store_id` par une requete sur `restaurant_deliveroo_ids` :
+
+```typescript
+// Avant
+const { data: restaurants } = await supabase
+  .from('restaurants')
+  .select('id, name, deliveroo_store_id')
+  .not('deliveroo_store_id', 'is', null);
+
+// Apres
+const { data: deliverooMappings } = await supabase
+  .from('restaurant_deliveroo_ids')
+  .select('restaurant_id, deliveroo_store_name');
+
+// + fallback sur restaurants.deliveroo_store_id pour compatibilite
+```
+
+### 4. Adapter la page de matching Deliveroo
+
+Dans `src/pages/DeliverooMatching.tsx`, utiliser aussi `restaurant_deliveroo_ids` pour afficher les correspondances existantes.
 
 ## Fichiers modifies
-- `src/pages/Analytics.tsx` — `aggregateDeliverooRevenue` + `deliverooPayoutsData` grouping
+- `supabase/functions/parse-deliveroo-statement/index.ts` — resolution via nouvelle table
+- `src/pages/DeliverooMatching.tsx` — lecture/ecriture dans `restaurant_deliveroo_ids`
+- Migration SQL — creation table + migration donnees existantes
 
