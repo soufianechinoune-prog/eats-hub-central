@@ -405,12 +405,19 @@ export default function Analytics() {
 
       allRows.forEach(row => {
         if (!row.delivery_datetime || !row.restaurant_id) return;
-        // Group by week start (Monday) — use UTC to match Deliveroo statement boundaries
+        // Group by week start (Monday) — use Paris timezone to avoid end-of-month phantom points
         const dt = new Date(row.delivery_datetime);
-        const dayOfWeek = dt.getUTCDay();
-        const diff = dt.getUTCDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        dt.setUTCDate(diff);
-        const weekKey = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+        // Convert to Paris local day-of-week using Intl
+        const parisParts = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(dt);
+        const parisYear = Number(parisParts.find(p => p.type === 'year')!.value);
+        const parisMonth = Number(parisParts.find(p => p.type === 'month')!.value);
+        const parisDay = Number(parisParts.find(p => p.type === 'day')!.value);
+        // Build a local Paris date to compute week start (Monday)
+        const parisDate = new Date(parisYear, parisMonth - 1, parisDay);
+        const dayOfWeek = parisDate.getDay();
+        const diff = parisDay - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        parisDate.setDate(diff);
+        const weekKey = `${parisDate.getFullYear()}-${String(parisDate.getMonth() + 1).padStart(2, '0')}-${String(parisDate.getDate()).padStart(2, '0')}`;
         const key = `${weekKey}|${row.restaurant_id}`;
 
         if (!grouped[key]) {
@@ -1047,12 +1054,22 @@ export default function Analytics() {
 
     const grouped: Record<string, { revenue: number; count: number; restaurantId: string }[]> = {};
 
+    // Helper: format a UTC date as yyyy-MM-dd in Europe/Paris timezone
+    const toParisDate = (d: Date) => {
+      const parts = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
+      const y = parts.find(p => p.type === 'year')!.value;
+      const m = parts.find(p => p.type === 'month')!.value;
+      const dd = parts.find(p => p.type === 'day')!.value;
+      return { dateStr: `${y}-${m}-${dd}`, year: Number(y), month: Number(m) };
+    };
+
     for (const row of orderRows) {
       if (!row.delivery_datetime) continue;
       const dt = new Date(row.delivery_datetime);
+      const paris = toParisDate(dt);
       const key = gran === "daily"
-        ? format(dt, "yyyy-MM-dd")
-        : `${dt.getFullYear()}-${dt.getMonth() + 1}`;
+        ? paris.dateStr
+        : `${paris.year}-${paris.month}`;
 
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push({
