@@ -37,18 +37,6 @@ export default function DeliverooMatching() {
     },
   });
 
-  // Fetch multi-mapping table
-  const { data: deliverooMappings = [] } = useQuery({
-    queryKey: ["restaurant-deliveroo-ids"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurant_deliveroo_ids")
-        .select("id, restaurant_id, deliveroo_store_name, is_primary, label");
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -86,22 +74,6 @@ export default function DeliverooMatching() {
         }
 
         const results: MatchRow[] = deliverooNames.map((name) => {
-          // Check if already mapped in restaurant_deliveroo_ids
-          const existingMapping = deliverooMappings.find(m => m.deliveroo_store_name === name);
-          if (existingMapping) {
-            const matchedRestaurant = restaurants.find(r => r.id === existingMapping.restaurant_id);
-            return {
-              deliverooName: name,
-              matchedRestaurantId: existingMapping.restaurant_id,
-              matchedRestaurantName: matchedRestaurant?.name || 'Inconnu',
-              confidence: 100,
-              isAlreadyLinked: true,
-              isIgnored: false,
-              isOverride: false,
-              selectedRestaurantId: existingMapping.restaurant_id,
-              isPending: false,
-            };
-          }
           const result = matchDeliverooToRestaurant(name, restaurants);
           return {
             ...result,
@@ -115,7 +87,7 @@ export default function DeliverooMatching() {
       };
       reader.readAsText(file);
     },
-    [restaurants, deliverooMappings, toast]
+    [restaurants, toast]
   );
 
   const handleRestaurantChange = useCallback((deliverooName: string, value: string) => {
@@ -160,36 +132,11 @@ export default function DeliverooMatching() {
 
     for (const match of toSave) {
       const { error } = await supabase
-        .from("restaurant_deliveroo_ids")
-        .insert({
-          restaurant_id: match.selectedRestaurantId!,
-          deliveroo_store_name: match.deliverooName,
-          is_primary: false,
-          label: 'matching manuel',
-        });
-      if (error) {
-        // If already exists, try updating
-        if (error.code === '23505') {
-          const { error: updateError } = await supabase
-            .from("restaurant_deliveroo_ids")
-            .update({ restaurant_id: match.selectedRestaurantId! })
-            .eq("deliveroo_store_name", match.deliverooName);
-          if (updateError) errorCount++;
-          else successCount++;
-        } else {
-          errorCount++;
-        }
-      } else {
-        successCount++;
-        // Also update restaurants.deliveroo_store_id for backwards compat if not set
-        const restaurant = restaurants.find(r => r.id === match.selectedRestaurantId);
-        if (restaurant && !restaurant.deliveroo_store_id) {
-          await supabase
-            .from("restaurants")
-            .update({ deliveroo_store_id: match.deliverooName })
-            .eq("id", match.selectedRestaurantId!);
-        }
-      }
+        .from("restaurants")
+        .update({ deliveroo_store_id: match.deliverooName })
+        .eq("id", match.selectedRestaurantId!);
+      if (error) errorCount++;
+      else successCount++;
     }
 
     setSaving(false);
@@ -216,11 +163,14 @@ export default function DeliverooMatching() {
         used.add(m.selectedRestaurantId);
       }
     });
-    // Add IDs of restaurants already linked via multi-mapping table
-    // (but allow same restaurant to have multiple Deliveroo names)
-    // We only block restaurants already used by OTHER rows in current session
+    // Add IDs of restaurants already linked in DB (have deliveroo_store_id)
+    restaurants.forEach((r) => {
+      if (r.deliveroo_store_id) {
+        used.add(r.id);
+      }
+    });
     return used;
-  }, [matches]);
+  }, [matches, restaurants]);
 
   const getAvailableRestaurants = useCallback((currentMatch: MatchRow) => {
     return restaurants.filter((r) => {

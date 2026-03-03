@@ -1,26 +1,75 @@
 
 
-# Diagnostic : page blanche sur toutes les routes
+# Support multi-mapping Deliveroo (comme Uber)
 
-## Constat
-- La page est blanche sur `/restaurants`, `/cartography`, et toutes les routes
-- Aucune erreur dans la console du navigateur
-- Aucune requete reseau en erreur
-- Le HTML de base se charge (le `<div id="root">` existe) mais React ne monte pas
+## Probleme
 
-## Cause probable
-L'absence totale de logs React (meme pas les logs de contexte) indique une **erreur de compilation TypeScript/Vite** qui empeche le bundle JS de se charger. Cela arrive typiquement apres une modification du fichier `types.ts` auto-genere ou un import qui ne resout pas.
+Le restaurant **Chicken Street - Nice** a deux noms differents dans les fichiers Deliveroo :
+- `CHICKEN STREET - Nice 🌯` (deja configure)
+- `CHICKEN STREET - Nice Promenade 🌯` (non reconnu)
 
-## Demarche de resolution
+Le champ `deliveroo_store_id` ne supporte qu'une seule valeur, contrairement a Uber qui a la table `restaurant_uber_ids` pour le multi-mapping.
 
-1. **Verifier le build** en essayant un rechargement force de la preview (bouton refresh dans la barre d'URL de preview). Si ca ne marche pas :
+## Solution
 
-2. **Supprimer l'import inutilise** de `PrivacyPolicy` dans `App.tsx` (importe ligne 18 mais jamais utilise dans les routes — c'est un warning, pas un crash, mais nettoyons)
+Creer une table `restaurant_deliveroo_ids` (identique au pattern `restaurant_uber_ids`) et adapter le parser pour l'utiliser.
 
-3. **Forcer un re-build** en ajoutant un commentaire anodin dans `main.tsx` puis le retirer — cela force Vite a recompiler l'arbre complet et afficher l'erreur eventuelle
+### 1. Migration : creer `restaurant_deliveroo_ids`
 
-4. Si l'erreur persiste, **restaurer une version anterieure** via l'historique Lovable
+```sql
+CREATE TABLE public.restaurant_deliveroo_ids (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  restaurant_id uuid NOT NULL REFERENCES public.restaurants(id) ON DELETE CASCADE,
+  deliveroo_store_name text NOT NULL,
+  is_primary boolean DEFAULT false,
+  label text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(deliveroo_store_name)
+);
 
-## Action recommandee
-Commencer par un simple re-build force (modification triviale dans `main.tsx`). Si une erreur de compilation apparait, on la corrigera. Sinon, restaurer la version precedente depuis l'historique.
+ALTER TABLE public.restaurant_deliveroo_ids ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on restaurant_deliveroo_ids" ON public.restaurant_deliveroo_ids FOR ALL USING (true) WITH CHECK (true);
+
+-- Migrer les deliveroo_store_id existants
+INSERT INTO public.restaurant_deliveroo_ids (restaurant_id, deliveroo_store_name, is_primary, label)
+SELECT id, deliveroo_store_id, true, 'principal'
+FROM public.restaurants
+WHERE deliveroo_store_id IS NOT NULL AND deliveroo_store_id != '';
+```
+
+### 2. Inserer le mapping manquant
+
+```sql
+INSERT INTO public.restaurant_deliveroo_ids (restaurant_id, deliveroo_store_name, is_primary, label)
+VALUES ('b7b52b9d-...', 'CHICKEN STREET - Nice Promenade 🌯', false, 'ancien nom');
+```
+(L'ID exact sera lu depuis la base)
+
+### 3. Modifier le parser Edge Function
+
+Dans `supabase/functions/parse-deliveroo-statement/index.ts`, remplacer la resolution via `restaurants.deliveroo_store_id` par une requete sur `restaurant_deliveroo_ids` :
+
+```typescript
+// Avant
+const { data: restaurants } = await supabase
+  .from('restaurants')
+  .select('id, name, deliveroo_store_id')
+  .not('deliveroo_store_id', 'is', null);
+
+// Apres
+const { data: deliverooMappings } = await supabase
+  .from('restaurant_deliveroo_ids')
+  .select('restaurant_id, deliveroo_store_name');
+
+// + fallback sur restaurants.deliveroo_store_id pour compatibilite
+```
+
+### 4. Adapter la page de matching Deliveroo
+
+Dans `src/pages/DeliverooMatching.tsx`, utiliser aussi `restaurant_deliveroo_ids` pour afficher les correspondances existantes.
+
+## Fichiers modifies
+- `supabase/functions/parse-deliveroo-statement/index.ts` — resolution via nouvelle table
+- `src/pages/DeliverooMatching.tsx` — lecture/ecriture dans `restaurant_deliveroo_ids`
+- Migration SQL — creation table + migration donnees existantes
 
