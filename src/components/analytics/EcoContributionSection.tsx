@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Trophy, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Trophy, AlertTriangle, Search, Percent } from "lucide-react";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 import { EcoContributionDetail } from "./EcoContributionDetail";
 import { useEcoContributionExport } from "@/hooks/useEcoContributionExport";
@@ -10,8 +11,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, Line, ComposedChart, ReferenceLine,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, Line, ComposedChart, ReferenceLine, Bar,
 } from "recharts";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -38,9 +39,9 @@ export function EcoContributionSection({
   selectedPlatform = "global",
 }: EcoContributionSectionProps) {
   const [activeTab, setActiveTab] = useState<"synthese" | "detail">("synthese");
-  const [localYear, setLocalYear] = useState<number | null>(selectedYear);
   const [soldeFilter, setSoldeFilter] = useState<"all" | "positive" | "negative">("all");
   const [showAll, setShowAll] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { exportPDF, exportExcel } = useEcoContributionExport();
 
   const restaurantIds = selectedRestaurants.length > 0
@@ -49,7 +50,7 @@ export function EcoContributionSection({
 
   const { monthlyData, byRestaurant, totals, detailLines, isLoading } = useEcoContribution({
     restaurantIds,
-    year: localYear,
+    year: selectedYear,
     month: selectedMonth,
     platform: selectedPlatform,
   });
@@ -64,14 +65,12 @@ export function EcoContributionSection({
 
   const chartData = useMemo(() => {
     return monthlyData.map(d => ({
-      name: localYear === null
-        ? `${MONTHS[d.month - 1]} ${String(d.year).slice(2)}`
-        : MONTHS[d.month - 1],
+      name: MONTHS[d.month - 1],
       Remboursements: d.refund,
       Prélèvements: Math.abs(d.charge),
-      
+      "Solde Net": d.net,
     }));
-  }, [monthlyData, localYear]);
+  }, [monthlyData]);
 
   const fmt = (v: number) => v.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
@@ -90,6 +89,15 @@ export function EcoContributionSection({
     });
   }, [byRestaurant, sortKey, sortDir, soldeFilter]);
 
+  const filteredRestaurants = useMemo(() => {
+    if (!searchQuery.trim()) return sortedRestaurants;
+    const q = searchQuery.toLowerCase();
+    return sortedRestaurants.filter(r => {
+      const name = restaurantMap.get(r.restaurant_id) || "";
+      return name.toLowerCase().includes(q);
+    });
+  }, [sortedRestaurants, searchQuery, restaurantMap]);
+
   const handleSort = (key: "net" | "refund" | "charge") => {
     if (sortKey === key) {
       setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -99,11 +107,14 @@ export function EcoContributionSection({
     }
   };
 
-  const yearLabel = localYear === null ? "Historique" : String(localYear);
+  const yearLabel = String(selectedYear);
 
   // Recovery ratio
   const absCharge = Math.abs(totals.charge);
   const recoveryRatio = absCharge > 0 ? Math.round((totals.refund / absCharge) * 100) : 0;
+
+  // Coût moyen par ligne
+  const avgCostPerLine = totals.lineCount > 0 ? Math.round((absCharge / totals.lineCount) * 100) / 100 : 0;
 
   // Top 3 / Flop 3
   const top3 = useMemo(() => {
@@ -114,7 +125,7 @@ export function EcoContributionSection({
     return [...byRestaurant].sort((a, b) => a.net - b.net).slice(0, 3);
   }, [byRestaurant]);
 
-  const displayedRestaurants = showAll ? sortedRestaurants : sortedRestaurants.slice(0, 20);
+  const displayedRestaurants = showAll ? filteredRestaurants : filteredRestaurants.slice(0, 20);
 
   const handleExport = (type: "pdf" | "excel") => {
     const exportRestaurants = sortedRestaurants.map(r => ({
@@ -132,116 +143,136 @@ export function EcoContributionSection({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <Leaf className="h-5 w-5 text-green-600" />
-          <h2 className="text-lg font-semibold">Éco-Contribution</h2>
-          <div className="flex items-center gap-1 ml-2">
-            <Button
-              size="sm"
-              variant={localYear === null ? "default" : "outline"}
-              className="h-7 px-3 text-xs"
-              onClick={() => setLocalYear(null)}
-            >
-              Historique
-            </Button>
-            {[2023, 2024, 2025, 2026].map((y) => (
-              <Button
-                key={y}
-                size="sm"
-                variant={localYear === y ? "default" : "outline"}
-                className="h-7 px-3 text-xs"
-                onClick={() => setLocalYear(y)}
-              >
-                {y}
-              </Button>
-            ))}
+      {/* Header compact: titre + badge + export */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-green-500/10 dark:bg-green-500/20">
+            <Leaf className="h-5 w-5 text-green-600" />
           </div>
+          <div>
+            <h2 className="text-lg font-semibold leading-tight">Éco-Contribution</h2>
+            <p className="text-xs text-muted-foreground">{yearLabel} · {totals.lineCount} lignes</p>
+          </div>
+          <Badge variant={totals.net >= 0 ? "default" : "destructive"} className="ml-1">
+            {totals.net >= 0 ? "Exonéré" : "Non exonéré"}
+          </Badge>
         </div>
 
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-                <Download className="h-3.5 w-3.5" />
-                Exporter
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleExport("pdf")}>
-                <Download className="h-4 w-4 mr-2" />
-                Export PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("excel")}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Export Excel
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" />
+              Exporter
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleExport("pdf")}>
+              <Download className="h-4 w-4 mr-2" />
+              Export PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport("excel")}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Export Excel
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
+      {/* Modern pill tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "synthese" | "detail")}>
-        <TabsList>
-          <TabsTrigger value="synthese">Synthèse</TabsTrigger>
-          <TabsTrigger value="detail">
-            Détail lignes ({totals.lineCount})
+        <TabsList className="rounded-full p-1 bg-muted/60">
+          <TabsTrigger value="synthese" className="rounded-full px-5 text-sm">Synthèse</TabsTrigger>
+          <TabsTrigger value="detail" className="rounded-full px-5 text-sm">
+            Détail ({totals.lineCount})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="synthese" className="space-y-6 mt-4">
-          {/* KPI Cards with hierarchy */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {/* Solde Net - Primary card, col-span-2 */}
+        <TabsContent value="synthese" className="space-y-6 mt-5">
+          {/* KPI Cards - 4 columns with hero */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Solde Net - Hero card */}
             <Card className={cn(
-              "md:col-span-2 border-2",
+              "lg:col-span-1 relative overflow-hidden border-2",
               totals.net >= 0
-                ? "border-green-500/30 bg-green-500/5 dark:bg-green-500/10"
-                : "border-red-500/30 bg-red-500/5 dark:bg-red-500/10"
+                ? "border-green-500/30 bg-gradient-to-br from-green-500/5 to-green-600/10 dark:from-green-500/10 dark:to-green-600/15"
+                : "border-red-500/30 bg-gradient-to-br from-red-500/5 to-red-600/10 dark:from-red-500/10 dark:to-red-600/15"
             )}>
               <CardContent className="pt-5 pb-4 px-5">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                  <Leaf className="h-4 w-4" />
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                  <Leaf className="h-3.5 w-3.5" />
                   Solde Net
                 </div>
                 <div className={cn("text-3xl font-bold tracking-tight", totals.net >= 0 ? "text-green-600" : "text-red-500")}>
                   {fmt(totals.net)}
                 </div>
-                <div className="mt-3 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Taux de récupération</span>
-                    <span className="font-medium">{recoveryRatio}%</span>
-                  </div>
-                  <Progress value={Math.min(recoveryRatio, 100)} className="h-2" />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {totals.net >= 0 ? "Les remboursements couvrent les prélèvements" : "Défaut d'exonération détecté"}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Remboursements */}
+            <Card>
+              <CardContent className="pt-5 pb-4 px-5">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                  <TrendingUp className="h-3.5 w-3.5 text-green-600" />
+                  Remboursements
+                </div>
+                <div className="text-2xl font-bold text-green-600">{fmt(totals.refund)}</div>
+                <div className="mt-3">
+                  <Progress value={recoveryRatio > 100 ? 100 : recoveryRatio} className="h-1.5 [&>div]:bg-green-500" />
                 </div>
               </CardContent>
             </Card>
 
+            {/* Prélèvements */}
             <Card>
-              <CardContent className="pt-4 pb-3 px-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <TrendingUp className="h-4 w-4 text-green-600" />
-                  Remboursements
-                </div>
-                <div className="text-xl font-bold text-green-600">{fmt(totals.refund)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-3 px-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <TrendingDown className="h-4 w-4 text-red-500" />
+              <CardContent className="pt-5 pb-4 px-5">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                  <TrendingDown className="h-3.5 w-3.5 text-red-500" />
                   Prélèvements
                 </div>
-                <div className="text-xl font-bold text-red-500">{fmt(totals.charge)}</div>
+                <div className="text-2xl font-bold text-red-500">{fmt(totals.charge)}</div>
+                <div className="mt-3">
+                  <Progress value={100} className="h-1.5 [&>div]:bg-red-500" />
+                </div>
               </CardContent>
             </Card>
+
+            {/* Taux de récupération - Gauge-like */}
             <Card>
-              <CardContent className="pt-4 pb-3 px-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <Hash className="h-4 w-4" />
-                  Lignes
+              <CardContent className="pt-5 pb-4 px-5 flex flex-col items-center justify-center">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">
+                  <Percent className="h-3.5 w-3.5" />
+                  Récupération
                 </div>
-                <div className="text-xl font-bold">{totals.lineCount}</div>
+                <div className="relative w-20 h-20">
+                  <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                    <path
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      fill="none"
+                      stroke="hsl(var(--muted))"
+                      strokeWidth="3"
+                    />
+                    <path
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      fill="none"
+                      stroke={recoveryRatio >= 100 ? "hsl(142, 76%, 36%)" : recoveryRatio >= 50 ? "hsl(48, 96%, 53%)" : "hsl(0, 84%, 60%)"}
+                      strokeWidth="3"
+                      strokeDasharray={`${Math.min(recoveryRatio, 100)}, 100`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={cn(
+                      "text-lg font-bold",
+                      recoveryRatio >= 100 ? "text-green-600" : recoveryRatio >= 50 ? "text-yellow-500" : "text-red-500"
+                    )}>
+                      {recoveryRatio}%
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">{totals.lineCount} lignes · ~{fmt(avgCostPerLine)}/l</p>
               </CardContent>
             </Card>
           </div>
@@ -249,24 +280,40 @@ export function EcoContributionSection({
           {/* Monthly Chart - Stacked bars + Net line */}
           {chartData.length > 0 && (
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Évolution mensuelle</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
+              <CardContent className="pt-5 pb-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold">Évolution mensuelle — {yearLabel}</h3>
+                </div>
+                <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
                       <XAxis dataKey="name" className="text-xs" />
                       <YAxis className="text-xs" tickFormatter={(v) => `${v}€`} />
                       <Tooltip
-                        formatter={(value: number, name: string) => [fmt(name === "Prélèvements" ? -value : value), name]}
-                        contentStyle={{ backgroundColor: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                        formatter={(value: number, name: string) => [
+                          fmt(name === "Prélèvements" ? -value : value),
+                          name,
+                        ]}
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--background))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                        }}
                       />
-                      <Legend />
+                      <Legend wrapperStyle={{ fontSize: "12px" }} />
                       <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
                       <Bar dataKey="Remboursements" stackId="eco" fill="hsl(142, 76%, 36%)" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="Prélèvements" stackId="eco" fill="hsl(0, 84%, 60%)" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="Prélèvements" stackId="eco" fill="hsl(0, 84%, 60%)" radius={[4, 4, 0, 0]} />
+                      <Line
+                        type="monotone"
+                        dataKey="Solde Net"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={2}
+                        dot={{ r: 3, fill: "hsl(var(--primary))" }}
+                        activeDot={{ r: 5 }}
+                      />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -274,94 +321,129 @@ export function EcoContributionSection({
             </Card>
           )}
 
-          {/* Top 3 / Flop 3 */}
+          {/* Top 3 / Flop 3 side by side with mini bars */}
           {byRestaurant.length > 3 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card>
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Card className="border-green-500/20">
+                <CardContent className="pt-5 pb-4 px-5">
+                  <div className="flex items-center gap-2 mb-4">
                     <Trophy className="h-4 w-4 text-green-600" />
-                    Top 3 — Meilleurs soldes
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 pb-3">
-                  <div className="space-y-2">
-                    {top3.map((r, i) => (
-                      <div key={r.restaurant_id} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-muted-foreground w-4">{i + 1}.</span>
-                          <span className="truncate max-w-[200px]">{restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8)}</span>
+                    <h3 className="text-sm font-semibold">Top 3 — Meilleurs soldes</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {top3.map((r, i) => {
+                      const name = restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8);
+                      const maxNet = Math.max(...top3.map(x => Math.abs(x.net)), 1);
+                      const barWidth = Math.round((Math.abs(r.net) / maxNet) * 100);
+                      return (
+                        <div key={r.restaurant_id} className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold",
+                                i === 0 ? "bg-green-500/20 text-green-600" : "bg-muted text-muted-foreground"
+                              )}>
+                                {i + 1}
+                              </span>
+                              <span className="truncate max-w-[180px] font-medium">{name}</span>
+                            </div>
+                            <span className={cn("font-semibold tabular-nums text-sm", r.net >= 0 ? "text-green-600" : "text-red-500")}>
+                              {fmt(r.net)}
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-green-500/60 rounded-full transition-all" style={{ width: `${barWidth}%` }} />
+                          </div>
                         </div>
-                        <span className={cn("font-semibold tabular-nums", r.net >= 0 ? "text-green-600" : "text-red-500")}>
-                          {fmt(r.net)}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Card className="border-red-500/20">
+                <CardContent className="pt-5 pb-4 px-5">
+                  <div className="flex items-center gap-2 mb-4">
                     <AlertTriangle className="h-4 w-4 text-red-500" />
-                    Flop 3 — Pires soldes
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 pb-3">
-                  <div className="space-y-2">
-                    {flop3.map((r, i) => (
-                      <div key={r.restaurant_id} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-muted-foreground w-4">{i + 1}.</span>
-                          <span className="truncate max-w-[200px]">{restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8)}</span>
+                    <h3 className="text-sm font-semibold">Flop 3 — Pires soldes</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {flop3.map((r, i) => {
+                      const name = restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8);
+                      const maxNet = Math.max(...flop3.map(x => Math.abs(x.net)), 1);
+                      const barWidth = Math.round((Math.abs(r.net) / maxNet) * 100);
+                      return (
+                        <div key={r.restaurant_id} className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold",
+                                i === 0 ? "bg-red-500/20 text-red-500" : "bg-muted text-muted-foreground"
+                              )}>
+                                {i + 1}
+                              </span>
+                              <span className="truncate max-w-[180px] font-medium">{name}</span>
+                            </div>
+                            <span className={cn("font-semibold tabular-nums text-sm", r.net >= 0 ? "text-green-600" : "text-red-500")}>
+                              {fmt(r.net)}
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-red-500/60 rounded-full transition-all" style={{ width: `${barWidth}%` }} />
+                          </div>
                         </div>
-                        <span className={cn("font-semibold tabular-nums", r.net >= 0 ? "text-green-600" : "text-red-500")}>
-                          {fmt(r.net)}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
             </div>
           )}
 
-          {/* Restaurant Ranking Table */}
+          {/* Restaurant Ranking Table with search */}
           {byRestaurant.length > 0 && (
             <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium">Par restaurant</CardTitle>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant={soldeFilter === "all" ? "default" : "outline"}
-                      className="h-6 px-2.5 text-[11px]"
-                      onClick={() => setSoldeFilter("all")}
-                    >
-                      Tous ({byRestaurant.length})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={soldeFilter === "positive" ? "default" : "outline"}
-                      className="h-6 px-2.5 text-[11px]"
-                      onClick={() => setSoldeFilter("positive")}
-                    >
-                      Solde + ({byRestaurant.filter(r => r.net >= 0).length})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={soldeFilter === "negative" ? "default" : "outline"}
-                      className="h-6 px-2.5 text-[11px]"
-                      onClick={() => setSoldeFilter("negative")}
-                    >
-                      Solde − ({byRestaurant.filter(r => r.net < 0).length})
-                    </Button>
+              <CardContent className="pt-5 pb-3">
+                <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                  <h3 className="text-sm font-semibold">Par restaurant</h3>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Rechercher..."
+                        className="h-8 w-[180px] pl-8 text-sm"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant={soldeFilter === "all" ? "default" : "outline"}
+                        className="h-7 px-2.5 text-[11px] rounded-full"
+                        onClick={() => setSoldeFilter("all")}
+                      >
+                        Tous ({byRestaurant.length})
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={soldeFilter === "positive" ? "default" : "outline"}
+                        className="h-7 px-2.5 text-[11px] rounded-full"
+                        onClick={() => setSoldeFilter("positive")}
+                      >
+                        Solde + ({byRestaurant.filter(r => r.net >= 0).length})
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={soldeFilter === "negative" ? "default" : "outline"}
+                        className="h-7 px-2.5 text-[11px] rounded-full"
+                        onClick={() => setSoldeFilter("negative")}
+                      >
+                        Solde − ({byRestaurant.filter(r => r.net < 0).length})
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -379,20 +461,21 @@ export function EcoContributionSection({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {displayedRestaurants.map((r) => (
+                    {displayedRestaurants.map((r, idx) => (
                       <RestaurantDrilldown
                         key={r.restaurant_id}
                         restaurant={r}
                         name={restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8)}
                         detailLines={detailLines.filter(l => l.restaurant_id === r.restaurant_id)}
                         fmt={fmt}
-                        isHistorique={localYear === null}
+                        isHistorique={false}
                         showPlatformDot={isGlobal}
+                        isEvenRow={idx % 2 === 0}
                       />
                     ))}
                   </TableBody>
                 </Table>
-                {sortedRestaurants.length > 20 && (
+                {filteredRestaurants.length > 20 && (
                   <div className="flex justify-center pt-3">
                     <Button
                       variant="ghost"
@@ -400,7 +483,7 @@ export function EcoContributionSection({
                       className="text-xs"
                       onClick={() => setShowAll(!showAll)}
                     >
-                      {showAll ? "Réduire" : `Voir tout (${sortedRestaurants.length} restaurants)`}
+                      {showAll ? "Réduire" : `Voir tout (${filteredRestaurants.length} restaurants)`}
                     </Button>
                   </div>
                 )}
@@ -444,6 +527,7 @@ function RestaurantDrilldown({
   fmt,
   isHistorique,
   showPlatformDot = true,
+  isEvenRow = false,
 }: {
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
   name: string;
@@ -451,6 +535,7 @@ function RestaurantDrilldown({
   fmt: (v: number) => string;
   isHistorique?: boolean;
   showPlatformDot?: boolean;
+  isEvenRow?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -493,7 +578,7 @@ function RestaurantDrilldown({
   return (
     <>
       <TableRow
-        className="cursor-pointer hover:bg-muted/50"
+        className={cn("cursor-pointer hover:bg-muted/50", isEvenRow && "bg-muted/20")}
         onClick={() => setOpen(!open)}
       >
         <TableCell className="font-medium text-sm">
@@ -506,8 +591,7 @@ function RestaurantDrilldown({
         <TableCell className="text-right text-red-500 text-sm">{fmt(r.charge)}</TableCell>
         <TableCell className="text-right text-sm">
           <div className="flex items-center justify-end gap-2">
-            {/* Mini ratio bar */}
-            <div className="w-16 h-2 rounded-full overflow-hidden bg-red-500/20 hidden sm:block">
+            <div className="w-20 h-2 rounded-full overflow-hidden bg-red-500/20 hidden sm:block">
               <div
                 className="h-full bg-green-500 rounded-full transition-all"
                 style={{ width: `${refundPct}%` }}
