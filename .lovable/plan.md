@@ -1,45 +1,29 @@
 
 
-# Refonte radicale — Éco-Contribution
+# Amélioration de la section Tableau Restaurants (Zone 5)
 
-## Corrections
-1. **Remettre les boutons année** : Restaurer les boutons `Historique | 2023 | 2024 | 2025 | 2026` avec un état local `localYear` (valeur initiale = `selectedYear` du contexte global). Ces boutons pilotent la requête de données, indépendamment du header global.
+## Problème
+La section tableau (Synthèse/Détail) manque de hiérarchie visuelle. Les lignes sont tassées, la barre de progression du solde est trop petite (w-20), et le design global est plat.
 
-## Refonte visuelle — layout totalement repensé
+## Changements prévus dans `EcoContributionSection.tsx`
 
-### Zone haute : Bandeau statut full-width
-Un bandeau coloré horizontal (vert si exonéré, rouge sinon) avec :
-- Icône + titre "Éco-Contribution 2025"
-- Badge statut (Exonéré / Non exonéré)
-- Boutons année intégrés dans ce bandeau (pilules)
-- Export à droite
+### 1. Header du tableau plus structuré
+- Séparer visuellement les tabs (Synthèse/Détail) et les filtres sur deux niveaux quand l'espace est restreint
+- Ajouter un compteur de résultats visible sous les filtres
 
-### Zone KPI : Dashboard-style en 2 rangées
-**Rangée 1** — Grande carte "Solde Net" en pleine largeur avec :
-- Le montant en très gros (4xl)
-- À droite dans la même carte : 3 mini-KPI en ligne (Remboursements, Prélèvements, Lignes) — façon "stat strip"
-- Barre de progression pleine largeur en bas de la carte montrant le ratio remb/prél
+### 2. Lignes du tableau améliorées
+- **Barre de solde élargie** : passer de `w-20` a `w-28` avec une hauteur de 2.5px et des couleurs plus marquées (fond rouge/vert selon le signe)
+- **Espacement des lignes** : padding vertical augmenté (`py-3`) pour plus d'aération
+- **Indicateur visuel de statut** : petit dot vert/rouge avant le nom du restaurant pour signaler immédiatement le statut d'exonération
+- **Hover effect** plus prononcé avec une transition douce
 
-**Rangée 2** — 2 cartes côte à côte :
-- **Gauche** : Gauge circulaire SVG (taux de récupération) + coût moyen/ligne
-- **Droite** : Top 3 / Flop 3 en colonnes compactes côte à côte dans la même carte (pas 2 cartes séparées)
+### 3. Drilldown (sous-lignes mois et lignes individuelles)
+- Fond légèrement différencié avec une bordure gauche colorée (verte ou rouge selon le solde du restaurant) pour créer une "groupement visuel"
+- Lignes de détail avec un fond alterné plus subtil
 
-### Zone graphique
-- Graphique inchangé fonctionnellement mais intégré dans une carte avec un fond subtil et hauteur 350px
+### 4. Bouton "Voir tout" amélioré
+- Remplacer le ghost button par un bouton outline avec un compteur badge
 
-### Zone tableau
-- Carte avec search + filtres pilules, comme actuellement mais avec des lignes plus aérées
-- Tabs Synthèse / Détail en pilules au-dessus du tableau (pas au-dessus de tout)
-
-## Structure technique
-
-Le composant `EcoContributionSection.tsx` sera réécrit avec :
-- `localYear` state restauré (boutons Historique/année)
-- Nouveau layout en sections visuelles distinctes
-- Mêmes données, même hook `useEcoContribution`, mêmes sous-composants `RestaurantDrilldown` et `MonthDrilldownRow`
-
-## Fichier modifié
-- `src/components/analytics/EcoContributionSection.tsx`
-
-Aucune modification de base de données.
+### Fichier modifié
+- `src/components/analytics/EcoContributionSection.tsx` (zone 5 uniquement, lignes ~499-783)
 
