@@ -1,17 +1,23 @@
 
 
-# Ajouter le mapping Deliveroo pour Chicken Street (Vienne)
+# Ajouter les mappings Deliveroo pour Chicken Street Original - Oberkampf
 
-## Probleme
-Le restaurant **Chicken Street (Vienne)** n'a aucun mapping Deliveroo configuré. Les CSV utilisent le nom `CHICKEN STREET - Vienne 🌯` mais il n'y a ni `deliveroo_store_id` ni entrée dans `restaurant_deliveroo_ids`.
+## Constat
+Le restaurant **Chicken Street Original - Oberkampf** (ID `2c465c84-9e4a-4065-a444-886a219493cb`) n'a aucun mapping Deliveroo. Les CSV utilisent deux noms différents :
+1. `CHICKEN STREET - Oberkampf 🌯` (anciens fichiers)
+2. `CS Orignial by Chicken Street 🌯` (fichiers récents)
+
+Aucune entrée n'existe dans `restaurant_deliveroo_ids` pour ce restaurant.
 
 ## Solution
-Insérer le mapping dans la table `restaurant_deliveroo_ids` :
+Insérer les deux mappings dans `restaurant_deliveroo_ids` :
 
 ```sql
 INSERT INTO restaurant_deliveroo_ids (restaurant_id, deliveroo_store_name, is_primary, label)
-VALUES ('ac2a0c5e-c328-4196-83ea-7545df7f827b', 'CHICKEN STREET - Vienne 🌯', true, 'principal');
+VALUES 
+  ('2c465c84-9e4a-4065-a444-886a219493cb', 'CHICKEN STREET - Oberkampf 🌯', true, 'principal'),
+  ('2c465c84-9e4a-4065-a444-886a219493cb', 'CS Orignial by Chicken Street 🌯', false, 'alias rebrand');
 ```
 
-C'est une simple insertion en base — aucun changement de code nécessaire. Le parser multi-mapping déjà en place résoudra automatiquement ce nom lors des prochains imports.
+Aucun changement de code requis -- le parser multi-mapping existant résoudra automatiquement les deux noms.
 
