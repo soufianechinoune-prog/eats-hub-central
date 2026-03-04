@@ -1,23 +1,16 @@
 
 
-# Ajouter les mappings Deliveroo pour Chicken Street Original - Oberkampf
+# Ajouter un champ de recherche dans le tableau comparatif des restaurants
 
-## Constat
-Le restaurant **Chicken Street Original - Oberkampf** (ID `2c465c84-9e4a-4065-a444-886a219493cb`) n'a aucun mapping Deliveroo. Les CSV utilisent deux noms différents :
-1. `CHICKEN STREET - Oberkampf 🌯` (anciens fichiers)
-2. `CS Orignial by Chicken Street 🌯` (fichiers récents)
+## Changement
+Ajouter un `Input` de recherche dans le `CardHeader` du composant `RestaurantComparisonTable`, à côté du toggle N-1. Le filtre s'appliquera sur le nom du restaurant (filtrage côté client via `useMemo`).
 
-Aucune entrée n'existe dans `restaurant_deliveroo_ids` pour ce restaurant.
+## Détail technique
+1. **Fichier** : `src/components/overview/RestaurantComparisonTable.tsx`
+2. Ajouter un état `searchQuery` avec `useState("")`
+3. Ajouter un `Input` avec icône `Search` dans le header, entre le titre et le toggle N-1
+4. Filtrer `sortedStats` par `searchQuery` avant le rendu (filtre insensible à la casse sur `resto.name`)
+5. Style compact : petit champ ~200px avec placeholder "Rechercher..."
 
-## Solution
-Insérer les deux mappings dans `restaurant_deliveroo_ids` :
-
-```sql
-INSERT INTO restaurant_deliveroo_ids (restaurant_id, deliveroo_store_name, is_primary, label)
-VALUES 
-  ('2c465c84-9e4a-4065-a444-886a219493cb', 'CHICKEN STREET - Oberkampf 🌯', true, 'principal'),
-  ('2c465c84-9e4a-4065-a444-886a219493cb', 'CS Orignial by Chicken Street 🌯', false, 'alias rebrand');
-```
-
-Aucun changement de code requis -- le parser multi-mapping existant résoudra automatiquement les deux noms.
+Aucune modification de base de données requise.
 
