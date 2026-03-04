@@ -1,16 +1,17 @@
 
 
-# Ajouter un champ de recherche dans le tableau comparatif des restaurants
+# Ajouter le mapping Deliveroo pour "Chicken Street - Gare de Dijon"
 
-## Changement
-Ajouter un `Input` de recherche dans le `CardHeader` du composant `RestaurantComparisonTable`, à côté du toggle N-1. Le filtre s'appliquera sur le nom du restaurant (filtrage côté client via `useMemo`).
+## Constat
+Les fichiers `CSD2_20250908` et `CSD2_20250915` utilisent le nom **`Chicken Street - Gare de Dijon`** (sans emoji, ordre inversé). Le mapping existant est `CHICKEN STREET - Dijon Gare 🌯` pour le restaurant **Chicken street - Dijon Gare** (ID `3c56a904-cd53-4084-9be1-8076f27e8792`).
 
-## Détail technique
-1. **Fichier** : `src/components/overview/RestaurantComparisonTable.tsx`
-2. Ajouter un état `searchQuery` avec `useState("")`
-3. Ajouter un `Input` avec icône `Search` dans le header, entre le titre et le toggle N-1
-4. Filtrer `sortedStats` par `searchQuery` avant le rendu (filtre insensible à la casse sur `resto.name`)
-5. Style compact : petit champ ~200px avec placeholder "Rechercher..."
+## Solution
+Insérer un alias dans `restaurant_deliveroo_ids` :
 
-Aucune modification de base de données requise.
+```sql
+INSERT INTO restaurant_deliveroo_ids (restaurant_id, deliveroo_store_name, is_primary, label)
+VALUES ('3c56a904-cd53-4084-9be1-8076f27e8792', 'Chicken Street - Gare de Dijon', false, 'alias ancien format');
+```
+
+Aucun changement de code requis — le parser multi-mapping résoudra automatiquement ce nom.
 
