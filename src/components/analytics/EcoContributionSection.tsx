@@ -512,7 +512,7 @@ export function EcoContributionSection({
               </TabsList>
 
               {activeTab === "synthese" && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
@@ -552,6 +552,14 @@ export function EcoContributionSection({
               )}
             </div>
 
+            {/* Result counter */}
+            {activeTab === "synthese" && (
+              <p className="text-[11px] text-muted-foreground mb-3">
+                {filteredRestaurants.length} restaurant{filteredRestaurants.length > 1 ? "s" : ""} affiché{filteredRestaurants.length > 1 ? "s" : ""}
+                {searchQuery && ` pour "${searchQuery}"`}
+              </p>
+            )}
+
             <TabsContent value="synthese" className="mt-0">
               {byRestaurant.length > 0 ? (
                 <>
@@ -587,14 +595,17 @@ export function EcoContributionSection({
                     </TableBody>
                   </Table>
                   {filteredRestaurants.length > 20 && (
-                    <div className="flex justify-center pt-3">
+                    <div className="flex justify-center pt-4">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="text-xs"
+                        className="text-xs rounded-full gap-1.5"
                         onClick={() => setShowAll(!showAll)}
                       >
-                        {showAll ? "Réduire" : `Voir tout (${filteredRestaurants.length} restaurants)`}
+                        {showAll ? "Réduire" : "Voir tout"}
+                        <Badge variant="secondary" className="text-[10px] h-5 px-1.5 ml-1">
+                          {filteredRestaurants.length}
+                        </Badge>
                       </Button>
                     </div>
                   )}
@@ -694,35 +705,52 @@ function RestaurantDrilldown({
   return (
     <>
       <TableRow
-        className={cn("cursor-pointer hover:bg-muted/50", isEvenRow && "bg-muted/20")}
+        className={cn(
+          "cursor-pointer transition-colors duration-150",
+          isEvenRow ? "bg-muted/20 hover:bg-muted/40" : "hover:bg-muted/30"
+        )}
         onClick={() => setOpen(!open)}
       >
-        <TableCell className="font-medium text-sm">
-          <div className="flex items-center gap-1.5">
-            <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-90")} />
+        <TableCell className="font-medium text-sm py-3">
+          <div className="flex items-center gap-2">
+            <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", open && "rotate-90")} />
+            <span className={cn(
+              "inline-block h-2 w-2 rounded-full flex-shrink-0",
+              r.net >= 0 ? "bg-green-500" : "bg-red-500"
+            )} />
             {name}
           </div>
         </TableCell>
-        <TableCell className="text-right text-green-600 text-sm">{fmt(r.refund)}</TableCell>
-        <TableCell className="text-right text-red-500 text-sm">{fmt(r.charge)}</TableCell>
-        <TableCell className="text-right text-sm">
-          <div className="flex items-center justify-end gap-2">
-            <div className="w-20 h-2 rounded-full overflow-hidden bg-red-500/20 hidden sm:block">
+        <TableCell className="text-right text-green-600 text-sm py-3">{fmt(r.refund)}</TableCell>
+        <TableCell className="text-right text-red-500 text-sm py-3">{fmt(r.charge)}</TableCell>
+        <TableCell className="text-right text-sm py-3">
+          <div className="flex items-center justify-end gap-2.5">
+            <div className={cn(
+              "w-28 h-[5px] rounded-full overflow-hidden hidden sm:block",
+              r.net >= 0 ? "bg-green-500/15" : "bg-red-500/15"
+            )}>
               <div
-                className="h-full bg-green-500 rounded-full transition-all"
+                className={cn(
+                  "h-full rounded-full transition-all duration-500",
+                  r.net >= 0 ? "bg-green-500" : "bg-red-500"
+                )}
                 style={{ width: `${refundPct}%` }}
               />
             </div>
-            <span className={cn("font-medium tabular-nums", r.net >= 0 ? "text-green-600" : "text-red-500")}>
+            <span className={cn("font-semibold tabular-nums", r.net >= 0 ? "text-green-600" : "text-red-500")}>
               {fmt(r.net)}
             </span>
           </div>
         </TableCell>
-        <TableCell className="text-right text-sm text-muted-foreground">{detailLines.length}</TableCell>
+        <TableCell className="text-right text-sm text-muted-foreground py-3">{detailLines.length}</TableCell>
       </TableRow>
-      {open && monthlyBreakdown.map((mg) => (
-        <MonthDrilldownRow key={mg.month} monthGroup={mg} fmt={fmt} showPlatformDot={showPlatformDot} />
-      ))}
+      {open && (
+        <>
+          {monthlyBreakdown.map((mg) => (
+            <MonthDrilldownRow key={mg.month} monthGroup={mg} fmt={fmt} showPlatformDot={showPlatformDot} parentNet={r.net} />
+          ))}
+        </>
+      )}
     </>
   );
 }
@@ -731,36 +759,46 @@ function MonthDrilldownRow({
   monthGroup,
   fmt,
   showPlatformDot = true,
+  parentNet = 0,
 }: {
   monthGroup: { month: number; label: string; refund: number; charge: number; net: number; lines: DetailLine[] };
   fmt: (v: number) => string;
   showPlatformDot?: boolean;
+  parentNet?: number;
 }) {
   const [open, setOpen] = useState(false);
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("fr-FR") : "-";
+  const borderColor = parentNet >= 0 ? "border-l-green-500" : "border-l-red-500";
 
   return (
     <>
       <TableRow
-        className="cursor-pointer hover:bg-muted/30 bg-muted/10"
+        className={cn(
+          "cursor-pointer transition-colors duration-150 hover:bg-muted/30 bg-muted/10 border-l-2",
+          borderColor
+        )}
         onClick={() => setOpen(!open)}
       >
-        <TableCell className="text-sm pl-10">
+        <TableCell className="text-sm pl-10 py-2.5">
           <div className="flex items-center gap-1.5">
-            <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform", open && "rotate-90")} />
+            <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform duration-200", open && "rotate-90")} />
             <span className="font-medium">{monthGroup.label}</span>
           </div>
         </TableCell>
-        <TableCell className="text-right text-green-600 text-xs">{fmt(monthGroup.refund)}</TableCell>
-        <TableCell className="text-right text-red-500 text-xs">{fmt(monthGroup.charge)}</TableCell>
-        <TableCell className={cn("text-right font-medium text-xs", monthGroup.net >= 0 ? "text-green-600" : "text-red-500")}>
+        <TableCell className="text-right text-green-600 text-xs py-2.5">{fmt(monthGroup.refund)}</TableCell>
+        <TableCell className="text-right text-red-500 text-xs py-2.5">{fmt(monthGroup.charge)}</TableCell>
+        <TableCell className={cn("text-right font-medium text-xs py-2.5", monthGroup.net >= 0 ? "text-green-600" : "text-red-500")}>
           {fmt(monthGroup.net)}
         </TableCell>
-        <TableCell className="text-right text-xs text-muted-foreground">{monthGroup.lines.length}</TableCell>
+        <TableCell className="text-right text-xs text-muted-foreground py-2.5">{monthGroup.lines.length}</TableCell>
       </TableRow>
-      {open && monthGroup.lines.map((line) => (
-        <TableRow key={line.id} className="bg-muted/5">
-          <TableCell className="text-xs pl-16 text-muted-foreground">
+      {open && monthGroup.lines.map((line, i) => (
+        <TableRow key={line.id} className={cn(
+          "border-l-2",
+          borderColor,
+          i % 2 === 0 ? "bg-muted/5" : "bg-background"
+        )}>
+          <TableCell className="text-xs pl-16 text-muted-foreground py-2">
             {showPlatformDot && (
               line.platform === "deliveroo"
                 ? <Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-cyan-500 text-cyan-600 font-normal">Deliveroo</Badge>
@@ -770,10 +808,10 @@ function MonthDrilldownRow({
           </TableCell>
           <TableCell />
           <TableCell />
-          <TableCell className={cn("text-right text-xs font-medium", Number(line.amount) >= 0 ? "text-green-600" : "text-red-500")}>
+          <TableCell className={cn("text-right text-xs font-medium py-2", Number(line.amount) >= 0 ? "text-green-600" : "text-red-500")}>
             {fmt(Number(line.amount))}
           </TableCell>
-          <TableCell className="text-right text-[10px] text-muted-foreground font-mono">
+          <TableCell className="text-right text-[10px] text-muted-foreground font-mono py-2">
             {line.payout_reference_id ? line.payout_reference_id.slice(0, 12) + "…" : "-"}
           </TableCell>
         </TableRow>
