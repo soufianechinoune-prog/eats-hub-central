@@ -1,46 +1,45 @@
 
 
-# Refonte visuelle de la page Éco-Contribution
+# Refonte radicale — Éco-Contribution
 
-## Problème identifié
-1. **Double sélecteur de date** : le `AnalyticsHeader` en haut affiche un calendrier avancé (année/mois/range), et le composant `EcoContributionSection` a ses propres boutons "Historique / 2023 / 2024 / 2025 / 2026" (`localYear`). Redondant et confus.
-2. **Layout peu moderne** : les KPI cards, le graphique et le tableau sont empilés verticalement sans hiérarchie visuelle forte. La page manque de contraste, d'aération et de structure claire pour un dashboard SaaS.
+## Corrections
+1. **Remettre les boutons année** : Restaurer les boutons `Historique | 2023 | 2024 | 2025 | 2026` avec un état local `localYear` (valeur initiale = `selectedYear` du contexte global). Ces boutons pilotent la requête de données, indépendamment du header global.
 
-## Solution
+## Refonte visuelle — layout totalement repensé
 
-### 1. Supprimer le sélecteur de date local
-- Retirer les boutons "Historique / 2023-2026" du `EcoContributionSection`
-- Utiliser uniquement le `selectedYear` passé en prop depuis le contexte global (`AnalyticsHeader`)
-- Supprimer l'état `localYear` — la source de vérité est le header global
+### Zone haute : Bandeau statut full-width
+Un bandeau coloré horizontal (vert si exonéré, rouge sinon) avec :
+- Icône + titre "Éco-Contribution 2025"
+- Badge statut (Exonéré / Non exonéré)
+- Boutons année intégrés dans ce bandeau (pilules)
+- Export à droite
 
-### 2. Refonte visuelle complète de `EcoContributionSection`
+### Zone KPI : Dashboard-style en 2 rangées
+**Rangée 1** — Grande carte "Solde Net" en pleine largeur avec :
+- Le montant en très gros (4xl)
+- À droite dans la même carte : 3 mini-KPI en ligne (Remboursements, Prélèvements, Lignes) — façon "stat strip"
+- Barre de progression pleine largeur en bas de la carte montrant le ratio remb/prél
 
-**Header de section** : titre + badge résumé + export — plus compact, une seule ligne.
+**Rangée 2** — 2 cartes côte à côte :
+- **Gauche** : Gauge circulaire SVG (taux de récupération) + coût moyen/ligne
+- **Droite** : Top 3 / Flop 3 en colonnes compactes côte à côte dans la même carte (pas 2 cartes séparées)
 
-**KPI Cards redesign** :
-- Layout en grille 4 colonnes avec le Solde Net en tant que carte hero (plus grande, gradient subtil, icône proéminente)
-- Remboursements et Prélèvements avec des barres de progression colorées intégrées
-- Carte "Taux de récupération" avec gauge circulaire-like (arc via Progress + pourcentage centré)
-- Typographie plus contrastée, chiffres plus gros
+### Zone graphique
+- Graphique inchangé fonctionnellement mais intégré dans une carte avec un fond subtil et hauteur 350px
 
-**Graphique** :
-- Conserver le ComposedChart barres empilées mais ajouter une ligne "Solde Net" pour visualiser la tendance
-- Hauteur augmentée (350px), coins arrondis sur les barres
+### Zone tableau
+- Carte avec search + filtres pilules, comme actuellement mais avec des lignes plus aérées
+- Tabs Synthèse / Détail en pilules au-dessus du tableau (pas au-dessus de tout)
 
-**Top/Flop** :
-- Transformer en un design compact côte à côte avec des mini-barres horizontales pour visualiser les montants (pas juste du texte)
-- Ajouter une icône médaille/trophy pour le classement
+## Structure technique
 
-**Tableau restaurants** :
-- Ajouter un champ de recherche (comme fait pour RestaurantComparisonTable)
-- Barre de progression pour le ratio remb/prél plus visible
-- Alternance de couleurs de lignes subtile
+Le composant `EcoContributionSection.tsx` sera réécrit avec :
+- `localYear` state restauré (boutons Historique/année)
+- Nouveau layout en sections visuelles distinctes
+- Mêmes données, même hook `useEcoContribution`, mêmes sous-composants `RestaurantDrilldown` et `MonthDrilldownRow`
 
-### 3. Tabs Synthèse/Détail
-- Conserver les deux onglets mais les styliser en "pills" plus modernes (arrondi complet, fond coloré)
-
-## Fichiers modifiés
-- `src/components/analytics/EcoContributionSection.tsx` — refonte complète du layout et suppression du `localYear`
+## Fichier modifié
+- `src/components/analytics/EcoContributionSection.tsx`
 
 Aucune modification de base de données.
 
