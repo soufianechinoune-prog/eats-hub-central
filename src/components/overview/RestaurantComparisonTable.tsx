@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Star, ChevronRight, ShoppingCart } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Star, ChevronRight, ShoppingCart, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -169,6 +170,7 @@ export function RestaurantComparisonTable({
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
 
   const toggleRow = useCallback((id: string) => {
     setExpandedRows(prev => {
@@ -223,6 +225,12 @@ export function RestaurantComparisonTable({
     });
   }, [stats, sortColumn, sortDirection]);
 
+  const filteredStats = useMemo(() => {
+    if (!searchQuery.trim()) return sortedStats;
+    const q = searchQuery.toLowerCase();
+    return sortedStats.filter(r => r.name.toLowerCase().includes(q));
+  }, [sortedStats, searchQuery]);
+
   const SortIcon = ({ column }: { column: SortColumn }) => {
     if (sortColumn !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
     return sortDirection === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
@@ -268,7 +276,16 @@ export function RestaurantComparisonTable({
             <ShoppingCart className="h-5 w-5 text-primary" />
             Comparatif des restaurants
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Rechercher..."
+                className="h-8 w-[200px] pl-8 text-sm"
+              />
+            </div>
             <Switch id="n1-toggle" checked={showN1Comparison} onCheckedChange={onToggleN1} />
             <Label htmlFor="n1-toggle" className="text-sm text-muted-foreground cursor-pointer">
               Afficher N-1
@@ -297,7 +314,7 @@ export function RestaurantComparisonTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedStats.map((resto, idx) => {
+            {filteredStats.map((resto, idx) => {
               const ratingStatus = getMetricStatus("rating", resto.rating);
               const profitStatus = getMetricStatus("profitability", resto.profitability);
               const totalDeliveryStatus = getMetricStatus("totalDeliveryTime", resto.totalDeliveryTime);
