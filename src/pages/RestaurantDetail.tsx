@@ -14,7 +14,7 @@ import { formatPhoneNumber } from "@/lib/utils";
 import OpeningHoursEditor from "@/components/restaurants/OpeningHoursEditor";
 import { OpeningHoursAnalytics } from "@/components/restaurants/OpeningHoursAnalytics";
 import { RestaurantDocuments } from "@/components/restaurants/RestaurantDocuments";
-import { SiretValidation } from "@/components/restaurants/SiretValidation";
+import { SiretValidation, type SiretAutoFillData } from "@/components/restaurants/SiretValidation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -238,6 +238,18 @@ const RestaurantDetail = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleSiretAutoFill = (data: SiretAutoFillData) => {
+    setFormData(prev => ({
+      ...prev,
+      ...(data.rue && { street: data.rue }),
+      ...(data.codePostal && { postal_code: data.codePostal }),
+      ...(data.ville && { city: data.ville }),
+      ...(data.siren && { siren: data.siren }),
+      ...(data.managerFirstName && !prev.manager_first_name && { manager_first_name: data.managerFirstName }),
+      ...(data.managerLastName && !prev.manager_last_name && { manager_last_name: data.managerLastName }),
+    }));
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -421,7 +433,10 @@ const RestaurantDetail = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               {renderField("SIRET", "siret", "text", "123 456 789 00012")}
-              <SiretValidation siret={isEditing ? formData["siret"] : (restaurant as any).siret} />
+              <SiretValidation
+                siret={isEditing ? formData["siret"] : (restaurant as any).siret}
+                onAutoFill={isEditing ? handleSiretAutoFill : undefined}
+              />
             </div>
             {renderField("Rue", "street", "text", "29 Avenue François Mitterrand")}
             <div className="grid grid-cols-2 gap-4">
