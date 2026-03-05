@@ -1,31 +1,23 @@
 
 
-# Ajouter un Co-dirigeant pour recevoir les WhatsApp
+## Problem
 
-## Contexte
-Il existe déjà une table `managers` (first_name, last_name, phone, email) et une table de liaison `manager_restaurants` (manager_id, restaurant_id, role, is_primary). Actuellement, la section "Gérant" de la fiche restaurant utilise des champs plats sur la table `restaurants` et ne permet qu'un seul contact.
+The IDU (Identifiant Unique) numbers returned by the ADEME API are not visible in the REP membership section, despite the edge function correctly fetching and returning them. The API confirms data like `FR418884_01FQUK` is available.
 
-## Approche
-Plutôt que d'ajouter encore des colonnes plats (co_manager_first_name, etc.), on va exploiter les tables `managers` + `manager_restaurants` déjà en place pour gérer un ou plusieurs contacts associés au restaurant.
+## Root Cause Analysis
 
-### 1. Modifier la section "Gérant" dans RestaurantDetail.tsx
-- Conserver les champs existants (manager_first_name, manager_last_name, phone, manager_whatsapp) comme gérant principal
-- Ajouter en dessous une sous-section "Co-dirigeant(s)" qui liste les managers liés via `manager_restaurants` (hors le gérant principal)
-- Bouton "+ Ajouter un co-dirigeant" ouvrant un petit formulaire inline ou dialog avec : Prénom, Nom, Téléphone/WhatsApp, Email
-- Chaque co-dirigeant affiché avec possibilité de supprimer
+The code in `RepMembershipSection.tsx` has the IDU rendering logic (lines 350-360 for summary, lines 372-379 for inline), and the matching logic at line 70 (`iduEntries.find(i => i.filiere === r.filiere)`) correctly pairs IDUs with their filieres. The API test confirms matching filieres (`EMPAP` = `EMPAP`).
 
-### 2. Requêtes Supabase
-- Charger les managers liés au restaurant via `manager_restaurants` JOIN `managers`
-- Insérer un nouveau manager dans `managers` + créer la liaison dans `manager_restaurants` avec `role = 'co-dirigeant'`
-- Supprimer = retirer la liaison `manager_restaurants` (et potentiellement le manager si plus aucune liaison)
+The most likely cause is that the latest component code hasn't been applied in the running preview. The plan ensures the IDU is displayed even more prominently and adds a debug-safe fallback.
 
-### 3. Impact sur l'envoi WhatsApp (Messaging.tsx)
-- Modifier la logique d'envoi pour aussi récupérer les co-dirigeants via `manager_restaurants` → `managers`
-- Envoyer le WhatsApp au gérant principal ET aux co-dirigeants qui ont un numéro WhatsApp renseigné
+## Plan
 
-### Fichiers modifiés
-- **`src/pages/RestaurantDetail.tsx`** : nouvelle sous-section co-dirigeants dans la carte Gérant, avec CRUD via les tables managers/manager_restaurants
-- **`src/pages/Messaging.tsx`** : inclure les co-dirigeants dans la liste des destinataires WhatsApp
+1. **Make IDU more prominent in the inscrit card** -- Move the IDU display to be directly under the restaurant name/badge header, as a clearly visible standalone line (not buried in the detail entries). Show it with a distinct style: `IDU: FR418884_01FQUK` with a copy-friendly mono font and a colored background pill.
 
-Aucune migration SQL nécessaire -- les tables `managers` et `manager_restaurants` existent déjà avec la bonne structure.
+2. **Always show IDU at entry level** -- In each validity entry line, display the IDU immediately after the filiere badge, regardless of whether it matched. If no IDU was found for that filiere, show "IDU non disponible" in a muted style.
+
+3. **Add a fallback display for unmatched IDUs** -- If `iduEntries` has entries that don't match any adherent filiere, display them separately at the bottom as a catch-all.
+
+### Files to modify
+- `src/components/analytics/RepMembershipSection.tsx` -- Restructure the inscrit card layout to show IDU more prominently
 
