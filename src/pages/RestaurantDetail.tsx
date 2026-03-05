@@ -30,19 +30,13 @@ import {
   ArrowLeft,
   Building2,
   User,
-  Tablet,
-  UserCheck,
-  TrendingUp,
-  BarChart3,
-  Receipt,
+  CalendarDays,
   Pencil,
   Save,
   X,
   Phone,
-  Mail,
   MessageCircle,
   Trash2,
-  CalendarDays,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 
@@ -498,68 +492,6 @@ const RestaurantDetail = () => {
           </CardContent>
         </Card>
 
-        {/* Accès Tablette */}
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-2 pb-4">
-            <div className="p-2 rounded-md bg-primary/10">
-              <Tablet className="h-4 w-4 text-primary" />
-            </div>
-            <CardTitle className="text-lg">Accès Tablette Uber</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-              {renderField("Email", "tablet_email", "email", "Email de connexion")}
-            </div>
-            {renderField("Mot de passe", "tablet_password", "password", "Mot de passe")}
-            {!isEditing && restaurant.tablet_password && (
-              <p className="text-xs text-muted-foreground">
-                Le mot de passe est masqué pour des raisons de sécurité
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Account Manager Uber */}
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-2 pb-4">
-            <div className="p-2 rounded-md bg-green-500/10">
-              <UserCheck className="h-4 w-4 text-green-600" />
-            </div>
-            <CardTitle className="text-lg">Account Manager Uber Eats</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              {renderField("Nom", "account_manager_name", "text", "Nom complet")}
-              {renderField("Titre", "account_manager_title", "text", "Account Manager Territory, France")}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              {renderPhoneField("Téléphone", "account_manager_phone", "7 87 77 86 58", <Phone className="h-3 w-3" />)}
-              {renderField("Email", "account_manager_email", "email", "email@uber.com")}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Account Manager Deliveroo */}
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-2 pb-4">
-            <div className="p-2 rounded-md bg-cyan-500/10">
-              <UserCheck className="h-4 w-4 text-cyan-600" />
-            </div>
-            <CardTitle className="text-lg">Account Manager Deliveroo</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              {renderField("Nom", "deliveroo_account_manager_name", "text", "Nom complet")}
-              {renderField("Titre", "deliveroo_account_manager_title", "text", "Account Manager, France")}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              {renderPhoneField("Téléphone", "deliveroo_account_manager_phone", "07 12 34 56 78", <Phone className="h-3 w-3" />)}
-              {renderField("Email", "deliveroo_account_manager_email", "email", "email@deliveroo.com")}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Dates d'activité plateformes */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center gap-2 pb-4">
@@ -612,92 +544,6 @@ const RestaurantDetail = () => {
       {/* Opening Hours Editor */}
       <OpeningHoursEditor restaurantId={id!} />
 
-
-      {/* Connexion API Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Connexions API</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Uber Eats */}
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <p className="font-medium text-green-600">Uber Eats</p>
-                <p className="text-sm text-muted-foreground">
-                  {restaurant.csv_verified
-                    ? "Validé (CSV maître)"
-                    : restaurant.uber_store_id
-                    ? "En attente de validation"
-                    : "Non connecté"}
-                </p>
-                {restaurant.uber_store_id && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Store ID: {restaurant.uber_store_id}
-                  </p>
-                )}
-                {uberIds.length > 1 && (
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Historique des UUID :</p>
-                    <div className="space-y-1.5">
-                      {uberIds.map((uid) => (
-                        <div key={uid.id} className="flex items-start gap-2 text-xs">
-                          <span className={`mt-1 h-1.5 w-1.5 rounded-full shrink-0 ${uid.is_primary ? 'bg-green-500' : 'bg-muted-foreground/50'}`} />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <code className="text-[11px] text-muted-foreground truncate max-w-[160px]">{uid.uber_store_id}</code>
-                              {uid.is_primary ? (
-                                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30 text-[10px] px-1.5 py-0">Actuel</Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-muted-foreground text-[10px] px-1.5 py-0">Ancien</Badge>
-                              )}
-                              <span className="text-muted-foreground/70">
-                                {uid.created_at ? new Date(uid.created_at).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : ''}
-                              </span>
-                            </div>
-                            {uid.label && (
-                              <p className="text-muted-foreground/70 italic mt-0.5">{uid.label}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {restaurant.csv_verified ? (
-                <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Validé</Badge>
-              ) : restaurant.uber_store_id ? (
-                <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30">En attente</Badge>
-              ) : (
-                <Badge variant="outline" className="text-muted-foreground">Non connecté</Badge>
-              )}
-            </div>
-
-            {/* Deliveroo */}
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <p className="font-medium text-cyan-600">Deliveroo</p>
-                <p className="text-sm text-muted-foreground">
-                  {restaurant.deliveroo_store_id
-                    ? "Store ID configuré"
-                    : "Non connecté"}
-                </p>
-                {restaurant.deliveroo_store_id && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Store ID: {restaurant.deliveroo_store_id}
-                  </p>
-                )}
-              </div>
-              {restaurant.deliveroo_store_id ? (
-                <Badge className="bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30">Configuré</Badge>
-              ) : (
-                <Badge variant="outline" className="text-muted-foreground">Non connecté</Badge>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Active Status */}
       <Card>
