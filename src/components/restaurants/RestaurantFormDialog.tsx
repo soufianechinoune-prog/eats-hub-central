@@ -23,6 +23,7 @@ interface RestaurantForm {
   postal_code: string;
   city: string;
   siren: string;
+  siret: string;
   restaurant_phone: string;
   restaurant_email: string;
   manager_first_name: string;
@@ -52,6 +53,7 @@ const initialFormState: RestaurantForm = {
   postal_code: "",
   city: "",
   siren: "",
+  siret: "",
   restaurant_phone: "",
   restaurant_email: "",
   manager_first_name: "",
@@ -131,6 +133,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
       postal_code: newRestaurant.postal_code || null,
       city: newRestaurant.city,
       siren: newRestaurant.siren || null,
+      siret: (newRestaurant.siret || "").replace(/\s/g, "") || null,
       restaurant_phone: newRestaurant.restaurant_phone || null,
       restaurant_email: newRestaurant.restaurant_email || null,
       manager_first_name: newRestaurant.manager_first_name || null,
@@ -153,7 +156,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
       deliveroo_closing_date: newRestaurant.deliveroo_closing_date || null,
       is_succursale: newRestaurant.is_succursale,
       is_active: true,
-    });
+    } as any);
 
     if (error) {
       toast({
@@ -212,6 +215,17 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
                   placeholder="123 456 789"
                   value={newRestaurant.siren}
                   onChange={(e) => handleInputChange("siren", e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="siret">SIRET</Label>
+                <Input
+                  id="siret"
+                  placeholder="123 456 789 00012"
+                  value={newRestaurant.siret}
+                  onChange={(e) => handleInputChange("siret", e.target.value)}
                 />
               </div>
             </div>
