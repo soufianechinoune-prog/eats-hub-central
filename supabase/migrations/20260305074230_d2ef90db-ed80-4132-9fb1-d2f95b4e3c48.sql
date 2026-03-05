@@ -1,0 +1,1 @@
+ALTER TABLE public.restaurants ADD COLUMN denomination_sociale TEXT;

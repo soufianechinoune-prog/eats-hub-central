@@ -2730,6 +2730,7 @@ export type Database = {
           deliveroo_closing_date: string | null
           deliveroo_opening_date: string | null
           deliveroo_store_id: string | null
+          denomination_sociale: string | null
           id: string
           is_active: boolean | null
           is_pinned: boolean | null
@@ -2773,6 +2774,7 @@ export type Database = {
           deliveroo_closing_date?: string | null
           deliveroo_opening_date?: string | null
           deliveroo_store_id?: string | null
+          denomination_sociale?: string | null
           id?: string
           is_active?: boolean | null
           is_pinned?: boolean | null
@@ -2816,6 +2818,7 @@ export type Database = {
           deliveroo_closing_date?: string | null
           deliveroo_opening_date?: string | null
           deliveroo_store_id?: string | null
+          denomination_sociale?: string | null
           id?: string
           is_active?: boolean | null
           is_pinned?: boolean | null
