@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SiretValidationProps {
   siret: string | null | undefined;
@@ -30,34 +31,19 @@ export function SiretValidation({ siret }: SiretValidationProps) {
     setResult(null);
 
     try {
-      const response = await fetch(
-        `https://entreprise.data.gouv.fr/api/sirene/v3/etablissements/${cleanSiret}`
-      );
+      const { data, error } = await supabase.functions.invoke('validate-siret', {
+        body: { siret: cleanSiret },
+      });
 
-      if (response.ok) {
-        const data = await response.json();
-        const etab = data.etablissement;
-        const uniteLegale = etab?.unite_legale;
-        
+      if (error) {
+        setResult({ valid: false });
+      } else if (data?.valid) {
         setResult({
           valid: true,
-          denomination: uniteLegale?.denomination || 
-            `${uniteLegale?.prenom_1 || ""} ${uniteLegale?.nom || ""}`.trim() || 
-            "Entreprise",
-          activite: etab?.activite_principale
-            ? `${etab.activite_principale} — ${uniteLegale?.activite_principale_entreprise || ""}`
-            : undefined,
-          adresse: [
-            etab?.numero_voie,
-            etab?.type_voie,
-            etab?.libelle_voie,
-            etab?.code_postal,
-            etab?.libelle_commune,
-          ].filter(Boolean).join(" "),
-          etat: etab?.etat_administratif === "A" ? "Actif" : "Fermé",
+          denomination: data.denomination,
+          adresse: data.adresse,
+          etat: data.etat,
         });
-      } else if (response.status === 404) {
-        setResult({ valid: false });
       } else {
         setResult({ valid: false });
       }
