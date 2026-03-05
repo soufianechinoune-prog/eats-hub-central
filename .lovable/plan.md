@@ -1,46 +1,23 @@
 
 
-# Auto-remplissage des champs restaurant via le SIRET
+# Afficher la dénomination sociale sans toucher le nom
 
-## Ce qu'on peut récupérer gratuitement
+## Problème
+L'auto-remplissage risque d'écraser le champ "Nom" du restaurant, qui est utilisé pour le matching des imports. Il ne faut jamais le modifier automatiquement.
 
-J'ai testé l'API qu'on utilise déjà (`api.recherche-entreprises.fabrique.social.gouv.fr`). Pour le SIRET `91040580200026`, elle retourne :
+## Solution
 
-```text
-address:         "1 RUE DES ECLUSES 57100 THIONVILLE"
-codePostal:      "57100"
-commune:         "THIONVILLE"
-siren:           "910405802"
-activitePrincipale: "56.10C" (Restauration de type rapide)
-categorieJuridique: "5710" (SARL)
-categorieEntreprise: "PME"
-dateCreation:    "2022-02-16"
-etatAdministratif: "A" (Actif)
-```
+1. **Ajouter un champ `denomination_sociale` en base** via migration :
+   - Nouvelle colonne `denomination_sociale TEXT` sur la table `restaurants`
 
-On peut donc **auto-remplir** :
-- **Adresse** (rue, code postal, ville) -- parsée depuis le champ `address`
-- **SIREN** -- extrait automatiquement du SIRET
-- **Dénomination** -- nom légal de l'entreprise
+2. **Modifier `handleSiretAutoFill`** dans `RestaurantDetail.tsx` :
+   - Retirer toute logique qui toucherait au champ `name`
+   - Stocker `data.denomination` dans le nouveau champ `denomination_sociale`
 
-Pour les **dirigeants** (gérant, prénom, nom), il existe l'API DINUM (`recherche-entreprises.api.gouv.fr/search`) qui inclut les dirigeants dans ses résultats. Elle est gratuite et publique (7 appels/seconde). Cependant, elle était temporairement indisponible lors de mes tests. On peut l'intégrer en fallback.
+3. **Afficher la dénomination à côté du nom** dans la grille "Informations générales" :
+   - Ligne 1 : "Nom" (inchangé) | "Dénomination sociale" (nouveau champ, lecture seule ou éditable, rempli automatiquement par le SIRET)
 
-## Plan d'implémentation
-
-### 1. Enrichir la edge function `validate-siret`
-Ajouter dans la réponse les champs structurés : `rue`, `codePostal`, `ville`, `siren`, `activite`, `formeJuridique`, `dateCreation`. Parser le champ `address` de l'API pour séparer rue / CP / ville.
-
-### 2. Bouton "Auto-remplir" sur la fiche restaurant
-Quand la validation SIRET réussit, afficher un bouton "Remplir les champs" qui pré-remplit automatiquement :
-- Rue, Code postal, Ville
-- SIREN
-- Dénomination (dans le champ Nom si vide)
-
-### 3. Tentative de récupération des dirigeants (bonus)
-Appeler l'API DINUM en complément pour essayer de récupérer le nom du gérant. Si l'API est disponible, on pré-remplit le champ gérant. Sinon, on skip silencieusement.
-
-### Fichiers modifiés
-- `supabase/functions/validate-siret/index.ts` -- enrichir la réponse
-- `src/components/restaurants/SiretValidation.tsx` -- bouton auto-remplir
-- `src/pages/RestaurantDetail.tsx` -- callback pour recevoir les données et remplir le formulaire
+4. **Fichiers modifiés** :
+   - `src/pages/RestaurantDetail.tsx` — ajout du champ dénomination sociale dans le formulaire et dans `handleSiretAutoFill`
+   - Migration SQL — ajout colonne `denomination_sociale` à `restaurants`
 
