@@ -2746,6 +2746,7 @@ export type Database = {
           restaurant_email: string | null
           restaurant_phone: string | null
           siren: string | null
+          siret: string | null
           street: string | null
           tablet_email: string | null
           tablet_password: string | null
@@ -2788,6 +2789,7 @@ export type Database = {
           restaurant_email?: string | null
           restaurant_phone?: string | null
           siren?: string | null
+          siret?: string | null
           street?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
@@ -2830,6 +2832,7 @@ export type Database = {
           restaurant_email?: string | null
           restaurant_phone?: string | null
           siren?: string | null
+          siret?: string | null
           street?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
