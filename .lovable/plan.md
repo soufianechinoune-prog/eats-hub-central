@@ -1,26 +1,46 @@
 
 
-# Fix : SIRET validation toujours "non trouvé"
+# Auto-remplissage des champs restaurant via le SIRET
 
-## Probleme identifie
+## Ce qu'on peut récupérer gratuitement
 
-Les logs reseau montrent clairement le probleme : les appels directs depuis le navigateur vers `entreprise.data.gouv.fr` echouent avec **"Load failed"** -- c'est un probleme **CORS**. Cette API ne permet pas les appels cross-origin depuis un navigateur.
+J'ai testé l'API qu'on utilise déjà (`api.recherche-entreprises.fabrique.social.gouv.fr`). Pour le SIRET `91040580200026`, elle retourne :
 
-Le composant `SiretValidation.tsx` (ligne 33-34) appelle directement l'API depuis le client, ce qui est bloque par le navigateur.
+```text
+address:         "1 RUE DES ECLUSES 57100 THIONVILLE"
+codePostal:      "57100"
+commune:         "THIONVILLE"
+siren:           "910405802"
+activitePrincipale: "56.10C" (Restauration de type rapide)
+categorieJuridique: "5710" (SARL)
+categorieEntreprise: "PME"
+dateCreation:    "2022-02-16"
+etatAdministratif: "A" (Actif)
+```
 
-## Solution
+On peut donc **auto-remplir** :
+- **Adresse** (rue, code postal, ville) -- parsée depuis le champ `address`
+- **SIREN** -- extrait automatiquement du SIRET
+- **Dénomination** -- nom légal de l'entreprise
 
-Passer par une **edge function** (comme on l'a fait pour `check-eco-organism`) pour proxifier l'appel.
+Pour les **dirigeants** (gérant, prénom, nom), il existe l'API DINUM (`recherche-entreprises.api.gouv.fr/search`) qui inclut les dirigeants dans ses résultats. Elle est gratuite et publique (7 appels/seconde). Cependant, elle était temporairement indisponible lors de mes tests. On peut l'intégrer en fallback.
 
-### 1. Creer `supabase/functions/validate-siret/index.ts`
-- Recoit un SIRET en POST
-- Appelle `https://entreprise.data.gouv.fr/api/sirene/v3/etablissements/{siret}` cote serveur (pas de CORS)
-- Retourne les infos (denomination, adresse, etat)
+## Plan d'implémentation
 
-### 2. Modifier `SiretValidation.tsx`
-- Remplacer le `fetch` direct par un appel a la edge function via le client Supabase (`supabase.functions.invoke('validate-siret', { body: { siret } })`)
+### 1. Enrichir la edge function `validate-siret`
+Ajouter dans la réponse les champs structurés : `rue`, `codePostal`, `ville`, `siren`, `activite`, `formeJuridique`, `dateCreation`. Parser le champ `address` de l'API pour séparer rue / CP / ville.
 
-### Fichiers
-- **Nouveau** : `supabase/functions/validate-siret/index.ts`
-- **Modifie** : `src/components/restaurants/SiretValidation.tsx`
+### 2. Bouton "Auto-remplir" sur la fiche restaurant
+Quand la validation SIRET réussit, afficher un bouton "Remplir les champs" qui pré-remplit automatiquement :
+- Rue, Code postal, Ville
+- SIREN
+- Dénomination (dans le champ Nom si vide)
+
+### 3. Tentative de récupération des dirigeants (bonus)
+Appeler l'API DINUM en complément pour essayer de récupérer le nom du gérant. Si l'API est disponible, on pré-remplit le champ gérant. Sinon, on skip silencieusement.
+
+### Fichiers modifiés
+- `supabase/functions/validate-siret/index.ts` -- enrichir la réponse
+- `src/components/restaurants/SiretValidation.tsx` -- bouton auto-remplir
+- `src/pages/RestaurantDetail.tsx` -- callback pour recevoir les données et remplir le formulaire
 
