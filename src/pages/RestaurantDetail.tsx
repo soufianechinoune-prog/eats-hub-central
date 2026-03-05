@@ -14,6 +14,7 @@ import { formatPhoneNumber } from "@/lib/utils";
 import OpeningHoursEditor from "@/components/restaurants/OpeningHoursEditor";
 import { OpeningHoursAnalytics } from "@/components/restaurants/OpeningHoursAnalytics";
 import { RestaurantDocuments } from "@/components/restaurants/RestaurantDocuments";
+import { SiretValidation } from "@/components/restaurants/SiretValidation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -187,6 +188,7 @@ const RestaurantDetail = () => {
         postal_code: restaurant.postal_code || "",
         city: restaurant.city || "",
         siren: restaurant.siren || "",
+        siret: (restaurant as any).siret || "",
         restaurant_phone: restaurant.restaurant_phone || "",
         restaurant_email: restaurant.restaurant_email || "",
         manager_first_name: restaurant.manager_first_name || "",
@@ -416,6 +418,10 @@ const RestaurantDetail = () => {
             <div className="grid grid-cols-2 gap-4">
               {renderField("Nom", "name", "text", "Nom du restaurant")}
               {renderField("SIREN", "siren", "text", "123 456 789")}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {renderField("SIRET", "siret", "text", "123 456 789 00012")}
+              <SiretValidation siret={isEditing ? formData["siret"] : (restaurant as any).siret} />
             </div>
             {renderField("Rue", "street", "text", "29 Avenue François Mitterrand")}
             <div className="grid grid-cols-2 gap-4">
