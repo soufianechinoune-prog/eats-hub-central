@@ -22,20 +22,26 @@ serve(async (req) => {
 
     const cleanSiret = siret.replace(/\s/g, '').trim();
 
-    const url = `https://data.ademe.fr/data-fair/api/v1/datasets/rep-adherents-eo-fin-annee/lines?q_fields=identifiant_societe&q=${encodeURIComponent(cleanSiret)}&size=100`;
+    // Query both ADEME datasets in parallel
+    const adherentsUrl = `https://data.ademe.fr/data-fair/api/v1/datasets/rep-adherents-eo-fin-annee/lines?q_fields=identifiant_societe&q=${encodeURIComponent(cleanSiret)}&size=100`;
+    const iduUrl = `https://data.ademe.fr/data-fair/api/v1/datasets/rep-producteurs-idu/lines?q_fields=Identifiant_societe&q=${encodeURIComponent(cleanSiret)}&size=100`;
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      const text = await response.text();
-      console.error('ADEME API error:', response.status, text);
+    const [adherentsResponse, iduResponse] = await Promise.all([
+      fetch(adherentsUrl),
+      fetch(iduUrl),
+    ]);
+
+    if (!adherentsResponse.ok) {
+      const text = await adherentsResponse.text();
+      console.error('ADEME adherents API error:', adherentsResponse.status, text);
       return new Response(
-        JSON.stringify({ error: 'Erreur API ADEME', status: response.status }),
+        JSON.stringify({ error: 'Erreur API ADEME (adhérents)', status: adherentsResponse.status }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const data = await response.json();
-    const results = (data.results || []).map((r: Record<string, unknown>) => ({
+    const adherentsData = await adherentsResponse.json();
+    const results = (adherentsData.results || []).map((r: Record<string, unknown>) => ({
       identifiant_societe: r.identifiant_societe,
       raison_sociale: r.raison_sociale,
       filiere: r.filiere,
@@ -45,8 +51,25 @@ serve(async (req) => {
       date_finvalidite_inscription: r.date_finvalidite_inscription,
     }));
 
+    // Parse IDU data
+    let iduResults: Array<Record<string, unknown>> = [];
+    if (iduResponse.ok) {
+      const iduData = await iduResponse.json();
+      iduResults = (iduData.results || []).map((r: Record<string, unknown>) => ({
+        identifiant_unique: r.Identifiant_unique,
+        immatriculation: r.Immatriculation,
+        filiere: r.Filiere,
+        identifiant_societe: r.Identifiant_societe,
+        raison_sociale: r.Raison_Sociale,
+        categories_agrement: r.Categories_agrement,
+        pays: r.Pays,
+      }));
+    } else {
+      console.error('ADEME IDU API error:', iduResponse.status);
+    }
+
     return new Response(
-      JSON.stringify({ siret: cleanSiret, count: results.length, results }),
+      JSON.stringify({ siret: cleanSiret, count: results.length, results, idu_count: iduResults.length, idu_results: iduResults }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
