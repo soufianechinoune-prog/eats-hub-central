@@ -7,11 +7,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Building2, Loader2, CheckCircle2, XCircle, Search,
   ArrowUpDown, ShieldCheck, ShieldAlert, ShieldOff,
-  CalendarDays,
+  CalendarDays, Hash,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { useEcoOrganismCheck, type EcoOrganismCheckResult } from "@/hooks/useEcoOrganismCheck";
+import { useEcoOrganismCheck, type EcoOrganismCheckResult, type IduResult } from "@/hooks/useEcoOrganismCheck";
 
 interface RepMembershipSectionProps {
   restaurantIds: string[];
@@ -30,12 +30,14 @@ interface ParsedRestaurant {
   filiereCount: number;
   orgs: string[];
   filieres: string[];
+  iduEntries: IduResult[];
   entries: {
     filiere: string;
     org: string;
     start: string;
     end: string | null;
     isActive: boolean;
+    idu?: string;
   }[];
 }
 
@@ -58,18 +60,23 @@ export function RepMembershipSection({ restaurantIds, restaurantMap }: RepMember
       const error = repErrors[rId];
       const loading = repLoading[rId];
 
-      if (loading) return { id: rId, name, status: "loading" as const, filiereCount: 0, orgs: [], filieres: [], entries: [] };
-      if (error) return { id: rId, name, status: "error" as const, error, filiereCount: 0, orgs: [], filieres: [], entries: [] };
-      if (!result) return { id: rId, name, status: "sans_siret" as const, filiereCount: 0, orgs: [], filieres: [], entries: [] };
+      if (loading) return { id: rId, name, status: "loading" as const, filiereCount: 0, orgs: [], filieres: [], iduEntries: [], entries: [] };
+      if (error) return { id: rId, name, status: "error" as const, error, filiereCount: 0, orgs: [], filieres: [], iduEntries: [], entries: [] };
+      if (!result) return { id: rId, name, status: "sans_siret" as const, filiereCount: 0, orgs: [], filieres: [], iduEntries: [], entries: [] };
 
       const hasResults = result.count > 0;
-      const entries = result.results.map(r => ({
-        filiere: r.filiere,
-        org: r.raison_sociale_ecoorganisme,
-        start: fmtDate(r.date_debutvalidite_inscription) || "—",
-        end: r.date_finvalidite_inscription,
-        isActive: !r.date_finvalidite_inscription || new Date(r.date_finvalidite_inscription) > new Date(),
-      }));
+      const iduEntries = result.idu_results || [];
+      const entries = result.results.map(r => {
+        const matchingIdu = iduEntries.find(i => i.filiere === r.filiere);
+        return {
+          filiere: r.filiere,
+          org: r.raison_sociale_ecoorganisme,
+          start: fmtDate(r.date_debutvalidite_inscription) || "—",
+          end: r.date_finvalidite_inscription,
+          isActive: !r.date_finvalidite_inscription || new Date(r.date_finvalidite_inscription) > new Date(),
+          idu: matchingIdu?.identifiant_unique,
+        };
+      });
 
       return {
         id: rId,
@@ -79,6 +86,7 @@ export function RepMembershipSection({ restaurantIds, restaurantMap }: RepMember
         filiereCount: result.count,
         orgs: [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))],
         filieres: [...new Set(result.results.map(r => r.filiere).filter(Boolean))],
+        iduEntries,
         entries,
       };
     });
@@ -339,16 +347,37 @@ function RestaurantRepRow({ restaurant: r }: { restaurant: ParsedRestaurant }) {
             </Badge>
           ))}
         </div>
+        {/* IDU summary if available */}
+        {r.iduEntries.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <Hash className="h-3 w-3 text-primary flex-shrink-0" />
+            <span className="text-[11px] font-medium text-muted-foreground">IDU :</span>
+            {r.iduEntries.map((idu, idx) => (
+              <Badge key={idx} variant="secondary" className="text-[10px] h-5 px-1.5 font-mono gap-1">
+                {idu.filiere} — {idu.identifiant_unique}
+              </Badge>
+            ))}
+          </div>
+        )}
         {/* Org names */}
         <p className="text-[11px] text-muted-foreground">
           Éco-organismes : {r.orgs.join(", ")}
         </p>
         {/* Validity entries */}
         {r.entries.map((entry, idx) => (
-          <div key={idx} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <div key={idx} className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
             <CalendarDays className="h-3 w-3 flex-shrink-0" />
             <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", entry.isActive ? "bg-green-500" : "bg-red-400")} />
             <span className="font-mono">{entry.filiere}</span>
+            {entry.idu && (
+              <>
+                <span className="text-muted-foreground/60">·</span>
+                <span className="inline-flex items-center gap-1 font-mono text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                  <Hash className="h-2.5 w-2.5" />
+                  {entry.idu}
+                </span>
+              </>
+            )}
             <span className="text-muted-foreground/60">·</span>
             <span>{entry.org}</span>
             <span className="text-muted-foreground/60">·</span>

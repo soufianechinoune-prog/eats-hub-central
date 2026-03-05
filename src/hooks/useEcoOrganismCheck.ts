@@ -11,10 +11,22 @@ export interface EcoOrganismResult {
   date_finvalidite_inscription: string | null;
 }
 
+export interface IduResult {
+  identifiant_unique: string;
+  immatriculation: string;
+  filiere: string;
+  identifiant_societe: string;
+  raison_sociale: string;
+  categories_agrement: string;
+  pays: string;
+}
+
 export interface EcoOrganismCheckResult {
   siret: string;
   count: number;
   results: EcoOrganismResult[];
+  idu_count: number;
+  idu_results: IduResult[];
 }
 
 export function useEcoOrganismCheck() {
