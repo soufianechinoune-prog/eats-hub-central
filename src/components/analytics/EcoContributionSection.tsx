@@ -3,11 +3,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2, CheckCircle2, XCircle, Building2 } from "lucide-react";
+import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2 } from "lucide-react";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 import { EcoContributionDetail } from "./EcoContributionDetail";
 import { useEcoContributionExport } from "@/hooks/useEcoContributionExport";
-import { useEcoOrganismCheck } from "@/hooks/useEcoOrganismCheck";
+import { RepMembershipSection } from "./RepMembershipSection";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -47,8 +47,6 @@ export function EcoContributionSection({
   const [showAll, setShowAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { exportPDF, exportExcel } = useEcoContributionExport();
-  const { data: repData, loading: repLoading, errors: repErrors, checkMultiple } = useEcoOrganismCheck();
-  const [repChecked, setRepChecked] = useState(false);
 
   const isHistorique = localYear === null;
   const effectiveYear = localYear ?? selectedYear;
@@ -372,131 +370,7 @@ export function EcoContributionSection({
       )}
 
       {/* ═══════════════ ZONE 4b: REP Membership Check ═══════════════ */}
-      <Card>
-        <CardContent className="pt-5 pb-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">Adhésion éco-organismes (REP)</h3>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs rounded-full gap-1.5"
-              disabled={Object.values(repLoading).some(Boolean)}
-              onClick={async () => {
-                const ids = restaurantIds;
-                const { data: restData } = await supabase
-                  .from("restaurants")
-                  .select("id, siret")
-                  .in("id", ids);
-                if (restData) {
-                  await checkMultiple(restData.map((r: any) => ({ id: r.id, siret: r.siret })));
-                  setRepChecked(true);
-                }
-              }}
-            >
-              {Object.values(repLoading).some(Boolean) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Vérifier les SIRET
-            </Button>
-          </div>
-
-          {repChecked && (
-            <div className="space-y-2">
-              {restaurantIds.map(rId => {
-                const name = restaurantMap.get(rId) || rId.slice(0, 8);
-                const result = repData[rId];
-                const isLoading = repLoading[rId];
-                const error = repErrors[rId];
-
-                if (isLoading) {
-                  return (
-                    <div key={rId} className="flex items-center gap-2 text-xs text-muted-foreground py-1.5">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      {name}…
-                    </div>
-                  );
-                }
-
-                if (error) {
-                  return (
-                    <div key={rId} className="flex items-center gap-2 text-xs text-destructive py-1.5">
-                      <XCircle className="h-3.5 w-3.5" />
-                      {name} — {error}
-                    </div>
-                  );
-                }
-
-                if (!result) {
-                  return (
-                    <div key={rId} className="flex items-center gap-2 text-xs text-muted-foreground py-1.5">
-                      <span className="h-2 w-2 rounded-full bg-muted-foreground/30" />
-                      {name} — <span className="italic">Pas de SIRET renseigné</span>
-                    </div>
-                  );
-                }
-
-                const hasResults = result.count > 0;
-                const uniqueOrgs = [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))];
-                const uniqueFilieres = [...new Set(result.results.map(r => r.filiere).filter(Boolean))];
-
-                return (
-                  <div key={rId} className="rounded-lg border p-3 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      {hasResults
-                        ? <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
-                        : <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                      }
-                      <span className="text-sm font-medium">{name}</span>
-                      <Badge variant={hasResults ? "default" : "destructive"} className="text-[10px] h-5">
-                        {hasResults ? `${result.count} filière${result.count > 1 ? "s" : ""} REP` : "Non trouvé"}
-                      </Badge>
-                    </div>
-                    {hasResults && (
-                      <div className="pl-6 space-y-1.5">
-                        <div className="flex flex-wrap gap-1">
-                          {uniqueFilieres.map(f => (
-                            <Badge key={f} variant="outline" className="text-[10px] h-5 px-1.5 font-mono">
-                              {f}
-                            </Badge>
-                          ))}
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Éco-organismes : {uniqueOrgs.join(", ")}
-                        </p>
-                        {result.results.map((r, idx) => {
-                          const start = r.date_debutvalidite_inscription
-                            ? new Date(r.date_debutvalidite_inscription).toLocaleDateString("fr-FR")
-                            : "—";
-                          const end = r.date_finvalidite_inscription
-                            ? new Date(r.date_finvalidite_inscription).toLocaleDateString("fr-FR")
-                            : "En cours";
-                          const isActive = !r.date_finvalidite_inscription || new Date(r.date_finvalidite_inscription) > new Date();
-                          return (
-                            <div key={idx} className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                              <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${isActive ? "bg-green-500" : "bg-red-400"}`} />
-                              <span className="font-mono">{r.filiere}</span>
-                              <span>—</span>
-                              <span>du {start} au {end}</span>
-                              {!isActive && <Badge variant="destructive" className="text-[9px] h-4 px-1">Expiré</Badge>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {!repChecked && (
-            <p className="text-xs text-muted-foreground">
-              Cliquez sur "Vérifier les SIRET" pour interroger l'API ADEME et vérifier l'adhésion de vos restaurants aux filières REP.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <RepMembershipSection restaurantIds={restaurantIds} restaurantMap={restaurantMap} />
 
       {/* ═══════════════ ZONE 5: Restaurant Table with pill tabs ═══════════════ */}
       <Card>
