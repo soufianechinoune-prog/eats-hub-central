@@ -126,47 +126,38 @@ export function SiretValidation({ siret, onAutoFill }: SiretValidationProps) {
           </Button>
         </div>
       ) : result?.valid ? (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
             <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 text-[10px]">
               {result.etat || "Valide"}
             </Badge>
           </div>
-          <p className="text-xs font-medium">{result.denomination}</p>
-          {result.adresse && (
-            <p className="text-[11px] text-muted-foreground">{result.adresse}</p>
-          )}
-          {result.activite && (
-            <p className="text-[11px] text-muted-foreground">Activité : {result.activite}</p>
-          )}
-          {result.dirigeant && (result.dirigeant.prenom || result.dirigeant.nom) && (
-            <p className="text-[11px] text-muted-foreground">
-              Dirigeant : {[result.dirigeant.prenom, result.dirigeant.nom].filter(Boolean).join(" ")}
-            </p>
-          )}
-          <div className="flex items-center gap-2 pt-1">
-            {onAutoFill && (
-              <Button
-                size="sm"
-                variant={filled ? "ghost" : "default"}
-                className="h-7 text-xs gap-1.5"
-                onClick={handleAutoFill}
-                disabled={filled}
-              >
-                <Wand2 className="h-3 w-3" />
-                {filled ? "Champs remplis ✓" : "Auto-remplir"}
-              </Button>
-            )}
+          {!filled && onAutoFill && (
             <Button
               size="sm"
-              variant="ghost"
-              className="h-6 text-[10px] px-2 text-muted-foreground"
-              onClick={() => { setChecked(false); setResult(null); setFilled(false); }}
+              variant="default"
+              className="h-7 text-xs gap-1.5"
+              onClick={handleAutoFill}
             >
-              Revérifier
+              <Wand2 className="h-3 w-3" />
+              Auto-remplir
             </Button>
-          </div>
+          )}
+          {filled && (
+            <p className="text-[11px] text-green-600 font-medium flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" />
+              Champs remplis
+            </p>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 text-[10px] px-2 text-muted-foreground"
+            onClick={() => { setChecked(false); setResult(null); setFilled(false); }}
+          >
+            Revérifier
+          </Button>
         </div>
       ) : (
         <div className="space-y-1">
