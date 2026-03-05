@@ -210,6 +210,7 @@ const RestaurantDetail = () => {
         deliveroo_opening_date: restaurant.deliveroo_opening_date || "",
         deliveroo_closing_date: restaurant.deliveroo_closing_date || "",
         is_succursale: (restaurant as any).is_succursale ? "true" : "false",
+        denomination_sociale: (restaurant as any).denomination_sociale || "",
       });
       setIsEditing(true);
     }
@@ -245,6 +246,7 @@ const RestaurantDetail = () => {
       ...(data.codePostal && { postal_code: data.codePostal }),
       ...(data.ville && { city: data.ville }),
       ...(data.siren && { siren: data.siren }),
+      ...(data.denomination && { denomination_sociale: data.denomination }),
       ...(data.managerFirstName && !prev.manager_first_name && { manager_first_name: data.managerFirstName }),
       ...(data.managerLastName && !prev.manager_last_name && { manager_last_name: data.managerLastName }),
     }));
@@ -429,6 +431,9 @@ const RestaurantDetail = () => {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               {renderField("Nom", "name", "text", "Nom du restaurant")}
+              {renderField("Dénomination sociale", "denomination_sociale", "text", "Dénomination légale")}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               {renderField("SIREN", "siren", "text", "123 456 789")}
             </div>
             <div className="grid grid-cols-2 gap-4">
