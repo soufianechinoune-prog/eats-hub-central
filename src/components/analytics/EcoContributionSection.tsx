@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Trophy, AlertTriangle, Search, Percent, Shield, ShieldAlert } from "lucide-react";
+import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Search, Shield, ShieldAlert } from "lucide-react";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 import { EcoContributionDetail } from "./EcoContributionDetail";
 import { useEcoContributionExport } from "@/hooks/useEcoContributionExport";
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, Line, ComposedChart, ReferenceLine, Bar,
+  ResponsiveContainer, ComposedChart, ReferenceLine, Bar,
 } from "recharts";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -169,15 +169,6 @@ export function EcoContributionSection({
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="text-lg font-bold leading-tight">Éco-Contribution</h2>
-              <Badge
-                variant={isExempt ? "default" : "destructive"}
-                className={cn(
-                  "text-xs font-semibold px-2.5",
-                  isExempt && "bg-green-600 hover:bg-green-700"
-                )}
-              >
-                {isExempt ? "✓ Exonéré" : "✕ Non exonéré"}
-              </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {yearLabel} · {totals.lineCount} lignes · {byRestaurant.length} restaurants
@@ -310,143 +301,6 @@ export function EcoContributionSection({
         </CardContent>
       </Card>
 
-      {/* ═══════════════ ZONE 3: Gauge + Top/Flop ═══════════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Left: Circular gauge + avg cost */}
-        <Card>
-          <CardContent className="p-5 flex items-center gap-6">
-            {/* SVG Gauge */}
-            <div className="relative w-28 h-28 flex-shrink-0">
-              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                <path
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="hsl(var(--muted))"
-                  strokeWidth="2.5"
-                />
-                <path
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke={recoveryRatio >= 100 ? "hsl(142, 76%, 36%)" : recoveryRatio >= 50 ? "hsl(48, 96%, 53%)" : "hsl(0, 84%, 60%)"}
-                  strokeWidth="2.5"
-                  strokeDasharray={`${Math.min(recoveryRatio, 100)}, 100`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={cn(
-                  "text-2xl font-extrabold",
-                  recoveryRatio >= 100 ? "text-green-600" : recoveryRatio >= 50 ? "text-yellow-500" : "text-red-500"
-                )}>
-                  {recoveryRatio}%
-                </span>
-                <span className="text-[9px] text-muted-foreground font-medium">récupération</span>
-              </div>
-            </div>
-
-            {/* Stats next to gauge */}
-            <div className="space-y-4 flex-1">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Taux de récupération</p>
-                <p className="text-sm mt-1">
-                  {recoveryRatio >= 100
-                    ? "Vos remboursements couvrent intégralement les prélèvements."
-                    : `Il manque ${fmt(totals.charge - totals.refund)} pour atteindre l'exonération.`
-                  }
-                </p>
-              </div>
-              <div className="flex items-center gap-6">
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Restaurants</p>
-                  <p className="text-lg font-bold tabular-nums">{byRestaurant.length}</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Right: Top 3 / Flop 3 combined */}
-        {byRestaurant.length > 3 && (
-          <Card>
-            <CardContent className="p-5">
-              <div className="grid grid-cols-2 gap-5">
-                {/* Top 3 */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <Trophy className="h-3.5 w-3.5 text-green-600" />
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Top 3</h4>
-                  </div>
-                  <div className="space-y-2.5">
-                    {top3.map((r, i) => {
-                      const name = restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8);
-                      const maxNet = Math.max(...top3.map(x => Math.abs(x.net)), 1);
-                      const barWidth = Math.round((Math.abs(r.net) / maxNet) * 100);
-                      return (
-                        <div key={r.restaurant_id} className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className={cn(
-                                "flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold flex-shrink-0",
-                                i === 0 ? "bg-green-500/20 text-green-600" : "bg-muted text-muted-foreground"
-                              )}>
-                                {i + 1}
-                              </span>
-                              <span className="truncate text-xs font-medium">{name}</span>
-                            </div>
-                            <span className="text-xs font-semibold text-green-600 tabular-nums ml-1 flex-shrink-0">
-                              {fmt(r.net)}
-                            </span>
-                          </div>
-                          <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-green-500/50 rounded-full transition-all" style={{ width: `${barWidth}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Flop 3 */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Flop 3</h4>
-                  </div>
-                  <div className="space-y-2.5">
-                    {flop3.map((r, i) => {
-                      const name = restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8);
-                      const maxNet = Math.max(...flop3.map(x => Math.abs(x.net)), 1);
-                      const barWidth = Math.round((Math.abs(r.net) / maxNet) * 100);
-                      return (
-                        <div key={r.restaurant_id} className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className={cn(
-                                "flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold flex-shrink-0",
-                                i === 0 ? "bg-red-500/20 text-red-500" : "bg-muted text-muted-foreground"
-                              )}>
-                                {i + 1}
-                              </span>
-                              <span className="truncate text-xs font-medium">{name}</span>
-                            </div>
-                            <span className="text-xs font-semibold text-red-500 tabular-nums ml-1 flex-shrink-0">
-                              {fmt(r.net)}
-                            </span>
-                          </div>
-                          <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-red-500/50 rounded-full transition-all" style={{ width: `${barWidth}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
       {/* ═══════════════ ZONE 4: Monthly Chart ═══════════════ */}
       {chartData.length > 0 && (
         <Card>
@@ -506,14 +360,6 @@ export function EcoContributionSection({
                   <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" strokeOpacity={0.5} />
                   <Bar dataKey="Remboursements" fill="url(#gradRemb)" radius={[3, 3, 0, 0]} />
                   <Bar dataKey="Prélèvements" fill="url(#gradPrel)" radius={[3, 3, 0, 0]} />
-                  <Line
-                    type="monotone"
-                    dataKey="Solde Net"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2.5}
-                    dot={{ r: 4, fill: "hsl(var(--background))", stroke: "hsl(var(--primary))", strokeWidth: 2 }}
-                    activeDot={{ r: 6, fill: "hsl(var(--primary))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
-                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
