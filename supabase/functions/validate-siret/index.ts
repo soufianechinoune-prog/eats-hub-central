@@ -10,8 +10,44 @@ type ValidationResponse = {
   denomination?: string;
   adresse?: string;
   etat?: string;
+  rue?: string;
+  codePostal?: string;
+  ville?: string;
+  siren?: string;
+  activite?: string;
+  formeJuridique?: string;
+  dateCreation?: string;
+  dirigeant?: { prenom?: string; nom?: string } | null;
   error?: string;
 };
+
+/** Parse "1 RUE DES ECLUSES 57100 THIONVILLE" → { rue, cp, ville } */
+function parseAddress(raw: string): { rue: string; cp: string; ville: string } {
+  const match = raw.match(/^(.+?)\s+(\d{5})\s+(.+)$/);
+  if (match) {
+    return { rue: match[1].trim(), cp: match[2], ville: match[3].trim() };
+  }
+  return { rue: raw, cp: "", ville: "" };
+}
+
+async function fetchDirigeant(siren: string): Promise<{ prenom?: string; nom?: string } | null> {
+  try {
+    const res = await fetch(
+      `https://recherche-entreprises.api.gouv.fr/search?q=${siren}&page=1&per_page=1`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const dirigeants = data?.results?.[0]?.dirigeants;
+    if (Array.isArray(dirigeants) && dirigeants.length > 0) {
+      const d = dirigeants[0];
+      return { prenom: d.prenom || undefined, nom: d.nom || undefined };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -29,40 +65,53 @@ serve(async (req) => {
       );
     }
 
-    const response = await fetch(
-      `https://api.recherche-entreprises.fabrique.social.gouv.fr/api/v1/etablissement/${clean}`,
-      {
-        headers: { "Accept": "application/json" },
-      }
-    );
+    const siren = clean.slice(0, 9);
 
-    if (!response.ok) {
-      if (response.status === 404) {
+    const [etablissementRes, dirigeant] = await Promise.all([
+      fetch(
+        `https://api.recherche-entreprises.fabrique.social.gouv.fr/api/v1/etablissement/${clean}`,
+        { headers: { Accept: "application/json" } }
+      ),
+      fetchDirigeant(siren),
+    ]);
+
+    if (!etablissementRes.ok) {
+      if (etablissementRes.status === 404) {
         return new Response(JSON.stringify({ valid: false } satisfies ValidationResponse), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const details = await response.text();
+      const details = await etablissementRes.text();
       return new Response(
         JSON.stringify({
           valid: false,
-          error: `API indisponible (${response.status})${details ? `: ${details.slice(0, 200)}` : ""}`,
+          error: `API indisponible (${etablissementRes.status})${details ? `: ${details.slice(0, 200)}` : ""}`,
         } satisfies ValidationResponse),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const data = await response.json();
+    const data = await etablissementRes.json();
+    const fullAddress = data?.address || "";
+    const parsed = parseAddress(fullAddress);
 
     const result: ValidationResponse = {
       valid: true,
       denomination: data?.simpleLabel || data?.label || "Entreprise",
-      adresse: data?.address || undefined,
+      adresse: fullAddress || undefined,
       etat:
         data?.etatAdministratifEtablissement === "A" || data?.etatAdministratifUniteLegale === "A"
           ? "Actif"
           : "Fermé",
+      rue: parsed.rue || undefined,
+      codePostal: parsed.cp || undefined,
+      ville: parsed.ville || undefined,
+      siren,
+      activite: data?.activitePrincipale || undefined,
+      formeJuridique: data?.categorieJuridiqueUniteLegale || undefined,
+      dateCreation: data?.dateCreationUniteLegale || data?.dateCreation || undefined,
+      dirigeant,
     };
 
     return new Response(JSON.stringify(result), {
