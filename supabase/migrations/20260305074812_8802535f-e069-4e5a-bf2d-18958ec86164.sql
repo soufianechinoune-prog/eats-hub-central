@@ -1,0 +1,1 @@
+ALTER TABLE public.restaurants ADD COLUMN dirigeant_legal TEXT;

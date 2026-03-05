@@ -211,6 +211,7 @@ const RestaurantDetail = () => {
         deliveroo_closing_date: restaurant.deliveroo_closing_date || "",
         is_succursale: (restaurant as any).is_succursale ? "true" : "false",
         denomination_sociale: (restaurant as any).denomination_sociale || "",
+        dirigeant_legal: (restaurant as any).dirigeant_legal || "",
       });
       setIsEditing(true);
     }
@@ -245,8 +246,8 @@ const RestaurantDetail = () => {
       ...(data.rue && { street: data.rue }),
       ...(data.codePostal && { postal_code: data.codePostal }),
       ...(data.ville && { city: data.ville }),
-      ...(data.siren && { siren: data.siren }),
       ...(data.denomination && { denomination_sociale: data.denomination }),
+      ...((data.managerFirstName || data.managerLastName) && { dirigeant_legal: [data.managerFirstName, data.managerLastName].filter(Boolean).join(" ") }),
       ...(data.managerFirstName && !prev.manager_first_name && { manager_first_name: data.managerFirstName }),
       ...(data.managerLastName && !prev.manager_last_name && { manager_last_name: data.managerLastName }),
     }));
@@ -434,7 +435,7 @@ const RestaurantDetail = () => {
               {renderField("Dénomination sociale", "denomination_sociale", "text", "Dénomination légale")}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              {renderField("SIREN", "siren", "text", "123 456 789")}
+              {renderField("Dirigeant légal", "dirigeant_legal", "text", "Prénom Nom")}
             </div>
             <div className="grid grid-cols-2 gap-4">
               {renderField("SIRET", "siret", "text", "123 456 789 00012")}
