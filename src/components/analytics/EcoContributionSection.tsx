@@ -118,8 +118,7 @@ export function EcoContributionSection({
   const absCharge = Math.abs(totals.charge);
   const recoveryRatio = absCharge > 0 ? Math.round((totals.refund / absCharge) * 100) : 0;
 
-  // Coût moyen par ligne
-  const avgCostPerLine = totals.lineCount > 0 ? Math.round((absCharge / totals.lineCount) * 100) / 100 : 0;
+
 
   // Top 3 / Flop 3
   const top3 = useMemo(() => {
@@ -358,10 +357,6 @@ export function EcoContributionSection({
               </div>
               <div className="flex items-center gap-6">
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Coût moyen / ligne</p>
-                  <p className="text-lg font-bold tabular-nums">{fmt(avgCostPerLine)}</p>
-                </div>
-                <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Restaurants</p>
                   <p className="text-lg font-bold tabular-nums">{byRestaurant.length}</p>
                 </div>
@@ -461,10 +456,33 @@ export function EcoContributionSection({
             </div>
             <div className="h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                  <XAxis dataKey="name" className="text-xs" />
-                  <YAxis className="text-xs" tickFormatter={(v) => `${v}€`} />
+                <ComposedChart data={chartData} barGap={0} barCategoryGap="20%">
+                  <defs>
+                    <linearGradient id="gradRemb" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.6} />
+                    </linearGradient>
+                    <linearGradient id="gradPrel" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.6} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    className="text-xs"
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    className="text-xs"
+                    tickFormatter={(v) => `${(v / 1000).toFixed(v >= 1000 || v <= -1000 ? 0 : 1)}k€`}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={55}
+                  />
                   <Tooltip
                     formatter={(value: number, name: string) => [
                       fmt(name === "Prélèvements" ? -value : value),
@@ -473,21 +491,28 @@ export function EcoContributionSection({
                     contentStyle={{
                       backgroundColor: "hsl(var(--background))",
                       border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
+                      borderRadius: "10px",
                       fontSize: "12px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      padding: "10px 14px",
                     }}
+                    cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }}
                   />
-                  <Legend wrapperStyle={{ fontSize: "12px" }} />
-                  <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                  <Bar dataKey="Remboursements" stackId="eco" fill="hsl(142, 76%, 36%)" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Prélèvements" stackId="eco" fill="hsl(0, 84%, 60%)" radius={[4, 4, 0, 0]} />
+                  <Legend
+                    wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }}
+                    iconType="circle"
+                    iconSize={8}
+                  />
+                  <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" strokeOpacity={0.5} />
+                  <Bar dataKey="Remboursements" fill="url(#gradRemb)" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="Prélèvements" fill="url(#gradPrel)" radius={[3, 3, 0, 0]} />
                   <Line
                     type="monotone"
                     dataKey="Solde Net"
                     stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: "hsl(var(--primary))" }}
-                    activeDot={{ r: 5 }}
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: "hsl(var(--background))", stroke: "hsl(var(--primary))", strokeWidth: 2 }}
+                    activeDot={{ r: 6, fill: "hsl(var(--primary))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
