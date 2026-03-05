@@ -48,7 +48,7 @@ const currentYear = today.getFullYear();
 const currentMonth = today.getMonth(); // 0-11 (janvier = 0)
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
 
-export function AnalyticsHeader() {
+export function AnalyticsHeader({ hidePeriodSelector = false }: { hidePeriodSelector?: boolean } = {}) {
   const {
     selectedRestaurants,
     setSelectedRestaurants,
@@ -427,7 +427,7 @@ export function AnalyticsHeader() {
         />
 
 
-        <div className="flex items-center gap-2">
+        {!hidePeriodSelector && <div className="flex items-center gap-2">
           <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
             <PopoverTrigger asChild>
               <Button
@@ -676,7 +676,7 @@ export function AnalyticsHeader() {
               <X className="h-4 w-4" />
             </Button>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Visible Restaurants Display */}
