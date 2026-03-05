@@ -323,12 +323,33 @@ export default function Messaging() {
     setSendResults([]);
 
     try {
-      const recipients = selectedRestaurantsList.map((r) => ({
+      // Build recipients: primary manager + co-managers
+      const baseRecipients = selectedRestaurantsList.map((r) => ({
         restaurant_id: r.id,
         phone: r.manager_whatsapp || "",
         name: `${r.manager_first_name || ""} ${r.manager_last_name || ""}`.trim(),
         restaurantName: r.name,
       }));
+
+      // Fetch co-managers for selected restaurants
+      const restaurantIds = selectedRestaurantsList.map((r) => r.id);
+      const { data: coManagerLinks } = await supabase
+        .from("manager_restaurants")
+        .select("restaurant_id, managers!inner(first_name, last_name, phone)")
+        .in("restaurant_id", restaurantIds)
+        .eq("role", "co-dirigeant");
+
+      const coRecipients = (coManagerLinks || []).map((link: any) => {
+        const rest = selectedRestaurantsList.find((r) => r.id === link.restaurant_id);
+        return {
+          restaurant_id: link.restaurant_id,
+          phone: link.managers.phone || "",
+          name: `${link.managers.first_name || ""} ${link.managers.last_name || ""}`.trim(),
+          restaurantName: rest?.name || "",
+        };
+      }).filter((r: any) => r.phone);
+
+      const recipients = [...baseRecipients, ...coRecipients];
 
       toast.loading(`Envoi en cours... 0/${recipients.length}`, { id: "send-progress" });
 
@@ -385,12 +406,32 @@ export default function Messaging() {
     setIsSending(true);
 
     try {
-      const recipients = selectedRestaurantsList.map((r) => ({
+      const baseRecipients = selectedRestaurantsList.map((r) => ({
         restaurant_id: r.id,
         phone: r.manager_whatsapp || "",
         name: `${r.manager_first_name || ""} ${r.manager_last_name || ""}`.trim(),
         restaurantName: r.name,
       }));
+
+      // Fetch co-managers for selected restaurants
+      const restaurantIds = selectedRestaurantsList.map((r) => r.id);
+      const { data: coManagerLinks } = await supabase
+        .from("manager_restaurants")
+        .select("restaurant_id, managers!inner(first_name, last_name, phone)")
+        .in("restaurant_id", restaurantIds)
+        .eq("role", "co-dirigeant");
+
+      const coRecipients = (coManagerLinks || []).map((link: any) => {
+        const rest = selectedRestaurantsList.find((r) => r.id === link.restaurant_id);
+        return {
+          restaurant_id: link.restaurant_id,
+          phone: link.managers.phone || "",
+          name: `${link.managers.first_name || ""} ${link.managers.last_name || ""}`.trim(),
+          restaurantName: rest?.name || "",
+        };
+      }).filter((r: any) => r.phone);
+
+      const recipients = [...baseRecipients, ...coRecipients];
 
       // Upload media if present
       let mediaUrl: string | null = null;

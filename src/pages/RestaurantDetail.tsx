@@ -15,6 +15,7 @@ import OpeningHoursEditor from "@/components/restaurants/OpeningHoursEditor";
 import { OpeningHoursAnalytics } from "@/components/restaurants/OpeningHoursAnalytics";
 import { RestaurantDocuments } from "@/components/restaurants/RestaurantDocuments";
 import { SiretValidation, type SiretAutoFillData } from "@/components/restaurants/SiretValidation";
+import { CoManagersSection } from "@/components/restaurants/CoManagersSection";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -489,6 +490,7 @@ const RestaurantDetail = () => {
               {renderPhoneField("Téléphone", "phone", "06 12 34 56 78", <Phone className="h-3 w-3" />)}
               {renderPhoneField("WhatsApp", "manager_whatsapp", "06 12 34 56 78", <MessageCircle className="h-3 w-3" />)}
             </div>
+            <CoManagersSection restaurantId={id!} />
           </CardContent>
         </Card>
 
