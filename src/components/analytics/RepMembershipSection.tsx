@@ -329,6 +329,8 @@ function RestaurantRepRow({ restaurant: r }: { restaurant: ParsedRestaurant }) {
   }
 
   // inscrit
+  const unmatchedIdus = r.iduEntries.filter(idu => !r.entries.some(e => e.filiere === idu.filiere));
+
   return (
     <div className="rounded-lg border border-green-200 dark:border-green-900/30 bg-green-50/30 dark:bg-green-950/10 p-3 space-y-2">
       <div className="flex items-center gap-2">
@@ -338,27 +340,24 @@ function RestaurantRepRow({ restaurant: r }: { restaurant: ParsedRestaurant }) {
           {r.filiereCount} filière{r.filiereCount > 1 ? "s" : ""} REP
         </Badge>
       </div>
-      <div className="pl-6 space-y-1.5">
-        {/* Filieres badges */}
-        <div className="flex flex-wrap gap-1">
-          {r.filieres.map(f => (
-            <Badge key={f} variant="outline" className="text-[10px] h-5 px-1.5 font-mono">
-              {f}
-            </Badge>
-          ))}
-        </div>
-        {/* IDU summary if available */}
-        {r.iduEntries.length > 0 && (
+
+      {/* IDU prominent display */}
+      <div className="pl-6">
+        {r.iduEntries.length > 0 ? (
           <div className="flex flex-wrap gap-1.5 items-center">
-            <Hash className="h-3 w-3 text-primary flex-shrink-0" />
-            <span className="text-[11px] font-medium text-muted-foreground">IDU :</span>
             {r.iduEntries.map((idu, idx) => (
-              <Badge key={idx} variant="secondary" className="text-[10px] h-5 px-1.5 font-mono gap-1">
-                {idu.filiere} — {idu.identifiant_unique}
-              </Badge>
+              <span key={idx} className="inline-flex items-center gap-1.5 font-mono text-xs bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-1 rounded-md">
+                <Hash className="h-3 w-3" />
+                IDU {idu.filiere} : {idu.identifiant_unique}
+              </span>
             ))}
           </div>
+        ) : (
+          <span className="text-[11px] text-muted-foreground italic">Aucun IDU trouvé via l'API ADEME</span>
         )}
+      </div>
+
+      <div className="pl-6 space-y-1.5">
         {/* Org names */}
         <p className="text-[11px] text-muted-foreground">
           Éco-organismes : {r.orgs.join(", ")}
@@ -369,13 +368,18 @@ function RestaurantRepRow({ restaurant: r }: { restaurant: ParsedRestaurant }) {
             <CalendarDays className="h-3 w-3 flex-shrink-0" />
             <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", entry.isActive ? "bg-green-500" : "bg-red-400")} />
             <span className="font-mono">{entry.filiere}</span>
-            {entry.idu && (
+            {entry.idu ? (
               <>
                 <span className="text-muted-foreground/60">·</span>
-                <span className="inline-flex items-center gap-1 font-mono text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                <span className="inline-flex items-center gap-1 font-mono text-[10px] bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
                   <Hash className="h-2.5 w-2.5" />
                   {entry.idu}
                 </span>
+              </>
+            ) : (
+              <>
+                <span className="text-muted-foreground/60">·</span>
+                <span className="text-[10px] italic text-muted-foreground/50">IDU non disponible</span>
               </>
             )}
             <span className="text-muted-foreground/60">·</span>
@@ -385,6 +389,18 @@ function RestaurantRepRow({ restaurant: r }: { restaurant: ParsedRestaurant }) {
             {!entry.isActive && <Badge variant="destructive" className="text-[9px] h-4 px-1">Expiré</Badge>}
           </div>
         ))}
+        {/* Unmatched IDUs fallback */}
+        {unmatchedIdus.length > 0 && (
+          <div className="pt-1 border-t border-dashed border-muted-foreground/20 mt-1">
+            <p className="text-[10px] text-muted-foreground mb-1">IDU supplémentaires :</p>
+            {unmatchedIdus.map((idu, idx) => (
+              <span key={idx} className="inline-flex items-center gap-1 font-mono text-[10px] bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800 mr-1">
+                <Hash className="h-2.5 w-2.5" />
+                {idu.filiere} — {idu.identifiant_unique}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
