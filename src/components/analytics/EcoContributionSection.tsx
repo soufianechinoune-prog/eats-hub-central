@@ -453,7 +453,7 @@ export function EcoContributionSection({
                       </Badge>
                     </div>
                     {hasResults && (
-                      <div className="pl-6 space-y-1">
+                      <div className="pl-6 space-y-1.5">
                         <div className="flex flex-wrap gap-1">
                           {uniqueFilieres.map(f => (
                             <Badge key={f} variant="outline" className="text-[10px] h-5 px-1.5 font-mono">
@@ -464,6 +464,24 @@ export function EcoContributionSection({
                         <p className="text-[11px] text-muted-foreground">
                           Éco-organismes : {uniqueOrgs.join(", ")}
                         </p>
+                        {result.results.map((r, idx) => {
+                          const start = r.date_debutvalidite_inscription
+                            ? new Date(r.date_debutvalidite_inscription).toLocaleDateString("fr-FR")
+                            : "—";
+                          const end = r.date_finvalidite_inscription
+                            ? new Date(r.date_finvalidite_inscription).toLocaleDateString("fr-FR")
+                            : "En cours";
+                          const isActive = !r.date_finvalidite_inscription || new Date(r.date_finvalidite_inscription) > new Date();
+                          return (
+                            <div key={idx} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                              <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${isActive ? "bg-green-500" : "bg-red-400"}`} />
+                              <span className="font-mono">{r.filiere}</span>
+                              <span>—</span>
+                              <span>du {start} au {end}</span>
+                              {!isActive && <Badge variant="destructive" className="text-[9px] h-4 px-1">Expiré</Badge>}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
