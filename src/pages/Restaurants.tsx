@@ -75,7 +75,8 @@ const Restaurants = () => {
       const { data, error } = await supabase
         .from("restaurants")
         .select(`
-          *
+          *,
+          manager_restaurants(managers(first_name, last_name))
         `)
         .order("postal_code", { ascending: true })
         .order("city", { ascending: true });
@@ -149,10 +150,13 @@ const Restaurants = () => {
             aVal = a.city?.toLowerCase() || "";
             bVal = b.city?.toLowerCase() || "";
             break;
-          case "manager":
-            aVal = `${a.manager_first_name || ""} ${a.manager_last_name || ""}`.toLowerCase().trim();
-            bVal = `${b.manager_first_name || ""} ${b.manager_last_name || ""}`.toLowerCase().trim();
+          case "manager": {
+            const aLinked = (a as any).manager_restaurants?.[0]?.managers;
+            const bLinked = (b as any).manager_restaurants?.[0]?.managers;
+            aVal = aLinked ? `${aLinked.first_name || ""} ${aLinked.last_name || ""}`.toLowerCase().trim() : `${a.manager_first_name || ""} ${a.manager_last_name || ""}`.toLowerCase().trim();
+            bVal = bLinked ? `${bLinked.first_name || ""} ${bLinked.last_name || ""}`.toLowerCase().trim() : `${b.manager_first_name || ""} ${b.manager_last_name || ""}`.toLowerCase().trim();
             break;
+          }
           case "uber_opening_date":
             aVal = (a as any).uber_opening_date || "";
             bVal = (b as any).uber_opening_date || "";
@@ -477,11 +481,13 @@ const Restaurants = () => {
                       )}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.manager_first_name || restaurant.manager_last_name ? (
-                        `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim()
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
+                      {(() => {
+                        const linked = (restaurant as any).manager_restaurants?.[0]?.managers;
+                        const name = linked
+                          ? `${linked.first_name || ''} ${linked.last_name || ''}`.trim()
+                          : `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim();
+                        return name || <span className="text-muted-foreground">-</span>;
+                      })()}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {(restaurant as any).uber_opening_date ? (
