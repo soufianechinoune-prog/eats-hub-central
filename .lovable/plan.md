@@ -2,22 +2,24 @@
 
 ## Problem
 
-The IDU (Identifiant Unique) numbers returned by the ADEME API are not visible in the REP membership section, despite the edge function correctly fetching and returning them. The API confirms data like `FR418884_01FQUK` is available.
+The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
 
-## Root Cause Analysis
+## Solution
 
-The code in `RepMembershipSection.tsx` has the IDU rendering logic (lines 350-360 for summary, lines 372-379 for inline), and the matching logic at line 70 (`iduEntries.find(i => i.filiere === r.filiere)`) correctly pairs IDUs with their filieres. The API test confirms matching filieres (`EMPAP` = `EMPAP`).
+Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
 
-The most likely cause is that the latest component code hasn't been applied in the running preview. The plan ensures the IDU is displayed even more prominently and adds a debug-safe fallback.
+### Changes
 
-## Plan
+**`src/pages/Restaurants.tsx`**:
 
-1. **Make IDU more prominent in the inscrit card** -- Move the IDU display to be directly under the restaurant name/badge header, as a clearly visible standalone line (not buried in the detail entries). Show it with a distinct style: `IDU: FR418884_01FQUK` with a copy-friendly mono font and a colored background pill.
+1. Update the Supabase query to also fetch linked managers via a join:
+   ```
+   .select(`*, manager_restaurants(managers(first_name, last_name))`)
+   ```
 
-2. **Always show IDU at entry level** -- In each validity entry line, display the IDU immediately after the filiere badge, regardless of whether it matched. If no IDU was found for that filiere, show "IDU non disponible" in a muted style.
+2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
 
-3. **Add a fallback display for unmatched IDUs** -- If `iduEntries` has entries that don't match any adherent filiere, display them separately at the bottom as a catch-all.
+3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
 
-### Files to modify
-- `src/components/analytics/RepMembershipSection.tsx` -- Restructure the inscrit card layout to show IDU more prominently
+This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
 
