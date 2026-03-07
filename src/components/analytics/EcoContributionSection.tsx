@@ -1,13 +1,13 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2 } from "lucide-react";
+import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2, Building2, CheckCircle2, XCircle, ShieldCheck, CalendarDays } from "lucide-react";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 import { EcoContributionDetail } from "./EcoContributionDetail";
 import { useEcoContributionExport } from "@/hooks/useEcoContributionExport";
-import { RepMembershipSection } from "./RepMembershipSection";
+import { useEcoOrganismCheck, type EcoOrganismCheckResult, type IduResult } from "@/hooks/useEcoOrganismCheck";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 const YEAR_OPTIONS = [2023, 2024, 2025, 2026] as const;
@@ -33,6 +33,24 @@ interface EcoContributionSectionProps {
   selectedMonth?: number | null;
   selectedPlatform?: "uber_eats" | "deliveroo" | "global";
 }
+
+interface ParsedRepData {
+  status: "inscrit" | "non_trouve" | "sans_siret" | "loading" | "error" | "unchecked";
+  filiereCount: number;
+  orgs: string[];
+  iduEntries: IduResult[];
+  entries: {
+    filiere: string;
+    org: string;
+    start: string;
+    end: string | null;
+    isActive: boolean;
+    idu?: string;
+  }[];
+}
+
+const fmtDateShort = (d: string | null) =>
+  d ? new Date(d).toLocaleDateString("fr-FR") : null;
 
 export function EcoContributionSection({
   restaurants,
@@ -47,6 +65,11 @@ export function EcoContributionSection({
   const [showAll, setShowAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { exportPDF, exportExcel } = useEcoContributionExport();
+
+  // REP check state
+  const { data: repData, loading: repLoading, errors: repErrors, checkMultiple } = useEcoOrganismCheck();
+  const [repChecked, setRepChecked] = useState(false);
+  const isRepLoading = Object.values(repLoading).some(Boolean);
 
   const isHistorique = localYear === null;
   const effectiveYear = localYear ?? selectedYear;
@@ -69,6 +92,47 @@ export function EcoContributionSection({
     restaurants.forEach(r => map.set(r.id, r.name));
     return map;
   }, [restaurants]);
+
+  // Parse REP data per restaurant
+  const repByRestaurant = useMemo<Map<string, ParsedRepData>>(() => {
+    const map = new Map<string, ParsedRepData>();
+    for (const rId of restaurantIds) {
+      if (!repChecked) {
+        map.set(rId, { status: "unchecked", filiereCount: 0, orgs: [], iduEntries: [], entries: [] });
+        continue;
+      }
+      const result = repData[rId];
+      const error = repErrors[rId];
+      const loading = repLoading[rId];
+
+      if (loading) { map.set(rId, { status: "loading", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
+      if (error) { map.set(rId, { status: "error", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
+      if (!result) { map.set(rId, { status: "sans_siret", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
+
+      const hasResults = result.count > 0;
+      const iduEntries = result.idu_results || [];
+      const entries = result.results.map(r => {
+        const matchingIdu = iduEntries.find(i => i.filiere === r.filiere);
+        return {
+          filiere: r.filiere,
+          org: r.raison_sociale_ecoorganisme,
+          start: fmtDateShort(r.date_debutvalidite_inscription) || "—",
+          end: r.date_finvalidite_inscription,
+          isActive: !r.date_finvalidite_inscription || new Date(r.date_finvalidite_inscription) > new Date(),
+          idu: matchingIdu?.identifiant_unique,
+        };
+      });
+
+      map.set(rId, {
+        status: hasResults ? "inscrit" : "non_trouve",
+        filiereCount: result.count,
+        orgs: [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))],
+        iduEntries,
+        entries,
+      });
+    }
+    return map;
+  }, [restaurantIds, repData, repLoading, repErrors, repChecked]);
 
   const chartData = useMemo(() => {
     return monthlyData.map(d => ({
@@ -116,20 +180,8 @@ export function EcoContributionSection({
 
   const yearLabel = isHistorique ? "Historique" : String(effectiveYear);
 
-  // Recovery ratio
   const absCharge = Math.abs(totals.charge);
   const recoveryRatio = absCharge > 0 ? Math.round((totals.refund / absCharge) * 100) : 0;
-
-
-
-  // Top 3 / Flop 3
-  const top3 = useMemo(() => {
-    return [...byRestaurant].sort((a, b) => b.net - a.net).slice(0, 3);
-  }, [byRestaurant]);
-
-  const flop3 = useMemo(() => {
-    return [...byRestaurant].sort((a, b) => a.net - b.net).slice(0, 3);
-  }, [byRestaurant]);
 
   const displayedRestaurants = showAll ? filteredRestaurants : filteredRestaurants.slice(0, 20);
 
@@ -143,7 +195,30 @@ export function EcoContributionSection({
     else exportExcel(params);
   };
 
+  const handleRepCheck = async () => {
+    const { data: restData } = await supabase
+      .from("restaurants")
+      .select("id, siret")
+      .in("id", restaurantIds);
+    if (restData) {
+      await checkMultiple(restData.map((r: any) => ({ id: r.id, siret: r.siret })));
+      setRepChecked(true);
+    }
+  };
+
   const isExempt = totals.net >= 0;
+
+  // REP summary stats
+  const repStats = useMemo(() => {
+    if (!repChecked) return null;
+    let inscrit = 0, nonTrouve = 0, sansSiret = 0;
+    repByRestaurant.forEach(v => {
+      if (v.status === "inscrit") inscrit++;
+      else if (v.status === "non_trouve") nonTrouve++;
+      else if (v.status === "sans_siret") sansSiret++;
+    });
+    return { inscrit, nonTrouve, sansSiret, total: restaurantIds.length };
+  }, [repChecked, repByRestaurant, restaurantIds]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-12 text-muted-foreground">Chargement éco-contribution...</div>;
@@ -179,7 +254,6 @@ export function EcoContributionSection({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Year pill buttons */}
           <div className="flex items-center bg-background/80 backdrop-blur rounded-full p-0.5 border border-border/50">
             <button
               onClick={() => setLocalYear(null)}
@@ -238,7 +312,6 @@ export function EcoContributionSection({
       )}>
         <CardContent className="p-5 md:p-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            {/* Left: Net balance big number */}
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 <Leaf className="h-3.5 w-3.5" />
@@ -258,7 +331,6 @@ export function EcoContributionSection({
               </p>
             </div>
 
-            {/* Right: 3 mini stats */}
             <div className="flex items-stretch gap-4 md:gap-6">
               <div className="text-center space-y-1 px-4 border-l border-border/50 first:border-l-0 first:pl-0">
                 <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center justify-center gap-1">
@@ -284,7 +356,6 @@ export function EcoContributionSection({
             </div>
           </div>
 
-          {/* Full-width progress bar */}
           <div className="mt-5">
             <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1.5">
               <span>Ratio remboursements / prélèvements</span>
@@ -303,7 +374,7 @@ export function EcoContributionSection({
         </CardContent>
       </Card>
 
-      {/* ═══════════════ ZONE 4: Monthly Chart ═══════════════ */}
+      {/* ═══════════════ ZONE 3: Monthly Chart ═══════════════ */}
       {chartData.length > 0 && (
         <Card>
           <CardContent className="pt-5 pb-3">
@@ -369,13 +440,9 @@ export function EcoContributionSection({
         </Card>
       )}
 
-      {/* ═══════════════ ZONE 4b: REP Membership Check ═══════════════ */}
-      <RepMembershipSection restaurantIds={restaurantIds} restaurantMap={restaurantMap} />
-
-      {/* ═══════════════ ZONE 5: Restaurant Table with pill tabs ═══════════════ */}
+      {/* ═══════════════ ZONE 4: Restaurant Table with integrated REP ═══════════════ */}
       <Card>
         <CardContent className="pt-5 pb-3">
-          {/* Pill tabs inside the card */}
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "synthese" | "detail")}>
             <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
               <TabsList className="rounded-full p-1 bg-muted/60 h-auto">
@@ -428,7 +495,55 @@ export function EcoContributionSection({
               )}
             </div>
 
-            {/* Result counter */}
+            {/* REP verification strip - inside the card */}
+            {activeTab === "synthese" && (
+              <div className={cn(
+                "flex items-center justify-between gap-3 mb-4 px-3 py-2.5 rounded-lg border transition-colors",
+                repChecked
+                  ? "bg-primary/5 border-primary/20"
+                  : "bg-muted/30 border-border/50"
+              )}>
+                <div className="flex items-center gap-2.5">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  <div>
+                    <span className="text-xs font-semibold">Adhésion REP (éco-organismes)</span>
+                    {repChecked && repStats && (
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <span className="text-[10px] text-green-600 font-medium">
+                          <ShieldCheck className="h-3 w-3 inline mr-0.5" />
+                          {repStats.inscrit} inscrits
+                        </span>
+                        {repStats.nonTrouve > 0 && (
+                          <span className="text-[10px] text-red-500 font-medium">
+                            <XCircle className="h-3 w-3 inline mr-0.5" />
+                            {repStats.nonTrouve} non trouvés
+                          </span>
+                        )}
+                        {repStats.sansSiret > 0 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {repStats.sansSiret} sans SIRET
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {!repChecked && (
+                      <p className="text-[10px] text-muted-foreground">Vérifie l'inscription de vos restaurants aux filières REP via l'API ADEME</p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant={repChecked ? "secondary" : "outline"}
+                  className="h-7 text-[11px] rounded-full gap-1.5 shrink-0"
+                  disabled={isRepLoading}
+                  onClick={handleRepCheck}
+                >
+                  {isRepLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {repChecked ? "Actualiser" : "Vérifier les SIRET"}
+                </Button>
+              </div>
+            )}
+
             {activeTab === "synthese" && (
               <p className="text-[11px] text-muted-foreground mb-3">
                 {filteredRestaurants.length} restaurant{filteredRestaurants.length > 1 ? "s" : ""} affiché{filteredRestaurants.length > 1 ? "s" : ""}
@@ -443,6 +558,7 @@ export function EcoContributionSection({
                     <TableHeader>
                       <TableRow>
                         <TableHead>Restaurant</TableHead>
+                        {repChecked && <TableHead className="text-center w-[80px]">REP</TableHead>}
                         <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("refund")}>
                           Remb. {sortKey === "refund" && (sortDir === "desc" ? "↓" : "↑")}
                         </TableHead>
@@ -466,6 +582,8 @@ export function EcoContributionSection({
                           isHistorique={isHistorique}
                           showPlatformDot={isGlobal}
                           isEvenRow={idx % 2 === 0}
+                          repData={repChecked ? repByRestaurant.get(r.restaurant_id) : undefined}
+                          showRepColumn={repChecked}
                         />
                       ))}
                     </TableBody>
@@ -523,6 +641,101 @@ interface DetailLine {
   platform?: "uber_eats" | "deliveroo";
 }
 
+function RepStatusBadge({ repData }: { repData: ParsedRepData }) {
+  if (repData.status === "loading") {
+    return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground mx-auto" />;
+  }
+  if (repData.status === "inscrit") {
+    return (
+      <div className="flex items-center justify-center">
+        <Badge className="text-[9px] h-5 px-1.5 bg-green-600 hover:bg-green-700 gap-0.5 font-semibold">
+          <CheckCircle2 className="h-3 w-3" />
+          {repData.filiereCount}
+        </Badge>
+      </div>
+    );
+  }
+  if (repData.status === "non_trouve") {
+    return (
+      <div className="flex items-center justify-center">
+        <Badge variant="destructive" className="text-[9px] h-5 px-1.5 gap-0.5">
+          <XCircle className="h-3 w-3" />
+          0
+        </Badge>
+      </div>
+    );
+  }
+  if (repData.status === "sans_siret") {
+    return <span className="text-[10px] text-muted-foreground/50 block text-center">—</span>;
+  }
+  if (repData.status === "error") {
+    return <XCircle className="h-3.5 w-3.5 text-destructive mx-auto" />;
+  }
+  return null;
+}
+
+function RepDetailPanel({ repData }: { repData: ParsedRepData }) {
+  if (repData.status !== "inscrit" || repData.entries.length === 0) return null;
+
+  const unmatchedIdus = repData.iduEntries.filter(idu => !repData.entries.some(e => e.filiere === idu.filiere));
+
+  return (
+    <div className="space-y-2">
+      {/* IDU badges */}
+      {repData.iduEntries.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {repData.iduEntries.map((idu, idx) => (
+            <span key={idx} className="inline-flex items-center gap-1 font-mono text-[10px] bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-md">
+              <Hash className="h-2.5 w-2.5" />
+              IDU {idu.filiere} : {idu.identifiant_unique}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Orgs */}
+      <p className="text-[10px] text-muted-foreground">
+        Éco-organismes : {repData.orgs.join(", ")}
+      </p>
+
+      {/* Entries */}
+      {repData.entries.map((entry, idx) => (
+        <div key={idx} className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+          <CalendarDays className="h-3 w-3 flex-shrink-0" />
+          <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", entry.isActive ? "bg-green-500" : "bg-red-400")} />
+          <span className="font-mono font-medium">{entry.filiere}</span>
+          {entry.idu && (
+            <>
+              <span className="text-muted-foreground/40">·</span>
+              <span className="font-mono text-[9px] bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                {entry.idu}
+              </span>
+            </>
+          )}
+          <span className="text-muted-foreground/40">·</span>
+          <span>{entry.org}</span>
+          <span className="text-muted-foreground/40">·</span>
+          <span>du {entry.start} au {entry.end ? fmtDateShort(entry.end) : "En cours"}</span>
+          {!entry.isActive && <Badge variant="destructive" className="text-[8px] h-4 px-1">Expiré</Badge>}
+        </div>
+      ))}
+
+      {unmatchedIdus.length > 0 && (
+        <div className="pt-1 border-t border-dashed border-muted-foreground/20">
+          <p className="text-[9px] text-muted-foreground mb-1">IDU supplémentaires :</p>
+          <div className="flex flex-wrap gap-1">
+            {unmatchedIdus.map((idu, idx) => (
+              <span key={idx} className="font-mono text-[9px] bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                {idu.filiere} — {idu.identifiant_unique}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RestaurantDrilldown({
   restaurant,
   name,
@@ -531,6 +744,8 @@ function RestaurantDrilldown({
   isHistorique,
   showPlatformDot = true,
   isEvenRow = false,
+  repData,
+  showRepColumn = false,
 }: {
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
   name: string;
@@ -539,6 +754,8 @@ function RestaurantDrilldown({
   isHistorique?: boolean;
   showPlatformDot?: boolean;
   isEvenRow?: boolean;
+  repData?: ParsedRepData;
+  showRepColumn?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -546,6 +763,9 @@ function RestaurantDrilldown({
   const absCharge = Math.abs(r.charge);
   const total = r.refund + absCharge;
   const refundPct = total > 0 ? Math.round((r.refund / total) * 100) : 0;
+
+  const hasRepDetail = repData && repData.status === "inscrit" && repData.entries.length > 0;
+  const colSpan = showRepColumn ? 6 : 5;
 
   const monthlyBreakdown = useMemo(() => {
     const byKey = new Map<string, DetailLine[]>();
@@ -597,6 +817,11 @@ function RestaurantDrilldown({
             {name}
           </div>
         </TableCell>
+        {showRepColumn && (
+          <TableCell className="py-3">
+            {repData ? <RepStatusBadge repData={repData} /> : null}
+          </TableCell>
+        )}
         <TableCell className="text-right text-green-600 text-sm py-3">{fmt(r.refund)}</TableCell>
         <TableCell className="text-right text-red-500 text-sm py-3">{fmt(r.charge)}</TableCell>
         <TableCell className="text-right text-sm py-3">
@@ -620,10 +845,35 @@ function RestaurantDrilldown({
         </TableCell>
         <TableCell className="text-right text-sm text-muted-foreground py-3">{detailLines.length}</TableCell>
       </TableRow>
+
+      {/* REP detail panel (shown when row is expanded and has REP data) */}
+      {open && hasRepDetail && (
+        <TableRow className="bg-blue-50/30 dark:bg-blue-950/10 border-l-2 border-l-blue-400">
+          <TableCell colSpan={colSpan} className="py-3 px-6">
+            <div className="flex items-start gap-2">
+              <ShieldCheck className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+              <RepDetailPanel repData={repData!} />
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+
+      {/* Non-inscrit detail when expanded */}
+      {open && repData && repData.status === "non_trouve" && (
+        <TableRow className="bg-red-50/30 dark:bg-red-950/10 border-l-2 border-l-red-400">
+          <TableCell colSpan={colSpan} className="py-2.5 px-6">
+            <div className="flex items-center gap-2 text-[11px] text-red-600">
+              <XCircle className="h-3.5 w-3.5" />
+              <span>Aucune adhésion REP trouvée pour ce SIRET — vérifiez l'inscription de ce restaurant</span>
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+
       {open && (
         <>
           {monthlyBreakdown.map((mg) => (
-            <MonthDrilldownRow key={mg.month} monthGroup={mg} fmt={fmt} showPlatformDot={showPlatformDot} parentNet={r.net} />
+            <MonthDrilldownRow key={mg.month} monthGroup={mg} fmt={fmt} showPlatformDot={showPlatformDot} parentNet={r.net} colSpan={colSpan} />
           ))}
         </>
       )}
@@ -636,11 +886,13 @@ function MonthDrilldownRow({
   fmt,
   showPlatformDot = true,
   parentNet = 0,
+  colSpan = 5,
 }: {
   monthGroup: { month: number; label: string; refund: number; charge: number; net: number; lines: DetailLine[] };
   fmt: (v: number) => string;
   showPlatformDot?: boolean;
   parentNet?: number;
+  colSpan?: number;
 }) {
   const [open, setOpen] = useState(false);
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("fr-FR") : "-";
@@ -655,7 +907,7 @@ function MonthDrilldownRow({
         )}
         onClick={() => setOpen(!open)}
       >
-        <TableCell className="text-sm pl-10 py-2.5">
+        <TableCell className="text-sm pl-10 py-2.5" colSpan={colSpan > 5 ? 2 : 1}>
           <div className="flex items-center gap-1.5">
             <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform duration-200", open && "rotate-90")} />
             <span className="font-medium">{monthGroup.label}</span>
@@ -674,7 +926,7 @@ function MonthDrilldownRow({
           borderColor,
           i % 2 === 0 ? "bg-muted/5" : "bg-background"
         )}>
-          <TableCell className="text-xs pl-16 text-muted-foreground py-2">
+          <TableCell className="text-xs pl-16 text-muted-foreground py-2" colSpan={colSpan > 5 ? 2 : 1}>
             {showPlatformDot && (
               line.platform === "deliveroo"
                 ? <Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-cyan-500 text-cyan-600 font-normal">Deliveroo</Badge>
