@@ -1,0 +1,1 @@
+SELECT cron.unschedule('process-scheduled-whatsapp-messages');
