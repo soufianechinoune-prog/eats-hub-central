@@ -47,7 +47,7 @@ function saveBodaccResults(results: BodaccResults) {
 }
 
 interface Props {
-  restaurants: Array<{ id: string; siren?: string | null }>;
+  restaurants: Array<{ id: string; siret?: string | null }>;
   onResults: (results: BodaccResults) => void;
 }
 
@@ -57,8 +57,12 @@ export function BodaccScanButton({ restaurants, onResults }: Props) {
   const { toast } = useToast();
 
   const scan = useCallback(async () => {
-    const withSiren = restaurants.filter(
-      (r) => r.siren && /^\d{9}$/.test(r.siren.replace(/\s/g, ""))
+    const withSiren = restaurants
+      .map((r) => ({
+        id: r.id,
+        siren: r.siret ? r.siret.replace(/\s/g, "").substring(0, 9) : "",
+      }))
+      .filter((r) => /^\d{9}$/.test(r.siren)
     );
 
     if (withSiren.length === 0) {
