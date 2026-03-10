@@ -1383,7 +1383,7 @@ export default function Analytics() {
       </div>
 
       {/* Analytics Header with shared filters */}
-      <AnalyticsHeader hidePeriodSelector={viewMode === "eco-contribution"} />
+      {viewMode !== "eco-contribution" && <AnalyticsHeader />}
 
       {/* Granularity Badge and Actions Toggle - hidden entirely on finances view */}
       {viewMode !== "finances" && viewMode !== "eco-contribution" && (

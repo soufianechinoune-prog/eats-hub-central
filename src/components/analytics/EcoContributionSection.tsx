@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2, Building2, CheckCircle2, XCircle, ShieldCheck, CalendarDays } from "lucide-react";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
-import { EcoContributionDetail } from "./EcoContributionDetail";
+
 import { useEcoContributionExport } from "@/hooks/useEcoContributionExport";
 import { useEcoOrganismCheck, type EcoOrganismCheckResult, type IduResult } from "@/hooks/useEcoOrganismCheck";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,7 +60,7 @@ export function EcoContributionSection({
   selectedPlatform = "global",
 }: EcoContributionSectionProps) {
   const [localYear, setLocalYear] = useState<number | null>(selectedYear);
-  const [activeTab, setActiveTab] = useState<"synthese" | "detail">("synthese");
+  
   const [soldeFilter, setSoldeFilter] = useState<"all" | "positive" | "negative">("all");
   const [showAll, setShowAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -443,61 +443,48 @@ export function EcoContributionSection({
       {/* ═══════════════ ZONE 4: Restaurant Table with integrated REP ═══════════════ */}
       <Card>
         <CardContent className="pt-5 pb-3">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "synthese" | "detail")}>
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-              <TabsList className="rounded-full p-1 bg-muted/60 h-auto">
-                <TabsTrigger value="synthese" className="rounded-full px-5 py-1.5 text-xs font-medium">
-                  Synthèse
-                </TabsTrigger>
-                <TabsTrigger value="detail" className="rounded-full px-5 py-1.5 text-xs font-medium">
-                  Détail ({totals.lineCount})
-                </TabsTrigger>
-              </TabsList>
-
-              {activeTab === "synthese" && (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Rechercher..."
-                      className="h-8 w-[180px] pl-8 text-sm rounded-full"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant={soldeFilter === "all" ? "default" : "outline"}
-                      className="h-7 px-2.5 text-[11px] rounded-full"
-                      onClick={() => setSoldeFilter("all")}
-                    >
-                      Tous ({byRestaurant.length})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={soldeFilter === "positive" ? "default" : "outline"}
-                      className="h-7 px-2.5 text-[11px] rounded-full"
-                      onClick={() => setSoldeFilter("positive")}
-                    >
-                      Solde + ({byRestaurant.filter(r => r.net >= 0).length})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={soldeFilter === "negative" ? "default" : "outline"}
-                      className="h-7 px-2.5 text-[11px] rounded-full"
-                      onClick={() => setSoldeFilter("negative")}
-                    >
-                      Solde − ({byRestaurant.filter(r => r.net < 0).length})
-                    </Button>
-                  </div>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Rechercher..."
+                    className="h-8 w-[180px] pl-8 text-sm rounded-full"
+                  />
                 </div>
-              )}
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant={soldeFilter === "all" ? "default" : "outline"}
+                    className="h-7 px-2.5 text-[11px] rounded-full"
+                    onClick={() => setSoldeFilter("all")}
+                  >
+                    Tous ({byRestaurant.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={soldeFilter === "positive" ? "default" : "outline"}
+                    className="h-7 px-2.5 text-[11px] rounded-full"
+                    onClick={() => setSoldeFilter("positive")}
+                  >
+                    Solde + ({byRestaurant.filter(r => r.net >= 0).length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={soldeFilter === "negative" ? "default" : "outline"}
+                    className="h-7 px-2.5 text-[11px] rounded-full"
+                    onClick={() => setSoldeFilter("negative")}
+                  >
+                    Solde − ({byRestaurant.filter(r => r.net < 0).length})
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {/* REP verification strip - inside the card */}
-            {activeTab === "synthese" && (
-              <div className={cn(
+            <div className={cn(
                 "flex items-center justify-between gap-3 mb-4 px-3 py-2.5 rounded-lg border transition-colors",
                 repChecked
                   ? "bg-primary/5 border-primary/20"
@@ -542,16 +529,13 @@ export function EcoContributionSection({
                   {repChecked ? "Actualiser" : "Vérifier les SIRET"}
                 </Button>
               </div>
-            )}
 
-            {activeTab === "synthese" && (
-              <p className="text-[11px] text-muted-foreground mb-3">
+            <p className="text-[11px] text-muted-foreground mb-3">
                 {filteredRestaurants.length} restaurant{filteredRestaurants.length > 1 ? "s" : ""} affiché{filteredRestaurants.length > 1 ? "s" : ""}
                 {searchQuery && ` pour "${searchQuery}"`}
               </p>
-            )}
 
-            <TabsContent value="synthese" className="mt-0">
+            <div>
               {byRestaurant.length > 0 ? (
                 <>
                   <Table>
@@ -607,16 +591,7 @@ export function EcoContributionSection({
               ) : (
                 <p className="text-center text-muted-foreground py-8 text-sm">Aucune donnée pour cette période</p>
               )}
-            </TabsContent>
-
-            <TabsContent value="detail" className="mt-0">
-              <EcoContributionDetail
-                detailLines={detailLines}
-                restaurantMap={restaurantMap}
-                showPlatformColumn={isGlobal}
-              />
-            </TabsContent>
-          </Tabs>
+            </div>
         </CardContent>
       </Card>
     </div>
