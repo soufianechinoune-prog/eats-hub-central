@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2, Building2, CheckCircle2, XCircle, ShieldCheck, CalendarDays } from "lucide-react";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
-import { EcoContributionDetail } from "./EcoContributionDetail";
+
 import { useEcoContributionExport } from "@/hooks/useEcoContributionExport";
 import { useEcoOrganismCheck, type EcoOrganismCheckResult, type IduResult } from "@/hooks/useEcoOrganismCheck";
 import { supabase } from "@/integrations/supabase/client";
