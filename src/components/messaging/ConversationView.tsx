@@ -224,60 +224,14 @@ export default function ConversationView() {
     }
   }, [messages]);
 
-  // Subscribe to realtime updates with notifications
+  // Poll every 30 seconds instead of Realtime to reduce Cloud costs
   useEffect(() => {
-    const channel = supabase
-      .channel("conversations-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "message_history",
-        },
-        (payload) => {
-          const newMsg = payload.new as Message;
-          
-          // Only notify for inbound messages we haven't seen
-          if (
-            newMsg.direction === "inbound" && 
-            !seenMessageIdsRef.current.has(newMsg.id) &&
-            !isInitialLoadRef.current
-          ) {
-            seenMessageIdsRef.current.add(newMsg.id);
-            
-            // Get sender info
-            const senderName = newMsg.recipient_name || newMsg.restaurant_name || null;
-            const messagePreview = newMsg.media_type === "audio" 
-              ? "🎤 Message vocal" 
-              : newMsg.message_content || "Nouveau message";
-            
-            // Trigger notification
-            notify(senderName, messagePreview, () => {
-              // Click handler: select the conversation
-              const phone = newMsg.sender_phone || newMsg.recipient_phone;
-              setSelectedPhone(phone);
-            });
-          }
-          
-          queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "message_history",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
-        }
-      )
-      .subscribe();
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
+    }, 30_000);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, [queryClient]);
 

@@ -1,32 +1,25 @@
 
 
-## Plan : Remplacer Realtime par Polling pour réduire les coûts
+## Problem
 
-### Problème
-- `useUnreadMessages` utilise un canal Realtime Supabase monté dans la sidebar globale (toutes les pages)
-- Connexion permanente 24/7 même sans activité = consommation continue de crédits Cloud
-- 3 autres canaux Realtime dans la messagerie (actifs uniquement sur /messaging)
+The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
 
-### Solution
+## Solution
 
-**1. `useUnreadMessages.ts` — Remplacer Realtime par polling 60s**
-- Supprimer le `.channel()` et `.subscribe()`
-- Ajouter un `setInterval` de 60 secondes pour re-fetch le count
-- Le polling ne consomme qu'au moment de la requête (négligeable)
+Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
 
-**2. `Messaging.tsx`, `OutboundMessages.tsx`, `ConversationView.tsx` — Remplacer par polling 30s**
-- Ces 3 composants ne sont montés que sur /messaging
-- Remplacer chaque canal Realtime par un polling toutes les 30 secondes (rafraîchissement plus fréquent car l'utilisateur est activement sur la page)
-- Nettoyage du `setInterval` au unmount
+### Changes
 
-### Impact
-- Zero canal Realtime = zero coût Realtime permanent
-- Polling 60s sur la sidebar = ~1440 requêtes/jour (négligeable en coût DB)
-- Polling 30s sur /messaging = actif uniquement quand la page est ouverte
+**`src/pages/Restaurants.tsx`**:
 
-### Fichiers modifiés
-- `src/hooks/useUnreadMessages.ts`
-- `src/pages/Messaging.tsx`
-- `src/components/messaging/OutboundMessages.tsx`
-- `src/components/messaging/ConversationView.tsx`
+1. Update the Supabase query to also fetch linked managers via a join:
+   ```
+   .select(`*, manager_restaurants(managers(first_name, last_name))`)
+   ```
+
+2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+
+3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+
+This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
 

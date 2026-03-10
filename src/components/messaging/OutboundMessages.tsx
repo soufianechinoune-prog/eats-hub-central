@@ -159,36 +159,15 @@ export default function OutboundMessages({
     enabled: viewMode === "sent",
   });
 
-  // Subscribe to realtime updates
+  // Poll every 30 seconds instead of Realtime to reduce Cloud costs
   useEffect(() => {
-    const channel = supabase
-      .channel("outbound-messages-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "message_history",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["outbound-sent-history"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "message_campaigns",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["message-campaigns"] });
-        }
-      )
-      .subscribe();
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["outbound-sent-history"] });
+      queryClient.invalidateQueries({ queryKey: ["message-campaigns"] });
+    }, 30_000);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, [queryClient]);
 
