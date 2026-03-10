@@ -60,7 +60,7 @@ export function EcoContributionSection({
   selectedPlatform = "global",
 }: EcoContributionSectionProps) {
   const [localYear, setLocalYear] = useState<number | null>(selectedYear);
-  const [activeTab, setActiveTab] = useState<"synthese" | "detail">("synthese");
+  
   const [soldeFilter, setSoldeFilter] = useState<"all" | "positive" | "negative">("all");
   const [showAll, setShowAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
