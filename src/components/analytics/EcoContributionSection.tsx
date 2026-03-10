@@ -69,6 +69,8 @@ export function EcoContributionSection({
   // REP check state
   const { data: repData, loading: repLoading, errors: repErrors, checkMultiple } = useEcoOrganismCheck();
   const [repChecked, setRepChecked] = useState(false);
+  const [scanningId, setScanningId] = useState<string | null>(null);
+  const [scanStatuses, setScanStatuses] = useState<Map<string, "ok" | "alert">>(new Map());
   const isRepLoading = Object.values(repLoading).some(Boolean);
 
   const isHistorique = localYear === null;
