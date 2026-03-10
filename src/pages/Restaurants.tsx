@@ -316,6 +316,8 @@ const Restaurants = () => {
               <BodaccScanButton
                 restaurants={restaurants || []}
                 onResults={setBodaccResults}
+                onScanningId={setScanningId}
+                onScanStatuses={setScanStatuses}
               />
               <Button
                 variant="outline"
