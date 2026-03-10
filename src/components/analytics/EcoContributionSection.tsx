@@ -757,6 +757,7 @@ function RestaurantDrilldown({
   isEvenRow = false,
   repData,
   showRepColumn = false,
+  scanClass,
 }: {
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
   name: string;
@@ -767,6 +768,7 @@ function RestaurantDrilldown({
   isEvenRow?: boolean;
   repData?: ParsedRepData;
   showRepColumn?: boolean;
+  scanClass?: string;
 }) {
   const [open, setOpen] = useState(false);
 
