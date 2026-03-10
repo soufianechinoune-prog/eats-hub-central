@@ -1,25 +1,37 @@
 
 
-## Problem
+## Problème
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+La page liste des restaurants (`/restaurants`) résout le nom du gérant via un join `manager_restaurants(managers(...))` **sans filtre**. Résultat : pour des restaurants comme Bourg-en-Bresse, Bonneuil, Athis-Mons et Juvisy, le premier enregistrement retourné dans `manager_restaurants` est celui de Jamel Chinoune (qui est lié à de nombreux restaurants), même s'il n'est pas le gérant principal.
+
+La page détail, elle, utilise directement `manager_first_name` / `manager_last_name` de la table `restaurants`, d'où l'incohérence.
 
 ## Solution
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+Filtrer le join `manager_restaurants` pour ne récupérer que le gérant principal (`is_primary = true`). Si aucun lien primaire n'existe, fallback sur les champs legacy `manager_first_name` / `manager_last_name`.
 
-### Changes
+## Fichier modifié
 
-**`src/pages/Restaurants.tsx`**:
+**`src/pages/Restaurants.tsx`** — 1 changement dans la query Supabase :
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+```
+// Avant
+manager_restaurants(managers(first_name, last_name))
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+// Après
+manager_restaurants!inner(managers(first_name, last_name)).eq(is_primary, true)
+```
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+En réalité, avec l'API Supabase PostgREST, le filtre sur une relation imbriquée se fait ainsi :
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+```typescript
+.select(`
+  *,
+  manager_restaurants!left(managers!inner(first_name, last_name))
+`)
+// puis ajouter un filtre sur la relation
+.eq("manager_restaurants.is_primary", true)
+```
+
+Le reste du code (affichage `[0]?.managers`, tri) reste identique car la structure de données ne change pas — on filtre juste pour ne garder que le bon enregistrement.
 
