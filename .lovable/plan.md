@@ -1,25 +1,30 @@
 
 
-## Problem
+## Animation de scan SIRET pour l'Éco-Contribution
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+Le bouton "Vérifier les SIRET" déclenche déjà un scan séquentiel (`checkMultiple`) mais sans retour visuel ligne par ligne. L'idée est de reproduire le pattern BODACC (scan laser row-by-row) adapté à ce contexte.
 
-## Solution
+### 3 propositions
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+**Option A — Laser Scan (comme BODACC)**
+Réutilise exactement le même pattern : une ligne lumineuse (border-bottom glow) qui balaye chaque ligne du tableau pendant le check, puis flash vert (inscrit) ou orange (non trouvé). Simple, cohérent avec le reste de l'app.
 
-### Changes
+**Option B — Pulse Radar**
+Chaque ligne scannée reçoit un effet de "pulse" circulaire partant du badge SIRET, comme un radar qui détecte. Un cercle concentrique s'étend depuis l'icône puis la ligne entière s'illumine brièvement en vert ou orange. Plus original.
 
-**`src/pages/Restaurants.tsx`**:
+**Option C — Matrix/Data Stream**
+Un effet de "data stream" : pendant le scan, la ligne active a un dégradé animé gauche→droite (comme un chargement progressif), avec des micro-chiffres qui défilent dans la cellule du statut REP avant de se figer sur le résultat. Très tech/moderne.
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+### Implémentation (commune aux 3)
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+**`src/hooks/useEcoOrganismCheck.ts`** — Ajouter un callback `onScanningId` pour signaler quel restaurant est en cours de scan (comme `BodaccScanButton` fait déjà).
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+**`src/components/analytics/EcoContributionSection.tsx`** :
+- Ajouter un état `scanningId` + `scanStatuses` + `flashId`
+- Appliquer les classes CSS conditionnelles sur chaque `<TableRow>` du tableau
+- Ajouter un `useEffect` pour le flash de transition (comme dans `Restaurants.tsx`)
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+**`src/index.css`** — Ajouter les keyframes spécifiques à l'option choisie (ou réutiliser les classes BODACC pour l'option A).
+
+~50-80 lignes modifiées, 3 fichiers.
 
