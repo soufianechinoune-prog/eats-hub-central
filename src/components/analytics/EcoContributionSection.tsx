@@ -529,10 +529,8 @@ export function EcoContributionSection({
                   {repChecked ? "Actualiser" : "Vérifier les SIRET"}
                 </Button>
               </div>
-            )}
 
-            {activeTab === "synthese" && (
-              <p className="text-[11px] text-muted-foreground mb-3">
+            <p className="text-[11px] text-muted-foreground mb-3">
                 {filteredRestaurants.length} restaurant{filteredRestaurants.length > 1 ? "s" : ""} affiché{filteredRestaurants.length > 1 ? "s" : ""}
                 {searchQuery && ` pour "${searchQuery}"`}
               </p>
