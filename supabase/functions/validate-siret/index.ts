@@ -41,7 +41,7 @@ async function fetchDirigeant(siren: string): Promise<{ prenom?: string; nom?: s
     const dirigeants = data?.results?.[0]?.dirigeants;
     if (Array.isArray(dirigeants) && dirigeants.length > 0) {
       const d = dirigeants[0];
-      return { prenom: d.prenom || undefined, nom: d.nom || undefined };
+      return { prenom: d.prenoms || d.prenom || undefined, nom: d.nom || undefined };
     }
     return null;
   } catch {
