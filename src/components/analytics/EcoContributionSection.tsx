@@ -191,7 +191,14 @@ export function EcoContributionSection({
       ...r,
       name: restaurantMap.get(r.restaurant_id) || r.restaurant_id.slice(0, 8),
     }));
-    const params = { restaurants: exportRestaurants, monthlyData, totals, yearLabel };
+    const params = {
+      restaurants: exportRestaurants,
+      monthlyData,
+      totals,
+      yearLabel,
+      detailLines,
+      repByRestaurant: repChecked ? repByRestaurant : undefined,
+    };
     if (type === "pdf") exportPDF(params);
     else exportExcel(params);
   };
