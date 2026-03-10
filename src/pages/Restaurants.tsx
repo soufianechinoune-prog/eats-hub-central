@@ -311,6 +311,10 @@ const Restaurants = () => {
               </Select>
             </div>
             <div className="flex items-center gap-1">
+              <BodaccScanButton
+                restaurants={restaurants || []}
+                onResults={setBodaccResults}
+              />
               <Button
                 variant="outline"
                 size="sm"
