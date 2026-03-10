@@ -15,27 +15,40 @@ interface BodaccAnnonce {
   numeroBodacc: string | null;
 }
 
-function classifyAnnonce(record: any): { type: string; typeLabel: string } {
-  const famille = (record.fampilelibelle || record.familleavis_libelle || "").toLowerCase();
-  const nature = (record.nature || "").toLowerCase();
-  const typeAviso = (record.typeavis_libelle || record.typeavis || "").toLowerCase();
+function parseJsonField(raw: any): Record<string, any> | null {
+  if (!raw) return null;
+  if (typeof raw === "object") return raw;
+  try { return JSON.parse(raw); } catch { return null; }
+}
 
-  if (famille.includes("procédure collective") || nature.includes("jugement") || typeAviso.includes("procédure collective")) {
+function classifyAnnonce(record: any): { type: string; typeLabel: string } {
+  const famille = (record.familleavis_lib || record.familleavis || "").toLowerCase();
+  const jugementObj = parseJsonField(record.jugement);
+  const nature = (jugementObj?.nature || "").toLowerCase();
+  const radiationObj = parseJsonField(record.radiationaurcs);
+
+  // Procédures collectives (liquidation, redressement, sauvegarde)
+  if (famille.includes("procédure") || famille.includes("collective") ||
+      nature.includes("liquidation") || nature.includes("redressement") || nature.includes("sauvegarde")) {
+    // Sub-classify
+    if (nature.includes("liquidation")) return { type: "procedure_collective", typeLabel: "Liquidation judiciaire" };
+    if (nature.includes("redressement")) return { type: "procedure_collective", typeLabel: "Redressement judiciaire" };
+    if (nature.includes("sauvegarde")) return { type: "procedure_collective", typeLabel: "Sauvegarde" };
     return { type: "procedure_collective", typeLabel: "Procédure collective" };
   }
-  if (famille.includes("radiation") || nature.includes("radiation")) {
+  if (radiationObj || famille.includes("radiation")) {
     return { type: "radiation", typeLabel: "Radiation" };
   }
-  if (famille.includes("vente") || famille.includes("cession") || nature.includes("cession")) {
+  if (famille.includes("vente") || famille.includes("cession")) {
     return { type: "cession", typeLabel: "Vente / Cession" };
   }
-  if (famille.includes("dépôt des comptes") || nature.includes("dépôt des comptes")) {
+  if (famille.includes("dépôt") || famille.includes("dpc")) {
     return { type: "depot_comptes", typeLabel: "Dépôt des comptes" };
   }
-  if (famille.includes("modification") || nature.includes("modification") || famille.includes("immatriculation")) {
+  if (famille.includes("modification") || famille.includes("immatriculation")) {
     return { type: "modification", typeLabel: "Modification" };
   }
-  return { type: "autre", typeLabel: famille || nature || "Annonce" };
+  return { type: "autre", typeLabel: record.familleavis_lib || "Annonce" };
 }
 
 serve(async (req) => {
@@ -74,23 +87,35 @@ serve(async (req) => {
 
     const annonces: BodaccAnnonce[] = results.map((r: any) => {
       const { type, typeLabel } = classifyAnnonce(r);
-      const description = [
-        r.nature,
-        r.jugement,
-        r.activite,
-        r.commentaire,
-      ].filter(Boolean).join(" — ");
+
+      // Build human-readable description from structured fields
+      const jugementObj = parseJsonField(r.jugement);
+      const depotObj = parseJsonField(r.depot);
+      const modifObj = parseJsonField(r.modificationsgenerales);
+      const acteObj = parseJsonField(r.acte);
+      const personnesObj = parseJsonField(r.listepersonnes);
+
+      const descParts: string[] = [];
+      if (jugementObj?.nature) descParts.push(jugementObj.nature);
+      if (jugementObj?.complementJugement) descParts.push(jugementObj.complementJugement);
+      if (depotObj?.typeDepot) descParts.push(depotObj.typeDepot);
+      if (depotObj?.descriptif) descParts.push(depotObj.descriptif);
+      if (modifObj?.descriptif) descParts.push(modifObj.descriptif);
+      if (acteObj?.descriptif) descParts.push(acteObj.descriptif);
+      if (personnesObj?.personne?.activite) descParts.push(`Activité : ${personnesObj.personne.activite}`);
+
+      const description = descParts.join(" — ");
 
       return {
-        date: r.dateparution || r.date_parution || null,
+        date: r.dateparution || null,
         type,
         typeLabel,
         description: description || typeLabel,
         tribunal: r.tribunal || null,
-        lienBodacc: r.publicationavisid
-          ? `https://www.bodacc.fr/pages/annonces-commerciales/?q.id=id:${r.publicationavisid}`
-          : null,
-        numeroBodacc: r.numerodeparution || null,
+        lienBodacc: r.url_complete || (r.publicationavisid
+          ? `https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:${r.publicationavisid}`
+          : null),
+        numeroBodacc: r.numerodeparution || r.parution || null,
       };
     });
 
