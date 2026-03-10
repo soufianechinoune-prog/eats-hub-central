@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, Loader2, RefreshCw } from "lucide-react";
+import { ShieldAlert, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export interface BodaccAnnonce {
@@ -15,6 +15,9 @@ export interface BodaccAnnonce {
 }
 
 export type BodaccResults = Map<string, BodaccAnnonce[]>;
+
+/** Status of the last scan for a given restaurant id */
+export type ScanStatus = "scanning" | "ok" | "alert" | "error";
 
 const CACHE_KEY = "bodacc-scan-results";
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
@@ -49,9 +52,13 @@ function saveBodaccResults(results: BodaccResults) {
 interface Props {
   restaurants: Array<{ id: string; siret?: string | null }>;
   onResults: (results: BodaccResults) => void;
+  /** Called during scan with the id of the restaurant currently being scanned, or null when done */
+  onScanningId?: (id: string | null) => void;
+  /** Called with per-restaurant scan statuses (accumulates as scan progresses) */
+  onScanStatuses?: (statuses: Map<string, ScanStatus>) => void;
 }
 
-export function BodaccScanButton({ restaurants, onResults }: Props) {
+export function BodaccScanButton({ restaurants, onResults, onScanningId, onScanStatuses }: Props) {
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const { toast } = useToast();
@@ -62,8 +69,7 @@ export function BodaccScanButton({ restaurants, onResults }: Props) {
         id: r.id,
         siren: r.siret ? r.siret.replace(/\s/g, "").substring(0, 9) : "",
       }))
-      .filter((r) => /^\d{9}$/.test(r.siren)
-    );
+      .filter((r) => /^\d{9}$/.test(r.siren));
 
     if (withSiren.length === 0) {
       toast({ title: "Aucun restaurant avec un SIREN valide" });
@@ -74,10 +80,17 @@ export function BodaccScanButton({ restaurants, onResults }: Props) {
     setProgress({ done: 0, total: withSiren.length });
 
     const results: BodaccResults = new Map();
+    const statuses = new Map<string, ScanStatus>();
     let alertCount = 0;
 
     for (let i = 0; i < withSiren.length; i++) {
       const r = withSiren[i];
+
+      // Signal which restaurant is being scanned
+      statuses.set(r.id, "scanning");
+      onScanningId?.(r.id);
+      onScanStatuses?.(new Map(statuses));
+
       try {
         const { data, error } = await supabase.functions.invoke("fetch-bodacc", {
           body: { siren: r.siren },
@@ -85,12 +98,19 @@ export function BodaccScanButton({ restaurants, onResults }: Props) {
         if (!error && data?.annonces?.length > 0) {
           results.set(r.id, data.annonces);
           alertCount += data.annonces.length;
+          statuses.set(r.id, "alert");
+        } else {
+          statuses.set(r.id, "ok");
         }
       } catch {
-        // skip this restaurant
+        statuses.set(r.id, "error");
       }
+
+      // Update results progressively so the UI shows dots appearing
+      onResults(new Map(results));
+      onScanStatuses?.(new Map(statuses));
       setProgress({ done: i + 1, total: withSiren.length });
-      // Small delay to avoid overwhelming the API
+
       if (i < withSiren.length - 1) {
         await new Promise((res) => setTimeout(res, 300));
       }
@@ -98,6 +118,7 @@ export function BodaccScanButton({ restaurants, onResults }: Props) {
 
     saveBodaccResults(results);
     onResults(results);
+    onScanningId?.(null);
     setScanning(false);
 
     toast({
@@ -106,7 +127,7 @@ export function BodaccScanButton({ restaurants, onResults }: Props) {
         ? `${alertCount} annonce${alertCount > 1 ? "s" : ""} détectée${alertCount > 1 ? "s" : ""} sur ${results.size} restaurant${results.size > 1 ? "s" : ""}`
         : "Aucune annonce détectée",
     });
-  }, [restaurants, onResults, toast]);
+  }, [restaurants, onResults, onScanningId, onScanStatuses, toast]);
 
   return (
     <Button
