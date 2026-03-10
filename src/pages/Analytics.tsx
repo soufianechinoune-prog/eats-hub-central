@@ -1363,23 +1363,25 @@ export default function Analytics() {
             </p>
           </div>
         </div>
-        <Button
-          onClick={handleExportPdf}
-          disabled={isExporting || isLoading}
-          className="bg-emerald-600 hover:bg-emerald-700"
-        >
-          {isExporting ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Export en cours...
-            </>
-          ) : (
-            <>
-              <FileDown className="h-4 w-4 mr-2" />
-              Exporter PDF
-            </>
-          )}
-        </Button>
+        {viewMode !== "eco-contribution" && (
+          <Button
+            onClick={handleExportPdf}
+            disabled={isExporting || isLoading}
+            className="bg-emerald-600 hover:bg-emerald-700"
+          >
+            {isExporting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Export en cours...
+              </>
+            ) : (
+              <>
+                <FileDown className="h-4 w-4 mr-2" />
+                Exporter PDF
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Analytics Header with shared filters */}
