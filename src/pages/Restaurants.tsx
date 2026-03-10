@@ -60,6 +60,8 @@ const Restaurants = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortColumn, setSortColumn] = useState<string | null>(savedPrefs?.sortColumn ?? null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(savedPrefs?.sortDirection ?? "asc");
+  const [bodaccResults, setBodaccResults] = useState<BodaccResults>(() => loadCachedBodaccResults());
+  const [bodaccSheetData, setBodaccSheetData] = useState<{ name: string; annonces: BodaccAnnonce[] } | null>(null);
 
   // Persist preferences to localStorage
   useEffect(() => {
