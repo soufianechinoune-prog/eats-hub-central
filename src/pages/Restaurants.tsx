@@ -614,6 +614,12 @@ const Restaurants = () => {
           refetch();
         }}
       />
+      <BodaccDetailSheet
+        open={!!bodaccSheetData}
+        onOpenChange={(open) => !open && setBodaccSheetData(null)}
+        restaurantName={bodaccSheetData?.name || ""}
+        annonces={bodaccSheetData?.annonces || []}
+      />
     </div>
   );
 };
