@@ -243,8 +243,8 @@ const RestaurantDetail = () => {
       ...(data.ville && { city: data.ville }),
       ...(data.denomination && { denomination_sociale: data.denomination }),
       ...((data.managerFirstName || data.managerLastName) && { dirigeant_legal: [data.managerFirstName, data.managerLastName].filter(Boolean).join(" ") }),
-      ...(data.managerFirstName && !prev.manager_first_name && { manager_first_name: data.managerFirstName }),
-      ...(data.managerLastName && !prev.manager_last_name && { manager_last_name: data.managerLastName }),
+      ...(data.managerFirstName && { manager_first_name: data.managerFirstName }),
+      ...(data.managerLastName && { manager_last_name: data.managerLastName }),
     }));
   };
 
