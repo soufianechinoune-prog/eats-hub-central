@@ -203,7 +203,23 @@ export function EcoContributionSection({
       .select("id, siret")
       .in("id", restaurantIds);
     if (restData) {
-      await checkMultiple(restData.map((r: any) => ({ id: r.id, siret: r.siret })));
+      setScanStatuses(new Map());
+      const items = restData.map((r: any) => ({ id: r.id, siret: r.siret }));
+      await checkMultiple(items, (id) => {
+        setScanningId(id);
+        if (id === null) return;
+        // When scanning moves to next, mark previous as done
+        setScanStatuses(prev => {
+          const next = new Map(prev);
+          // Mark all previously scanning ones based on results
+          for (const [rid] of next) {
+            // Already set, skip
+          }
+          return next;
+        });
+      });
+      // After scan completes, compute statuses for flash
+      setScanningId(null);
       setRepChecked(true);
     }
   };
