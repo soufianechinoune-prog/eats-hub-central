@@ -67,11 +67,10 @@ export function EcoContributionSection({
   const { exportPDF, exportExcel } = useEcoContributionExport();
 
   // REP check state
-  const { data: repData, loading: repLoading, errors: repErrors, checkMultiple } = useEcoOrganismCheck();
+  const { data: repData, loading: repLoading, errors: repErrors, progress: repProgress, checkMultiple } = useEcoOrganismCheck();
   const [repChecked, setRepChecked] = useState(false);
   const [scanningId, setScanningId] = useState<string | null>(null);
-  
-  const isRepLoading = Object.values(repLoading).some(Boolean);
+  const isRepLoading = repProgress !== null;
 
   const isHistorique = localYear === null;
   const effectiveYear = localYear ?? selectedYear;
@@ -515,13 +514,15 @@ export function EcoContributionSection({
                 "flex items-center justify-between gap-3 mb-4 px-3 py-2.5 rounded-lg border transition-colors",
                 repChecked
                   ? "bg-primary/5 border-primary/20"
-                  : "bg-muted/30 border-border/50"
+                  : isRepLoading
+                    ? "bg-primary/5 border-primary/20"
+                    : "bg-muted/30 border-border/50"
               )}>
-                <div className="flex items-center gap-2.5">
-                  <Building2 className="h-4 w-4 text-primary" />
-                  <div>
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <Building2 className="h-4 w-4 text-primary flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
                     <span className="text-xs font-semibold">Adhésion REP (éco-organismes)</span>
-                    {repChecked && repStats && (
+                    {repChecked && repStats && !isRepLoading && (
                       <div className="flex items-center gap-3 mt-0.5">
                         <span className="text-[10px] text-green-600 font-medium">
                           <ShieldCheck className="h-3 w-3 inline mr-0.5" />
@@ -540,21 +541,37 @@ export function EcoContributionSection({
                         )}
                       </div>
                     )}
-                    {!repChecked && (
+                    {isRepLoading && repProgress && (
+                      <div className="mt-1.5 space-y-1">
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                          <span>Vérification en cours… {repProgress.done}/{repProgress.total}</span>
+                          <span className="font-semibold text-primary tabular-nums">
+                            {Math.round((repProgress.done / repProgress.total) * 100)}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-primary/10 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${(repProgress.done / repProgress.total) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {!repChecked && !isRepLoading && (
                       <p className="text-[10px] text-muted-foreground">Vérifie l'inscription de vos restaurants aux filières REP via l'API ADEME</p>
                     )}
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant={repChecked ? "secondary" : "outline"}
-                  className="h-7 text-[11px] rounded-full gap-1.5 shrink-0"
-                  disabled={isRepLoading}
-                  onClick={handleRepCheck}
-                >
-                  {isRepLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-                  {repChecked ? "Actualiser" : "Vérifier les SIRET"}
-                </Button>
+                {!isRepLoading && (
+                  <Button
+                    size="sm"
+                    variant={repChecked ? "secondary" : "outline"}
+                    className="h-7 text-[11px] rounded-full gap-1.5 shrink-0"
+                    onClick={handleRepCheck}
+                  >
+                    {repChecked ? "Actualiser" : "Vérifier les SIRET"}
+                  </Button>
+                )}
               </div>
 
             <p className="text-[11px] text-muted-foreground mb-3">
