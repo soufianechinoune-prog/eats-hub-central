@@ -19,24 +19,11 @@ export function useUnreadMessages() {
 
     fetchUnreadCount();
 
-    // Subscribe to realtime changes
-    const channel = supabase
-      .channel("unread-messages")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "message_history",
-        },
-        () => {
-          fetchUnreadCount();
-        }
-      )
-      .subscribe();
+    // Poll every 60 seconds instead of Realtime to reduce Cloud costs
+    const interval = setInterval(fetchUnreadCount, 60_000);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, []);
 

@@ -221,25 +221,14 @@ export default function Messaging() {
     },
   });
 
-  // Subscribe to realtime updates for message_history
+  // Poll every 30 seconds instead of Realtime to reduce Cloud costs
   useEffect(() => {
-    const channel = supabase
-      .channel("message-history-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "message_history",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["message-history"] });
-        }
-      )
-      .subscribe();
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["message-history"] });
+    }, 30_000);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, [queryClient]);
 
