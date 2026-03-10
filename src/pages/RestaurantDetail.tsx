@@ -236,6 +236,8 @@ const RestaurantDetail = () => {
   };
 
   const handleSiretAutoFill = (data: SiretAutoFillData) => {
+    const isFerme = data.etat === "Fermé";
+    const today = new Date().toISOString().slice(0, 10);
     setFormData(prev => ({
       ...prev,
       ...(data.rue && { street: data.rue }),
@@ -245,7 +247,8 @@ const RestaurantDetail = () => {
       ...((data.managerFirstName || data.managerLastName) && { dirigeant_legal: [data.managerFirstName, data.managerLastName].filter(Boolean).join(" ") }),
       ...(data.managerFirstName && { manager_first_name: data.managerFirstName }),
       ...(data.managerLastName && { manager_last_name: data.managerLastName }),
-      ...(data.etat === "Fermé" && { is_active: "false" }),
+      ...(isFerme && { is_active: "false" }),
+      ...(isFerme && !restaurant?.uber_closing_date && { uber_closing_date: today }),
     }));
   };
 
