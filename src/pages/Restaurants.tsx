@@ -431,8 +431,9 @@ const Restaurants = () => {
                   <TableRow 
                     key={restaurant.id} 
                     className={cn(
-                      "cursor-pointer hover:bg-muted/50 transition-colors",
-                      restaurant.is_pinned && "bg-amber-500/5"
+                      "cursor-pointer hover:bg-muted/50 transition-all duration-300",
+                      restaurant.is_pinned && "bg-amber-500/5",
+                      scanningId === restaurant.id && "bg-primary/5 ring-1 ring-inset ring-primary/20"
                     )}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
