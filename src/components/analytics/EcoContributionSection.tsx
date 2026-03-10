@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,8 @@ export function EcoContributionSection({
   // REP check state
   const { data: repData, loading: repLoading, errors: repErrors, checkMultiple } = useEcoOrganismCheck();
   const [repChecked, setRepChecked] = useState(false);
+  const [scanningId, setScanningId] = useState<string | null>(null);
+  
   const isRepLoading = Object.values(repLoading).some(Boolean);
 
   const isHistorique = localYear === null;
@@ -195,13 +197,38 @@ export function EcoContributionSection({
     else exportExcel(params);
   };
 
+  // Track flash states for completed scans
+  const [flashStatuses, setFlashStatuses] = useState<Map<string, "ok" | "alert">>(new Map());
+  const prevScanningRef = useRef<string | null>(null);
+
+  // When scanningId changes, flash the previous restaurant
+  useEffect(() => {
+    const prevId = prevScanningRef.current;
+    if (prevId && prevId !== scanningId) {
+      const result = repData[prevId];
+      const status = result && result.count > 0 ? "ok" : "alert";
+      setFlashStatuses(prev => new Map(prev).set(prevId, status));
+      // Remove flash after animation
+      setTimeout(() => {
+        setFlashStatuses(prev => {
+          const next = new Map(prev);
+          next.delete(prevId);
+          return next;
+        });
+      }, 600);
+    }
+    prevScanningRef.current = scanningId;
+  }, [scanningId, repData]);
+
   const handleRepCheck = async () => {
     const { data: restData } = await supabase
       .from("restaurants")
       .select("id, siret")
       .in("id", restaurantIds);
     if (restData) {
-      await checkMultiple(restData.map((r: any) => ({ id: r.id, siret: r.siret })));
+      setFlashStatuses(new Map());
+      const items = restData.map((r: any) => ({ id: r.id, siret: r.siret }));
+      await checkMultiple(items, setScanningId);
       setRepChecked(true);
     }
   };
@@ -568,6 +595,15 @@ export function EcoContributionSection({
                           isEvenRow={idx % 2 === 0}
                           repData={repChecked ? repByRestaurant.get(r.restaurant_id) : undefined}
                           showRepColumn={repChecked}
+                          scanClass={
+                            scanningId === r.restaurant_id
+                              ? "bodacc-scanning"
+                              : flashStatuses.get(r.restaurant_id) === "ok"
+                                ? "bodacc-scan-ok"
+                                : flashStatuses.get(r.restaurant_id) === "alert"
+                                  ? "bodacc-scan-alert"
+                                  : undefined
+                          }
                         />
                       ))}
                     </TableBody>
@@ -721,6 +757,7 @@ function RestaurantDrilldown({
   isEvenRow = false,
   repData,
   showRepColumn = false,
+  scanClass,
 }: {
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
   name: string;
@@ -731,6 +768,7 @@ function RestaurantDrilldown({
   isEvenRow?: boolean;
   repData?: ParsedRepData;
   showRepColumn?: boolean;
+  scanClass?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -778,7 +816,8 @@ function RestaurantDrilldown({
       <TableRow
         className={cn(
           "cursor-pointer transition-colors duration-150",
-          isEvenRow ? "bg-muted/20 hover:bg-muted/40" : "hover:bg-muted/30"
+          isEvenRow ? "bg-muted/20 hover:bg-muted/40" : "hover:bg-muted/30",
+          scanClass
         )}
         onClick={() => setOpen(!open)}
       >
