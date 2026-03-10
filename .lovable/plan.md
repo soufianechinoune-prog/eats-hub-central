@@ -1,25 +1,26 @@
 
 
-## Problem
+## Plan: Simplifier la page Éco-Contribution
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+### Changements
 
-## Solution
+**1. `src/components/analytics/EcoContributionSection.tsx`**
+- Supprimer le système d'onglets "Synthèse" / "Détail (318)" — garder uniquement le contenu de la synthèse directement
+- Supprimer les imports et références à `Tabs`, `TabsContent`, `TabsList`, `TabsTrigger` et `EcoContributionDetail`
+- Supprimer l'état `activeTab`
+- Le contenu actuel de `TabsContent value="synthese"` devient le contenu direct de la Card
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+**2. `src/components/analytics/AnalyticsHeader.tsx`**
+- Ajouter un prop `hideFilters?: boolean`
+- Quand `hideFilters` est `true`, masquer : le sélecteur de restaurants, les boutons plateforme (Uber/Deliveroo/Global), et le toggle Épinglés/Réseau
+- Cela donnera une barre vide (ou quasi-vide) — on pourrait aussi masquer toute la barre
 
-### Changes
+**3. `src/pages/Analytics.tsx`**
+- Passer `hideFilters={true}` à `<AnalyticsHeader>` quand `viewMode === "eco-contribution"`
+- L'EcoContributionSection continuera à recevoir `selectedPlatform="global"` et tous les restaurants par défaut (comportement déjà existant grâce au fallback dans le hook)
 
-**`src/pages/Restaurants.tsx`**:
-
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
-
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
-
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
-
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+### Résultat
+- Plus d'onglet "Détail" redondant
+- Plus de sélection restaurant / plateforme / réseau en haut
+- La vue globale avec recherche en bas reste le point d'entrée unique
 
