@@ -62,6 +62,8 @@ const Restaurants = () => {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(savedPrefs?.sortDirection ?? "asc");
   const [bodaccResults, setBodaccResults] = useState<BodaccResults>(() => loadCachedBodaccResults());
   const [bodaccSheetData, setBodaccSheetData] = useState<{ name: string; annonces: BodaccAnnonce[] } | null>(null);
+  const [scanningId, setScanningId] = useState<string | null>(null);
+  const [scanStatuses, setScanStatuses] = useState<Map<string, ScanStatus>>(new Map());
 
   // Persist preferences to localStorage
   useEffect(() => {
