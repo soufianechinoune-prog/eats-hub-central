@@ -455,7 +455,37 @@ const Restaurants = () => {
                       </button>
                     </TableCell>
                     <TableCell className="font-medium" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.name}
+                      <div className="flex items-center gap-2">
+                        {restaurant.name}
+                        {bodaccResults.has(restaurant.id) && (() => {
+                          const annonces = bodaccResults.get(restaurant.id)!;
+                          const hasCritical = annonces.some(a => a.type === "procedure_collective" || a.type === "radiation");
+                          return (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setBodaccSheetData({ name: restaurant.name, annonces });
+                                    }}
+                                    className="shrink-0"
+                                  >
+                                    <span className={cn(
+                                      "inline-block h-2.5 w-2.5 rounded-full",
+                                      hasCritical ? "bg-destructive" : "bg-orange-500"
+                                    )} />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {annonces.length} annonce{annonces.length > 1 ? "s" : ""} BODACC
+                                  {hasCritical && " — ⚠️ Alerte critique"}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })()}
+                      </div>
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <div className="flex items-center gap-1.5 text-muted-foreground">
