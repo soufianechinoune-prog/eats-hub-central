@@ -15,6 +15,7 @@ import OpeningHoursEditor from "@/components/restaurants/OpeningHoursEditor";
 import { OpeningHoursAnalytics } from "@/components/restaurants/OpeningHoursAnalytics";
 import { RestaurantDocuments } from "@/components/restaurants/RestaurantDocuments";
 import { SiretValidation, type SiretAutoFillData } from "@/components/restaurants/SiretValidation";
+import { BodaccAlerts } from "@/components/restaurants/BodaccAlerts";
 import { CoManagersSection } from "@/components/restaurants/CoManagersSection";
 import {
   AlertDialog,
@@ -443,6 +444,7 @@ const RestaurantDetail = () => {
                 onAutoFill={isEditing ? handleSiretAutoFill : undefined}
               />
             </div>
+            <BodaccAlerts siren={restaurant?.siren} />
             {renderField("Rue", "street", "text", "29 Avenue François Mitterrand")}
             <div className="grid grid-cols-2 gap-4">
               {renderField("Code postal", "postal_code", "text", "91200")}

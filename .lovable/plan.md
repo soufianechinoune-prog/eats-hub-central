@@ -1,38 +1,25 @@
 
 
-## Plan : Intégrer les alertes légales BODACC sur la fiche restaurant
+## Problem
 
-### Objectif
-Afficher les annonces légales (procédures collectives, modifications de capital, radiations, dépôts de comptes) issues du BODACC directement sur la fiche restaurant, en utilisant le SIREN déjà disponible.
+The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
 
-### Architecture
+## Solution
 
-**1. Nouvelle Edge Function `fetch-bodacc` (`supabase/functions/fetch-bodacc/index.ts`)**
-- Reçoit un SIREN en paramètre
-- Appelle l'API BODACC Opendatasoft : `https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records?where=registre like "{siren}"&order_by=dateparution desc&limit=20`
-- Parse les résultats et retourne un tableau structuré avec : date, type (procédure collective, modification, dépôt comptes, radiation, vente/cession), description, tribunal, lien BODACC
-- Gratuit, sans clé API
+Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
 
-**2. Nouveau composant `BodaccAlerts` (`src/components/restaurants/BodaccAlerts.tsx`)**
-- Prend un `siren` en prop
-- Appelle la Edge Function via `supabase.functions.invoke('fetch-bodacc')`
-- Affiche les annonces dans un Collapsible/Accordion avec :
-  - Badge coloré par type (rouge pour procédures collectives, orange pour modifications, bleu pour dépôts comptes)
-  - Date de parution
-  - Description (jugement, modification, type de dépôt)
-  - Lien vers l'annonce complète sur bodacc.fr
-- Alerte visuelle si une procédure collective est détectée
+### Changes
 
-**3. Intégration dans `RestaurantDetail.tsx`**
-- Ajouter le composant `BodaccAlerts` dans la section "Informations" de la fiche, juste après le bloc SIRET/adresse
-- N'affiche rien si le restaurant n'a pas de SIREN renseigné
+**`src/pages/Restaurants.tsx`**:
 
-### Fichiers modifiés/créés
-- **Créé** : `supabase/functions/fetch-bodacc/index.ts`
-- **Créé** : `src/components/restaurants/BodaccAlerts.tsx`
-- **Modifié** : `src/pages/RestaurantDetail.tsx` (ajout import + composant)
-- **Modifié** : `supabase/config.toml` (ajout config pour fetch-bodacc)
+1. Update the Supabase query to also fetch linked managers via a join:
+   ```
+   .select(`*, manager_restaurants(managers(first_name, last_name))`)
+   ```
 
-### Coût Cloud
-- Uniquement au clic/chargement de la fiche restaurant — négligeable (même ordre que validate-siret)
+2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+
+3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+
+This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
 
