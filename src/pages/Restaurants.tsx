@@ -461,6 +461,14 @@ const Restaurants = () => {
                     <TableCell className="font-medium" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <div className="flex items-center gap-2">
                         {restaurant.name}
+                        {/* Scanning indicator */}
+                        {scanningId === restaurant.id && (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+                        )}
+                        {/* Scan done: show result icon */}
+                        {scanningId !== restaurant.id && scanStatuses.get(restaurant.id) === "ok" && !bodaccResults.has(restaurant.id) && (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 animate-scale-in" />
+                        )}
                         {bodaccResults.has(restaurant.id) && (() => {
                           const annonces = bodaccResults.get(restaurant.id)!;
                           const hasCritical = annonces.some(a => a.type === "procedure_collective" || a.type === "radiation");
@@ -473,12 +481,13 @@ const Restaurants = () => {
                                       e.stopPropagation();
                                       setBodaccSheetData({ name: restaurant.name, annonces });
                                     }}
-                                    className="shrink-0"
+                                    className="shrink-0 animate-scale-in"
                                   >
-                                    <span className={cn(
-                                      "inline-block h-2.5 w-2.5 rounded-full",
-                                      hasCritical ? "bg-destructive" : "bg-orange-500"
-                                    )} />
+                                    {hasCritical ? (
+                                      <AlertTriangle className="h-4 w-4 text-destructive fill-destructive/20" />
+                                    ) : (
+                                      <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />
+                                    )}
                                   </button>
                                 </TooltipTrigger>
                                 <TooltipContent>
