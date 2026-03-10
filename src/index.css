@@ -245,36 +245,33 @@ All colors MUST be HSL.
     background-clip: padding-box;
   }
 
-  /* BODACC scan laser sweep */
-  .bodacc-scanning {
+  /* BODACC scan laser sweep — uses background gradient on tr directly */
+  .bodacc-scanning > td {
     position: relative;
     overflow: hidden;
   }
-  .bodacc-scanning::after {
+  .bodacc-scanning > td::after {
     content: "";
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
     background: linear-gradient(
       90deg,
       transparent 0%,
-      hsl(var(--primary) / 0.12) 40%,
+      hsl(var(--primary) / 0.1) 35%,
       hsl(var(--primary) / 0.25) 50%,
-      hsl(var(--primary) / 0.12) 60%,
+      hsl(var(--primary) / 0.1) 65%,
       transparent 100%
     );
     background-size: 200% 100%;
-    animation: scan-sweep 1.4s ease-in-out infinite;
+    animation: scan-sweep 1.2s ease-in-out infinite;
     pointer-events: none;
     z-index: 1;
   }
 
-  .bodacc-scan-ok {
+  .bodacc-scan-ok > td {
     animation: scan-flash-ok 0.5s ease-out forwards;
   }
-  .bodacc-scan-alert {
+  .bodacc-scan-alert > td {
     animation: scan-flash-alert 0.5s ease-out forwards;
   }
 
