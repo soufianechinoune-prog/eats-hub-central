@@ -12,6 +12,7 @@ export interface SiretAutoFillData {
   denomination?: string;
   managerFirstName?: string;
   managerLastName?: string;
+  etat?: string;
 }
 
 interface SiretValidationProps {
