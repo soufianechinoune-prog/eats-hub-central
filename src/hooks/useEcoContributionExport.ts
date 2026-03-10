@@ -20,37 +20,97 @@ interface MonthlyRow {
   count: number;
 }
 
+interface DetailLine {
+  id: string;
+  restaurant_id: string;
+  restaurant_name: string | null;
+  payout_reference_id: string | null;
+  payout_date: string | null;
+  description: string | null;
+  amount: number;
+  platform?: "uber_eats" | "deliveroo";
+}
+
+interface RepEntry {
+  filiere: string;
+  org: string;
+  start: string;
+  end: string | null;
+  isActive: boolean;
+  idu?: string;
+}
+
+interface RepInfo {
+  status: string;
+  orgs: string[];
+  entries: RepEntry[];
+}
+
 interface ExportParams {
   restaurants: EcoRestaurantRow[];
   monthlyData: MonthlyRow[];
   totals: { refund: number; charge: number; net: number; lineCount: number };
   yearLabel: string;
+  detailLines?: DetailLine[];
+  repByRestaurant?: Map<string, RepInfo>;
 }
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 const fmt = (v: number) => v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("fr-FR") : "";
 
 export function useEcoContributionExport() {
-  const exportExcel = useCallback(({ restaurants, monthlyData, totals, yearLabel }: ExportParams) => {
+  const exportExcel = useCallback(({ restaurants, monthlyData, totals, yearLabel, detailLines, repByRestaurant }: ExportParams) => {
     const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Par restaurant
-    const restoRows = restaurants.map(r => ({
-      Restaurant: r.name,
-      "Remboursements (€)": r.refund,
-      "Prélèvements (€)": r.charge,
-      "Solde net (€)": r.net,
-      Lignes: r.count,
-    }));
+    // Build REP info lookup
+    const getRepSummary = (restaurantId: string) => {
+      if (!repByRestaurant) return { status: "", idus: "", orgs: "", details: "" };
+      const rep = repByRestaurant.get(restaurantId);
+      if (!rep || rep.status === "unchecked") return { status: "", idus: "", orgs: "", details: "" };
+      
+      const status = rep.status === "inscrit" ? "Inscrit" : rep.status === "non_trouve" ? "Non trouvé" : rep.status === "sans_siret" ? "Sans SIRET" : rep.status;
+      const idus = rep.entries.filter(e => e.idu).map(e => `IDU ${e.filiere} : ${e.idu}`).join(" | ");
+      const orgs = rep.orgs.join(", ");
+      const details = rep.entries.map(e => {
+        const endLabel = e.end ? fmtDate(e.end) : "En cours";
+        return `${e.filiere}·${e.idu || "—"}·${e.org}·du ${e.start} au ${endLabel}`;
+      }).join(" | ");
+      
+      return { status, idus, orgs, details };
+    };
+
+    // Sheet 1: Par restaurant (with REP columns if available)
+    const hasRep = repByRestaurant && repByRestaurant.size > 0;
+    const restoRows = restaurants.map(r => {
+      const rep = getRepSummary(r.restaurant_id);
+      const base: Record<string, string | number> = {
+        Restaurant: r.name,
+        "Remboursements (€)": r.refund,
+        "Prélèvements (€)": r.charge,
+        "Solde net (€)": r.net,
+        Lignes: r.count,
+      };
+      if (hasRep) {
+        base["Statut REP"] = rep.status;
+        base["IDU"] = rep.idus;
+        base["Éco-organismes"] = rep.orgs;
+        base["Détail filières"] = rep.details;
+      }
+      return base;
+    });
     restoRows.push({
       Restaurant: "TOTAL",
       "Remboursements (€)": totals.refund,
       "Prélèvements (€)": totals.charge,
       "Solde net (€)": totals.net,
       Lignes: totals.lineCount,
+      ...(hasRep ? { "Statut REP": "", "IDU": "", "Éco-organismes": "", "Détail filières": "" } : {}),
     });
     const ws1 = XLSX.utils.json_to_sheet(restoRows);
-    ws1["!cols"] = [{ wch: 40 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 10 }];
+    ws1["!cols"] = hasRep
+      ? [{ wch: 40 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 14 }, { wch: 30 }, { wch: 25 }, { wch: 60 }]
+      : [{ wch: 40 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, ws1, "Par restaurant");
 
     // Sheet 2: Évolution mensuelle
@@ -63,6 +123,32 @@ export function useEcoContributionExport() {
     const ws2 = XLSX.utils.json_to_sheet(monthRows);
     ws2["!cols"] = [{ wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
     XLSX.utils.book_append_sheet(wb, ws2, "Mensuel");
+
+    // Sheet 3: Détail des lignes
+    if (detailLines && detailLines.length > 0) {
+      const restaurantNameMap = new Map<string, string>();
+      restaurants.forEach(r => restaurantNameMap.set(r.restaurant_id, r.name));
+
+      const detailRows = detailLines
+        .sort((a, b) => {
+          const nameA = restaurantNameMap.get(a.restaurant_id) || "";
+          const nameB = restaurantNameMap.get(b.restaurant_id) || "";
+          const cmp = nameA.localeCompare(nameB);
+          if (cmp !== 0) return cmp;
+          return (a.payout_date || "").localeCompare(b.payout_date || "");
+        })
+        .map(l => ({
+          Restaurant: restaurantNameMap.get(l.restaurant_id) || l.restaurant_name || l.restaurant_id.slice(0, 8),
+          Date: fmtDate(l.payout_date),
+          Plateforme: l.platform === "deliveroo" ? "Deliveroo" : "Uber Eats",
+          Description: l.description || "",
+          "Référence versement": l.payout_reference_id || "",
+          "Montant (€)": l.amount,
+        }));
+      const ws3 = XLSX.utils.json_to_sheet(detailRows);
+      ws3["!cols"] = [{ wch: 40 }, { wch: 12 }, { wch: 14 }, { wch: 40 }, { wch: 24 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, ws3, "Détail lignes");
+    }
 
     XLSX.writeFile(wb, `eco-contribution_${yearLabel}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   }, []);
