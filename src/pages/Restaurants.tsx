@@ -454,8 +454,8 @@ const Restaurants = () => {
                       "cursor-pointer hover:bg-muted/50 transition-all duration-300",
                       restaurant.is_pinned && "bg-amber-500/5",
                       scanningId === restaurant.id && "bodacc-scanning",
-                      scanningId !== restaurant.id && scanStatuses.get(restaurant.id) === "ok" && "bodacc-scan-ok",
-                      scanningId !== restaurant.id && scanStatuses.get(restaurant.id) === "alert" && "bodacc-scan-alert"
+                      flashId?.id === restaurant.id && flashId.status === "ok" && "bodacc-scan-ok",
+                      flashId?.id === restaurant.id && flashId.status === "alert" && "bodacc-scan-alert"
                     )}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
