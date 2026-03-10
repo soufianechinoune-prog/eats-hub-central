@@ -39,9 +39,13 @@ async function fetchDirigeant(siren: string): Promise<{ prenom?: string; nom?: s
     if (!res.ok) return null;
     const data = await res.json();
     const dirigeants = data?.results?.[0]?.dirigeants;
+    console.log('Dirigeants raw:', JSON.stringify(dirigeants));
     if (Array.isArray(dirigeants) && dirigeants.length > 0) {
       const d = dirigeants[0];
-      return { prenom: d.prenoms || d.prenom || undefined, nom: d.nom || undefined };
+      const prenom = d.prenoms || d.prenom || undefined;
+      const nom = d.nom || undefined;
+      console.log('Extracted dirigeant:', { prenom, nom });
+      return { prenom, nom };
     }
     return null;
   } catch {
