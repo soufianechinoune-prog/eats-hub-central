@@ -683,20 +683,20 @@ function RepStatusBadge({ repData }: { repData: ParsedRepData }) {
   if (repData.status === "inscrit") {
     return (
       <div className="flex items-center justify-center">
-        <Badge className="text-[9px] h-5 px-1.5 bg-green-600 hover:bg-green-700 gap-0.5 font-semibold">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-950/40 border border-green-300 dark:border-green-800 rounded-md px-2 py-0.5">
           <CheckCircle2 className="h-3 w-3" />
           Adhérent
-        </Badge>
+        </span>
       </div>
     );
   }
   if (repData.status === "non_trouve") {
     return (
       <div className="flex items-center justify-center">
-        <Badge variant="destructive" className="text-[9px] h-5 px-1.5 gap-0.5">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 rounded-md px-2 py-0.5">
           <XCircle className="h-3 w-3" />
           Non adhérent
-        </Badge>
+        </span>
       </div>
     );
   }
