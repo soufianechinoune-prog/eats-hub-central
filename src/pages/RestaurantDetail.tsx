@@ -15,6 +15,7 @@ import OpeningHoursEditor from "@/components/restaurants/OpeningHoursEditor";
 import { OpeningHoursAnalytics } from "@/components/restaurants/OpeningHoursAnalytics";
 import { RestaurantDocuments } from "@/components/restaurants/RestaurantDocuments";
 import { SiretValidation, type SiretAutoFillData } from "@/components/restaurants/SiretValidation";
+import { BodaccAlerts } from "@/components/restaurants/BodaccAlerts";
 import { CoManagersSection } from "@/components/restaurants/CoManagersSection";
 import {
   AlertDialog,
