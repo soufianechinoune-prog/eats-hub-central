@@ -215,7 +215,7 @@ const RestaurantDetail = () => {
   const handleSave = () => {
     const updates: Record<string, string | null | boolean> = {};
     Object.entries(formData).forEach(([key, value]) => {
-      if (key === "is_succursale") {
+      if (key === "is_succursale" || key === "is_active") {
         updates[key] = value === "true";
       } else if (key === "manager_whatsapp" && value) {
         updates[key] = formatPhoneNumber(value);
