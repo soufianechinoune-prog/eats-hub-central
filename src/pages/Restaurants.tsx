@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert, AlertTriangle, Loader2 } from "lucide-react";
 import { BodaccScanButton, loadCachedBodaccResults, type BodaccResults, type BodaccAnnonce } from "@/components/restaurants/BodaccScanButton";
 import { BodaccDetailSheet } from "@/components/restaurants/BodaccDetailSheet";
 import { useRestaurantsExport } from "@/hooks/useRestaurantsExport";
