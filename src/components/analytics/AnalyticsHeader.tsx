@@ -48,7 +48,7 @@ const currentYear = today.getFullYear();
 const currentMonth = today.getMonth(); // 0-11 (janvier = 0)
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
 
-export function AnalyticsHeader({ hidePeriodSelector = false }: { hidePeriodSelector?: boolean } = {}) {
+export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = false }: { hidePeriodSelector?: boolean; hideFilters?: boolean } = {}) {
   const {
     selectedRestaurants,
     setSelectedRestaurants,

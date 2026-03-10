@@ -592,16 +592,7 @@ export function EcoContributionSection({
               ) : (
                 <p className="text-center text-muted-foreground py-8 text-sm">Aucune donnée pour cette période</p>
               )}
-            </TabsContent>
-
-            <TabsContent value="detail" className="mt-0">
-              <EcoContributionDetail
-                detailLines={detailLines}
-                restaurantMap={restaurantMap}
-                showPlatformColumn={isGlobal}
-              />
-            </TabsContent>
-          </Tabs>
+            </div>
         </CardContent>
       </Card>
     </div>
