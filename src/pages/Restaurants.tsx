@@ -473,6 +473,7 @@ const Restaurants = () => {
                         {bodaccResults.has(restaurant.id) && (() => {
                           const annonces = bodaccResults.get(restaurant.id)!;
                           const hasCritical = annonces.some(a => a.type === "procedure_collective" || a.type === "radiation");
+                          if (!hasCritical) return null;
                           return (
                             <TooltipProvider>
                               <Tooltip>
@@ -484,16 +485,11 @@ const Restaurants = () => {
                                     }}
                                     className="shrink-0 animate-scale-in"
                                   >
-                                    {hasCritical ? (
-                                      <AlertTriangle className="h-4 w-4 text-destructive fill-destructive/20" />
-                                    ) : (
-                                      <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />
-                                    )}
+                                    <AlertTriangle className="h-4 w-4 text-destructive fill-destructive/20" />
                                   </button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  {annonces.length} annonce{annonces.length > 1 ? "s" : ""} BODACC
-                                  {hasCritical && " — ⚠️ Alerte critique"}
+                                  {annonces.length} annonce{annonces.length > 1 ? "s" : ""} BODACC — ⚠️ Alerte critique
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
