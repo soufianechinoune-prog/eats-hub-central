@@ -197,29 +197,38 @@ export function EcoContributionSection({
     else exportExcel(params);
   };
 
+  // Track flash states for completed scans
+  const [flashStatuses, setFlashStatuses] = useState<Map<string, "ok" | "alert">>(new Map());
+  const prevScanningRef = useRef<string | null>(null);
+
+  // When scanningId changes, flash the previous restaurant
+  useEffect(() => {
+    const prevId = prevScanningRef.current;
+    if (prevId && prevId !== scanningId) {
+      const result = repData[prevId];
+      const status = result && result.count > 0 ? "ok" : "alert";
+      setFlashStatuses(prev => new Map(prev).set(prevId, status));
+      // Remove flash after animation
+      setTimeout(() => {
+        setFlashStatuses(prev => {
+          const next = new Map(prev);
+          next.delete(prevId);
+          return next;
+        });
+      }, 600);
+    }
+    prevScanningRef.current = scanningId;
+  }, [scanningId, repData]);
+
   const handleRepCheck = async () => {
     const { data: restData } = await supabase
       .from("restaurants")
       .select("id, siret")
       .in("id", restaurantIds);
     if (restData) {
-      setScanStatuses(new Map());
+      setFlashStatuses(new Map());
       const items = restData.map((r: any) => ({ id: r.id, siret: r.siret }));
-      await checkMultiple(items, (id) => {
-        setScanningId(id);
-        if (id === null) return;
-        // When scanning moves to next, mark previous as done
-        setScanStatuses(prev => {
-          const next = new Map(prev);
-          // Mark all previously scanning ones based on results
-          for (const [rid] of next) {
-            // Already set, skip
-          }
-          return next;
-        });
-      });
-      // After scan completes, compute statuses for flash
-      setScanningId(null);
+      await checkMultiple(items, setScanningId);
       setRepChecked(true);
     }
   };
