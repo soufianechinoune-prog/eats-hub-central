@@ -64,6 +64,26 @@ const Restaurants = () => {
   const [bodaccSheetData, setBodaccSheetData] = useState<{ name: string; annonces: BodaccAnnonce[] } | null>(null);
   const [scanningId, setScanningId] = useState<string | null>(null);
   const [scanStatuses, setScanStatuses] = useState<Map<string, ScanStatus>>(new Map());
+  const [flashId, setFlashId] = useState<{ id: string; status: "ok" | "alert" } | null>(null);
+
+  // Track when a row finishes scanning to trigger a brief flash
+  useEffect(() => {
+    if (!flashId) return;
+    const timer = setTimeout(() => setFlashId(null), 600);
+    return () => clearTimeout(timer);
+  }, [flashId]);
+
+  // Detect row scan completion from scanStatuses changes
+  useEffect(() => {
+    scanStatuses.forEach((status, id) => {
+      if (id !== scanningId && (status === "ok" || status === "alert")) {
+        // Only flash the most recently completed row
+        if (scanningId !== null || status === "alert") {
+          setFlashId({ id, status: status === "alert" ? "alert" : "ok" });
+        }
+      }
+    });
+  }, [scanningId]);
 
   // Persist preferences to localStorage
   useEffect(() => {
