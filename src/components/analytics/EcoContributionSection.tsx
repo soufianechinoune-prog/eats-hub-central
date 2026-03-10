@@ -595,6 +595,15 @@ export function EcoContributionSection({
                           isEvenRow={idx % 2 === 0}
                           repData={repChecked ? repByRestaurant.get(r.restaurant_id) : undefined}
                           showRepColumn={repChecked}
+                          scanClass={
+                            scanningId === r.restaurant_id
+                              ? "bodacc-scanning"
+                              : flashStatuses.get(r.restaurant_id) === "ok"
+                                ? "bodacc-scan-ok"
+                                : flashStatuses.get(r.restaurant_id) === "alert"
+                                  ? "bodacc-scan-alert"
+                                  : undefined
+                          }
                         />
                       ))}
                     </TableBody>
