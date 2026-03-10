@@ -13,7 +13,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert } from "lucide-react";
+import { BodaccScanButton, loadCachedBodaccResults, type BodaccResults, type BodaccAnnonce } from "@/components/restaurants/BodaccScanButton";
+import { BodaccDetailSheet } from "@/components/restaurants/BodaccDetailSheet";
 import { useRestaurantsExport } from "@/hooks/useRestaurantsExport";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import {
@@ -58,6 +60,8 @@ const Restaurants = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortColumn, setSortColumn] = useState<string | null>(savedPrefs?.sortColumn ?? null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(savedPrefs?.sortDirection ?? "asc");
+  const [bodaccResults, setBodaccResults] = useState<BodaccResults>(() => loadCachedBodaccResults());
+  const [bodaccSheetData, setBodaccSheetData] = useState<{ name: string; annonces: BodaccAnnonce[] } | null>(null);
 
   // Persist preferences to localStorage
   useEffect(() => {
@@ -307,6 +311,10 @@ const Restaurants = () => {
               </Select>
             </div>
             <div className="flex items-center gap-1">
+              <BodaccScanButton
+                restaurants={restaurants || []}
+                onResults={setBodaccResults}
+              />
               <Button
                 variant="outline"
                 size="sm"
@@ -447,7 +455,37 @@ const Restaurants = () => {
                       </button>
                     </TableCell>
                     <TableCell className="font-medium" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.name}
+                      <div className="flex items-center gap-2">
+                        {restaurant.name}
+                        {bodaccResults.has(restaurant.id) && (() => {
+                          const annonces = bodaccResults.get(restaurant.id)!;
+                          const hasCritical = annonces.some(a => a.type === "procedure_collective" || a.type === "radiation");
+                          return (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setBodaccSheetData({ name: restaurant.name, annonces });
+                                    }}
+                                    className="shrink-0"
+                                  >
+                                    <span className={cn(
+                                      "inline-block h-2.5 w-2.5 rounded-full",
+                                      hasCritical ? "bg-destructive" : "bg-orange-500"
+                                    )} />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {annonces.length} annonce{annonces.length > 1 ? "s" : ""} BODACC
+                                  {hasCritical && " — ⚠️ Alerte critique"}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })()}
+                      </div>
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -575,6 +613,12 @@ const Restaurants = () => {
           setSelectedIds(new Set());
           refetch();
         }}
+      />
+      <BodaccDetailSheet
+        open={!!bodaccSheetData}
+        onOpenChange={(open) => !open && setBodaccSheetData(null)}
+        restaurantName={bodaccSheetData?.name || ""}
+        annonces={bodaccSheetData?.annonces || []}
       />
     </div>
   );
