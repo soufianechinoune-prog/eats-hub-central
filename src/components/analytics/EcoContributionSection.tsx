@@ -534,7 +534,6 @@ export function EcoContributionSection({
                 {filteredRestaurants.length} restaurant{filteredRestaurants.length > 1 ? "s" : ""} affiché{filteredRestaurants.length > 1 ? "s" : ""}
                 {searchQuery && ` pour "${searchQuery}"`}
               </p>
-            )}
 
             <div>
               {byRestaurant.length > 0 ? (
