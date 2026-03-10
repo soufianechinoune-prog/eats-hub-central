@@ -816,7 +816,8 @@ function RestaurantDrilldown({
       <TableRow
         className={cn(
           "cursor-pointer transition-colors duration-150",
-          isEvenRow ? "bg-muted/20 hover:bg-muted/40" : "hover:bg-muted/30"
+          isEvenRow ? "bg-muted/20 hover:bg-muted/40" : "hover:bg-muted/30",
+          scanClass
         )}
         onClick={() => setOpen(!open)}
       >
