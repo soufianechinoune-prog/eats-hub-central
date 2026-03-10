@@ -87,23 +87,35 @@ serve(async (req) => {
 
     const annonces: BodaccAnnonce[] = results.map((r: any) => {
       const { type, typeLabel } = classifyAnnonce(r);
-      const description = [
-        r.nature,
-        r.jugement,
-        r.activite,
-        r.commentaire,
-      ].filter(Boolean).join(" — ");
+
+      // Build human-readable description from structured fields
+      const jugementObj = parseJsonField(r.jugement);
+      const depotObj = parseJsonField(r.depot);
+      const modifObj = parseJsonField(r.modificationsgenerales);
+      const acteObj = parseJsonField(r.acte);
+      const personnesObj = parseJsonField(r.listepersonnes);
+
+      const descParts: string[] = [];
+      if (jugementObj?.nature) descParts.push(jugementObj.nature);
+      if (jugementObj?.complementJugement) descParts.push(jugementObj.complementJugement);
+      if (depotObj?.typeDepot) descParts.push(depotObj.typeDepot);
+      if (depotObj?.descriptif) descParts.push(depotObj.descriptif);
+      if (modifObj?.descriptif) descParts.push(modifObj.descriptif);
+      if (acteObj?.descriptif) descParts.push(acteObj.descriptif);
+      if (personnesObj?.personne?.activite) descParts.push(`Activité : ${personnesObj.personne.activite}`);
+
+      const description = descParts.join(" — ");
 
       return {
-        date: r.dateparution || r.date_parution || null,
+        date: r.dateparution || null,
         type,
         typeLabel,
         description: description || typeLabel,
         tribunal: r.tribunal || null,
-        lienBodacc: r.publicationavisid
-          ? `https://www.bodacc.fr/pages/annonces-commerciales/?q.id=id:${r.publicationavisid}`
-          : null,
-        numeroBodacc: r.numerodeparution || null,
+        lienBodacc: r.url_complete || (r.publicationavisid
+          ? `https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:${r.publicationavisid}`
+          : null),
+        numeroBodacc: r.numerodeparution || r.parution || null,
       };
     });
 
