@@ -536,7 +536,7 @@ export function EcoContributionSection({
               </p>
             )}
 
-            <TabsContent value="synthese" className="mt-0">
+            <div>
               {byRestaurant.length > 0 ? (
                 <>
                   <Table>
