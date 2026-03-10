@@ -67,11 +67,10 @@ export function EcoContributionSection({
   const { exportPDF, exportExcel } = useEcoContributionExport();
 
   // REP check state
-  const { data: repData, loading: repLoading, errors: repErrors, checkMultiple } = useEcoOrganismCheck();
+  const { data: repData, loading: repLoading, errors: repErrors, progress: repProgress, checkMultiple } = useEcoOrganismCheck();
   const [repChecked, setRepChecked] = useState(false);
   const [scanningId, setScanningId] = useState<string | null>(null);
-  
-  const isRepLoading = Object.values(repLoading).some(Boolean);
+  const isRepLoading = repProgress !== null;
 
   const isHistorique = localYear === null;
   const effectiveYear = localYear ?? selectedYear;
