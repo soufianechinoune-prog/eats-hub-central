@@ -443,56 +443,44 @@ export function EcoContributionSection({
       {/* ═══════════════ ZONE 4: Restaurant Table with integrated REP ═══════════════ */}
       <Card>
         <CardContent className="pt-5 pb-3">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "synthese" | "detail")}>
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-              <TabsList className="rounded-full p-1 bg-muted/60 h-auto">
-                <TabsTrigger value="synthese" className="rounded-full px-5 py-1.5 text-xs font-medium">
-                  Synthèse
-                </TabsTrigger>
-                <TabsTrigger value="detail" className="rounded-full px-5 py-1.5 text-xs font-medium">
-                  Détail ({totals.lineCount})
-                </TabsTrigger>
-              </TabsList>
-
-              {activeTab === "synthese" && (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Rechercher..."
-                      className="h-8 w-[180px] pl-8 text-sm rounded-full"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant={soldeFilter === "all" ? "default" : "outline"}
-                      className="h-7 px-2.5 text-[11px] rounded-full"
-                      onClick={() => setSoldeFilter("all")}
-                    >
-                      Tous ({byRestaurant.length})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={soldeFilter === "positive" ? "default" : "outline"}
-                      className="h-7 px-2.5 text-[11px] rounded-full"
-                      onClick={() => setSoldeFilter("positive")}
-                    >
-                      Solde + ({byRestaurant.filter(r => r.net >= 0).length})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={soldeFilter === "negative" ? "default" : "outline"}
-                      className="h-7 px-2.5 text-[11px] rounded-full"
-                      onClick={() => setSoldeFilter("negative")}
-                    >
-                      Solde − ({byRestaurant.filter(r => r.net < 0).length})
-                    </Button>
-                  </div>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Rechercher..."
+                    className="h-8 w-[180px] pl-8 text-sm rounded-full"
+                  />
                 </div>
-              )}
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant={soldeFilter === "all" ? "default" : "outline"}
+                    className="h-7 px-2.5 text-[11px] rounded-full"
+                    onClick={() => setSoldeFilter("all")}
+                  >
+                    Tous ({byRestaurant.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={soldeFilter === "positive" ? "default" : "outline"}
+                    className="h-7 px-2.5 text-[11px] rounded-full"
+                    onClick={() => setSoldeFilter("positive")}
+                  >
+                    Solde + ({byRestaurant.filter(r => r.net >= 0).length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={soldeFilter === "negative" ? "default" : "outline"}
+                    className="h-7 px-2.5 text-[11px] rounded-full"
+                    onClick={() => setSoldeFilter("negative")}
+                  >
+                    Solde − ({byRestaurant.filter(r => r.net < 0).length})
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {/* REP verification strip - inside the card */}
