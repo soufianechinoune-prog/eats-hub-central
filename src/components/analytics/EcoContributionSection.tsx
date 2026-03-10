@@ -685,7 +685,7 @@ function RepStatusBadge({ repData }: { repData: ParsedRepData }) {
       <div className="flex items-center justify-center">
         <Badge className="text-[9px] h-5 px-1.5 bg-green-600 hover:bg-green-700 gap-0.5 font-semibold">
           <CheckCircle2 className="h-3 w-3" />
-          {repData.filiereCount}
+          Adhérent
         </Badge>
       </div>
     );
@@ -695,7 +695,7 @@ function RepStatusBadge({ repData }: { repData: ParsedRepData }) {
       <div className="flex items-center justify-center">
         <Badge variant="destructive" className="text-[9px] h-5 px-1.5 gap-0.5">
           <XCircle className="h-3 w-3" />
-          0
+          Non adhérent
         </Badge>
       </div>
     );
