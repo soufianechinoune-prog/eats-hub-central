@@ -484,8 +484,7 @@ export function EcoContributionSection({
             </div>
 
             {/* REP verification strip - inside the card */}
-            {activeTab === "synthese" && (
-              <div className={cn(
+            <div className={cn(
                 "flex items-center justify-between gap-3 mb-4 px-3 py-2.5 rounded-lg border transition-colors",
                 repChecked
                   ? "bg-primary/5 border-primary/20"
