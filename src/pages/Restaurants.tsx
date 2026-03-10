@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -65,25 +65,24 @@ const Restaurants = () => {
   const [scanningId, setScanningId] = useState<string | null>(null);
   const [scanStatuses, setScanStatuses] = useState<Map<string, ScanStatus>>(new Map());
   const [flashId, setFlashId] = useState<{ id: string; status: "ok" | "alert" } | null>(null);
+  const prevScanningIdRef = useRef<string | null>(null);
 
-  // Track when a row finishes scanning to trigger a brief flash
+  // When scanningId changes, flash the previous row
+  useEffect(() => {
+    const prevId = prevScanningIdRef.current;
+    prevScanningIdRef.current = scanningId;
+    if (prevId && prevId !== scanningId) {
+      const status = scanStatuses.get(prevId);
+      setFlashId({ id: prevId, status: status === "alert" ? "alert" : "ok" });
+    }
+  }, [scanningId, scanStatuses]);
+
+  // Auto-clear flash after animation
   useEffect(() => {
     if (!flashId) return;
     const timer = setTimeout(() => setFlashId(null), 600);
     return () => clearTimeout(timer);
   }, [flashId]);
-
-  // Detect row scan completion from scanStatuses changes
-  useEffect(() => {
-    scanStatuses.forEach((status, id) => {
-      if (id !== scanningId && (status === "ok" || status === "alert")) {
-        // Only flash the most recently completed row
-        if (scanningId !== null || status === "alert") {
-          setFlashId({ id, status: status === "alert" ? "alert" : "ok" });
-        }
-      }
-    });
-  }, [scanningId]);
 
   // Persist preferences to localStorage
   useEffect(() => {
