@@ -101,8 +101,9 @@ const Restaurants = () => {
         .from("restaurants")
         .select(`
           *,
-          manager_restaurants(managers(first_name, last_name))
+          manager_restaurants!left(is_primary, managers!inner(first_name, last_name))
         `)
+        .eq("manager_restaurants.is_primary", true)
         .order("postal_code", { ascending: true })
         .order("city", { ascending: true });
       if (error) {
