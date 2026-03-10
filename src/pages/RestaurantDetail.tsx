@@ -245,6 +245,7 @@ const RestaurantDetail = () => {
       ...((data.managerFirstName || data.managerLastName) && { dirigeant_legal: [data.managerFirstName, data.managerLastName].filter(Boolean).join(" ") }),
       ...(data.managerFirstName && { manager_first_name: data.managerFirstName }),
       ...(data.managerLastName && { manager_last_name: data.managerLastName }),
+      ...(data.etat === "Fermé" && { is_active: "false" }),
     }));
   };
 
