@@ -215,7 +215,7 @@ const RestaurantDetail = () => {
   const handleSave = () => {
     const updates: Record<string, string | null | boolean> = {};
     Object.entries(formData).forEach(([key, value]) => {
-      if (key === "is_succursale") {
+      if (key === "is_succursale" || key === "is_active") {
         updates[key] = value === "true";
       } else if (key === "manager_whatsapp" && value) {
         updates[key] = formatPhoneNumber(value);
@@ -245,6 +245,7 @@ const RestaurantDetail = () => {
       ...((data.managerFirstName || data.managerLastName) && { dirigeant_legal: [data.managerFirstName, data.managerLastName].filter(Boolean).join(" ") }),
       ...(data.managerFirstName && { manager_first_name: data.managerFirstName }),
       ...(data.managerLastName && { manager_last_name: data.managerLastName }),
+      ...(data.etat === "Fermé" && { is_active: "false" }),
     }));
   };
 

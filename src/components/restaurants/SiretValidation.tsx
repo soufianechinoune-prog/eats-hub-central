@@ -12,6 +12,7 @@ export interface SiretAutoFillData {
   denomination?: string;
   managerFirstName?: string;
   managerLastName?: string;
+  etat?: string;
 }
 
 interface SiretValidationProps {
@@ -92,6 +93,7 @@ export function SiretValidation({ siret, onAutoFill }: SiretValidationProps) {
       denomination: result.denomination,
       managerFirstName: result.dirigeant?.prenom,
       managerLastName: result.dirigeant?.nom,
+      etat: result.etat,
     });
     setFilled(true);
   };
