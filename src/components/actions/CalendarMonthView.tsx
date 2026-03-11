@@ -220,7 +220,7 @@ export function CalendarMonthView({
 
   // Safety timeout: clear drag state if it gets stuck
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     if (dragOverDate && !isDragging) {
       timeoutId = setTimeout(() => {
         setDragOverDate(null);

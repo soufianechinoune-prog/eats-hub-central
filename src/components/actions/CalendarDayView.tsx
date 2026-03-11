@@ -126,7 +126,7 @@ export function CalendarDayView({
 
   // Safety timeout for stuck drag state
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     if (dragOverDate && !draggedEvent) {
       timeoutId = setTimeout(() => {
         setDragOverDate(null);
