@@ -56,6 +56,7 @@ const DOCUMENT_TYPES: { value: DocumentType; label: string }[] = [
   { value: "license", label: "Licence" },
   { value: "insurance", label: "Assurance" },
   { value: "contract", label: "Contrat" },
+  { value: "attestation_adhesion", label: "Attestation adhésion REP" },
   { value: "other", label: "Autre" },
 ];
 
