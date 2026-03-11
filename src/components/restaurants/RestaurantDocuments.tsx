@@ -48,7 +48,7 @@ interface RestaurantDocumentsProps {
   restaurantId: string;
 }
 
-type DocumentType = "kbis" | "rib" | "license" | "insurance" | "contract" | "other";
+type DocumentType = "kbis" | "rib" | "license" | "insurance" | "contract" | "attestation_adhesion" | "other";
 
 const DOCUMENT_TYPES: { value: DocumentType; label: string }[] = [
   { value: "kbis", label: "KBIS" },
