@@ -72,6 +72,7 @@ const getDocumentTypeBadgeColor = (type: string) => {
     case "license": return "bg-purple-500/10 text-purple-600 border-purple-500/20";
     case "insurance": return "bg-amber-500/10 text-amber-600 border-amber-500/20";
     case "contract": return "bg-cyan-500/10 text-cyan-600 border-cyan-500/20";
+    case "attestation_adhesion": return "bg-teal-500/10 text-teal-600 border-teal-500/20";
     default: return "bg-muted text-muted-foreground";
   }
 };
