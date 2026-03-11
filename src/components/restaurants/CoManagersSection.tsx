@@ -64,25 +64,55 @@ export function CoManagersSection({ restaurantId }: CoManagersSectionProps) {
     mutationFn: async () => {
       if (!form.phone.trim()) throw new Error("Le téléphone est requis");
 
-      // Create manager
-      const { data: manager, error: mErr } = await supabase
+      // Check if manager with this phone already exists
+      const { data: existing } = await supabase
         .from("managers")
-        .insert({
-          first_name: form.first_name || null,
-          last_name: form.last_name || null,
-          phone: form.phone,
-          email: form.email || null,
-        })
         .select("id")
-        .single();
+        .eq("phone", form.phone)
+        .maybeSingle();
 
-      if (mErr) throw mErr;
+      let managerId: string;
 
-      // Link to restaurant
+      if (existing) {
+        managerId = existing.id;
+        // Update name/email if provided
+        const updates: Record<string, string | null> = {};
+        if (form.first_name) updates.first_name = form.first_name;
+        if (form.last_name) updates.last_name = form.last_name;
+        if (form.email) updates.email = form.email;
+        if (Object.keys(updates).length > 0) {
+          await supabase.from("managers").update(updates).eq("id", managerId);
+        }
+      } else {
+        const { data: manager, error: mErr } = await supabase
+          .from("managers")
+          .insert({
+            first_name: form.first_name || null,
+            last_name: form.last_name || null,
+            phone: form.phone,
+            email: form.email || null,
+          })
+          .select("id")
+          .single();
+        if (mErr) throw mErr;
+        managerId = manager.id;
+      }
+
+      // Check if already linked to this restaurant as co-dirigeant
+      const { data: existingLink } = await supabase
+        .from("manager_restaurants")
+        .select("id")
+        .eq("manager_id", managerId)
+        .eq("restaurant_id", restaurantId)
+        .eq("role", "co-dirigeant")
+        .maybeSingle();
+
+      if (existingLink) throw new Error("Ce co-dirigeant est déjà lié à ce restaurant");
+
       const { error: lErr } = await supabase
         .from("manager_restaurants")
         .insert({
-          manager_id: manager.id,
+          manager_id: managerId,
           restaurant_id: restaurantId,
           role: "co-dirigeant",
           is_primary: false,
