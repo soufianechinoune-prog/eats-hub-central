@@ -34,6 +34,7 @@ interface HourlyOpportunitiesAnalysisProps {
   startDate: string;
   endDate: string;
   restaurantNames?: string[];
+  platform?: string;
 }
 
 interface HourlyData {
