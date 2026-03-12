@@ -49,18 +49,18 @@ const OpeningHoursComparison = () => {
 
   // Fetch restaurants data
   const { data: restaurants, isLoading: loadingRestaurants } = useQuery({
-    queryKey: ["restaurants-by-ids", visibleRestaurants],
+    queryKey: ["restaurants-by-ids", activeRestaurantIds],
     queryFn: async () => {
-      if (!visibleRestaurants.length) return [];
+      if (!activeRestaurantIds.length) return [];
       const { data, error } = await supabase
         .from("restaurants")
         .select("id, name")
-        .in("id", visibleRestaurants)
+        .in("id", activeRestaurantIds)
         .order("name");
       if (error) throw error;
       return data || [];
     },
-    enabled: visibleRestaurants.length > 0,
+    enabled: activeRestaurantIds.length > 0,
   });
 
   // Fetch active hours summary from orders (new RPC)
