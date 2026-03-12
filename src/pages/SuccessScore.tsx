@@ -47,6 +47,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ManualEntryDialog } from "@/components/success-score/ManualEntryDialog";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Tier configuration with colors and objectives
 const TIER_CONFIG = {
