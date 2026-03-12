@@ -637,21 +637,6 @@ export function EcoContributionSection({
                       ))}
                     </TableBody>
                   </Table>
-                  {filteredRestaurants.length > 20 && (
-                    <div className="flex justify-center pt-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs rounded-full gap-1.5"
-                        onClick={() => setShowAll(!showAll)}
-                      >
-                        {showAll ? "Réduire" : "Voir tout"}
-                        <Badge variant="secondary" className="text-[10px] h-5 px-1.5 ml-1">
-                          {filteredRestaurants.length}
-                        </Badge>
-                      </Button>
-                    </div>
-                  )}
                 </>
               ) : (
                 <p className="text-center text-muted-foreground py-8 text-sm">Aucune donnée pour cette période</p>
