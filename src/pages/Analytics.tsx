@@ -1500,7 +1500,7 @@ export default function Analytics() {
               return (
                 <EcoContributionSection
                   restaurants={restaurants || []}
-                  selectedRestaurants={selectedRestaurants}
+                  selectedRestaurants={[]}
                   selectedYear={selectedYear}
                   selectedMonth={drillDownMonth}
                   selectedPlatform={selectedPlatform}
