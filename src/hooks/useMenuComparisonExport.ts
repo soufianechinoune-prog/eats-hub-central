@@ -13,12 +13,23 @@ interface ExportData {
   platform: string;
   restaurants: string[];
   rows: PriceRow[];
+  isAllRestaurants?: boolean;
   stats: {
     totalProducts: number;
     productsWithDiff: number;
     avgDiff: number;
   };
 }
+
+const buildFilename = (data: ExportData, ext: string) => {
+  const date = new Date().toISOString().split("T")[0];
+  if (data.isAllRestaurants) {
+    return `tarifs_reseau_${data.platform.toLowerCase().replace(/\s/g, "_")}_${date}.${ext}`;
+  }
+  // Selection: use short name
+  const count = data.restaurants.length;
+  return `comparatif_${count}_restaurants_${date}.${ext}`;
+};
 
 const parsePrice = (priceStr: string): number | null => {
   if (!priceStr) return null;
@@ -249,7 +260,7 @@ export function useMenuComparisonExport() {
       });
 
       drawFooter(currentPage, totalPages);
-      pdf.save(`comparaison_prix_${data.platform}_${new Date().toISOString().split("T")[0]}.pdf`);
+      pdf.save(buildFilename(data, "pdf"));
     } catch (error) {
       console.error("Error exporting PDF:", error);
     } finally {
@@ -367,7 +378,7 @@ export function useMenuComparisonExport() {
       sheet["!ref"] = `A1:${XLSX.utils.encode_col(headers.length - 1)}${lastRow}`;
 
       XLSX.utils.book_append_sheet(wb, sheet, "Comparatif");
-      const filename = `comparatif_${data.restaurants.join("_").toLowerCase().replace(/\s/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const filename = buildFilename(data, "xlsx");
       XLSX.writeFile(wb, filename);
     } catch (error) {
       console.error("Error exporting Excel:", error);
@@ -411,7 +422,7 @@ export function useMenuComparisonExport() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `comparatif_${data.restaurants.join("_").toLowerCase().replace(/\s/g, "_")}_${new Date().toISOString().split("T")[0]}.csv`;
+      a.download = buildFilename(data, "csv");
       a.click();
       URL.revokeObjectURL(url);
     } catch (error) {
