@@ -378,7 +378,7 @@ export function useMenuComparisonExport() {
       sheet["!ref"] = `A1:${XLSX.utils.encode_col(headers.length - 1)}${lastRow}`;
 
       XLSX.utils.book_append_sheet(wb, sheet, "Comparatif");
-      const filename = `comparatif_${data.restaurants.join("_").toLowerCase().replace(/\s/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const filename = buildFilename(data, "xlsx");
       XLSX.writeFile(wb, filename);
     } catch (error) {
       console.error("Error exporting Excel:", error);
