@@ -59,13 +59,14 @@ const OpeningHoursComparison = () => {
 
   // Fetch active hours summary from orders (new RPC)
   const { data: activeHoursData, isPending: pendingActiveHours } = useQuery({
-    queryKey: ["active-hours-summary", visibleRestaurants, startDate, endDate],
+    queryKey: ["active-hours-summary", visibleRestaurants, startDate, endDate, selectedPlatform],
     queryFn: async () => {
       if (!visibleRestaurants.length) return [];
       const { data, error } = await supabase.rpc("get_active_hours_summary", {
         p_restaurant_ids: visibleRestaurants,
         p_start_date: startDate,
         p_end_date: endDate,
+        p_platform: selectedPlatform === "global" ? null : selectedPlatform,
       });
       if (error) throw error;
       return data || [];
