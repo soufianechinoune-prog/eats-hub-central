@@ -23,6 +23,7 @@ const OpeningHoursComparison = () => {
   const navigate = useNavigate();
   
   const {
+    selectedRestaurants,
     visibleRestaurants,
     selectedPlatform,
     periodMode,
@@ -30,6 +31,11 @@ const OpeningHoursComparison = () => {
     selectedMonth,
     dateRange,
   } = useAnalyticsContext();
+
+  const activeRestaurantIds = useMemo(
+    () => selectedRestaurants.filter((id) => visibleRestaurants.includes(id)),
+    [selectedRestaurants, visibleRestaurants]
+  );
 
   const { startDate: startDateObj, endDate: endDateObj } = useDataGranularity({
     periodMode,
