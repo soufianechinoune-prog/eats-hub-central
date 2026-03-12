@@ -1,25 +1,36 @@
 
 
-## Problem
+## Diagnostic
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+Le problème vient de cette ligne dans `Analytics.tsx` (ligne 1388) :
 
-## Solution
+```
+{viewMode !== "eco-contribution" && <AnalyticsHeader />}
+```
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+Le `AnalyticsHeader` (qui contient le sélecteur de restaurants) est **masqué** sur la page Éco-Contribution. Pourtant, le composant `EcoContributionSection` utilise `selectedRestaurants` venant du contexte global (localStorage).
 
-### Changes
+Quand tu navigues via URL directement, le localStorage peut contenir une sélection précédente (ex: 1 seul restaurant). Comme il n'y a pas de sélecteur visible pour la changer, tu restes bloqué sur cette sélection.
 
-**`src/pages/Restaurants.tsx`**:
+Sur l'autre navigateur/onglet, le localStorage est vide (`selectedRestaurants = []`), donc le fallback `restaurants.map(r => r.id)` s'applique → 92 restaurants.
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+## Correction
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+**Ignorer `selectedRestaurants` dans `EcoContributionSection`** : cette page a ses propres filtres (année, recherche, solde +/-). Le filtre global de restaurants ne devrait pas s'appliquer ici.
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+### Fichier : `src/pages/Analytics.tsx`
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+Passer un tableau vide pour `selectedRestaurants` au composant `EcoContributionSection`, ou passer tous les IDs de restaurants. Cela force l'affichage de tous les restaurants ayant des données éco-contribution.
+
+```tsx
+<EcoContributionSection
+  restaurants={restaurants || []}
+  selectedRestaurants={[]}  // ← toujours vide = afficher tous
+  selectedYear={selectedYear}
+  selectedMonth={drillDownMonth}
+  selectedPlatform={selectedPlatform}
+/>
+```
+
+C'est un changement d'une seule ligne. Les filtres internes (recherche, solde +/-, année) continueront de fonctionner normalement.
 
