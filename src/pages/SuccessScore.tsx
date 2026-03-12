@@ -16,7 +16,11 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
-  Calendar
+  Calendar,
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
