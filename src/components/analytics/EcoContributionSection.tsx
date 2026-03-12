@@ -3,7 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, ChevronDown, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2, Building2, CheckCircle2, XCircle, ShieldCheck, CalendarDays } from "lucide-react";
+import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, ChevronDown, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2, Building2, CheckCircle2, XCircle, ShieldCheck, CalendarDays, Sparkles, ArrowDownCircle } from "lucide-react";
+import { useRepCheckPersistence, type RepChangeInfo } from "@/hooks/useRepCheckPersistence";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 
 import { useEcoContributionExport } from "@/hooks/useEcoContributionExport";
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ComposedChart, ReferenceLine, Bar,
+  ResponsiveContainer, ComposedChart, ReferenceLine, Bar, AreaChart, Area, Line,
 } from "recharts";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -66,18 +67,33 @@ export function EcoContributionSection({
   const [searchQuery, setSearchQuery] = useState("");
   const { exportPDF, exportExcel } = useEcoContributionExport();
 
-  // REP check state
-  const { data: repData, loading: repLoading, errors: repErrors, progress: repProgress, checkMultiple } = useEcoOrganismCheck();
-  const [repChecked, setRepChecked] = useState(false);
-  const [scanningId, setScanningId] = useState<string | null>(null);
-  const isRepLoading = repProgress !== null;
-
   const isHistorique = localYear === null;
   const effectiveYear = localYear ?? selectedYear;
 
   const restaurantIds = selectedRestaurants.length > 0
     ? selectedRestaurants
     : restaurants.map(r => r.id);
+
+  // REP check state
+  const { data: repData, loading: repLoading, errors: repErrors, progress: repProgress, checkMultiple } = useEcoOrganismCheck();
+  const [repChecked, setRepChecked] = useState(false);
+  const [scanningId, setScanningId] = useState<string | null>(null);
+  const isRepLoading = repProgress !== null;
+
+  // REP persistence & change tracking
+  const {
+    latestSnapshot, changes: repChanges, evolutionData: repEvolutionData,
+    loadingCache: repLoadingCache, saveSnapshot: saveRepSnapshot,
+  } = useRepCheckPersistence(restaurantIds);
+
+  // Auto-load cached results on mount
+  const cachedRepLoaded = useRef(false);
+  useEffect(() => {
+    if (!cachedRepLoaded.current && latestSnapshot && !repChecked && !repLoadingCache) {
+      cachedRepLoaded.current = true;
+      setRepChecked(true);
+    }
+  }, [latestSnapshot, repChecked, repLoadingCache]);
 
   const { monthlyData, byRestaurant, totals, detailLines, isLoading } = useEcoContribution({
     restaurantIds,
@@ -94,46 +110,66 @@ export function EcoContributionSection({
     return map;
   }, [restaurants]);
 
-  // Parse REP data per restaurant
+  // Parse REP data per restaurant — use live data if available, fall back to cached snapshot
   const repByRestaurant = useMemo<Map<string, ParsedRepData>>(() => {
     const map = new Map<string, ParsedRepData>();
+    const hasLiveData = Object.keys(repData).length > 0;
+
     for (const rId of restaurantIds) {
       if (!repChecked) {
         map.set(rId, { status: "unchecked", filiereCount: 0, orgs: [], iduEntries: [], entries: [] });
         continue;
       }
-      const result = repData[rId];
-      const error = repErrors[rId];
-      const loading = repLoading[rId];
 
-      if (loading) { map.set(rId, { status: "loading", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
-      if (error) { map.set(rId, { status: "error", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
-      if (!result) { map.set(rId, { status: "sans_siret", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
+      // Use live data if available
+      if (hasLiveData) {
+        const result = repData[rId];
+        const error = repErrors[rId];
+        const loading = repLoading[rId];
 
-      const hasResults = result.count > 0;
-      const iduEntries = result.idu_results || [];
-      const entries = result.results.map(r => {
-        const matchingIdu = iduEntries.find(i => i.filiere === r.filiere);
-        return {
-          filiere: r.filiere,
-          org: r.raison_sociale_ecoorganisme,
-          start: fmtDateShort(r.date_debutvalidite_inscription) || "—",
-          end: r.date_finvalidite_inscription,
-          isActive: !r.date_finvalidite_inscription || new Date(r.date_finvalidite_inscription) > new Date(),
-          idu: matchingIdu?.identifiant_unique,
-        };
-      });
+        if (loading) { map.set(rId, { status: "loading", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
+        if (error) { map.set(rId, { status: "error", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
+        if (!result) { map.set(rId, { status: "sans_siret", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
 
-      map.set(rId, {
-        status: hasResults ? "inscrit" : "non_trouve",
-        filiereCount: result.count,
-        orgs: [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))],
-        iduEntries,
-        entries,
-      });
+        const hasResults = result.count > 0;
+        const iduEntries = result.idu_results || [];
+        const entries = result.results.map(r => {
+          const matchingIdu = iduEntries.find(i => i.filiere === r.filiere);
+          return {
+            filiere: r.filiere,
+            org: r.raison_sociale_ecoorganisme,
+            start: fmtDateShort(r.date_debutvalidite_inscription) || "—",
+            end: r.date_finvalidite_inscription,
+            isActive: !r.date_finvalidite_inscription || new Date(r.date_finvalidite_inscription) > new Date(),
+            idu: matchingIdu?.identifiant_unique,
+          };
+        });
+
+        map.set(rId, {
+          status: hasResults ? "inscrit" : "non_trouve",
+          filiereCount: result.count,
+          orgs: [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))],
+          iduEntries,
+          entries,
+        });
+      } else if (latestSnapshot) {
+        // Fall back to cached snapshot
+        const cached = latestSnapshot.results[rId];
+        if (cached) {
+          map.set(rId, {
+            status: cached.status,
+            filiereCount: cached.filiereCount,
+            orgs: cached.orgs || [],
+            iduEntries: [],
+            entries: [],
+          });
+        } else {
+          map.set(rId, { status: "sans_siret", filiereCount: 0, orgs: [], iduEntries: [], entries: [] });
+        }
+      }
     }
     return map;
-  }, [restaurantIds, repData, repLoading, repErrors, repChecked]);
+  }, [restaurantIds, repData, repLoading, repErrors, repChecked, latestSnapshot]);
 
   const chartData = useMemo(() => {
     return monthlyData.map(d => ({
@@ -226,6 +262,9 @@ export function EcoContributionSection({
     prevScanningRef.current = scanningId;
   }, [scanningId, repData]);
 
+  const repDataRef = useRef(repData);
+  repDataRef.current = repData;
+
   const handleRepCheck = async () => {
     const { data: restData } = await supabase
       .from("restaurants")
@@ -236,8 +275,19 @@ export function EcoContributionSection({
       const items = restData.map((r: any) => ({ id: r.id, siret: r.siret }));
       await checkMultiple(items, setScanningId);
       setRepChecked(true);
+      // Save snapshot — use ref to get latest repData after checkMultiple completes
+      setTimeout(async () => {
+        await saveRepSnapshot(repDataRef.current, items);
+      }, 300);
     }
   };
+
+  // Map of changes for quick lookup
+  const repChangesMap = useMemo(() => {
+    const map = new Map<string, RepChangeInfo["changeType"]>();
+    repChanges.forEach(c => map.set(c.restaurant_id, c.changeType));
+    return map;
+  }, [repChanges]);
 
   const isExempt = totals.net >= 0;
 
@@ -464,7 +514,7 @@ export function EcoContributionSection({
                   <div className="min-w-0 flex-1">
                     <span className="text-xs font-semibold">Adhésion REP (éco-organismes)</span>
                     {repChecked && repStats && !isRepLoading && (
-                      <div className="flex items-center gap-3 mt-0.5">
+                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                         <span className="text-[10px] text-green-600 font-medium">
                           <ShieldCheck className="h-3 w-3 inline mr-0.5" />
                           {repStats.inscrit} inscrits
@@ -478,6 +528,20 @@ export function EcoContributionSection({
                         {repStats.sansSiret > 0 && (
                           <span className="text-[10px] text-muted-foreground">
                             {repStats.sansSiret} sans SIRET
+                          </span>
+                        )}
+                        {repChanges.length > 0 && (
+                          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 animate-fade-in">
+                            <Sparkles className="h-3 w-3 inline mr-0.5" />
+                            {repChanges.filter(c => c.changeType === "new_adherent").length > 0 &&
+                              `+${repChanges.filter(c => c.changeType === "new_adherent").length} nouveau(x)`}
+                            {repChanges.filter(c => c.changeType === "lost_adherent").length > 0 &&
+                              ` −${repChanges.filter(c => c.changeType === "lost_adherent").length} perdu(s)`}
+                          </span>
+                        )}
+                        {latestSnapshot && (
+                          <span className="text-[9px] text-muted-foreground/60 ml-auto">
+                            Dernière vérif. : {new Date(latestSnapshot.checked_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </span>
                         )}
                       </div>
@@ -498,7 +562,13 @@ export function EcoContributionSection({
                         </div>
                       </div>
                     )}
-                    {!repChecked && !isRepLoading && (
+                    {!repChecked && !isRepLoading && repLoadingCache && (
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Chargement des résultats précédents…
+                      </p>
+                    )}
+                    {!repChecked && !isRepLoading && !repLoadingCache && !latestSnapshot && (
                       <p className="text-[10px] text-muted-foreground">Vérifie l'inscription de vos restaurants aux filières REP via l'API ADEME</p>
                     )}
                   </div>
@@ -553,6 +623,7 @@ export function EcoContributionSection({
                           isEvenRow={idx % 2 === 0}
                           repData={repChecked ? repByRestaurant.get(r.restaurant_id) : undefined}
                           showRepColumn={repChecked}
+                          repChangeType={repChangesMap.get(r.restaurant_id)}
                           scanClass={
                             scanningId === r.restaurant_id
                               ? "bodacc-scanning"
@@ -662,6 +733,105 @@ export function EcoContributionSection({
           </Card>
         </Collapsible>
       )}
+
+      {/* ═══════════════ ZONE 5: REP Evolution Chart ═══════════════ */}
+      {repChecked && repEvolutionData.length >= 2 && (
+        <Collapsible>
+          <Card>
+            <CardContent className="pt-4 pb-3">
+              <CollapsibleTrigger className="flex items-center justify-between w-full group">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  Évolution des adhésions REP
+                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                    {repEvolutionData.length} vérifications
+                  </Badge>
+                </h3>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="h-[280px] mt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={repEvolutionData}>
+                      <defs>
+                        <linearGradient id="gradInscrits" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.05} />
+                        </linearGradient>
+                        <linearGradient id="gradNonTrouves" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        className="text-xs"
+                        tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                        axisLine={{ stroke: "hsl(var(--border))" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        className="text-xs"
+                        tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={35}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--background))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "10px",
+                          fontSize: "12px",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                          padding: "10px 14px",
+                        }}
+                        cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: "4 4" }}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }}
+                        iconType="circle"
+                        iconSize={8}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="inscrits"
+                        name="Adhérents"
+                        stroke="hsl(142, 76%, 36%)"
+                        fill="url(#gradInscrits)"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: "hsl(142, 76%, 36%)", stroke: "white", strokeWidth: 2 }}
+                        activeDot={{ r: 6 }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="nonTrouves"
+                        name="Non trouvés"
+                        stroke="hsl(0, 84%, 60%)"
+                        fill="url(#gradNonTrouves)"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: "hsl(0, 84%, 60%)", stroke: "white", strokeWidth: 2 }}
+                        activeDot={{ r: 6 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="sansSiret"
+                        name="Sans SIRET"
+                        stroke="hsl(var(--muted-foreground))"
+                        strokeWidth={1.5}
+                        strokeDasharray="4 4"
+                        dot={{ r: 3, fill: "hsl(var(--muted-foreground))" }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CollapsibleContent>
+            </CardContent>
+          </Card>
+        </Collapsible>
+      )}
     </div>
   );
 }
@@ -684,27 +854,45 @@ interface DetailLine {
   platform?: "uber_eats" | "deliveroo";
 }
 
-function RepStatusBadge({ repData }: { repData: ParsedRepData }) {
+function RepStatusBadge({ repData, changeType }: { repData: ParsedRepData; changeType?: "new_adherent" | "lost_adherent" }) {
   if (repData.status === "loading") {
     return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground mx-auto" />;
   }
   if (repData.status === "inscrit") {
     return (
-      <div className="flex items-center justify-center">
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-950/40 border border-green-300 dark:border-green-800 rounded-md px-2 py-0.5">
+      <div className="flex flex-col items-center gap-1">
+        <span className={cn(
+          "inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-950/40 border border-green-300 dark:border-green-800 rounded-md px-2 py-0.5",
+          changeType === "new_adherent" && "animate-rep-new ring-2 ring-green-400/50"
+        )}>
           <CheckCircle2 className="h-3 w-3" />
           Adhérent
         </span>
+        {changeType === "new_adherent" && (
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-green-600 animate-fade-in">
+            <Sparkles className="h-2.5 w-2.5" />
+            Nouveau
+          </span>
+        )}
       </div>
     );
   }
   if (repData.status === "non_trouve") {
     return (
-      <div className="flex items-center justify-center">
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 rounded-md px-2 py-0.5">
+      <div className="flex flex-col items-center gap-1">
+        <span className={cn(
+          "inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 rounded-md px-2 py-0.5",
+          changeType === "lost_adherent" && "animate-rep-lost ring-2 ring-red-400/50"
+        )}>
           <XCircle className="h-3 w-3" />
           Non adhérent
         </span>
+        {changeType === "lost_adherent" && (
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-red-500 animate-fade-in">
+            <ArrowDownCircle className="h-2.5 w-2.5" />
+            Perdu
+          </span>
+        )}
       </div>
     );
   }
@@ -789,6 +977,7 @@ function RestaurantDrilldown({
   isEvenRow = false,
   repData,
   showRepColumn = false,
+  repChangeType,
   scanClass,
 }: {
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
@@ -800,6 +989,7 @@ function RestaurantDrilldown({
   isEvenRow?: boolean;
   repData?: ParsedRepData;
   showRepColumn?: boolean;
+  repChangeType?: "new_adherent" | "lost_adherent";
   scanClass?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -865,7 +1055,7 @@ function RestaurantDrilldown({
         </TableCell>
         {showRepColumn && (
           <TableCell className="py-3">
-            {repData ? <RepStatusBadge repData={repData} /> : null}
+            {repData ? <RepStatusBadge repData={repData} changeType={repChangeType} /> : null}
           </TableCell>
         )}
         <TableCell className="text-right text-green-600 text-sm py-3">{fmt(r.refund)}</TableCell>
