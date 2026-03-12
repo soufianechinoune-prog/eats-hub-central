@@ -38,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Search, TrendingUp, Minus, MoreHorizontal, Trash2, Link2, Plus, Check, AlertTriangle, Download, FileSpreadsheet, FileText, Package, AlertCircle, Percent } from "lucide-react";
+import { Search, TrendingUp, Minus, MoreHorizontal, Trash2, Link2, Plus, Check, AlertTriangle, Download, FileSpreadsheet, FileText, Package, AlertCircle, Percent, FileDown } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -101,7 +101,7 @@ export function InterRestaurantComparison({
   const tableRef = useRef<HTMLDivElement>(null);
 
   // Export hook
-  const { exportToPdf, exportToExcel, isExporting } = useMenuComparisonExport();
+  const { exportToPdf, exportToExcel, exportToCsv, isExporting } = useMenuComparisonExport();
 
   // Edit price state
   const [editPriceOpen, setEditPriceOpen] = useState(false);
@@ -212,14 +212,15 @@ export function InterRestaurantComparison({
     return `${tva}%`;
   };
 
-  // Build export data
-  const buildExportData = () => {
+  // Build export data for selected or all restaurants
+  const buildExportData = (useAll = false) => {
+    const exportRestaurants = useAll ? restaurants : selectedRestaurants;
     const rows = filteredItems.map((item) => {
       const diff = platform === "uber" ? item.uberDifference : item.deliverooDifference;
       return {
         product: item.menuItemName,
         category: item.category,
-        prices: selectedRestaurants.map((r) => {
+        prices: exportRestaurants.map((r) => {
           const rp = item.restaurantPrices.find((p) => p.restaurantId === r.id);
           const price = platform === "uber" ? rp?.priceUber : rp?.priceDeliveroo;
           return {
@@ -233,7 +234,7 @@ export function InterRestaurantComparison({
 
     return {
       platform: platform === "uber" ? "Uber Eats" : "Deliveroo",
-      restaurants: selectedRestaurants.map((r) => getShortRestaurantName(r.name)),
+      restaurants: exportRestaurants.map((r) => getShortRestaurantName(r.name)),
       rows,
       stats: {
         totalProducts: stats.totalProducts,
@@ -247,8 +248,12 @@ export function InterRestaurantComparison({
     exportToPdf(tableRef.current, buildExportData());
   };
 
-  const handleExportExcel = () => {
-    exportToExcel(buildExportData());
+  const handleExportExcel = (useAll = false) => {
+    exportToExcel(buildExportData(useAll));
+  };
+
+  const handleExportCsv = (useAll = false) => {
+    exportToCsv(buildExportData(useAll));
   };
 
   // ---- Edit price handlers ----
@@ -550,15 +555,34 @@ export function InterRestaurantComparison({
                 Exporter
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportExcel} className="gap-2">
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Sélection ({selectedRestaurants.length} restaurants)</div>
+              <DropdownMenuItem onClick={() => handleExportExcel(false)} className="gap-2">
                 <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                Exporter en Excel
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportCsv(false)} className="gap-2">
+                <FileDown className="h-4 w-4 text-blue-600" />
+                CSV (.csv)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleExportPdf} className="gap-2">
                 <FileText className="h-4 w-4 text-red-600" />
-                Exporter en PDF
+                PDF
               </DropdownMenuItem>
+              {restaurants.length > selectedRestaurants.length && (
+                <>
+                  <div className="my-1 border-t" />
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Tous les restaurants ({restaurants.length})</div>
+                  <DropdownMenuItem onClick={() => handleExportExcel(true)} className="gap-2">
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                    Excel — Tous
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportCsv(true)} className="gap-2">
+                    <FileDown className="h-4 w-4 text-blue-600" />
+                    CSV — Tous
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
