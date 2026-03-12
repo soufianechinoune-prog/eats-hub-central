@@ -2301,6 +2301,39 @@ export type Database = {
           },
         ]
       }
+      rep_check_snapshots: {
+        Row: {
+          checked_at: string
+          created_at: string
+          id: string
+          inscrit_count: number
+          non_trouve_count: number
+          restaurant_count: number
+          results: Json
+          sans_siret_count: number
+        }
+        Insert: {
+          checked_at?: string
+          created_at?: string
+          id?: string
+          inscrit_count?: number
+          non_trouve_count?: number
+          restaurant_count?: number
+          results?: Json
+          sans_siret_count?: number
+        }
+        Update: {
+          checked_at?: string
+          created_at?: string
+          id?: string
+          inscrit_count?: number
+          non_trouve_count?: number
+          restaurant_count?: number
+          results?: Json
+          sans_siret_count?: number
+        }
+        Relationships: []
+      }
       report_templates: {
         Row: {
           created_at: string
