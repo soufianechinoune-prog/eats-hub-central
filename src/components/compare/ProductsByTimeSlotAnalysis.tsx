@@ -16,6 +16,7 @@ interface ProductsByTimeSlotAnalysisProps {
   startDate: string;
   endDate: string;
   restaurantNames?: string[];
+  platform?: string;
 }
 
 export const ProductsByTimeSlotAnalysis = ({
@@ -23,6 +24,7 @@ export const ProductsByTimeSlotAnalysis = ({
   startDate,
   endDate,
   restaurantNames = [],
+  platform = "global",
 }: ProductsByTimeSlotAnalysisProps) => {
   const { slotData, globalTopProducts, isLoading, totalOrders } = useProductsByTimeSlot(
     restaurantIds,
