@@ -147,6 +147,10 @@ interface SuccessScore {
 export default function SuccessScore() {
   const navigate = useNavigate();
   const [showBenefits, setShowBenefits] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string>("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [tierFilter, setTierFilter] = useState<string>("all");
 
   // Fetch latest success scores
   const { data: scores, isLoading, refetch } = useQuery({
