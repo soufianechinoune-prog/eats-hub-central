@@ -260,7 +260,7 @@ export function useMenuComparisonExport() {
       });
 
       drawFooter(currentPage, totalPages);
-      pdf.save(`comparaison_prix_${data.platform}_${new Date().toISOString().split("T")[0]}.pdf`);
+      pdf.save(buildFilename(data, "pdf"));
     } catch (error) {
       console.error("Error exporting PDF:", error);
     } finally {
