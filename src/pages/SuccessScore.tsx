@@ -178,6 +178,74 @@ export default function SuccessScore() {
     return scores.filter(s => s.score_month === latestMonth);
   }, [scores]);
 
+  // Filtered and sorted scores
+  const filteredSortedScores = useMemo(() => {
+    let filtered = latestScores;
+
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
+      filtered = filtered.filter(s => s.restaurants?.name?.toLowerCase().includes(lower));
+    }
+
+    if (tierFilter !== "all") {
+      filtered = filtered.filter(s => s.score_tier === tierFilter);
+    }
+
+    return [...filtered].sort((a, b) => {
+      let aVal: number | string = 0;
+      let bVal: number | string = 0;
+
+      switch (sortField) {
+        case "name":
+          aVal = a.restaurants?.name?.toLowerCase() || "";
+          bVal = b.restaurants?.name?.toLowerCase() || "";
+          return sortDirection === "asc" ? (aVal < bVal ? -1 : 1) : (aVal > bVal ? -1 : 1);
+        case "score":
+          const tierOrder: Record<string, number> = { Excellent: 1, Great: 2, Good: 3, Fair: 4, Poor: 5 };
+          aVal = tierOrder[a.score_tier] || 99;
+          bVal = tierOrder[b.score_tier] || 99;
+          break;
+        case "opex":
+          aVal = a.operational_excellence ?? -1;
+          bVal = b.operational_excellence ?? -1;
+          break;
+        case "ratings":
+          aVal = a.ratings ?? -1;
+          bVal = b.ratings ?? -1;
+          break;
+        case "menu":
+          aVal = a.menu_details ?? -1;
+          bVal = b.menu_details ?? -1;
+          break;
+        case "packaging":
+          aVal = a.sustainable_packaging ?? -1;
+          bVal = b.sustainable_packaging ?? -1;
+          break;
+        case "sales":
+          aVal = a.sales_amount ?? -1;
+          bVal = b.sales_amount ?? -1;
+          break;
+      }
+      return sortDirection === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+    });
+  }, [latestScores, searchTerm, tierFilter, sortField, sortDirection]);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection(field === "name" ? "asc" : "desc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3.5 w-3.5 ml-1 text-muted-foreground" />;
+    return sortDirection === "asc" 
+      ? <ArrowUp className="h-3.5 w-3.5 ml-1 text-primary" /> 
+      : <ArrowDown className="h-3.5 w-3.5 ml-1 text-primary" />;
+  };
+
   // Calculate network stats
   const networkStats = useMemo(() => {
     if (!latestScores.length) return null;
