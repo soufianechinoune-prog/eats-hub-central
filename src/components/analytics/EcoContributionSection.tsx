@@ -1033,7 +1033,7 @@ function RestaurantDrilldown({
         </TableCell>
         {showRepColumn && (
           <TableCell className="py-3">
-            {repData ? <RepStatusBadge repData={repData} /> : null}
+            {repData ? <RepStatusBadge repData={repData} changeType={repChangeType} /> : null}
           </TableCell>
         )}
         <TableCell className="text-right text-green-600 text-sm py-3">{fmt(r.refund)}</TableCell>
