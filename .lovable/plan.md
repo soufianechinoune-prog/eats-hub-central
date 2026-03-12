@@ -1,38 +1,25 @@
 
 
-## Problème identifié
+## Problem
 
-Les 4 KPIs en haut ("Heures moyennes/semaine", "CA moyen/heure", "Restaurants Uber", "Restaurants Deliveroo") dépendent **entièrement** de la table `restaurant_opening_hours`. Si un restaurant n'a pas d'horaires saisis, `restaurantStats` retourne un tableau vide (ligne 121 : `if (!openingHoursData?.length) return []`), d'où les 0 partout.
+The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
 
-Tu viens de supprimer l'éditeur d'horaires de la fiche restaurant — ces KPIs ne seront donc jamais alimentés pour les restaurants sans horaires pré-existants.
+## Solution
 
-## Solution proposée
+Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
 
-Rendre ces KPIs **indépendants** des horaires manuels en les basant sur les données de commandes réelles :
+### Changes
 
-### Changements dans `src/pages/OpeningHoursComparison.tsx`
+**`src/pages/Restaurants.tsx`**:
 
-1. **Supprimer la dépendance aux horaires pour `restaurantStats`** : retirer la condition `if (!openingHoursData?.length)` qui bloque tout. Les horaires deviennent optionnels (enrichissement si disponibles).
+1. Update the Supabase query to also fetch linked managers via a join:
+   ```
+   .select(`*, manager_restaurants(managers(first_name, last_name))`)
+   ```
 
-2. **Déduire les heures d'activité des commandes** : calculer les heures réelles d'activité à partir des timestamps de commandes via une nouvelle requête RPC ou en exploitant les données existantes de `revenueData` (qui contient déjà order_count et revenue par restaurant).
+2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
 
-3. **Remplacer les 4 KPIs** :
-   - **"Heures moyennes / semaine"** → Calculer les heures distinctes avec commandes (depuis `orders`), moyennées sur le nombre de semaines de la période
-   - **"CA moyen / heure"** → CA total / heures d'activité réelles (déduites des commandes)
-   - **"Restaurants Uber"** → Compter les restaurants avec commandes Uber dans la période (basé sur `orders.platform` ou présence dans la table orders)
-   - **"Restaurants Deliveroo"** → Idem pour Deliveroo (basé sur `deliveroo_orders`)
+3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
 
-4. **Nouvelle RPC `get_active_hours_summary`** (migration SQL) : agrège par restaurant le nombre d'heures distinctes avec au moins une commande, le nombre de semaines actives, et le décompte par plateforme. Cela évite de tout charger côté client.
-
-5. **Conserver la section heatmap des horaires** comme optionnelle : elle s'affiche seulement si des horaires manuels existent, sinon elle est masquée.
-
-### Migration SQL
-
-Créer une fonction RPC qui retourne pour chaque restaurant :
-- `distinct_active_hours` : nombre d'heures distinctes dans la période avec ≥1 commande
-- `active_weeks` : nombre de semaines avec ≥1 commande  
-- `avg_hours_per_week` : hours distinctes / semaines actives
-- `has_uber` / `has_deliveroo` : boolean basé sur la présence de commandes
-
-Cela garantit que les KPIs reflètent la **réalité opérationnelle** plutôt que des données saisies manuellement.
+This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
 
