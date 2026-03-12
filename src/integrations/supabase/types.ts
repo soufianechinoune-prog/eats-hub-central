@@ -3139,6 +3139,23 @@ export type Database = {
       }
     }
     Functions: {
+      get_active_hours_summary: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          active_weeks: number
+          avg_hours_per_week: number
+          distinct_active_hours: number
+          has_deliveroo: boolean
+          has_uber: boolean
+          restaurant_id: string
+          total_orders: number
+          total_revenue: number
+        }[]
+      }
       get_availability_by_restaurant: {
         Args: {
           p_end_date: string
