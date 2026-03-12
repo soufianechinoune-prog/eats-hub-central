@@ -110,46 +110,66 @@ export function EcoContributionSection({
     return map;
   }, [restaurants]);
 
-  // Parse REP data per restaurant
+  // Parse REP data per restaurant — use live data if available, fall back to cached snapshot
   const repByRestaurant = useMemo<Map<string, ParsedRepData>>(() => {
     const map = new Map<string, ParsedRepData>();
+    const hasLiveData = Object.keys(repData).length > 0;
+
     for (const rId of restaurantIds) {
       if (!repChecked) {
         map.set(rId, { status: "unchecked", filiereCount: 0, orgs: [], iduEntries: [], entries: [] });
         continue;
       }
-      const result = repData[rId];
-      const error = repErrors[rId];
-      const loading = repLoading[rId];
 
-      if (loading) { map.set(rId, { status: "loading", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
-      if (error) { map.set(rId, { status: "error", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
-      if (!result) { map.set(rId, { status: "sans_siret", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
+      // Use live data if available
+      if (hasLiveData) {
+        const result = repData[rId];
+        const error = repErrors[rId];
+        const loading = repLoading[rId];
 
-      const hasResults = result.count > 0;
-      const iduEntries = result.idu_results || [];
-      const entries = result.results.map(r => {
-        const matchingIdu = iduEntries.find(i => i.filiere === r.filiere);
-        return {
-          filiere: r.filiere,
-          org: r.raison_sociale_ecoorganisme,
-          start: fmtDateShort(r.date_debutvalidite_inscription) || "—",
-          end: r.date_finvalidite_inscription,
-          isActive: !r.date_finvalidite_inscription || new Date(r.date_finvalidite_inscription) > new Date(),
-          idu: matchingIdu?.identifiant_unique,
-        };
-      });
+        if (loading) { map.set(rId, { status: "loading", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
+        if (error) { map.set(rId, { status: "error", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
+        if (!result) { map.set(rId, { status: "sans_siret", filiereCount: 0, orgs: [], iduEntries: [], entries: [] }); continue; }
 
-      map.set(rId, {
-        status: hasResults ? "inscrit" : "non_trouve",
-        filiereCount: result.count,
-        orgs: [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))],
-        iduEntries,
-        entries,
-      });
+        const hasResults = result.count > 0;
+        const iduEntries = result.idu_results || [];
+        const entries = result.results.map(r => {
+          const matchingIdu = iduEntries.find(i => i.filiere === r.filiere);
+          return {
+            filiere: r.filiere,
+            org: r.raison_sociale_ecoorganisme,
+            start: fmtDateShort(r.date_debutvalidite_inscription) || "—",
+            end: r.date_finvalidite_inscription,
+            isActive: !r.date_finvalidite_inscription || new Date(r.date_finvalidite_inscription) > new Date(),
+            idu: matchingIdu?.identifiant_unique,
+          };
+        });
+
+        map.set(rId, {
+          status: hasResults ? "inscrit" : "non_trouve",
+          filiereCount: result.count,
+          orgs: [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))],
+          iduEntries,
+          entries,
+        });
+      } else if (latestSnapshot) {
+        // Fall back to cached snapshot
+        const cached = latestSnapshot.results[rId];
+        if (cached) {
+          map.set(rId, {
+            status: cached.status,
+            filiereCount: cached.filiereCount,
+            orgs: cached.orgs || [],
+            iduEntries: [],
+            entries: [],
+          });
+        } else {
+          map.set(rId, { status: "sans_siret", filiereCount: 0, orgs: [], iduEntries: [], entries: [] });
+        }
+      }
     }
     return map;
-  }, [restaurantIds, repData, repLoading, repErrors, repChecked]);
+  }, [restaurantIds, repData, repLoading, repErrors, repChecked, latestSnapshot]);
 
   const chartData = useMemo(() => {
     return monthlyData.map(d => ({
