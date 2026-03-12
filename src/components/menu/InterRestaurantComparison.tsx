@@ -101,7 +101,7 @@ export function InterRestaurantComparison({
   const tableRef = useRef<HTMLDivElement>(null);
 
   // Export hook
-  const { exportToPdf, exportToExcel, isExporting } = useMenuComparisonExport();
+  const { exportToPdf, exportToExcel, exportToCsv, isExporting } = useMenuComparisonExport();
 
   // Edit price state
   const [editPriceOpen, setEditPriceOpen] = useState(false);
