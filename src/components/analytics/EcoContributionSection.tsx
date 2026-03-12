@@ -73,6 +73,21 @@ export function EcoContributionSection({
   const [scanningId, setScanningId] = useState<string | null>(null);
   const isRepLoading = repProgress !== null;
 
+  // REP persistence & change tracking
+  const {
+    latestSnapshot, changes: repChanges, evolutionData: repEvolutionData,
+    loadingCache: repLoadingCache, saveSnapshot: saveRepSnapshot,
+  } = useRepCheckPersistence(restaurantIds);
+
+  // Auto-load cached results on mount
+  const cachedRepLoaded = useRef(false);
+  useEffect(() => {
+    if (!cachedRepLoaded.current && latestSnapshot && !repChecked && !repLoadingCache) {
+      cachedRepLoaded.current = true;
+      setRepChecked(true);
+    }
+  }, [latestSnapshot, repChecked, repLoadingCache]);
+
   const isHistorique = localYear === null;
   const effectiveYear = localYear ?? selectedYear;
 
