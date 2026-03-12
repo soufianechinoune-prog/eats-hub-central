@@ -203,7 +203,7 @@ const OpeningHoursComparison = () => {
 
         <AnalyticsHeader />
 
-        {visibleRestaurants.length === 0 ? (
+        {activeRestaurantIds.length === 0 ? (
           <Card className="backdrop-blur-xl bg-muted/30 border-border/50">
             <CardContent className="pt-6 text-center text-muted-foreground">
               <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
