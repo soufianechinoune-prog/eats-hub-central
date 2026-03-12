@@ -11,8 +11,6 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { formatPhoneNumber } from "@/lib/utils";
-import OpeningHoursEditor from "@/components/restaurants/OpeningHoursEditor";
-import { OpeningHoursAnalytics } from "@/components/restaurants/OpeningHoursAnalytics";
 import { RestaurantDocuments } from "@/components/restaurants/RestaurantDocuments";
 import { SiretValidation, type SiretAutoFillData } from "@/components/restaurants/SiretValidation";
 import { BodaccAlerts } from "@/components/restaurants/BodaccAlerts";
