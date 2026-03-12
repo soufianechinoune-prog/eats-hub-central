@@ -555,15 +555,34 @@ export function InterRestaurantComparison({
                 Exporter
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportExcel} className="gap-2">
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Sélection ({selectedRestaurants.length} restaurants)</div>
+              <DropdownMenuItem onClick={() => handleExportExcel(false)} className="gap-2">
                 <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                Exporter en Excel
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportCsv(false)} className="gap-2">
+                <FileDown className="h-4 w-4 text-blue-600" />
+                CSV (.csv)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleExportPdf} className="gap-2">
                 <FileText className="h-4 w-4 text-red-600" />
-                Exporter en PDF
+                PDF
               </DropdownMenuItem>
+              {restaurants.length > selectedRestaurants.length && (
+                <>
+                  <div className="my-1 border-t" />
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Tous les restaurants ({restaurants.length})</div>
+                  <DropdownMenuItem onClick={() => handleExportExcel(true)} className="gap-2">
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                    Excel — Tous
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportCsv(true)} className="gap-2">
+                    <FileDown className="h-4 w-4 text-blue-600" />
+                    CSV — Tous
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
