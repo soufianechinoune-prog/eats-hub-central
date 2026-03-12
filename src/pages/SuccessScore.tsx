@@ -638,10 +638,39 @@ export default function SuccessScore() {
       {/* Restaurant Details Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Détail par Restaurant
-          </CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Détail par Restaurant
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 h-8 w-[200px] text-sm"
+                />
+              </div>
+              <Select value={tierFilter} onValueChange={setTierFilter}>
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue placeholder="Tous les scores" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous</SelectItem>
+                  <SelectItem value="Excellent">Excellent</SelectItem>
+                  <SelectItem value="Great">Très Bon</SelectItem>
+                  <SelectItem value="Good">Bon</SelectItem>
+                  <SelectItem value="Fair">Correct</SelectItem>
+                  <SelectItem value="Poor">Insuffisant</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {filteredSortedScores.length}/{latestScores.length}
+              </span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -658,17 +687,45 @@ export default function SuccessScore() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Restaurant</TableHead>
-                  <TableHead className="text-center">Score</TableHead>
-                  <TableHead className="text-center">Excellence Op.</TableHead>
-                  <TableHead className="text-center">Notes</TableHead>
-                  <TableHead className="text-center">Détails Menu</TableHead>
-                  <TableHead className="text-center">Emballage</TableHead>
-                  <TableHead className="text-center">CA</TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent" onClick={() => handleSort("name")}>
+                      Restaurant <SortIcon field="name" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent" onClick={() => handleSort("score")}>
+                      Score <SortIcon field="score" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent" onClick={() => handleSort("opex")}>
+                      Excellence Op. <SortIcon field="opex" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent" onClick={() => handleSort("ratings")}>
+                      Notes <SortIcon field="ratings" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent" onClick={() => handleSort("menu")}>
+                      Détails Menu <SortIcon field="menu" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent" onClick={() => handleSort("packaging")}>
+                      Emballage <SortIcon field="packaging" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent" onClick={() => handleSort("sales")}>
+                      CA <SortIcon field="sales" />
+                    </Button>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {latestScores.map((score) => {
+                {filteredSortedScores.map((score) => {
                   const progress = getProgressToNextTier(score);
                   const config = TIER_CONFIG[score.score_tier as keyof typeof TIER_CONFIG] || TIER_CONFIG.Fair;
                   
