@@ -709,11 +709,11 @@ export function InterRestaurantComparison({
               ))}
             </div>
           ) : (
-            <div ref={tableRef} className="border rounded-xl overflow-hidden shadow-sm bg-background">
+            <div ref={tableRef} className="border rounded-xl overflow-hidden shadow-sm bg-background max-h-[70vh] overflow-y-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="w-[250px] font-semibold">Produit</TableHead>
+                    <TableHead className="w-[250px] font-semibold bg-muted/30">Produit</TableHead>
                     {selectedRestaurants.map((restaurant) => (
                       <TableHead key={restaurant.id} className="text-center min-w-[120px] font-semibold">
                         {getShortRestaurantName(restaurant.name)}
