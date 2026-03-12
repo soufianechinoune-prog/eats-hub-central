@@ -544,11 +544,6 @@ const RestaurantDetail = () => {
       {/* Documents */}
       <RestaurantDocuments restaurantId={id!} />
 
-      {/* Opening Hours Analytics */}
-      <OpeningHoursAnalytics restaurantId={id!} restaurantName={restaurant.name} />
-
-      {/* Opening Hours Editor */}
-      <OpeningHoursEditor restaurantId={id!} />
 
 
       {/* Active Status */}
