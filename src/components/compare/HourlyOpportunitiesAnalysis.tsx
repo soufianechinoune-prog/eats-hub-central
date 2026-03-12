@@ -74,6 +74,7 @@ export const HourlyOpportunitiesAnalysis = ({
   startDate, 
   endDate,
   restaurantNames = [],
+  platform = "global",
 }: HourlyOpportunitiesAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('orders');
