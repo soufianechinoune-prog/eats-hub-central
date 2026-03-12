@@ -838,21 +838,39 @@ function RepStatusBadge({ repData, changeType }: { repData: ParsedRepData; chang
   }
   if (repData.status === "inscrit") {
     return (
-      <div className="flex items-center justify-center">
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-950/40 border border-green-300 dark:border-green-800 rounded-md px-2 py-0.5">
+      <div className="flex flex-col items-center gap-1">
+        <span className={cn(
+          "inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-950/40 border border-green-300 dark:border-green-800 rounded-md px-2 py-0.5",
+          changeType === "new_adherent" && "animate-rep-new ring-2 ring-green-400/50"
+        )}>
           <CheckCircle2 className="h-3 w-3" />
           Adhérent
         </span>
+        {changeType === "new_adherent" && (
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-green-600 animate-fade-in">
+            <Sparkles className="h-2.5 w-2.5" />
+            Nouveau
+          </span>
+        )}
       </div>
     );
   }
   if (repData.status === "non_trouve") {
     return (
-      <div className="flex items-center justify-center">
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 rounded-md px-2 py-0.5">
+      <div className="flex flex-col items-center gap-1">
+        <span className={cn(
+          "inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-800 rounded-md px-2 py-0.5",
+          changeType === "lost_adherent" && "animate-rep-lost ring-2 ring-red-400/50"
+        )}>
           <XCircle className="h-3 w-3" />
           Non adhérent
         </span>
+        {changeType === "lost_adherent" && (
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-red-500 animate-fade-in">
+            <ArrowDownCircle className="h-2.5 w-2.5" />
+            Perdu
+          </span>
+        )}
       </div>
     );
   }
