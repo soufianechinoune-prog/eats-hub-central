@@ -1,5 +1,6 @@
 import { InterRestaurantComparison } from "./InterRestaurantComparison";
 import { RestaurantMenuImportDialog } from "./RestaurantMenuImportDialog";
+import { BulkPriceImportDialog } from "./BulkPriceImportDialog";
 import { useRestaurantMenuPrices } from "@/hooks/useRestaurantMenuPrices";
 
 interface RestaurantPriceComparisonProps {
@@ -23,7 +24,10 @@ export function RestaurantPriceComparison({
             Comparez les prix d'un même produit entre différents restaurants sur une même plateforme
           </p>
         </div>
-        <RestaurantMenuImportDialog restaurants={restaurants} />
+        <div className="flex gap-2">
+          <BulkPriceImportDialog />
+          <RestaurantMenuImportDialog restaurants={restaurants} />
+        </div>
       </div>
 
       {/* Inter-Restaurant Comparison */}

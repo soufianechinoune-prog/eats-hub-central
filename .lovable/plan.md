@@ -1,47 +1,25 @@
 
 
-## Analyse des fichiers uploadés
+## Problem
 
-Le format CSV/Excel est parfait. La structure est claire :
-- Colonnes : Produit, Catégorie, puis une colonne par restaurant avec le prix
-- Cases vides = pas de tarif trouvé
+The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
 
-Les deux fichiers (Excel et CSV) contiennent exactement les mêmes données : 135 produits × 8 restaurants (Bonneuil, Antony, Reims, Lille Wazemmes, Toulouse, Lyon Ste Catherine, Marseille, Nantes).
+## Solution
 
-## Ce que je propose
+Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
 
-Le **CSV** est le format idéal — plus léger, plus simple à parser. Le format actuel avec `;` comme séparateur et `,` pour les décimales est parfait.
+### Changes
 
-### Import en masse via CSV
+**`src/pages/Restaurants.tsx`**:
 
-Créer une fonctionnalité d'import CSV multi-restaurants sur la page Menu Items qui :
+1. Update the Supabase query to also fetch linked managers via a join:
+   ```
+   .select(`*, manager_restaurants(managers(first_name, last_name))`)
+   ```
 
-1. **Parse le CSV** en détectant automatiquement les noms de restaurants dans les en-têtes de colonnes
-2. **Match les noms de restaurants** du CSV avec ceux en base (fuzzy matching sur la ville : "Bonneuil" → "CS Bonneuil", "Antony" → "CS Antony", etc.)
-3. **Match les noms de produits** du CSV avec les `menu_items` existants (même fuzzy matching qu'aujourd'hui)
-4. **Affiche un récapitulatif** avant import : nombre de produits matchés, restaurants reconnus, cases vides ignorées
-5. **Insère/met à jour** les prix dans `restaurant_menu_prices` pour chaque couple restaurant × produit
+2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
 
-### Format CSV attendu
+3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
 
-```text
-Produit;Catégorie;NomVille1;NomVille2;...
-Frites;À la carte;3,75;3,57;...
-```
-
-- Séparateur `;`
-- Décimales avec `,`
-- Cases vides = produit non disponible dans ce restaurant
-- Colonnes "Écart %" et "Écart €" ignorées à l'import
-
-### Fichiers à modifier
-
-- **Nouveau** : `src/components/menu/BulkPriceImportDialog.tsx` — Dialog d'import CSV multi-restaurants avec :
-  - Upload fichier CSV
-  - Détection auto des restaurants en en-têtes
-  - Interface de mapping restaurant CSV ↔ restaurant en base
-  - Aperçu des données parsées
-  - Bouton d'import avec upsert en base
-- **Modifier** : `src/components/menu/RestaurantPriceComparison.tsx` — Ajouter le bouton "Import CSV multi-restaurants" à côté du bouton existant
-- **Plateforme** : L'import sera pour Uber Eats par défaut (puisque les données viennent de là), avec option de choisir Deliveroo
+This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
 
