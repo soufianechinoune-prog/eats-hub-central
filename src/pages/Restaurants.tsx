@@ -535,15 +535,15 @@ const Restaurants = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
+                    <TableCell className="whitespace-nowrap" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.manager_whatsapp ? (
                         <div className="flex items-center gap-1.5 text-sm">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           {restaurant.manager_whatsapp}
                         </div>
                       ) : restaurant.restaurant_phone ? (
                         <div className="flex items-center gap-1.5 text-sm">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           {restaurant.restaurant_phone}
                         </div>
                       ) : (
