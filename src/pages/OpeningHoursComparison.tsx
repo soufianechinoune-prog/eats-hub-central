@@ -82,13 +82,13 @@ const OpeningHoursComparison = () => {
 
   // Fetch opening hours (optional, for heatmap only)
   const { data: openingHoursData } = useQuery({
-    queryKey: ["opening-hours-comparison", visibleRestaurants, selectedPlatform],
+    queryKey: ["opening-hours-comparison", activeRestaurantIds, selectedPlatform],
     queryFn: async () => {
-      if (!visibleRestaurants.length) return [];
+      if (!activeRestaurantIds.length) return [];
       let query = supabase
         .from("restaurant_opening_hours")
         .select("restaurant_id, platform, day_of_week, start_time, end_time, is_overnight")
-        .in("restaurant_id", visibleRestaurants);
+        .in("restaurant_id", activeRestaurantIds);
       if (selectedPlatform !== "global") {
         query = query.eq("platform", selectedPlatform);
       }
@@ -96,7 +96,7 @@ const OpeningHoursComparison = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: visibleRestaurants.length > 0,
+    enabled: activeRestaurantIds.length > 0,
   });
 
   // Process data for each restaurant using active hours RPC
