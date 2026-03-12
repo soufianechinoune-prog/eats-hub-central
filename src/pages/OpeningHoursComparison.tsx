@@ -189,7 +189,7 @@ const OpeningHoursComparison = () => {
   );
 
   const isLoading =
-    loadingRestaurants || (visibleRestaurants.length > 0 && pendingActiveHours);
+    loadingRestaurants || (activeRestaurantIds.length > 0 && pendingActiveHours);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
