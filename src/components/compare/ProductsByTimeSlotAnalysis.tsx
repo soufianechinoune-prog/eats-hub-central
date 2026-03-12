@@ -16,6 +16,7 @@ interface ProductsByTimeSlotAnalysisProps {
   startDate: string;
   endDate: string;
   restaurantNames?: string[];
+  platform?: string;
 }
 
 export const ProductsByTimeSlotAnalysis = ({
@@ -23,6 +24,7 @@ export const ProductsByTimeSlotAnalysis = ({
   startDate,
   endDate,
   restaurantNames = [],
+  platform = "global",
 }: ProductsByTimeSlotAnalysisProps) => {
   const { slotData, globalTopProducts, isLoading, totalOrders } = useProductsByTimeSlot(
     restaurantIds,
@@ -38,6 +40,18 @@ export const ProductsByTimeSlotAnalysis = ({
           <div className="flex items-center justify-center h-32">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (platform === "deliveroo") {
+    return (
+      <Card className="backdrop-blur-xl bg-muted/30 border-border/50">
+        <CardContent className="pt-6 text-center text-muted-foreground">
+          <ShoppingBag className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <p>Détail produit non disponible pour Deliveroo</p>
+          <p className="text-sm">Les données Deliveroo ne contiennent pas le détail des articles commandés</p>
         </CardContent>
       </Card>
     );

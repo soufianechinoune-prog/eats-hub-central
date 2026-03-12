@@ -34,6 +34,7 @@ interface HourlyOpportunitiesAnalysisProps {
   startDate: string;
   endDate: string;
   restaurantNames?: string[];
+  platform?: string;
 }
 
 interface HourlyData {
@@ -73,6 +74,7 @@ export const HourlyOpportunitiesAnalysis = ({
   startDate, 
   endDate,
   restaurantNames = [],
+  platform = "global",
 }: HourlyOpportunitiesAnalysisProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('orders');
@@ -84,7 +86,7 @@ export const HourlyOpportunitiesAnalysis = ({
   
   // Fetch hourly order data using RPC function (avoids 1000 row limit)
   const { data: hourlyData, isLoading } = useQuery({
-    queryKey: ["hourly-orders-rpc", restaurants.map(r => r.id), startDate, endDate],
+    queryKey: ["hourly-orders-rpc", restaurants.map(r => r.id), startDate, endDate, platform],
     queryFn: async () => {
       if (!restaurants?.length) return [];
       
@@ -93,6 +95,7 @@ export const HourlyOpportunitiesAnalysis = ({
           p_restaurant_ids: restaurants.map(r => r.id),
           p_start_date: startDate,
           p_end_date: endDate,
+          p_platform: platform === "global" ? null : platform,
         });
       
       if (error) throw error;
