@@ -245,17 +245,44 @@ export function InterRestaurantComparison({
   };
 
   // Fetch ALL restaurant prices on-demand for full network export
+  const fetchAllRestaurantPrices = async (restaurantIds: string[]) => {
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    const allRows: Array<{
+      restaurant_id: string;
+      menu_item_id: string;
+      price_uber: number | null;
+      price_deliveroo: number | null;
+    }> = [];
+
+    while (true) {
+      const { data, error } = await supabase
+        .from("restaurant_menu_prices")
+        .select("restaurant_id, menu_item_id, price_uber, price_deliveroo")
+        .in("restaurant_id", restaurantIds)
+        .order("menu_item_id", { ascending: true })
+        .order("restaurant_id", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      allRows.push(...data);
+
+      if (data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+
+    return allRows;
+  };
+
   const buildAllRestaurantsExportData = async () => {
     const allRestaurantIds = restaurants.map((r) => r.id);
 
-    // Fetch all prices from DB
-    const { data: allPrices } = await supabase
-      .from("restaurant_menu_prices")
-      .select("restaurant_id, menu_item_id, price_uber, price_deliveroo")
-      .in("restaurant_id", allRestaurantIds);
+    const allPrices = await fetchAllRestaurantPrices(allRestaurantIds);
 
     const priceMap = new Map<string, Map<string, { uber: number | null; deliveroo: number | null }>>();
-    allPrices?.forEach((p: any) => {
+    allPrices.forEach((p) => {
       if (!priceMap.has(p.menu_item_id)) priceMap.set(p.menu_item_id, new Map());
       priceMap.get(p.menu_item_id)!.set(p.restaurant_id, {
         uber: p.price_uber,
@@ -298,20 +325,30 @@ export function InterRestaurantComparison({
   };
 
   const handleExportExcel = async (useAll = false) => {
-    if (useAll) {
-      const data = await buildAllRestaurantsExportData();
-      exportToExcel(data);
-    } else {
-      exportToExcel(buildExportData());
+    try {
+      if (useAll) {
+        const data = await buildAllRestaurantsExportData();
+        exportToExcel(data);
+      } else {
+        exportToExcel(buildExportData());
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur lors de l'export Excel");
     }
   };
 
   const handleExportCsv = async (useAll = false) => {
-    if (useAll) {
-      const data = await buildAllRestaurantsExportData();
-      exportToCsv(data);
-    } else {
-      exportToCsv(buildExportData());
+    try {
+      if (useAll) {
+        const data = await buildAllRestaurantsExportData();
+        exportToCsv(data);
+      } else {
+        exportToCsv(buildExportData());
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur lors de l'export CSV");
     }
   };
 
