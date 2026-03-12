@@ -220,7 +220,7 @@ export function EcoContributionSection({
   const absCharge = Math.abs(totals.charge);
   const recoveryRatio = absCharge > 0 ? Math.round((totals.refund / absCharge) * 100) : 0;
 
-  const displayedRestaurants = showAll ? filteredRestaurants : filteredRestaurants.slice(0, 20);
+  const displayedRestaurants = filteredRestaurants;
 
   const handleExport = (type: "pdf" | "excel") => {
     const exportRestaurants = sortedRestaurants.map(r => ({
