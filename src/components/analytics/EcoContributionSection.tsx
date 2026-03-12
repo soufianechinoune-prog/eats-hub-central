@@ -832,7 +832,7 @@ interface DetailLine {
   platform?: "uber_eats" | "deliveroo";
 }
 
-function RepStatusBadge({ repData }: { repData: ParsedRepData }) {
+function RepStatusBadge({ repData, changeType }: { repData: ParsedRepData; changeType?: "new_adherent" | "lost_adherent" }) {
   if (repData.status === "loading") {
     return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground mx-auto" />;
   }
