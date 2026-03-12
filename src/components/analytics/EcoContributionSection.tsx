@@ -262,6 +262,9 @@ export function EcoContributionSection({
     prevScanningRef.current = scanningId;
   }, [scanningId, repData]);
 
+  const repDataRef = useRef(repData);
+  repDataRef.current = repData;
+
   const handleRepCheck = async () => {
     const { data: restData } = await supabase
       .from("restaurants")
@@ -272,11 +275,10 @@ export function EcoContributionSection({
       const items = restData.map((r: any) => ({ id: r.id, siret: r.siret }));
       await checkMultiple(items, setScanningId);
       setRepChecked(true);
-      // Save snapshot for persistence & change tracking
-      // Use a small delay to ensure repData state is updated
+      // Save snapshot — use ref to get latest repData after checkMultiple completes
       setTimeout(async () => {
-        await saveRepSnapshot(repData, items);
-      }, 500);
+        await saveRepSnapshot(repDataRef.current, items);
+      }, 300);
     }
   };
 
