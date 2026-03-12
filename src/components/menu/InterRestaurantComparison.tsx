@@ -212,15 +212,14 @@ export function InterRestaurantComparison({
     return `${tva}%`;
   };
 
-  // Build export data for selected or all restaurants
-  const buildExportData = (useAll = false) => {
-    const exportRestaurants = useAll ? restaurants : selectedRestaurants;
+  // Build export data for selected restaurants (already loaded)
+  const buildExportData = () => {
     const rows = filteredItems.map((item) => {
       const diff = platform === "uber" ? item.uberDifference : item.deliverooDifference;
       return {
         product: item.menuItemName,
         category: item.category,
-        prices: exportRestaurants.map((r) => {
+        prices: selectedRestaurants.map((r) => {
           const rp = item.restaurantPrices.find((p) => p.restaurantId === r.id);
           const price = platform === "uber" ? rp?.priceUber : rp?.priceDeliveroo;
           return {
@@ -234,9 +233,58 @@ export function InterRestaurantComparison({
 
     return {
       platform: platform === "uber" ? "Uber Eats" : "Deliveroo",
-      restaurants: exportRestaurants.map((r) => getShortRestaurantName(r.name)),
+      restaurants: selectedRestaurants.map((r) => getShortRestaurantName(r.name)),
       rows,
-      isAllRestaurants: useAll,
+      isAllRestaurants: false,
+      stats: {
+        totalProducts: stats.totalProducts,
+        productsWithDiff: currentStats.withDiff,
+        avgDiff: currentStats.avgDiff,
+      },
+    };
+  };
+
+  // Fetch ALL restaurant prices on-demand for full network export
+  const buildAllRestaurantsExportData = async () => {
+    const allRestaurantIds = restaurants.map((r) => r.id);
+
+    // Fetch all prices from DB
+    const { data: allPrices } = await supabase
+      .from("restaurant_menu_prices")
+      .select("restaurant_id, menu_item_id, price_uber, price_deliveroo")
+      .in("restaurant_id", allRestaurantIds);
+
+    const priceMap = new Map<string, Map<string, { uber: number | null; deliveroo: number | null }>>();
+    allPrices?.forEach((p: any) => {
+      if (!priceMap.has(p.menu_item_id)) priceMap.set(p.menu_item_id, new Map());
+      priceMap.get(p.menu_item_id)!.set(p.restaurant_id, {
+        uber: p.price_uber,
+        deliveroo: p.price_deliveroo,
+      });
+    });
+
+    const rows = filteredItems.map((item) => {
+      const itemPrices = priceMap.get(item.menuItemId);
+      return {
+        product: item.menuItemName,
+        category: item.category,
+        prices: restaurants.map((r) => {
+          const rp = itemPrices?.get(r.id);
+          const price = platform === "uber" ? rp?.uber : rp?.deliveroo;
+          return {
+            restaurant: getShortRestaurantName(r.name),
+            price: formatPrice(price ?? null),
+          };
+        }),
+        difference: "0%",
+      };
+    });
+
+    return {
+      platform: platform === "uber" ? "Uber Eats" : "Deliveroo",
+      restaurants: restaurants.map((r) => getShortRestaurantName(r.name)),
+      rows,
+      isAllRestaurants: true,
       stats: {
         totalProducts: stats.totalProducts,
         productsWithDiff: currentStats.withDiff,
@@ -249,12 +297,22 @@ export function InterRestaurantComparison({
     exportToPdf(tableRef.current, buildExportData());
   };
 
-  const handleExportExcel = (useAll = false) => {
-    exportToExcel(buildExportData(useAll));
+  const handleExportExcel = async (useAll = false) => {
+    if (useAll) {
+      const data = await buildAllRestaurantsExportData();
+      exportToExcel(data);
+    } else {
+      exportToExcel(buildExportData());
+    }
   };
 
-  const handleExportCsv = (useAll = false) => {
-    exportToCsv(buildExportData(useAll));
+  const handleExportCsv = async (useAll = false) => {
+    if (useAll) {
+      const data = await buildAllRestaurantsExportData();
+      exportToCsv(data);
+    } else {
+      exportToCsv(buildExportData());
+    }
   };
 
   // ---- Edit price handlers ----
