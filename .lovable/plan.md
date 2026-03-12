@@ -1,25 +1,66 @@
 
 
-## Problem
+## Diagnostic
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+### 1. Même stats Uber / Deliveroo — pourquoi ?
 
-## Solution
+Trois problèmes identifiés :
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+- **`get_active_hours_summary`** (KPIs du haut) : ne requête que la table `orders` (Uber). Le filtre `selectedPlatform` n'est **pas transmis** à la RPC. Résultat : toujours les mêmes chiffres.
+- **`get_hourly_order_performance`** (Performance par créneau) : requête uniquement `order_history` (Uber). Deliveroo est ignoré.
+- **`get_products_by_time_slot`** (Top Produits) : requête uniquement `order_items` (Uber). Deliveroo est ignoré.
 
-### Changes
+### 2. Produits Deliveroo — données disponibles ?
 
-**`src/pages/Restaurants.tsx`**:
+**Non.** La table `deliveroo_orders` ne contient que des données au niveau commande (montant, commission, type). Il n'y a **pas de table `deliveroo_order_items`** avec le détail des produits. On ne peut donc pas croiser les produits Deliveroo avec ceux d'Uber.
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+En revanche, on **peut** inclure les commandes et revenus Deliveroo dans l'analyse par créneau horaire (nombre de commandes, CA, panier moyen par slot).
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+---
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+## Plan de correction
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+### A. RPC `get_active_hours_summary` — ajouter filtre plateforme + données Deliveroo
+
+Modifier la fonction pour :
+1. Accepter un paramètre `p_platform` (text, nullable)
+2. Si `'uber_eats'` → ne requêter que `orders`
+3. Si `'deliveroo'` → ne requêter que `deliveroo_orders`
+4. Si `'global'` ou NULL → combiner les deux tables (UNION ALL des heures distinctes)
+5. Calculer `total_revenue` et `total_orders` en incluant Deliveroo quand applicable
+
+### B. RPC `get_hourly_order_performance` — ajouter Deliveroo
+
+Modifier pour :
+1. Accepter `p_platform` (text)
+2. En mode `deliveroo` : requêter `deliveroo_orders.delivery_datetime`
+3. En mode `global` : UNION ALL des deux sources
+4. Le revenue Deliveroo = `order_amount`
+
+### C. Frontend `OpeningHoursComparison.tsx`
+
+- Passer `selectedPlatform` aux appels RPC
+- Ajouter `selectedPlatform` dans les queryKeys
+
+### D. Frontend `HourlyOpportunitiesAnalysis.tsx`
+
+- Recevoir `selectedPlatform` en prop
+- Le passer à l'appel RPC
+
+### E. Section "Top Produits par créneau"
+
+- **Pas de changement pour Deliveroo** : la data produit n'existe pas
+- Quand `selectedPlatform === 'deliveroo'` → afficher un message "Détail produit non disponible pour Deliveroo"
+- Quand `global` → afficher les produits Uber uniquement (comportement actuel) avec une mention
+
+---
+
+### Résumé des fichiers modifiés
+
+| Fichier | Action |
+|---|---|
+| Migration SQL | Modifier `get_active_hours_summary` + `get_hourly_order_performance` (ajout `p_platform`) |
+| `src/pages/OpeningHoursComparison.tsx` | Passer `selectedPlatform` aux RPCs |
+| `src/components/compare/HourlyOpportunitiesAnalysis.tsx` | Ajouter prop `platform`, passer à RPC |
+| `src/components/compare/ProductsByTimeSlotAnalysis.tsx` | Afficher message si Deliveroo sélectionné |
 
