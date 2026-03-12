@@ -711,6 +711,105 @@ export function EcoContributionSection({
           </Card>
         </Collapsible>
       )}
+
+      {/* ═══════════════ ZONE 5: REP Evolution Chart ═══════════════ */}
+      {repChecked && repEvolutionData.length >= 2 && (
+        <Collapsible>
+          <Card>
+            <CardContent className="pt-4 pb-3">
+              <CollapsibleTrigger className="flex items-center justify-between w-full group">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  Évolution des adhésions REP
+                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                    {repEvolutionData.length} vérifications
+                  </Badge>
+                </h3>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="h-[280px] mt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={repEvolutionData}>
+                      <defs>
+                        <linearGradient id="gradInscrits" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.05} />
+                        </linearGradient>
+                        <linearGradient id="gradNonTrouves" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        className="text-xs"
+                        tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                        axisLine={{ stroke: "hsl(var(--border))" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        className="text-xs"
+                        tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={35}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--background))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "10px",
+                          fontSize: "12px",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                          padding: "10px 14px",
+                        }}
+                        cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: "4 4" }}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }}
+                        iconType="circle"
+                        iconSize={8}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="inscrits"
+                        name="Adhérents"
+                        stroke="hsl(142, 76%, 36%)"
+                        fill="url(#gradInscrits)"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: "hsl(142, 76%, 36%)", stroke: "white", strokeWidth: 2 }}
+                        activeDot={{ r: 6 }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="nonTrouves"
+                        name="Non trouvés"
+                        stroke="hsl(0, 84%, 60%)"
+                        fill="url(#gradNonTrouves)"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: "hsl(0, 84%, 60%)", stroke: "white", strokeWidth: 2 }}
+                        activeDot={{ r: 6 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="sansSiret"
+                        name="Sans SIRET"
+                        stroke="hsl(var(--muted-foreground))"
+                        strokeWidth={1.5}
+                        strokeDasharray="4 4"
+                        dot={{ r: 3, fill: "hsl(var(--muted-foreground))" }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CollapsibleContent>
+            </CardContent>
+          </Card>
+        </Collapsible>
+      )}
     </div>
   );
 }
