@@ -23,6 +23,7 @@ const OpeningHoursComparison = () => {
   const navigate = useNavigate();
   
   const {
+    selectedRestaurants,
     visibleRestaurants,
     selectedPlatform,
     periodMode,
@@ -30,6 +31,11 @@ const OpeningHoursComparison = () => {
     selectedMonth,
     dateRange,
   } = useAnalyticsContext();
+
+  const activeRestaurantIds = useMemo(
+    () => selectedRestaurants.filter((id) => visibleRestaurants.includes(id)),
+    [selectedRestaurants, visibleRestaurants]
+  );
 
   const { startDate: startDateObj, endDate: endDateObj } = useDataGranularity({
     periodMode,
@@ -43,27 +49,27 @@ const OpeningHoursComparison = () => {
 
   // Fetch restaurants data
   const { data: restaurants, isLoading: loadingRestaurants } = useQuery({
-    queryKey: ["restaurants-by-ids", visibleRestaurants],
+    queryKey: ["restaurants-by-ids", activeRestaurantIds],
     queryFn: async () => {
-      if (!visibleRestaurants.length) return [];
+      if (!activeRestaurantIds.length) return [];
       const { data, error } = await supabase
         .from("restaurants")
         .select("id, name")
-        .in("id", visibleRestaurants)
+        .in("id", activeRestaurantIds)
         .order("name");
       if (error) throw error;
       return data || [];
     },
-    enabled: visibleRestaurants.length > 0,
+    enabled: activeRestaurantIds.length > 0,
   });
 
   // Fetch active hours summary from orders (new RPC)
   const { data: activeHoursData, isPending: pendingActiveHours } = useQuery({
-    queryKey: ["active-hours-summary", visibleRestaurants, startDate, endDate, selectedPlatform],
+    queryKey: ["active-hours-summary", activeRestaurantIds, startDate, endDate, selectedPlatform],
     queryFn: async () => {
-      if (!visibleRestaurants.length) return [];
+      if (!activeRestaurantIds.length) return [];
       const { data, error } = await supabase.rpc("get_active_hours_summary", {
-        p_restaurant_ids: visibleRestaurants,
+        p_restaurant_ids: activeRestaurantIds,
         p_start_date: startDate,
         p_end_date: endDate,
         p_platform: selectedPlatform === "global" ? null : selectedPlatform,
@@ -71,18 +77,18 @@ const OpeningHoursComparison = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: visibleRestaurants.length > 0,
+    enabled: activeRestaurantIds.length > 0,
   });
 
   // Fetch opening hours (optional, for heatmap only)
   const { data: openingHoursData } = useQuery({
-    queryKey: ["opening-hours-comparison", visibleRestaurants, selectedPlatform],
+    queryKey: ["opening-hours-comparison", activeRestaurantIds, selectedPlatform],
     queryFn: async () => {
-      if (!visibleRestaurants.length) return [];
+      if (!activeRestaurantIds.length) return [];
       let query = supabase
         .from("restaurant_opening_hours")
         .select("restaurant_id, platform, day_of_week, start_time, end_time, is_overnight")
-        .in("restaurant_id", visibleRestaurants);
+        .in("restaurant_id", activeRestaurantIds);
       if (selectedPlatform !== "global") {
         query = query.eq("platform", selectedPlatform);
       }
@@ -90,7 +96,7 @@ const OpeningHoursComparison = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: visibleRestaurants.length > 0,
+    enabled: activeRestaurantIds.length > 0,
   });
 
   // Process data for each restaurant using active hours RPC
@@ -183,7 +189,7 @@ const OpeningHoursComparison = () => {
   );
 
   const isLoading =
-    loadingRestaurants || (visibleRestaurants.length > 0 && pendingActiveHours);
+    loadingRestaurants || (activeRestaurantIds.length > 0 && pendingActiveHours);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -197,7 +203,7 @@ const OpeningHoursComparison = () => {
 
         <AnalyticsHeader />
 
-        {visibleRestaurants.length === 0 ? (
+        {activeRestaurantIds.length === 0 ? (
           <Card className="backdrop-blur-xl bg-muted/30 border-border/50">
             <CardContent className="pt-6 text-center text-muted-foreground">
               <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -272,7 +278,7 @@ const OpeningHoursComparison = () => {
 
             {/* Croisement Produits × Créneaux horaires */}
             <ProductsByTimeSlotAnalysis
-              restaurantIds={visibleRestaurants}
+              restaurantIds={activeRestaurantIds}
               startDate={startDate}
               endDate={endDate}
               restaurantNames={restaurantNames}
