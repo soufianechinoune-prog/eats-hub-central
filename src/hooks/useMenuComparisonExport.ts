@@ -13,12 +13,23 @@ interface ExportData {
   platform: string;
   restaurants: string[];
   rows: PriceRow[];
+  isAllRestaurants?: boolean;
   stats: {
     totalProducts: number;
     productsWithDiff: number;
     avgDiff: number;
   };
 }
+
+const buildFilename = (data: ExportData, ext: string) => {
+  const date = new Date().toISOString().split("T")[0];
+  if (data.isAllRestaurants) {
+    return `tarifs_reseau_${data.platform.toLowerCase().replace(/\s/g, "_")}_${date}.${ext}`;
+  }
+  // Selection: use short name
+  const count = data.restaurants.length;
+  return `comparatif_${count}_restaurants_${date}.${ext}`;
+};
 
 const parsePrice = (priceStr: string): number | null => {
   if (!priceStr) return null;
