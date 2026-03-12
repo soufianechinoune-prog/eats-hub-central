@@ -236,6 +236,7 @@ export function InterRestaurantComparison({
       platform: platform === "uber" ? "Uber Eats" : "Deliveroo",
       restaurants: exportRestaurants.map((r) => getShortRestaurantName(r.name)),
       rows,
+      isAllRestaurants: useAll,
       stats: {
         totalProducts: stats.totalProducts,
         productsWithDiff: currentStats.withDiff,
