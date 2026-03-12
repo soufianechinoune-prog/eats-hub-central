@@ -1,5 +1,6 @@
 import { InterRestaurantComparison } from "./InterRestaurantComparison";
 import { RestaurantMenuImportDialog } from "./RestaurantMenuImportDialog";
+import { BulkPriceImportDialog } from "./BulkPriceImportDialog";
 import { useRestaurantMenuPrices } from "@/hooks/useRestaurantMenuPrices";
 
 interface RestaurantPriceComparisonProps {
