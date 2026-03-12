@@ -212,14 +212,15 @@ export function InterRestaurantComparison({
     return `${tva}%`;
   };
 
-  // Build export data
-  const buildExportData = () => {
+  // Build export data for selected or all restaurants
+  const buildExportData = (useAll = false) => {
+    const exportRestaurants = useAll ? restaurants : selectedRestaurants;
     const rows = filteredItems.map((item) => {
       const diff = platform === "uber" ? item.uberDifference : item.deliverooDifference;
       return {
         product: item.menuItemName,
         category: item.category,
-        prices: selectedRestaurants.map((r) => {
+        prices: exportRestaurants.map((r) => {
           const rp = item.restaurantPrices.find((p) => p.restaurantId === r.id);
           const price = platform === "uber" ? rp?.priceUber : rp?.priceDeliveroo;
           return {
@@ -233,7 +234,7 @@ export function InterRestaurantComparison({
 
     return {
       platform: platform === "uber" ? "Uber Eats" : "Deliveroo",
-      restaurants: selectedRestaurants.map((r) => getShortRestaurantName(r.name)),
+      restaurants: exportRestaurants.map((r) => getShortRestaurantName(r.name)),
       rows,
       stats: {
         totalProducts: stats.totalProducts,
@@ -247,8 +248,12 @@ export function InterRestaurantComparison({
     exportToPdf(tableRef.current, buildExportData());
   };
 
-  const handleExportExcel = () => {
-    exportToExcel(buildExportData());
+  const handleExportExcel = (useAll = false) => {
+    exportToExcel(buildExportData(useAll));
+  };
+
+  const handleExportCsv = (useAll = false) => {
+    exportToCsv(buildExportData(useAll));
   };
 
   // ---- Edit price handlers ----
