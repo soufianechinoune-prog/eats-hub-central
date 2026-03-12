@@ -1,25 +1,20 @@
 
 
-## Problem
+## Suppression de la section "Horaires d'ouverture" de la fiche restaurant
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+### Contexte
 
-## Solution
+La page **"Analyse des Horaires"** (`/compare/opening-hours`) lit directement la table `restaurant_opening_hours` — elle est **indépendante** de l'éditeur dans la fiche restaurant. Les données déjà saisies restent en base et continuent d'alimenter l'analyse. Supprimer l'éditeur n'affecte en rien cette page.
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+### Changements
 
-### Changes
+**`src/pages/RestaurantDetail.tsx`** :
+1. Retirer l'import de `OpeningHoursEditor`
+2. Retirer l'import de `OpeningHoursAnalytics`
+3. Supprimer le rendu `<OpeningHoursEditor restaurantId={id!} />` (ligne ~553)
+4. Supprimer le rendu `<OpeningHoursAnalytics>` s'il est présent dans la page
 
-**`src/pages/Restaurants.tsx`**:
+Les fichiers `OpeningHoursEditor.tsx`, `OpeningHoursAnalytics.tsx`, `useOpeningHours.ts` et la table `restaurant_opening_hours` sont **conservés** car utilisés par la page d'analyse des horaires.
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
-
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
-
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
-
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+C'est un changement minimal : suppression de 2-3 lignes d'import et 1-2 blocs de rendu.
 
