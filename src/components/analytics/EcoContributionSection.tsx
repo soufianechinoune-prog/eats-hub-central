@@ -512,7 +512,7 @@ export function EcoContributionSection({
                   <div className="min-w-0 flex-1">
                     <span className="text-xs font-semibold">Adhésion REP (éco-organismes)</span>
                     {repChecked && repStats && !isRepLoading && (
-                      <div className="flex items-center gap-3 mt-0.5">
+                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                         <span className="text-[10px] text-green-600 font-medium">
                           <ShieldCheck className="h-3 w-3 inline mr-0.5" />
                           {repStats.inscrit} inscrits
@@ -526,6 +526,20 @@ export function EcoContributionSection({
                         {repStats.sansSiret > 0 && (
                           <span className="text-[10px] text-muted-foreground">
                             {repStats.sansSiret} sans SIRET
+                          </span>
+                        )}
+                        {repChanges.length > 0 && (
+                          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 animate-fade-in">
+                            <Sparkles className="h-3 w-3 inline mr-0.5" />
+                            {repChanges.filter(c => c.changeType === "new_adherent").length > 0 &&
+                              `+${repChanges.filter(c => c.changeType === "new_adherent").length} nouveau(x)`}
+                            {repChanges.filter(c => c.changeType === "lost_adherent").length > 0 &&
+                              ` −${repChanges.filter(c => c.changeType === "lost_adherent").length} perdu(s)`}
+                          </span>
+                        )}
+                        {latestSnapshot && (
+                          <span className="text-[9px] text-muted-foreground/60 ml-auto">
+                            Dernière vérif. : {new Date(latestSnapshot.checked_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </span>
                         )}
                       </div>
@@ -546,7 +560,13 @@ export function EcoContributionSection({
                         </div>
                       </div>
                     )}
-                    {!repChecked && !isRepLoading && (
+                    {!repChecked && !isRepLoading && repLoadingCache && (
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Chargement des résultats précédents…
+                      </p>
+                    )}
+                    {!repChecked && !isRepLoading && !repLoadingCache && !latestSnapshot && (
                       <p className="text-[10px] text-muted-foreground">Vérifie l'inscription de vos restaurants aux filières REP via l'API ADEME</p>
                     )}
                   </div>
