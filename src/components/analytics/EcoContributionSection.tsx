@@ -439,20 +439,46 @@ export function EcoContributionSection({
             </div>
           </div>
 
-          <div className="mt-5">
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1.5">
-              <span>Ratio remboursements / prélèvements</span>
-              <span className="font-semibold">{recoveryRatio}%</span>
+          <div className="mt-5 space-y-3">
+            {/* Barre 1: Ratio remboursements / prélèvements */}
+            <div>
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1.5">
+                <span>Ratio remboursements / prélèvements</span>
+                <span className="font-semibold">{recoveryRatio}%</span>
+              </div>
+              <div className="h-2.5 w-full bg-red-500/15 rounded-full overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-700",
+                    recoveryRatio >= 100 ? "bg-green-500" : recoveryRatio >= 50 ? "bg-yellow-500" : "bg-red-500"
+                  )}
+                  style={{ width: `${Math.min(recoveryRatio, 100)}%` }}
+                />
+              </div>
             </div>
-            <div className="h-2.5 w-full bg-red-500/15 rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all duration-700",
-                  recoveryRatio >= 100 ? "bg-green-500" : recoveryRatio >= 50 ? "bg-yellow-500" : "bg-red-500"
-                )}
-                style={{ width: `${Math.min(recoveryRatio, 100)}%` }}
-              />
-            </div>
+
+            {/* Barre 2: Taux d'adhésion REP */}
+            {repChecked && repStats && (() => {
+              const verifiedTotal = repStats.inscrit + repStats.nonTrouve;
+              const adhesionRate = verifiedTotal > 0 ? Math.round((repStats.inscrit / verifiedTotal) * 100) : 0;
+              return (
+                <div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1.5">
+                    <span>Taux d'adhésion REP</span>
+                    <span className="font-semibold">{adhesionRate}%</span>
+                  </div>
+                  <div className="h-2.5 w-full bg-green-500/15 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-700",
+                        adhesionRate >= 80 ? "bg-green-500" : adhesionRate >= 50 ? "bg-yellow-500" : "bg-red-500"
+                      )}
+                      style={{ width: `${adhesionRate}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </CardContent>
       </Card>
