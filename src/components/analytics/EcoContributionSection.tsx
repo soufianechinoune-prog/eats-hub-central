@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ComposedChart, ReferenceLine, Bar,
+  ResponsiveContainer, ComposedChart, ReferenceLine, Bar, AreaChart, Area, Line,
 } from "recharts";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
