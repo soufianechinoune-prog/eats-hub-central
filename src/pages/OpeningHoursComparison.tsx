@@ -278,7 +278,7 @@ const OpeningHoursComparison = () => {
 
             {/* Croisement Produits × Créneaux horaires */}
             <ProductsByTimeSlotAnalysis
-              restaurantIds={visibleRestaurants}
+              restaurantIds={activeRestaurantIds}
               startDate={startDate}
               endDate={endDate}
               restaurantNames={restaurantNames}
