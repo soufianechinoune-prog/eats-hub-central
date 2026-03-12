@@ -196,7 +196,7 @@ export function InterRestaurantComparison({
   };
 
   const getShortRestaurantName = (name: string) => {
-    return name.replace(/^CHICKEN STREET\s*/i, "").split(/[-\s]/)[0];
+    return extractCityName(name);
   };
 
   const selectedRestaurants = restaurants.filter((r) =>
