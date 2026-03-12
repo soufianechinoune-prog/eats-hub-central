@@ -111,7 +111,7 @@ export function useRepCheckPersistence(restaurantIds: string[]) {
     try {
       const { data, error } = await supabase
         .from("rep_check_snapshots")
-        .insert(snapshot)
+        .insert([snapshot as any])
         .select()
         .single();
 
