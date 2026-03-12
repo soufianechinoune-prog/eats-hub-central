@@ -67,6 +67,13 @@ export function EcoContributionSection({
   const [searchQuery, setSearchQuery] = useState("");
   const { exportPDF, exportExcel } = useEcoContributionExport();
 
+  const isHistorique = localYear === null;
+  const effectiveYear = localYear ?? selectedYear;
+
+  const restaurantIds = selectedRestaurants.length > 0
+    ? selectedRestaurants
+    : restaurants.map(r => r.id);
+
   // REP check state
   const { data: repData, loading: repLoading, errors: repErrors, progress: repProgress, checkMultiple } = useEcoOrganismCheck();
   const [repChecked, setRepChecked] = useState(false);
@@ -87,13 +94,6 @@ export function EcoContributionSection({
       setRepChecked(true);
     }
   }, [latestSnapshot, repChecked, repLoadingCache]);
-
-  const isHistorique = localYear === null;
-  const effectiveYear = localYear ?? selectedYear;
-
-  const restaurantIds = selectedRestaurants.length > 0
-    ? selectedRestaurants
-    : restaurants.map(r => r.id);
 
   const { monthlyData, byRestaurant, totals, detailLines, isLoading } = useEcoContribution({
     restaurantIds,
