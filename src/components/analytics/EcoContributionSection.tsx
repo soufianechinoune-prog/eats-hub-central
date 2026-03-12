@@ -272,8 +272,20 @@ export function EcoContributionSection({
       const items = restData.map((r: any) => ({ id: r.id, siret: r.siret }));
       await checkMultiple(items, setScanningId);
       setRepChecked(true);
+      // Save snapshot for persistence & change tracking
+      // Use a small delay to ensure repData state is updated
+      setTimeout(async () => {
+        await saveRepSnapshot(repData, items);
+      }, 500);
     }
   };
+
+  // Map of changes for quick lookup
+  const repChangesMap = useMemo(() => {
+    const map = new Map<string, RepChangeInfo["changeType"]>();
+    repChanges.forEach(c => map.set(c.restaurant_id, c.changeType));
+    return map;
+  }, [repChanges]);
 
   const isExempt = totals.net >= 0;
 
