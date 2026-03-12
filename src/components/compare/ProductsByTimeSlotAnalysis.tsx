@@ -45,6 +45,18 @@ export const ProductsByTimeSlotAnalysis = ({
     );
   }
 
+  if (platform === "deliveroo") {
+    return (
+      <Card className="backdrop-blur-xl bg-muted/30 border-border/50">
+        <CardContent className="pt-6 text-center text-muted-foreground">
+          <ShoppingBag className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <p>Détail produit non disponible pour Deliveroo</p>
+          <p className="text-sm">Les données Deliveroo ne contiennent pas le détail des articles commandés</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (!slotData.length) {
     return (
       <Card className="backdrop-blur-xl bg-muted/30 border-border/50">

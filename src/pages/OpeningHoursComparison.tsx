@@ -276,6 +276,7 @@ const OpeningHoursComparison = () => {
               startDate={startDate}
               endDate={endDate}
               restaurantNames={restaurantNames}
+              platform={selectedPlatform}
             />
 
             {/* Section Insights intelligents */}
