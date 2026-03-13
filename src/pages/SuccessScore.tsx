@@ -466,14 +466,7 @@ export default function SuccessScore() {
           {/* Actions */}
           <div className="flex gap-2">
             <ManualEntryDialog onSuccess={() => refetch()} />
-            <Button 
-              onClick={() => navigate('/report-import?type=success_score')} 
-              variant="outline"
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              Importer CSV
-            </Button>
+            <SuccessScoreCsvImport onSuccess={() => refetch()} />
           </div>
         </div>
 
