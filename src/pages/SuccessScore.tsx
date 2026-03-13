@@ -141,6 +141,10 @@ interface SuccessScore {
   menu_details: number | null;
   sustainable_packaging: number | null;
   sales_amount: number | null;
+  unfulfilled_orders: number | null;
+  avoidable_courier_wait: number | null;
+  incorrect_orders: number | null;
+  food_quality: number | null;
   restaurants?: { name: string };
 }
 
