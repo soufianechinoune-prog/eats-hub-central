@@ -573,10 +573,21 @@ export function EcoContributionSection({
                 )}
               </div>
 
-            <p className="text-[11px] text-muted-foreground mb-3">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <p className="text-[11px] text-muted-foreground">
                 {filteredRestaurants.length} restaurant{filteredRestaurants.length > 1 ? "s" : ""} affiché{filteredRestaurants.length > 1 ? "s" : ""}
                 {searchQuery && ` pour "${searchQuery}"`}
               </p>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Rechercher..."
+                  className="h-8 w-[180px] pl-8 text-sm rounded-full"
+                />
+              </div>
+            </div>
 
             <div>
               {byRestaurant.length > 0 ? (
