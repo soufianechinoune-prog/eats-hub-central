@@ -1,25 +1,27 @@
 
 
-## Problem
+## Problème identifié
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+La table `restaurant_menu_prices` contient **8 140 lignes**. Le hook `useRestaurantProfitability` fait une seule requête sans pagination (ligne 78-81), ce qui déclenche la **limite par défaut de 1 000 lignes** de la base de données. Résultat : seuls les prix des ~7 premiers restaurants sont récupérés, les autres (dont Argenteuil) affichent "—".
 
-## Solution
+C'est exactement le même bug que celui corrigé précédemment pour l'export "Tarifs réseau" dans `InterRestaurantComparison.tsx`.
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+## Plan
 
-### Changes
+**1. Paginer la requête des prix dans `useRestaurantProfitability.ts`**
 
-**`src/pages/Restaurants.tsx`**:
+Remplacer l'appel unique à `restaurant_menu_prices` par une boucle paginée (batches de 1 000 lignes avec `.range(from, to)`) identique au pattern déjà utilisé dans `InterRestaurantComparison.tsx`.
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+```text
+Avant:  1 requête → max 1000 lignes → données tronquées
+Après:  N requêtes de 1000 → 8140+ lignes → toutes les données
+```
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+**2. Même correction dans `useRestaurantMenuPrices.ts`** (si applicable)
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+Vérifier si ce hook a le même problème et appliquer la pagination si nécessaire — il alimente le tableau de prix (screenshot 1) qui pourrait aussi être impacté.
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+**Fichiers impactés :**
+- `src/hooks/useRestaurantProfitability.ts` — pagination de la requête prix
+- `src/hooks/useRestaurantMenuPrices.ts` — vérification + pagination si nécessaire
 
