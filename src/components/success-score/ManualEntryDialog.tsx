@@ -49,6 +49,10 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
   const [ratings, setRatings] = useState<string>("");
   const [sustainablePackaging, setSustainablePackaging] = useState<string>("");
   const [salesAmount, setSalesAmount] = useState<string>("");
+  const [unfulfilledOrders, setUnfulfilledOrders] = useState<string>("");
+  const [avoidableCourierWait, setAvoidableCourierWait] = useState<string>("");
+  const [incorrectOrders, setIncorrectOrders] = useState<string>("");
+  const [foodQuality, setFoodQuality] = useState<string>("");
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
