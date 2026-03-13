@@ -49,6 +49,10 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
   const [ratings, setRatings] = useState<string>("");
   const [sustainablePackaging, setSustainablePackaging] = useState<string>("");
   const [salesAmount, setSalesAmount] = useState<string>("");
+  const [unfulfilledOrders, setUnfulfilledOrders] = useState<string>("");
+  const [avoidableCourierWait, setAvoidableCourierWait] = useState<string>("");
+  const [incorrectOrders, setIncorrectOrders] = useState<string>("");
+  const [foodQuality, setFoodQuality] = useState<string>("");
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
@@ -83,14 +87,21 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
         setRatings(data.ratings?.toString() || "");
         setSustainablePackaging(data.sustainable_packaging?.toString() || "");
         setSalesAmount(data.sales_amount?.toString() || "");
+        setUnfulfilledOrders(data.unfulfilled_orders?.toString() || "");
+        setAvoidableCourierWait(data.avoidable_courier_wait?.toString() || "");
+        setIncorrectOrders(data.incorrect_orders?.toString() || "");
+        setFoodQuality(data.food_quality?.toString() || "");
       } else {
-        // Reset form for new entry
         setScoreTier("");
         setOperationalExcellence("");
         setMenuDetails("");
         setRatings("");
         setSustainablePackaging("");
         setSalesAmount("");
+        setUnfulfilledOrders("");
+        setAvoidableCourierWait("");
+        setIncorrectOrders("");
+        setFoodQuality("");
       }
     };
 
@@ -104,6 +115,10 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
     setRatings("");
     setSustainablePackaging("");
     setSalesAmount("");
+    setUnfulfilledOrders("");
+    setAvoidableCourierWait("");
+    setIncorrectOrders("");
+    setFoodQuality("");
   };
 
   const handleSave = async (andNext: boolean = false) => {
@@ -126,6 +141,10 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
           ratings: ratings ? parseFloat(ratings) : null,
           sustainable_packaging: sustainablePackaging ? parseFloat(sustainablePackaging) : null,
           sales_amount: salesAmount ? parseFloat(salesAmount) : null,
+          unfulfilled_orders: unfulfilledOrders ? parseFloat(unfulfilledOrders) : null,
+          avoidable_courier_wait: avoidableCourierWait ? parseFloat(avoidableCourierWait) : null,
+          incorrect_orders: incorrectOrders ? parseFloat(incorrectOrders) : null,
+          food_quality: foodQuality ? parseFloat(foodQuality) : null,
         }, {
           onConflict: 'restaurant_id,score_month'
         });
@@ -270,6 +289,66 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
                 placeholder="100"
                 value={sustainablePackaging}
                 onChange={(e) => setSustainablePackaging(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Excellence opérationnelle - sous-métriques */}
+          <Label className="text-xs text-muted-foreground pt-2">Détail Excellence Opérationnelle</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="unfulfilled">Cmd non exec. (%)</Label>
+              <Input
+                id="unfulfilled"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="0.50"
+                value={unfulfilledOrders}
+                onChange={(e) => setUnfulfilledOrders(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="wait">Attente coursier (%)</Label>
+              <Input
+                id="wait"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="1.20"
+                value={avoidableCourierWait}
+                onChange={(e) => setAvoidableCourierWait(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="incorrect">Cmd incorr. (%)</Label>
+              <Input
+                id="incorrect"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="0.80"
+                value={incorrectOrders}
+                onChange={(e) => setIncorrectOrders(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="quality">Goût/Qualité (%)</Label>
+              <Input
+                id="quality"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="0.30"
+                value={foodQuality}
+                onChange={(e) => setFoodQuality(e.target.value)}
               />
             </div>
           </div>
