@@ -87,14 +87,21 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
         setRatings(data.ratings?.toString() || "");
         setSustainablePackaging(data.sustainable_packaging?.toString() || "");
         setSalesAmount(data.sales_amount?.toString() || "");
+        setUnfulfilledOrders(data.unfulfilled_orders?.toString() || "");
+        setAvoidableCourierWait(data.avoidable_courier_wait?.toString() || "");
+        setIncorrectOrders(data.incorrect_orders?.toString() || "");
+        setFoodQuality(data.food_quality?.toString() || "");
       } else {
-        // Reset form for new entry
         setScoreTier("");
         setOperationalExcellence("");
         setMenuDetails("");
         setRatings("");
         setSustainablePackaging("");
         setSalesAmount("");
+        setUnfulfilledOrders("");
+        setAvoidableCourierWait("");
+        setIncorrectOrders("");
+        setFoodQuality("");
       }
     };
 
