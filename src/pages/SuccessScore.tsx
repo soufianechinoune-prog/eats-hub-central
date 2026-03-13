@@ -230,6 +230,22 @@ export default function SuccessScore() {
           aVal = a.sales_amount ?? -1;
           bVal = b.sales_amount ?? -1;
           break;
+        case "unfulfilled":
+          aVal = a.unfulfilled_orders ?? -1;
+          bVal = b.unfulfilled_orders ?? -1;
+          break;
+        case "wait":
+          aVal = a.avoidable_courier_wait ?? -1;
+          bVal = b.avoidable_courier_wait ?? -1;
+          break;
+        case "incorrect":
+          aVal = a.incorrect_orders ?? -1;
+          bVal = b.incorrect_orders ?? -1;
+          break;
+        case "food":
+          aVal = a.food_quality ?? -1;
+          bVal = b.food_quality ?? -1;
+          break;
       }
       return sortDirection === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
     });
