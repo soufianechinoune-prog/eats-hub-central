@@ -293,6 +293,66 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
             </div>
           </div>
 
+          {/* Excellence opérationnelle - sous-métriques */}
+          <Label className="text-xs text-muted-foreground pt-2">Détail Excellence Opérationnelle</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="unfulfilled">Cmd non exec. (%)</Label>
+              <Input
+                id="unfulfilled"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="0.50"
+                value={unfulfilledOrders}
+                onChange={(e) => setUnfulfilledOrders(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="wait">Attente coursier (%)</Label>
+              <Input
+                id="wait"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="1.20"
+                value={avoidableCourierWait}
+                onChange={(e) => setAvoidableCourierWait(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="incorrect">Cmd incorr. (%)</Label>
+              <Input
+                id="incorrect"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="0.80"
+                value={incorrectOrders}
+                onChange={(e) => setIncorrectOrders(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="quality">Goût/Qualité (%)</Label>
+              <Input
+                id="quality"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="0.30"
+                value={foodQuality}
+                onChange={(e) => setFoodQuality(e.target.value)}
+              />
+            </div>
+          </div>
+
           {/* Sales amount */}
           <div className="space-y-2">
             <Label htmlFor="sales">CA mensuel (€)</Label>
