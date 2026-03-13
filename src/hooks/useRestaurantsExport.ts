@@ -45,23 +45,35 @@ const HEADERS = ["Nom", "Ville", "Contact", "Gérant", "Ouverture Uber", "Statut
 
 export function useRestaurantsExport() {
   const exportCSV = useCallback((restaurants: any[]) => {
-    const rows = restaurants.map(formatRow);
-    const csv = [
-      HEADERS.join(";"),
-      ...rows.map((r) =>
-        [r.name, r.city, r.contact, r.manager, r.uber_opening_date, r.status, r.type]
-          .map((v) => `"${(v || "").replace(/"/g, '""')}"`)
-          .join(";")
-      ),
-    ].join("\n");
+    try {
+      console.log("exportCSV called with", restaurants?.length, "restaurants");
+      if (!restaurants || restaurants.length === 0) {
+        console.warn("No restaurants to export");
+        return;
+      }
+      const rows = restaurants.map(formatRow);
+      const csv = [
+        HEADERS.join(";"),
+        ...rows.map((r) =>
+          [r.name, r.city, r.contact, r.manager, r.uber_opening_date, r.status, r.type]
+            .map((v) => `"${(v || "").replace(/"/g, '""')}"`)
+            .join(";")
+        ),
+      ].join("\n");
 
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `restaurants_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `restaurants_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log("CSV export completed successfully");
+    } catch (err) {
+      console.error("CSV export error:", err);
+    }
   }, []);
 
   const exportPDF = useCallback((restaurants: any[]) => {
