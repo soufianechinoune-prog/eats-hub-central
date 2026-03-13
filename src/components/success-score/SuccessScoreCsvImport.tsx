@@ -244,13 +244,20 @@ export function SuccessScoreCsvImport({ onSuccess }: Props) {
       if (error) {
         console.error("Upsert error:", error);
         failed++;
+        if (errors.length < 3) errors.push(`${row.storeName}: ${error.message}`);
       } else {
         success++;
       }
     }
 
     setImportResult({ success, failed });
-    toast.success(`${success} restaurants importés`);
+    if (failed === 0) {
+      toast.success(`${success} restaurants importés`);
+    } else if (success > 0) {
+      toast.warning(`${success} importés, ${failed} erreurs`);
+    } else {
+      toast.error(`Import échoué: ${errors[0] || "erreur inconnue"}`);
+    }
     onSuccess?.();
   };
 
