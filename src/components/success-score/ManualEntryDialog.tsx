@@ -68,11 +68,12 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
     if (!restaurantId || !scoreMonth) return;
 
     const loadExisting = async () => {
+      const normalizedMonth = scoreMonth.length === 7 ? `${scoreMonth}-01` : scoreMonth;
       const { data } = await supabase
         .from("success_scores")
         .select("*")
         .eq("restaurant_id", restaurantId)
-        .eq("score_month", scoreMonth)
+        .eq("score_month", normalizedMonth)
         .maybeSingle();
 
       if (data) {
