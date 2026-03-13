@@ -114,11 +114,12 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
 
     setSaving(true);
     try {
+      const normalizedMonth = scoreMonth.length === 7 ? `${scoreMonth}-01` : scoreMonth;
       const { error } = await supabase
         .from("success_scores")
         .upsert({
           restaurant_id: restaurantId,
-          score_month: scoreMonth,
+          score_month: normalizedMonth,
           score_tier: scoreTier,
           operational_excellence: operationalExcellence ? parseFloat(operationalExcellence) : null,
           menu_details: menuDetails ? parseFloat(menuDetails) : null,

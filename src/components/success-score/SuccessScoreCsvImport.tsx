@@ -378,7 +378,13 @@ export function SuccessScoreCsvImport({ onSuccess }: Props) {
 
         {importResult && (
           <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <CheckCircle className="h-12 w-12 text-green-500" />
+            {importResult.failed === 0 ? (
+              <CheckCircle className="h-12 w-12 text-green-500" />
+            ) : importResult.success > 0 ? (
+              <AlertTriangle className="h-12 w-12 text-yellow-500" />
+            ) : (
+              <AlertTriangle className="h-12 w-12 text-destructive" />
+            )}
             <div className="text-center">
               <p className="text-lg font-semibold">{importResult.success} restaurants importés</p>
               {importResult.failed > 0 && (
