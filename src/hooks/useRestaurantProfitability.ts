@@ -74,13 +74,23 @@ export function useRestaurantProfitability(
         if (restaurantsError) throw restaurantsError;
         setRestaurants(restaurantsData || []);
 
-        // First: Fetch restaurant prices to get only products with prices
-        const { data: pricesData, error: pricesError } = await supabase
-          .from("restaurant_menu_prices")
-          .select("menu_item_id, restaurant_id, price_uber, price_deliveroo")
-          .in("restaurant_id", selectedRestaurantIds);
-
-        if (pricesError) throw pricesError;
+        // First: Fetch restaurant prices with pagination to bypass 1000-row limit
+        const PAGE_SIZE = 1000;
+        let allPricesData: any[] = [];
+        let from = 0;
+        while (true) {
+          const { data: batch, error: batchError } = await supabase
+            .from("restaurant_menu_prices")
+            .select("menu_item_id, restaurant_id, price_uber, price_deliveroo")
+            .in("restaurant_id", selectedRestaurantIds)
+            .range(from, from + PAGE_SIZE - 1);
+          if (batchError) throw batchError;
+          if (!batch || batch.length === 0) break;
+          allPricesData = allPricesData.concat(batch);
+          if (batch.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+        const pricesData = allPricesData;
 
         // Extract unique menu item IDs that have prices
         const uniqueMenuItemIds = [...new Set(pricesData?.map(p => p.menu_item_id) || [])];

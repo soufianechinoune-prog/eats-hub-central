@@ -101,26 +101,36 @@ export function useRestaurantMenuPrices(
 
         if (menuError) throw menuError;
 
-        // Fetch restaurant-specific prices
-        const { data: restaurantPrices, error: pricesError } = await supabase
-          .from("restaurant_menu_prices")
-          .select(`
-            id,
-            restaurant_id,
-            menu_item_id,
-            price_uber,
-            price_deliveroo,
-            tva_uber,
-            tva_deliveroo,
-            description_override,
-            is_available,
-            validated,
-            validated_at,
-            restaurants!inner(id, name)
-          `)
-          .in("restaurant_id", selectedRestaurantIds);
-
-        if (pricesError) throw pricesError;
+        // Fetch restaurant-specific prices with pagination to bypass 1000-row limit
+        const PAGE_SIZE = 1000;
+        let allRestaurantPrices: any[] = [];
+        let from = 0;
+        while (true) {
+          const { data: batch, error: batchError } = await supabase
+            .from("restaurant_menu_prices")
+            .select(`
+              id,
+              restaurant_id,
+              menu_item_id,
+              price_uber,
+              price_deliveroo,
+              tva_uber,
+              tva_deliveroo,
+              description_override,
+              is_available,
+              validated,
+              validated_at,
+              restaurants!inner(id, name)
+            `)
+            .in("restaurant_id", selectedRestaurantIds)
+            .range(from, from + PAGE_SIZE - 1);
+          if (batchError) throw batchError;
+          if (!batch || batch.length === 0) break;
+          allRestaurantPrices = allRestaurantPrices.concat(batch);
+          if (batch.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+        const restaurantPrices = allRestaurantPrices;
 
         // Get restaurant names for selected restaurants
         const { data: selectedRestaurantsData } = await supabase
