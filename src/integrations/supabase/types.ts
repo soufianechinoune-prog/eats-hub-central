@@ -2946,9 +2946,12 @@ export type Database = {
       }
       success_scores: {
         Row: {
+          avoidable_courier_wait: number | null
           created_at: string
           currency_code: string | null
+          food_quality: number | null
           id: string
+          incorrect_orders: number | null
           menu_details: number | null
           operational_excellence: number | null
           ratings: number | null
@@ -2957,12 +2960,16 @@ export type Database = {
           score_month: string
           score_tier: string
           sustainable_packaging: number | null
+          unfulfilled_orders: number | null
           updated_at: string
         }
         Insert: {
+          avoidable_courier_wait?: number | null
           created_at?: string
           currency_code?: string | null
+          food_quality?: number | null
           id?: string
+          incorrect_orders?: number | null
           menu_details?: number | null
           operational_excellence?: number | null
           ratings?: number | null
@@ -2971,12 +2978,16 @@ export type Database = {
           score_month: string
           score_tier: string
           sustainable_packaging?: number | null
+          unfulfilled_orders?: number | null
           updated_at?: string
         }
         Update: {
+          avoidable_courier_wait?: number | null
           created_at?: string
           currency_code?: string | null
+          food_quality?: number | null
           id?: string
+          incorrect_orders?: number | null
           menu_details?: number | null
           operational_excellence?: number | null
           ratings?: number | null
@@ -2985,6 +2996,7 @@ export type Database = {
           score_month?: string
           score_tier?: string
           sustainable_packaging?: number | null
+          unfulfilled_orders?: number | null
           updated_at?: string
         }
         Relationships: [

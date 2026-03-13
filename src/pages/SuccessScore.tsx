@@ -47,6 +47,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ManualEntryDialog } from "@/components/success-score/ManualEntryDialog";
+import { SuccessScoreCsvImport } from "@/components/success-score/SuccessScoreCsvImport";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -141,6 +142,10 @@ interface SuccessScore {
   menu_details: number | null;
   sustainable_packaging: number | null;
   sales_amount: number | null;
+  unfulfilled_orders: number | null;
+  avoidable_courier_wait: number | null;
+  incorrect_orders: number | null;
+  food_quality: number | null;
   restaurants?: { name: string };
 }
 
@@ -224,6 +229,22 @@ export default function SuccessScore() {
         case "sales":
           aVal = a.sales_amount ?? -1;
           bVal = b.sales_amount ?? -1;
+          break;
+        case "unfulfilled":
+          aVal = a.unfulfilled_orders ?? -1;
+          bVal = b.unfulfilled_orders ?? -1;
+          break;
+        case "wait":
+          aVal = a.avoidable_courier_wait ?? -1;
+          bVal = b.avoidable_courier_wait ?? -1;
+          break;
+        case "incorrect":
+          aVal = a.incorrect_orders ?? -1;
+          bVal = b.incorrect_orders ?? -1;
+          break;
+        case "food":
+          aVal = a.food_quality ?? -1;
+          bVal = b.food_quality ?? -1;
           break;
       }
       return sortDirection === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
@@ -461,14 +482,7 @@ export default function SuccessScore() {
           {/* Actions */}
           <div className="flex gap-2">
             <ManualEntryDialog onSuccess={() => refetch()} />
-            <Button 
-              onClick={() => navigate('/report-import?type=success_score')} 
-              variant="outline"
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              Importer CSV
-            </Button>
+            <SuccessScoreCsvImport onSuccess={() => refetch()} />
           </div>
         </div>
 
@@ -709,12 +723,32 @@ export default function SuccessScore() {
                   </TableHead>
                   <TableHead className="text-center">
                     <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent" onClick={() => handleSort("menu")}>
-                      Détails Menu <SortIcon field="menu" />
+                      Menu <SortIcon field="menu" />
                     </Button>
                   </TableHead>
                   <TableHead className="text-center">
                     <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent" onClick={() => handleSort("packaging")}>
-                      Emballage <SortIcon field="packaging" />
+                      Emball. <SortIcon field="packaging" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-center text-xs">
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent text-xs" onClick={() => handleSort("unfulfilled")}>
+                      Cmd non exec. <SortIcon field="unfulfilled" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-center text-xs">
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent text-xs" onClick={() => handleSort("wait")}>
+                      Attente coursier <SortIcon field="wait" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-center text-xs">
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent text-xs" onClick={() => handleSort("incorrect")}>
+                      Cmd incorr. <SortIcon field="incorrect" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-center text-xs">
+                    <Button variant="ghost" size="sm" className="h-auto p-0 font-medium hover:bg-transparent text-xs" onClick={() => handleSort("food")}>
+                      Goût/Qualité <SortIcon field="food" />
                     </Button>
                   </TableHead>
                   <TableHead className="text-center">
@@ -731,43 +765,56 @@ export default function SuccessScore() {
                   
                   return (
                     <TableRow key={score.id}>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium text-sm">
                         {score.restaurants?.name || 'Restaurant inconnu'}
                       </TableCell>
                       <TableCell className="text-center">
                         {getTierBadge(score.score_tier)}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className={`${score.operational_excellence != null && score.operational_excellence >= 98.4 ? 'text-green-600 font-semibold' : 'text-orange-600'} cursor-help`}>
-                              {score.operational_excellence != null ? `${score.operational_excellence.toFixed(1)}%` : 'Non renseigné'}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Objectif "Bon": ≥ 98.4%</p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <span className={`${score.operational_excellence != null && score.operational_excellence >= 98.4 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-amber-600 dark:text-amber-400'}`}>
+                          {score.operational_excellence != null ? `${score.operational_excellence.toFixed(1)}%` : '—'}
+                        </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        {score.ratings != null ? score.ratings.toFixed(2) : 'Non renseigné'}
+                        {score.ratings != null ? score.ratings.toFixed(1) : '—'}
                       </TableCell>
                       <TableCell className="text-center">
-                        {score.menu_details != null ? `${score.menu_details.toFixed(0)}%` : 'Non renseigné'}
+                        {score.menu_details != null ? `${score.menu_details.toFixed(0)}%` : '—'}
                       </TableCell>
                       <TableCell className="text-center">
                         <span className={score.sustainable_packaging != null && score.sustainable_packaging >= 90 
-                          ? 'text-green-600 font-semibold' 
+                          ? 'text-emerald-600 dark:text-emerald-400 font-semibold' 
                           : 'text-muted-foreground'}>
                           {score.sustainable_packaging != null 
                             ? `${score.sustainable_packaging.toFixed(0)}%` 
                             : '—'}
                         </span>
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center text-xs">
+                        <span className={score.unfulfilled_orders != null && score.unfulfilled_orders > 0.1 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                          {score.unfulfilled_orders != null ? `${score.unfulfilled_orders.toFixed(2)}%` : '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center text-xs">
+                        <span className={score.avoidable_courier_wait != null && score.avoidable_courier_wait > 8 ? 'text-red-600 dark:text-red-400' : score.avoidable_courier_wait != null && score.avoidable_courier_wait > 5 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                          {score.avoidable_courier_wait != null ? `${score.avoidable_courier_wait.toFixed(1)}%` : '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center text-xs">
+                        <span className={score.incorrect_orders != null && score.incorrect_orders > 0.85 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                          {score.incorrect_orders != null ? `${score.incorrect_orders.toFixed(2)}%` : '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center text-xs">
+                        <span className={score.food_quality != null && score.food_quality > 0.1 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                          {score.food_quality != null ? `${score.food_quality.toFixed(2)}%` : '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center text-sm">
                         {score.sales_amount != null 
                           ? `${score.sales_amount.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
-                          : 'Non renseigné'}
+                          : '—'}
                       </TableCell>
                     </TableRow>
                   );
