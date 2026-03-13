@@ -218,13 +218,15 @@ export function SuccessScoreCsvImport({ onSuccess }: Props) {
     setStep("importing");
     let success = 0;
     let failed = 0;
+    const normalizedMonth = scoreMonth.length === 7 ? `${scoreMonth}-01` : scoreMonth;
+    const errors: string[] = [];
 
     for (const row of matchedRows) {
       const { error } = await supabase
         .from("success_scores")
         .upsert({
           restaurant_id: row.matchedRestaurantId!,
-          score_month: scoreMonth,
+          score_month: normalizedMonth,
           score_tier: row.status,
           operational_excellence: row.operationalExcellence,
           menu_details: row.menuDetails,
