@@ -115,6 +115,10 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
     setRatings("");
     setSustainablePackaging("");
     setSalesAmount("");
+    setUnfulfilledOrders("");
+    setAvoidableCourierWait("");
+    setIncorrectOrders("");
+    setFoodQuality("");
   };
 
   const handleSave = async (andNext: boolean = false) => {
