@@ -141,6 +141,10 @@ export function ManualEntryDialog({ onSuccess }: ManualEntryDialogProps) {
           ratings: ratings ? parseFloat(ratings) : null,
           sustainable_packaging: sustainablePackaging ? parseFloat(sustainablePackaging) : null,
           sales_amount: salesAmount ? parseFloat(salesAmount) : null,
+          unfulfilled_orders: unfulfilledOrders ? parseFloat(unfulfilledOrders) : null,
+          avoidable_courier_wait: avoidableCourierWait ? parseFloat(avoidableCourierWait) : null,
+          incorrect_orders: incorrectOrders ? parseFloat(incorrectOrders) : null,
+          food_quality: foodQuality ? parseFloat(foodQuality) : null,
         }, {
           onConflict: 'restaurant_id,score_month'
         });
