@@ -218,13 +218,15 @@ export function SuccessScoreCsvImport({ onSuccess }: Props) {
     setStep("importing");
     let success = 0;
     let failed = 0;
+    const normalizedMonth = scoreMonth.length === 7 ? `${scoreMonth}-01` : scoreMonth;
+    const errors: string[] = [];
 
     for (const row of matchedRows) {
       const { error } = await supabase
         .from("success_scores")
         .upsert({
           restaurant_id: row.matchedRestaurantId!,
-          score_month: scoreMonth,
+          score_month: normalizedMonth,
           score_tier: row.status,
           operational_excellence: row.operationalExcellence,
           menu_details: row.menuDetails,
@@ -242,13 +244,20 @@ export function SuccessScoreCsvImport({ onSuccess }: Props) {
       if (error) {
         console.error("Upsert error:", error);
         failed++;
+        if (errors.length < 3) errors.push(`${row.storeName}: ${error.message}`);
       } else {
         success++;
       }
     }
 
     setImportResult({ success, failed });
-    toast.success(`${success} restaurants importés`);
+    if (failed === 0) {
+      toast.success(`${success} restaurants importés`);
+    } else if (success > 0) {
+      toast.warning(`${success} importés, ${failed} erreurs`);
+    } else {
+      toast.error(`Import échoué: ${errors[0] || "erreur inconnue"}`);
+    }
     onSuccess?.();
   };
 
@@ -369,7 +378,13 @@ export function SuccessScoreCsvImport({ onSuccess }: Props) {
 
         {importResult && (
           <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <CheckCircle className="h-12 w-12 text-green-500" />
+            {importResult.failed === 0 ? (
+              <CheckCircle className="h-12 w-12 text-green-500" />
+            ) : importResult.success > 0 ? (
+              <AlertTriangle className="h-12 w-12 text-yellow-500" />
+            ) : (
+              <AlertTriangle className="h-12 w-12 text-destructive" />
+            )}
             <div className="text-center">
               <p className="text-lg font-semibold">{importResult.success} restaurants importés</p>
               {importResult.failed > 0 && (
