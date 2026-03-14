@@ -857,6 +857,7 @@ export default function Analytics() {
       return aggregateDailyConversionByMonth(dailyData);
     },
     placeholderData: (previousData) => previousData,
+    enabled: needsConversion,
   });
 
   const { data: uberFeesData, isLoading: loadingUberFees } = useQuery({
