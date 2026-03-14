@@ -872,7 +872,8 @@ export function ProfitabilityComparisonTable({
           </CardTitle>
           
           <div className="flex gap-1 flex-wrap items-center">
-            {/* Year selector */}
+            {/* Year selector - hidden in year view mode */}
+            {viewMode !== 'year' && (
             <div className="flex items-center rounded-lg border bg-muted/30 p-0.5 mr-1">
               <Button
                 variant="ghost"
