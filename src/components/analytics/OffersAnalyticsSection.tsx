@@ -144,6 +144,20 @@ export function OffersAnalyticsSection() {
     );
   }
 
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+        <AlertTriangle className="h-8 w-8 text-destructive" />
+        <p className="text-sm text-muted-foreground">
+          Erreur lors du chargement des données d'offres.
+        </p>
+        {errorMessage && (
+          <p className="text-xs text-muted-foreground/70 max-w-md font-mono">{errorMessage}</p>
+        )}
+      </div>
+    );
+  }
+
   const feesTrend = kpis.totalFeesPrev > 0
     ? ((kpis.totalFees - kpis.totalFeesPrev) / kpis.totalFeesPrev) * 100
     : null;
