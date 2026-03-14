@@ -1711,6 +1711,7 @@ export type Database = {
           merchant_delivery_fee_incl_vat: number | null
           net_amount: number | null
           net_payout: number | null
+          offer_usage_fee: number | null
           order_channel: string | null
           order_datetime: string | null
           order_total_incl_vat: number | null
@@ -1758,6 +1759,7 @@ export type Database = {
           vat_adjustment: number | null
           vat_delivery_cost: number | null
           vat_delivery_promo: number | null
+          vat_offer_usage_fee: number | null
           vat_packaging_fee: number | null
           vat_price_adjustment: number | null
           vat_uber_fee: number | null
@@ -1790,6 +1792,7 @@ export type Database = {
           merchant_delivery_fee_incl_vat?: number | null
           net_amount?: number | null
           net_payout?: number | null
+          offer_usage_fee?: number | null
           order_channel?: string | null
           order_datetime?: string | null
           order_total_incl_vat?: number | null
@@ -1837,6 +1840,7 @@ export type Database = {
           vat_adjustment?: number | null
           vat_delivery_cost?: number | null
           vat_delivery_promo?: number | null
+          vat_offer_usage_fee?: number | null
           vat_packaging_fee?: number | null
           vat_price_adjustment?: number | null
           vat_uber_fee?: number | null
@@ -1869,6 +1873,7 @@ export type Database = {
           merchant_delivery_fee_incl_vat?: number | null
           net_amount?: number | null
           net_payout?: number | null
+          offer_usage_fee?: number | null
           order_channel?: string | null
           order_datetime?: string | null
           order_total_incl_vat?: number | null
@@ -1916,6 +1921,7 @@ export type Database = {
           vat_adjustment?: number | null
           vat_delivery_cost?: number | null
           vat_delivery_promo?: number | null
+          vat_offer_usage_fee?: number | null
           vat_packaging_fee?: number | null
           vat_price_adjustment?: number | null
           vat_uber_fee?: number | null
@@ -2000,6 +2006,7 @@ export type Database = {
           merchant_delivery_fee_excl_vat: number | null
           merchant_delivery_fee_incl_vat: number | null
           net_payout: number | null
+          offer_usage_fee: number | null
           order_count: number | null
           order_total_incl_vat: number | null
           other_payments_count: number | null
@@ -2032,6 +2039,7 @@ export type Database = {
           vat_adjustment: number | null
           vat_delivery_cost: number | null
           vat_delivery_promo: number | null
+          vat_offer_usage_fee: number | null
           vat_packaging_fee: number | null
           vat_price_adjustment: number | null
           vat_refund: number | null
@@ -2056,6 +2064,7 @@ export type Database = {
           merchant_delivery_fee_excl_vat?: number | null
           merchant_delivery_fee_incl_vat?: number | null
           net_payout?: number | null
+          offer_usage_fee?: number | null
           order_count?: number | null
           order_total_incl_vat?: number | null
           other_payments_count?: number | null
@@ -2088,6 +2097,7 @@ export type Database = {
           vat_adjustment?: number | null
           vat_delivery_cost?: number | null
           vat_delivery_promo?: number | null
+          vat_offer_usage_fee?: number | null
           vat_packaging_fee?: number | null
           vat_price_adjustment?: number | null
           vat_refund?: number | null
@@ -2112,6 +2122,7 @@ export type Database = {
           merchant_delivery_fee_excl_vat?: number | null
           merchant_delivery_fee_incl_vat?: number | null
           net_payout?: number | null
+          offer_usage_fee?: number | null
           order_count?: number | null
           order_total_incl_vat?: number | null
           other_payments_count?: number | null
@@ -2144,6 +2155,7 @@ export type Database = {
           vat_adjustment?: number | null
           vat_delivery_cost?: number | null
           vat_delivery_promo?: number | null
+          vat_offer_usage_fee?: number | null
           vat_packaging_fee?: number | null
           vat_price_adjustment?: number | null
           vat_refund?: number | null
@@ -3435,22 +3447,39 @@ export type Database = {
           restaurant_id: string
         }[]
       }
-      get_offers_analytics: {
-        Args: {
-          p_end_date?: string
-          p_restaurant_ids?: string[]
-          p_start_date?: string
-        }
-        Returns: {
-          month_key: string
-          promo_orders: number
-          restaurant_id: string
-          taxed_orders: number
-          total_offer_fees: number
-          total_orders: number
-          total_promo_amount: number
-        }[]
-      }
+      get_offers_analytics:
+        | {
+            Args: {
+              p_end_date?: string
+              p_restaurant_ids?: string[]
+              p_start_date?: string
+            }
+            Returns: {
+              month_key: string
+              promo_orders: number
+              restaurant_id: string
+              taxed_orders: number
+              total_offer_fees: number
+              total_orders: number
+              total_promo_amount: number
+            }[]
+          }
+        | {
+            Args: {
+              p_end_date: string
+              p_restaurant_ids: string[]
+              p_start_date: string
+            }
+            Returns: {
+              month_key: string
+              promo_orders: number
+              restaurant_id: string
+              taxed_orders: number
+              total_offer_fees: number
+              total_orders: number
+              total_promo_amount: number
+            }[]
+          }
       get_order_counts_for_accuracy: {
         Args: {
           p_end_date: string
