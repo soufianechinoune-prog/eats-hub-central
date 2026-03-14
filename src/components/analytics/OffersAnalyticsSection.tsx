@@ -65,7 +65,7 @@ export function OffersAnalyticsSection() {
     ? selectedRestaurants
     : restaurants.map((r) => r.id);
 
-  const { isLoading, kpis, restaurantStats, monthlyStats, heatmapData, anomalies } = useOffersAnalytics(
+  const { isLoading, isError, errorMessage, kpis, restaurantStats, monthlyStats, heatmapData, anomalies } = useOffersAnalytics(
     restaurantIds, startDate, endDate, restaurants
   );
 
