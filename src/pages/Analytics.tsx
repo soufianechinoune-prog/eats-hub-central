@@ -1014,6 +1014,7 @@ export default function Analytics() {
     },
     staleTime: 0,
     refetchOnMount: true,
+    enabled: needsConversion,
   });
 
   const { data: uberPrevFeesData } = useQuery({
