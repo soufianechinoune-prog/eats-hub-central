@@ -45,6 +45,9 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Ajustement des frais de marketing': 'marketing_fee_adjustment',
   'Ajustement marketing (hors TVA)': 'marketing_fee_adjustment',
   'Ajustement marketing (TVA incluse)': 'marketing_fee_adjustment',
+  // Frais d'utilisation de l'offre (0.89€ fee per taxed promo order)
+  "Frais d'utilisation de l'offre": 'offer_usage_fee',
+  "TVA sur les frais d'utilisation de l'offre": 'vat_offer_usage_fee',
   'Titre-restaurant': 'meal_voucher_amount',
   'Ajustements du prix (hors TVA)': 'price_adjustment_excl_vat',
   'Ajustements de prix (hors TVA)': 'price_adjustment_excl_vat',
@@ -416,6 +419,8 @@ Deno.serve(async (req) => {
           vat_3_item_promo: parseNumber(getValue('vat_3_item_promo')),
           item_promo_incl_vat: parseNumber(getValue('item_promo_incl_vat')),
           marketing_fee_adjustment: parseNumber(getValue('marketing_fee_adjustment')),
+          offer_usage_fee: parseNumber(getValue('offer_usage_fee')),
+          vat_offer_usage_fee: parseNumber(getValue('vat_offer_usage_fee')),
           meal_voucher_amount: parseNumber(getValue('meal_voucher_amount')),
           price_adjustment_excl_vat: parseNumber(getValue('price_adjustment_excl_vat')),
           vat_price_adjustment: parseNumber(getValue('vat_price_adjustment')),

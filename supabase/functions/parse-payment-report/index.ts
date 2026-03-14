@@ -47,6 +47,10 @@ const COLUMN_MAPPING: Record<string, string> = {
   
   'Ajustement des frais de marketing': 'marketing_fee_adjustment',
   'Ajustement marketing (TVA incluse)': 'marketing_fee_adjustment', // Format 2025
+  
+  // Frais d'utilisation de l'offre (0.89€ fee per taxed promo order)
+  "Frais d'utilisation de l'offre": 'offer_usage_fee',
+  "TVA sur les frais d'utilisation de l'offre": 'vat_offer_usage_fee',
   'Titre-restaurant': 'meal_voucher_amount',
   'Fournisseur de titres-restaurant': 'meal_voucher_provider',
   'Ajustements du prix (hors TVA)': 'price_adjustment_excl_vat',
@@ -669,6 +673,8 @@ Deno.serve(async (req) => {
         item_promo_incl_vat: parseNumber(getValue('item_promo_incl_vat')),
         promotion_discount: Math.abs(parseNumber(getValue('item_promo_incl_vat'))),
         marketing_fee_adjustment: parseNumber(getValue('marketing_fee_adjustment')),
+        offer_usage_fee: parseNumber(getValue('offer_usage_fee')),
+        vat_offer_usage_fee: parseNumber(getValue('vat_offer_usage_fee')),
         meal_voucher_amount: parseNumber(getValue('meal_voucher_amount')),
         meal_voucher_provider: getValue('meal_voucher_provider') || null,
         price_adjustment_excl_vat: parseNumber(getValue('price_adjustment_excl_vat')),
@@ -756,6 +762,8 @@ Deno.serve(async (req) => {
         existing.item_promo_incl_vat = (existing.item_promo_incl_vat || 0) + (order.item_promo_incl_vat || 0);
         existing.promotion_discount = (existing.promotion_discount || 0) + (order.promotion_discount || 0);
         existing.marketing_fee_adjustment = (existing.marketing_fee_adjustment || 0) + (order.marketing_fee_adjustment || 0);
+        existing.offer_usage_fee = (existing.offer_usage_fee || 0) + (order.offer_usage_fee || 0);
+        existing.vat_offer_usage_fee = (existing.vat_offer_usage_fee || 0) + (order.vat_offer_usage_fee || 0);
         existing.meal_voucher_amount = (existing.meal_voucher_amount || 0) + (order.meal_voucher_amount || 0);
         existing.price_adjustment_excl_vat = (existing.price_adjustment_excl_vat || 0) + (order.price_adjustment_excl_vat || 0);
         existing.vat_price_adjustment = (existing.vat_price_adjustment || 0) + (order.vat_price_adjustment || 0);
