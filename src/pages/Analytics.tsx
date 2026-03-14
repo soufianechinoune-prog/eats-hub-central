@@ -339,7 +339,7 @@ export default function Analytics() {
 
   // Fetch detailed payouts data - always fetch for the full year in finances mode
   // For Deliveroo: fetch from deliveroo_orders and map to PayoutData format
-  const { data: deliverooPayoutsData } = useQuery({
+  const { data: deliverooPayoutsData, isLoading: loadingDeliverooPayouts } = useQuery({
     queryKey: ["analytics_deliveroo_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
     queryFn: async () => {
       const MEAL_VOUCHER_TYPES = ["Montant commande Edenred", "Montant commande Swile", "Montant commande Sodexo", "Montant commande Up", "Montant commande Bimpli"];
