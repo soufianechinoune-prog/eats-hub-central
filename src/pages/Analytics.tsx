@@ -529,24 +529,31 @@ export default function Analytics() {
           }
           return data || [];
         }
-        // Full year: fetch 3 years in parallel using yearly RPC (3 calls instead of 36)
-        const yearsToFetch = [selectedYear, selectedYear - 1, selectedYear - 2];
-        const monthPromises = yearsToFetch.map(year =>
-          supabase.rpc('get_yearly_payouts_detail', {
-            p_year: year,
-            p_restaurant_ids: restaurantFilter || null,
-          })
-        );
-        const results = await Promise.all(monthPromises);
-        const allData: any[] = [];
-        for (const { data, error } of results) {
-          if (error) {
-            console.error("[Analytics] get_monthly_payouts_detail error:", error);
-            throw error;
+        // Full year: fetch 3 years in parallel using yearly RPC with pagination to bypass 1000-row limit
+        const PAGE_SIZE = 1000;
+        const fetchAllForYear = async (year: number) => {
+          let all: any[] = [];
+          let from = 0;
+          while (true) {
+            const { data, error } = await supabase
+              .rpc('get_yearly_payouts_detail', {
+                p_year: year,
+                p_restaurant_ids: restaurantFilter || null,
+              })
+              .range(from, from + PAGE_SIZE - 1);
+            if (error) {
+              console.error("[Analytics] get_yearly_payouts_detail error:", error);
+              throw error;
+            }
+            if (data) all.push(...data);
+            if (!data || data.length < PAGE_SIZE) break;
+            from += PAGE_SIZE;
           }
-          if (data) allData.push(...data);
-        }
-        return allData;
+          return all;
+        };
+        const yearsToFetch = [selectedYear, selectedYear - 1, selectedYear - 2];
+        const results = await Promise.all(yearsToFetch.map(fetchAllForYear));
+        return results.flat();
       }
       
       // For non-finances views, if we have a specific month, fetch just that month
