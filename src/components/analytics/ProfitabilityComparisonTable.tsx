@@ -622,6 +622,144 @@ export function ProfitabilityComparisonTable({
       });
   }, [comparisonData, payouts, profitabilityBase, sortColumn, sortDirection]);
   
+  // Group by year for year view mode
+  const yearGroups = useMemo((): YearGroup[] => {
+    if (viewMode !== 'year') return [];
+    const groups: Record<number, { rows: ComparisonRow[]; year: number }> = {};
+    
+    comparisonData.forEach(row => {
+      const yearNum = getYear(new Date(row.date));
+      if (!groups[yearNum]) {
+        groups[yearNum] = { rows: [], year: yearNum };
+      }
+      groups[yearNum].rows.push(row);
+    });
+    
+    return Object.entries(groups)
+      .map(([_, { rows, year }]) => {
+        const totalSales = rows.reduce((sum, r) => sum + r.sales, 0);
+        const totalPayout = rows.reduce((sum, r) => sum + r.netPayout, 0);
+        const totalMealVoucher = rows.reduce((sum, r) => sum + r.mealVoucher, 0);
+        const totalPayoutWithVoucher = rows.reduce((sum, r) => sum + r.totalPayout, 0);
+        const totalUberFeeHT = rows.reduce((sum, r) => {
+          const payoutData = payouts.find(p => p.payout_date === r.date && p.restaurant_id === r.restaurantId);
+          return sum + Math.abs(Number(payoutData?.uber_fee_after_promo_excl_vat) || 0);
+        }, 0);
+        const totalPromo = rows.reduce((sum, r) => sum + r.promoAmount, 0);
+        const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
+        const totalOrders = rows.reduce((sum, r) => sum + r.orderCount, 0);
+        
+        const netSales = totalSales - totalPromo;
+        const rateDenominator = platform === "deliveroo" ? totalSales : netSales;
+        const avgUberFeeRate = rateDenominator > 0 ? (totalUberFeeHT / rateDenominator) * 100 : 0;
+        const avgPromoRate = totalSales > 0 ? (totalPromo / totalSales) * 100 : 0;
+        const avgRefundRate = totalSales > 0 ? (totalRefund / totalSales) * 100 : 0;
+        
+        const profitabilityDenominator = profitabilityBase === 'net' ? netSales : totalSales;
+        const avgProfitability = profitabilityDenominator > 0 ? (totalPayoutWithVoucher / profitabilityDenominator) * 100 : 0;
+        
+        // Aggregate per restaurant
+        const restaurantAggregates: Record<string, {
+          restaurantId: string;
+          restaurantName: string;
+          sales: number;
+          netPayout: number;
+          mealVoucher: number;
+          ecoContribution: number;
+          ecoCharge: number;
+          promo: number;
+          refund: number;
+          uberFee: number;
+          orderCount: number;
+          advertisingAmount: number;
+        }> = {};
+        
+        rows.forEach(row => {
+          if (!restaurantAggregates[row.restaurantId]) {
+            restaurantAggregates[row.restaurantId] = {
+              restaurantId: row.restaurantId,
+              restaurantName: row.restaurantName,
+              sales: 0, netPayout: 0, mealVoucher: 0,
+              ecoContribution: 0, ecoCharge: 0,
+              promo: 0, refund: 0, uberFee: 0,
+              orderCount: 0, advertisingAmount: 0,
+            };
+          }
+          const agg = restaurantAggregates[row.restaurantId];
+          agg.sales += row.sales;
+          agg.netPayout += row.netPayout;
+          agg.mealVoucher += row.mealVoucher;
+          agg.ecoContribution += row.ecoContribution;
+          agg.ecoCharge += row.ecoCharge;
+          agg.promo += row.promoAmount;
+          agg.refund += row.refundAmount;
+          agg.orderCount += row.orderCount;
+          agg.advertisingAmount += row.advertisingAmount;
+          const payoutData = payouts.find(p => p.payout_date === row.date && p.restaurant_id === row.restaurantId);
+          agg.uberFee += Math.abs(Number(payoutData?.uber_fee_after_promo_excl_vat) || 0);
+        });
+        
+        const restaurantData: MonthRestaurantData[] = Object.values(restaurantAggregates)
+          .map(agg => {
+            const restoNetSales = agg.sales - agg.promo;
+            const restoRateDenominator = platform === "deliveroo" ? agg.sales : restoNetSales;
+            const restoProfitDenominator = profitabilityBase === 'net' ? restoNetSales : agg.sales;
+            const restoTotalPayout = agg.netPayout + agg.mealVoucher;
+            return {
+              restaurantId: agg.restaurantId,
+              restaurantName: agg.restaurantName,
+              sales: agg.sales,
+              netPayout: agg.netPayout,
+              mealVoucher: agg.mealVoucher,
+              ecoContribution: agg.ecoContribution,
+              ecoCharge: agg.ecoCharge,
+              totalPayout: restoTotalPayout,
+              profitability: restoProfitDenominator > 0 ? (restoTotalPayout / restoProfitDenominator) * 100 : 0,
+              uberFeeRate: restoRateDenominator > 0 ? (agg.uberFee / restoRateDenominator) * 100 : 0,
+              promoRate: agg.sales > 0 ? (agg.promo / agg.sales) * 100 : 0,
+              refundRate: agg.sales > 0 ? (agg.refund / agg.sales) * 100 : 0,
+              uberFee: agg.uberFee,
+              promo: agg.promo,
+              refund: agg.refund,
+              orderCount: agg.orderCount,
+              advertisingAmount: agg.advertisingAmount,
+            };
+          })
+          .sort((a, b) => {
+            let comparison = 0;
+            switch (sortColumn) {
+              case 'sales': comparison = a.sales - b.sales; break;
+              case 'profitability': comparison = a.profitability - b.profitability; break;
+              case 'commission': comparison = a.uberFeeRate - b.uberFeeRate; break;
+              case 'promo': comparison = a.promoRate - b.promoRate; break;
+              case 'refund': comparison = a.refundRate - b.refundRate; break;
+              case 'payout': comparison = a.totalPayout - b.totalPayout; break;
+              default: comparison = a.profitability - b.profitability;
+            }
+            return sortDirection === 'asc' ? comparison : -comparison;
+          });
+        
+        return {
+          year,
+          rows,
+          totalSales,
+          totalPayout,
+          totalMealVoucher,
+          totalPayoutWithVoucher,
+          avgProfitability,
+          avgUberFeeRate,
+          avgPromoRate,
+          avgRefundRate,
+          totalUberFee: totalUberFeeHT,
+          totalPromo,
+          totalRefund,
+          totalOrders,
+          restaurantData,
+        };
+      })
+      .sort((a, b) => b.year - a.year);
+  }, [comparisonData, payouts, profitabilityBase, sortColumn, sortDirection, viewMode]);
+  
   // Calculate averages for comparison
   const averages = useMemo(() => {
     if (comparisonData.length === 0) return null;
