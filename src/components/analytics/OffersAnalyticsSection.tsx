@@ -32,19 +32,25 @@ export function OffersAnalyticsSection() {
     selectedMonth,
     periodMode,
     dateRange,
+    isNetworkView,
   } = useAnalyticsContext();
 
   const [sortKey, setSortKey] = useState<SortKey>("totalFees");
   const [sortAsc, setSortAsc] = useState(false);
 
-  // Fetch restaurants
-  const { data: restaurants = [] } = useQuery({
+  // Fetch all active restaurants
+  const { data: allRestaurants = [] } = useQuery({
     queryKey: ["restaurants-list"],
     queryFn: async () => {
-      const { data } = await supabase.from("restaurants").select("id, name").eq("is_active", true);
+      const { data } = await supabase.from("restaurants").select("id, name, is_pinned").eq("is_active", true);
       return data || [];
     },
   });
+
+  // Determine effective restaurants based on network toggle
+  const restaurants = useMemo(() => allRestaurants.map(r => ({ id: r.id, name: r.name })), [allRestaurants]);
+
+  const pinnedIds = useMemo(() => allRestaurants.filter(r => r.is_pinned).map(r => r.id), [allRestaurants]);
 
   // Date range
   const { startDate, endDate } = useMemo(() => {
@@ -61,9 +67,12 @@ export function OffersAnalyticsSection() {
     return { startDate: format(s, "yyyy-MM-dd"), endDate: format(e, "yyyy-MM-dd") };
   }, [selectedYear, selectedMonth, periodMode, dateRange]);
 
-  const restaurantIds = selectedRestaurants.length > 0
-    ? selectedRestaurants
-    : restaurants.map((r) => r.id);
+  // Respect network toggle: pinned vs all, then override with explicit selection
+  const restaurantIds = useMemo(() => {
+    if (selectedRestaurants.length > 0) return selectedRestaurants;
+    if (isNetworkView) return allRestaurants.map(r => r.id);
+    return pinnedIds.length > 0 ? pinnedIds : allRestaurants.map(r => r.id);
+  }, [selectedRestaurants, isNetworkView, allRestaurants, pinnedIds]);
 
   const { isLoading, isError, errorMessage, kpis, restaurantStats, monthlyStats, heatmapData, anomalies } = useOffersAnalytics(
     restaurantIds, startDate, endDate, restaurants
