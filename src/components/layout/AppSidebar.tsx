@@ -28,6 +28,7 @@ import {
   Megaphone,
   Award,
   Leaf,
+  Tag,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
