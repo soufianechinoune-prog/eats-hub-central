@@ -1,0 +1,1 @@
+CREATE INDEX idx_orders_restaurant_datetime ON public.orders (restaurant_id, order_datetime);
