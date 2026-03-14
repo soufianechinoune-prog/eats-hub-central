@@ -353,7 +353,9 @@ export default function Analytics() {
         const lastDay = new Date(selectedYear, drillDownMonth, 0).getDate();
         queryEndDate = `${selectedYear}-${String(drillDownMonth).padStart(2, '0')}-${lastDay}`;
       } else {
-        queryStartDate = `${selectedYear}-01-01`;
+        // Fetch 3 years for year view support
+        const startYear = selectedYear - 2;
+        queryStartDate = `${startYear}-01-01`;
         queryEndDate = `${selectedYear}-12-31`;
       }
 
