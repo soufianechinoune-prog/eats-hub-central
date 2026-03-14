@@ -212,6 +212,7 @@ export function ProfitabilityComparisonTable({
   const [viewMode, setViewMode] = useState<ViewMode>('profitability');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('percent');
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
+  const [expandedYears, setExpandedYears] = useState<Set<number>>(new Set());
   const [sortColumn, setSortColumn] = useState<SortColumn>('profitability');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
