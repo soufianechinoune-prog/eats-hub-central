@@ -35,6 +35,7 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   ZoomIn
 } from "lucide-react";
 import { cn } from "@/lib/utils";
