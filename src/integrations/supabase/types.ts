@@ -3298,6 +3298,27 @@ export type Database = {
           revenue_ttc: number
         }[]
       }
+      get_deliveroo_payouts_detail: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          item_promo_incl_vat: number
+          marketing_fee_adjustment: number
+          meal_voucher_amount: number
+          net_payout: number
+          order_count: number
+          other_payments_incl_vat: number
+          payout_date: string
+          refund_incl_vat: number
+          restaurant_id: string
+          sales_incl_vat: number
+          uber_fee_after_promo_excl_vat: number
+          uber_fee_after_promo_incl_vat: number
+        }[]
+      }
       get_hourly_order_performance:
         | {
             Args: {
