@@ -1268,6 +1268,7 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
+    enabled: needsRevenue,
   });
 
   // ========== GLOBAL DATA (Combined) ==========
