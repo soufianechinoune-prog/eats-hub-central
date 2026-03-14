@@ -334,6 +334,7 @@ export default function Analytics() {
       }
       return data || [];
     },
+    enabled: needsFinances,
   });
 
   // Fetch detailed payouts data - always fetch for the full year in finances mode
