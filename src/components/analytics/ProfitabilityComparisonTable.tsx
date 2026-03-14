@@ -946,6 +946,15 @@ export function ProfitabilityComparisonTable({
               <Calendar className="h-3.5 w-3.5" />
               Mois
             </Button>
+            <Button
+              variant={viewMode === 'year' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('year')}
+              className="h-7 text-xs gap-1.5"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Année
+            </Button>
             
             {/* Separator */}
             <div className="w-px bg-border mx-1 h-5" />
