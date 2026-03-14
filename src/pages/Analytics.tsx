@@ -1366,9 +1366,7 @@ export default function Analytics() {
   }, [uberPrevFeesData, deliverooPrevFeesData]);
 
   const isLoading = loadingUberRevenue || loadingUberConversion || loadingUberFees ||
-                    loadingDeliverooRevenue || loadingDeliverooConversion || loadingDeliverooFees ||
-                    (selectedPlatform === "deliveroo" && loadingDeliverooPayouts) ||
-                    (selectedPlatform === "global" && (loadingDeliverooPayouts || loadingPayouts));
+                    loadingDeliverooRevenue || loadingDeliverooConversion || loadingDeliverooFees;
 
   // Debug logging
   useEffect(() => {
