@@ -1,25 +1,32 @@
 
 
-## Problem
+## Fix: Tableau "Comparatif de Rentabilité" absent pour Deliveroo
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+### Diagnostic
 
-## Solution
+Le tableau de rentabilité par restaurant n'apparaît pas quand Deliveroo est sélectionné car la query `deliverooPayoutsData` pagine **toutes les lignes brutes** de `deliveroo_orders` sur 3 ans (potentiellement 30 000+ lignes) avec des requêtes de 1000 lignes séquentielles. C'est trop lent — le chargement ne termine pas ou prend des minutes.
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+Le graphique et l'"Analyse par Commandes" fonctionnent car ils utilisent leurs propres hooks optimisés (`useFinancesDrilldown`) qui agrègent côté serveur.
 
-### Changes
+### Solution : Créer un RPC serveur pour agréger les données Deliveroo
 
-**`src/pages/Restaurants.tsx`**:
+Au lieu de tout charger côté client, créer une fonction SQL `get_deliveroo_payouts_detail` qui agrège directement en base par semaine + restaurant (même logique que le code JavaScript actuel, mais exécutée en SQL en quelques millisecondes).
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+### Étapes
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+**1. Migration SQL** — Créer la fonction `get_deliveroo_payouts_detail`
+- Paramètres : `p_start_date`, `p_end_date`, `p_restaurant_ids`
+- Agrège `deliveroo_orders` par semaine (lundi) + `restaurant_id`
+- Retourne les mêmes colonnes que le format attendu : `payout_date`, `restaurant_id`, `sales_incl_vat`, `uber_fee_after_promo_incl_vat`, `item_promo_incl_vat`, `refund_incl_vat`, `net_payout`, `order_count`, `other_payments_incl_vat`, `marketing_fee_adjustment`, `meal_voucher_amount`
+- Filtre les `history_type` correctement (Livraison, À emporter = ventes ; Remboursement client = refunds ; Contribution marketing = promos, etc.)
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+**2. `src/pages/Analytics.tsx`** — Remplacer la pagination client par l'appel RPC
+- Remplacer la query `deliverooPayoutsData` (~lignes 342-513) : au lieu de paginer `deliveroo_orders` et grouper en JS, appeler `supabase.rpc('get_deliveroo_payouts_detail', { p_start_date, p_end_date, p_restaurant_ids })`
+- 1 seule requête au lieu de 15-20 requêtes paginées
+- Temps de chargement : de ~30-60 secondes → <2 secondes
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+### Impact
+- Le tableau "Comparatif de Rentabilité" apparaîtra instantanément pour Deliveroo
+- Même format de données que pour Uber → compatibilité garantie avec le tableau existant
+- Le graphique et l'analyse par commandes continueront de fonctionner comme avant
 
