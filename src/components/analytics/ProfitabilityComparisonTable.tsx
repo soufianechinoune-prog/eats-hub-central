@@ -1005,7 +1005,7 @@ export function ProfitabilityComparisonTable({
                   onClick={() => handleSort('date')}
                 >
                   <div className="flex items-center gap-1">
-                    {viewMode === 'week' ? 'Semaine / Restaurant' : (isSingleRestaurant ? "Versement" : "Restaurant")}
+                    {viewMode === 'year' ? 'Année / Restaurant' : viewMode === 'week' ? 'Semaine / Restaurant' : (isSingleRestaurant ? "Versement" : "Restaurant")}
                     {sortColumn === 'date' ? (
                       sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
