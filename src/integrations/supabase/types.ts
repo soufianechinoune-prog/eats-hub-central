@@ -3542,6 +3542,37 @@ export type Database = {
           uber_one_revenue: number
         }[]
       }
+      get_yearly_payouts_detail: {
+        Args: { p_restaurant_ids?: string[]; p_year: number }
+        Returns: {
+          delivery_promo_excl_vat: number
+          delivery_promo_incl_vat: number
+          eco_contribution_charge: number
+          eco_contribution_refund: number
+          item_promo_excl_vat: number
+          item_promo_incl_vat: number
+          marketing_fee_adjustment: number
+          meal_voucher_amount: number
+          net_payout: number
+          order_count: number
+          other_payments_incl_vat: number
+          payout_date: string
+          price_adjustment_excl_vat: number
+          price_adjustment_incl_vat: number
+          refund_excl_vat: number
+          refund_incl_vat: number
+          restaurant_id: string
+          sales_excl_vat: number
+          sales_incl_vat: number
+          tips: number
+          uber_fee_after_promo_excl_vat: number
+          uber_fee_after_promo_incl_vat: number
+          uber_fee_before_promo_excl_vat: number
+          uber_fee_promo_excl_vat: number
+          vat_refund: number
+          vat_uber_fee: number
+        }[]
+      }
       update_uber_commission_rates: {
         Args: never
         Returns: {

@@ -106,6 +106,13 @@ export default function Analytics() {
 
   const prevYear = selectedYear - 1;
 
+  // === Performance: only fetch data relevant to the active viewMode ===
+  const needsRevenue = viewMode === 'revenue' || viewMode === 'overview';
+  const needsConversion = viewMode === 'conversion' || viewMode === 'overview';
+  const needsFinances = viewMode === 'finances';
+  const needsPayouts = viewMode === 'revenue' || viewMode === 'finances' || viewMode === 'overview';
+  const needsProfitability = viewMode === 'revenue' || viewMode === 'finances';
+
   // Determine data granularity based on selected period
   const { granularity, startDate, endDate, periodDays } = useDataGranularity({
     periodMode,
@@ -276,7 +283,8 @@ export default function Analytics() {
       const { data, error } = await supabase.rpc('get_monthly_payouts_summary', {
         p_year: selectedYear,
         p_restaurant_ids: restaurantFilter || null,
-      });
+    enabled: needsPayouts,
+  });
       if (error) {
         console.error("[Analytics] get_monthly_payouts_summary error:", error);
         throw error;
@@ -293,7 +301,8 @@ export default function Analytics() {
       const { data, error } = await supabase.rpc('get_monthly_payouts_summary', {
         p_year: prevYear,
         p_restaurant_ids: restaurantFilter || null,
-      });
+    enabled: needsPayouts,
+  });
       if (error) {
         console.error("[Analytics] get_monthly_payouts_summary (prev) error:", error);
         throw error;
@@ -325,6 +334,7 @@ export default function Analytics() {
       }
       return data || [];
     },
+    enabled: needsFinances,
   });
 
   // Fetch detailed payouts data - always fetch for the full year in finances mode
@@ -519,17 +529,13 @@ export default function Analytics() {
           }
           return data || [];
         }
-        // Full year: fetch all 12 months in parallel via RPC
-        // Also fetch 2 previous years to support the "Année" view mode
+        // Full year: fetch 3 years in parallel using yearly RPC (3 calls instead of 36)
         const yearsToFetch = [selectedYear, selectedYear - 1, selectedYear - 2];
-        const monthPromises = yearsToFetch.flatMap(year =>
-          Array.from({ length: 12 }, (_, i) =>
-            supabase.rpc('get_monthly_payouts_detail', {
-              p_year: year,
-              p_month: i + 1,
-              p_restaurant_ids: restaurantFilter || null,
-            })
-          )
+        const monthPromises = yearsToFetch.map(year =>
+          supabase.rpc('get_yearly_payouts_detail', {
+            p_year: year,
+            p_restaurant_ids: restaurantFilter || null,
+          })
         );
         const results = await Promise.all(monthPromises);
         const allData: any[] = [];
@@ -596,7 +602,7 @@ export default function Analytics() {
       }
       return data || [];
     },
-    enabled: (restaurants?.length || 0) > 0,
+    enabled: needsProfitability && (restaurants?.length || 0) > 0,
   });
 
   // Fetch profitability data for previous period
@@ -617,7 +623,7 @@ export default function Analytics() {
       }
       return data || [];
     },
-    enabled: (restaurants?.length || 0) > 0,
+    enabled: needsProfitability && (restaurants?.length || 0) > 0,
   });
 
   // ========== HYBRID DATA SOURCE LOGIC ==========
@@ -698,6 +704,7 @@ export default function Analytics() {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     placeholderData: (previousData) => previousData,
+    enabled: needsRevenue,
   });
 
   // Helper function to aggregate daily conversion data by month
@@ -819,6 +826,7 @@ export default function Analytics() {
     },
     staleTime: 0,
     refetchOnMount: true,
+    enabled: needsConversion,
   });
 
   // Fetch ALL restaurants' conversion data for ranking comparison (no restaurant filter)
@@ -849,6 +857,7 @@ export default function Analytics() {
       return aggregateDailyConversionByMonth(dailyData);
     },
     placeholderData: (previousData) => previousData,
+    enabled: needsConversion,
   });
 
   const { data: uberFeesData, isLoading: loadingUberFees } = useQuery({
@@ -870,6 +879,7 @@ export default function Analytics() {
       return data;
     },
     placeholderData: (previousData) => previousData,
+    enabled: needsRevenue,
   });
 
   // ========== UBER EATS DATA (Previous Year - N-1 or Rolling Period) ==========
@@ -965,6 +975,7 @@ export default function Analytics() {
         }
       }
     },
+    enabled: needsRevenue,
   });
 
   const { data: uberPrevConversionData } = useQuery({
@@ -1003,6 +1014,7 @@ export default function Analytics() {
     },
     staleTime: 0,
     refetchOnMount: true,
+    enabled: needsConversion,
   });
 
   const { data: uberPrevFeesData } = useQuery({
@@ -1023,6 +1035,7 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
+    enabled: needsRevenue,
   });
 
   // ========== DELIVEROO DATA (Current Year) ==========
@@ -1125,6 +1138,7 @@ export default function Analytics() {
       return aggregateDeliverooRevenue(rows, granularity);
     },
     placeholderData: (previousData) => previousData,
+    enabled: needsRevenue,
   });
 
   const { data: deliverooConversionData, isLoading: loadingDeliverooConversion } = useQuery({
@@ -1158,6 +1172,7 @@ export default function Analytics() {
     },
     staleTime: 0,
     refetchOnMount: true,
+    enabled: needsConversion,
   });
 
   const { data: deliverooFeesData, isLoading: loadingDeliverooFees } = useQuery({
@@ -1179,6 +1194,7 @@ export default function Analytics() {
       return data;
     },
     placeholderData: (previousData) => previousData,
+    enabled: needsRevenue,
   });
 
   // ========== DELIVEROO DATA (Previous Year - N-1) ==========
@@ -1192,6 +1208,7 @@ export default function Analytics() {
       const rows = await fetchAllDeliverooOrderRows(format(prevStartDate, "yyyy-MM-dd"), format(prevEndDate, "yyyy-MM-dd"));
       return aggregateDeliverooRevenue(rows, granularity);
     },
+    enabled: needsRevenue,
   });
 
   const { data: deliverooPrevConversionData } = useQuery({
@@ -1230,6 +1247,7 @@ export default function Analytics() {
     },
     staleTime: 0,
     refetchOnMount: true,
+    enabled: needsConversion,
   });
 
   const { data: deliverooPrevFeesData } = useQuery({
@@ -1250,6 +1268,7 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
+    enabled: needsRevenue,
   });
 
   // ========== GLOBAL DATA (Combined) ==========
