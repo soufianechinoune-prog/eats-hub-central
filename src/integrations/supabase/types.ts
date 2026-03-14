@@ -3435,6 +3435,22 @@ export type Database = {
           restaurant_id: string
         }[]
       }
+      get_offers_analytics: {
+        Args: {
+          p_end_date?: string
+          p_restaurant_ids?: string[]
+          p_start_date?: string
+        }
+        Returns: {
+          month_key: string
+          promo_orders: number
+          restaurant_id: string
+          taxed_orders: number
+          total_offer_fees: number
+          total_orders: number
+          total_promo_amount: number
+        }[]
+      }
       get_order_counts_for_accuracy: {
         Args: {
           p_end_date: string

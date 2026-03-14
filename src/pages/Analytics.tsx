@@ -21,6 +21,7 @@ import Reviews from "@/pages/Reviews";
 import { OperationsAnalytics } from "@/components/analytics/OperationsAnalytics";
 import { ActionFilterPopover } from "@/components/analytics/ActionFilterPopover";
 import { EcoContributionSection } from "@/components/analytics/EcoContributionSection";
+import { OffersAnalyticsSection } from "@/components/analytics/OffersAnalyticsSection";
 import { useFrenchHolidays } from "@/hooks/useFrenchHolidays";
 import { useSchoolHolidays } from "@/hooks/useSchoolHolidays";
 import { useFootballMatches } from "@/hooks/useFootballMatches";
@@ -46,7 +47,7 @@ const currentMonth = new Date().getMonth() + 1;
 
 export default function Analytics() {
   const { viewMode: viewModeParam } = useParams<{ viewMode: string }>();
-  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews" | "operations" | "eco-contribution";
+  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews" | "operations" | "eco-contribution" | "offers";
   
   const {
     selectedRestaurants,
@@ -1503,7 +1504,9 @@ export default function Analytics() {
             ];
 
             // Render appropriate view
-            if (viewMode === "eco-contribution") {
+            if (viewMode === "offers") {
+              return <OffersAnalyticsSection />;
+            } else if (viewMode === "eco-contribution") {
               return (
                 <EcoContributionSection
                   restaurants={restaurants || []}
