@@ -282,6 +282,33 @@ export function OffersAnalyticsSection() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {/* Totals row at top */}
+                {sortedStats.length > 0 && (() => {
+                  const totals = sortedStats.reduce(
+                    (acc, rs) => ({
+                      totalOrders: acc.totalOrders + rs.totalOrders,
+                      promoOrders: acc.promoOrders + rs.promoOrders,
+                      taxedOrders: acc.taxedOrders + rs.taxedOrders,
+                      totalFees: acc.totalFees + rs.totalFees,
+                    }),
+                    { totalOrders: 0, promoOrders: 0, taxedOrders: 0, totalFees: 0 }
+                  );
+                  const promoPercent = totals.totalOrders > 0 ? (totals.promoOrders / totals.totalOrders) * 100 : 0;
+                  const taxedPercent = totals.promoOrders > 0 ? (totals.taxedOrders / totals.promoOrders) * 100 : 0;
+                  const avgFee = totals.taxedOrders > 0 ? totals.totalFees / totals.taxedOrders : 0;
+                  return (
+                    <TableRow className="bg-muted/50 font-semibold border-b-2 border-border">
+                      <TableCell className="whitespace-nowrap">Total ({sortedStats.length} restaurants)</TableCell>
+                      <TableCell className="text-right tabular-nums">{totals.totalOrders.toLocaleString("fr-FR")}</TableCell>
+                      <TableCell className="text-right tabular-nums">{totals.promoOrders.toLocaleString("fr-FR")}</TableCell>
+                      <TableCell className="text-right tabular-nums">{promoPercent.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right tabular-nums">{totals.taxedOrders.toLocaleString("fr-FR")}</TableCell>
+                      <TableCell className="text-right tabular-nums">{taxedPercent.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">{totals.totalFees.toLocaleString("fr-FR", { maximumFractionDigits: 0 })}€</TableCell>
+                      <TableCell className="text-right tabular-nums">{avgFee.toFixed(2)}€</TableCell>
+                    </TableRow>
+                  );
+                })()}
                 {sortedStats.map((rs) => (
                   <TableRow key={rs.restaurantId} className={rs.isExempt ? "bg-accent/5" : ""}>
                     <TableCell className="font-medium whitespace-nowrap">
@@ -290,19 +317,10 @@ export function OffersAnalyticsSection() {
                         <Badge variant="secondary" className="ml-2 text-[10px]">Exonéré</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <div className="text-[10px] text-muted-foreground">{kpis.totalOrders > 0 ? `${((rs.totalOrders / kpis.totalOrders) * 100).toFixed(1)}%` : ""}</div>
-                      {rs.totalOrders.toLocaleString("fr-FR")}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <div className="text-[10px] text-muted-foreground">{kpis.promoOrdersCount > 0 ? `${((rs.promoOrders / kpis.promoOrdersCount) * 100).toFixed(1)}%` : ""}</div>
-                      {rs.promoOrders.toLocaleString("fr-FR")}
-                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{rs.totalOrders.toLocaleString("fr-FR")}</TableCell>
+                    <TableCell className="text-right tabular-nums">{rs.promoOrders.toLocaleString("fr-FR")}</TableCell>
                     <TableCell className="text-right tabular-nums">{rs.promoPercent.toFixed(1)}%</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <div className="text-[10px] text-muted-foreground">{kpis.taxedOrdersCount > 0 ? `${((rs.taxedOrders / kpis.taxedOrdersCount) * 100).toFixed(1)}%` : ""}</div>
-                      {rs.taxedOrders.toLocaleString("fr-FR")}
-                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{rs.taxedOrders.toLocaleString("fr-FR")}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {rs.promoOrders > 0 ? `${rs.taxedPercent.toFixed(1)}%` : "-"}
                     </TableCell>
