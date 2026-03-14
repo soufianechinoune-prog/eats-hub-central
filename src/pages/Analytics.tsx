@@ -975,6 +975,7 @@ export default function Analytics() {
         }
       }
     },
+    enabled: needsRevenue,
   });
 
   const { data: uberPrevConversionData } = useQuery({
