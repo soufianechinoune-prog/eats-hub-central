@@ -419,6 +419,8 @@ Deno.serve(async (req) => {
           vat_3_item_promo: parseNumber(getValue('vat_3_item_promo')),
           item_promo_incl_vat: parseNumber(getValue('item_promo_incl_vat')),
           marketing_fee_adjustment: parseNumber(getValue('marketing_fee_adjustment')),
+          offer_usage_fee: parseNumber(getValue('offer_usage_fee')),
+          vat_offer_usage_fee: parseNumber(getValue('vat_offer_usage_fee')),
           meal_voucher_amount: parseNumber(getValue('meal_voucher_amount')),
           price_adjustment_excl_vat: parseNumber(getValue('price_adjustment_excl_vat')),
           vat_price_adjustment: parseNumber(getValue('vat_price_adjustment')),
