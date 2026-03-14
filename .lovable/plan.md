@@ -1,25 +1,49 @@
 
 
-## Problem
+## Problème : Limite de 1000 lignes sur le RPC `get_yearly_payouts_detail`
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+### Diagnostic
 
-## Solution
+La table `payouts` contient **5207 lignes pour 2025** (91 restaurants × ~57 versements). Or, Supabase applique une **limite par défaut de 1000 lignes** sur les résultats RPC. Le nouveau `get_yearly_payouts_detail` retourne donc seulement les 1000 premières lignes au lieu des 5207 → données tronquées, CA sous-estimé.
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+### Solution
 
-### Changes
+Appliquer le **pattern de pagination `.range()`** déjà utilisé ailleurs dans le projet (cf. `useRestaurantMenuPrices`, `useRestaurantProfitability`) sur l'appel RPC dans `Analytics.tsx`.
 
-**`src/pages/Restaurants.tsx`**:
+**Fichier modifié** : `src/pages/Analytics.tsx` (~lignes 533-549)
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+Remplacer l'appel direct :
+```typescript
+supabase.rpc('get_yearly_payouts_detail', { p_year, p_restaurant_ids })
+```
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+Par une boucle de pagination :
+```typescript
+async function fetchAllYearlyPayouts(year, restaurantIds) {
+  const PAGE_SIZE = 1000;
+  let allData = [];
+  let from = 0;
+  let hasMore = true;
+  
+  while (hasMore) {
+    const { data, error } = await supabase
+      .rpc('get_yearly_payouts_detail', { p_year: year, p_restaurant_ids: restaurantIds })
+      .range(from, from + PAGE_SIZE - 1);
+    
+    if (error) throw error;
+    if (data) allData.push(...data);
+    hasMore = data?.length === PAGE_SIZE;
+    from += PAGE_SIZE;
+  }
+  return allData;
+}
+```
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+Puis appeler cette fonction pour chaque année (3 appels paginés en parallèle).
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+### Impact
+
+- Récupération de **100% des lignes** (5207+ pour 2025, ~5000 pour 2024, etc.)
+- Le CA réseau affiché correspondra à la réalité
+- Aucun changement SQL nécessaire
 
