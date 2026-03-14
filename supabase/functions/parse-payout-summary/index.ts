@@ -45,6 +45,9 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Ajustement des frais de marketing': 'marketing_fee_adjustment',
   'Ajustement marketing (hors TVA)': 'marketing_fee_adjustment',
   'Ajustement marketing (TVA incluse)': 'marketing_fee_adjustment',
+  // Frais d'utilisation de l'offre (0.89€ fee per taxed promo order)
+  "Frais d'utilisation de l'offre": 'offer_usage_fee',
+  "TVA sur les frais d'utilisation de l'offre": 'vat_offer_usage_fee',
   'Titre-restaurant': 'meal_voucher_amount',
   'Ajustements du prix (hors TVA)': 'price_adjustment_excl_vat',
   'Ajustements de prix (hors TVA)': 'price_adjustment_excl_vat',
