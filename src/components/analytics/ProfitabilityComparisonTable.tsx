@@ -35,6 +35,7 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   ZoomIn
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -186,7 +187,7 @@ export function ProfitabilityComparisonTable({
   advertisingData = [],
   platform = "uber_eats",
 }: ProfitabilityComparisonTableProps) {
-  const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
+  const { profitabilityBase, setProfitabilityBase, selectedYear, setSelectedYear } = useAnalyticsContext();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedPayouts, setSelectedPayouts] = useState<PayoutData[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -714,7 +715,30 @@ export function ProfitabilityComparisonTable({
           </CardTitle>
           
           <div className="flex gap-1 flex-wrap items-center">
-            {/* Display mode toggle for Commission/Promos/Remb */}
+            {/* Year selector */}
+            <div className="flex items-center rounded-lg border bg-muted/30 p-0.5 mr-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={() => setSelectedYear(selectedYear - 1)}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <span className="text-xs font-semibold px-1.5 tabular-nums">{selectedYear}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={() => setSelectedYear(selectedYear + 1)}
+                disabled={selectedYear >= new Date().getFullYear()}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            
+            {/* Separator */}
+            <div className="w-px bg-border mx-1 h-5" />
             <Button
               variant={displayMode === 'percent' ? 'default' : 'outline'}
               size="sm"
