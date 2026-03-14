@@ -78,7 +78,7 @@ export function useOffersAnalytics(
   successScores?: { restaurant_id: string; score_tier: string }[]
 ): OffersAnalyticsResult {
   // Current period
-  const { data: rawData, isLoading } = useQuery({
+  const { data: rawData, isLoading, isError, error: queryError } = useQuery({
     queryKey: ["offers-analytics", restaurantIds, startDate, endDate],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_offers_analytics", {
