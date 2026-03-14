@@ -65,7 +65,7 @@ export function OffersAnalyticsSection() {
     ? selectedRestaurants
     : restaurants.map((r) => r.id);
 
-  const { isLoading, kpis, restaurantStats, monthlyStats, heatmapData, anomalies } = useOffersAnalytics(
+  const { isLoading, isError, errorMessage, kpis, restaurantStats, monthlyStats, heatmapData, anomalies } = useOffersAnalytics(
     restaurantIds, startDate, endDate, restaurants
   );
 
@@ -140,6 +140,20 @@ export function OffersAnalyticsSection() {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+        <AlertTriangle className="h-8 w-8 text-destructive" />
+        <p className="text-sm text-muted-foreground">
+          Erreur lors du chargement des données d'offres.
+        </p>
+        {errorMessage && (
+          <p className="text-xs text-muted-foreground/70 max-w-md font-mono">{errorMessage}</p>
+        )}
       </div>
     );
   }

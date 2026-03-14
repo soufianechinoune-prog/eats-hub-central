@@ -52,6 +52,8 @@ interface HeatmapCell {
 
 export interface OffersAnalyticsResult {
   isLoading: boolean;
+  isError: boolean;
+  errorMessage: string | null;
   kpis: {
     totalFees: number;
     totalFeesPrev: number;
@@ -76,7 +78,7 @@ export function useOffersAnalytics(
   successScores?: { restaurant_id: string; score_tier: string }[]
 ): OffersAnalyticsResult {
   // Current period
-  const { data: rawData, isLoading } = useQuery({
+  const { data: rawData, isLoading, isError, error: queryError } = useQuery({
     queryKey: ["offers-analytics", restaurantIds, startDate, endDate],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_offers_analytics", {
@@ -264,7 +266,7 @@ export function useOffersAnalytics(
       }
     });
 
-    return { isLoading, kpis, restaurantStats, monthlyStats, heatmapData, anomalies };
-  }, [rawData, prevData, nameMap, scores, isLoading]);
+    return { isLoading, isError, errorMessage: queryError?.message || null, kpis, restaurantStats, monthlyStats, heatmapData, anomalies };
+  }, [rawData, prevData, nameMap, scores, isLoading, isError, queryError]);
 }
 
