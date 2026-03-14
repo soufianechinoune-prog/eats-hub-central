@@ -581,6 +581,7 @@ export function AnalyticsCharts({
   onHolidaysToggle,
   onSchoolHolidaysToggle,
   onFootballMatchesToggle,
+  isPayoutsLoading,
 }: AnalyticsChartsProps) {
   const navigate = useNavigate();
   const { selectedPlatform } = useAnalyticsContext();
