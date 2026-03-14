@@ -1194,6 +1194,7 @@ export default function Analytics() {
       return data;
     },
     placeholderData: (previousData) => previousData,
+    enabled: needsRevenue,
   });
 
   // ========== DELIVEROO DATA (Previous Year - N-1) ==========
