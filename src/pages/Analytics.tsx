@@ -1035,6 +1035,7 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
+    enabled: needsRevenue,
   });
 
   // ========== DELIVEROO DATA (Current Year) ==========
