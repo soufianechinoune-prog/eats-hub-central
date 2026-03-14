@@ -80,6 +80,7 @@ export function FinancesSection({
   onSchoolHolidaysToggle,
   onFootballMatchesToggle,
   granularity = "monthly",
+  isPayoutsLoading = false,
 }: FinancesSectionProps) {
   const hasActions = globalActions.length > 0;
 
