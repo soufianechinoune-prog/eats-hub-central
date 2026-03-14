@@ -266,7 +266,7 @@ export function useOffersAnalytics(
       }
     });
 
-    return { isLoading, kpis, restaurantStats, monthlyStats, heatmapData, anomalies };
+    return { isLoading, isError, errorMessage: queryError?.message || null, kpis, restaurantStats, monthlyStats, heatmapData, anomalies };
   }, [rawData, prevData, nameMap, scores, isLoading]);
 }
 
