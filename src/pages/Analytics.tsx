@@ -283,7 +283,8 @@ export default function Analytics() {
       const { data, error } = await supabase.rpc('get_monthly_payouts_summary', {
         p_year: selectedYear,
         p_restaurant_ids: restaurantFilter || null,
-      });
+    enabled: needsPayouts,
+  });
       if (error) {
         console.error("[Analytics] get_monthly_payouts_summary error:", error);
         throw error;
