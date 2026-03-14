@@ -1208,6 +1208,7 @@ export default function Analytics() {
       const rows = await fetchAllDeliverooOrderRows(format(prevStartDate, "yyyy-MM-dd"), format(prevEndDate, "yyyy-MM-dd"));
       return aggregateDeliverooRevenue(rows, granularity);
     },
+    enabled: needsRevenue,
   });
 
   const { data: deliverooPrevConversionData } = useQuery({
