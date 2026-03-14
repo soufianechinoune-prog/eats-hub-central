@@ -1,25 +1,33 @@
 
 
-## Problem
+## Fix: Deliveroo Finances infinite loading / blank screen
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+### Root Cause
 
-## Solution
+When Deliveroo is selected, the `deliverooPayoutsData` query paginates through thousands of rows (15-20 sequential requests). The `loadingDeliverooPayouts` state is extracted in `Analytics.tsx` but **never passed down** to `AnalyticsCharts` or `FinancesSection`.
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+In `FinancesSection`, the loading spinner depends only on `isChartLoading` (from its internal `useFinancesDrilldown` hook). Once that hook finishes loading, the spinner disappears — but `dailyPayoutsData` is still `[]` because the parent Deliveroo query hasn't completed. Result: no spinner, no chart, no table → blank screen.
 
-### Changes
+### Fix (3 files)
 
-**`src/pages/Restaurants.tsx`**:
+**1. `src/pages/Analytics.tsx`**
+- Pass `loadingDeliverooPayouts` to `AnalyticsCharts` via a new `isPayoutsLoading` prop:
+  ```typescript
+  isPayoutsLoading={loadingDeliverooPayouts}
+  ```
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+**2. `src/components/analytics/AnalyticsCharts.tsx`**
+- Accept `isPayoutsLoading?: boolean` in props
+- Forward it to `FinancesSection` as a new prop
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+**3. `src/components/analytics/FinancesSection.tsx`**
+- Accept `isPayoutsLoading?: boolean` in props
+- Update the loading condition (line 150) to also show the spinner when the parent payouts data is still loading:
+  ```typescript
+  {(isPayoutsLoading || ((!chartDailyData || chartDailyData.length === 0) && (!dailyPayoutsData || dailyPayoutsData.length === 0) && isChartLoading)) && (
+    <Loader2 spinner />
+  )}
+  ```
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
-
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+This ensures the "Chargement des données financières…" spinner stays visible until the Deliveroo pagination completes.
 
