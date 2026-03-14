@@ -602,7 +602,7 @@ export default function Analytics() {
       }
       return data || [];
     },
-    enabled: (restaurants?.length || 0) > 0,
+    enabled: needsProfitability && (restaurants?.length || 0) > 0,
   });
 
   // Fetch profitability data for previous period
