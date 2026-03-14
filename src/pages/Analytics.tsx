@@ -879,6 +879,7 @@ export default function Analytics() {
       return data;
     },
     placeholderData: (previousData) => previousData,
+    enabled: needsRevenue,
   });
 
   // ========== UBER EATS DATA (Previous Year - N-1 or Rolling Period) ==========
