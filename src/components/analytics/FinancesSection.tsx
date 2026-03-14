@@ -49,6 +49,7 @@ interface FinancesSectionProps {
   onSchoolHolidaysToggle?: (value: boolean) => void;
   onFootballMatchesToggle?: (value: boolean) => void;
   granularity?: "daily" | "weekly" | "monthly";
+  isPayoutsLoading?: boolean;
 }
 
 export function FinancesSection({
@@ -79,6 +80,7 @@ export function FinancesSection({
   onSchoolHolidaysToggle,
   onFootballMatchesToggle,
   granularity = "monthly",
+  isPayoutsLoading = false,
 }: FinancesSectionProps) {
   const hasActions = globalActions.length > 0;
 
@@ -147,7 +149,7 @@ export function FinancesSection({
       </div>
 
       {/* Loading indicator when no data is available yet */}
-      {(!chartDailyData || chartDailyData.length === 0) && (!dailyPayoutsData || dailyPayoutsData.length === 0) && isChartLoading && (
+      {(isPayoutsLoading || ((!chartDailyData || chartDailyData.length === 0) && (!dailyPayoutsData || dailyPayoutsData.length === 0) && isChartLoading)) && (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">Chargement des données financières…</p>

@@ -281,6 +281,7 @@ interface AnalyticsChartsProps {
   onHolidaysToggle?: (value: boolean) => void;
   onSchoolHolidaysToggle?: (value: boolean) => void;
   onFootballMatchesToggle?: (value: boolean) => void;
+  isPayoutsLoading?: boolean;
 }
 
 // Action category colors
@@ -580,6 +581,7 @@ export function AnalyticsCharts({
   onHolidaysToggle,
   onSchoolHolidaysToggle,
   onFootballMatchesToggle,
+  isPayoutsLoading,
 }: AnalyticsChartsProps) {
   const navigate = useNavigate();
   const { selectedPlatform } = useAnalyticsContext();
@@ -3357,6 +3359,7 @@ export function AnalyticsCharts({
           onSchoolHolidaysToggle={onSchoolHolidaysToggle}
           onFootballMatchesToggle={onFootballMatchesToggle}
           granularity={granularity}
+          isPayoutsLoading={isPayoutsLoading}
         />
       )}
     </div>
