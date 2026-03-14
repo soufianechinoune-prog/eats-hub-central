@@ -1631,8 +1631,8 @@ export default function Analytics() {
                   prevRevenueData={currentPrevRevenueData}
                   prevConversionData={currentPrevConversionData}
                   prevFeesData={currentPrevFeesData}
-                  payoutsData={payoutsData}
-                  prevPayoutsData={prevPayoutsData}
+                  payoutsData={effectivePayoutsData}
+                  prevPayoutsData={effectivePrevPayoutsData}
                   dailyPayoutsData={effectiveDailyPayoutsData}
                   startMonth={effectiveStartMonth}
                   endMonth={effectiveEndMonth}
