@@ -704,6 +704,7 @@ export default function Analytics() {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     placeholderData: (previousData) => previousData,
+    enabled: needsRevenue,
   });
 
   // Helper function to aggregate daily conversion data by month
