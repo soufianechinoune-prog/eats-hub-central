@@ -1672,6 +1672,7 @@ export default function Analytics() {
                   onHolidaysToggle={setShowHolidays}
                   onSchoolHolidaysToggle={setShowSchoolHolidays}
                   onFootballMatchesToggle={setShowFootballMatches}
+                  isPayoutsLoading={loadingDeliverooPayouts}
                 />
               );
             }

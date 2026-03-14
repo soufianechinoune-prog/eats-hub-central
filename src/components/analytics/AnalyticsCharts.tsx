@@ -281,6 +281,7 @@ interface AnalyticsChartsProps {
   onHolidaysToggle?: (value: boolean) => void;
   onSchoolHolidaysToggle?: (value: boolean) => void;
   onFootballMatchesToggle?: (value: boolean) => void;
+  isPayoutsLoading?: boolean;
 }
 
 // Action category colors

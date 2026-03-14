@@ -49,6 +49,7 @@ interface FinancesSectionProps {
   onSchoolHolidaysToggle?: (value: boolean) => void;
   onFootballMatchesToggle?: (value: boolean) => void;
   granularity?: "daily" | "weekly" | "monthly";
+  isPayoutsLoading?: boolean;
 }
 
 export function FinancesSection({
