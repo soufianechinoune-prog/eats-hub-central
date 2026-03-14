@@ -894,6 +894,7 @@ export function ProfitabilityComparisonTable({
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             </div>
+            )}
             
             {/* Separator */}
             <div className="w-px bg-border mx-1 h-5" />
