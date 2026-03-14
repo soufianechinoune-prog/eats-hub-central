@@ -826,6 +826,7 @@ export default function Analytics() {
     },
     staleTime: 0,
     refetchOnMount: true,
+    enabled: needsConversion,
   });
 
   // Fetch ALL restaurants' conversion data for ranking comparison (no restaurant filter)
