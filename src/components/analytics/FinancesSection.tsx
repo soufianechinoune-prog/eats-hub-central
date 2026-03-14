@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { ProfitabilityComparisonTable } from "./ProfitabilityComparisonTable";
 import { OrdersAnalysisSection } from "./OrdersAnalysisSection";
 import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
-import { Zap } from "lucide-react";
+import { Zap, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -145,6 +145,14 @@ export function FinancesSection({
           />
         )}
       </div>
+
+      {/* Loading indicator when no data is available yet */}
+      {(!chartDailyData || chartDailyData.length === 0) && (!dailyPayoutsData || dailyPayoutsData.length === 0) && isChartLoading && (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Chargement des données financières…</p>
+        </div>
+      )}
 
       {/* Profitability Comparison Chart */}
       {chartDailyData && chartDailyData.length > 0 && dateRange && previousDateRange && (
