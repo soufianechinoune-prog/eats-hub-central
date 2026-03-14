@@ -106,6 +106,13 @@ export default function Analytics() {
 
   const prevYear = selectedYear - 1;
 
+  // === Performance: only fetch data relevant to the active viewMode ===
+  const needsRevenue = viewMode === 'revenue' || viewMode === 'overview';
+  const needsConversion = viewMode === 'conversion' || viewMode === 'overview';
+  const needsFinances = viewMode === 'finances';
+  const needsPayouts = viewMode === 'revenue' || viewMode === 'finances' || viewMode === 'overview';
+  const needsProfitability = viewMode === 'revenue' || viewMode === 'finances';
+
   // Determine data granularity based on selected period
   const { granularity, startDate, endDate, periodDays } = useDataGranularity({
     periodMode,
