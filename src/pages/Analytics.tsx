@@ -582,6 +582,68 @@ export default function Analytics() {
     return dailyPayoutsData;
   }, [selectedPlatform, dailyPayoutsData, deliverooPayoutsData]);
 
+  // Aggregate Deliveroo weekly data into monthly summaries (same shape as get_monthly_payouts_summary)
+  const deliverooMonthlyPayouts = useMemo(() => {
+    if (!deliverooPayoutsData || deliverooPayoutsData.length === 0) return { current: [] as any[], prev: [] as any[] };
+    
+    const currentYear = selectedYear;
+    const prevYear = selectedYear - 1;
+    const currentMonthly: Record<number, any> = {};
+    const prevMonthly: Record<number, any> = {};
+
+    deliverooPayoutsData.forEach((row: any) => {
+      const date = new Date(row.payout_date);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      
+      const target = year === currentYear ? currentMonthly : year === prevYear ? prevMonthly : null;
+      if (!target) return;
+      
+      if (!target[month]) {
+        target[month] = {
+          month,
+          sales_incl_vat: 0,
+          refund_incl_vat: 0,
+          item_promo_incl_vat: 0,
+          uber_fee_incl_vat: 0,
+          delivery_promo_incl_vat: 0,
+          other_payments_incl_vat: 0,
+          marketing_fee_adjustment: 0,
+          net_payout: 0,
+          order_count: 0,
+          tips: 0,
+        };
+      }
+      const m = target[month];
+      m.sales_incl_vat += Number(row.sales_incl_vat) || 0;
+      m.refund_incl_vat += Number(row.refund_incl_vat) || 0;
+      m.item_promo_incl_vat += Number(row.item_promo_incl_vat) || 0;
+      m.uber_fee_incl_vat += Number(row.uber_fee_after_promo_incl_vat) || 0;
+      m.other_payments_incl_vat += Number(row.other_payments_incl_vat) || 0;
+      m.marketing_fee_adjustment += Number(row.marketing_fee_adjustment) || 0;
+      m.net_payout += Number(row.net_payout) || 0;
+      m.order_count += Number(row.order_count) || 0;
+    });
+
+    return {
+      current: Object.values(currentMonthly),
+      prev: Object.values(prevMonthly),
+    };
+  }, [deliverooPayoutsData, selectedYear]);
+
+  // Effective monthly payouts data based on platform
+  const effectivePayoutsData = useMemo(() => {
+    if (selectedPlatform === "deliveroo") return deliverooMonthlyPayouts.current;
+    if (selectedPlatform === "global") return [...(payoutsData || []), ...deliverooMonthlyPayouts.current];
+    return payoutsData;
+  }, [selectedPlatform, payoutsData, deliverooMonthlyPayouts]);
+
+  const effectivePrevPayoutsData = useMemo(() => {
+    if (selectedPlatform === "deliveroo") return deliverooMonthlyPayouts.prev;
+    if (selectedPlatform === "global") return [...(prevPayoutsData || []), ...deliverooMonthlyPayouts.prev];
+    return prevPayoutsData;
+  }, [selectedPlatform, prevPayoutsData, deliverooMonthlyPayouts]);
+
   // ========== PROFITABILITY DATA ==========
   // Calculate previous period range for profitability comparison
   const profitabilityPrevRange = useMemo(() => {
