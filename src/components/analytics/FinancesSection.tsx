@@ -146,6 +146,14 @@ export function FinancesSection({
         )}
       </div>
 
+      {/* Loading indicator when no data is available yet */}
+      {(!chartDailyData || chartDailyData.length === 0) && (!dailyPayoutsData || dailyPayoutsData.length === 0) && isChartLoading && (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Chargement des données financières…</p>
+        </div>
+      )}
+
       {/* Profitability Comparison Chart */}
       {chartDailyData && chartDailyData.length > 0 && dateRange && previousDateRange && (
         <ProfitabilityComparisonChart
