@@ -176,7 +176,25 @@ interface MonthGroup {
   restaurantData: MonthRestaurantData[];
 }
 
-type ViewMode = 'profitability' | 'week' | 'month';
+interface YearGroup {
+  year: number;
+  rows: ComparisonRow[];
+  totalSales: number;
+  totalPayout: number;
+  totalMealVoucher: number;
+  totalPayoutWithVoucher: number;
+  avgProfitability: number;
+  avgUberFeeRate: number;
+  avgPromoRate: number;
+  avgRefundRate: number;
+  totalUberFee: number;
+  totalPromo: number;
+  totalRefund: number;
+  totalOrders: number;
+  restaurantData: MonthRestaurantData[];
+}
+
+type ViewMode = 'profitability' | 'week' | 'month' | 'year';
 
 type SortColumn = 'date' | 'sales' | 'profitability' | 'commission' | 'promo' | 'refund' | 'payout';
 type SortDirection = 'asc' | 'desc';
