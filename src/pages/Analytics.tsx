@@ -301,15 +301,16 @@ export default function Analytics() {
     },
   });
 
-  // Fetch advertising expenses from payout_adjustments
+  // Fetch advertising expenses from payout_adjustments (3 years for year view)
   const { data: advertisingData } = useQuery({
     queryKey: ["analytics_advertising", restaurantFilter, selectedYear],
     queryFn: async () => {
+      const startYear = selectedYear - 2;
       let query = supabase
         .from('payout_adjustments')
         .select('payout_date, restaurant_id, amount')
         .eq('category', 'advertising')
-        .gte('payout_date', `${selectedYear}-01-01`)
+        .gte('payout_date', `${startYear}-01-01`)
         .lte('payout_date', `${selectedYear}-12-31`);
       
       if (restaurantFilter && restaurantFilter.length > 0) {
@@ -352,7 +353,9 @@ export default function Analytics() {
         const lastDay = new Date(selectedYear, drillDownMonth, 0).getDate();
         queryEndDate = `${selectedYear}-${String(drillDownMonth).padStart(2, '0')}-${lastDay}`;
       } else {
-        queryStartDate = `${selectedYear}-01-01`;
+        // Fetch 3 years for year view support
+        const startYear = selectedYear - 2;
+        queryStartDate = `${startYear}-01-01`;
         queryEndDate = `${selectedYear}-12-31`;
       }
 
@@ -516,12 +519,16 @@ export default function Analytics() {
           return data || [];
         }
         // Full year: fetch all 12 months in parallel via RPC
-        const monthPromises = Array.from({ length: 12 }, (_, i) =>
-          supabase.rpc('get_monthly_payouts_detail', {
-            p_year: selectedYear,
-            p_month: i + 1,
-            p_restaurant_ids: restaurantFilter || null,
-          })
+        // Also fetch 2 previous years to support the "Année" view mode
+        const yearsToFetch = [selectedYear, selectedYear - 1, selectedYear - 2];
+        const monthPromises = yearsToFetch.flatMap(year =>
+          Array.from({ length: 12 }, (_, i) =>
+            supabase.rpc('get_monthly_payouts_detail', {
+              p_year: year,
+              p_month: i + 1,
+              p_restaurant_ids: restaurantFilter || null,
+            })
+          )
         );
         const results = await Promise.all(monthPromises);
         const allData: any[] = [];

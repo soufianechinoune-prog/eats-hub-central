@@ -176,7 +176,25 @@ interface MonthGroup {
   restaurantData: MonthRestaurantData[];
 }
 
-type ViewMode = 'profitability' | 'week' | 'month';
+interface YearGroup {
+  year: number;
+  rows: ComparisonRow[];
+  totalSales: number;
+  totalPayout: number;
+  totalMealVoucher: number;
+  totalPayoutWithVoucher: number;
+  avgProfitability: number;
+  avgUberFeeRate: number;
+  avgPromoRate: number;
+  avgRefundRate: number;
+  totalUberFee: number;
+  totalPromo: number;
+  totalRefund: number;
+  totalOrders: number;
+  restaurantData: MonthRestaurantData[];
+}
+
+type ViewMode = 'profitability' | 'week' | 'month' | 'year';
 
 type SortColumn = 'date' | 'sales' | 'profitability' | 'commission' | 'promo' | 'refund' | 'payout';
 type SortDirection = 'asc' | 'desc';
@@ -194,6 +212,7 @@ export function ProfitabilityComparisonTable({
   const [viewMode, setViewMode] = useState<ViewMode>('profitability');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('percent');
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
+  const [expandedYears, setExpandedYears] = useState<Set<number>>(new Set());
   const [sortColumn, setSortColumn] = useState<SortColumn>('profitability');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
@@ -603,6 +622,144 @@ export function ProfitabilityComparisonTable({
       });
   }, [comparisonData, payouts, profitabilityBase, sortColumn, sortDirection]);
   
+  // Group by year for year view mode
+  const yearGroups = useMemo((): YearGroup[] => {
+    if (viewMode !== 'year') return [];
+    const groups: Record<number, { rows: ComparisonRow[]; year: number }> = {};
+    
+    comparisonData.forEach(row => {
+      const yearNum = getYear(new Date(row.date));
+      if (!groups[yearNum]) {
+        groups[yearNum] = { rows: [], year: yearNum };
+      }
+      groups[yearNum].rows.push(row);
+    });
+    
+    return Object.entries(groups)
+      .map(([_, { rows, year }]) => {
+        const totalSales = rows.reduce((sum, r) => sum + r.sales, 0);
+        const totalPayout = rows.reduce((sum, r) => sum + r.netPayout, 0);
+        const totalMealVoucher = rows.reduce((sum, r) => sum + r.mealVoucher, 0);
+        const totalPayoutWithVoucher = rows.reduce((sum, r) => sum + r.totalPayout, 0);
+        const totalUberFeeHT = rows.reduce((sum, r) => {
+          const payoutData = payouts.find(p => p.payout_date === r.date && p.restaurant_id === r.restaurantId);
+          return sum + Math.abs(Number(payoutData?.uber_fee_after_promo_excl_vat) || 0);
+        }, 0);
+        const totalPromo = rows.reduce((sum, r) => sum + r.promoAmount, 0);
+        const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
+        const totalOrders = rows.reduce((sum, r) => sum + r.orderCount, 0);
+        
+        const netSales = totalSales - totalPromo;
+        const rateDenominator = platform === "deliveroo" ? totalSales : netSales;
+        const avgUberFeeRate = rateDenominator > 0 ? (totalUberFeeHT / rateDenominator) * 100 : 0;
+        const avgPromoRate = totalSales > 0 ? (totalPromo / totalSales) * 100 : 0;
+        const avgRefundRate = totalSales > 0 ? (totalRefund / totalSales) * 100 : 0;
+        
+        const profitabilityDenominator = profitabilityBase === 'net' ? netSales : totalSales;
+        const avgProfitability = profitabilityDenominator > 0 ? (totalPayoutWithVoucher / profitabilityDenominator) * 100 : 0;
+        
+        // Aggregate per restaurant
+        const restaurantAggregates: Record<string, {
+          restaurantId: string;
+          restaurantName: string;
+          sales: number;
+          netPayout: number;
+          mealVoucher: number;
+          ecoContribution: number;
+          ecoCharge: number;
+          promo: number;
+          refund: number;
+          uberFee: number;
+          orderCount: number;
+          advertisingAmount: number;
+        }> = {};
+        
+        rows.forEach(row => {
+          if (!restaurantAggregates[row.restaurantId]) {
+            restaurantAggregates[row.restaurantId] = {
+              restaurantId: row.restaurantId,
+              restaurantName: row.restaurantName,
+              sales: 0, netPayout: 0, mealVoucher: 0,
+              ecoContribution: 0, ecoCharge: 0,
+              promo: 0, refund: 0, uberFee: 0,
+              orderCount: 0, advertisingAmount: 0,
+            };
+          }
+          const agg = restaurantAggregates[row.restaurantId];
+          agg.sales += row.sales;
+          agg.netPayout += row.netPayout;
+          agg.mealVoucher += row.mealVoucher;
+          agg.ecoContribution += row.ecoContribution;
+          agg.ecoCharge += row.ecoCharge;
+          agg.promo += row.promoAmount;
+          agg.refund += row.refundAmount;
+          agg.orderCount += row.orderCount;
+          agg.advertisingAmount += row.advertisingAmount;
+          const payoutData = payouts.find(p => p.payout_date === row.date && p.restaurant_id === row.restaurantId);
+          agg.uberFee += Math.abs(Number(payoutData?.uber_fee_after_promo_excl_vat) || 0);
+        });
+        
+        const restaurantData: MonthRestaurantData[] = Object.values(restaurantAggregates)
+          .map(agg => {
+            const restoNetSales = agg.sales - agg.promo;
+            const restoRateDenominator = platform === "deliveroo" ? agg.sales : restoNetSales;
+            const restoProfitDenominator = profitabilityBase === 'net' ? restoNetSales : agg.sales;
+            const restoTotalPayout = agg.netPayout + agg.mealVoucher;
+            return {
+              restaurantId: agg.restaurantId,
+              restaurantName: agg.restaurantName,
+              sales: agg.sales,
+              netPayout: agg.netPayout,
+              mealVoucher: agg.mealVoucher,
+              ecoContribution: agg.ecoContribution,
+              ecoCharge: agg.ecoCharge,
+              totalPayout: restoTotalPayout,
+              profitability: restoProfitDenominator > 0 ? (restoTotalPayout / restoProfitDenominator) * 100 : 0,
+              uberFeeRate: restoRateDenominator > 0 ? (agg.uberFee / restoRateDenominator) * 100 : 0,
+              promoRate: agg.sales > 0 ? (agg.promo / agg.sales) * 100 : 0,
+              refundRate: agg.sales > 0 ? (agg.refund / agg.sales) * 100 : 0,
+              uberFee: agg.uberFee,
+              promo: agg.promo,
+              refund: agg.refund,
+              orderCount: agg.orderCount,
+              advertisingAmount: agg.advertisingAmount,
+            };
+          })
+          .sort((a, b) => {
+            let comparison = 0;
+            switch (sortColumn) {
+              case 'sales': comparison = a.sales - b.sales; break;
+              case 'profitability': comparison = a.profitability - b.profitability; break;
+              case 'commission': comparison = a.uberFeeRate - b.uberFeeRate; break;
+              case 'promo': comparison = a.promoRate - b.promoRate; break;
+              case 'refund': comparison = a.refundRate - b.refundRate; break;
+              case 'payout': comparison = a.totalPayout - b.totalPayout; break;
+              default: comparison = a.profitability - b.profitability;
+            }
+            return sortDirection === 'asc' ? comparison : -comparison;
+          });
+        
+        return {
+          year,
+          rows,
+          totalSales,
+          totalPayout,
+          totalMealVoucher,
+          totalPayoutWithVoucher,
+          avgProfitability,
+          avgUberFeeRate,
+          avgPromoRate,
+          avgRefundRate,
+          totalUberFee: totalUberFeeHT,
+          totalPromo,
+          totalRefund,
+          totalOrders,
+          restaurantData,
+        };
+      })
+      .sort((a, b) => b.year - a.year);
+  }, [comparisonData, payouts, profitabilityBase, sortColumn, sortDirection, viewMode]);
+  
   // Calculate averages for comparison
   const averages = useMemo(() => {
     if (comparisonData.length === 0) return null;
@@ -715,7 +872,8 @@ export function ProfitabilityComparisonTable({
           </CardTitle>
           
           <div className="flex gap-1 flex-wrap items-center">
-            {/* Year selector */}
+            {/* Year selector - hidden in year view mode */}
+            {viewMode !== 'year' && (
             <div className="flex items-center rounded-lg border bg-muted/30 p-0.5 mr-1">
               <Button
                 variant="ghost"
@@ -736,6 +894,7 @@ export function ProfitabilityComparisonTable({
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             </div>
+            )}
             
             {/* Separator */}
             <div className="w-px bg-border mx-1 h-5" />
@@ -787,6 +946,15 @@ export function ProfitabilityComparisonTable({
               <Calendar className="h-3.5 w-3.5" />
               Mois
             </Button>
+            <Button
+              variant={viewMode === 'year' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('year')}
+              className="h-7 text-xs gap-1.5"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Année
+            </Button>
             
             {/* Separator */}
             <div className="w-px bg-border mx-1 h-5" />
@@ -837,7 +1005,7 @@ export function ProfitabilityComparisonTable({
                   onClick={() => handleSort('date')}
                 >
                   <div className="flex items-center gap-1">
-                    {viewMode === 'week' ? 'Semaine / Restaurant' : (isSingleRestaurant ? "Versement" : "Restaurant")}
+                    {viewMode === 'year' ? 'Année / Restaurant' : viewMode === 'week' ? 'Semaine / Restaurant' : (isSingleRestaurant ? "Versement" : "Restaurant")}
                     {sortColumn === 'date' ? (
                       sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
@@ -1569,6 +1737,303 @@ export function ProfitabilityComparisonTable({
                       </>}
                       <TableCell className="text-right font-semibold text-primary tabular-nums">
                         {formatCurrency(monthGroups.reduce((sum, g) => sum + g.totalPayoutWithVoucher, 0))}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
+              )}
+              
+              {viewMode === 'year' && (
+                // Year grouped view
+                <>
+                  {yearGroups.map((group) => {
+                    const hasMultipleRestaurantsInYear = group.restaurantData.length > 1;
+                    const bestResto = group.restaurantData[0];
+                    const worstResto = group.restaurantData[group.restaurantData.length - 1];
+                    const isExpanded = expandedYears.has(group.year);
+                    
+                    const toggleYear = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      setExpandedYears(prev => {
+                        const next = new Set(prev);
+                        if (next.has(group.year)) {
+                          next.delete(group.year);
+                        } else {
+                          next.add(group.year);
+                        }
+                        return next;
+                      });
+                    };
+                    
+                    return (
+                      <>
+                        {/* Year header row */}
+                        <TableRow 
+                          key={`year-${group.year}`}
+                          className="hover:bg-muted/50 transition-colors bg-muted/30 cursor-pointer"
+                          onClick={toggleYear}
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {hasMultipleRestaurantsInYear && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={toggleYear}
+                                >
+                                  {isExpanded 
+                                    ? <ChevronDown className="h-4 w-4" /> 
+                                    : <ChevronRight className="h-4 w-4" />
+                                  }
+                                </Button>
+                              )}
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-semibold text-base">{group.year}</span>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 gap-1 text-xs ml-auto"
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setSelectedYear(group.year);
+                                  setViewMode('month'); 
+                                }}
+                              >
+                                <ZoomIn className="h-3 w-3" />
+                                Détail
+                              </Button>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {group.rows.length} versement{group.rows.length > 1 ? 's' : ''} • {group.totalOrders} cmd • Ø {group.totalOrders > 0 ? formatCurrency(group.totalSales / group.totalOrders) : '0 €'}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium tabular-nums">
+                            {formatCurrency(group.totalSales)}
+                          </TableCell>
+                          <TableCell className="text-right text-primary">
+                            <span className="font-medium tabular-nums">{group.avgProfitability.toFixed(1)}%</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <ComparisonCell percentValue={group.avgUberFeeRate} amountValue={group.totalUberFee} isCommission />
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            <ComparisonCell percentValue={group.avgPromoRate} amountValue={group.totalPromo} />
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            <ComparisonCell percentValue={group.avgRefundRate} amountValue={group.totalRefund} />
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-primary tabular-nums">
+                            {formatCurrency(group.totalPayout)}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground tabular-nums">
+                            {group.totalMealVoucher > 0 ? formatCurrency(group.totalMealVoucher) : '-'}
+                          </TableCell>
+                          {platform !== "deliveroo" && <>
+                          <TableCell className="text-right text-emerald-600 tabular-nums">
+                            {group.rows.reduce((sum, r) => sum + r.ecoContribution, 0) > 0 
+                              ? formatCurrency(group.rows.reduce((sum, r) => sum + r.ecoContribution, 0)) 
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="text-right text-red-600 tabular-nums">
+                            {group.rows.reduce((sum, r) => sum + r.ecoCharge, 0) > 0 
+                              ? `-${formatCurrency(group.rows.reduce((sum, r) => sum + r.ecoCharge, 0))}` 
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="text-right text-orange-500 tabular-nums">
+                            {(() => {
+                              const totalAd = group.rows.reduce((sum, r) => sum + r.advertisingAmount, 0);
+                              return totalAd > 0 ? `-${formatCurrency(totalAd)}` : '-';
+                            })()}
+                          </TableCell>
+                          </>}
+                          <TableCell className="text-right font-semibold text-primary tabular-nums">
+                            {formatCurrency(group.totalPayoutWithVoucher)}
+                          </TableCell>
+                        </TableRow>
+                        
+                        {/* Per-restaurant rows */}
+                        {isExpanded && hasMultipleRestaurantsInYear && group.restaurantData.map((resto, restoIdx) => (
+                          <TableRow 
+                            key={`year-${group.year}-${resto.restaurantId}`}
+                            className={cn(
+                              "hover:bg-muted/30 transition-colors text-sm",
+                              restoIdx === 0 && "bg-green-500/5",
+                              restoIdx === group.restaurantData.length - 1 && "bg-red-500/5"
+                            )}
+                          >
+                            <TableCell className="pl-8">
+                              <div className="flex items-center gap-2">
+                                {restoIdx === 0 && (
+                                  <Badge variant="outline" className="text-green-600 border-green-600 text-[10px] px-1">+</Badge>
+                                )}
+                                {restoIdx === group.restaurantData.length - 1 && (
+                                  <Badge variant="outline" className="text-red-600 border-red-600 text-[10px] px-1">−</Badge>
+                                )}
+                                <span className="text-muted-foreground">{resto.restaurantName}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {formatCurrency(resto.sales)}
+                            </TableCell>
+                            <TableCell className={cn(
+                              "text-right tabular-nums",
+                              restoIdx === 0 ? "text-green-600" : restoIdx === group.restaurantData.length - 1 ? "text-red-600" : "text-foreground"
+                            )}>
+                              {resto.profitability.toFixed(1)}%
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              <ComparisonCell percentValue={resto.uberFeeRate} amountValue={resto.uberFee} isCommission />
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              <ComparisonCell percentValue={resto.promoRate} amountValue={resto.promo} />
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              <ComparisonCell percentValue={resto.refundRate} amountValue={resto.refund} />
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {formatCurrency(resto.netPayout)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {resto.mealVoucher > 0 ? formatCurrency(resto.mealVoucher) : '-'}
+                            </TableCell>
+                            {platform !== "deliveroo" && <>
+                            <TableCell className="text-right tabular-nums text-emerald-600">
+                              {resto.ecoContribution > 0 ? formatCurrency(resto.ecoContribution) : '-'}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-red-600">
+                              {resto.ecoCharge > 0 ? `-${formatCurrency(resto.ecoCharge)}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-orange-500">
+                              {resto.advertisingAmount > 0 ? `-${formatCurrency(resto.advertisingAmount)}` : '-'}
+                            </TableCell>
+                            </>}
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {formatCurrency(resto.totalPayout)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        
+                        {/* Gap row */}
+                        {isExpanded && hasMultipleRestaurantsInYear && (
+                          <TableRow className="bg-muted/10 border-b-2 border-border text-xs">
+                            <TableCell className="py-1.5 pl-8 text-muted-foreground italic">
+                              Écart
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {(bestResto.sales - worstResto.sales) >= 0 ? '+' : ''}{formatCurrency(bestResto.sales - worstResto.sales)}
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {(bestResto.profitability - worstResto.profitability) >= 0 ? '+' : ''}{(bestResto.profitability - worstResto.profitability).toFixed(1)} pts
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {displayMode === 'amount'
+                                ? `${(bestResto.uberFee - worstResto.uberFee) >= 0 ? '+' : ''}${formatCurrency(bestResto.uberFee - worstResto.uberFee)}`
+                                : `${(bestResto.uberFeeRate - worstResto.uberFeeRate).toFixed(1)} pts`
+                              }
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {displayMode === 'amount'
+                                ? `${(bestResto.promo - worstResto.promo) >= 0 ? '+' : ''}${formatCurrency(bestResto.promo - worstResto.promo)}`
+                                : `${(bestResto.promoRate - worstResto.promoRate).toFixed(1)} pts`
+                              }
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {displayMode === 'amount'
+                                ? `${(bestResto.refund - worstResto.refund) >= 0 ? '+' : ''}${formatCurrency(bestResto.refund - worstResto.refund)}`
+                                : `${(bestResto.refundRate - worstResto.refundRate).toFixed(1)} pts`
+                              }
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {(bestResto.netPayout - worstResto.netPayout) >= 0 ? '+' : ''}{formatCurrency(bestResto.netPayout - worstResto.netPayout)}
+                            </TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">-</TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">-</TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">-</TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">-</TableCell>
+                            <TableCell className="text-right py-1.5 tabular-nums text-muted-foreground">
+                              {(bestResto.totalPayout - worstResto.totalPayout) >= 0 ? '+' : ''}{formatCurrency(bestResto.totalPayout - worstResto.totalPayout)}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
+                    );
+                  })}
+                  
+                  {/* Total row for years */}
+                  {yearGroups.length > 1 && (
+                    <TableRow className="bg-muted/50 font-medium">
+                      <TableCell colSpan={2} className="text-muted-foreground">
+                        Total
+                      </TableCell>
+                      <TableCell className="text-right text-primary tabular-nums">
+                        {(() => {
+                          const totalSales = yearGroups.reduce((s, g) => s + g.totalSales, 0);
+                          const totalPromo = yearGroups.reduce((s, g) => s + g.totalPromo, 0);
+                          const totalPayoutWV = yearGroups.reduce((s, g) => s + g.totalPayoutWithVoucher, 0);
+                          const netSales = totalSales - totalPromo;
+                          const denom = profitabilityBase === 'net' ? netSales : totalSales;
+                          return denom > 0 ? `${(totalPayoutWV / denom * 100).toFixed(1)}%` : '0.0%';
+                        })()}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {displayMode === 'amount' 
+                          ? formatCurrency(yearGroups.reduce((sum, g) => sum + g.totalUberFee, 0))
+                          : `${(() => {
+                              const totalSales = yearGroups.reduce((s, g) => s + g.totalSales, 0);
+                              const totalPromo = yearGroups.reduce((s, g) => s + g.totalPromo, 0);
+                              const totalFee = yearGroups.reduce((s, g) => s + g.totalUberFee, 0);
+                              const netSales = totalSales - totalPromo;
+                              const denom = platform === "deliveroo" ? totalSales : netSales;
+                              return denom > 0 ? (totalFee / denom * 100).toFixed(1) : '0.0';
+                            })()}%`
+                        }
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {displayMode === 'amount' 
+                          ? formatCurrency(yearGroups.reduce((sum, g) => sum + g.totalPromo, 0))
+                          : `${(() => {
+                              const totalSales = yearGroups.reduce((s, g) => s + g.totalSales, 0);
+                              const totalPromo = yearGroups.reduce((s, g) => s + g.totalPromo, 0);
+                              return totalSales > 0 ? (totalPromo / totalSales * 100).toFixed(1) : '0.0';
+                            })()}%`
+                        }
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {displayMode === 'amount' 
+                          ? formatCurrency(yearGroups.reduce((sum, g) => sum + g.totalRefund, 0))
+                          : `${(() => {
+                              const totalSales = yearGroups.reduce((s, g) => s + g.totalSales, 0);
+                              const totalRefund = yearGroups.reduce((s, g) => s + g.totalRefund, 0);
+                              return totalSales > 0 ? (totalRefund / totalSales * 100).toFixed(1) : '0.0';
+                            })()}%`
+                        }
+                      </TableCell>
+                      <TableCell className="text-right text-primary tabular-nums">
+                        {formatCurrency(yearGroups.reduce((sum, g) => sum + g.totalPayout, 0))}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {formatCurrency(yearGroups.reduce((sum, g) => sum + g.totalMealVoucher, 0))}
+                      </TableCell>
+                      {platform !== "deliveroo" && <>
+                      <TableCell className="text-right text-emerald-600 tabular-nums">
+                        {formatCurrency(yearGroups.reduce((sum, g) => g.rows.reduce((s, r) => s + r.ecoContribution, 0) + sum, 0))}
+                      </TableCell>
+                      <TableCell className="text-right text-red-600 tabular-nums">
+                        {(() => {
+                          const totalCharge = yearGroups.reduce((sum, g) => g.rows.reduce((s, r) => s + r.ecoCharge, 0) + sum, 0);
+                          return totalCharge > 0 ? `-${formatCurrency(totalCharge)}` : '-';
+                        })()}
+                      </TableCell>
+                      <TableCell className="text-right text-orange-500 tabular-nums">
+                        {(() => {
+                          const totalAd = yearGroups.reduce((sum, g) => g.rows.reduce((s, r) => s + r.advertisingAmount, 0) + sum, 0);
+                          return totalAd > 0 ? `-${formatCurrency(totalAd)}` : '-';
+                        })()}
+                      </TableCell>
+                      </>}
+                      <TableCell className="text-right font-semibold text-primary tabular-nums">
+                        {formatCurrency(yearGroups.reduce((sum, g) => sum + g.totalPayoutWithVoucher, 0))}
                       </TableCell>
                     </TableRow>
                   )}
