@@ -52,6 +52,8 @@ interface HeatmapCell {
 
 export interface OffersAnalyticsResult {
   isLoading: boolean;
+  isError: boolean;
+  errorMessage: string | null;
   kpis: {
     totalFees: number;
     totalFeesPrev: number;
