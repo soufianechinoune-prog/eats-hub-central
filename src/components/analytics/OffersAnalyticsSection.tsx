@@ -217,8 +217,31 @@ export function OffersAnalyticsSection() {
 
       {/* Restaurant Table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-lg">Analyse par restaurant</CardTitle>
+          <div className="flex items-center gap-2 flex-wrap">
+            {([
+              { key: "totalFees" as SortKey, label: "💰 Plus de frais" },
+              { key: "promoPercent" as SortKey, label: "📊 % Promo" },
+              { key: "taxedPercent" as SortKey, label: "🏷️ % Taxé" },
+              { key: "totalOrders" as SortKey, label: "📦 Volume" },
+              { key: "avgFeePerTaxed" as SortKey, label: "💵 Frais/cmd" },
+              { key: "restaurantName" as SortKey, label: "🔤 Nom" },
+            ]).map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => handleSort(opt.key)}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${
+                  sortKey === opt.key
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                }`}
+              >
+                {opt.label}
+                {sortKey === opt.key && (sortAsc ? " ↑" : " ↓")}
+              </button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-auto max-h-[500px]">
