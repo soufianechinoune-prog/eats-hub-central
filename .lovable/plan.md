@@ -1,25 +1,46 @@
 
 
-## Problem
+## Comprendre la demande
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+Tu veux un nouveau mode de vue **"Année"** dans le tableau Comparatif de Rentabilité. Au lieu d'afficher des lignes par mois (Janvier 2026, Février 2026…), ce mode afficherait des **lignes par année** (2024, 2025, 2026) avec les données agrégées sur l'année entière.
 
-## Solution
+## Problème principal
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+Actuellement, les données sont fetchées **uniquement pour l'année sélectionnée** (`selectedYear`). Pour une vue "Année" montrant 2024/2025/2026, il faut charger les données de **plusieurs années**.
 
-### Changes
+## Plan
 
-**`src/pages/Restaurants.tsx`**:
+### 1. Ajouter le mode "Année" au toggle de vues
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+Dans `ProfitabilityComparisonTable.tsx` :
+- Étendre le type `ViewMode` : `'profitability' | 'week' | 'month' | 'year'`
+- Ajouter un bouton "Année" à côté de "Mois" et "Semaine" dans le header
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+### 2. Fetcher les données multi-années dans Analytics.tsx
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+Quand le viewMode est `year`, modifier les queries de payouts pour charger **3 années** (selectedYear, selectedYear-1, selectedYear-2) au lieu d'une seule :
+- Dupliquer les appels `get_monthly_payouts_detail` pour les 2 années précédentes
+- Combiner les résultats avant de les passer au tableau
+- Même logique pour `advertisingData` et les payouts Deliveroo
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+### 3. Créer la logique d'agrégation par année
+
+Dans `ProfitabilityComparisonTable.tsx`, ajouter un `yearGroups` (useMemo) similaire à `monthGroups` :
+- Grouper les `comparisonData` par `year`
+- Agréger : CA total, versement, commissions, promos, remboursements, éco-contribution, pub
+- Calculer la rentabilité selon la base choisie (brut/net)
+- Trier par année décroissante
+- Support de l'expansion pour voir le détail par restaurant
+
+### 4. Rendre le tableau en mode "Année"
+
+Ajouter le rendu JSX pour le mode `year` :
+- Ligne principale : "2026", "2025", "2024" avec les agrégats
+- Expansion : sous-lignes par restaurant (comme le mode mois actuel)
+- Ligne "Total" en bas avec la somme des années affichées
+- Bouton loupe pour drill-down vers la vue mensuelle de l'année
+
+### 5. Masquer le sélecteur d'année en mode "Année"
+
+Le widget `< 2026 >` n'a plus de sens dans ce mode puisqu'on affiche toutes les années disponibles. Le masquer quand `viewMode === 'year'`.
 
