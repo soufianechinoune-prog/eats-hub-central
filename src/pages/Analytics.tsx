@@ -342,20 +342,6 @@ export default function Analytics() {
   const { data: deliverooPayoutsData, isLoading: loadingDeliverooPayouts } = useQuery({
     queryKey: ["analytics_deliveroo_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
     queryFn: async () => {
-      const MEAL_VOUCHER_TYPES = ["Montant commande Edenred", "Montant commande Swile", "Montant commande Sodexo", "Montant commande Up", "Montant commande Bimpli"];
-      const REFUND_TYPES = ["Remboursement client"];
-      const PROMO_TYPES = ["Partner funding from agreed voucher campaign", "Contribution marketing", "Bon de réduction à payer par le restaurant", "Publicités Marketer"];
-      const ORDER_TYPES = ["Livraison", "À emporter"];
-      const REPREPARATION_TYPES = ["Montant de la repréparation de commande", "Nouvelle livraison"];
-      const EXTRA_COMMISSION_TYPES = ["Commission Deliveroo sur repréparation de commande"];
-      const POSITIVE_ADJUSTMENT_TYPES = ["Remboursement client refusé"];
-      const CREDIT_ADJUSTMENT_TYPES = ["Crédit pour rectification de facture"];
-      const CANCELLATION_ORDER_TYPES = ["Montant commande annulée"];
-      const CANCELLATION_COMMISSION_TYPES = ["Commission Deliveroo sur la commande annulée"];
-      const CANCELLATION_FEE_TYPES = ["Frais d'annulation de commande"];
-      const ECO_CONTRIBUTION_TYPES = ["Eco-contribution – article L.541-10 du Code de l'environnement"];
-      const PREVIOUS_INVOICE_TYPES = ["Facture précédente: Livraison", "Facture précédente: Remboursement client"];
-
       // Determine date range
       let queryStartDate: string;
       let queryEndDate: string;
@@ -370,26 +356,23 @@ export default function Analytics() {
         queryEndDate = `${selectedYear}-12-31`;
       }
 
-      // Fetch all deliveroo_orders in range with pagination
+      // Use server-side RPC aggregation instead of client-side pagination
       const PAGE_SIZE = 1000;
       const allRows: any[] = [];
       let from = 0;
       let hasMore = true;
 
       while (hasMore) {
-        let query = supabase
-          .from("deliveroo_orders")
-          .select("delivery_datetime, order_amount, commission_amount, total_payable, adjustment_amount, vat_amount, history_type, restaurant_id")
-          .gte("delivery_datetime", `${queryStartDate}T00:00:00`)
-          .lte("delivery_datetime", `${queryEndDate}T23:59:59`)
-          .range(from, from + PAGE_SIZE - 1);
+        const { data, error } = await supabase.rpc('get_deliveroo_payouts_detail', {
+          p_start_date: queryStartDate,
+          p_end_date: queryEndDate,
+          p_restaurant_ids: restaurantFilter && restaurantFilter.length > 0 ? restaurantFilter : null,
+        }).range(from, from + PAGE_SIZE - 1);
 
-        if (restaurantFilter && restaurantFilter.length > 0) {
-          query = query.in("restaurant_id", restaurantFilter);
+        if (error) {
+          console.error("[Analytics] get_deliveroo_payouts_detail error:", error);
+          throw error;
         }
-
-        const { data, error } = await query;
-        if (error) throw error;
 
         if (data) {
           allRows.push(...data);
@@ -400,114 +383,7 @@ export default function Analytics() {
         }
       }
 
-      // Group by payout_date (weekly-ish, using delivery date) + restaurant_id
-      // For Deliveroo we group by week to match the Uber payout cadence
-      const grouped: Record<string, {
-        payout_date: string;
-        restaurant_id: string;
-        sales_incl_vat: number;
-        uber_fee_after_promo_incl_vat: number;
-        uber_fee_after_promo_excl_vat: number;
-        item_promo_incl_vat: number;
-        refund_incl_vat: number;
-        net_payout: number;
-        meal_voucher_amount: number;
-        order_count: number;
-        other_payments_incl_vat: number;
-        marketing_fee_adjustment: number;
-      }> = {};
-
-      allRows.forEach(row => {
-        if (!row.delivery_datetime || !row.restaurant_id) return;
-        // Group by week start (Monday) — use Paris timezone to avoid end-of-month phantom points
-        const dt = new Date(row.delivery_datetime);
-        // Convert to Paris local day-of-week using Intl
-        const parisParts = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(dt);
-        const parisYear = Number(parisParts.find(p => p.type === 'year')!.value);
-        const parisMonth = Number(parisParts.find(p => p.type === 'month')!.value);
-        const parisDay = Number(parisParts.find(p => p.type === 'day')!.value);
-        // Build a local Paris date to compute week start (Monday)
-        const parisDate = new Date(parisYear, parisMonth - 1, parisDay);
-        const dayOfWeek = parisDate.getDay();
-        const diff = parisDay - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        parisDate.setDate(diff);
-        const weekKey = `${parisDate.getFullYear()}-${String(parisDate.getMonth() + 1).padStart(2, '0')}-${String(parisDate.getDate()).padStart(2, '0')}`;
-        const key = `${weekKey}|${row.restaurant_id}`;
-
-        if (!grouped[key]) {
-          grouped[key] = {
-            payout_date: weekKey,
-            restaurant_id: row.restaurant_id,
-        sales_incl_vat: 0,
-            uber_fee_after_promo_incl_vat: 0,
-            uber_fee_after_promo_excl_vat: 0,
-            item_promo_incl_vat: 0,
-            refund_incl_vat: 0,
-            net_payout: 0,
-            meal_voucher_amount: 0,
-            order_count: 0,
-            other_payments_incl_vat: 0,
-            marketing_fee_adjustment: 0,
-          };
-        }
-
-        const g = grouped[key];
-        const ht = row.history_type;
-
-        if (ORDER_TYPES.includes(ht)) {
-          g.sales_incl_vat += Math.abs(Number(row.order_amount) || 0);
-          g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.commission_amount) || 0);
-          g.uber_fee_after_promo_excl_vat += Math.abs(Number(row.commission_amount) || 0);
-          g.net_payout += Number(row.total_payable) || 0;
-          g.order_count += 1;
-        } else if (MEAL_VOUCHER_TYPES.includes(ht)) {
-          g.meal_voucher_amount += Math.abs(Number(row.total_payable) || 0);
-          g.net_payout += Number(row.total_payable) || 0;
-        } else if (REFUND_TYPES.includes(ht)) {
-          g.refund_incl_vat += Math.abs(Number(row.total_payable) || 0);
-          g.net_payout += Number(row.total_payable) || 0;
-        } else if (PROMO_TYPES.includes(ht)) {
-          g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
-          g.net_payout += Number(row.total_payable) || 0;
-        } else if (EXTRA_COMMISSION_TYPES.includes(ht)) {
-          // Frais supplémentaires (repréparation) : pas dans la commission contractuelle
-          g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
-          g.net_payout += Number(row.total_payable) || 0;
-        } else if (REPREPARATION_TYPES.includes(ht)) {
-          // Repréparations: add to net_payout without counting as order or CA
-          g.net_payout += Number(row.total_payable) || 0;
-        } else if (POSITIVE_ADJUSTMENT_TYPES.includes(ht)) {
-          g.net_payout += Number(row.total_payable) || 0;
-          g.other_payments_incl_vat += Number(row.total_payable) || 0;
-        } else if (PREVIOUS_INVOICE_TYPES.includes(ht)) {
-          // Reports de facture précédente : ignorés pour le total semaine courante
-          return;
-        } else if (CREDIT_ADJUSTMENT_TYPES.includes(ht)) {
-          // Crédits de rectification : ajout direct au net sans Math.abs (positif = crédit)
-          g.net_payout += Number(row.total_payable) || 0;
-        } else if (CANCELLATION_ORDER_TYPES.includes(ht)) {
-          // Montant commande annulée : remboursement (négatif)
-          g.refund_incl_vat += Math.abs(Number(row.total_payable) || 0);
-          g.net_payout += Number(row.total_payable) || 0;
-        } else if (CANCELLATION_COMMISSION_TYPES.includes(ht)) {
-          // Commission sur commande annulée : crédit commission
-          g.uber_fee_after_promo_incl_vat -= Math.abs(Number(row.total_payable) || 0);
-          g.net_payout += Number(row.total_payable) || 0;
-        } else if (CANCELLATION_FEE_TYPES.includes(ht)) {
-          // Frais d'annulation de commande : débit
-          g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
-          g.net_payout += Number(row.total_payable) || 0;
-        } else if (ECO_CONTRIBUTION_TYPES.includes(ht)) {
-          // Éco-contribution : débit
-          g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
-          g.net_payout += Number(row.total_payable) || 0;
-        } else {
-          g.other_payments_incl_vat += Math.abs(Number(row.total_payable) || 0);
-          g.net_payout += Number(row.total_payable) || 0;
-        }
-      });
-
-      return Object.values(grouped);
+      return allRows;
     },
     enabled: (selectedPlatform === "deliveroo" || selectedPlatform === "global") && (!!drillDownMonth || viewMode === "finances"),
   });
