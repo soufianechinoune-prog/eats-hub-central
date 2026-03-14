@@ -21,6 +21,7 @@ import Reviews from "@/pages/Reviews";
 import { OperationsAnalytics } from "@/components/analytics/OperationsAnalytics";
 import { ActionFilterPopover } from "@/components/analytics/ActionFilterPopover";
 import { EcoContributionSection } from "@/components/analytics/EcoContributionSection";
+import { OffersAnalyticsSection } from "@/components/analytics/OffersAnalyticsSection";
 import { useFrenchHolidays } from "@/hooks/useFrenchHolidays";
 import { useSchoolHolidays } from "@/hooks/useSchoolHolidays";
 import { useFootballMatches } from "@/hooks/useFootballMatches";
