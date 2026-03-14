@@ -516,12 +516,16 @@ export default function Analytics() {
           return data || [];
         }
         // Full year: fetch all 12 months in parallel via RPC
-        const monthPromises = Array.from({ length: 12 }, (_, i) =>
-          supabase.rpc('get_monthly_payouts_detail', {
-            p_year: selectedYear,
-            p_month: i + 1,
-            p_restaurant_ids: restaurantFilter || null,
-          })
+        // Also fetch 2 previous years to support the "Année" view mode
+        const yearsToFetch = [selectedYear, selectedYear - 1, selectedYear - 2];
+        const monthPromises = yearsToFetch.flatMap(year =>
+          Array.from({ length: 12 }, (_, i) =>
+            supabase.rpc('get_monthly_payouts_detail', {
+              p_year: year,
+              p_month: i + 1,
+              p_restaurant_ids: restaurantFilter || null,
+            })
+          )
         );
         const results = await Promise.all(monthPromises);
         const allData: any[] = [];
