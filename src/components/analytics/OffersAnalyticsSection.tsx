@@ -290,10 +290,19 @@ export function OffersAnalyticsSection() {
                         <Badge variant="secondary" className="ml-2 text-[10px]">Exonéré</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{rs.totalOrders.toLocaleString("fr-FR")}</TableCell>
-                    <TableCell className="text-right tabular-nums">{rs.promoOrders.toLocaleString("fr-FR")}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <div className="text-[10px] text-muted-foreground">{kpis.totalOrders > 0 ? `${((rs.totalOrders / kpis.totalOrders) * 100).toFixed(1)}%` : ""}</div>
+                      {rs.totalOrders.toLocaleString("fr-FR")}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <div className="text-[10px] text-muted-foreground">{kpis.promoOrdersCount > 0 ? `${((rs.promoOrders / kpis.promoOrdersCount) * 100).toFixed(1)}%` : ""}</div>
+                      {rs.promoOrders.toLocaleString("fr-FR")}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{rs.promoPercent.toFixed(1)}%</TableCell>
-                    <TableCell className="text-right tabular-nums">{rs.taxedOrders.toLocaleString("fr-FR")}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <div className="text-[10px] text-muted-foreground">{kpis.taxedOrdersCount > 0 ? `${((rs.taxedOrders / kpis.taxedOrdersCount) * 100).toFixed(1)}%` : ""}</div>
+                      {rs.taxedOrders.toLocaleString("fr-FR")}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {rs.promoOrders > 0 ? `${rs.taxedPercent.toFixed(1)}%` : "-"}
                     </TableCell>
