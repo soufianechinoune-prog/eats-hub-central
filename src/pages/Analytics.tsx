@@ -1138,6 +1138,7 @@ export default function Analytics() {
       return aggregateDeliverooRevenue(rows, granularity);
     },
     placeholderData: (previousData) => previousData,
+    enabled: needsRevenue,
   });
 
   const { data: deliverooConversionData, isLoading: loadingDeliverooConversion } = useQuery({
