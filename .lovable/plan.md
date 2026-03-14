@@ -1,25 +1,31 @@
 
 
-## Problem
+## Diagnostic
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+L'erreur dans la console est claire :
 
-## Solution
+```
+get_profitability_daily prev error: { code: "57014", message: "canceling statement due to statement timeout" }
+```
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+La requête N-1 (2024) **timeout** car elle scanne ~1,2M de commandes avec un plan d'exécution sous-optimal (BitmapAnd entre 2 index séparés au lieu d'un seul index composite).
 
-### Changes
+**Cause racine** : il n'y a pas d'index `(restaurant_id, order_datetime)` sur la table `orders` (2,8M lignes). L'index existant est inversé : `(order_datetime, restaurant_id)`, ce qui force PostgreSQL à faire un BitmapAnd coûteux.
 
-**`src/pages/Restaurants.tsx`**:
+## Plan
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+**1. Créer l'index composite optimisé**
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+```sql
+CREATE INDEX CONCURRENTLY idx_orders_restaurant_datetime 
+ON public.orders (restaurant_id, order_datetime);
+```
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+Cet index permet à PostgreSQL d'utiliser un Index Scan direct sur `restaurant_id = ANY(...)` + plage `order_datetime`, éliminant le BitmapAnd.
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+**2. Aucune modification de code nécessaire**
+
+La RPC `get_profitability_daily` et le code front (`Analytics.tsx`) restent inchangés — seule la performance de la requête s'améliore.
+
+**Résultat attendu** : la requête passe de timeout (~30s+) à <2s grâce au scan direct sur l'index composite.
 
