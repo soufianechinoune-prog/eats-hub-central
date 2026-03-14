@@ -301,15 +301,16 @@ export default function Analytics() {
     },
   });
 
-  // Fetch advertising expenses from payout_adjustments
+  // Fetch advertising expenses from payout_adjustments (3 years for year view)
   const { data: advertisingData } = useQuery({
     queryKey: ["analytics_advertising", restaurantFilter, selectedYear],
     queryFn: async () => {
+      const startYear = selectedYear - 2;
       let query = supabase
         .from('payout_adjustments')
         .select('payout_date, restaurant_id, amount')
         .eq('category', 'advertising')
-        .gte('payout_date', `${selectedYear}-01-01`)
+        .gte('payout_date', `${startYear}-01-01`)
         .lte('payout_date', `${selectedYear}-12-31`);
       
       if (restaurantFilter && restaurantFilter.length > 0) {
