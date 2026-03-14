@@ -187,7 +187,7 @@ export function ProfitabilityComparisonTable({
   advertisingData = [],
   platform = "uber_eats",
 }: ProfitabilityComparisonTableProps) {
-  const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
+  const { profitabilityBase, setProfitabilityBase, selectedYear, setSelectedYear } = useAnalyticsContext();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedPayouts, setSelectedPayouts] = useState<PayoutData[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
