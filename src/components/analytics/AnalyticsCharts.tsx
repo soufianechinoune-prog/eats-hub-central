@@ -1907,7 +1907,7 @@ export function AnalyticsCharts({
   
   const formatPercent = (v: number) => `${v.toFixed(1)}%`;
 
-  if (!hasData) {
+  if (!hasData && viewMode !== "finances") {
     return (
       <Card>
         <CardContent className="py-16 text-center">
