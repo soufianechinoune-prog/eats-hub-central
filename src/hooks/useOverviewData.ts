@@ -419,7 +419,9 @@ export function useOverviewData(
     const menuReviewsData = products.data?.menuReviews || [];
     const orderItemsData = products.data?.orderItems || [];
     const conversionData = conversion.data || [];
-    const restos = restaurants.data;
+    const restos = filterRestaurantIds && filterRestaurantIds.length > 0
+      ? restaurants.data.filter(r => filterRestaurantIds.includes(r.id))
+      : restaurants.data;
 
     const totalRevenue = dailySalesData.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0);
     const totalOrders = dailySalesData.reduce((sum, d) => sum + Number(d.order_count || 0), 0);
