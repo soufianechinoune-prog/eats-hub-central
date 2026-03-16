@@ -1,25 +1,27 @@
 
 
-## Problem
+## Restreindre le bouton "Pris en compte" aux alertes critiques uniquement
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+### Problème actuel
+Le bouton "Pris en compte" apparaît sur **toutes** les annonces (modifications, dépôt de comptes, etc.) alors que seules les alertes critiques (`procedure_collective`, `radiation`) déclenchent l'icône ⚠️. Les annonces informatives n'ont pas besoin d'être acquittées.
 
-## Solution
+### Changements
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+**1. `BodaccDetailSheet.tsx`** — Restreindre + rendre le bouton plus visible
 
-### Changes
+- Le bouton "Pris en compte" / "Rétablir" n'apparaît **que** sur les annonces de type `procedure_collective` ou `radiation`
+- Remplacer le `variant="ghost"` par un bouton plus visible : fond coloré, taille plus grande
+  - Non acquitté : bouton avec fond `bg-emerald-500 text-white hover:bg-emerald-600`, taille `h-8`, texte lisible
+  - Acquitté : bouton outline discret pour "Rétablir"
+- La bannière rouge en haut ne s'affiche que si des alertes critiques **non acquittées** existent (déjà le cas)
 
-**`src/pages/Restaurants.tsx`**:
+**2. `BodaccAlerts.tsx`** — Même restriction
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+- Le bouton "Pris en compte" n'apparaît que sur les types critiques
+- Même amélioration visuelle du bouton
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
-
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
-
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+### Résultat
+- Les "Modification" et "Dépôt des comptes" n'ont plus de bouton d'acquittement
+- Quand toutes les alertes critiques sont validées, l'icône ⚠️ disparaît de la liste (logique déjà en place dans `Restaurants.tsx`)
+- Le bouton est bien plus visible avec un fond vert et une taille correcte
 
