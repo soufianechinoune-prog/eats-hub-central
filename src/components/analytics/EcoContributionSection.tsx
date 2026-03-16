@@ -1047,12 +1047,6 @@ function RestaurantDrilldown({
             {repData ? (
               <div className="flex flex-col items-center gap-1">
                 <RepStatusBadge repData={repData} changeType={repChangeType} />
-                {Math.abs(r.charge) > 0 && repData.status !== "inscrit" && repData.status !== "loading" && repData.status !== "unchecked" && (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-950/40 border border-orange-300 dark:border-orange-800 rounded-md px-1.5 py-0.5 whitespace-nowrap">
-                    <ShieldAlert className="h-2.5 w-2.5" />
-                    Prélevé sans adhésion
-                  </span>
-                )}
               </div>
             ) : null}
           </TableCell>
