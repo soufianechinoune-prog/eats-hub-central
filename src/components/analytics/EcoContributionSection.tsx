@@ -305,7 +305,46 @@ export function EcoContributionSection({
     }
   };
 
-  // Map of changes for quick lookup
+  // Eco line scan handler: count lines per restaurant and compare with previous snapshot
+  const handleEcoLineScan = async () => {
+    setEcoScanLoading(true);
+    try {
+      // Count current lines per restaurant from the already-loaded byRestaurant data
+      const currentCounts: Record<string, number> = {};
+      byRestaurant.forEach(r => {
+        currentCounts[r.restaurant_id] = r.count;
+      });
+
+      // Compare with previous snapshot
+      if (ecoLineSnapshot) {
+        const deltas = new Map<string, number>();
+        for (const [rId, count] of Object.entries(currentCounts)) {
+          const prev = ecoLineSnapshot[rId] || 0;
+          const diff = count - prev;
+          if (diff > 0) {
+            deltas.set(rId, diff);
+          }
+        }
+        setEcoLineDeltas(deltas);
+      }
+
+      // Save new snapshot
+      const { error } = await supabase
+        .from("eco_line_snapshots" as any)
+        .insert({
+          line_counts: currentCounts,
+          total_lines: Object.values(currentCounts).reduce((s, c) => s + c, 0),
+        } as any);
+      if (!error) {
+        setEcoLineSnapshot(currentCounts);
+        setEcoLastScanDate(new Date().toISOString());
+      }
+      setEcoScanDone(true);
+    } finally {
+      setEcoScanLoading(false);
+    }
+  };
+
   const repChangesMap = useMemo(() => {
     const map = new Map<string, RepChangeInfo["changeType"]>();
     repChanges.forEach(c => map.set(c.restaurant_id, c.changeType));
