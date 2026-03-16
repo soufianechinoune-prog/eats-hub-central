@@ -742,6 +742,7 @@ export function EcoContributionSection({
                           repData={repChecked ? repByRestaurant.get(r.restaurant_id) : undefined}
                           showRepColumn={repChecked}
                           repChangeType={repChangesMap.get(r.restaurant_id)}
+                          newLinesDelta={ecoLineDeltas.get(r.restaurant_id)}
                           scanClass={
                             scanningId === r.restaurant_id
                               ? "bodacc-scanning"
