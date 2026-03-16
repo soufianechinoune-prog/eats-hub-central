@@ -35,11 +35,15 @@ export function useBodaccDismissals(restaurantId: string | null) {
   const dismiss = useCallback(async (annonce: BodaccAnnonce, siren: string) => {
     if (!restaurantId) return;
     const key = getAnnonceKey(annonce);
-    await supabase.from("bodacc_dismissed_alerts" as any).upsert({
+    const { error } = await supabase.from("bodacc_dismissed_alerts" as any).upsert({
       restaurant_id: restaurantId,
       siren,
       annonce_key: key,
     } as any);
+    if (error) {
+      console.error("Failed to dismiss BODACC alert:", error);
+      return;
+    }
     setDismissed((prev) => new Map(prev).set(key, new Date().toISOString()));
   }, [restaurantId]);
 
