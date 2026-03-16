@@ -166,7 +166,25 @@ const Overview = () => {
     setSelectedPlatform,
   } = useAnalyticsContext();
 
-  // Navigate to Finances & Frais with restaurant and period pre-selected
+  // Sync Overview period to AnalyticsContext so all Analytics pages stay in sync
+  useEffect(() => {
+    const analyticsMode: PeriodMode = 
+      periodMode === "previous_week" ? "previous_week" :
+      periodMode === "7d" ? "7d" :
+      periodMode === "30d" ? "30d" :
+      periodMode === "current_month" ? "current_month" :
+      periodMode === "year" ? "year" :
+      periodMode === "custom_month" ? "month" :
+      periodMode === "custom_range" ? "range" : "previous_week";
+    
+    setAnalyticsPeriodMode(analyticsMode);
+    setAnalyticsYear(selectedYear);
+    setAnalyticsMonth(selectedMonth);
+    if (dateRange) {
+      setAnalyticsDateRange(dateRange);
+    }
+  }, [periodMode, selectedYear, selectedMonth, dateRange]);
+
   const navigateToFinances = (restaurantId: string) => {
     // Select only this restaurant
     setSelectedRestaurants([restaurantId]);
