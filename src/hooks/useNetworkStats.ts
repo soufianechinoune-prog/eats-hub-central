@@ -87,16 +87,16 @@ export function useNetworkStats({
   profitabilityBase = "gross",
   includeN1Comparison = false,
 }: UseNetworkStatsParams) {
-  const startDateStr = startDate.toISOString().split("T")[0];
-  const endDateStr = endDate.toISOString().split("T")[0];
+  const startDateStr = format(startDate, "yyyy-MM-dd");
+  const endDateStr = format(endDate, "yyyy-MM-dd");
 
   // Calculate N-1 date range
   const prevStartDate = new Date(startDate);
   prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
   const prevEndDate = new Date(endDate);
   prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
-  const prevStartDateStr = prevStartDate.toISOString().split("T")[0];
-  const prevEndDateStr = prevEndDate.toISOString().split("T")[0];
+  const prevStartDateStr = format(prevStartDate, "yyyy-MM-dd");
+  const prevEndDateStr = format(prevEndDate, "yyyy-MM-dd");
 
   const hasIds = restaurantIds.length > 0;
 
