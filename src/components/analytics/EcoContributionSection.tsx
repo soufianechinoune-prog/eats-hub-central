@@ -95,7 +95,29 @@ export function EcoContributionSection({
     }
   }, [latestSnapshot, repChecked, repLoadingCache]);
 
-  const { monthlyData, byRestaurant, totals, detailLines, isLoading } = useEcoContribution({
+  // Eco line scanning state (prélèvements/remboursements change detection)
+  const [ecoLineSnapshot, setEcoLineSnapshot] = useState<Record<string, number> | null>(null);
+  const [ecoLineDeltas, setEcoLineDeltas] = useState<Map<string, number>>(new Map());
+  const [ecoScanDone, setEcoScanDone] = useState(false);
+  const [ecoScanLoading, setEcoScanLoading] = useState(false);
+  const [ecoLastScanDate, setEcoLastScanDate] = useState<string | null>(null);
+
+  // Load latest eco line snapshot on mount
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("eco_line_snapshots" as any)
+        .select("*")
+        .order("checked_at", { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) {
+        const snap = data[0] as any;
+        setEcoLineSnapshot(snap.line_counts as Record<string, number>);
+        setEcoLastScanDate(snap.checked_at);
+      }
+    })();
+  }, []);
+
     restaurantIds,
     year: isHistorique ? null : effectiveYear,
     month: isHistorique ? null : selectedMonth,
