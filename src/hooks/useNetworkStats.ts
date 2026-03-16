@@ -246,8 +246,8 @@ export function useNetworkStats({
       if (!hasIds) return [];
       const { data, error } = await supabase.rpc("get_network_prep_time_summary", {
         p_restaurant_ids: restaurantIds,
-        p_start_date: startDate.toISOString(),
-        p_end_date: endDate.toISOString(),
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
       });
       if (error) throw error;
       return (data || []).map((d: any) => ({
