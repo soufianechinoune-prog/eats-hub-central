@@ -160,6 +160,14 @@ export function RepMembershipSection({ restaurantIds, restaurantMap }: RepMember
           </Button>
         </div>
 
+        {/* ADEME data freshness notice */}
+        <Alert className="bg-muted/30 border-muted">
+          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+          <AlertDescription className="text-[11px] text-muted-foreground leading-relaxed">
+            <span className="font-medium">Source ADEME</span> — La liste des adhérents est mise à jour <span className="font-medium">1×/an</span> (juin), les IDU <span className="font-medium">chaque trimestre</span> (janv., avr., juil., oct.). Dernière MàJ connue : 2 février 2026. Inutile d'actualiser quotidiennement.
+          </AlertDescription>
+        </Alert>
+
         {/* Not checked yet */}
         {!repChecked && (
           <p className="text-xs text-muted-foreground">
