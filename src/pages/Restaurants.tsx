@@ -69,6 +69,16 @@ const Restaurants = () => {
   const [flashId, setFlashId] = useState<{ id: string; status: "ok" | "alert" } | null>(null);
   const prevScanningIdRef = useRef<string | null>(null);
 
+  // Load dismissed BODACC alerts when results change
+  const reloadDismissed = useCallback(async () => {
+    const ids = Array.from(bodaccResults.keys());
+    if (ids.length === 0) return;
+    const keys = await loadAllDismissedKeys(ids);
+    setDismissedKeys(keys);
+  }, [bodaccResults]);
+
+  useEffect(() => { reloadDismissed(); }, [reloadDismissed]);
+
   // When scanningId changes, flash the previous row
   useEffect(() => {
     const prevId = prevScanningIdRef.current;
