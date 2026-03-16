@@ -61,7 +61,8 @@ const Restaurants = () => {
   const [sortColumn, setSortColumn] = useState<string | null>(savedPrefs?.sortColumn ?? null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(savedPrefs?.sortDirection ?? "asc");
   const [bodaccResults, setBodaccResults] = useState<BodaccResults>(() => loadCachedBodaccResults());
-  const [bodaccSheetData, setBodaccSheetData] = useState<{ name: string; annonces: BodaccAnnonce[] } | null>(null);
+  const [bodaccSheetData, setBodaccSheetData] = useState<{ name: string; annonces: BodaccAnnonce[]; restaurantId: string; siren: string } | null>(null);
+  const [dismissedKeys, setDismissedKeys] = useState<Map<string, Set<string>>>(new Map());
   const [scanningId, setScanningId] = useState<string | null>(null);
   const [scanStatuses, setScanStatuses] = useState<Map<string, ScanStatus>>(new Map());
   const [flashId, setFlashId] = useState<{ id: string; status: "ok" | "alert" } | null>(null);
