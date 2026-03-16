@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { AlertTriangle, ChevronDown, ChevronRight, ExternalLink, FileText, Loader2, Scale, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, FileText, Loader2, RotateCcw, Scale, ShieldAlert } from "lucide-react";
+import { useBodaccDismissals, getAnnonceKey } from "@/hooks/useBodaccDismissals";
 
 interface BodaccAnnonce {
   date: string | null;
@@ -43,8 +44,9 @@ const typeBadgeConfig: Record<string, { className: string; icon: React.ReactNode
   },
 };
 
-export function BodaccAlerts({ siren }: { siren: string | null | undefined }) {
+export function BodaccAlerts({ siren, restaurantId }: { siren: string | null | undefined; restaurantId?: string }) {
   const [isOpen, setIsOpen] = useState(false);
+  const { isDismissed, dismiss, restore } = useBodaccDismissals(restaurantId || null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["bodacc", siren],
@@ -62,7 +64,8 @@ export function BodaccAlerts({ siren }: { siren: string | null | undefined }) {
   if (!siren || !/^\d{9}$/.test(siren.replace(/\s/g, ""))) return null;
 
   const annonces = data?.annonces || [];
-  const hasCritical = annonces.some(
+  const activeAnnonces = annonces.filter(a => !isDismissed(a as any));
+  const hasCritical = activeAnnonces.some(
     (a) => a.type === "procedure_collective" || a.type === "radiation"
   );
 
@@ -94,15 +97,23 @@ export function BodaccAlerts({ siren }: { siren: string | null | undefined }) {
           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 px-2 text-muted-foreground">
             {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
             {annonces.length} annonce{annonces.length > 1 ? "s" : ""} BODACC
+            {activeAnnonces.length < annonces.length && (
+              <span className="text-muted-foreground/60">
+                ({annonces.length - activeAnnonces.length} prises en compte)
+              </span>
+            )}
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2 pt-1">
           {annonces.map((a, i) => {
             const config = typeBadgeConfig[a.type] || typeBadgeConfig.autre;
+            const acked = isDismissed(a as any);
             return (
               <div
                 key={i}
-                className="flex flex-col gap-1 rounded-md border border-border bg-card p-2.5 text-xs"
+                className={`flex flex-col gap-1 rounded-md border p-2.5 text-xs transition-opacity ${
+                  acked ? "border-border/50 bg-muted/30 opacity-60" : "border-border bg-card"
+                }`}
               >
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge className={`text-[10px] gap-1 ${config.className}`}>
@@ -117,18 +128,49 @@ export function BodaccAlerts({ siren }: { siren: string | null | undefined }) {
                   {a.tribunal && (
                     <span className="text-muted-foreground">· {a.tribunal}</span>
                   )}
+                  {acked && (
+                    <Badge variant="outline" className="text-[9px] gap-1 text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
+                      <CheckCircle2 className="h-2.5 w-2.5" />
+                      Pris en compte
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-foreground leading-relaxed">{a.description}</p>
-                {a.lienBodacc && (
-                  <a
-                    href={a.lienBodacc}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary hover:underline w-fit"
-                  >
-                    Voir l'annonce <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {a.lienBodacc && (
+                    <a
+                      href={a.lienBodacc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-primary hover:underline w-fit"
+                    >
+                      Voir l'annonce <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                  {restaurantId && (
+                    acked ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 text-[10px] gap-1 px-1.5 text-muted-foreground hover:text-foreground"
+                        onClick={() => restore(a as any)}
+                      >
+                        <RotateCcw className="h-2.5 w-2.5" />
+                        Rétablir
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 text-[10px] gap-1 px-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                        onClick={() => dismiss(a as any, siren.replace(/\s/g, "").substring(0, 9))}
+                      >
+                        <CheckCircle2 className="h-2.5 w-2.5" />
+                        Pris en compte
+                      </Button>
+                    )
+                  )}
+                </div>
               </div>
             );
           })}
