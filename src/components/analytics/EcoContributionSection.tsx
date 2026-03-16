@@ -575,7 +575,7 @@ export function EcoContributionSection({
 
               {/* ADEME data freshness notice */}
               <p className="text-[10px] text-muted-foreground/70 leading-relaxed mt-1">
-                Source ADEME — Adhérents : mise à jour <span className="font-medium">1×/an</span> (juin). IDU : <span className="font-medium">trimestriel</span> (janv., avr., juil., oct.). Dernière MàJ : 2 fév. 2026. Inutile d'actualiser quotidiennement.
+                Source ADEME — Données mises à jour <span className="font-medium">tous les 3 mois</span>. Dernière MàJ : fév. 2026. Inutile d'actualiser quotidiennement.
               </p>
 
             <div className="flex items-center justify-between gap-3 mb-3">
