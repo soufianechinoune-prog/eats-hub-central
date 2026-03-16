@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
+import { format } from "date-fns";
 import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
 
 export interface PlatformBreakdown {
@@ -86,16 +87,16 @@ export function useNetworkStats({
   profitabilityBase = "gross",
   includeN1Comparison = false,
 }: UseNetworkStatsParams) {
-  const startDateStr = startDate.toISOString().split("T")[0];
-  const endDateStr = endDate.toISOString().split("T")[0];
+  const startDateStr = format(startDate, "yyyy-MM-dd");
+  const endDateStr = format(endDate, "yyyy-MM-dd");
 
   // Calculate N-1 date range
   const prevStartDate = new Date(startDate);
   prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
   const prevEndDate = new Date(endDate);
   prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
-  const prevStartDateStr = prevStartDate.toISOString().split("T")[0];
-  const prevEndDateStr = prevEndDate.toISOString().split("T")[0];
+  const prevStartDateStr = format(prevStartDate, "yyyy-MM-dd");
+  const prevEndDateStr = format(prevEndDate, "yyyy-MM-dd");
 
   const hasIds = restaurantIds.length > 0;
 
@@ -245,8 +246,8 @@ export function useNetworkStats({
       if (!hasIds) return [];
       const { data, error } = await supabase.rpc("get_network_prep_time_summary", {
         p_restaurant_ids: restaurantIds,
-        p_start_date: startDate.toISOString(),
-        p_end_date: endDate.toISOString(),
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
       });
       if (error) throw error;
       return (data || []).map((d: any) => ({

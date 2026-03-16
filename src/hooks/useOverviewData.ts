@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
 
 const PAGE_SIZE = 1000;
 const RETRY_CONFIG = {
@@ -184,8 +185,8 @@ function useOverviewAvailability(
   endDate: Date,
   enabled: boolean,
 ) {
-  const startDateStr = startDate.toISOString().split("T")[0];
-  const endDateStr = endDate.toISOString().split("T")[0];
+  const startDateStr = format(startDate, "yyyy-MM-dd");
+  const endDateStr = format(endDate, "yyyy-MM-dd");
   return useQuery({
     queryKey: ["overview-availability", restaurantIds, startDate.toISOString(), endDate.toISOString()],
     queryFn: async () => {
