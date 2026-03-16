@@ -524,8 +524,6 @@ const Restaurants = () => {
                                     }}
                                     className="shrink-0 animate-scale-in"
                                   >
-                                    className="shrink-0 animate-scale-in"
-                                  >
                                     <AlertTriangle className="h-4 w-4 text-destructive fill-destructive/20" />
                                   </button>
                                 </TooltipTrigger>
