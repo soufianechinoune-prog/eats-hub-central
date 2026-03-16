@@ -1189,7 +1189,16 @@ function RestaurantDrilldown({
             </span>
           </div>
         </TableCell>
-        <TableCell className="text-right text-sm text-muted-foreground py-3">{detailLines.length}</TableCell>
+        <TableCell className="text-right text-sm py-3">
+          <div className="flex items-center justify-end gap-1.5">
+            <span className="text-muted-foreground">{detailLines.length}</span>
+            {newLinesDelta && newLinesDelta > 0 && (
+              <Badge className="text-[9px] h-4 px-1.5 bg-amber-500 hover:bg-amber-600 text-white border-0">
+                +{newLinesDelta}
+              </Badge>
+            )}
+          </div>
+        </TableCell>
       </TableRow>
 
       {/* REP detail panel (shown when row is expanded and has REP data) */}
