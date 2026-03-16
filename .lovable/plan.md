@@ -1,31 +1,25 @@
 
 
-## Deux corrections à apporter
+## Problem
 
-### 1. La notice ADEME est au mauvais endroit
+The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
 
-La notice "Source ADEME" a été ajoutée dans `RepMembershipSection.tsx`, un composant **qui n'est pas utilisé** sur la page. La page `/analytics/eco-contribution` utilise `EcoContributionSection.tsx` qui a sa propre logique REP intégrée. Il faut donc :
+## Solution
 
-- **Supprimer** la notice inutile dans `RepMembershipSection.tsx` (lignes 163-169)
-- **Ajouter** la notice dans `EcoContributionSection.tsx`, juste sous la barre "Adhésion REP (éco-organismes)" (après ligne ~560), visible quand les résultats sont affichés ou avant la première vérification. Texte discret en `text-[10px] text-muted-foreground` :
+Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
 
-> *Source ADEME — Adhérents : mise à jour 1×/an (juin). IDU : trimestriel (janv., avr., juil., oct.). Dernière MàJ : 2 fév. 2026.*
+### Changes
 
-### 2. Indicateur visuel "Prélèvement sans adhésion"
+**`src/pages/Restaurants.tsx`**:
 
-Bonne idée : si un restaurant a des prélèvements éco-contribution mais n'est **pas** trouvé comme adhérent REP, c'est une anomalie à signaler. Pour chaque ligne du tableau :
+1. Update the Supabase query to also fetch linked managers via a join:
+   ```
+   .select(`*, manager_restaurants(managers(first_name, last_name))`)
+   ```
 
-- Croiser `byRestaurant` (qui contient `charge > 0`) avec `repByRestaurant` (statut `non_trouve` ou `sans_siret`)
-- Afficher un petit badge d'alerte orange/rouge sur la ligne du tableau, par exemple :
-  - 🔶 **"Prélevé sans adhésion"** — un `Badge` variant `destructive` ou `outline` avec icône `ShieldAlert`
-  - Apparaît dans la colonne REP ou à côté du solde, uniquement quand `charge > 0` ET statut ≠ `inscrit`
+2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
 
-Cela permet aux franchisés de voir immédiatement quels restaurants sont facturés par Uber pour l'éco-contribution sans être enregistrés auprès de l'ADEME — une anomalie à résoudre.
+3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
 
-### Fichiers modifiés
-
-| Fichier | Changement |
-|---------|-----------|
-| `src/components/analytics/EcoContributionSection.tsx` | Ajouter notice ADEME + badge "Prélevé sans adhésion" dans les lignes tableau |
-| `src/components/analytics/RepMembershipSection.tsx` | Supprimer la notice inutile (optionnel, fichier non utilisé) |
+This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
 
