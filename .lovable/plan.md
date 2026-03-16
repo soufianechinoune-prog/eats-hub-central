@@ -1,25 +1,29 @@
 
 
-## Problem
+## Corriger l'écart de rentabilité Deliveroo entre Overview et Finances
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+### Cause racine
+La RPC `get_network_deliveroo_summary` filtre `total_payable` uniquement sur les lignes `Livraison/À emporter/Nouvelle livraison`, ignorant les remboursements, contributions marketing, et autres déductions. La vue Finances utilise `get_deliveroo_payouts_detail` qui somme `total_payable` sur toutes les lignes → résultat plus bas mais correct.
 
-## Solution
+### Correction
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+**Migration SQL** — Mettre à jour `get_network_deliveroo_summary` pour :
+- Garder `total_revenue` = `SUM(order_amount)` filtré sur `Livraison/À emporter/Nouvelle livraison` (inchangé, c'est le CA)
+- Changer `total_payable` = `SUM(total_payable)` sur **toutes les lignes** (sans filtre `history_type`), en excluant seulement les types "facture précédente" comme le fait déjà la RPC Finance
 
-### Changes
+```sql
+-- Avant (faux) :
+SUM(d.total_payable) avec WHERE history_type IN ('Livraison','À emporter','Nouvelle livraison')
 
-**`src/pages/Restaurants.tsx`**:
+-- Après (correct) :
+-- revenue = SUM(order_amount) WHERE history_type IN (...)  -- inchangé
+-- total_payable = SUM(total_payable) sur toutes les lignes du restaurant/période
+```
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+### Fichiers impactés
+- **1 migration SQL** : `ALTER FUNCTION get_network_deliveroo_summary` pour séparer le calcul revenue vs payable
+- Aucun changement côté client (les hooks `useOverviewData` et `useNetworkStats` consomment déjà `total_payable` tel quel)
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
-
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
-
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+### Résultat
+Les deux vues afficheront le même taux de rentabilité (~59%) car elles utiliseront la même base de calcul : versement net réel / CA brut.
 
