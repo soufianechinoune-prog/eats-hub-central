@@ -7,8 +7,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Building2, Loader2, CheckCircle2, XCircle, Search,
   ArrowUpDown, ShieldCheck, ShieldAlert, ShieldOff,
-  CalendarDays, Hash,
+  CalendarDays, Hash, Info,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useEcoOrganismCheck, type EcoOrganismCheckResult, type IduResult } from "@/hooks/useEcoOrganismCheck";
@@ -158,6 +159,14 @@ export function RepMembershipSection({ restaurantIds, restaurantMap }: RepMember
             Vérifier les SIRET
           </Button>
         </div>
+
+        {/* ADEME data freshness notice */}
+        <Alert className="bg-muted/30 border-muted">
+          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+          <AlertDescription className="text-[11px] text-muted-foreground leading-relaxed">
+            <span className="font-medium">Source ADEME</span> — La liste des adhérents est mise à jour <span className="font-medium">1×/an</span> (juin), les IDU <span className="font-medium">chaque trimestre</span> (janv., avr., juil., oct.). Dernière MàJ connue : 2 février 2026. Inutile d'actualiser quotidiennement.
+          </AlertDescription>
+        </Alert>
 
         {/* Not checked yet */}
         {!repChecked && (

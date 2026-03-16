@@ -1,28 +1,25 @@
 
 
-## Ajouter une notice d'information sur la fréquence de mise à jour ADEME
+## Problem
 
-### Objectif
-Informer subtilement l'utilisateur que les données REP proviennent de l'ADEME et ne sont mises à jour qu'annuellement (adhérents) / trimestriellement (IDU), pour éviter les actualisations inutiles.
+The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
 
-### Modification (1 fichier)
+## Solution
 
-**`src/components/analytics/RepMembershipSection.tsx`**
+Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
 
-Ajouter une petite bannière d'information juste en dessous du bouton "Vérifier les SIRET", visible en permanence (pas seulement après vérification). Elle utilisera le composant `Alert` avec une icône `Info` :
+### Changes
 
-```text
-┌─────────────────────────────────────────────────────┐
-│ ℹ️  Données ADEME : adhérents mis à jour 1×/an     │
-│     (juin), IDU mis à jour chaque trimestre.        │
-│     Dernière MàJ connue : 2 février 2026.           │
-│     Inutile d'actualiser quotidiennement.           │
-└─────────────────────────────────────────────────────┘
-```
+**`src/pages/Restaurants.tsx`**:
 
-- Style : `text-xs text-muted-foreground` avec bordure légère, discret mais lisible
-- Placé entre le header (ligne ~160) et le message "Cliquez sur Vérifier" (ligne ~163)
-- Import `Alert, AlertDescription` depuis `@/components/ui/alert` et `Info` depuis `lucide-react`
+1. Update the Supabase query to also fetch linked managers via a join:
+   ```
+   .select(`*, manager_restaurants(managers(first_name, last_name))`)
+   ```
 
-Aucune autre modification nécessaire.
+2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+
+3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+
+This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
 
