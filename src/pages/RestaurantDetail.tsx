@@ -442,7 +442,7 @@ const RestaurantDetail = () => {
                 onAutoFill={isEditing ? handleSiretAutoFill : undefined}
               />
             </div>
-            <BodaccAlerts siren={restaurant?.siren} />
+            <BodaccAlerts siren={restaurant?.siren} restaurantId={restaurant?.id} />
             {renderField("Rue", "street", "text", "29 Avenue François Mitterrand")}
             <div className="grid grid-cols-2 gap-4">
               {renderField("Code postal", "postal_code", "text", "91200")}

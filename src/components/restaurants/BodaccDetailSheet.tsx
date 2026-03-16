@@ -6,8 +6,10 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, FileText, Scale, ShieldAlert, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ExternalLink, FileText, Scale, ShieldAlert, AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
 import type { BodaccAnnonce } from "./BodaccScanButton";
+import { useBodaccDismissals, getAnnonceKey } from "@/hooks/useBodaccDismissals";
 
 const typeBadgeConfig: Record<string, { className: string; icon: React.ReactNode }> = {
   procedure_collective: {
@@ -41,12 +43,28 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   restaurantName: string;
   annonces: BodaccAnnonce[];
+  restaurantId?: string;
+  siren?: string;
+  onDismissChange?: () => void;
 }
 
-export function BodaccDetailSheet({ open, onOpenChange, restaurantName, annonces }: Props) {
-  const hasCritical = annonces.some(
+export function BodaccDetailSheet({ open, onOpenChange, restaurantName, annonces, restaurantId, siren, onDismissChange }: Props) {
+  const { isDismissed, dismiss, restore, dismissed } = useBodaccDismissals(restaurantId || null);
+
+  const activeAnnonces = annonces.filter((a) => !isDismissed(a));
+  const hasCritical = activeAnnonces.some(
     (a) => a.type === "procedure_collective" || a.type === "radiation"
   );
+
+  const handleDismiss = async (a: BodaccAnnonce) => {
+    await dismiss(a, siren || "");
+    onDismissChange?.();
+  };
+
+  const handleRestore = async (a: BodaccAnnonce) => {
+    await restore(a);
+    onDismissChange?.();
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -71,10 +89,15 @@ export function BodaccDetailSheet({ open, onOpenChange, restaurantName, annonces
 
           {annonces.map((a, i) => {
             const config = typeBadgeConfig[a.type] || typeBadgeConfig.autre;
+            const acked = isDismissed(a);
             return (
               <div
                 key={i}
-                className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-sm"
+                className={`flex flex-col gap-1.5 rounded-md border p-3 text-sm transition-opacity ${
+                  acked
+                    ? "border-border/50 bg-muted/30 opacity-60"
+                    : "border-border bg-card"
+                }`}
               >
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge className={`text-[10px] gap-1 ${config.className}`}>
@@ -89,18 +112,49 @@ export function BodaccDetailSheet({ open, onOpenChange, restaurantName, annonces
                   {a.tribunal && (
                     <span className="text-muted-foreground text-xs">· {a.tribunal}</span>
                   )}
+                  {acked && (
+                    <Badge variant="outline" className="text-[9px] gap-1 text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
+                      <CheckCircle2 className="h-2.5 w-2.5" />
+                      Pris en compte
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-foreground leading-relaxed text-xs">{a.description}</p>
-                {a.lienBodacc && (
-                  <a
-                    href={a.lienBodacc}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary hover:underline w-fit text-xs"
-                  >
-                    Voir l'annonce <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {a.lienBodacc && (
+                    <a
+                      href={a.lienBodacc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-primary hover:underline w-fit text-xs"
+                    >
+                      Voir l'annonce <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                  {restaurantId && (
+                    acked ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] gap-1 px-2 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleRestore(a)}
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Rétablir
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] gap-1 px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                        onClick={() => handleDismiss(a)}
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        Pris en compte
+                      </Button>
+                    )
+                  )}
+                </div>
               </div>
             );
           })}

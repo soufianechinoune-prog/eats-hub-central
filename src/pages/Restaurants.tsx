@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert, AlertTriangle, Loader2 } from "lucide-react";
 import { BodaccScanButton, loadCachedBodaccResults, type BodaccResults, type BodaccAnnonce, type ScanStatus } from "@/components/restaurants/BodaccScanButton";
 import { BodaccDetailSheet } from "@/components/restaurants/BodaccDetailSheet";
+import { loadAllDismissedKeys, getAnnonceKey } from "@/hooks/useBodaccDismissals";
 import { useRestaurantsExport } from "@/hooks/useRestaurantsExport";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import {
@@ -61,11 +62,22 @@ const Restaurants = () => {
   const [sortColumn, setSortColumn] = useState<string | null>(savedPrefs?.sortColumn ?? null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(savedPrefs?.sortDirection ?? "asc");
   const [bodaccResults, setBodaccResults] = useState<BodaccResults>(() => loadCachedBodaccResults());
-  const [bodaccSheetData, setBodaccSheetData] = useState<{ name: string; annonces: BodaccAnnonce[] } | null>(null);
+  const [bodaccSheetData, setBodaccSheetData] = useState<{ name: string; annonces: BodaccAnnonce[]; restaurantId: string; siren: string } | null>(null);
+  const [dismissedKeys, setDismissedKeys] = useState<Map<string, Set<string>>>(new Map());
   const [scanningId, setScanningId] = useState<string | null>(null);
   const [scanStatuses, setScanStatuses] = useState<Map<string, ScanStatus>>(new Map());
   const [flashId, setFlashId] = useState<{ id: string; status: "ok" | "alert" } | null>(null);
   const prevScanningIdRef = useRef<string | null>(null);
+
+  // Load dismissed BODACC alerts when results change
+  const reloadDismissed = useCallback(async () => {
+    const ids = Array.from(bodaccResults.keys());
+    if (ids.length === 0) return;
+    const keys = await loadAllDismissedKeys(ids);
+    setDismissedKeys(keys);
+  }, [bodaccResults]);
+
+  useEffect(() => { reloadDismissed(); }, [reloadDismissed]);
 
   // When scanningId changes, flash the previous row
   useEffect(() => {
@@ -494,8 +506,13 @@ const Restaurants = () => {
                         )}
                         {bodaccResults.has(restaurant.id) && (() => {
                           const annonces = bodaccResults.get(restaurant.id)!;
-                          const hasCritical = annonces.some(a => a.type === "procedure_collective" || a.type === "radiation");
-                          if (!hasCritical) return null;
+                          const dismissed = dismissedKeys.get(restaurant.id);
+                          const activeCritical = annonces.filter(a => 
+                            (a.type === "procedure_collective" || a.type === "radiation") &&
+                            (!dismissed || !dismissed.has(getAnnonceKey(a)))
+                          );
+                          if (activeCritical.length === 0) return null;
+                          const siren = restaurant.siret ? restaurant.siret.replace(/\s/g, "").substring(0, 9) : "";
                           return (
                             <TooltipProvider>
                               <Tooltip>
@@ -503,7 +520,7 @@ const Restaurants = () => {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setBodaccSheetData({ name: restaurant.name, annonces });
+                                      setBodaccSheetData({ name: restaurant.name, annonces, restaurantId: restaurant.id, siren });
                                     }}
                                     className="shrink-0 animate-scale-in"
                                   >
@@ -651,6 +668,9 @@ const Restaurants = () => {
         onOpenChange={(open) => !open && setBodaccSheetData(null)}
         restaurantName={bodaccSheetData?.name || ""}
         annonces={bodaccSheetData?.annonces || []}
+        restaurantId={bodaccSheetData?.restaurantId}
+        siren={bodaccSheetData?.siren}
+        onDismissChange={reloadDismissed}
       />
     </div>
   );

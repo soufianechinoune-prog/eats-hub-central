@@ -85,6 +85,41 @@ export type Database = {
           },
         ]
       }
+      bodacc_dismissed_alerts: {
+        Row: {
+          annonce_key: string
+          dismissed_at: string
+          dismissed_by: string | null
+          id: string
+          restaurant_id: string
+          siren: string
+        }
+        Insert: {
+          annonce_key: string
+          dismissed_at?: string
+          dismissed_by?: string | null
+          id?: string
+          restaurant_id: string
+          siren: string
+        }
+        Update: {
+          annonce_key?: string
+          dismissed_at?: string
+          dismissed_by?: string | null
+          id?: string
+          restaurant_id?: string
+          siren?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bodacc_dismissed_alerts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chains: {
         Row: {
           created_at: string
