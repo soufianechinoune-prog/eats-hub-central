@@ -573,6 +573,11 @@ export function EcoContributionSection({
                 )}
               </div>
 
+              {/* ADEME data freshness notice */}
+              <p className="text-[10px] text-muted-foreground/70 leading-relaxed mt-1">
+                Source ADEME — Adhérents : mise à jour <span className="font-medium">1×/an</span> (juin). IDU : <span className="font-medium">trimestriel</span> (janv., avr., juil., oct.). Dernière MàJ : 2 fév. 2026. Inutile d'actualiser quotidiennement.
+              </p>
+
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-[11px] text-muted-foreground">
                 {filteredRestaurants.length} restaurant{filteredRestaurants.length > 1 ? "s" : ""} affiché{filteredRestaurants.length > 1 ? "s" : ""}
