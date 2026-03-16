@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, ChevronDown, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2, Building2, CheckCircle2, XCircle, ShieldCheck, CalendarDays, Sparkles, ArrowDownCircle } from "lucide-react";
+import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, ChevronDown, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2, Building2, CheckCircle2, XCircle, ShieldCheck, CalendarDays, Sparkles, ArrowDownCircle, BarChart3 } from "lucide-react";
 import { useRepCheckPersistence, type RepChangeInfo } from "@/hooks/useRepCheckPersistence";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 
@@ -94,6 +94,29 @@ export function EcoContributionSection({
       setRepChecked(true);
     }
   }, [latestSnapshot, repChecked, repLoadingCache]);
+
+  // Eco line scanning state (prélèvements/remboursements change detection)
+  const [ecoLineSnapshot, setEcoLineSnapshot] = useState<Record<string, number> | null>(null);
+  const [ecoLineDeltas, setEcoLineDeltas] = useState<Map<string, number>>(new Map());
+  const [ecoScanDone, setEcoScanDone] = useState(false);
+  const [ecoScanLoading, setEcoScanLoading] = useState(false);
+  const [ecoLastScanDate, setEcoLastScanDate] = useState<string | null>(null);
+
+  // Load latest eco line snapshot on mount
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("eco_line_snapshots" as any)
+        .select("*")
+        .order("checked_at", { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) {
+        const snap = data[0] as any;
+        setEcoLineSnapshot(snap.line_counts as Record<string, number>);
+        setEcoLastScanDate(snap.checked_at);
+      }
+    })();
+  }, []);
 
   const { monthlyData, byRestaurant, totals, detailLines, isLoading } = useEcoContribution({
     restaurantIds,
@@ -282,7 +305,46 @@ export function EcoContributionSection({
     }
   };
 
-  // Map of changes for quick lookup
+  // Eco line scan handler: count lines per restaurant and compare with previous snapshot
+  const handleEcoLineScan = async () => {
+    setEcoScanLoading(true);
+    try {
+      // Count current lines per restaurant from the already-loaded byRestaurant data
+      const currentCounts: Record<string, number> = {};
+      byRestaurant.forEach(r => {
+        currentCounts[r.restaurant_id] = r.count;
+      });
+
+      // Compare with previous snapshot
+      if (ecoLineSnapshot) {
+        const deltas = new Map<string, number>();
+        for (const [rId, count] of Object.entries(currentCounts)) {
+          const prev = ecoLineSnapshot[rId] || 0;
+          const diff = count - prev;
+          if (diff > 0) {
+            deltas.set(rId, diff);
+          }
+        }
+        setEcoLineDeltas(deltas);
+      }
+
+      // Save new snapshot
+      const { error } = await supabase
+        .from("eco_line_snapshots" as any)
+        .insert({
+          line_counts: currentCounts,
+          total_lines: Object.values(currentCounts).reduce((s, c) => s + c, 0),
+        } as any);
+      if (!error) {
+        setEcoLineSnapshot(currentCounts);
+        setEcoLastScanDate(new Date().toISOString());
+      }
+      setEcoScanDone(true);
+    } finally {
+      setEcoScanLoading(false);
+    }
+  };
+
   const repChangesMap = useMemo(() => {
     const map = new Map<string, RepChangeInfo["changeType"]>();
     repChanges.forEach(c => map.set(c.restaurant_id, c.changeType));
@@ -568,9 +630,61 @@ export function EcoContributionSection({
                     className="h-7 text-[11px] rounded-full gap-1.5 shrink-0"
                     onClick={handleRepCheck}
                   >
-                    {repChecked ? "Actualiser" : "Vérifier les SIRET"}
+                    <Building2 className="h-3 w-3" />
+                    {repChecked ? "Actualiser adhésions" : "Vérifier adhésions"}
                   </Button>
                 )}
+              </div>
+
+              {/* Eco line scan strip */}
+              <div className={cn(
+                "flex items-center justify-between gap-3 mb-4 px-3 py-2.5 rounded-lg border transition-colors",
+                ecoScanDone
+                  ? "bg-amber-500/5 border-amber-500/20"
+                  : "bg-muted/30 border-border/50"
+              )}>
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <BarChart3 className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-semibold">Prélèvements & Remboursements</span>
+                    {ecoScanDone && (
+                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                        {ecoLineDeltas.size > 0 ? (
+                          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                            <Sparkles className="h-3 w-3 inline mr-0.5" />
+                            {ecoLineDeltas.size} restaurant{ecoLineDeltas.size > 1 ? "s" : ""} avec nouvelles lignes
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-green-600 font-medium">
+                            <CheckCircle2 className="h-3 w-3 inline mr-0.5" />
+                            Aucune nouvelle ligne détectée
+                          </span>
+                        )}
+                        {ecoLastScanDate && (
+                          <span className="text-[9px] text-muted-foreground/60 ml-auto">
+                            Dernier scan : {new Date(ecoLastScanDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {!ecoScanDone && !ecoScanLoading && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Compare les lignes éco-contribution avec le dernier scan pour détecter les nouvelles entrées
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant={ecoScanDone ? "secondary" : "outline"}
+                  className="h-7 text-[11px] rounded-full gap-1.5 shrink-0"
+                  onClick={handleEcoLineScan}
+                  disabled={ecoScanLoading || isLoading}
+                >
+                  {ecoScanLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                  <BarChart3 className="h-3 w-3" />
+                  {ecoScanDone ? "Re-scanner" : "Scanner prélèvements"}
+                </Button>
               </div>
 
               {/* ADEME data freshness notice */}
@@ -628,6 +742,7 @@ export function EcoContributionSection({
                           repData={repChecked ? repByRestaurant.get(r.restaurant_id) : undefined}
                           showRepColumn={repChecked}
                           repChangeType={repChangesMap.get(r.restaurant_id)}
+                          newLinesDelta={ecoLineDeltas.get(r.restaurant_id)}
                           scanClass={
                             scanningId === r.restaurant_id
                               ? "bodacc-scanning"
@@ -967,6 +1082,7 @@ function RestaurantDrilldown({
   repData,
   showRepColumn = false,
   repChangeType,
+  newLinesDelta,
   scanClass,
 }: {
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
@@ -979,6 +1095,7 @@ function RestaurantDrilldown({
   repData?: ParsedRepData;
   showRepColumn?: boolean;
   repChangeType?: "new_adherent" | "lost_adherent";
+  newLinesDelta?: number;
   scanClass?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -1047,12 +1164,6 @@ function RestaurantDrilldown({
             {repData ? (
               <div className="flex flex-col items-center gap-1">
                 <RepStatusBadge repData={repData} changeType={repChangeType} />
-                {Math.abs(r.charge) > 0 && repData.status !== "inscrit" && repData.status !== "loading" && repData.status !== "unchecked" && (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-950/40 border border-orange-300 dark:border-orange-800 rounded-md px-1.5 py-0.5 whitespace-nowrap">
-                    <ShieldAlert className="h-2.5 w-2.5" />
-                    Prélevé sans adhésion
-                  </span>
-                )}
               </div>
             ) : null}
           </TableCell>
@@ -1078,7 +1189,16 @@ function RestaurantDrilldown({
             </span>
           </div>
         </TableCell>
-        <TableCell className="text-right text-sm text-muted-foreground py-3">{detailLines.length}</TableCell>
+        <TableCell className="text-right text-sm py-3">
+          <div className="flex items-center justify-end gap-1.5">
+            <span className="text-muted-foreground">{detailLines.length}</span>
+            {newLinesDelta && newLinesDelta > 0 && (
+              <Badge className="text-[9px] h-4 px-1.5 bg-amber-500 hover:bg-amber-600 text-white border-0">
+                +{newLinesDelta}
+              </Badge>
+            )}
+          </div>
+        </TableCell>
       </TableRow>
 
       {/* REP detail panel (shown when row is expanded and has REP data) */}

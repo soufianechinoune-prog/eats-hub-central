@@ -718,6 +718,30 @@ export type Database = {
         }
         Relationships: []
       }
+      eco_line_snapshots: {
+        Row: {
+          checked_at: string
+          created_at: string
+          id: string
+          line_counts: Json
+          total_lines: number
+        }
+        Insert: {
+          checked_at?: string
+          created_at?: string
+          id?: string
+          line_counts?: Json
+          total_lines?: number
+        }
+        Update: {
+          checked_at?: string
+          created_at?: string
+          id?: string
+          line_counts?: Json
+          total_lines?: number
+        }
+        Relationships: []
+      }
       hourly_availability: {
         Row: {
           created_at: string | null
