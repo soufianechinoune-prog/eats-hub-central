@@ -118,6 +118,7 @@ export function EcoContributionSection({
     })();
   }, []);
 
+  const { monthlyData, byRestaurant, totals, detailLines, isLoading } = useEcoContribution({
     restaurantIds,
     year: isHistorique ? null : effectiveYear,
     month: isHistorique ? null : selectedMonth,
