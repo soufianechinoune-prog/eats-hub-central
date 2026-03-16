@@ -630,9 +630,61 @@ export function EcoContributionSection({
                     className="h-7 text-[11px] rounded-full gap-1.5 shrink-0"
                     onClick={handleRepCheck}
                   >
-                    {repChecked ? "Actualiser" : "Vérifier les SIRET"}
+                    <Building2 className="h-3 w-3" />
+                    {repChecked ? "Actualiser adhésions" : "Vérifier adhésions"}
                   </Button>
                 )}
+              </div>
+
+              {/* Eco line scan strip */}
+              <div className={cn(
+                "flex items-center justify-between gap-3 mb-4 px-3 py-2.5 rounded-lg border transition-colors",
+                ecoScanDone
+                  ? "bg-amber-500/5 border-amber-500/20"
+                  : "bg-muted/30 border-border/50"
+              )}>
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <BarChart3 className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-semibold">Prélèvements & Remboursements</span>
+                    {ecoScanDone && (
+                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                        {ecoLineDeltas.size > 0 ? (
+                          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                            <Sparkles className="h-3 w-3 inline mr-0.5" />
+                            {ecoLineDeltas.size} restaurant{ecoLineDeltas.size > 1 ? "s" : ""} avec nouvelles lignes
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-green-600 font-medium">
+                            <CheckCircle2 className="h-3 w-3 inline mr-0.5" />
+                            Aucune nouvelle ligne détectée
+                          </span>
+                        )}
+                        {ecoLastScanDate && (
+                          <span className="text-[9px] text-muted-foreground/60 ml-auto">
+                            Dernier scan : {new Date(ecoLastScanDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {!ecoScanDone && !ecoScanLoading && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Compare les lignes éco-contribution avec le dernier scan pour détecter les nouvelles entrées
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant={ecoScanDone ? "secondary" : "outline"}
+                  className="h-7 text-[11px] rounded-full gap-1.5 shrink-0"
+                  onClick={handleEcoLineScan}
+                  disabled={ecoScanLoading || isLoading}
+                >
+                  {ecoScanLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                  <BarChart3 className="h-3 w-3" />
+                  {ecoScanDone ? "Re-scanner" : "Scanner prélèvements"}
+                </Button>
               </div>
 
               {/* ADEME data freshness notice */}
