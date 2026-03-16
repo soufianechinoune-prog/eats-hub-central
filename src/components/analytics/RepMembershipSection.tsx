@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Building2, Loader2, CheckCircle2, XCircle, Search,
   ArrowUpDown, ShieldCheck, ShieldAlert, ShieldOff,
-  CalendarDays, Hash, Info,
+  CalendarDays, Hash,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
