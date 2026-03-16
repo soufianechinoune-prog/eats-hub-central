@@ -506,8 +506,13 @@ const Restaurants = () => {
                         )}
                         {bodaccResults.has(restaurant.id) && (() => {
                           const annonces = bodaccResults.get(restaurant.id)!;
-                          const hasCritical = annonces.some(a => a.type === "procedure_collective" || a.type === "radiation");
-                          if (!hasCritical) return null;
+                          const dismissed = dismissedKeys.get(restaurant.id);
+                          const activeCritical = annonces.filter(a => 
+                            (a.type === "procedure_collective" || a.type === "radiation") &&
+                            (!dismissed || !dismissed.has(getAnnonceKey(a)))
+                          );
+                          if (activeCritical.length === 0) return null;
+                          const siren = restaurant.siret ? restaurant.siret.replace(/\s/g, "").substring(0, 9) : "";
                           return (
                             <TooltipProvider>
                               <Tooltip>
@@ -515,8 +520,10 @@ const Restaurants = () => {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setBodaccSheetData({ name: restaurant.name, annonces });
+                                      setBodaccSheetData({ name: restaurant.name, annonces, restaurantId: restaurant.id, siren });
                                     }}
+                                    className="shrink-0 animate-scale-in"
+                                  >
                                     className="shrink-0 animate-scale-in"
                                   >
                                     <AlertTriangle className="h-4 w-4 text-destructive fill-destructive/20" />
