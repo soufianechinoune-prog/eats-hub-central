@@ -1082,6 +1082,7 @@ function RestaurantDrilldown({
   repData,
   showRepColumn = false,
   repChangeType,
+  newLinesDelta,
   scanClass,
 }: {
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
@@ -1094,6 +1095,7 @@ function RestaurantDrilldown({
   repData?: ParsedRepData;
   showRepColumn?: boolean;
   repChangeType?: "new_adherent" | "lost_adherent";
+  newLinesDelta?: number;
   scanClass?: string;
 }) {
   const [open, setOpen] = useState(false);
