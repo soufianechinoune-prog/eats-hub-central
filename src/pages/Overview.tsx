@@ -66,15 +66,25 @@ const getInitialOverviewState = () => {
 const Overview = () => {
   const storedState = getInitialOverviewState();
   
+  // Read analytics context for cross-page sync
+  const analyticsCtx = useAnalyticsContext();
+  
+  // Map AnalyticsContext periodMode to OverviewPeriodMode
+  const ctxPeriodMode: OverviewPeriodMode = 
+    analyticsCtx.periodMode === "month" ? "custom_month" :
+    analyticsCtx.periodMode === "range" ? "custom_range" :
+    (analyticsCtx.periodMode as OverviewPeriodMode);
+  
+  // Initialize from localStorage, but prefer AnalyticsContext if it was set from another page
   const defaultPeriodMode: OverviewPeriodMode = "previous_week";
   const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(
-    () => storedState?.periodMode || defaultPeriodMode
+    () => storedState?.periodMode || ctxPeriodMode || defaultPeriodMode
   );
   const [selectedYear, setSelectedYear] = useState(
-    () => storedState?.selectedYear || new Date().getFullYear()
+    () => storedState?.selectedYear || analyticsCtx.selectedYear || new Date().getFullYear()
   );
   const [selectedMonth, setSelectedMonth] = useState(
-    () => storedState?.selectedMonth || new Date().getMonth() + 1
+    () => storedState?.selectedMonth || analyticsCtx.selectedMonth || new Date().getMonth() + 1
   );
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     if (storedState?.dateRange?.from && storedState?.dateRange?.to) {
@@ -83,7 +93,7 @@ const Overview = () => {
         to: new Date(storedState.dateRange.to),
       };
     }
-    return undefined;
+    return analyticsCtx.dateRange;
   });
   const [showN1Comparison, setShowN1Comparison] = useState(false);
   const [isNetworkView, setIsNetworkView] = useState(
