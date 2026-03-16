@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, ChevronDown, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2, Building2, CheckCircle2, XCircle, ShieldCheck, CalendarDays, Sparkles, ArrowDownCircle } from "lucide-react";
+import { Leaf, TrendingUp, TrendingDown, Hash, ChevronRight, ChevronDown, Download, FileSpreadsheet, Search, Shield, ShieldAlert, Loader2, Building2, CheckCircle2, XCircle, ShieldCheck, CalendarDays, Sparkles, ArrowDownCircle, BarChart3 } from "lucide-react";
 import { useRepCheckPersistence, type RepChangeInfo } from "@/hooks/useRepCheckPersistence";
 import { useEcoContribution } from "@/hooks/useEcoContribution";
 
