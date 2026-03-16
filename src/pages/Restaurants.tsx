@@ -670,6 +670,9 @@ const Restaurants = () => {
         onOpenChange={(open) => !open && setBodaccSheetData(null)}
         restaurantName={bodaccSheetData?.name || ""}
         annonces={bodaccSheetData?.annonces || []}
+        restaurantId={bodaccSheetData?.restaurantId}
+        siren={bodaccSheetData?.siren}
+        onDismissChange={reloadDismissed}
       />
     </div>
   );
