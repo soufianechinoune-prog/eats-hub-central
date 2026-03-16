@@ -147,25 +147,24 @@ export function BodaccAlerts({ siren, restaurantId }: { siren: string | null | u
                       Voir l'annonce <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
-                  {restaurantId && (
+                  {restaurantId && (a.type === "procedure_collective" || a.type === "radiation") && (
                     acked ? (
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="h-5 text-[10px] gap-1 px-1.5 text-muted-foreground hover:text-foreground"
+                        className="h-8 text-xs gap-1.5 px-3 text-muted-foreground hover:text-foreground"
                         onClick={() => restore(a as any)}
                       >
-                        <RotateCcw className="h-2.5 w-2.5" />
+                        <RotateCcw className="h-3.5 w-3.5" />
                         Rétablir
                       </Button>
                     ) : (
                       <Button
-                        variant="ghost"
                         size="sm"
-                        className="h-5 text-[10px] gap-1 px-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                        className="h-8 text-xs gap-1.5 px-3 bg-emerald-500 text-white hover:bg-emerald-600"
                         onClick={() => dismiss(a as any, siren.replace(/\s/g, "").substring(0, 9))}
                       >
-                        <CheckCircle2 className="h-2.5 w-2.5" />
+                        <CheckCircle2 className="h-3.5 w-3.5" />
                         Pris en compte
                       </Button>
                     )

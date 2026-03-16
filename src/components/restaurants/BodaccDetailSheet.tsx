@@ -131,25 +131,24 @@ export function BodaccDetailSheet({ open, onOpenChange, restaurantName, annonces
                       Voir l'annonce <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
-                  {restaurantId && (
+                  {restaurantId && (a.type === "procedure_collective" || a.type === "radiation") && (
                     acked ? (
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="h-6 text-[10px] gap-1 px-2 text-muted-foreground hover:text-foreground"
+                        className="h-8 text-xs gap-1.5 px-3 text-muted-foreground hover:text-foreground"
                         onClick={() => handleRestore(a)}
                       >
-                        <RotateCcw className="h-3 w-3" />
+                        <RotateCcw className="h-3.5 w-3.5" />
                         Rétablir
                       </Button>
                     ) : (
                       <Button
-                        variant="ghost"
                         size="sm"
-                        className="h-6 text-[10px] gap-1 px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                        className="h-8 text-xs gap-1.5 px-3 bg-emerald-500 text-white hover:bg-emerald-600"
                         onClick={() => handleDismiss(a)}
                       >
-                        <CheckCircle2 className="h-3 w-3" />
+                        <CheckCircle2 className="h-3.5 w-3.5" />
                         Pris en compte
                       </Button>
                     )
