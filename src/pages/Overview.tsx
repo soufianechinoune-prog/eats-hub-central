@@ -165,16 +165,14 @@ const Overview = () => {
     },
   });
   
-  // Analytics context for navigation to Finances
-  const {
-    setSelectedRestaurants,
-    setVisibleRestaurants,
-    setPeriodMode: setAnalyticsPeriodMode,
-    setSelectedYear: setAnalyticsYear,
-    setSelectedMonth: setAnalyticsMonth,
-    setDateRange: setAnalyticsDateRange,
-    setSelectedPlatform,
-  } = useAnalyticsContext();
+  // Aliases for analytics context setters
+  const setSelectedRestaurants = analyticsCtx.setSelectedRestaurants;
+  const setVisibleRestaurants = analyticsCtx.setVisibleRestaurants;
+  const setAnalyticsPeriodMode = analyticsCtx.setPeriodMode;
+  const setAnalyticsYear = analyticsCtx.setSelectedYear;
+  const setAnalyticsMonth = analyticsCtx.setSelectedMonth;
+  const setAnalyticsDateRange = analyticsCtx.setDateRange;
+  const setSelectedPlatform = analyticsCtx.setSelectedPlatform;
 
   // Sync Overview period to AnalyticsContext so all Analytics pages stay in sync
   useEffect(() => {
