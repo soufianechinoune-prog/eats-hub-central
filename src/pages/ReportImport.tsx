@@ -1225,6 +1225,7 @@ export default function ReportImport() {
             skipped: totalSkipped,
             errors: totalErrors,
             merged: totalMerged,
+            expandedRecords: totalExpandedRecords > 0 ? totalExpandedRecords : undefined,
           },
           validation: {
             dateRange: { start: minDate, end: maxDate },
