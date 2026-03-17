@@ -1,35 +1,37 @@
 
 
-## Analyse : les chiffres affichés sont corrects, mais filtrés
+## Diagnostic : les 4 796 lignes "non comptabilisées"
 
-### Constat
+### Cause
 
-Le CA Deliveroo 2025 affiché de **1 822 159 €** est **mathématiquement exact** — j'ai vérifié en base de données et obtiens exactement la même valeur (1 822 159,43 €).
+Le calcul côté client (ligne 2180 de `ReportImport.tsx`) fait :
 
-**Mais** ce chiffre correspond aux **14 restaurants épinglés**, pas à tout le réseau.
+```
+accounted = inserted + updated + skipped + merged + errors
+```
 
-Sur ton screenshot, le toggle "Épinglés 14 / Réseau 91" est positionné sur **Épinglés**. Donc le tableau filtre sur 14 restaurants seulement.
+Mais il **oublie les ajustements** (`adjustments`) — les lignes sans identifiant de commande (éco-contribution, frais publicitaires, marketing, etc.) qui sont importées dans la table `payout_adjustments`. Ces lignes sont bien traitées et importées, mais pas comptées dans le total affiché.
 
-### Vérification en base
+Concrètement : **78 436 + 78 419 + 5 764 + 0 + 0 = 162 619**, alors que le total est 167 415. Les 4 796 manquantes = lignes d'ajustements importées avec succès.
 
-| Périmètre | CA Deliveroo 2025 | Commandes |
-|---|---|---|
-| **14 épinglés** (affiché) | 1 822 159 € | 87 327 |
-| **Réseau complet** (91 restaurants) | 7 704 234 € | 369 141 |
+Il y a aussi potentiellement des lignes avec moins de 5 colonnes qui sont silencieusement ignorées (`if (row.length < 5) continue`), mais ce sont généralement des lignes vides.
 
-Le chiffre affiché est donc correct pour le filtre actif. Pour voir le CA de tout le réseau, il suffit de basculer le toggle sur **"Réseau"**.
+### Correction
 
-### Écart entre deux vues ?
+**Fichier** : `src/pages/ReportImport.tsx` (ligne ~2180)
 
-Si tu compares deux vues (ex: Overview vs Finances, ou Mois vs Année) et que tu observes des écarts, les causes possibles sont :
+Ajouter `adjustments` au calcul de `accounted` :
 
-1. **Toggle Épinglés/Réseau** différent entre les deux vues — vérifier que les deux sont sur le même mode
-2. **Source de données différente** — l'Overview utilise la table `orders` (par date de commande), les Finances utilisent la table `payouts` (par date de versement) pour Uber, et `deliveroo_orders` pour Deliveroo
-3. **Sélecteur de restaurant** — "Tous les restaurants" dans le dropdown ne suffit pas, le toggle Épinglés/Réseau prime
+```typescript
+const accounted = importResult.stats.inserted + importResult.stats.updated 
+  + importResult.stats.skipped + (importResult.stats.merged ?? 0) 
+  + importResult.stats.errors + (importResult.stats.adjustments ?? 0);
+```
 
-### Action recommandée
+Et afficher le nombre d'ajustements dans les KPI cards (ajouter une 7ème carte ou l'intégrer dans les stats existantes) pour que l'utilisateur voie clairement où vont ces lignes.
 
-Pas de changement de code nécessaire. Bascule le toggle sur **"Réseau"** pour voir les chiffres du réseau complet, et vérifie que les deux vues que tu compares utilisent le même état de filtre.
-
-Si après vérification tu constates toujours un écart entre deux vues spécifiques avec le même filtre, envoie-moi les deux screenshots et je diagnostiquerai la source exacte de la différence.
+### Impact
+- Supprime le warning "Incohérence" erroné
+- Rend le comptage transparent et complet
+- Aucun changement côté backend
 
