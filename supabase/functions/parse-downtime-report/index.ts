@@ -137,6 +137,16 @@ serve(async (req) => {
       restaurantByNormalizedName.set(normalizeRestaurantName(r.name), { id: r.id, name: r.name });
     }
 
+    // Fetch name aliases
+    const { data: nameAliases } = await supabase
+      .from('restaurant_name_aliases')
+      .select('normalized_name, restaurant_id');
+
+    const restaurantByAlias = new Map<string, string>();
+    for (const alias of nameAliases || []) {
+      restaurantByAlias.set(alias.normalized_name, alias.restaurant_id);
+    }
+
     // Parse CSV
     const lines = csvContent.split('\n').filter((line: string) => line.trim());
     if (lines.length < 2) {
