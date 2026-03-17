@@ -1093,6 +1093,7 @@ export default function ReportImport() {
         let totalSkipped = 0;
         let totalErrors = 0;
         let totalMerged = 0;
+        let totalExpandedRecords = 0;
         let allRestaurants: RestaurantStats[] = [];
         let minDate: string | null = null;
         let maxDate: string | null = null;
