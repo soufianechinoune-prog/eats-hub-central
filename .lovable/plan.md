@@ -1,18 +1,25 @@
 
 
-## Correction : plafonner la date de fin à la dernière donnée disponible
+## Problem
 
-### Problème
-Quand on sélectionne "Mars 2026" ou "Année 2026", la date de fin dépasse la dernière donnée importée (ex: 15 mars), ce qui fausse les taux de disponibilité en comptant les jours sans data comme des jours offline.
+The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
 
-### Solution
-1. **Ajouter une query `latestDate`** : requêter la date la plus récente dans `hourly_availability` (comme `earliestDate` mais `descending`).
-2. **Plafonner `end` à `latestDate`** : dans le `useMemo` qui calcule `dateRange`, après le switch, ajouter :
-   ```typescript
-   if (latestDate && end > latestDate) end = latestDate;
+## Solution
+
+Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+
+### Changes
+
+**`src/pages/Restaurants.tsx`**:
+
+1. Update the Supabase query to also fetch linked managers via a join:
    ```
-   Cela garantit que la plage ne dépasse jamais le dernier jour importé, quel que soit le retard d'import.
+   .select(`*, manager_restaurants(managers(first_name, last_name))`)
+   ```
 
-### Fichier modifié
-- `src/pages/DowntimeComparison.tsx` : ajouter la query `latestDate` + cap dans le calcul de `dateRange`.
+2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+
+3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+
+This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
 
