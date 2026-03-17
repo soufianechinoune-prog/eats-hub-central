@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, Store, Plus, Check, Loader2 } from "lucide-react";
+import { AlertTriangle, Store, Plus, Check, Loader2, Tag, Hash } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,27 @@ interface Restaurant {
   city?: string | null;
 }
 
+interface UnknownStoreDetail {
+  name: string;
+  type?: 'store_id' | 'restaurant_name';
+}
+
 interface UnknownStoreMappingProps {
   unknownStoreIds: string[];
-  unknownStoreDetails?: Record<string, { name: string }>;
+  unknownStoreDetails?: Record<string, UnknownStoreDetail>;
   restaurants: Restaurant[];
   onMappingComplete: () => void;
   selectedRestaurantId?: string;
+}
+
+// Normalize name for alias storage (same logic as parser)
+function normalizeForAlias(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
 }
 
 export default function UnknownStoreMapping({
@@ -36,6 +51,14 @@ export default function UnknownStoreMapping({
 
   const allMapped = unknownStoreIds.every(id => storeIdMappings[id]);
   const mappedCount = Object.keys(storeIdMappings).filter(id => storeIdMappings[id]).length;
+
+  // Determine if an unknown key is a real store_id or a restaurant name
+  const getUnknownType = (key: string): 'store_id' | 'restaurant_name' => {
+    const detail = unknownStoreDetails[key];
+    if (detail?.type) return detail.type;
+    // Heuristic: if it contains spaces, it's a name; otherwise it's a store_id
+    return key.includes(' ') ? 'restaurant_name' : 'store_id';
+  };
 
   const handleMappingChange = (storeId: string, value: string) => {
     setStoreIdMappings(prev => ({
@@ -54,6 +77,7 @@ export default function UnknownStoreMapping({
     try {
       for (const [storeId, restaurantId] of Object.entries(storeIdMappings)) {
         if (!restaurantId) continue;
+        const unknownType = getUnknownType(storeId);
 
         if (restaurantId === "__create__") {
           // Create new restaurant with name from CSV
@@ -69,47 +93,88 @@ export default function UnknownStoreMapping({
             continue;
           }
           
-          // Create restaurant with the uber_store_id on the main table for backward compatibility
-          const { data: newRestaurant, error: createError } = await supabase.from("restaurants").insert([{
+          const insertData: any = {
             name: storeName,
-            uber_store_id: storeId,
             is_active: true,
             chain_id: chainId,
-          }]).select("id").single();
+          };
+
+          // Only set uber_store_id if it's a real store_id
+          if (unknownType === 'store_id') {
+            insertData.uber_store_id = storeId;
+          }
+
+          const { data: newRestaurant, error: createError } = await supabase
+            .from("restaurants")
+            .insert([insertData])
+            .select("id")
+            .single();
 
           if (createError) {
             console.error("Error creating restaurant:", createError);
             errorCount++;
           } else if (newRestaurant) {
-            // Also add to the multi-UUID mapping table
-            await supabase.from("restaurant_uber_ids").insert([{
-              restaurant_id: newRestaurant.id,
-              uber_store_id: storeId,
-              is_primary: true,
-              label: "principal",
-            }]);
+            if (unknownType === 'store_id') {
+              // Also add to the multi-UUID mapping table
+              await supabase.from("restaurant_uber_ids").insert([{
+                restaurant_id: newRestaurant.id,
+                uber_store_id: storeId,
+                is_primary: true,
+                label: "principal",
+              }]);
+            } else {
+              // Save as name alias
+              await supabase.from("restaurant_name_aliases").insert([{
+                restaurant_id: newRestaurant.id,
+                alias_name: storeId,
+                normalized_name: normalizeForAlias(storeId),
+                source: 'manual_import',
+              }]);
+            }
             successCount++;
           }
         } else {
-          // Add new uber_store_id to the multi-UUID mapping table (don't overwrite existing)
-          const { error } = await supabase.from("restaurant_uber_ids").insert([{
-            restaurant_id: restaurantId,
-            uber_store_id: storeId,
-            is_primary: false,
-            label: "ajouté via import",
-          }]);
+          // Map to existing restaurant
+          if (unknownType === 'store_id') {
+            // Add new uber_store_id to the multi-UUID mapping table
+            const { error } = await supabase.from("restaurant_uber_ids").insert([{
+              restaurant_id: restaurantId,
+              uber_store_id: storeId,
+              is_primary: false,
+              label: "ajouté via import",
+            }]);
 
-          if (error) {
-            // If duplicate, it's already mapped - that's fine
-            if (error.code === "23505") {
-              console.log("UUID already mapped:", storeId);
-              successCount++;
+            if (error) {
+              if (error.code === "23505") {
+                console.log("UUID already mapped:", storeId);
+                successCount++;
+              } else {
+                console.error("Error adding UUID mapping:", error);
+                errorCount++;
+              }
             } else {
-              console.error("Error adding UUID mapping:", error);
-              errorCount++;
+              successCount++;
             }
           } else {
-            successCount++;
+            // Save as name alias
+            const { error } = await supabase.from("restaurant_name_aliases").insert([{
+              restaurant_id: restaurantId,
+              alias_name: storeId,
+              normalized_name: normalizeForAlias(storeId),
+              source: 'manual_import',
+            }]);
+
+            if (error) {
+              if (error.code === "23505") {
+                console.log("Name alias already exists:", storeId);
+                successCount++;
+              } else {
+                console.error("Error adding name alias:", error);
+                errorCount++;
+              }
+            } else {
+              successCount++;
+            }
           }
         }
       }
@@ -121,7 +186,7 @@ export default function UnknownStoreMapping({
       if (errorCount === 0) {
         toast({
           title: "Correspondances appliquées",
-          description: `${successCount} restaurant(s) configuré(s) avec succès`,
+          description: `${successCount} restaurant(s) configuré(s) avec succès. Relancez l'import pour traiter les lignes ignorées.`,
         });
         onMappingComplete();
       } else {
@@ -148,10 +213,10 @@ export default function UnknownStoreMapping({
     return (
       <Alert>
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Store ID non reconnu (non bloquant)</AlertTitle>
+        <AlertTitle>Identifiants non reconnus (non bloquant)</AlertTitle>
         <AlertDescription>
           <p className="mb-2">
-            {unknownStoreIds.length} store_id(s) trouvé(s) dans le fichier mais non configuré(s) :
+            {unknownStoreIds.length} identifiant(s) trouvé(s) dans le fichier mais non configuré(s) :
           </p>
           <p className="mb-2 text-sm text-muted-foreground">
             Comme vous avez sélectionné un restaurant manuellement, l'import associera quand même toutes les lignes à ce restaurant.
@@ -175,16 +240,17 @@ export default function UnknownStoreMapping({
     <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
       <Store className="h-4 w-4 text-destructive" />
       <AlertTitle className="text-destructive">
-        {unknownStoreIds.length} restaurant(s) non configuré(s)
+        {unknownStoreIds.length} restaurant(s) non reconnu(s)
       </AlertTitle>
       <AlertDescription className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Ces store_id ne sont pas associés à un restaurant dans votre base. Choisissez un restaurant existant ou créez-en un nouveau.
+          Ces identifiants ou noms de restaurants ne sont pas associés à un restaurant dans votre base. Choisissez un restaurant existant ou créez-en un nouveau.
         </p>
 
         <div className="space-y-3 max-h-[300px] overflow-y-auto">
           {unknownStoreIds.map((storeId) => {
             const csvName = unknownStoreDetails[storeId]?.name;
+            const unknownType = getUnknownType(storeId);
             const isSelected = !!storeIdMappings[storeId];
 
             return (
@@ -197,14 +263,27 @@ export default function UnknownStoreMapping({
                 }`}
               >
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
-                    <span className="font-mono text-xs text-muted-foreground break-all" title={storeId}>
-                      {storeId}
-                    </span>
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {unknownType === 'store_id' ? (
+                        <><Hash className="h-3 w-3 mr-1" />Store ID</>
+                      ) : (
+                        <><Tag className="h-3 w-3 mr-1" />Nom CSV</>
+                      )}
+                    </Badge>
                   </div>
-                  {csvName && (
-                    <p className="text-sm font-medium mt-1 break-words">{csvName}</p>
+                  {unknownType === 'store_id' ? (
+                    <>
+                      <span className="font-mono text-xs text-muted-foreground break-all block mt-1" title={storeId}>
+                        {storeId}
+                      </span>
+                      {csvName && csvName !== storeId && (
+                        <p className="text-sm font-medium mt-1 break-words">{csvName}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm font-medium mt-1 break-words" title={storeId}>{storeId}</p>
                   )}
                 </div>
 

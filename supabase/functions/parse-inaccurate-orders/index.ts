@@ -29,6 +29,7 @@ interface ParseResult {
       orderCount: number;
     }[];
     unknownStoreIds: string[];
+    unknownStoreDetails?: Record<string, { name: string; type: 'store_id' | 'restaurant_name' }>;
     skippedDetails: {
       rowIndex: number;
       reason: string;
@@ -102,6 +103,26 @@ function normalizeForLooseMatch(name: string): string {
     .replace(/\s+/g, '');
 }
 
+// Levenshtein distance for fuzzy matching
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+    }
+  }
+  return dp[m][n];
+}
+
 // Find restaurant by partial/fuzzy name matching
 function findRestaurantByPartialName(
   csvName: string,
@@ -116,14 +137,20 @@ function findRestaurantByPartialName(
     }
   }
 
-  // Hardcoded match for "Chicken Street - Lille" -> Lille Wazemmes
-  const lowerName = csvName.toLowerCase().trim().replace(/\s+/g, ' ');
-  if (lowerName === 'chicken street - lille' || lowerName === 'chicken street lille') {
-    const wazemmes = Array.from(restaurantByName.values()).find(r => r.id === 'b81531ef-d5db-47dd-b0bb-37f2c9fd6d5d');
-    if (wazemmes) {
-      console.log(`Hardcoded match: "${csvName}" -> "${wazemmes.name}"`);
-      return wazemmes;
+  // Fuzzy match: try Levenshtein distance on normalized names (tolerance: 2 chars)
+  const normalizedCsv = normalizeRestaurantName(csvName);
+  let bestMatch: { id: string; name: string } | null = null;
+  let bestDistance = Infinity;
+  for (const [normalizedName, restaurant] of restaurantByName.entries()) {
+    const dist = levenshtein(normalizedCsv, normalizedName);
+    if (dist <= 2 && dist < bestDistance) {
+      bestDistance = dist;
+      bestMatch = restaurant;
     }
+  }
+  if (bestMatch) {
+    console.log(`Fuzzy match (distance=${bestDistance}): "${csvName}" -> "${bestMatch.name}"`);
+    return bestMatch;
   }
 
   // Try extracting city part from "Chicken Street - City" pattern
@@ -197,7 +224,7 @@ serve(async (req) => {
       throw new Error('CSV content is required');
     }
 
-    console.log(`[parse-inaccurate-orders v3] dryRun=${dryRun}, restaurantId=${restaurantId || 'none'}`);
+    console.log(`[parse-inaccurate-orders v4] dryRun=${dryRun}, restaurantId=${restaurantId || 'none'}`);
 
     // Fetch all restaurants for matching
     const { data: restaurants, error: restaurantsError } = await supabase
@@ -213,9 +240,15 @@ serve(async (req) => {
       .from('restaurant_uber_ids')
       .select('uber_store_id, restaurant_id');
 
+    // Fetch name aliases
+    const { data: nameAliases } = await supabase
+      .from('restaurant_name_aliases')
+      .select('normalized_name, restaurant_id');
+
     // Create lookup maps
     const restaurantByStoreId = new Map<string, { id: string; name: string }>();
     const restaurantByName = new Map<string, { id: string; name: string }>();
+    const restaurantByAlias = new Map<string, string>(); // normalized_name -> restaurant_id
 
     for (const r of restaurants || []) {
       if (r.uber_store_id) {
@@ -229,8 +262,12 @@ serve(async (req) => {
       const restaurant = restaurants?.find(r => r.id === mapping.restaurant_id);
       if (restaurant && !restaurantByStoreId.has(mapping.uber_store_id)) {
         restaurantByStoreId.set(mapping.uber_store_id, { id: restaurant.id, name: restaurant.name });
-        console.log(`Added secondary UUID ${mapping.uber_store_id} -> ${restaurant.name}`);
       }
+    }
+
+    // Add name aliases to lookup
+    for (const alias of nameAliases || []) {
+      restaurantByAlias.set(alias.normalized_name, alias.restaurant_id);
     }
 
     // Parse CSV
@@ -280,6 +317,7 @@ serve(async (req) => {
         dateRange: { start: null, end: null },
         restaurants: [],
         unknownStoreIds: [],
+        unknownStoreDetails: {},
         skippedDetails: [],
       },
       errorDetails: [],
@@ -329,20 +367,23 @@ serve(async (req) => {
           const restaurantName = getCol(row, 'restaurant', 'nom du restaurant', 'store name', 'restaurant name');
           if (restaurantName) {
             const normalizedName = normalizeRestaurantName(restaurantName);
+            
+            // 1. Exact normalized name match
             matchedRestaurant = restaurantByName.get(normalizedName);
 
-            // Direct hardcoded match for ambiguous names
+            // 2. Check name aliases
             if (!matchedRestaurant) {
-              const cleanName = restaurantName.toLowerCase().trim().replace(/\s+/g, ' ');
-              if (cleanName === 'chicken street - lille' || cleanName === 'chicken street lille') {
-                const found = restaurants?.find(r => r.id === 'b81531ef-d5db-47dd-b0bb-37f2c9fd6d5d');
-                if (found) {
-                  matchedRestaurant = { id: found.id, name: found.name };
-                  console.log(`Direct hardcoded match: "${restaurantName}" -> ${found.name}`);
+              const aliasRestaurantId = restaurantByAlias.get(normalizedName);
+              if (aliasRestaurantId) {
+                const r = restaurants?.find(r => r.id === aliasRestaurantId);
+                if (r) {
+                  matchedRestaurant = { id: r.id, name: r.name };
+                  console.log(`Alias match: "${restaurantName}" -> "${r.name}"`);
                 }
               }
             }
 
+            // 3. Fuzzy/partial name match
             if (!matchedRestaurant) {
               matchedRestaurant = findRestaurantByPartialName(restaurantName, restaurantByName) || undefined;
             }
@@ -354,9 +395,18 @@ serve(async (req) => {
         result.stats.skipped++;
         const restaurantName = getCol(row, 'restaurant', 'nom du restaurant', 'store name', 'restaurant name');
         const storeIdForError = getCol(row, 'id du restaurant', 'id restaurant', 'store id', 'restaurant id');
-        const unknownKey = storeIdForError || restaurantName;
+        
+        // Determine the type of unknown: real store_id or restaurant name
+        const hasRealStoreId = !!storeIdForError && !storeIdForError.includes(' ');
+        const unknownKey = hasRealStoreId ? storeIdForError : (restaurantName || storeIdForError);
+        const unknownType: 'store_id' | 'restaurant_name' = hasRealStoreId ? 'store_id' : 'restaurant_name';
+        
         if (unknownKey && !result.validation!.unknownStoreIds.includes(unknownKey)) {
           result.validation!.unknownStoreIds.push(unknownKey);
+          result.validation!.unknownStoreDetails![unknownKey] = {
+            name: restaurantName || unknownKey,
+            type: unknownType,
+          };
         }
         result.validation?.skippedDetails.push({
           rowIndex: i + 1,
@@ -493,6 +543,7 @@ serve(async (req) => {
           dateRange: { start: null, end: null },
           restaurants: [],
           unknownStoreIds: [],
+          unknownStoreDetails: {},
           skippedDetails: [],
         },
         errorDetails: [errorMessage],

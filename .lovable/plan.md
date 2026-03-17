@@ -1,57 +1,25 @@
 
-Problème identifié
 
-- Sur ce rapport d’erreurs de commande, les lignes ignorées ont `storeId=""` dans le détail d’erreur.
-- Le parser `parse-inaccurate-orders` utilise alors le nom du restaurant comme “clé inconnue”.
-- Mais le composant `UnknownStoreMapping` traite toujours cette clé comme un vrai `store_id` et l’enregistre dans `restaurant_uber_ids`.
-- C’est pour ça que “Chicken Street - Goussainville” a été sauvegardé comme faux identifiant, ce qui ne peut pas corriger le parsing.
-- En plus, la base contient le restaurant sous le nom `Chicken Street - Goussainvillie`, donc le fallback actuel par nom ne matche pas cette orthographe.
+## Problem
 
-Plan d’implémentation
+The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
 
-1. Séparer les inconnus par type
-- Faire remonter depuis le parser si l’inconnu est un vrai `store_id` ou un `nom de restaurant`.
-- Réserver `restaurant_uber_ids` aux seuls identifiants Uber réels.
+## Solution
 
-2. Ajouter un vrai système d’alias de nom
-- Créer une table dédiée du type `restaurant_name_aliases` liée à `restaurants`.
-- Y stocker les noms validés manuellement depuis l’import, avec version normalisée pour le matching.
-- Ajouter RLS/policies cohérentes avec le backend existant.
+Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
 
-3. Corriger `parse-inaccurate-orders`
-- Charger les alias de noms en plus des restaurants et des IDs Uber.
-- Résoudre dans cet ordre : `store_id` → alias de nom → nom normalisé/fuzzy match.
-- Tolérer les petites variantes d’orthographe comme `Goussainville` / `Goussainvillie`.
+### Changes
 
-4. Corriger l’UI de mapping
-- Afficher un libellé correct selon le cas :
-  - `Store ID non reconnu`
-  - `Nom de restaurant non reconnu`
-- Si l’inconnu est un nom, enregistrer un alias de nom au lieu d’écrire dans `restaurant_uber_ids`.
-- Garder le comportement actuel pour les vrais `store_id`.
+**`src/pages/Restaurants.tsx`**:
 
-5. Nettoyer la donnée déjà polluée
-- Migrer/supprimer les entrées non valides déjà écrites dans `restaurant_uber_ids`, notamment `Chicken Street - Goussainville`.
-- Si possible, les recopier dans la table d’alias avant suppression.
+1. Update the Supabase query to also fetch linked managers via a join:
+   ```
+   .select(`*, manager_restaurants(managers(first_name, last_name))`)
+   ```
 
-6. Clarifier le flux après validation
-- Après `Appliquer et revalider` sur l’écran de résultat, relancer automatiquement la validation du fichier courant ou afficher un CTA explicite `Réimporter ce fichier`.
-- Expliquer clairement que le mapping est bien enregistré, mais que les lignes déjà ignorées ne sont pas importées rétroactivement sans nouvelle passe.
+2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
 
-Détails techniques
+3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
 
-- Fichiers à modifier :
-  - `supabase/functions/parse-inaccurate-orders/index.ts`
-  - `src/components/reports/UnknownStoreMapping.tsx`
-  - `src/pages/ReportImport.tsx`
-  - une migration SQL pour la table d’alias
-- Point confirmé en base :
-  - le restaurant existe bien en `Chicken Street - Goussainvillie`
-  - une ligne incorrecte a déjà été créée dans `restaurant_uber_ids` avec `uber_store_id = "Chicken Street - Goussainville"`
+This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
 
-Résultat attendu
-
-- Goussainville sera reconnu même quand le CSV ne fournit pas de `store_id`.
-- Le mapping manuel deviendra persistant et correct.
-- L’interface ne présentera plus un nom de restaurant comme si c’était un `store_id`.
-- Les prochains imports de ce fichier ne laisseront plus ces lignes en ignorées pour cette raison.

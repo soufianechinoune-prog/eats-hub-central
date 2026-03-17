@@ -2736,6 +2736,41 @@ export type Database = {
           },
         ]
       }
+      restaurant_name_aliases: {
+        Row: {
+          alias_name: string
+          created_at: string
+          id: string
+          normalized_name: string
+          restaurant_id: string
+          source: string | null
+        }
+        Insert: {
+          alias_name: string
+          created_at?: string
+          id?: string
+          normalized_name: string
+          restaurant_id: string
+          source?: string | null
+        }
+        Update: {
+          alias_name?: string
+          created_at?: string
+          id?: string
+          normalized_name?: string
+          restaurant_id?: string
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_name_aliases_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_opening_hours: {
         Row: {
           created_at: string | null
