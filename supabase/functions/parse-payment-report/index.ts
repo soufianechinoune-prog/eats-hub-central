@@ -436,7 +436,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log('Restaurant UUID map size:', restaurantMap.size);
+    // Fetch name aliases for fallback matching
+    const { data: nameAliases } = await supabase
+      .from('restaurant_name_aliases')
+      .select('normalized_name, restaurant_id');
+
+    // Build name-based lookup maps
+    const restaurantByName = new Map<string, { id: string; name: string }>();
+    const restaurantByAlias = new Map<string, string>();
+
+    restaurants?.forEach(r => {
+      restaurantByName.set(normalizeRestaurantName(r.name), { id: r.id, name: r.name });
+    });
+
+    for (const alias of nameAliases || []) {
+      restaurantByAlias.set(alias.normalized_name, alias.restaurant_id);
+    }
+
+    console.log('Restaurant UUID map size:', restaurantMap.size, '| Name map size:', restaurantByName.size, '| Aliases:', restaurantByAlias.size);
 
     // Phase 1: Parse all rows WITHOUT database calls
     const dataRows = rows.slice(headerRowIndex + 1);
