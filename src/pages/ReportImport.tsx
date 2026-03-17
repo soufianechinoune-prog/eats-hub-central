@@ -129,6 +129,7 @@ interface ImportResult {
     skipped: number;
     errors: number;
     merged?: number;
+    expandedRecords?: number;
   };
   validation?: ValidationData;
   orphanInfo?: OrphanInfo;
@@ -1093,6 +1094,7 @@ export default function ReportImport() {
         let totalSkipped = 0;
         let totalErrors = 0;
         let totalMerged = 0;
+        let totalExpandedRecords = 0;
         let allRestaurants: RestaurantStats[] = [];
         let minDate: string | null = null;
         let maxDate: string | null = null;
@@ -1158,6 +1160,7 @@ export default function ReportImport() {
             totalSkipped += chunkResult.stats?.skipped || 0;
             totalErrors += chunkResult.stats?.errors || 0;
             totalMerged += chunkResult.stats?.merged || 0;
+            totalExpandedRecords += chunkResult.stats?.expandedRecords || 0;
             
             // Merge restaurants (support both root-level and validation-nested)
             const chunkRestaurants = chunkResult.validation?.restaurants || chunkResult.restaurants || [];
@@ -1223,6 +1226,7 @@ export default function ReportImport() {
             skipped: totalSkipped,
             errors: totalErrors,
             merged: totalMerged,
+            expandedRecords: totalExpandedRecords > 0 ? totalExpandedRecords : undefined,
           },
           validation: {
             dateRange: { start: minDate, end: maxDate },
