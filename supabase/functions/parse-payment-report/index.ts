@@ -617,8 +617,23 @@ Deno.serve(async (req) => {
           }
 
           // Insert into payout_adjustments (ALL non-order rows, including eco)
-          if (payoutRefId && uberStoreIdVal) {
-            const matchedRestaurant = restaurantMap.get(uberStoreIdVal);
+          if (payoutRefId && (uberStoreIdVal || restaurantNameVal)) {
+            let matchedRestaurant = restaurantMap.get(uberStoreIdVal);
+            // Fallback: try name-based matching for adjustments too
+            if (!matchedRestaurant && restaurantNameVal) {
+              const normalizedName = normalizeRestaurantName(restaurantNameVal);
+              matchedRestaurant = restaurantByName.get(normalizedName);
+              if (!matchedRestaurant) {
+                const aliasId = restaurantByAlias.get(normalizedName);
+                if (aliasId) {
+                  const aliasR = restaurants?.find(r => r.id === aliasId);
+                  if (aliasR) matchedRestaurant = { id: aliasR.id, name: aliasR.name };
+                }
+              }
+              if (!matchedRestaurant) {
+                matchedRestaurant = findRestaurantByPartialName(restaurantNameVal, restaurantByName) || undefined;
+              }
+            }
             const category = otherDesc ? categorizeAdjustment(otherDesc, marketingFeeAdj, candidateAmount) : 'other_fee';
             
             adjustmentsToUpsert.push({
