@@ -153,8 +153,13 @@ const DowntimeComparison = () => {
         end = now;
     }
     
+    // Cap end date at the latest available data point
+    if (latestDate && end > latestDate) {
+      end = latestDate;
+    }
+    
     return { start, end };
-  }, [periodMode, selectedYear, selectedMonth, customDateRange]);
+  }, [periodMode, selectedYear, selectedMonth, customDateRange, latestDate]);
 
   // Determine alert type based on data coverage
   const dataAlert = useMemo(() => {
