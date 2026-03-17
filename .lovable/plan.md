@@ -1,17 +1,18 @@
 
 
-## Correction des noms en base
+## Correction : plafonner la date de fin à la dernière donnée disponible
 
-Deux restaurants ont des noms incorrects dans la table `restaurants` :
+### Problème
+Quand on sélectionne "Mars 2026" ou "Année 2026", la date de fin dépasse la dernière donnée importée (ex: 15 mars), ce qui fausse les taux de disponibilité en comptant les jours sans data comme des jours offline.
 
-| Actuel (DB) | Corrigé |
-|---|---|
-| Chicken Street - Goussainvillie | Chicken Street - Goussainville |
-| Chicken Street - Creteil | Chicken Street - Créteil |
+### Solution
+1. **Ajouter une query `latestDate`** : requêter la date la plus récente dans `hourly_availability` (comme `earliestDate` mais `descending`).
+2. **Plafonner `end` à `latestDate`** : dans le `useMemo` qui calcule `dateRange`, après le switch, ajouter :
+   ```typescript
+   if (latestDate && end > latestDate) end = latestDate;
+   ```
+   Cela garantit que la plage ne dépasse jamais le dernier jour importé, quel que soit le retard d'import.
 
-### Action
-
-Exécuter deux `UPDATE` sur la table `restaurants` pour corriger les noms. Utiliser l'outil d'insertion (pas de migration, car c'est une modification de données, pas de schéma).
-
-Cela résoudra le matching dans **tous** les parsers d'un coup, sans modifier de code.
+### Fichier modifié
+- `src/pages/DowntimeComparison.tsx` : ajouter la query `latestDate` + cap dans le calcul de `dateRange`.
 
