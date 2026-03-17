@@ -129,6 +129,7 @@ interface ImportResult {
     skipped: number;
     errors: number;
     merged?: number;
+    expandedRecords?: number;
   };
   validation?: ValidationData;
   orphanInfo?: OrphanInfo;
