@@ -105,6 +105,38 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Id. de référence du versement': 'payout_reference_id',
 };
 
+// Normalize restaurant name for alias/fuzzy matching
+function normalizeRestaurantName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+// Find restaurant by partial name matching (extract city/suffix)
+function findRestaurantByPartialName(
+  csvName: string,
+  restaurantByName: Map<string, { id: string; name: string }>
+): { id: string; name: string } | null {
+  const cityMatch = csvName.match(/Chicken\s*Street\s*[-–—]\s*(.+)/i);
+  if (!cityMatch) return null;
+  const cityPart = normalizeRestaurantName(cityMatch[1]);
+  if (!cityPart || cityPart.length < 3) return null;
+  const matches: { id: string; name: string }[] = [];
+  for (const [normalizedName, restaurant] of restaurantByName.entries()) {
+    if (normalizedName.includes(cityPart)) {
+      matches.push(restaurant);
+    }
+  }
+  if (matches.length === 1) {
+    console.log(`Partial match: "${csvName}" -> "${matches[0].name}" (via city: ${cityPart})`);
+    return matches[0];
+  }
+  return null;
+}
+
 // Normalize headers to handle invisible characters (BOM, NBSP, Unicode variations)
 function normalizeHeader(h: string): string {
   return h
