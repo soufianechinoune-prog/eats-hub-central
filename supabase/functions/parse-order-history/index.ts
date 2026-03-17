@@ -148,9 +148,15 @@ serve(async (req) => {
       .from('restaurant_uber_ids')
       .select('uber_store_id, restaurant_id');
 
+    // Fetch name aliases
+    const { data: nameAliases } = await supabase
+      .from('restaurant_name_aliases')
+      .select('normalized_name, restaurant_id');
+
     // Create lookup maps
     const restaurantByStoreId = new Map<string, { id: string; name: string }>();
     const restaurantByName = new Map<string, { id: string; name: string }>();
+    const restaurantByAlias = new Map<string, string>(); // normalized_name -> restaurant_id
 
     for (const r of restaurants || []) {
       if (r.uber_store_id) {
@@ -165,6 +171,11 @@ serve(async (req) => {
       if (restaurant && !restaurantByStoreId.has(mapping.uber_store_id)) {
         restaurantByStoreId.set(mapping.uber_store_id, { id: restaurant.id, name: restaurant.name });
       }
+    }
+
+    // Add name aliases to lookup
+    for (const alias of nameAliases || []) {
+      restaurantByAlias.set(alias.normalized_name, alias.restaurant_id);
     }
 
     // Parse CSV
@@ -249,6 +260,18 @@ serve(async (req) => {
           if (restaurantName) {
             const normalizedName = normalizeRestaurantName(restaurantName);
             matchedRestaurant = restaurantByName.get(normalizedName);
+
+            // Check name aliases
+            if (!matchedRestaurant) {
+              const aliasRestaurantId = restaurantByAlias.get(normalizedName);
+              if (aliasRestaurantId) {
+                const aliasRestaurant = restaurants?.find(r => r.id === aliasRestaurantId);
+                if (aliasRestaurant) {
+                  matchedRestaurant = { id: aliasRestaurant.id, name: aliasRestaurant.name };
+                  console.log(`Alias match: "${restaurantName}" -> ${aliasRestaurant.name}`);
+                }
+              }
+            }
 
             // Direct hardcoded match for ambiguous names
             if (!matchedRestaurant) {

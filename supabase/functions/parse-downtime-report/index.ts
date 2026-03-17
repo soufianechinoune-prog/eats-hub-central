@@ -137,6 +137,16 @@ serve(async (req) => {
       restaurantByNormalizedName.set(normalizeRestaurantName(r.name), { id: r.id, name: r.name });
     }
 
+    // Fetch name aliases
+    const { data: nameAliases } = await supabase
+      .from('restaurant_name_aliases')
+      .select('normalized_name, restaurant_id');
+
+    const restaurantByAlias = new Map<string, string>();
+    for (const alias of nameAliases || []) {
+      restaurantByAlias.set(alias.normalized_name, alias.restaurant_id);
+    }
+
     // Parse CSV
     const lines = csvContent.split('\n').filter((line: string) => line.trim());
     if (lines.length < 2) {
@@ -241,11 +251,23 @@ serve(async (req) => {
             if (restaurantByNormalizedName.has(normalizedName)) {
               matchedRestaurant = restaurantByNormalizedName.get(normalizedName)!;
             } else {
+              // Check name aliases
+              const aliasRestaurantId = restaurantByAlias.get(normalizedName);
+              if (aliasRestaurantId) {
+                const aliasRestaurant = restaurants?.find(r => r.id === aliasRestaurantId);
+                if (aliasRestaurant) {
+                  matchedRestaurant = { id: aliasRestaurant.id, name: aliasRestaurant.name };
+                  console.log(`Alias match: "${restaurantName}" -> ${aliasRestaurant.name}`);
+                }
+              }
+              
               // Fuzzy match - find closest match
-              for (const [key, value] of restaurantByNormalizedName.entries()) {
-                if (key.includes(normalizedName) || normalizedName.includes(key)) {
-                  matchedRestaurant = value;
-                  break;
+              if (!matchedRestaurant) {
+                for (const [key, value] of restaurantByNormalizedName.entries()) {
+                  if (key.includes(normalizedName) || normalizedName.includes(key)) {
+                    matchedRestaurant = value;
+                    break;
+                  }
                 }
               }
             }
