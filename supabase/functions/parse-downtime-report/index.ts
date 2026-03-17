@@ -251,11 +251,23 @@ serve(async (req) => {
             if (restaurantByNormalizedName.has(normalizedName)) {
               matchedRestaurant = restaurantByNormalizedName.get(normalizedName)!;
             } else {
+              // Check name aliases
+              const aliasRestaurantId = restaurantByAlias.get(normalizedName);
+              if (aliasRestaurantId) {
+                const aliasRestaurant = restaurants?.find(r => r.id === aliasRestaurantId);
+                if (aliasRestaurant) {
+                  matchedRestaurant = { id: aliasRestaurant.id, name: aliasRestaurant.name };
+                  console.log(`Alias match: "${restaurantName}" -> ${aliasRestaurant.name}`);
+                }
+              }
+              
               // Fuzzy match - find closest match
-              for (const [key, value] of restaurantByNormalizedName.entries()) {
-                if (key.includes(normalizedName) || normalizedName.includes(key)) {
-                  matchedRestaurant = value;
-                  break;
+              if (!matchedRestaurant) {
+                for (const [key, value] of restaurantByNormalizedName.entries()) {
+                  if (key.includes(normalizedName) || normalizedName.includes(key)) {
+                    matchedRestaurant = value;
+                    break;
+                  }
                 }
               }
             }
