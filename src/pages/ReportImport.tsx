@@ -2174,10 +2174,22 @@ export default function ReportImport() {
                     <p className="text-2xl font-bold text-red-600">{importResult.stats.errors}</p>
                     <p className="text-sm text-muted-foreground">Erreurs</p>
                   </div>
+                  {((importResult.stats as any).adjustments ?? 0) > 0 && (
+                    <div className="p-4 bg-cyan-500/10 rounded-lg text-center relative group">
+                      <p className="text-2xl font-bold text-cyan-600">{(importResult.stats as any).adjustments}</p>
+                      <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                        Ajustements
+                        <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                      </p>
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover border rounded-md shadow-md text-xs text-popover-foreground w-56 hidden group-hover:block z-10">
+                        Lignes hors commandes (éco-contribution, frais pub, marketing, etc.) importées dans les ajustements
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {/* Coherence check */}
                 {(() => {
-                  const accounted = importResult.stats.inserted + importResult.stats.updated + importResult.stats.skipped + (importResult.stats.merged ?? 0) + importResult.stats.errors;
+                  const accounted = importResult.stats.inserted + importResult.stats.updated + importResult.stats.skipped + (importResult.stats.merged ?? 0) + importResult.stats.errors + ((importResult.stats as any).adjustments ?? 0);
                   const total = importResult.stats.totalRows;
                   const expandedRecords = (importResult.stats as any).expandedRecords;
                   
