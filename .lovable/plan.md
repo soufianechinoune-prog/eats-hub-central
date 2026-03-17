@@ -1,37 +1,25 @@
 
 
-## Diagnostic : les 4 796 lignes "non comptabilisées"
+## Problem
 
-### Cause
+The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
 
-Le calcul côté client (ligne 2180 de `ReportImport.tsx`) fait :
+## Solution
 
-```
-accounted = inserted + updated + skipped + merged + errors
-```
+Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
 
-Mais il **oublie les ajustements** (`adjustments`) — les lignes sans identifiant de commande (éco-contribution, frais publicitaires, marketing, etc.) qui sont importées dans la table `payout_adjustments`. Ces lignes sont bien traitées et importées, mais pas comptées dans le total affiché.
+### Changes
 
-Concrètement : **78 436 + 78 419 + 5 764 + 0 + 0 = 162 619**, alors que le total est 167 415. Les 4 796 manquantes = lignes d'ajustements importées avec succès.
+**`src/pages/Restaurants.tsx`**:
 
-Il y a aussi potentiellement des lignes avec moins de 5 colonnes qui sont silencieusement ignorées (`if (row.length < 5) continue`), mais ce sont généralement des lignes vides.
+1. Update the Supabase query to also fetch linked managers via a join:
+   ```
+   .select(`*, manager_restaurants(managers(first_name, last_name))`)
+   ```
 
-### Correction
+2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
 
-**Fichier** : `src/pages/ReportImport.tsx` (ligne ~2180)
+3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
 
-Ajouter `adjustments` au calcul de `accounted` :
-
-```typescript
-const accounted = importResult.stats.inserted + importResult.stats.updated 
-  + importResult.stats.skipped + (importResult.stats.merged ?? 0) 
-  + importResult.stats.errors + (importResult.stats.adjustments ?? 0);
-```
-
-Et afficher le nombre d'ajustements dans les KPI cards (ajouter une 7ème carte ou l'intégrer dans les stats existantes) pour que l'utilisateur voie clairement où vont ces lignes.
-
-### Impact
-- Supprime le warning "Incohérence" erroné
-- Rend le comptage transparent et complet
-- Aucun changement côté backend
+This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
 
