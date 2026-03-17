@@ -261,6 +261,18 @@ serve(async (req) => {
             const normalizedName = normalizeRestaurantName(restaurantName);
             matchedRestaurant = restaurantByName.get(normalizedName);
 
+            // Check name aliases
+            if (!matchedRestaurant) {
+              const aliasRestaurantId = restaurantByAlias.get(normalizedName);
+              if (aliasRestaurantId) {
+                const aliasRestaurant = restaurants?.find(r => r.id === aliasRestaurantId);
+                if (aliasRestaurant) {
+                  matchedRestaurant = { id: aliasRestaurant.id, name: aliasRestaurant.name };
+                  console.log(`Alias match: "${restaurantName}" -> ${aliasRestaurant.name}`);
+                }
+              }
+            }
+
             // Direct hardcoded match for ambiguous names
             if (!matchedRestaurant) {
               const cleanName = restaurantName.toLowerCase().trim().replace(/\s+/g, ' ');
