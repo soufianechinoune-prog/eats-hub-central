@@ -646,19 +646,48 @@ Deno.serve(async (req) => {
         }
         
         restaurant = restaurantMap.get(uberStoreId);
+        
+        // Fallback: try name-based matching (aliases, exact, fuzzy)
+        if (!restaurant) {
+          const restaurantName = getValue('restaurant_name');
+          if (restaurantName) {
+            const normalizedName = normalizeRestaurantName(restaurantName);
+            
+            // Try exact normalized name
+            restaurant = restaurantByName.get(normalizedName);
+            
+            // Try name alias
+            if (!restaurant) {
+              const aliasRestaurantId = restaurantByAlias.get(normalizedName);
+              if (aliasRestaurantId) {
+                const aliasR = restaurants?.find(r => r.id === aliasRestaurantId);
+                if (aliasR) {
+                  restaurant = { id: aliasR.id, name: aliasR.name };
+                  console.log(`Alias match: "${restaurantName}" -> ${aliasR.name}`);
+                }
+              }
+            }
+            
+            // Try partial/fuzzy name matching
+            if (!restaurant) {
+              restaurant = findRestaurantByPartialName(restaurantName, restaurantByName) || undefined;
+            }
+          }
+        }
+
         if (!restaurant) {
           skippedCount++;
-          unknownStoreIds.add(uberStoreId);
-          // Store the restaurant name from CSV for UI display
           const restaurantName = getValue('restaurant_name');
-          if (restaurantName && !unknownStoreDetails[uberStoreId]) {
-            unknownStoreDetails[uberStoreId] = { name: restaurantName };
+          const unknownKey = restaurantName || uberStoreId;
+          unknownStoreIds.add(unknownKey);
+          if (restaurantName && !unknownStoreDetails[unknownKey]) {
+            unknownStoreDetails[unknownKey] = { name: restaurantName };
           }
           if (skippedDetails.length < 50) {
             skippedDetails.push({
               rowIndex: rowIndex + headerRowIndex + 2,
-              reason: 'restaurant_not_found',
-              details: `Restaurant non trouvé (uber_store_id: ${uberStoreId})`
+              reason: 'unknown_store',
+              details: `Restaurant: ${restaurantName || uberStoreId}`
             });
           }
           continue;
