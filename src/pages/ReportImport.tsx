@@ -1159,6 +1159,7 @@ export default function ReportImport() {
             totalSkipped += chunkResult.stats?.skipped || 0;
             totalErrors += chunkResult.stats?.errors || 0;
             totalMerged += chunkResult.stats?.merged || 0;
+            totalExpandedRecords += chunkResult.stats?.expandedRecords || 0;
             
             // Merge restaurants (support both root-level and validation-nested)
             const chunkRestaurants = chunkResult.validation?.restaurants || chunkResult.restaurants || [];
