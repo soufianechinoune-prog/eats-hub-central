@@ -199,12 +199,12 @@ export default function UnknownStoreMapping({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
-                    <span className="font-mono text-xs text-muted-foreground truncate">
-                      {storeId.slice(0, 12)}...
+                    <span className="font-mono text-xs text-muted-foreground break-all" title={storeId}>
+                      {storeId}
                     </span>
                   </div>
                   {csvName && (
-                    <p className="text-sm font-medium mt-1 truncate">{csvName}</p>
+                    <p className="text-sm font-medium mt-1 break-words">{csvName}</p>
                   )}
                 </div>
 
