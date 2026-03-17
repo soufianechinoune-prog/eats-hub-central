@@ -105,6 +105,38 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Id. de référence du versement': 'payout_reference_id',
 };
 
+// Normalize restaurant name for alias/fuzzy matching
+function normalizeRestaurantName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+// Find restaurant by partial name matching (extract city/suffix)
+function findRestaurantByPartialName(
+  csvName: string,
+  restaurantByName: Map<string, { id: string; name: string }>
+): { id: string; name: string } | null {
+  const cityMatch = csvName.match(/Chicken\s*Street\s*[-–—]\s*(.+)/i);
+  if (!cityMatch) return null;
+  const cityPart = normalizeRestaurantName(cityMatch[1]);
+  if (!cityPart || cityPart.length < 3) return null;
+  const matches: { id: string; name: string }[] = [];
+  for (const [normalizedName, restaurant] of restaurantByName.entries()) {
+    if (normalizedName.includes(cityPart)) {
+      matches.push(restaurant);
+    }
+  }
+  if (matches.length === 1) {
+    console.log(`Partial match: "${csvName}" -> "${matches[0].name}" (via city: ${cityPart})`);
+    return matches[0];
+  }
+  return null;
+}
+
 // Normalize headers to handle invisible characters (BOM, NBSP, Unicode variations)
 function normalizeHeader(h: string): string {
   return h
@@ -404,7 +436,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log('Restaurant UUID map size:', restaurantMap.size);
+    // Fetch name aliases for fallback matching
+    const { data: nameAliases } = await supabase
+      .from('restaurant_name_aliases')
+      .select('normalized_name, restaurant_id');
+
+    // Build name-based lookup maps
+    const restaurantByName = new Map<string, { id: string; name: string }>();
+    const restaurantByAlias = new Map<string, string>();
+
+    restaurants?.forEach(r => {
+      restaurantByName.set(normalizeRestaurantName(r.name), { id: r.id, name: r.name });
+    });
+
+    for (const alias of nameAliases || []) {
+      restaurantByAlias.set(alias.normalized_name, alias.restaurant_id);
+    }
+
+    console.log('Restaurant UUID map size:', restaurantMap.size, '| Name map size:', restaurantByName.size, '| Aliases:', restaurantByAlias.size);
 
     // Phase 1: Parse all rows WITHOUT database calls
     const dataRows = rows.slice(headerRowIndex + 1);
@@ -568,8 +617,23 @@ Deno.serve(async (req) => {
           }
 
           // Insert into payout_adjustments (ALL non-order rows, including eco)
-          if (payoutRefId && uberStoreIdVal) {
-            const matchedRestaurant = restaurantMap.get(uberStoreIdVal);
+          if (payoutRefId && (uberStoreIdVal || restaurantNameVal)) {
+            let matchedRestaurant = restaurantMap.get(uberStoreIdVal);
+            // Fallback: try name-based matching for adjustments too
+            if (!matchedRestaurant && restaurantNameVal) {
+              const normalizedName = normalizeRestaurantName(restaurantNameVal);
+              matchedRestaurant = restaurantByName.get(normalizedName);
+              if (!matchedRestaurant) {
+                const aliasId = restaurantByAlias.get(normalizedName);
+                if (aliasId) {
+                  const aliasR = restaurants?.find(r => r.id === aliasId);
+                  if (aliasR) matchedRestaurant = { id: aliasR.id, name: aliasR.name };
+                }
+              }
+              if (!matchedRestaurant) {
+                matchedRestaurant = findRestaurantByPartialName(restaurantNameVal, restaurantByName) || undefined;
+              }
+            }
             const category = otherDesc ? categorizeAdjustment(otherDesc, marketingFeeAdj, candidateAmount) : 'other_fee';
             
             adjustmentsToUpsert.push({
@@ -597,19 +661,48 @@ Deno.serve(async (req) => {
         }
         
         restaurant = restaurantMap.get(uberStoreId);
+        
+        // Fallback: try name-based matching (aliases, exact, fuzzy)
+        if (!restaurant) {
+          const restaurantName = getValue('restaurant_name');
+          if (restaurantName) {
+            const normalizedName = normalizeRestaurantName(restaurantName);
+            
+            // Try exact normalized name
+            restaurant = restaurantByName.get(normalizedName);
+            
+            // Try name alias
+            if (!restaurant) {
+              const aliasRestaurantId = restaurantByAlias.get(normalizedName);
+              if (aliasRestaurantId) {
+                const aliasR = restaurants?.find(r => r.id === aliasRestaurantId);
+                if (aliasR) {
+                  restaurant = { id: aliasR.id, name: aliasR.name };
+                  console.log(`Alias match: "${restaurantName}" -> ${aliasR.name}`);
+                }
+              }
+            }
+            
+            // Try partial/fuzzy name matching
+            if (!restaurant) {
+              restaurant = findRestaurantByPartialName(restaurantName, restaurantByName) || undefined;
+            }
+          }
+        }
+
         if (!restaurant) {
           skippedCount++;
-          unknownStoreIds.add(uberStoreId);
-          // Store the restaurant name from CSV for UI display
           const restaurantName = getValue('restaurant_name');
-          if (restaurantName && !unknownStoreDetails[uberStoreId]) {
-            unknownStoreDetails[uberStoreId] = { name: restaurantName };
+          const unknownKey = restaurantName || uberStoreId;
+          unknownStoreIds.add(unknownKey);
+          if (restaurantName && !unknownStoreDetails[unknownKey]) {
+            unknownStoreDetails[unknownKey] = { name: restaurantName };
           }
           if (skippedDetails.length < 50) {
             skippedDetails.push({
               rowIndex: rowIndex + headerRowIndex + 2,
-              reason: 'restaurant_not_found',
-              details: `Restaurant non trouvé (uber_store_id: ${uberStoreId})`
+              reason: 'unknown_store',
+              details: `Restaurant: ${restaurantName || uberStoreId}`
             });
           }
           continue;
