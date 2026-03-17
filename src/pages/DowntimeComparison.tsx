@@ -75,6 +75,20 @@ const DowntimeComparison = () => {
     },
   });
 
+  // Fetch latest available data date
+  const { data: latestDate } = useQuery({
+    queryKey: ["downtime-latest-date"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("hourly_availability")
+        .select("hour_start")
+        .eq("platform", "uber_eats")
+        .order("hour_start", { ascending: false })
+        .limit(1);
+      return data?.[0]?.hour_start ? parseISO(data[0].hour_start) : null;
+    },
+  });
+
 
   // Persist state to localStorage
   useEffect(() => {
