@@ -1,25 +1,35 @@
 
 
-## Problem
+## Analyse : les chiffres affichés sont corrects, mais filtrés
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+### Constat
 
-## Solution
+Le CA Deliveroo 2025 affiché de **1 822 159 €** est **mathématiquement exact** — j'ai vérifié en base de données et obtiens exactement la même valeur (1 822 159,43 €).
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+**Mais** ce chiffre correspond aux **14 restaurants épinglés**, pas à tout le réseau.
 
-### Changes
+Sur ton screenshot, le toggle "Épinglés 14 / Réseau 91" est positionné sur **Épinglés**. Donc le tableau filtre sur 14 restaurants seulement.
 
-**`src/pages/Restaurants.tsx`**:
+### Vérification en base
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+| Périmètre | CA Deliveroo 2025 | Commandes |
+|---|---|---|
+| **14 épinglés** (affiché) | 1 822 159 € | 87 327 |
+| **Réseau complet** (91 restaurants) | 7 704 234 € | 369 141 |
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+Le chiffre affiché est donc correct pour le filtre actif. Pour voir le CA de tout le réseau, il suffit de basculer le toggle sur **"Réseau"**.
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+### Écart entre deux vues ?
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+Si tu compares deux vues (ex: Overview vs Finances, ou Mois vs Année) et que tu observes des écarts, les causes possibles sont :
+
+1. **Toggle Épinglés/Réseau** différent entre les deux vues — vérifier que les deux sont sur le même mode
+2. **Source de données différente** — l'Overview utilise la table `orders` (par date de commande), les Finances utilisent la table `payouts` (par date de versement) pour Uber, et `deliveroo_orders` pour Deliveroo
+3. **Sélecteur de restaurant** — "Tous les restaurants" dans le dropdown ne suffit pas, le toggle Épinglés/Réseau prime
+
+### Action recommandée
+
+Pas de changement de code nécessaire. Bascule le toggle sur **"Réseau"** pour voir les chiffres du réseau complet, et vérifie que les deux vues que tu compares utilisent le même état de filtre.
+
+Si après vérification tu constates toujours un écart entre deux vues spécifiques avec le même filtre, envoie-moi les deux screenshots et je diagnostiquerai la source exacte de la différence.
 
