@@ -37,6 +37,8 @@ import {
   Phone,
   MessageCircle,
   Trash2,
+  Copy,
+  Hash,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 
@@ -523,6 +525,43 @@ const RestaurantDetail = () => {
                   {renderField("Ouverture", "uber_opening_date", "date")}
                   {renderField("Fermeture", "uber_closing_date", "date")}
                 </div>
+                {/* Uber Store IDs */}
+                {uberIds.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Hash className="h-3 w-3" />
+                      Identifiants Uber Eats (UUID)
+                    </span>
+                    <div className="space-y-1.5">
+                      {uberIds.map((uid) => (
+                        <div key={uid.id} className="flex items-center gap-2">
+                          <code className="text-xs bg-muted px-2 py-1 rounded font-mono select-all">
+                            {uid.uber_store_id}
+                          </code>
+                          {uid.is_primary ? (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">Actuel</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Ancien</Badge>
+                          )}
+                          {uid.label && (
+                            <span className="text-[10px] text-muted-foreground">{uid.label}</span>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            onClick={() => {
+                              navigator.clipboard.writeText(uid.uber_store_id);
+                              toast({ title: "Copié", description: "UUID copié dans le presse-papier" });
+                            }}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
               {/* Deliveroo */}
