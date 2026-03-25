@@ -37,6 +37,8 @@ import {
   Phone,
   MessageCircle,
   Trash2,
+  Copy,
+  Hash,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 
