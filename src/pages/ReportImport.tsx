@@ -19,6 +19,7 @@ import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
 import { SuccessScorePreviewEditor } from "@/components/success-score/SuccessScorePreviewEditor";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 // Report types organized by theme
 const REPORT_THEMES = [
@@ -221,6 +222,7 @@ export default function ReportImport() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { selectedChainId } = useAnalyticsContext();
   const [platform, setPlatform] = useState<"uber" | "deliveroo">("uber");
   const [activeTab, setActiveTab] = useState("import");
   const [file, setFile] = useState<File | null>(null);
@@ -254,13 +256,17 @@ export default function ReportImport() {
 
   // Fetch restaurants for selector
   const { data: restaurants = [] } = useQuery({
-    queryKey: ["restaurants-for-import"],
+    queryKey: ["restaurants-for-import", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, city")
-        .eq("is_active", true)
-        .order("name");
+        .eq("is_active", true);
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      query = query.order("name");
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
