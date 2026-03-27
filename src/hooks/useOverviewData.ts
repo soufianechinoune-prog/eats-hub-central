@@ -381,9 +381,10 @@ export function useOverviewData(
   startDateStr: string,
   endDateStr: string,
   filterRestaurantIds?: string[],
+  chainId?: string | null,
 ) {
   // Wave 1: Restaurants (immediate) — use provided IDs if available, otherwise fetch pinned
-  const restaurants = useOverviewRestaurants();
+  const restaurants = useOverviewRestaurants(chainId ?? null);
   const restaurantIds = filterRestaurantIds && filterRestaurantIds.length > 0
     ? filterRestaurantIds
     : (restaurants.data?.map((r) => r.id) || []);
