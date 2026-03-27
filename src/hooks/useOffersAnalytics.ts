@@ -120,14 +120,18 @@ export function useOffersAnalytics(
     enabled: !!prevStart && !!prevEnd,
   });
 
-  // Success scores
+  // Success scores - scoped to the provided restaurantIds
   const { data: scores } = useQuery({
-    queryKey: ["success-scores-latest"],
+    queryKey: ["success-scores-latest", restaurantIds],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("success_scores")
         .select("restaurant_id, score_tier, score_month")
         .order("score_month", { ascending: false });
+      if (restaurantIds.length > 0) {
+        query = query.in("restaurant_id", restaurantIds);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       // Keep latest per restaurant
       const map = new Map<string, string>();

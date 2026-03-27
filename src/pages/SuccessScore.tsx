@@ -23,6 +23,7 @@ import {
   ArrowDown
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -157,11 +158,32 @@ export default function SuccessScore() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [tierFilter, setTierFilter] = useState<string>("all");
 
+  // Get chain context for brand isolation
+  const { selectedChainId } = useAnalyticsContext();
+
+  // Fetch chain restaurant IDs for filtering
+  const { data: chainRestaurants } = useQuery({
+    queryKey: ["chain-restaurants-for-scores", selectedChainId],
+    queryFn: async () => {
+      if (!selectedChainId) return null; // null = all brands
+      const { data } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("chain_id", selectedChainId);
+      return data?.map(r => r.id) || [];
+    },
+  });
+
   // Fetch latest success scores
   const { data: scores, isLoading, refetch } = useQuery({
-    queryKey: ['success-scores'],
+    queryKey: ['success-scores', selectedChainId, chainRestaurants],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // If chain selected but has no restaurants → empty
+      if (selectedChainId && chainRestaurants && chainRestaurants.length === 0) {
+        return [] as SuccessScore[];
+      }
+
+      let query = supabase
         .from('success_scores')
         .select(`
           *,
@@ -169,9 +191,15 @@ export default function SuccessScore() {
         `)
         .order('score_month', { ascending: false });
       
+      if (chainRestaurants && chainRestaurants.length > 0) {
+        query = query.in('restaurant_id', chainRestaurants);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data as SuccessScore[];
     },
+    enabled: selectedChainId ? chainRestaurants !== undefined : true,
   });
 
   // Group by month and get latest

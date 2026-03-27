@@ -60,6 +60,9 @@ async function fetchAllCustomerReviews(
   // Determine which column to filter on
   const dateColumn = dateMode === "order" ? "order_date" : "review_date";
 
+  // Empty array means "no restaurants selected" → return empty
+  if (restaurantIds && restaurantIds.length === 0) return allData;
+
   while (hasMore) {
     let query = supabase
       .from("customer_reviews")
@@ -113,6 +116,9 @@ async function fetchAllMenuItemReviews(
   const allData: MenuItemReview[] = [];
   let page = 0;
   let hasMore = true;
+
+  // Empty array means "no restaurants selected" → return empty
+  if (restaurantIds && restaurantIds.length === 0) return allData;
 
   while (hasMore) {
     let query = supabase

@@ -80,12 +80,13 @@ export default function Reviews() {
   });
 
   // When a chain is selected but no specific restaurants, use all chain restaurants as filter
+  // Empty array [] means "this brand has 0 restaurants" → hooks will return empty results
   const restaurantIds = useMemo(() => {
     if (selectedRestaurants.length > 0) return selectedRestaurants;
     if (selectedChainId && restaurantsData) {
-      return restaurantsData.map(r => r.id);
+      return restaurantsData.map(r => r.id); // may be [] if brand has no restaurants
     }
-    return undefined;
+    return undefined; // undefined = all brands, no filter
   }, [selectedRestaurants, selectedChainId, restaurantsData]);
 
   // Filter restaurants based on selection

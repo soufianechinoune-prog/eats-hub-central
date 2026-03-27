@@ -57,6 +57,14 @@ const Exports = () => {
 
       if (selectedRestaurant !== "all") {
         query = query.eq("restaurant_id", selectedRestaurant);
+      } else if (selectedChainId && restaurants) {
+        // When "all" but a chain is selected, restrict to chain restaurants only
+        const chainIds = restaurants.map(r => r.id);
+        if (chainIds.length === 0) {
+          toast({ title: "Aucune donnée", description: "Aucun restaurant dans cette marque" });
+          return;
+        }
+        query = query.in("restaurant_id", chainIds);
       }
 
       const { data: orders, error } = await query;

@@ -144,16 +144,26 @@ const Overview = () => {
     [allActiveRestaurants]
   );
   
-  // Fetch latest Success Score for network overview (Uber Eats only)
+  // Fetch latest Success Score for network overview, filtered by chain
+  const activeRestaurantIds = useMemo(() => allActiveRestaurants?.map(r => r.id) || [], [allActiveRestaurants]);
+  
   const { data: successScoreData } = useQuery({
-    queryKey: ["network-success-score"],
+    queryKey: ["network-success-score", selectedChainId, activeRestaurantIds],
     queryFn: async () => {
-      const { data: scores } = await supabase
+      // If chain selected but no restaurants → no scores
+      if (selectedChainId && activeRestaurantIds.length === 0) return null;
+
+      let query = supabase
         .from("success_scores")
         .select("score_tier")
         .order("score_month", { ascending: false })
         .limit(100);
       
+      if (activeRestaurantIds.length > 0 && selectedChainId) {
+        query = query.in("restaurant_id", activeRestaurantIds);
+      }
+
+      const { data: scores } = await query;
       if (!scores || scores.length === 0) return null;
       
       const tierCounts: Record<string, number> = {};

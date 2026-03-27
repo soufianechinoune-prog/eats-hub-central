@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ItemSalesAnalytics } from "@/components/analytics/ItemSalesAnalytics";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -34,7 +36,28 @@ export default function ItemSales() {
     };
   }, [periodMode, selectedYear, selectedMonth, dateRange]);
 
-  const restaurantFilter = selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
+  const { selectedChainId } = useAnalyticsContext();
+
+  // Get chain restaurants for scope isolation
+  const { data: chainRestaurantsData } = useQuery({
+    queryKey: ["chain-restaurants-for-items", selectedChainId],
+    queryFn: async () => {
+      if (!selectedChainId) return null;
+      const { data } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("chain_id", selectedChainId);
+      return data?.map(r => r.id) || [];
+    },
+  });
+
+  const restaurantFilter = useMemo(() => {
+    if (selectedRestaurants.length > 0) return selectedRestaurants;
+    if (selectedChainId && chainRestaurantsData !== undefined) {
+      return chainRestaurantsData; // may be [] → triggers empty result in hook
+    }
+    return undefined;
+  }, [selectedRestaurants, selectedChainId, chainRestaurantsData]);
 
   return (
     <AppLayout>
