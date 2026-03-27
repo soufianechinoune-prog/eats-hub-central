@@ -109,9 +109,9 @@ const Restaurants = () => {
   }, [statusFilter, sortColumn, sortDirection]);
 
   const { data: restaurants, refetch, isError, error: fetchError } = useQuery({
-    queryKey: ["restaurants"],
+    queryKey: ["restaurants", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select(`
           *,
@@ -120,6 +120,10 @@ const Restaurants = () => {
         .eq("manager_restaurants.is_primary", true)
         .order("postal_code", { ascending: true })
         .order("city", { ascending: true });
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
       if (error) {
         console.error("Error fetching restaurants:", error);
         throw error;
