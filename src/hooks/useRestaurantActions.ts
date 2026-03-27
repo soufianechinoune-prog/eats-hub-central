@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 export interface RestaurantAction {
   id: string;
@@ -22,8 +23,10 @@ export function useRestaurantActions(
   restaurantIds?: string[],
   platform?: string // 'uber_eats' | 'deliveroo' | 'all' | 'global'
 ) {
+  const { selectedChainId } = useAnalyticsContext();
+
   return useQuery({
-    queryKey: ["restaurant_actions_analytics", year, restaurantIds, platform],
+    queryKey: ["restaurant_actions_analytics", year, restaurantIds, platform, selectedChainId],
     queryFn: async () => {
       let query = supabase
         .from("restaurant_actions")
@@ -46,21 +49,39 @@ export function useRestaurantActions(
 
       if (error) throw error;
       
+      // Resolve chain restaurant scope when a brand is active
+      let chainRestaurantIds: string[] | null = null;
+      if (selectedChainId) {
+        const { data: chainRestaurants, error: chainError } = await supabase
+          .from("restaurants")
+          .select("id")
+          .eq("chain_id", selectedChainId);
+
+        if (chainError) throw chainError;
+        chainRestaurantIds = (chainRestaurants || []).map((restaurant) => restaurant.id);
+      }
+      
       // Filter by restaurants client-side (since we need to check both restaurant_id and restaurant_ids array)
-      let filteredData = data as RestaurantAction[];
+      let filteredData = (data as RestaurantAction[]).filter(action => {
+        if (!chainRestaurantIds) return true;
+        if (action.restaurant_ids && action.restaurant_ids.length > 0) {
+          return action.restaurant_ids.some(id => chainRestaurantIds!.includes(id));
+        }
+        if (action.restaurant_id) {
+          return chainRestaurantIds.includes(action.restaurant_id);
+        }
+        return false;
+      });
       
       if (restaurantIds && restaurantIds.length > 0) {
         filteredData = filteredData.filter(action => {
-          // Check restaurant_ids array first
           if (action.restaurant_ids && action.restaurant_ids.length > 0) {
             return restaurantIds.some(id => action.restaurant_ids!.includes(id));
           }
-          // Fallback to restaurant_id
           if (action.restaurant_id) {
             return restaurantIds.includes(action.restaurant_id);
           }
-          // No restaurant associated = applies to all
-          return true;
+          return false;
         });
       }
       

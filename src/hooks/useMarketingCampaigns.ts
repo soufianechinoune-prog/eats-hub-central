@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 export interface MarketingCampaign {
   id: string;
@@ -67,9 +68,34 @@ export interface AdsCampaign extends MarketingCampaign {
 }
 
 export const useMarketingCampaigns = (restaurantIds?: string[]) => {
+  const { selectedChainId } = useAnalyticsContext();
+
   return useQuery({
-    queryKey: ["marketing-campaigns", restaurantIds],
+    queryKey: ["marketing-campaigns", restaurantIds, selectedChainId],
     queryFn: async () => {
+      let scopedRestaurantIds = restaurantIds;
+
+      if ((!scopedRestaurantIds || scopedRestaurantIds.length === 0) && selectedChainId) {
+        const { data: chainRestaurants, error: chainError } = await supabase
+          .from("restaurants")
+          .select("id")
+          .eq("chain_id", selectedChainId);
+
+        if (chainError) throw chainError;
+
+        scopedRestaurantIds = (chainRestaurants || []).map((restaurant) => restaurant.id);
+
+        if (scopedRestaurantIds.length === 0) {
+          return {
+            offers: [],
+            ads: [],
+            offerStats: { totalSales: 0, totalNewCustomers: 0, totalOrders: 0, avgUberFunding: 0, campaignCount: 0, byType: {} },
+            adsStats: { totalSales: 0, totalSpend: 0, totalBudget: 0, avgRoas: 0, avgCostPerOrder: 0, totalImpressions: 0, totalClicks: 0, totalOrders: 0, campaignCount: 0 },
+            all: [],
+          };
+        }
+      }
+
       let query = supabase
         .from("restaurant_actions")
         .select(`
@@ -88,12 +114,11 @@ export const useMarketingCampaigns = (restaurantIds?: string[]) => {
         .or('category.eq.promotions,category.eq.ads')
         .order("start_date", { ascending: false });
 
-      if (restaurantIds && restaurantIds.length > 0) {
-        // Filter by restaurant_ids array or restaurant_id
+      if (scopedRestaurantIds && scopedRestaurantIds.length > 0) {
         query = query.or(
-          restaurantIds.map(id => `restaurant_ids.cs.{${id}}`).join(',') + 
+          scopedRestaurantIds.map(id => `restaurant_ids.cs.{${id}}`).join(',') + 
           ',' + 
-          restaurantIds.map(id => `restaurant_id.eq.${id}`).join(',')
+          scopedRestaurantIds.map(id => `restaurant_id.eq.${id}`).join(',')
         );
       }
 

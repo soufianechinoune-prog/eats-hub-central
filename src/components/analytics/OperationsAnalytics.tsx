@@ -126,6 +126,7 @@ export function OperationsAnalytics() {
   }, [dateRange.start, dateRange.end, useDailyView]);
 
   const platformFilter = (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") ? selectedPlatform : null;
+  const EMPTY_RESTAURANT_FILTER = ["00000000-0000-0000-0000-000000000000"];
 
   // Fetch restaurants for names and pinned status (filtered by active chain)
   const { data: restaurants } = useQuery({
@@ -153,12 +154,19 @@ export function OperationsAnalytics() {
   const pinnedIds = useMemo(() => 
     restaurants?.filter(r => r.is_pinned && r.is_active).map(r => r.id) || []
   , [restaurants]);
+  const chainRestaurantIds = useMemo(() => 
+    restaurants?.filter(r => r.is_active).map(r => r.id) || []
+  , [restaurants]);
   
   const restaurantIdsFilter = useMemo(() => {
     if (selectedRestaurants.length > 0) return selectedRestaurants;
-    if (isNetworkView) return null; // all restaurants
+    if (selectedChainId) {
+      if (isNetworkView) return chainRestaurantIds.length > 0 ? chainRestaurantIds : EMPTY_RESTAURANT_FILTER;
+      return pinnedIds.length > 0 ? pinnedIds : EMPTY_RESTAURANT_FILTER;
+    }
+    if (isNetworkView) return null; // all restaurants only in all-brands mode
     return pinnedIds.length > 0 ? pinnedIds : null;
-  }, [selectedRestaurants, isNetworkView, pinnedIds]);
+  }, [selectedRestaurants, selectedChainId, isNetworkView, pinnedIds, chainRestaurantIds]);
 
   // Fetch monthly availability via RPC (year view)
   const { data: monthlyRpcData, isLoading: isLoadingMonthly } = useQuery({

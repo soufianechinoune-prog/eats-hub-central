@@ -71,6 +71,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
     setComparisonMode,
     isNetworkView,
     setIsNetworkView,
+    selectedChainId,
   } = useAnalyticsContext();
 
   const [restaurantOpen, setRestaurantOpen] = useState(false);
@@ -92,12 +93,16 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
-    queryKey: ["restaurants"],
+    queryKey: ["restaurants", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, city, is_pinned, is_active")
         .order("name");
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
