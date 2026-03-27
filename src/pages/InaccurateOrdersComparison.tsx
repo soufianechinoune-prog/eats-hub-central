@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { usePinnedRestaurants, useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ArrowLeft, Calendar, TrendingDown } from "lucide-react";
@@ -41,31 +40,8 @@ const InaccurateOrdersComparison = () => {
   }, [period]);
 
   // Fetch pinned restaurants with activity dates
-  const { data: pinnedRestaurantsRaw } = useQuery({
-    queryKey: ["pinned-restaurants-with-dates"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
-        .eq("is_pinned", true)
-        .order("name");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const { data: allActiveRestaurantsRaw } = useQuery({
-    queryKey: ["active-restaurants-with-dates"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  const { data: pinnedRestaurantsRaw } = usePinnedRestaurants();
+  const { data: allActiveRestaurantsRaw } = useActiveRestaurants();
 
   const pinnedRestaurants = useMemo(() => {
     if (!pinnedRestaurantsRaw) return [];
