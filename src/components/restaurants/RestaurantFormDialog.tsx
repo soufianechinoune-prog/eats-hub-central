@@ -143,7 +143,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
     }
 
     const { error } = await supabase.from("restaurants").insert({
-      chain_id: chain.id,
+      chain_id: chainId,
       name: newRestaurant.name,
       street: newRestaurant.street || null,
       postal_code: newRestaurant.postal_code || null,
