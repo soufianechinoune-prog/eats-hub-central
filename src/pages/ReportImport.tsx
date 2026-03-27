@@ -19,6 +19,7 @@ import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
 import { SuccessScorePreviewEditor } from "@/components/success-score/SuccessScorePreviewEditor";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 // Report types organized by theme
 const REPORT_THEMES = [
