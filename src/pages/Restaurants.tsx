@@ -46,6 +46,7 @@ const Restaurants = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { exportCSV, exportPDF } = useRestaurantsExport();
+  const { selectedChainId } = useAnalyticsContext();
   
   // Load preferences from localStorage
   const savedPrefs = useMemo(() => {
