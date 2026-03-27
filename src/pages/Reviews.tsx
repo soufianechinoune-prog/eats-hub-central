@@ -62,8 +62,16 @@ export default function Reviews() {
     return extended;
   }, [startDate]);
 
-  const restaurantIds =
-    selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
+  // When a chain is selected but no specific restaurants, use all chain restaurants as filter
+  const chainRestaurantIds = useMemo(() => {
+    if (!restaurantsData || !selectedChainId) return undefined;
+    return restaurantsData.map(r => r.id);
+  }, [restaurantsData, selectedChainId]);
+
+  const restaurantIds = useMemo(() => {
+    if (selectedRestaurants.length > 0) return selectedRestaurants;
+    return chainRestaurantIds; // undefined when no chain selected = all
+  }, [selectedRestaurants, chainRestaurantIds]);
 
   // Fetch restaurants data (filtered by active chain)
   const { data: restaurantsData } = useQuery({
