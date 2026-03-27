@@ -48,6 +48,7 @@ export default function UnknownStoreMapping({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedChainId } = useAnalyticsContext();
+  const [storeIdMappings, setStoreIdMappings] = useState<Record<string, string>>({});
   const [isApplying, setIsApplying] = useState(false);
 
   const allMapped = unknownStoreIds.every(id => storeIdMappings[id]);
