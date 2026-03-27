@@ -70,9 +70,10 @@ export function EcoContributionSection({
   const isHistorique = localYear === null;
   const effectiveYear = localYear ?? selectedYear;
 
+  // When selectedRestaurants is empty but restaurants list is also empty (empty brand), keep []
   const restaurantIds = selectedRestaurants.length > 0
     ? selectedRestaurants
-    : restaurants.map(r => r.id);
+    : restaurants.map(r => r.id); // Will be [] if brand has no restaurants → hook returns empty
 
   // REP check state
   const { data: repData, loading: repLoading, errors: repErrors, progress: repProgress, checkMultiple } = useEcoOrganismCheck();
