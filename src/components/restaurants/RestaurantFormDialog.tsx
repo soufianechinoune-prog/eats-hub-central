@@ -94,6 +94,28 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newRestaurant, setNewRestaurant] = useState<RestaurantForm>(initialFormState);
+  const [selectedFormChainId, setSelectedFormChainId] = useState<string>("");
+  const { selectedChainId } = useAnalyticsContext();
+
+  const { data: chains } = useQuery({
+    queryKey: ["chains-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chains")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // When dialog opens, pre-fill chain from context
+  const handleOpenChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (open) {
+      setSelectedFormChainId(selectedChainId || "");
+    }
+  };
 
   const handleInputChange = (field: keyof RestaurantForm, value: string) => {
     setNewRestaurant((prev) => ({ ...prev, [field]: value }));
