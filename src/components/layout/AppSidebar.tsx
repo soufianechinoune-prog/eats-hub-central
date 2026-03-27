@@ -164,6 +164,30 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const unreadCount = useUnreadMessages();
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const { selectedChainId, setSelectedChainId, setSelectedRestaurants, setVisibleRestaurants } = useAnalyticsContext();
+
+  // Fetch available chains
+  const { data: chains } = useQuery({
+    queryKey: ["chains-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chains")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const handleChainChange = (value: string) => {
+    const newChainId = value === "all" ? null : value;
+    if (newChainId !== selectedChainId) {
+      setSelectedChainId(newChainId);
+      // Reset restaurant selections when switching chains
+      setSelectedRestaurants([]);
+      setVisibleRestaurants([]);
+    }
+  };
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
