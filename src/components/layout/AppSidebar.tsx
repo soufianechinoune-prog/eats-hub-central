@@ -254,6 +254,28 @@ export function AppSidebar() {
               </div>
             )}
           </SidebarGroupLabel>
+          {/* Chain selector */}
+          {!collapsed && chains && chains.length > 0 && (
+            <div className="px-2 pb-2">
+              <Select
+                value={selectedChainId || "all"}
+                onValueChange={handleChainChange}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <Building2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                  <SelectValue placeholder="Toutes les marques" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les marques</SelectItem>
+                  {chains.map((chain) => (
+                    <SelectItem key={chain.id} value={chain.id}>
+                      {chain.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <SidebarGroupContent>
             <SidebarMenu>
               {/* Analytics Collapsible Menu - First Item */}
