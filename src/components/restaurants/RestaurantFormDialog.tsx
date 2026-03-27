@@ -12,10 +12,19 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, Building2, User, Tablet, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPhoneNumber } from "@/lib/utils";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useQuery } from "@tanstack/react-query";
 
 interface RestaurantForm {
   name: string;
