@@ -131,30 +131,15 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
       return;
     }
 
-    // Fetch or create a default chain
-    let { data: chain } = await supabase
-      .from("chains")
-      .select("id")
-      .limit(1)
-      .maybeSingle();
-
-    if (!chain) {
-      // Create a default chain if none exists
-      const { data: newChain, error: chainError } = await supabase
-        .from("chains")
-        .insert({ name: "Default Chain" })
-        .select("id")
-        .single();
-      
-      if (chainError || !newChain) {
-        toast({
-          title: "Erreur",
-          description: "Impossible de créer la chaîne par défaut",
-          variant: "destructive",
-        });
-        return;
-      }
-      chain = newChain;
+    // Determine chain_id
+    const chainId = selectedFormChainId || selectedChainId;
+    if (!chainId) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner une marque",
+        variant: "destructive",
+      });
+      return;
     }
 
     const { error } = await supabase.from("restaurants").insert({
