@@ -31,15 +31,19 @@ async function fetchAllPages<T>(
 
 // ===================== Individual hooks =====================
 
-function useOverviewRestaurants() {
+function useOverviewRestaurants(chainId: string | null) {
   return useQuery({
-    queryKey: ["overview-restaurants"],
+    queryKey: ["overview-restaurants", chainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("*")
         .eq("is_active", true)
         .eq("is_pinned", true);
+      if (chainId) {
+        query = query.eq("chain_id", chainId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },

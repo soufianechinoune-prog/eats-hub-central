@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useNavigate } from "react-router-dom";
 import { RestaurantFormDialog } from "@/components/restaurants/RestaurantFormDialog";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { RestaurantShareActions } from "@/components/restaurants/RestaurantShareActions";
 import { Input } from "@/components/ui/input";
 import {
