@@ -103,6 +103,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     () => storedState?.isNetworkView || false
   );
 
+  const [selectedChainId, setSelectedChainId] = useState<string | null>(
+    () => storedState?.selectedChainId || null
+  );
+
   // Track if initial mount is complete to prevent saving during hydration
   const hasMounted = useRef(false);
 
