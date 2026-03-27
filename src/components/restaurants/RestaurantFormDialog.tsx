@@ -194,7 +194,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
   };
 
   return (
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+    <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
@@ -214,6 +214,24 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
                 Informations générales
               </h3>
             </div>
+            {/* Chain selector - show when no chain is active in context */}
+            {!selectedChainId && chains && chains.length > 0 && (
+              <div className="space-y-2">
+                <Label>Marque *</Label>
+                <Select value={selectedFormChainId} onValueChange={setSelectedFormChainId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une marque" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {chains.map((chain) => (
+                      <SelectItem key={chain.id} value={chain.id}>
+                        {chain.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nom du restaurant *</Label>
