@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { usePinnedRestaurants, useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { format, subDays, subWeeks, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ArrowLeft, Star } from "lucide-react";
