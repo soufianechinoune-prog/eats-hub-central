@@ -23,6 +23,7 @@ export default function Reviews() {
     selectedMonth,
     periodMode,
     dateRange,
+    selectedChainId,
   } = useAnalyticsContext();
 
   // Calculer les dates de filtrage selon le mode de période
@@ -61,21 +62,31 @@ export default function Reviews() {
     return extended;
   }, [startDate]);
 
-  const restaurantIds =
-    selectedRestaurants.length > 0 ? selectedRestaurants : undefined;
-
-  // Fetch restaurants data
+  // Fetch restaurants data (filtered by active chain)
   const { data: restaurantsData } = useQuery({
-    queryKey: ["restaurants-for-reviews"],
+    queryKey: ["restaurants-for-reviews", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, city")
         .order("name");
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
   });
+
+  // When a chain is selected but no specific restaurants, use all chain restaurants as filter
+  const restaurantIds = useMemo(() => {
+    if (selectedRestaurants.length > 0) return selectedRestaurants;
+    if (selectedChainId && restaurantsData) {
+      return restaurantsData.map(r => r.id);
+    }
+    return undefined;
+  }, [selectedRestaurants, selectedChainId, restaurantsData]);
 
   // Filter restaurants based on selection
   const filteredRestaurants = useMemo(() => {

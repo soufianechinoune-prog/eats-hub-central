@@ -83,9 +83,13 @@ export default function UnknownStoreMapping({
           // Create new restaurant with name from CSV
           const storeName = unknownStoreDetails[storeId]?.name || `Restaurant ${storeId.slice(0, 8)}`;
           
-          // Get the first available chain_id (required field)
-          const { data: chains } = await supabase.from("chains").select("id").limit(1);
-          const chainId = chains?.[0]?.id;
+          // Use the active chain from context, or fallback to first available
+          const activeChainId = localStorage.getItem("selectedChainId");
+          let chainId = activeChainId ? JSON.parse(activeChainId) : null;
+          if (!chainId) {
+            const { data: chains } = await supabase.from("chains").select("id").limit(1);
+            chainId = chains?.[0]?.id;
+          }
           
           if (!chainId) {
             console.error("No chain found to create restaurant");

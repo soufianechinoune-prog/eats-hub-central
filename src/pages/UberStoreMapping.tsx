@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -96,16 +97,21 @@ export default function UberStoreMapping() {
   const queryClient = useQueryClient();
   const [importItems, setImportItems] = useState<ImportItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const { selectedChainId } = useAnalyticsContext();
 
-  // Fetch all restaurants
+  // Fetch restaurants filtered by active chain
   const { data: restaurants = [], isLoading: loadingRestaurants } = useQuery({
-    queryKey: ["restaurants-for-mapping"],
+    queryKey: ["restaurants-for-mapping", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, uber_store_id, chain_id")
         .eq("is_active", true)
         .order("name");
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data as Restaurant[];
     },

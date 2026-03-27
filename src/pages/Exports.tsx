@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 
 const Exports = () => {
   const { toast } = useToast();
+  const { selectedChainId } = useAnalyticsContext();
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<string>(
     new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
@@ -26,13 +28,17 @@ const Exports = () => {
   );
 
   const { data: restaurants } = useQuery({
-    queryKey: ["restaurants-for-export"],
+    queryKey: ["restaurants-for-export", selectedChainId],
     queryFn: async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, city")
         .eq("is_active", true)
         .order("name");
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data } = await query;
       return data || [];
     },
   });
