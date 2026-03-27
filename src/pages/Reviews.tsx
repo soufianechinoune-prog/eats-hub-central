@@ -62,17 +62,6 @@ export default function Reviews() {
     return extended;
   }, [startDate]);
 
-  // When a chain is selected but no specific restaurants, use all chain restaurants as filter
-  const chainRestaurantIds = useMemo(() => {
-    if (!restaurantsData || !selectedChainId) return undefined;
-    return restaurantsData.map(r => r.id);
-  }, [restaurantsData, selectedChainId]);
-
-  const restaurantIds = useMemo(() => {
-    if (selectedRestaurants.length > 0) return selectedRestaurants;
-    return chainRestaurantIds; // undefined when no chain selected = all
-  }, [selectedRestaurants, chainRestaurantIds]);
-
   // Fetch restaurants data (filtered by active chain)
   const { data: restaurantsData } = useQuery({
     queryKey: ["restaurants-for-reviews", selectedChainId],
@@ -89,6 +78,15 @@ export default function Reviews() {
       return data || [];
     },
   });
+
+  // When a chain is selected but no specific restaurants, use all chain restaurants as filter
+  const restaurantIds = useMemo(() => {
+    if (selectedRestaurants.length > 0) return selectedRestaurants;
+    if (selectedChainId && restaurantsData) {
+      return restaurantsData.map(r => r.id);
+    }
+    return undefined;
+  }, [selectedRestaurants, selectedChainId, restaurantsData]);
 
   // Filter restaurants based on selection
   const filteredRestaurants = useMemo(() => {
