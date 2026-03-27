@@ -82,7 +82,7 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
 
       const { data, error } = await supabase
         .from('restaurant_actions')
-        .select('id, title, start_date, category, restaurant_ids')
+        .select('id, title, start_date, category, restaurant_ids, restaurant_id')
         .order('start_date', { ascending: true });
       
       if (error) {
@@ -94,16 +94,28 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
       
       // Filter by chain restaurants
       if (chainRestaurantIds) {
-        filtered = filtered.filter(action => 
-          action.restaurant_ids?.some((id: string) => chainRestaurantIds!.includes(id))
-        );
+        filtered = filtered.filter(action => {
+          if (action.restaurant_ids?.length) {
+            return action.restaurant_ids.some((id: string) => chainRestaurantIds!.includes(id));
+          }
+          if (action.restaurant_id) {
+            return chainRestaurantIds.includes(action.restaurant_id);
+          }
+          return false;
+        });
       }
       
       // Further filter by selected restaurants
       if (selectedRestaurants.length > 0) {
-        filtered = filtered.filter(action => 
-          action.restaurant_ids?.some((id: string) => selectedRestaurants.includes(id))
-        );
+        filtered = filtered.filter(action => {
+          if (action.restaurant_ids?.length) {
+            return action.restaurant_ids.some((id: string) => selectedRestaurants.includes(id));
+          }
+          if (action.restaurant_id) {
+            return selectedRestaurants.includes(action.restaurant_id);
+          }
+          return false;
+        });
       }
       
       return filtered;

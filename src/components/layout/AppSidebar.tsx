@@ -191,6 +191,10 @@ export function AppSidebar() {
     },
   });
 
+  const activeChainName = selectedChainId
+    ? chains?.find((chain) => chain.id === selectedChainId)?.name ?? "Marque sélectionnée"
+    : "Toutes les marques";
+
   const handleChainChange = (value: string) => {
     if (value === "__new__") {
       setNewChainDialogOpen(true);
@@ -201,6 +205,7 @@ export function AppSidebar() {
       setSelectedChainId(newChainId);
       setSelectedRestaurants([]);
       setVisibleRestaurants([]);
+      void queryClient.invalidateQueries();
     }
   };
 
@@ -219,6 +224,7 @@ export function AppSidebar() {
     setSelectedChainId(data.id);
     setSelectedRestaurants([]);
     setVisibleRestaurants([]);
+    void queryClient.invalidateQueries();
     setNewChainName("");
     setNewChainDialogOpen(false);
     toast({ title: "Marque créée", description: `"${newChainName.trim()}" est maintenant active` });
@@ -296,9 +302,13 @@ export function AppSidebar() {
                 value={selectedChainId || "all"}
                 onValueChange={handleChainChange}
               >
-                <SelectTrigger className="h-8 text-xs">
-                  <Building2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                  <SelectValue placeholder="Toutes les marques" />
+                <SelectTrigger className="h-11 border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground [&>svg]:text-sidebar-foreground">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Building2 className="h-4 w-4 shrink-0 text-sidebar-foreground" />
+                    <span className="truncate text-sm font-medium text-sidebar-foreground">
+                      {activeChainName}
+                    </span>
+                  </div>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes les marques</SelectItem>

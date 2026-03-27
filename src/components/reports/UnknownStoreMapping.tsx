@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 interface Restaurant {
   id: string;
@@ -46,7 +47,7 @@ export default function UnknownStoreMapping({
 }: UnknownStoreMappingProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [storeIdMappings, setStoreIdMappings] = useState<Record<string, string>>({});
+  const { selectedChainId } = useAnalyticsContext();
   const [isApplying, setIsApplying] = useState(false);
 
   const allMapped = unknownStoreIds.every(id => storeIdMappings[id]);
@@ -83,12 +84,11 @@ export default function UnknownStoreMapping({
           // Create new restaurant with name from CSV
           const storeName = unknownStoreDetails[storeId]?.name || `Restaurant ${storeId.slice(0, 8)}`;
           
-          // Use the active chain from context, or fallback to first available
-          const activeChainId = localStorage.getItem("selectedChainId");
-          let chainId = activeChainId ? JSON.parse(activeChainId) : null;
+          // Use active chain first to avoid cross-brand creation
+          let chainId = selectedChainId;
           if (!chainId) {
             const { data: chains } = await supabase.from("chains").select("id").limit(1);
-            chainId = chains?.[0]?.id;
+            chainId = chains?.[0]?.id ?? null;
           }
           
           if (!chainId) {

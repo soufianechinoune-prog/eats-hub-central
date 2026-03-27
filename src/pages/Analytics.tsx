@@ -106,6 +106,7 @@ export default function Analytics() {
   const { exportToPdf, isExporting } = useAnalyticsPdfExport();
 
   const prevYear = selectedYear - 1;
+  const EMPTY_RESTAURANT_FILTER = ["00000000-0000-0000-0000-000000000000"];
 
   // === Performance: only fetch data relevant to the active viewMode ===
   const needsRevenue = viewMode === 'revenue' || viewMode === 'overview';
@@ -269,17 +270,23 @@ export default function Analytics() {
   const { footballEvents, loading: footballLoading } = useFootballMatches(selectedYear, selectedRestaurantsData, showFootballMatches);
 
   // Build filter for restaurants
-  // When isNetworkView is OFF and no manual selection: use pinned restaurant IDs
-  // When isNetworkView is ON and no manual selection: undefined = all restaurants
+  // When a chain is active, never fall back to "all restaurants in DB"
   const pinnedRestaurantIds = useMemo(() => 
     restaurants?.filter(r => r.is_pinned).map(r => r.id) || []
   , [restaurants]);
+  const chainRestaurantIds = useMemo(() => restaurants?.map(r => r.id) || [], [restaurants]);
   
   const restaurantFilter = useMemo(() => {
     if (selectedRestaurants.length > 0) return selectedRestaurants;
-    if (isNetworkView) return undefined; // all restaurants
+    if (selectedChainId) {
+      if (isNetworkView) {
+        return chainRestaurantIds.length > 0 ? chainRestaurantIds : EMPTY_RESTAURANT_FILTER;
+      }
+      return pinnedRestaurantIds.length > 0 ? pinnedRestaurantIds : EMPTY_RESTAURANT_FILTER;
+    }
+    if (isNetworkView) return undefined; // all restaurants only in all-brands mode
     return pinnedRestaurantIds.length > 0 ? pinnedRestaurantIds : undefined;
-  }, [selectedRestaurants, isNetworkView, pinnedRestaurantIds]);
+  }, [selectedRestaurants, selectedChainId, isNetworkView, pinnedRestaurantIds, chainRestaurantIds]);
 
   // Fetch payouts data from payouts table (aggregated by month)
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
