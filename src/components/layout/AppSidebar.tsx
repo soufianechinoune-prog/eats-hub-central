@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -29,6 +29,7 @@ import {
   Award,
   Leaf,
   Tag,
+  Building2,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -51,10 +52,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import csLogo from "@/assets/cs-logo.jpeg";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
