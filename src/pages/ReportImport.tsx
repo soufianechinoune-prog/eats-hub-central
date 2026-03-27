@@ -222,6 +222,7 @@ export default function ReportImport() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { selectedChainId } = useAnalyticsContext();
   const [platform, setPlatform] = useState<"uber" | "deliveroo">("uber");
   const [activeTab, setActiveTab] = useState("import");
   const [file, setFile] = useState<File | null>(null);
