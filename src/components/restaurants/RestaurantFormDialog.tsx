@@ -12,10 +12,19 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, Building2, User, Tablet, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPhoneNumber } from "@/lib/utils";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useQuery } from "@tanstack/react-query";
 
 interface RestaurantForm {
   name: string;
@@ -85,6 +94,28 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newRestaurant, setNewRestaurant] = useState<RestaurantForm>(initialFormState);
+  const [selectedFormChainId, setSelectedFormChainId] = useState<string>("");
+  const { selectedChainId } = useAnalyticsContext();
+
+  const { data: chains } = useQuery({
+    queryKey: ["chains-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chains")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // When dialog opens, pre-fill chain from context
+  const handleOpenChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (open) {
+      setSelectedFormChainId(selectedChainId || "");
+    }
+  };
 
   const handleInputChange = (field: keyof RestaurantForm, value: string) => {
     setNewRestaurant((prev) => ({ ...prev, [field]: value }));
@@ -100,34 +131,19 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
       return;
     }
 
-    // Fetch or create a default chain
-    let { data: chain } = await supabase
-      .from("chains")
-      .select("id")
-      .limit(1)
-      .maybeSingle();
-
-    if (!chain) {
-      // Create a default chain if none exists
-      const { data: newChain, error: chainError } = await supabase
-        .from("chains")
-        .insert({ name: "Default Chain" })
-        .select("id")
-        .single();
-      
-      if (chainError || !newChain) {
-        toast({
-          title: "Erreur",
-          description: "Impossible de créer la chaîne par défaut",
-          variant: "destructive",
-        });
-        return;
-      }
-      chain = newChain;
+    // Determine chain_id
+    const chainId = selectedFormChainId || selectedChainId;
+    if (!chainId) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner une marque",
+        variant: "destructive",
+      });
+      return;
     }
 
     const { error } = await supabase.from("restaurants").insert({
-      chain_id: chain.id,
+      chain_id: chainId,
       name: newRestaurant.name,
       street: newRestaurant.street || null,
       postal_code: newRestaurant.postal_code || null,
@@ -178,7 +194,7 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
   };
 
   return (
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+    <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
@@ -198,6 +214,24 @@ export function RestaurantFormDialog({ onSuccess }: RestaurantFormDialogProps) {
                 Informations générales
               </h3>
             </div>
+            {/* Chain selector - show when no chain is active in context */}
+            {!selectedChainId && chains && chains.length > 0 && (
+              <div className="space-y-2">
+                <Label>Marque *</Label>
+                <Select value={selectedFormChainId} onValueChange={setSelectedFormChainId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une marque" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {chains.map((chain) => (
+                      <SelectItem key={chain.id} value={chain.id}>
+                        {chain.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nom du restaurant *</Label>
