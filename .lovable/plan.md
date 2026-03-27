@@ -1,40 +1,36 @@
 
 
-## Sélecteur de marque (chaîne) global
+## Ajouter une nouvelle marque depuis le sélecteur
 
-### Contexte
+### Problème actuel
+Le sélecteur de marques dans la sidebar liste uniquement les chaînes existantes. Il n'y a aucun moyen de créer une nouvelle marque depuis l'interface. De plus, quand on crée un restaurant, il est automatiquement rattaché à la première chaîne trouvée en base (ligne 104-108 du `RestaurantFormDialog`).
 
-La table `chains` et le champ `chain_id` sur `restaurants` existent déjà en base. Aujourd'hui, seule "Chicken Street" est présente (en doublon d'ailleurs — 2 entrées). Tout est en place côté données pour supporter plusieurs marques.
+### Solution
 
-### Principe
+**1. Ajouter un bouton "+ Nouvelle marque" dans le sélecteur de la sidebar**
+- Fichier : `src/components/layout/AppSidebar.tsx`
+- Ajouter une option en bas du `SelectContent` ou un petit bouton "+" à côté du sélecteur
+- Au clic, ouvrir un mini-dialog demandant juste le **nom de la marque** (et optionnellement un logo)
+- Après création, sélectionner automatiquement la nouvelle chaîne → la plateforme s'affiche vide, prête à recevoir des données
 
-Ajouter un **sélecteur de marque** dans le `AnalyticsContext` (état global) qui filtre automatiquement **tous les restaurants** affichés sur la plateforme. Quand tu switches de marque, toutes les pages (Dashboard, Analytics, Comparatifs, Restaurants, etc.) ne montrent que les restaurants de cette chaîne.
+**2. Rattacher les nouveaux restaurants à la chaîne active**
+- Fichier : `src/components/restaurants/RestaurantFormDialog.tsx`
+- Au lieu de prendre la première chaîne en base (comportement actuel), utiliser `selectedChainId` du contexte
+- Si une chaîne est sélectionnée → le nouveau restaurant y est rattaché automatiquement
+- Si "Toutes les marques" est sélectionné → proposer de choisir la chaîne dans le formulaire
 
-### Plan technique
-
-**1. Nettoyer la table `chains`**
-- Supprimer le doublon (garder un seul "Chicken Street")
-- S'assurer que tous les restaurants pointent vers le bon `chain_id`
-
-**2. Ajouter `selectedChainId` dans `AnalyticsContext`**
-- Nouvel état `selectedChainId: string | null` (null = toutes les marques)
-- Persisté dans localStorage comme les autres filtres
-- Exposé via le contexte pour toutes les pages
-
-**3. Créer un sélecteur de marque dans la sidebar**
-- Dropdown ou switcher en haut de `AppSidebar.tsx` (sous le logo)
-- Affiche les chaînes disponibles + option "Toutes"
-- Change le logo/nom affiché selon la marque sélectionnée
-
-**4. Filtrer les restaurants globalement**
-- Dans les pages qui fetchent les restaurants (Restaurants, Dashboard, Overview, Comparatifs…), ajouter un filtre `.eq("chain_id", selectedChainId)` quand une chaîne est sélectionnée
-- Les restaurants épinglés (`selectedRestaurants`) restent filtrés par la chaîne active
-
-### Ce qui ne change pas
-- Aucune modification de structure de base de données (la colonne `chain_id` existe déjà)
-- Toutes les données existantes restent intactes
-- Le fonctionnement actuel est préservé quand "Toutes" est sélectionné
+**3. Permettre de choisir la chaîne dans le formulaire restaurant**
+- Ajouter un champ `Select` "Marque" dans le formulaire de création de restaurant
+- Pré-rempli avec la chaîne active si une est sélectionnée
 
 ### Résultat
-Tu pourras ajouter un restaurant d'une autre enseigne, créer sa chaîne, et switcher entre "Chicken Street" et la nouvelle marque d'un clic dans la sidebar. Chaque marque aura sa vue isolée sur toute la plateforme.
+1. Tu cliques sur le sélecteur de marque → "+ Nouvelle marque"
+2. Tu entres le nom (ex: "Burger Factory")
+3. La plateforme switch automatiquement sur cette marque → tout est vide
+4. Tu vas dans Restaurants → tu crées tes restaurants (auto-rattachés à la marque)
+5. Tu importes tes rapports → les données apparaissent
+
+### Fichiers modifiés
+- `src/components/layout/AppSidebar.tsx` — bouton création de chaîne
+- `src/components/restaurants/RestaurantFormDialog.tsx` — sélecteur de chaîne + utilisation du contexte
 
