@@ -45,6 +45,9 @@ export function useItemSalesAnalytics(
   const { data: itemSales, isLoading: loadingSales } = useQuery({
     queryKey: ["item_sales_analytics", restaurantIds, startStr, endStr],
     queryFn: async () => {
+      // Empty array = no restaurants in scope → return empty
+      if (restaurantIds && restaurantIds.length === 0) return [];
+
       // First get order_ids from orders within the date range
       let ordersQuery = supabase
         .from("orders")
@@ -169,6 +172,9 @@ export function useItemSalesAnalytics(
   const { data: monthlyEvolution, isLoading: loadingEvolution } = useQuery({
     queryKey: ["item_sales_evolution", restaurantIds, startStr, endStr],
     queryFn: async () => {
+      // Empty array = no restaurants in scope → return empty
+      if (restaurantIds && restaurantIds.length === 0) return [];
+
       // Get orders with their dates
       let ordersQuery = supabase
         .from("orders")

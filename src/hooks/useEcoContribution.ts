@@ -24,8 +24,10 @@ export function useEcoContribution({
   month?: number | null;
   platform?: "uber_eats" | "deliveroo" | "global";
 }) {
-  const isUberEnabled = platform === "uber_eats" || platform === "global";
-  const isDeliverooEnabled = platform === "deliveroo" || platform === "global";
+  // Empty array = no restaurants in scope → disable all queries
+  const hasEmptyScope = restaurantIds !== undefined && restaurantIds.length === 0;
+  const isUberEnabled = !hasEmptyScope && (platform === "uber_eats" || platform === "global");
+  const isDeliverooEnabled = !hasEmptyScope && (platform === "deliveroo" || platform === "global");
   // ── Uber Eats: payouts table ──
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
     queryKey: ["eco_contribution_payouts", restaurantIds, year, month, platform],
