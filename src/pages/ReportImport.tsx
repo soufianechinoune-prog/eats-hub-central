@@ -256,13 +256,17 @@ export default function ReportImport() {
 
   // Fetch restaurants for selector
   const { data: restaurants = [] } = useQuery({
-    queryKey: ["restaurants-for-import"],
+    queryKey: ["restaurants-for-import", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, city")
-        .eq("is_active", true)
-        .order("name");
+        .eq("is_active", true);
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      query = query.order("name");
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
