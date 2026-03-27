@@ -365,7 +365,7 @@ const Overview = () => {
     wave4Loading,
     criticalError: overviewError,
     queryKeys: overviewQueryKeys,
-  } = useOverviewData(startDate, endDate, startDateStr, endDateStr, activeIds);
+  } = useOverviewData(startDate, endDate, startDateStr, endDateStr, activeIds, selectedChainId);
 
   const error = overviewError;
 
