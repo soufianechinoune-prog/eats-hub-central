@@ -30,6 +30,7 @@ import {
   Leaf,
   Tag,
   Building2,
+  Plus,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -61,7 +62,15 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import csLogo from "@/assets/cs-logo.jpeg";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
