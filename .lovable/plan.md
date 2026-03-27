@@ -1,25 +1,40 @@
 
 
-## Problem
+## Sélecteur de marque (chaîne) global
 
-The "Gérant" column in the restaurant list shows "-" for all restaurants because it reads from `restaurants.manager_first_name` and `restaurants.manager_last_name` columns, which are empty. The actual manager data is stored in the `managers` table, linked via `manager_restaurants` (the newer architecture). The restaurant detail page correctly uses this linked table to display manager names, but the list page does not.
+### Contexte
 
-## Solution
+La table `chains` et le champ `chain_id` sur `restaurants` existent déjà en base. Aujourd'hui, seule "Chicken Street" est présente (en doublon d'ailleurs — 2 entrées). Tout est en place côté données pour supporter plusieurs marques.
 
-Update the restaurant list query in `src/pages/Restaurants.tsx` to join the `manager_restaurants` and `managers` tables, then display the linked manager's name in the "Gérant" column.
+### Principe
 
-### Changes
+Ajouter un **sélecteur de marque** dans le `AnalyticsContext` (état global) qui filtre automatiquement **tous les restaurants** affichés sur la plateforme. Quand tu switches de marque, toutes les pages (Dashboard, Analytics, Comparatifs, Restaurants, etc.) ne montrent que les restaurants de cette chaîne.
 
-**`src/pages/Restaurants.tsx`**:
+### Plan technique
 
-1. Update the Supabase query to also fetch linked managers via a join:
-   ```
-   .select(`*, manager_restaurants(managers(first_name, last_name))`)
-   ```
+**1. Nettoyer la table `chains`**
+- Supprimer le doublon (garder un seul "Chicken Street")
+- S'assurer que tous les restaurants pointent vers le bon `chain_id`
 
-2. Update the "Gérant" column rendering (lines 479-484) to first check for linked managers from the `manager_restaurants` join, and fall back to the legacy `manager_first_name`/`manager_last_name` fields.
+**2. Ajouter `selectedChainId` dans `AnalyticsContext`**
+- Nouvel état `selectedChainId: string | null` (null = toutes les marques)
+- Persisté dans localStorage comme les autres filtres
+- Exposé via le contexte pour toutes les pages
 
-3. Update the sort logic for the "manager" column to use the same resolution (linked manager name first, then legacy fields).
+**3. Créer un sélecteur de marque dans la sidebar**
+- Dropdown ou switcher en haut de `AppSidebar.tsx` (sous le logo)
+- Affiche les chaînes disponibles + option "Toutes"
+- Change le logo/nom affiché selon la marque sélectionnée
 
-This is a minimal change: one query modification and one rendering update. No new components or database changes needed.
+**4. Filtrer les restaurants globalement**
+- Dans les pages qui fetchent les restaurants (Restaurants, Dashboard, Overview, Comparatifs…), ajouter un filtre `.eq("chain_id", selectedChainId)` quand une chaîne est sélectionnée
+- Les restaurants épinglés (`selectedRestaurants`) restent filtrés par la chaîne active
+
+### Ce qui ne change pas
+- Aucune modification de structure de base de données (la colonne `chain_id` existe déjà)
+- Toutes les données existantes restent intactes
+- Le fonctionnement actuel est préservé quand "Toutes" est sélectionné
+
+### Résultat
+Tu pourras ajouter un restaurant d'une autre enseigne, créer sa chaîne, et switcher entre "Chicken Street" et la nouvelle marque d'un clic dans la sidebar. Chaque marque aura sa vue isolée sur toute la plateforme.
 
