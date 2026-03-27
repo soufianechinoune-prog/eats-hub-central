@@ -170,9 +170,12 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const collapsed = state === "collapsed";
   const unreadCount = useUnreadMessages();
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [newChainDialogOpen, setNewChainDialogOpen] = useState(false);
+  const [newChainName, setNewChainName] = useState("");
   const { selectedChainId, setSelectedChainId, setSelectedRestaurants, setVisibleRestaurants } = useAnalyticsContext();
 
   // Fetch available chains
@@ -189,13 +192,36 @@ export function AppSidebar() {
   });
 
   const handleChainChange = (value: string) => {
+    if (value === "__new__") {
+      setNewChainDialogOpen(true);
+      return;
+    }
     const newChainId = value === "all" ? null : value;
     if (newChainId !== selectedChainId) {
       setSelectedChainId(newChainId);
-      // Reset restaurant selections when switching chains
       setSelectedRestaurants([]);
       setVisibleRestaurants([]);
     }
+  };
+
+  const handleCreateChain = async () => {
+    if (!newChainName.trim()) return;
+    const { data, error } = await supabase
+      .from("chains")
+      .insert({ name: newChainName.trim() })
+      .select("id")
+      .single();
+    if (error) {
+      toast({ title: "Erreur", description: "Impossible de créer la marque", variant: "destructive" });
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ["chains-list"] });
+    setSelectedChainId(data.id);
+    setSelectedRestaurants([]);
+    setVisibleRestaurants([]);
+    setNewChainName("");
+    setNewChainDialogOpen(false);
+    toast({ title: "Marque créée", description: `"${newChainName.trim()}" est maintenant active` });
   };
 
   const handleLogout = async () => {
@@ -281,10 +307,38 @@ export function AppSidebar() {
                       {chain.name}
                     </SelectItem>
                   ))}
+                  <div className="border-t my-1" />
+                  <SelectItem value="__new__" className="text-primary font-medium">
+                    <div className="flex items-center gap-1.5">
+                      <Plus className="h-3.5 w-3.5" />
+                      Nouvelle marque
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           )}
+          {/* New chain dialog */}
+          <Dialog open={newChainDialogOpen} onOpenChange={setNewChainDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Créer une nouvelle marque</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <Input
+                  placeholder="Nom de la marque (ex: Burger Factory)"
+                  value={newChainName}
+                  onChange={(e) => setNewChainName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateChain()}
+                  autoFocus
+                />
+                <Button onClick={handleCreateChain} className="w-full" disabled={!newChainName.trim()}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Créer la marque
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
           <SidebarGroupContent>
             <SidebarMenu>
               {/* Analytics Collapsible Menu - First Item */}
