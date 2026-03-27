@@ -15,6 +15,7 @@ import { OfferPerformanceAnalysis } from "@/components/marketing/OfferPerformanc
 import { ProductPerformanceAnalysis } from "@/components/marketing/ProductPerformanceAnalysis";
 import { RestaurantCampaignComparison } from "@/components/marketing/RestaurantCampaignComparison";
 import { Link } from "react-router-dom";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 export default function MarketingAnalytics() {
   const [activeTab, setActiveTab] = useState("offers");
