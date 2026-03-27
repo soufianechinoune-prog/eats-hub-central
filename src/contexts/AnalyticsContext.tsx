@@ -30,6 +30,8 @@ interface AnalyticsContextType {
   setProfitabilityBase: (base: ProfitabilityBase) => void;
   isNetworkView: boolean;
   setIsNetworkView: (value: boolean) => void;
+  selectedChainId: string | null;
+  setSelectedChainId: (id: string | null) => void;
   isInitialized: boolean;
 }
 
