@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useNavigate } from "react-router-dom";
 import { RestaurantFormDialog } from "@/components/restaurants/RestaurantFormDialog";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { RestaurantShareActions } from "@/components/restaurants/RestaurantShareActions";
 import { Input } from "@/components/ui/input";
 import {
@@ -45,6 +46,7 @@ const Restaurants = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { exportCSV, exportPDF } = useRestaurantsExport();
+  const { selectedChainId } = useAnalyticsContext();
   
   // Load preferences from localStorage
   const savedPrefs = useMemo(() => {
@@ -107,9 +109,9 @@ const Restaurants = () => {
   }, [statusFilter, sortColumn, sortDirection]);
 
   const { data: restaurants, refetch, isError, error: fetchError } = useQuery({
-    queryKey: ["restaurants"],
+    queryKey: ["restaurants", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select(`
           *,
@@ -118,6 +120,10 @@ const Restaurants = () => {
         .eq("manager_restaurants.is_primary", true)
         .order("postal_code", { ascending: true })
         .order("city", { ascending: true });
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
       if (error) {
         console.error("Error fetching restaurants:", error);
         throw error;

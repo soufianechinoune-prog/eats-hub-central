@@ -31,15 +31,19 @@ async function fetchAllPages<T>(
 
 // ===================== Individual hooks =====================
 
-function useOverviewRestaurants() {
+function useOverviewRestaurants(chainId: string | null) {
   return useQuery({
-    queryKey: ["overview-restaurants"],
+    queryKey: ["overview-restaurants", chainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("*")
         .eq("is_active", true)
         .eq("is_pinned", true);
+      if (chainId) {
+        query = query.eq("chain_id", chainId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -377,9 +381,10 @@ export function useOverviewData(
   startDateStr: string,
   endDateStr: string,
   filterRestaurantIds?: string[],
+  chainId?: string | null,
 ) {
   // Wave 1: Restaurants (immediate) — use provided IDs if available, otherwise fetch pinned
-  const restaurants = useOverviewRestaurants();
+  const restaurants = useOverviewRestaurants(chainId ?? null);
   const restaurantIds = filterRestaurantIds && filterRestaurantIds.length > 0
     ? filterRestaurantIds
     : (restaurants.data?.map((r) => r.id) || []);

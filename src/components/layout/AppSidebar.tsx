@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -29,6 +29,7 @@ import {
   Award,
   Leaf,
   Tag,
+  Building2,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -51,10 +52,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import csLogo from "@/assets/cs-logo.jpeg";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
@@ -154,6 +164,30 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const unreadCount = useUnreadMessages();
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const { selectedChainId, setSelectedChainId, setSelectedRestaurants, setVisibleRestaurants } = useAnalyticsContext();
+
+  // Fetch available chains
+  const { data: chains } = useQuery({
+    queryKey: ["chains-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chains")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const handleChainChange = (value: string) => {
+    const newChainId = value === "all" ? null : value;
+    if (newChainId !== selectedChainId) {
+      setSelectedChainId(newChainId);
+      // Reset restaurant selections when switching chains
+      setSelectedRestaurants([]);
+      setVisibleRestaurants([]);
+    }
+  };
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -220,6 +254,28 @@ export function AppSidebar() {
               </div>
             )}
           </SidebarGroupLabel>
+          {/* Chain selector */}
+          {!collapsed && chains && chains.length > 0 && (
+            <div className="px-2 pb-2">
+              <Select
+                value={selectedChainId || "all"}
+                onValueChange={handleChainChange}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <Building2 className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                  <SelectValue placeholder="Toutes les marques" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les marques</SelectItem>
+                  {chains.map((chain) => (
+                    <SelectItem key={chain.id} value={chain.id}>
+                      {chain.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <SidebarGroupContent>
             <SidebarMenu>
               {/* Analytics Collapsible Menu - First Item */}

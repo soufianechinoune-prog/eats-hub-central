@@ -30,6 +30,8 @@ interface AnalyticsContextType {
   setProfitabilityBase: (base: ProfitabilityBase) => void;
   isNetworkView: boolean;
   setIsNetworkView: (value: boolean) => void;
+  selectedChainId: string | null;
+  setSelectedChainId: (id: string | null) => void;
   isInitialized: boolean;
 }
 
@@ -101,6 +103,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     () => storedState?.isNetworkView || false
   );
 
+  const [selectedChainId, setSelectedChainId] = useState<string | null>(
+    () => storedState?.selectedChainId || null
+  );
+
   // Track if initial mount is complete to prevent saving during hydration
   const hasMounted = useRef(false);
 
@@ -154,6 +160,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       comparisonMode,
       profitabilityBase,
       isNetworkView,
+      selectedChainId,
       dateRange: dateRange
         ? {
             from: dateRange.from?.toISOString(),
@@ -174,6 +181,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     comparisonMode,
     profitabilityBase,
     isNetworkView,
+    selectedChainId,
   ]);
 
   const value = {
@@ -200,7 +208,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setProfitabilityBase,
     isNetworkView,
     setIsNetworkView,
-    isInitialized: true, // Always true now since provider is stable
+    selectedChainId,
+    setSelectedChainId,
+    isInitialized: true,
   };
 
   return (
