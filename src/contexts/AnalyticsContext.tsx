@@ -160,6 +160,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       comparisonMode,
       profitabilityBase,
       isNetworkView,
+      selectedChainId,
       dateRange: dateRange
         ? {
             from: dateRange.from?.toISOString(),
@@ -180,6 +181,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     comparisonMode,
     profitabilityBase,
     isNetworkView,
+    selectedChainId,
   ]);
 
   const value = {
@@ -206,7 +208,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setProfitabilityBase,
     isNetworkView,
     setIsNetworkView,
-    isInitialized: true, // Always true now since provider is stable
+    selectedChainId,
+    setSelectedChainId,
+    isInitialized: true,
   };
 
   return (
