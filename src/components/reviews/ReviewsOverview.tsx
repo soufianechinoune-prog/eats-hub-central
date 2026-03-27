@@ -30,7 +30,7 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionDialogDate, setActionDialogDate] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
-  const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange } = useAnalyticsContext();
+  const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange, selectedChainId } = useAnalyticsContext();
   
   // Helper function to get the appropriate date from a review
   const getReviewDate = (review: CustomerReview): string => {
@@ -65,11 +65,21 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
     queryClient.invalidateQueries({ queryKey: ['restaurant-actions-reviews'] });
   };
 
-  // Fetch actions for the selected restaurants
+  // Fetch actions for the selected restaurants (filtered by chain)
   const { data: actions = [] } = useQuery({
-    queryKey: ['restaurant-actions-reviews', selectedRestaurants],
+    queryKey: ['restaurant-actions-reviews', selectedRestaurants, selectedChainId],
     queryFn: async () => {
-      // Fetch all actions
+      // First get restaurant IDs for the active chain
+      let chainRestaurantIds: string[] | null = null;
+      if (selectedChainId) {
+        const { data: chainRestos } = await supabase
+          .from('restaurants')
+          .select('id')
+          .eq('chain_id', selectedChainId);
+        chainRestaurantIds = chainRestos?.map(r => r.id) || [];
+        if (chainRestaurantIds.length === 0) return [];
+      }
+
       const { data, error } = await supabase
         .from('restaurant_actions')
         .select('id, title, start_date, category, restaurant_ids')
@@ -80,15 +90,23 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
         return [];
       }
       
-      // If restaurants are selected, filter to only those actions
+      let filtered = data || [];
+      
+      // Filter by chain restaurants
+      if (chainRestaurantIds) {
+        filtered = filtered.filter(action => 
+          action.restaurant_ids?.some((id: string) => chainRestaurantIds!.includes(id))
+        );
+      }
+      
+      // Further filter by selected restaurants
       if (selectedRestaurants.length > 0) {
-        return (data || []).filter(action => 
+        filtered = filtered.filter(action => 
           action.restaurant_ids?.some((id: string) => selectedRestaurants.includes(id))
         );
       }
       
-      // If no restaurants selected, return all actions
-      return data || [];
+      return filtered;
     },
   });
 

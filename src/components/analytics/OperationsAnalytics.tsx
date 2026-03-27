@@ -47,6 +47,7 @@ export function OperationsAnalytics() {
     setSelectedMonth,
     dateRange: contextDateRange,
     isNetworkView,
+    selectedChainId,
   } = useAnalyticsContext();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,13 +127,17 @@ export function OperationsAnalytics() {
 
   const platformFilter = (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") ? selectedPlatform : null;
 
-  // Fetch restaurants for names and pinned status (must be before queries that use restaurantIdsFilter)
+  // Fetch restaurants for names and pinned status (filtered by active chain)
   const { data: restaurants } = useQuery({
-    queryKey: ["restaurants_for_ops"],
+    queryKey: ["restaurants_for_ops", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, is_pinned, is_active");
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },

@@ -18,15 +18,20 @@ import { Link } from "react-router-dom";
 
 export default function MarketingAnalytics() {
   const [activeTab, setActiveTab] = useState("offers");
+  const { selectedChainId } = useAnalyticsContext();
 
-  // Fetch restaurants for filtering
+  // Fetch restaurants for filtering (filtered by active chain)
   const { data: restaurants } = useQuery({
-    queryKey: ["restaurants"],
+    queryKey: ["restaurants-marketing", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name")
         .order("name");
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },

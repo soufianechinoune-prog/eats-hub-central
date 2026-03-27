@@ -61,6 +61,7 @@ export default function Analytics() {
     comparisonMode,
     setComparisonMode,
     isNetworkView,
+    selectedChainId,
   } = useAnalyticsContext();
 
   const [chartActionsConfig, setChartActionsConfig] = useState<ChartActionsConfig>(() => {
@@ -232,14 +233,18 @@ export default function Analytics() {
 
   // Platform is managed via AnalyticsContext (persisted in localStorage), no URL sync needed
 
-  // Fetch restaurants
+  // Fetch restaurants (filtered by active chain)
   const { data: restaurants } = useQuery({
-    queryKey: ["restaurants_with_commission"],
+    queryKey: ["restaurants_with_commission", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, city, postal_code, is_pinned, uber_commission_rate")
         .order("name");
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
