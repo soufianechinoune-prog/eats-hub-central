@@ -118,14 +118,19 @@ const Overview = () => {
     localStorage.setItem(OVERVIEW_STORAGE_KEY, JSON.stringify(state));
   }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView]);
 
-  // Single unified query for all active restaurants (deduplicated)
+  // Single unified query for all active restaurants (deduplicated), filtered by chain
+  const selectedChainId = analyticsCtx.selectedChainId;
   const { data: allActiveRestaurants, error: restaurantsError } = useQuery({
-    queryKey: ["all-active-restaurants"],
+    queryKey: ["all-active-restaurants", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, is_pinned")
         .eq("is_active", true);
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
