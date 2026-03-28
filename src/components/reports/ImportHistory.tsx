@@ -51,15 +51,41 @@ const REPORT_TYPE_LABELS: Record<string, string> = {
 
 export default function ImportHistory() {
   const { toast } = useToast();
+  const { selectedChainId } = useAnalyticsContext();
   const [imports, setImports] = useState<CsvImport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>("all");
   const [hasError, setHasError] = useState(false);
+  const [brandRestaurantIds, setBrandRestaurantIds] = useState<string[] | null>(null);
+
+  // Load brand restaurant IDs when chain changes
+  useEffect(() => {
+    if (!selectedChainId) {
+      setBrandRestaurantIds(null);
+      return;
+    }
+    const loadBrandRestaurants = async () => {
+      const { data } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("chain_id", selectedChainId)
+        .eq("is_active", true);
+      setBrandRestaurantIds((data ?? []).map(r => r.id));
+    };
+    loadBrandRestaurants();
+  }, [selectedChainId]);
 
   const fetchImports = async () => {
     setIsLoading(true);
     setHasError(false);
     try {
+      // If brand selected with 0 restaurants → empty
+      if (brandRestaurantIds !== null && brandRestaurantIds.length === 0) {
+        setImports([]);
+        setIsLoading(false);
+        return;
+      }
+
       let query = supabase
         .from("csv_imports")
         .select("*")
@@ -73,15 +99,24 @@ export default function ImportHistory() {
       let { data, error } = await query;
       
       if (error) {
-        // Retry once after 2s on timeout
         console.warn("Initial fetch failed, retrying in 2s...", error);
         await new Promise(r => setTimeout(r, 2000));
         const { data: retryData, error: retryError } = await query;
         if (retryError) throw retryError;
         data = retryData;
       }
+
+      let filtered = data || [];
+
+      // Filter by brand restaurant IDs if a chain is selected
+      if (brandRestaurantIds !== null && brandRestaurantIds.length > 0) {
+        filtered = filtered.filter(imp => {
+          if (!imp.restaurant_ids || imp.restaurant_ids.length === 0) return false;
+          return imp.restaurant_ids.some((rid: string) => brandRestaurantIds.includes(rid));
+        });
+      }
       
-      setImports(data || []);
+      setImports(filtered);
     } catch (error: any) {
       console.error("Error fetching imports:", error);
       setHasError(true);
@@ -97,7 +132,7 @@ export default function ImportHistory() {
 
   useEffect(() => {
     fetchImports();
-  }, [filterType]);
+  }, [filterType, brandRestaurantIds]);
 
   const handleDownload = async (fileUrl: string, fileName: string) => {
     try {
