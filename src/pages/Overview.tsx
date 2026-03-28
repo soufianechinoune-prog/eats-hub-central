@@ -21,7 +21,8 @@ import { useNetworkStats } from "@/hooks/useNetworkStats";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 
-const OVERVIEW_STORAGE_KEY = "overview-state";
+const getOverviewStorageKey = (chainId: string | null) =>
+  chainId ? `overview-state-${chainId}` : "overview-state";
 
 // Success Score tier configuration
 const TIER_BADGE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -53,10 +54,10 @@ const formatHoursToTime = (hours: number | null | undefined): string | null => {
   return `${h}h ${mins}min`;
 };
 
-// Load saved state from localStorage
-const getInitialOverviewState = () => {
+// Load saved state from localStorage (brand-aware)
+const getInitialOverviewState = (chainId: string | null) => {
   try {
-    const stored = localStorage.getItem(OVERVIEW_STORAGE_KEY);
+    const stored = localStorage.getItem(getOverviewStorageKey(chainId));
     return stored ? JSON.parse(stored) : null;
   } catch {
     return null;
@@ -64,10 +65,9 @@ const getInitialOverviewState = () => {
 };
 
 const Overview = () => {
-  const storedState = getInitialOverviewState();
-  
   // Read analytics context for cross-page sync
   const analyticsCtx = useAnalyticsContext();
+  const storedState = getInitialOverviewState(analyticsCtx.selectedChainId);
   
   // Map AnalyticsContext periodMode to OverviewPeriodMode
   const ctxPeriodMode: OverviewPeriodMode = 
@@ -103,7 +103,18 @@ const Overview = () => {
   const queryClient = useQueryClient();
   const { exportComprehensivePdf, exportComprehensiveExcel, isExporting } = useOverviewExport();
 
-  // Persist state to localStorage
+  // Auto-switch to network view when brand has active restaurants but 0 pinned
+  useEffect(() => {
+    if (allActiveRestaurants && selectedChainId) {
+      const hasPinned = allActiveRestaurants.some(r => r.is_pinned);
+      const hasActive = allActiveRestaurants.length > 0;
+      if (hasActive && !hasPinned && !isNetworkView) {
+        setIsNetworkView(true);
+      }
+    }
+  }, [allActiveRestaurants, selectedChainId]);
+
+  // Persist state to localStorage (brand-aware)
   useEffect(() => {
     const state = {
       periodMode,
@@ -115,8 +126,8 @@ const Overview = () => {
       } : undefined,
       isNetworkView,
     };
-    localStorage.setItem(OVERVIEW_STORAGE_KEY, JSON.stringify(state));
-  }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView]);
+    localStorage.setItem(getOverviewStorageKey(selectedChainId), JSON.stringify(state));
+  }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView, selectedChainId]);
 
   // Single unified query for all active restaurants (deduplicated), filtered by chain
   const selectedChainId = analyticsCtx.selectedChainId;
