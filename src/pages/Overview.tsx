@@ -104,6 +104,27 @@ const Overview = () => {
   const { exportComprehensivePdf, exportComprehensiveExcel, isExporting } = useOverviewExport();
 
   // Auto-switch to network view when brand has active restaurants but 0 pinned
+  // Single unified query for all active restaurants (deduplicated), filtered by chain
+  const selectedChainId = analyticsCtx.selectedChainId;
+  const { data: allActiveRestaurants, error: restaurantsError } = useQuery({
+    queryKey: ["all-active-restaurants", selectedChainId],
+    queryFn: async () => {
+      let query = supabase
+        .from("restaurants")
+        .select("id, is_pinned")
+        .eq("is_active", true);
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    retry: 4,
+    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+
+  // Auto-switch to network view when brand has active restaurants but 0 pinned
   useEffect(() => {
     if (allActiveRestaurants && selectedChainId) {
       const hasPinned = allActiveRestaurants.some(r => r.is_pinned);
@@ -128,26 +149,6 @@ const Overview = () => {
     };
     localStorage.setItem(getOverviewStorageKey(selectedChainId), JSON.stringify(state));
   }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView, selectedChainId]);
-
-  // Single unified query for all active restaurants (deduplicated), filtered by chain
-  const selectedChainId = analyticsCtx.selectedChainId;
-  const { data: allActiveRestaurants, error: restaurantsError } = useQuery({
-    queryKey: ["all-active-restaurants", selectedChainId],
-    queryFn: async () => {
-      let query = supabase
-        .from("restaurants")
-        .select("id, is_pinned")
-        .eq("is_active", true);
-      if (selectedChainId) {
-        query = query.eq("chain_id", selectedChainId);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
-    retry: 4,
-    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
-  });
 
   // Derive pinned from the single query
   const pinnedRestaurants = useMemo(
