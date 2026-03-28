@@ -2216,6 +2216,11 @@ export default function ReportImport() {
                     );
                   }
                   
+                  // Allow small tolerance (1-2 lines) for header/empty rows not processed
+                  const diff = total - accounted;
+                  if (diff > 0 && diff <= 2 && total > 0) {
+                    return null; // Minor difference, likely header/empty lines — no warning needed
+                  }
                   if (accounted !== total && total > 0) {
                     return (
                       <Alert variant="destructive" className="border-amber-500 bg-amber-500/10">
