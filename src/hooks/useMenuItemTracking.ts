@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 export interface MenuItem {
   id: string;
@@ -31,6 +32,7 @@ const FIELD_LABELS: Record<string, string> = {
 
 export function useMenuItemTracking() {
   const { toast } = useToast();
+  const { selectedChainId } = useAnalyticsContext();
 
   // Detect changes between old and new item data
   const detectChanges = (
@@ -184,6 +186,7 @@ export function useMenuItemTracking() {
     const changeContext = {
       item_name: itemName,
       change_type: changeType,
+      ...(selectedChainId ? { brand_chain_id: selectedChainId } : {}),
       changes: changes.map((c) => ({
         field: c.field,
         from: c.from,

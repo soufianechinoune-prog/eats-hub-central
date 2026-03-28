@@ -56,6 +56,7 @@ import { format, parseISO, isWithinInterval, startOfMonth, endOfMonth } from "da
 import { fr } from "date-fns/locale";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { Link } from "react-router-dom";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import type { DateRange } from "react-day-picker";
 
 interface PriceHistoryEntry {
@@ -90,6 +91,7 @@ interface RestaurantAction {
   category: string;
   action_type: string;
   start_date: string;
+  change_context?: any;
 }
 
 const CHANGE_TYPE_LABELS: Record<string, { label: string; color: string; icon: any }> = {
@@ -112,6 +114,7 @@ const FIELD_LABELS: Record<string, string> = {
 
 export default function MenuHistory() {
   const { toast } = useToast();
+  const { selectedChainId } = useAnalyticsContext();
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [changeTypeFilters, setChangeTypeFilters] = useState<string[]>([]);
@@ -161,7 +164,7 @@ export default function MenuHistory() {
 
       const { data, error } = await supabase
         .from("restaurant_actions")
-        .select("id, title, category, action_type, start_date")
+        .select("id, title, category, action_type, start_date, change_context")
         .in("id", Array.from(actionIds));
 
       if (error) throw error;
@@ -190,9 +193,10 @@ export default function MenuHistory() {
         p.menu_item?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.notes?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesDate = filterByDateRange(p.changed_at);
-      return matchesSearch && matchesDate;
+      const matchesBrand = !selectedChainId || (!!p.restaurant_action_id && linkedActions?.[p.restaurant_action_id]?.change_context?.brand_chain_id === selectedChainId);
+      return matchesSearch && matchesDate && matchesBrand;
     });
-  }, [priceHistory, searchQuery, dateRange]);
+  }, [priceHistory, searchQuery, dateRange, selectedChainId, linkedActions]);
 
   // Filtered menu changes
   const filteredMenuChanges = useMemo(() => {
@@ -203,22 +207,23 @@ export default function MenuHistory() {
         c.notes?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType = changeTypeFilters.length === 0 || changeTypeFilters.includes(c.change_type);
       const matchesDate = filterByDateRange(c.changed_at);
-      return matchesSearch && matchesType && matchesDate;
+      const matchesBrand = !selectedChainId || (!!c.restaurant_action_id && linkedActions?.[c.restaurant_action_id]?.change_context?.brand_chain_id === selectedChainId);
+      return matchesSearch && matchesType && matchesDate && matchesBrand;
     });
-  }, [menuChanges, searchQuery, changeTypeFilters, dateRange]);
+  }, [menuChanges, searchQuery, changeTypeFilters, dateRange, selectedChainId, linkedActions]);
 
   // Stats
   const stats = useMemo(() => {
-    const priceChanges = priceHistory?.length || 0;
-    const totalChanges = menuChanges?.length || 0;
-    const priceIncreases = priceHistory?.filter(p => 
+    const priceChanges = filteredPriceHistory.length || 0;
+    const totalChanges = filteredMenuChanges.length || 0;
+    const priceIncreases = filteredPriceHistory.filter(p => 
       (p.new_value || 0) > (p.old_value || 0)
     ).length || 0;
-    const priceDecreases = priceHistory?.filter(p => 
+    const priceDecreases = filteredPriceHistory.filter(p => 
       (p.new_value || 0) < (p.old_value || 0)
     ).length || 0;
     return { priceChanges, totalChanges, priceIncreases, priceDecreases };
-  }, [priceHistory, menuChanges]);
+  }, [filteredPriceHistory, filteredMenuChanges]);
 
   const formatPrice = (value: number | null) => {
     if (value === null) return "-";
