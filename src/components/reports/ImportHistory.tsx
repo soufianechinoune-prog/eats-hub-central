@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 interface CsvImport {
   id: string;
