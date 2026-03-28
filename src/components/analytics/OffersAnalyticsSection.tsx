@@ -55,7 +55,21 @@ export function OffersAnalyticsSection() {
     () => pinnedRestaurants.map((restaurant) => restaurant.id),
     [pinnedRestaurants],
   );
-...
+
+  const { startDate, endDate } = useMemo(() => {
+    if (periodMode === "range" && dateRange?.from && dateRange?.to) {
+      return { startDate: format(dateRange.from, "yyyy-MM-dd"), endDate: format(dateRange.to, "yyyy-MM-dd") };
+    }
+    if (periodMode === "month" && selectedMonth > 0) {
+      const s = startOfMonth(new Date(selectedYear, selectedMonth - 1));
+      const e = endOfMonth(s);
+      return { startDate: format(s, "yyyy-MM-dd"), endDate: format(e, "yyyy-MM-dd") };
+    }
+    const s = startOfYear(new Date(selectedYear, 0));
+    const e = new Date() < endOfYear(s) ? new Date() : endOfYear(s);
+    return { startDate: format(s, "yyyy-MM-dd"), endDate: format(e, "yyyy-MM-dd") };
+  }, [selectedYear, selectedMonth, periodMode, dateRange]);
+
   const restaurantIds = useMemo(() => (
     resolveBrandScopedRestaurantIds({
       selectedRestaurantIds: selectedRestaurants,
@@ -67,7 +81,10 @@ export function OffersAnalyticsSection() {
   ), [selectedRestaurants, selectedChainId, isNetworkView, chainRestaurantIds, pinnedIds]);
 
   const { isLoading, isError, errorMessage, kpis, restaurantStats, monthlyStats, heatmapData, anomalies } = useOffersAnalytics(
-    restaurantIds, startDate, endDate, restaurants
+    restaurantIds,
+    startDate,
+    endDate,
+    restaurants,
   );
 
   // Sort handler

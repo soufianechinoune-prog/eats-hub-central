@@ -96,7 +96,11 @@ export function useUberOneStats({
       pinnedRestaurantIds,
     });
 
-    return resolvedIds ?? chainRestaurantIds;
+    if (resolvedIds) {
+      return resolvedIds;
+    }
+
+    return useAllActive ? chainRestaurantIds : pinnedRestaurantIds;
   }, [restaurantIds, selectedChainId, useAllActive, chainRestaurantIds, pinnedRestaurantIds]);
 
   const useDaily = ["month", "7d", "30d", "previous_week", "current_month", "range"].includes(periodMode);

@@ -109,7 +109,153 @@ export default function Analytics() {
   const prevYear = selectedYear - 1;
 
   // === Performance: only fetch data relevant to the active viewMode ===
-...
+  const needsRevenue = viewMode === 'revenue' || viewMode === 'overview';
+  const needsConversion = viewMode === 'conversion' || viewMode === 'overview';
+  const needsFinances = viewMode === 'finances';
+  const needsPayouts = viewMode === 'revenue' || viewMode === 'finances' || viewMode === 'overview';
+  const needsProfitability = viewMode === 'revenue' || viewMode === 'finances';
+
+  // Determine data granularity based on selected period
+  const { granularity, startDate, endDate, periodDays } = useDataGranularity({
+    periodMode,
+    selectedYear,
+    selectedMonth,
+    dateRange,
+  });
+
+  // Tab changes are now handled by Analytics context platform selector (no URL sync needed)
+
+  const handleChartActionsConfigChange = (newConfig: ChartActionsConfig) => {
+    setChartActionsConfig(newConfig);
+    localStorage.setItem('analyticsChartActionsConfig', JSON.stringify(newConfig));
+  };
+
+  const handleGlobalToggleChange = (value: boolean) => {
+    handleChartActionsConfigChange({ ...chartActionsConfig, global: value });
+  };
+
+  const navigate = useNavigate();
+
+  const handleActionClick = (actionId: string) => {
+    navigate(`/actions?highlight=${actionId}`);
+  };
+
+  const { data: uberActions } = useRestaurantActions(
+    selectedYear,
+    selectedRestaurants.length > 0 ? selectedRestaurants : undefined,
+    "uber_eats"
+  );
+
+  const { data: deliverooActions } = useRestaurantActions(
+    selectedYear,
+    selectedRestaurants.length > 0 ? selectedRestaurants : undefined,
+    "deliveroo"
+  );
+
+  const globalActions = useMemo(() => {
+    const all = [...(uberActions || []), ...(deliverooActions || [])];
+    const uniqueMap = new Map();
+    all.forEach(a => uniqueMap.set(a.id, a));
+    return Array.from(uniqueMap.values());
+  }, [uberActions, deliverooActions]);
+
+  useEffect(() => {
+    if (!hasInitializedActions && globalActions.length > 0) {
+      setSelectedActionIds(new Set(globalActions.map(a => a.id)));
+      setHasInitializedActions(true);
+    }
+  }, [globalActions, hasInitializedActions]);
+
+  const handleActionToggle = useCallback((actionId: string) => {
+    setSelectedActionIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(actionId)) {
+        newSet.delete(actionId);
+      } else {
+        newSet.add(actionId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleSelectAllCategory = useCallback((category: string, selected: boolean) => {
+    const categoryActionIds = globalActions.filter(a => a.category === category).map(a => a.id);
+
+    setSelectedActionIds(prev => {
+      const newSet = new Set(prev);
+      categoryActionIds.forEach(id => {
+        if (selected) {
+          newSet.add(id);
+        } else {
+          newSet.delete(id);
+        }
+      });
+      return newSet;
+    });
+  }, [globalActions]);
+
+  const handleSelectAll = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedActionIds(new Set(globalActions.map(a => a.id)));
+    } else {
+      setSelectedActionIds(new Set());
+    }
+  }, [globalActions]);
+
+  const filteredGlobalActions = useMemo(() => {
+    return globalActions.filter(a => selectedActionIds.has(a.id));
+  }, [globalActions, selectedActionIds]);
+
+  const getEffectiveMonthRange = () => {
+    if (periodMode === "year") {
+      return { start: 1, end: 12 };
+    } else if (periodMode === "month") {
+      return { start: selectedMonth, end: selectedMonth };
+    } else if (periodMode === "range" && dateRange?.from && dateRange?.to) {
+      const startMonth = dateRange.from.getMonth() + 1;
+      const endMonth = dateRange.to.getMonth() + 1;
+      return { start: startMonth, end: endMonth };
+    }
+    return { start: 1, end: 12 };
+  };
+
+  const { start: effectiveStartMonth, end: effectiveEndMonth } = getEffectiveMonthRange();
+
+  const { data: restaurants } = useQuery({
+    queryKey: ["restaurants_with_commission", selectedChainId],
+    queryFn: async () => {
+      let query = supabase
+        .from("restaurants")
+        .select("id, name, city, postal_code, is_pinned, uber_commission_rate")
+        .order("name");
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const selectedRestaurantsData = useMemo(() => {
+    if (!restaurants) return [];
+
+    if (selectedRestaurants.length === 0) {
+      return restaurants.filter(r => r.is_pinned);
+    }
+
+    return restaurants.filter(r => selectedRestaurants.includes(r.id));
+  }, [restaurants, selectedRestaurants]);
+
+  const { contextualEvents: holidayEvents } = useFrenchHolidays(selectedYear, showHolidays);
+  const { contextualEvents: schoolHolidayEvents, loading: schoolHolidaysLoading, relevantZones } = useSchoolHolidays(selectedYear, selectedRestaurantsData, showSchoolHolidays);
+  const { footballEvents, loading: footballLoading } = useFootballMatches(selectedYear, selectedRestaurantsData, showFootballMatches);
+
+  const pinnedRestaurantIds = useMemo(() =>
+    restaurants?.filter(r => r.is_pinned).map(r => r.id) || []
+  , [restaurants]);
+  const chainRestaurantIds = useMemo(() => restaurants?.map(r => r.id) || [], [restaurants]);
+
   const restaurantFilter = useMemo(() => (
     resolveBrandScopedRestaurantIds({
       selectedRestaurantIds: selectedRestaurants,

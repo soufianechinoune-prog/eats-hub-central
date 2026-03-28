@@ -6,6 +6,18 @@ export interface BrandRestaurantScope {
   normalizedManagerPhones: string[];
 }
 
+export interface ResolveBrandScopedRestaurantIdsParams {
+  selectedRestaurantIds?: string[] | null;
+  selectedChainId: string | null;
+  isNetworkView?: boolean;
+  chainRestaurantIds?: string[] | null;
+  pinnedRestaurantIds?: string[] | null;
+}
+
+export const EMPTY_BRAND_SCOPE_RESTAURANT_IDS = [
+  "00000000-0000-0000-0000-000000000000",
+];
+
 const normalizeScopedPhone = (phone: string | null | undefined) =>
   (phone ?? "").replace(/\D/g, "");
 
@@ -31,6 +43,42 @@ export async function fetchBrandRestaurantScope(
       .map((restaurant) => normalizeScopedPhone(restaurant.manager_whatsapp))
       .filter(Boolean),
   };
+}
+
+export function resolveBrandScopedRestaurantIds({
+  selectedRestaurantIds,
+  selectedChainId,
+  isNetworkView = false,
+  chainRestaurantIds,
+  pinnedRestaurantIds,
+}: ResolveBrandScopedRestaurantIdsParams): string[] | null {
+  const availableChainIds = chainRestaurantIds ?? [];
+  const availablePinnedIds = pinnedRestaurantIds ?? [];
+  const sanitizedSelectedIds = (selectedRestaurantIds ?? []).filter((id) =>
+    !selectedChainId || availableChainIds.includes(id),
+  );
+
+  if (sanitizedSelectedIds.length > 0) {
+    return sanitizedSelectedIds;
+  }
+
+  if (selectedChainId) {
+    if (availableChainIds.length === 0) {
+      return EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
+    }
+
+    if (isNetworkView) {
+      return availableChainIds;
+    }
+
+    return availablePinnedIds.length > 0 ? availablePinnedIds : availableChainIds;
+  }
+
+  if (isNetworkView) {
+    return null;
+  }
+
+  return availablePinnedIds.length > 0 ? availablePinnedIds : null;
 }
 
 export function hasBrandScopedRestaurantIds(
