@@ -75,6 +75,7 @@ import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { CsvImportDialog } from "@/components/menu/CsvImportDialog";
 import { MenuItemChangeConfirmDialog } from "@/components/menu/MenuItemChangeConfirmDialog";
 import { DeliverooImportDialog } from "@/components/menu/DeliverooImportDialog";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 import { OfferSimulator } from "@/components/menu/OfferSimulator";
 import jsPDF from "jspdf";
@@ -389,6 +390,7 @@ function KanbanView({
 
 export default function MenuItems() {
   const { toast } = useToast();
+  const { selectedChainId } = useAnalyticsContext();
   const { detectChanges, trackChange } = useMenuItemTracking();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [menuItemsWithRestaurantPrices, setMenuItemsWithRestaurantPrices] = useState<Set<string>>(new Set());
@@ -418,6 +420,7 @@ export default function MenuItems() {
   
   // Restaurant price comparison state (persisted across tabs)
   const [priceComparisonRestaurantIds, setPriceComparisonRestaurantIds] = useState<string[]>([]);
+  const [brandRestaurantIds, setBrandRestaurantIds] = useState<string[] | null>(null);
   
   // Tab configuration with icons and colors
   const tabConfig = [
@@ -456,38 +459,125 @@ export default function MenuItems() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
+    const fetchBrandRestaurants = async () => {
+      if (!selectedChainId) {
+        setBrandRestaurantIds(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("chain_id", selectedChainId)
+        .eq("is_active", true);
+
+      if (error) {
+        console.error("Error fetching brand restaurants:", error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger les restaurants de la marque",
+          variant: "destructive",
+        });
+        setBrandRestaurantIds([]);
+        return;
+      }
+
+      setBrandRestaurantIds((data || []).map((restaurant) => restaurant.id));
+    };
+
+    fetchBrandRestaurants();
+  }, [selectedChainId, toast]);
+
+  useEffect(() => {
+    if (selectedChainId && brandRestaurantIds === null) return;
+
     fetchMenuItems();
     fetchMenuItemsWithRestaurantPrices();
-  }, []);
+
+    if (brandRestaurantIds !== null) {
+      setPriceComparisonRestaurantIds((prev) => prev.filter((id) => brandRestaurantIds.includes(id)));
+    }
+  }, [selectedChainId, brandRestaurantIds]);
 
   const fetchMenuItems = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("menu_items")
-      .select("*")
-      .order("category", { ascending: true })
-      .order("name", { ascending: true });
 
-    if (error) {
+    try {
+      let scopedMenuItemIds: string[] | null = null;
+
+      if (brandRestaurantIds !== null) {
+        if (brandRestaurantIds.length === 0) {
+          setMenuItems([]);
+          return;
+        }
+
+        const { data: scopedPrices, error: scopedPricesError } = await supabase
+          .from("restaurant_menu_prices")
+          .select("menu_item_id")
+          .in("restaurant_id", brandRestaurantIds);
+
+        if (scopedPricesError) throw scopedPricesError;
+
+        scopedMenuItemIds = Array.from(new Set((scopedPrices || []).map((item) => item.menu_item_id).filter(Boolean)));
+
+        if (scopedMenuItemIds.length === 0) {
+          setMenuItems([]);
+          return;
+        }
+      }
+
+      let query = supabase
+        .from("menu_items")
+        .select("*")
+        .order("category", { ascending: true })
+        .order("name", { ascending: true });
+
+      if (scopedMenuItemIds) {
+        query = query.in("id", scopedMenuItemIds);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      setMenuItems(data || []);
+    } catch (error) {
+      console.error("Error fetching menu items:", error);
       toast({
         title: "Erreur",
         description: "Impossible de charger les produits",
         variant: "destructive",
       });
-    } else {
-      setMenuItems(data || []);
+      setMenuItems([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const fetchMenuItemsWithRestaurantPrices = async () => {
-    const { data, error } = await supabase
-      .from("restaurant_menu_prices")
-      .select("menu_item_id");
+    try {
+      let query = supabase
+        .from("restaurant_menu_prices")
+        .select("menu_item_id");
 
-    if (!error && data) {
-      const uniqueIds = new Set(data.map(item => item.menu_item_id));
+      if (brandRestaurantIds !== null) {
+        if (brandRestaurantIds.length === 0) {
+          setMenuItemsWithRestaurantPrices(new Set());
+          return;
+        }
+
+        query = query.in("restaurant_id", brandRestaurantIds);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const uniqueIds = new Set((data || []).map(item => item.menu_item_id));
       setMenuItemsWithRestaurantPrices(uniqueIds);
+    } catch (error) {
+      console.error("Error fetching restaurant menu prices:", error);
+      setMenuItemsWithRestaurantPrices(new Set());
     }
   };
 
