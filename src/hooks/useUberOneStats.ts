@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useActiveRestaurants, usePinnedRestaurants } from "@/hooks/useChainRestaurants";
+import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 
 export interface UberOneGlobalStats {
   uberOneCount: number;
@@ -71,37 +74,30 @@ export function useUberOneStats({
   platform,
   useAllActive = false,
 }: UseUberOneStatsParams) {
-  // Fetch pinned restaurants as fallback when no restaurants selected
-  const { data: pinnedRestaurants } = useQuery({
-    queryKey: ["pinned-restaurants-for-uber-one"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("restaurants")
-        .select("id")
-        .eq("is_active", true)
-        .eq("is_pinned", true);
-      return data?.map(r => r.id) || [];
-    },
-  });
+  const { selectedChainId } = useAnalyticsContext();
+  const { data: pinnedRestaurants = [] } = usePinnedRestaurants();
+  const { data: activeRestaurants = [] } = useActiveRestaurants();
 
-  // Fetch all active restaurants when useAllActive is true
-  const { data: allActiveRestaurants } = useQuery({
-    queryKey: ["all-active-restaurants-for-uber-one"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("restaurants")
-        .select("id")
-        .eq("is_active", true);
-      return data?.map(r => r.id) || [];
-    },
-    enabled: useAllActive,
-  });
+  const chainRestaurantIds = useMemo(
+    () => activeRestaurants.map((restaurant) => restaurant.id),
+    [activeRestaurants],
+  );
+  const pinnedRestaurantIds = useMemo(
+    () => pinnedRestaurants.map((restaurant) => restaurant.id),
+    [pinnedRestaurants],
+  );
 
   const effectiveRestaurantIds = useMemo(() => {
-    if (restaurantIds.length > 0) return restaurantIds;
-    if (useAllActive) return allActiveRestaurants || [];
-    return pinnedRestaurants || [];
-  }, [restaurantIds, pinnedRestaurants, allActiveRestaurants, useAllActive]);
+    const resolvedIds = resolveBrandScopedRestaurantIds({
+      selectedRestaurantIds: restaurantIds,
+      selectedChainId,
+      isNetworkView: useAllActive,
+      chainRestaurantIds,
+      pinnedRestaurantIds,
+    });
+
+    return resolvedIds ?? chainRestaurantIds;
+  }, [restaurantIds, selectedChainId, useAllActive, chainRestaurantIds, pinnedRestaurantIds]);
 
   const useDaily = ["month", "7d", "30d", "previous_week", "current_month", "range"].includes(periodMode);
   const platformFilter = platform !== "global" ? platform : null;
@@ -126,25 +122,13 @@ export function useUberOneStats({
     enabled: effectiveRestaurantIds.length > 0,
   });
 
-  // Fetch restaurant names
-  const { data: restaurants } = useQuery({
-    queryKey: ["restaurants-for-uber-one"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("restaurants")
-        .select("id, name")
-        .eq("is_active", true);
-      return data || [];
-    },
-  });
-
   const restaurantMap = useMemo(() => {
     const map: Record<string, string> = {};
-    restaurants?.forEach((r) => {
-      map[r.id] = r.name;
+    activeRestaurants.forEach((restaurant) => {
+      map[restaurant.id] = restaurant.name;
     });
     return map;
-  }, [restaurants]);
+  }, [activeRestaurants]);
 
   // Calculate global stats from RPC data
   const globalStats = useMemo<UberOneGlobalStats | null>(() => {

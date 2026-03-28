@@ -15,6 +15,7 @@ import { RestaurantRanking } from "@/components/analytics/RestaurantRanking";
 import { useAnalyticsPdfExport } from "@/hooks/useAnalyticsPdfExport";
 import { useRestaurantActions } from "@/hooks/useRestaurantActions";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import Reviews from "@/pages/Reviews";
@@ -106,187 +107,18 @@ export default function Analytics() {
   const { exportToPdf, isExporting } = useAnalyticsPdfExport();
 
   const prevYear = selectedYear - 1;
-  const EMPTY_RESTAURANT_FILTER = ["00000000-0000-0000-0000-000000000000"];
 
   // === Performance: only fetch data relevant to the active viewMode ===
-  const needsRevenue = viewMode === 'revenue' || viewMode === 'overview';
-  const needsConversion = viewMode === 'conversion' || viewMode === 'overview';
-  const needsFinances = viewMode === 'finances';
-  const needsPayouts = viewMode === 'revenue' || viewMode === 'finances' || viewMode === 'overview';
-  const needsProfitability = viewMode === 'revenue' || viewMode === 'finances';
-
-  // Determine data granularity based on selected period
-  const { granularity, startDate, endDate, periodDays } = useDataGranularity({
-    periodMode,
-    selectedYear,
-    selectedMonth,
-    dateRange,
-  });
-
-  // Tab changes are now handled by Analytics context platform selector (no URL sync needed)
-
-  const handleChartActionsConfigChange = (newConfig: ChartActionsConfig) => {
-    setChartActionsConfig(newConfig);
-    localStorage.setItem('analyticsChartActionsConfig', JSON.stringify(newConfig));
-  };
-
-  const handleGlobalToggleChange = (value: boolean) => {
-    handleChartActionsConfigChange({ ...chartActionsConfig, global: value });
-  };
-
-  
-
-  const navigate = useNavigate();
-
-  const handleActionClick = (actionId: string) => {
-    // Navigate to actions page with highlight parameter
-    navigate(`/actions?highlight=${actionId}`);
-  };
-
-  // Fetch restaurant actions for the selected year and platform
-  const { data: uberActions } = useRestaurantActions(
-    selectedYear,
-    selectedRestaurants.length > 0 ? selectedRestaurants : undefined,
-    "uber_eats"
-  );
-
-  const { data: deliverooActions } = useRestaurantActions(
-    selectedYear,
-    selectedRestaurants.length > 0 ? selectedRestaurants : undefined,
-    "deliveroo"
-  );
-
-  const globalActions = useMemo(() => {
-    const all = [...(uberActions || []), ...(deliverooActions || [])];
-    // Deduplicate by id
-    const uniqueMap = new Map();
-    all.forEach(a => uniqueMap.set(a.id, a));
-    return Array.from(uniqueMap.values());
-  }, [uberActions, deliverooActions]);
-  
-  
-  // Initialize selectedActionIds with all actions when first loaded
-  useEffect(() => {
-    if (!hasInitializedActions && globalActions.length > 0) {
-      setSelectedActionIds(new Set(globalActions.map(a => a.id)));
-      setHasInitializedActions(true);
-    }
-  }, [globalActions, hasInitializedActions]);
-  
-  // Granular action filtering handlers
-  const handleActionToggle = useCallback((actionId: string) => {
-    setSelectedActionIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(actionId)) {
-        newSet.delete(actionId);
-      } else {
-        newSet.add(actionId);
-      }
-      return newSet;
-    });
-  }, []);
-  
-  const handleSelectAllCategory = useCallback((category: string, selected: boolean) => {
-    const categoryActionIds = globalActions.filter(a => a.category === category).map(a => a.id);
-    
-    setSelectedActionIds(prev => {
-      const newSet = new Set(prev);
-      categoryActionIds.forEach(id => {
-        if (selected) {
-          newSet.add(id);
-        } else {
-          newSet.delete(id);
-        }
-      });
-      return newSet;
-    });
-  }, [globalActions]);
-  
-  const handleSelectAll = useCallback((selected: boolean) => {
-    if (selected) {
-      setSelectedActionIds(new Set(globalActions.map(a => a.id)));
-    } else {
-      setSelectedActionIds(new Set());
-    }
-  }, [globalActions]);
-  
-  // Filter actions based on selected IDs
-  const filteredGlobalActions = useMemo(() => {
-    return globalActions.filter(a => selectedActionIds.has(a.id));
-  }, [globalActions, selectedActionIds]);
-
-  // Determine month range based on period mode
-  const getEffectiveMonthRange = () => {
-    if (periodMode === "year") {
-      return { start: 1, end: 12 };
-    } else if (periodMode === "month") {
-      return { start: selectedMonth, end: selectedMonth };
-    } else if (periodMode === "range" && dateRange?.from && dateRange?.to) {
-      // For date range, we use full months from start to end
-      const startMonth = dateRange.from.getMonth() + 1;
-      const endMonth = dateRange.to.getMonth() + 1;
-      return { start: startMonth, end: endMonth };
-    }
-    return { start: 1, end: 12 };
-  };
-
-  const { start: effectiveStartMonth, end: effectiveEndMonth } = getEffectiveMonthRange();
-
-  // Platform is managed via AnalyticsContext (persisted in localStorage), no URL sync needed
-
-  // Fetch restaurants (filtered by active chain)
-  const { data: restaurants } = useQuery({
-    queryKey: ["restaurants_with_commission", selectedChainId],
-    queryFn: async () => {
-      let query = supabase
-        .from("restaurants")
-        .select("id, name, city, postal_code, is_pinned, uber_commission_rate")
-        .order("name");
-      if (selectedChainId) {
-        query = query.eq("chain_id", selectedChainId);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
-  });
-  
-  // Filter restaurants to only selected ones for contextual events (school holidays zones)
-  // When no specific selection, use pinned restaurants to determine zones
-  const selectedRestaurantsData = useMemo(() => {
-    if (!restaurants) return [];
-    
-    if (selectedRestaurants.length === 0) {
-      // Use pinned restaurants for zone filtering when "Tous les restaurants"
-      return restaurants.filter(r => r.is_pinned);
-    }
-    
-    return restaurants.filter(r => selectedRestaurants.includes(r.id));
-  }, [restaurants, selectedRestaurants]);
-
-  // Fetch contextual events (after restaurants are loaded)
-  const { contextualEvents: holidayEvents } = useFrenchHolidays(selectedYear, showHolidays);
-  const { contextualEvents: schoolHolidayEvents, loading: schoolHolidaysLoading, relevantZones } = useSchoolHolidays(selectedYear, selectedRestaurantsData, showSchoolHolidays);
-  const { footballEvents, loading: footballLoading } = useFootballMatches(selectedYear, selectedRestaurantsData, showFootballMatches);
-
-  // Build filter for restaurants
-  // When a chain is active, never fall back to "all restaurants in DB"
-  const pinnedRestaurantIds = useMemo(() => 
-    restaurants?.filter(r => r.is_pinned).map(r => r.id) || []
-  , [restaurants]);
-  const chainRestaurantIds = useMemo(() => restaurants?.map(r => r.id) || [], [restaurants]);
-  
-  const restaurantFilter = useMemo(() => {
-    if (selectedRestaurants.length > 0) return selectedRestaurants;
-    if (selectedChainId) {
-      if (isNetworkView) {
-        return chainRestaurantIds.length > 0 ? chainRestaurantIds : EMPTY_RESTAURANT_FILTER;
-      }
-      return pinnedRestaurantIds.length > 0 ? pinnedRestaurantIds : EMPTY_RESTAURANT_FILTER;
-    }
-    if (isNetworkView) return undefined; // all restaurants only in all-brands mode
-    return pinnedRestaurantIds.length > 0 ? pinnedRestaurantIds : undefined;
-  }, [selectedRestaurants, selectedChainId, isNetworkView, pinnedRestaurantIds, chainRestaurantIds]);
+...
+  const restaurantFilter = useMemo(() => (
+    resolveBrandScopedRestaurantIds({
+      selectedRestaurantIds: selectedRestaurants,
+      selectedChainId,
+      isNetworkView,
+      chainRestaurantIds,
+      pinnedRestaurantIds,
+    })
+  ), [selectedRestaurants, selectedChainId, isNetworkView, pinnedRestaurantIds, chainRestaurantIds]);
 
   // Fetch payouts data from payouts table (aggregated by month)
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({

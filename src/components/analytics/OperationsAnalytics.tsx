@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -126,7 +127,6 @@ export function OperationsAnalytics() {
   }, [dateRange.start, dateRange.end, useDailyView]);
 
   const platformFilter = (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") ? selectedPlatform : null;
-  const EMPTY_RESTAURANT_FILTER = ["00000000-0000-0000-0000-000000000000"];
 
   // Fetch restaurants for names and pinned status (filtered by active chain)
   const { data: restaurants } = useQuery({
@@ -150,23 +150,22 @@ export function OperationsAnalytics() {
     return map;
   }, [restaurants]);
 
-  // Compute restaurant filter based on network view toggle
-  const pinnedIds = useMemo(() => 
-    restaurants?.filter(r => r.is_pinned && r.is_active).map(r => r.id) || []
+  const pinnedIds = useMemo(() =>
+    restaurants?.filter((restaurant) => restaurant.is_pinned && restaurant.is_active).map((restaurant) => restaurant.id) || []
   , [restaurants]);
-  const chainRestaurantIds = useMemo(() => 
-    restaurants?.filter(r => r.is_active).map(r => r.id) || []
+  const chainRestaurantIds = useMemo(() =>
+    restaurants?.filter((restaurant) => restaurant.is_active).map((restaurant) => restaurant.id) || []
   , [restaurants]);
-  
-  const restaurantIdsFilter = useMemo(() => {
-    if (selectedRestaurants.length > 0) return selectedRestaurants;
-    if (selectedChainId) {
-      if (isNetworkView) return chainRestaurantIds.length > 0 ? chainRestaurantIds : EMPTY_RESTAURANT_FILTER;
-      return pinnedIds.length > 0 ? pinnedIds : EMPTY_RESTAURANT_FILTER;
-    }
-    if (isNetworkView) return null; // all restaurants only in all-brands mode
-    return pinnedIds.length > 0 ? pinnedIds : null;
-  }, [selectedRestaurants, selectedChainId, isNetworkView, pinnedIds, chainRestaurantIds]);
+
+  const restaurantIdsFilter = useMemo(() => (
+    resolveBrandScopedRestaurantIds({
+      selectedRestaurantIds: selectedRestaurants,
+      selectedChainId,
+      isNetworkView,
+      chainRestaurantIds,
+      pinnedRestaurantIds: pinnedIds,
+    })
+  ), [selectedRestaurants, selectedChainId, isNetworkView, pinnedIds, chainRestaurantIds]);
 
   // Fetch monthly availability via RPC (year view)
   const { data: monthlyRpcData, isLoading: isLoadingMonthly } = useQuery({

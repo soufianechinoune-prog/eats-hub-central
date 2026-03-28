@@ -67,9 +67,16 @@ export function OrderAccuracyDashboard({
   periodMode = "year",
   dateRange,
 }: OrderAccuracyDashboardProps) {
-  // Determine if we're selecting all or specific restaurants
-  const isAllRestaurants = selectedRestaurants.length === 0;
-  const restaurantIds = isAllRestaurants ? restaurants.map(r => r.id) : selectedRestaurants;
+  const availableRestaurantIds = useMemo(
+    () => restaurants.map((restaurant) => restaurant.id),
+    [restaurants],
+  );
+  const scopedSelectedRestaurantIds = useMemo(
+    () => selectedRestaurants.filter((id) => availableRestaurantIds.includes(id)),
+    [selectedRestaurants, availableRestaurantIds],
+  );
+  const isAllRestaurants = scopedSelectedRestaurantIds.length === 0;
+  const restaurantIds = isAllRestaurants ? availableRestaurantIds : scopedSelectedRestaurantIds;
   const [objective, setObjective] = useState(2);
   const [chartType, setChartType] = useState<"line" | "bar">("bar");
   

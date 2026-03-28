@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,18 +30,16 @@ const Operations = () => {
   const [selectedMonth, setSelectedMonth] = useState<number | "all">("all");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
-  // Fetch restaurants
-  const { data: restaurants } = useQuery({
-    queryKey: ["restaurants"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("restaurants")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
-      return data || [];
-    },
-  });
+  const { data: restaurants = [] } = useActiveRestaurants();
+
+  useEffect(() => {
+    if (selectedRestaurant === "all") return;
+
+    const isStillAvailable = restaurants.some((restaurant) => restaurant.id === selectedRestaurant);
+    if (!isStillAvailable) {
+      setSelectedRestaurant("all");
+    }
+  }, [restaurants, selectedRestaurant]);
 
   // Generate year options (current year and 2 years back)
   const currentYear = new Date().getFullYear();
