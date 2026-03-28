@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useInseeDensity } from "@/hooks/useInseeDensity";
 import { DistancePoint } from "@/components/cartography/DistanceMeasurePanel";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 export interface RestaurantWithGeo {
   id: string;
@@ -39,6 +40,7 @@ export interface CannibalismAlert {
 
 const Cartography = () => {
   const queryClient = useQueryClient();
+  const { selectedChainId } = useAnalyticsContext();
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
   const [simulatedLocations, setSimulatedLocations] = useState<SimulatedLocation[]>([]);
   const [isSimulationMode, setIsSimulationMode] = useState(false);
@@ -97,13 +99,19 @@ const Cartography = () => {
 
   // Fetch restaurants with geo data
   const { data: restaurants = [], isLoading } = useQuery({
-    queryKey: ["restaurants-geo"],
+    queryKey: ["restaurants-geo", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, city, street, postal_code, latitude, longitude, coverage_radius_km, is_active")
         .eq("is_active", true)
         .order("name");
+
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as RestaurantWithGeo[];

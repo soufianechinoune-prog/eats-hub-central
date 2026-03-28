@@ -87,6 +87,8 @@ import { PromotionsTimeline } from "@/components/actions/PromotionsTimeline";
 import { UberEatsIcon, DeliverooIcon, UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { fetchBrandRestaurantScope, hasBrandScopedRestaurantIds } from "@/lib/brandScope";
 
 type ScopeFilter = "all" | "national" | "local";
 
@@ -224,6 +226,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default function RestaurantActions() {
   const { toast } = useToast();
+  const { selectedChainId } = useAnalyticsContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightedActionId = searchParams.get("highlight");
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
@@ -327,7 +330,7 @@ export default function RestaurantActions() {
     fetchMenuItems();
     fetchRestaurants();
     fetchActions();
-  }, []);
+  }, [selectedChainId]);
 
   // Handle scrolling to highlighted action when coming from analytics
   useEffect(() => {
@@ -412,11 +415,17 @@ export default function RestaurantActions() {
   };
 
   const fetchRestaurants = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from("restaurants")
       .select("id, name, postal_code, account_manager_name")
       .eq("is_active", true)
       .order("name");
+
+    if (selectedChainId) {
+      query = query.eq("chain_id", selectedChainId);
+    }
+
+    const { data, error } = await query;
 
     if (!error && data) {
       setRestaurants(data);
@@ -425,6 +434,14 @@ export default function RestaurantActions() {
 
   const fetchActions = async () => {
     setLoading(true);
+
+    const brandScope = await fetchBrandRestaurantScope(selectedChainId);
+    if (brandScope && brandScope.restaurantIds.length === 0) {
+      setActions([]);
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("restaurant_actions")
       .select("*")
@@ -437,7 +454,18 @@ export default function RestaurantActions() {
         variant: "destructive",
       });
     } else {
-      setActions(data || []);
+      const filteredActions = (data || []).filter((action: RestaurantAction) => {
+        if (!brandScope) return true;
+
+        const actionChainId = (action.change_context as any)?.brand_chain_id;
+        if (actionChainId) {
+          return actionChainId === selectedChainId;
+        }
+
+        return hasBrandScopedRestaurantIds(brandScope, action.restaurant_ids, action.restaurant_id);
+      });
+
+      setActions(filteredActions);
     }
     setLoading(false);
   };
@@ -598,6 +626,9 @@ export default function RestaurantActions() {
 
     // Construire le change_context avec scope et autres données
     const changeContext: any = {};
+    if (selectedChainId) {
+      changeContext.brand_chain_id = selectedChainId;
+    }
     if (formData.action_type === "Nouveau produit" && newProductName.trim()) {
       changeContext.new_product_name = newProductName.trim();
     }
@@ -2666,7 +2697,9 @@ export default function RestaurantActions() {
                       className="h-11 w-full justify-between font-normal"
                     >
                       {formData.restaurant_ids.length === 0 ? (
-                        <span className="text-muted-foreground">Tous les restaurants (global)</span>
+                        <span className="text-muted-foreground">
+                          {selectedChainId ? "Tous les restaurants de la marque" : "Tous les restaurants (global)"}
+                        </span>
                       ) : (
                         <span>{formData.restaurant_ids.length} restaurant(s) sélectionné(s)</span>
                       )}

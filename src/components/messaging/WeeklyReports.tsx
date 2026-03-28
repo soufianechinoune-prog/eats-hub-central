@@ -82,6 +82,8 @@ import { cn } from "@/lib/utils";
 import { useReportPdfExport } from "@/hooks/useReportPdfExport";
 import { Progress } from "@/components/ui/progress";
 import { extractCityName } from "@/lib/restaurantUtils";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { fetchBrandRestaurantScope, hasBrandScopedMessage } from "@/lib/brandScope";
 
 // Types
 interface Restaurant {
@@ -331,6 +333,7 @@ const getShortName = (name: string) => {
 
 export default function WeeklyReports() {
   const queryClient = useQueryClient();
+  const { selectedChainId } = useAnalyticsContext();
   
   // State
   const [activeTab, setActiveTab] = useState<"templates" | "send" | "history">("templates");
@@ -473,14 +476,20 @@ export default function WeeklyReports() {
 
   // Fetch pinned restaurants
   const { data: restaurants = [], isLoading: loadingRestaurants } = useQuery({
-    queryKey: ["restaurants-weekly-reports"],
+    queryKey: ["restaurants-weekly-reports", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, city, manager_first_name, manager_last_name, manager_whatsapp, is_pinned")
         .eq("is_active", true)
         .eq("is_pinned", true)
         .order("name");
+
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as Restaurant[];
@@ -497,8 +506,11 @@ export default function WeeklyReports() {
 
   // Fetch report history
   const { data: reportHistory = [], isLoading: loadingHistory } = useQuery({
-    queryKey: ["report-history"],
+    queryKey: ["report-history", selectedChainId],
     queryFn: async () => {
+      const brandScope = await fetchBrandRestaurantScope(selectedChainId);
+      if (brandScope && brandScope.restaurantIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from("message_history")
         .select("*")
@@ -508,7 +520,7 @@ export default function WeeklyReports() {
         .limit(100);
 
       if (error) throw error;
-      return data;
+      return (data || []).filter((message: any) => hasBrandScopedMessage(brandScope, message));
     },
   });
 

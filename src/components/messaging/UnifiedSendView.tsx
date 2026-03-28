@@ -71,6 +71,8 @@ import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import WhatsAppStatusCard from "./WhatsAppStatusCard";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { fetchBrandRestaurantScope, hasBrandScopedMessage, hasBrandScopedRecipients } from "@/lib/brandScope";
 
 interface Restaurant {
   id: string;
@@ -146,6 +148,7 @@ const cardVariants = {
 
 export default function UnifiedSendView() {
   const queryClient = useQueryClient();
+  const { selectedChainId } = useAnalyticsContext();
   
   // View mode: compose or history
   const [viewMode, setViewMode] = useState<"compose" | "pending" | "sent">("compose");
@@ -183,13 +186,19 @@ export default function UnifiedSendView() {
 
   // Fetch restaurants
   const { data: restaurants = [], isLoading: isLoadingRestaurants } = useQuery({
-    queryKey: ["restaurants-messaging"],
+    queryKey: ["restaurants-messaging", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, city, postal_code, manager_first_name, manager_last_name, manager_whatsapp, is_active")
         .eq("is_active", true)
         .order("name");
+
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as Restaurant[];
@@ -198,8 +207,11 @@ export default function UnifiedSendView() {
 
   // Fetch scheduled messages
   const { data: scheduledMessages = [], isLoading: isLoadingScheduled } = useQuery({
-    queryKey: ["scheduled-messages"],
+    queryKey: ["scheduled-messages", selectedChainId],
     queryFn: async () => {
+      const brandScope = await fetchBrandRestaurantScope(selectedChainId);
+      if (brandScope && brandScope.restaurantIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from("scheduled_messages")
         .select("*")
@@ -209,14 +221,17 @@ export default function UnifiedSendView() {
       return (data || []).map((msg) => ({
         ...msg,
         recipients: msg.recipients as unknown as ScheduledMessage["recipients"],
-      })) as ScheduledMessage[];
+      })).filter((msg) => hasBrandScopedRecipients(brandScope, msg.recipients)) as ScheduledMessage[];
     },
   });
 
   // Fetch sent history
   const { data: sentHistory = [], isLoading: loadingSent } = useQuery({
-    queryKey: ["outbound-sent-history"],
+    queryKey: ["outbound-sent-history", selectedChainId],
     queryFn: async () => {
+      const brandScope = await fetchBrandRestaurantScope(selectedChainId);
+      if (brandScope && brandScope.restaurantIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from("message_history")
         .select("*")
@@ -225,15 +240,17 @@ export default function UnifiedSendView() {
         .limit(500);
 
       if (error) throw error;
-      return data;
+      return (data || []).filter((message: any) => hasBrandScopedMessage(brandScope, message));
     },
     enabled: viewMode === "sent",
   });
 
   // Fetch campaigns
   const { data: campaigns = [] } = useQuery({
-    queryKey: ["message-campaigns"],
+    queryKey: ["message-campaigns", selectedChainId],
     queryFn: async () => {
+      if (selectedChainId) return [];
+
       const { data, error } = await supabase
         .from("message_campaigns")
         .select("*")
