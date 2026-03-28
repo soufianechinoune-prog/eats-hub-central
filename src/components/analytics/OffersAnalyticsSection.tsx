@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useOffersAnalytics, type RestaurantOfferStats } from "@/hooks/useOffersAnalytics";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useActiveRestaurants, usePinnedRestaurants } from "@/hooks/useChainRestaurants";
+import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { Loader2 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, ComposedChart, Legend, Cell,
@@ -33,26 +33,29 @@ export function OffersAnalyticsSection() {
     periodMode,
     dateRange,
     isNetworkView,
+    selectedChainId,
   } = useAnalyticsContext();
 
   const [sortKey, setSortKey] = useState<SortKey>("totalFees");
   const [sortAsc, setSortAsc] = useState(false);
 
-  // Fetch all active restaurants
-  const { data: allRestaurants = [] } = useQuery({
-    queryKey: ["restaurants-list"],
-    queryFn: async () => {
-      const { data } = await supabase.from("restaurants").select("id, name, is_pinned").eq("is_active", true);
-      return data || [];
-    },
-  });
+  const { data: activeRestaurants = [] } = useActiveRestaurants();
+  const { data: pinnedRestaurants = [] } = usePinnedRestaurants();
 
-  // Determine effective restaurants based on network toggle
-  const restaurants = useMemo(() => allRestaurants.map(r => ({ id: r.id, name: r.name })), [allRestaurants]);
+  const restaurants = useMemo(
+    () => activeRestaurants.map((restaurant) => ({ id: restaurant.id, name: restaurant.name })),
+    [activeRestaurants],
+  );
 
-  const pinnedIds = useMemo(() => allRestaurants.filter(r => r.is_pinned).map(r => r.id), [allRestaurants]);
+  const chainRestaurantIds = useMemo(
+    () => activeRestaurants.map((restaurant) => restaurant.id),
+    [activeRestaurants],
+  );
+  const pinnedIds = useMemo(
+    () => pinnedRestaurants.map((restaurant) => restaurant.id),
+    [pinnedRestaurants],
+  );
 
-  // Date range
   const { startDate, endDate } = useMemo(() => {
     if (periodMode === "range" && dateRange?.from && dateRange?.to) {
       return { startDate: format(dateRange.from, "yyyy-MM-dd"), endDate: format(dateRange.to, "yyyy-MM-dd") };
@@ -67,15 +70,21 @@ export function OffersAnalyticsSection() {
     return { startDate: format(s, "yyyy-MM-dd"), endDate: format(e, "yyyy-MM-dd") };
   }, [selectedYear, selectedMonth, periodMode, dateRange]);
 
-  // Respect network toggle: pinned vs all, then override with explicit selection
-  const restaurantIds = useMemo(() => {
-    if (selectedRestaurants.length > 0) return selectedRestaurants;
-    if (isNetworkView) return allRestaurants.map(r => r.id);
-    return pinnedIds.length > 0 ? pinnedIds : allRestaurants.map(r => r.id);
-  }, [selectedRestaurants, isNetworkView, allRestaurants, pinnedIds]);
+  const restaurantIds = useMemo(() => (
+    resolveBrandScopedRestaurantIds({
+      selectedRestaurantIds: selectedRestaurants,
+      selectedChainId,
+      isNetworkView,
+      chainRestaurantIds,
+      pinnedRestaurantIds: pinnedIds,
+    }) ?? []
+  ), [selectedRestaurants, selectedChainId, isNetworkView, chainRestaurantIds, pinnedIds]);
 
   const { isLoading, isError, errorMessage, kpis, restaurantStats, monthlyStats, heatmapData, anomalies } = useOffersAnalytics(
-    restaurantIds, startDate, endDate, restaurants
+    restaurantIds,
+    startDate,
+    endDate,
+    restaurants,
   );
 
   // Sort handler

@@ -15,6 +15,7 @@ export function usePinnedRestaurants() {
         .from("restaurants")
         .select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
         .eq("is_pinned", true)
+        .eq("is_active", true)
         .order("name");
       if (selectedChainId) {
         query = query.eq("chain_id", selectedChainId);
