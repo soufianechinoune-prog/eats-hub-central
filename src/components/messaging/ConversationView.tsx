@@ -68,6 +68,8 @@ import { useVoiceRecorder, formatRecordingTime } from "@/hooks/useVoiceRecorder"
 import { AudioPlayer } from "@/components/messaging/AudioPlayer";
 import { useMessageNotifications } from "@/hooks/useMessageNotifications";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { fetchBrandRestaurantScope, hasBrandScopedMessage } from "@/lib/brandScope";
 
 interface Message {
   id: string;
@@ -132,6 +134,7 @@ const conversationItemVariants = {
 
 export default function ConversationView() {
   const queryClient = useQueryClient();
+  const { selectedChainId } = useAnalyticsContext();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
@@ -184,8 +187,11 @@ export default function ConversationView() {
 
   // Fetch all messages
   const { data: messages = [], isLoading } = useQuery({
-    queryKey: ["conversation-messages"],
+    queryKey: ["conversation-messages", selectedChainId],
     queryFn: async () => {
+      const brandScope = await fetchBrandRestaurantScope(selectedChainId);
+      if (brandScope && brandScope.restaurantIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from("message_history")
         .select("*")
@@ -193,18 +199,24 @@ export default function ConversationView() {
         .limit(500);
 
       if (error) throw error;
-      return data as Message[];
+      return (data || []).filter((message: Message) => hasBrandScopedMessage(brandScope, message)) as Message[];
     },
   });
 
   // Fetch restaurants for association
   const { data: restaurants = [] } = useQuery({
-    queryKey: ["restaurants-for-conversations"],
+    queryKey: ["restaurants-for-conversations", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, manager_whatsapp, manager_first_name, manager_last_name")
         .not("manager_whatsapp", "is", null);
+
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as Restaurant[];

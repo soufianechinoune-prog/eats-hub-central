@@ -65,6 +65,8 @@ import UnifiedSendView from "@/components/messaging/UnifiedSendView";
 import WeeklyReports from "@/components/messaging/WeeklyReports";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { fetchBrandRestaurantScope, hasBrandScopedMessage, hasBrandScopedRecipients } from "@/lib/brandScope";
 
 interface Restaurant {
   id: string;
@@ -140,6 +142,7 @@ const cardVariants = {
 
 export default function Messaging() {
   const queryClient = useQueryClient();
+  const { selectedChainId } = useAnalyticsContext();
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [selectedRestaurants, setSelectedRestaurants] = useState<Set<string>>(new Set());
@@ -176,13 +179,19 @@ export default function Messaging() {
 
   // Fetch restaurants
   const { data: restaurants = [], isLoading } = useQuery({
-    queryKey: ["restaurants-messaging"],
+    queryKey: ["restaurants-messaging", selectedChainId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("restaurants")
         .select("id, name, city, postal_code, manager_first_name, manager_last_name, manager_whatsapp, is_active")
         .eq("is_active", true)
         .order("name");
+
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as Restaurant[];
@@ -191,8 +200,11 @@ export default function Messaging() {
 
   // Fetch scheduled messages
   const { data: scheduledMessages = [], isLoading: isLoadingScheduled } = useQuery({
-    queryKey: ["scheduled-messages"],
+    queryKey: ["scheduled-messages", selectedChainId],
     queryFn: async () => {
+      const brandScope = await fetchBrandRestaurantScope(selectedChainId);
+      if (brandScope && brandScope.restaurantIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from("scheduled_messages")
         .select("*")
@@ -202,14 +214,17 @@ export default function Messaging() {
       return (data || []).map((msg) => ({
         ...msg,
         recipients: msg.recipients as unknown as ScheduledMessage["recipients"],
-      })) as ScheduledMessage[];
+      })).filter((msg) => hasBrandScopedRecipients(brandScope, msg.recipients)) as ScheduledMessage[];
     },
   });
 
   // Fetch message history (for unread count in conversations)
   const { data: messageHistory = [] } = useQuery({
-    queryKey: ["message-history"],
+    queryKey: ["message-history", selectedChainId],
     queryFn: async () => {
+      const brandScope = await fetchBrandRestaurantScope(selectedChainId);
+      if (brandScope && brandScope.restaurantIds.length === 0) return [];
+
       const { data, error } = await supabase
         .from("message_history")
         .select("id, direction, status")
@@ -217,7 +232,11 @@ export default function Messaging() {
         .limit(200);
 
       if (error) throw error;
-      return data as { id: string; direction: string; status: string }[];
+      return (data || []).filter((message: any) => hasBrandScopedMessage(brandScope, message)) as {
+        id: string;
+        direction: string;
+        status: string;
+      }[];
     },
   });
 
