@@ -220,17 +220,31 @@ export function EcoContributionSection({
   const [sortKey, setSortKey] = useState<"net" | "refund" | "charge">("net");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
+  // Merge restaurants: eco data + restaurants with REP status but no eco data
+  const mergedByRestaurant = useMemo(() => {
+    const existingIds = new Set(byRestaurant.map(r => r.restaurant_id));
+    const extras: typeof byRestaurant = [];
+    if (repChecked) {
+      for (const rId of restaurantIds) {
+        if (!existingIds.has(rId)) {
+          extras.push({ restaurant_id: rId, refund: 0, charge: 0, net: 0, lineCount: 0 } as any);
+        }
+      }
+    }
+    return [...byRestaurant, ...extras];
+  }, [byRestaurant, repChecked, restaurantIds]);
+
   const sortedRestaurants = useMemo(() => {
     const filtered = soldeFilter === "all"
-      ? byRestaurant
+      ? mergedByRestaurant
       : soldeFilter === "positive"
-        ? byRestaurant.filter(r => r.net >= 0)
-        : byRestaurant.filter(r => r.net < 0);
+        ? mergedByRestaurant.filter(r => r.net >= 0)
+        : mergedByRestaurant.filter(r => r.net < 0);
     return [...filtered].sort((a, b) => {
       const diff = a[sortKey] - b[sortKey];
       return sortDir === "desc" ? -diff : diff;
     });
-  }, [byRestaurant, sortKey, sortDir, soldeFilter]);
+  }, [mergedByRestaurant, sortKey, sortDir, soldeFilter]);
 
   const filteredRestaurants = useMemo(() => {
     if (!searchQuery.trim()) return sortedRestaurants;
@@ -722,7 +736,7 @@ export function EcoContributionSection({
             </div>
 
             <div>
-              {byRestaurant.length > 0 ? (
+              {(byRestaurant.length > 0 || (repChecked && restaurantIds.length > 0)) ? (
                 <>
                   <Table>
                     <TableHeader>
