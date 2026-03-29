@@ -736,7 +736,7 @@ export function EcoContributionSection({
             </div>
 
             <div>
-              {byRestaurant.length > 0 ? (
+              {(byRestaurant.length > 0 || (repChecked && restaurantIds.length > 0)) ? (
                 <>
                   <Table>
                     <TableHeader>
