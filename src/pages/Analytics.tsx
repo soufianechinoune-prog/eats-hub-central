@@ -1468,6 +1468,7 @@ export default function Analytics() {
                   selectedYear={selectedYear}
                   selectedMonth={drillDownMonth}
                   selectedPlatform={selectedPlatform}
+                  selectedChainId={selectedChainId}
                 />
               );
             } else if (viewMode === "reviews") {
