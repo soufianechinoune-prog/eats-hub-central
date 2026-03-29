@@ -33,6 +33,7 @@ interface EcoContributionSectionProps {
   selectedYear: number;
   selectedMonth?: number | null;
   selectedPlatform?: "uber_eats" | "deliveroo" | "global";
+  selectedChainId?: string | null;
 }
 
 interface ParsedRepData {
@@ -59,6 +60,7 @@ export function EcoContributionSection({
   selectedYear,
   selectedMonth,
   selectedPlatform = "global",
+  selectedChainId,
 }: EcoContributionSectionProps) {
   const [localYear, setLocalYear] = useState<number | null>(selectedYear);
   
@@ -85,7 +87,7 @@ export function EcoContributionSection({
   const {
     latestSnapshot, changes: repChanges, evolutionData: repEvolutionData,
     loadingCache: repLoadingCache, saveSnapshot: saveRepSnapshot,
-  } = useRepCheckPersistence(restaurantIds);
+  } = useRepCheckPersistence(restaurantIds, selectedChainId);
 
   // Auto-load cached results on mount
   const cachedRepLoaded = useRef(false);
@@ -103,21 +105,30 @@ export function EcoContributionSection({
   const [ecoScanLoading, setEcoScanLoading] = useState(false);
   const [ecoLastScanDate, setEcoLastScanDate] = useState<string | null>(null);
 
-  // Load latest eco line snapshot on mount
+  // Load latest eco line snapshot on mount, filtered by chain
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("eco_line_snapshots" as any)
         .select("*")
         .order("checked_at", { ascending: false })
         .limit(1);
+      if (selectedChainId) {
+        query = query.eq("chain_id", selectedChainId);
+      } else {
+        query = query.is("chain_id", null);
+      }
+      const { data } = await query;
       if (data && data.length > 0) {
         const snap = data[0] as any;
         setEcoLineSnapshot(snap.line_counts as Record<string, number>);
         setEcoLastScanDate(snap.checked_at);
+      } else {
+        setEcoLineSnapshot(null);
+        setEcoLastScanDate(null);
       }
     })();
-  }, []);
+  }, [selectedChainId]);
 
   const { monthlyData, byRestaurant, totals, detailLines, isLoading } = useEcoContribution({
     restaurantIds,
@@ -335,6 +346,7 @@ export function EcoContributionSection({
         .insert({
           line_counts: currentCounts,
           total_lines: Object.values(currentCounts).reduce((s, c) => s + c, 0),
+          chain_id: selectedChainId || null,
         } as any);
       if (!error) {
         setEcoLineSnapshot(currentCounts);

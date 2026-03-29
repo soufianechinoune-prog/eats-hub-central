@@ -1,0 +1,2 @@
+ALTER TABLE public.rep_check_snapshots ADD COLUMN chain_id UUID REFERENCES public.chains(id) ON DELETE SET NULL;
+ALTER TABLE public.eco_line_snapshots ADD COLUMN chain_id UUID REFERENCES public.chains(id) ON DELETE SET NULL;

@@ -27,24 +27,30 @@ export interface RepChangeInfo {
   changeType: "new_adherent" | "lost_adherent";
 }
 
-export function useRepCheckPersistence(restaurantIds: string[]) {
+export function useRepCheckPersistence(restaurantIds: string[], chainId?: string | null) {
   const [snapshots, setSnapshots] = useState<RepSnapshot[]>([]);
   const [previousSnapshot, setPreviousSnapshot] = useState<RepSnapshot | null>(null);
   const [latestSnapshot, setLatestSnapshot] = useState<RepSnapshot | null>(null);
   const [loadingCache, setLoadingCache] = useState(true);
 
-  // Load all snapshots on mount
+  // Load all snapshots on mount or when chainId changes
   useEffect(() => {
     loadSnapshots();
-  }, []);
+  }, [chainId]);
 
   const loadSnapshots = async () => {
     setLoadingCache(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("rep_check_snapshots")
         .select("*")
         .order("checked_at", { ascending: true });
+      if (chainId) {
+        query = query.eq("chain_id", chainId);
+      } else {
+        query = query.is("chain_id", null);
+      }
+      const { data, error } = await query;
 
       if (error) throw error;
       if (data && data.length > 0) {
@@ -106,6 +112,7 @@ export function useRepCheckPersistence(restaurantIds: string[]) {
       non_trouve_count: nonTrouve,
       sans_siret_count: sansSiret,
       results,
+      chain_id: chainId || null,
     };
 
     try {

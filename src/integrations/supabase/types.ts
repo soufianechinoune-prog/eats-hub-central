@@ -720,6 +720,7 @@ export type Database = {
       }
       eco_line_snapshots: {
         Row: {
+          chain_id: string | null
           checked_at: string
           created_at: string
           id: string
@@ -727,6 +728,7 @@ export type Database = {
           total_lines: number
         }
         Insert: {
+          chain_id?: string | null
           checked_at?: string
           created_at?: string
           id?: string
@@ -734,13 +736,22 @@ export type Database = {
           total_lines?: number
         }
         Update: {
+          chain_id?: string | null
           checked_at?: string
           created_at?: string
           id?: string
           line_counts?: Json
           total_lines?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "eco_line_snapshots_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       hourly_availability: {
         Row: {
@@ -2374,6 +2385,7 @@ export type Database = {
       }
       rep_check_snapshots: {
         Row: {
+          chain_id: string | null
           checked_at: string
           created_at: string
           id: string
@@ -2384,6 +2396,7 @@ export type Database = {
           sans_siret_count: number
         }
         Insert: {
+          chain_id?: string | null
           checked_at?: string
           created_at?: string
           id?: string
@@ -2394,6 +2407,7 @@ export type Database = {
           sans_siret_count?: number
         }
         Update: {
+          chain_id?: string | null
           checked_at?: string
           created_at?: string
           id?: string
@@ -2403,7 +2417,15 @@ export type Database = {
           results?: Json
           sans_siret_count?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "rep_check_snapshots_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       report_templates: {
         Row: {
