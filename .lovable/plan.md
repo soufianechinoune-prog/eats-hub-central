@@ -1,52 +1,33 @@
 
 
 ## Objectif
-Appliquer les RLS chain-scopées sur les 2 dernières tables : `menu_items` et `scheduled_messages`.
+Ajouter la fonctionnalité "Mot de passe oublié" : lien sur /login, envoi d'email de reset, page /reset-password pour saisir le nouveau mot de passe.
 
-## Migration SQL
+## Fichiers à modifier/créer
 
-```sql
--- ============================================
--- 1. menu_items — pattern standard via restaurant_id
--- ============================================
-DROP POLICY IF EXISTS "Allow read menu_items for all" ON public.menu_items;
-DROP POLICY IF EXISTS "Allow insert menu_items for all" ON public.menu_items;
-DROP POLICY IF EXISTS "Allow update menu_items for all" ON public.menu_items;
-DROP POLICY IF EXISTS "Allow delete menu_items for all" ON public.menu_items;
+### 1. `src/pages/Login.tsx` — Ajouter le lien "Mot de passe oublié ?"
+- Ajouter une fonction `handleForgotPassword` :
+  - Si `email` vide → toast "Entrez votre email d'abord"
+  - Sinon → `supabase.auth.resetPasswordForEmail(email, { redirectTo: 'https://cs-delivery-performance.com/reset-password' })`
+  - Succès → toast "Email de réinitialisation envoyé"
+  - Erreur → toast avec message
+- Ajouter un bouton texte sous le bouton "Se connecter" : `"Mot de passe oublié ?"`
 
-CREATE POLICY "Chain scoped access on menu_items" ON public.menu_items
-  FOR ALL TO authenticated
-  USING (
-    is_super_admin() OR restaurant_id IN (
-      SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id)
-    )
-  )
-  WITH CHECK (
-    is_super_admin() OR restaurant_id IN (
-      SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id)
-    )
-  );
+### 2. Créer `src/pages/ResetPassword.tsx`
+- Style identique à Login.tsx (Card centré, même structure)
+- Vérifie la présence du hash `type=recovery` dans l'URL au mount (Supabase gère la session automatiquement via le token dans le fragment)
+- 2 champs : "Nouveau mot de passe" + "Confirmer le mot de passe"
+- Validation : min 8 caractères, les 2 champs doivent correspondre
+- Appel `supabase.auth.updateUser({ password })` 
+- Succès → toast "Mot de passe mis à jour" + `navigate("/")`
+- Erreur → toast avec message
 
--- ============================================
--- 2. scheduled_messages — accès super_admin + importer uniquement
--- ============================================
-DROP POLICY IF EXISTS "Authenticated full access on scheduled_messages" ON public.scheduled_messages;
-
-CREATE POLICY "Import role access on scheduled_messages" ON public.scheduled_messages
-  FOR ALL TO authenticated
-  USING (
-    is_super_admin() OR get_user_role() = 'importer'
-  )
-  WITH CHECK (
-    is_super_admin() OR get_user_role() = 'importer'
-  );
+### 3. `src/App.tsx` — Ajouter la route publique
+```tsx
+<Route path="/reset-password" element={<ResetPassword />} />
 ```
+Ajoutée dans la section des routes publiques (à côté de `/login`, `/privacy-policy`).
 
-## Résultat
-- **menu_items** : accès restreint par chain via `restaurant_id → restaurants.chain_id`
-- **scheduled_messages** : accès restreint aux rôles `super_admin` et `importer` (les clients sont exclus)
-- **Total après migration** : 44 tables sécurisées
-
-## Aucun changement de code
-Migration SQL uniquement.
+## Aucune migration SQL nécessaire
+Utilise uniquement les fonctions Auth intégrées.
 
