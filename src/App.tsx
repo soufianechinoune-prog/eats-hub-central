@@ -47,6 +47,7 @@ import MarketingAnalytics from "./pages/MarketingAnalytics";
 import SuccessScore from "./pages/SuccessScore";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 import Reviews from "./pages/Reviews";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient({
   defaultOptions: {
