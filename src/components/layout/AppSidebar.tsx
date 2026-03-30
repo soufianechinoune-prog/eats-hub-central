@@ -74,6 +74,7 @@ import { Button } from "@/components/ui/button";
 import csLogo from "@/assets/cs-logo.jpeg";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
