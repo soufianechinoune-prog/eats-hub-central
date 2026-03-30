@@ -318,7 +318,7 @@ export function AppSidebar() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes les marques</SelectItem>
-                  {chains.map((chain) => (
+                  {chains?.map((chain) => (
                     <SelectItem key={chain.id} value={chain.id}>
                       {chain.name}
                     </SelectItem>
