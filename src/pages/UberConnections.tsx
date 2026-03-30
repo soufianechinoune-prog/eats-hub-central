@@ -30,6 +30,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getUberAuthUrl, refreshAccessToken, getStoreStatus, setStoreStatus } from "@/services/uberService";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 
 const UberConnections = () => {
   const { toast } = useToast();
@@ -51,17 +52,7 @@ const UberConnections = () => {
     },
   });
 
-  const { data: availableRestaurants } = useQuery({
-    queryKey: ["available-restaurants"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("restaurants")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
-      return data || [];
-    },
-  });
+  const { data: availableRestaurants } = useActiveRestaurants();
 
   const handleConnectUber = () => {
     // Nouveau processus : on se connecte d'abord à Uber, puis on nommera la connexion

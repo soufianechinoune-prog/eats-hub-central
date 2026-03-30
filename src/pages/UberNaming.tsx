@@ -14,6 +14,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 
 const UberNaming = () => {
   const [searchParams] = useSearchParams();
@@ -38,17 +39,7 @@ const UberNaming = () => {
     enabled: !!connectionId,
   });
 
-  const { data: availableRestaurants } = useQuery({
-    queryKey: ["available-restaurants-naming"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("restaurants")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
-      return data || [];
-    },
-  });
+  const { data: availableRestaurants } = useActiveRestaurants();
 
   useEffect(() => {
     if (!connectionId) {

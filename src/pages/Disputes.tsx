@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,18 +47,12 @@ const Disputes = () => {
   const [showAnalytics, setShowAnalytics] = useState<boolean>(false);
   const { toast } = useToast();
 
-  // Fetch restaurants
-  const { data: restaurants } = useQuery({
-    queryKey: ["restaurants"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("restaurants")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
-      return data || [];
-    },
-  });
+  // Fetch restaurants (filtered by active chain)
+  const { data: activeRestaurants } = useActiveRestaurants();
+  const restaurants = useMemo(() =>
+    (activeRestaurants || []).map(r => ({ ...r, id: r.id, name: r.name, city: r.city })),
+    [activeRestaurants]
+  );
 
   // Fetch order errors from last 30 days
   const { data: orderErrors, isLoading, refetch } = useQuery({
