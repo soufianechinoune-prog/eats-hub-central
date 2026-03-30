@@ -3181,6 +3181,38 @@ export type Database = {
           },
         ]
       }
+      user_chain_access: {
+        Row: {
+          chain_id: string | null
+          created_at: string | null
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          chain_id?: string | null
+          created_at?: string | null
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          chain_id?: string | null
+          created_at?: string | null
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_chain_access_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       weather_data: {
         Row: {
           created_at: string
@@ -3679,6 +3711,7 @@ export type Database = {
           uber_one_revenue: number
         }[]
       }
+      get_user_role: { Args: never; Returns: string }
       get_yearly_payouts_detail: {
         Args: { p_restaurant_ids?: string[]; p_year: number }
         Returns: {
@@ -3710,6 +3743,7 @@ export type Database = {
           vat_uber_fee: number
         }[]
       }
+      is_super_admin: { Args: never; Returns: boolean }
       update_uber_commission_rates: {
         Args: never
         Returns: {
@@ -3720,6 +3754,7 @@ export type Database = {
           restaurant_name: string
         }[]
       }
+      user_has_chain_access: { Args: { p_chain_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
