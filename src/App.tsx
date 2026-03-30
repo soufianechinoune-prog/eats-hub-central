@@ -47,6 +47,7 @@ import MarketingAnalytics from "./pages/MarketingAnalytics";
 import SuccessScore from "./pages/SuccessScore";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 import Reviews from "./pages/Reviews";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -122,6 +123,7 @@ const App = () => {
                   <Route path="/success-score" element={<P><AppLayout><SuccessScore /></AppLayout></P>} />
                   <Route path="/uber-mapping" element={<P><AppLayout><UberStoreMapping /></AppLayout></P>} />
                   <Route path="/deliveroo-matching" element={<P><AppLayout><DeliverooMatching /></AppLayout></P>} />
+                  <Route path="/admin" element={<P><AppLayout><Admin /></AppLayout></P>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </BrowserRouter>

@@ -74,6 +74,7 @@ import { Button } from "@/components/ui/button";
 import csLogo from "@/assets/cs-logo.jpeg";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
@@ -178,6 +179,7 @@ export function AppSidebar() {
   const [newChainDialogOpen, setNewChainDialogOpen] = useState(false);
   const [newChainName, setNewChainName] = useState("");
   const { selectedChainId, setSelectedChainId, setSelectedRestaurants, setVisibleRestaurants } = useAnalyticsContext();
+  const { data: isSuperAdmin } = useIsSuperAdmin();
 
   // Fetch available chains
   const { data: chains } = useQuery({
@@ -510,6 +512,23 @@ export function AppSidebar() {
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>
+              {isSuperAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    className={
+                      location.pathname === "/admin"
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : ""
+                    }
+                  >
+                    <NavLink to="/admin">
+                      <Shield className="h-4 w-4" />
+                      {!collapsed && <span>Admin</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
@@ -520,7 +539,7 @@ export function AppSidebar() {
                   }
                 >
                   <NavLink to="/privacy-policy">
-                    <Shield className="h-4 w-4" />
+                    <Eye className="h-4 w-4" />
                     {!collapsed && <span>Confidentialité</span>}
                   </NavLink>
                 </SidebarMenuButton>
