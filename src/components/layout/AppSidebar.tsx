@@ -299,7 +299,7 @@ export function AppSidebar() {
             )}
           </SidebarGroupLabel>
           {/* Chain selector */}
-          {!collapsed && chains && chains.length > 0 && (
+          {!collapsed && (
             <div className="px-2 pb-2">
               <Select
                 value={selectedChainId || "all"}
