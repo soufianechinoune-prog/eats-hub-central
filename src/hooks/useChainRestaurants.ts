@@ -38,7 +38,7 @@ export function useActiveRestaurants() {
     queryFn: async () => {
       let query = supabase
         .from("restaurants")
-        .select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
+        .select("id, name, city, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
         .eq("is_active", true)
         .order("name");
       if (selectedChainId) {

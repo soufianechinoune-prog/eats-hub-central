@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,18 +145,12 @@ export default function DataEntry() {
     }
   }, [restaurantFromUrl]);
 
-  // Fetch restaurants
-  const { data: restaurants } = useQuery({
-    queryKey: ["restaurants"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name, city")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  // Fetch restaurants filtered by active brand
+  const { data: activeRestaurants } = useActiveRestaurants();
+  const restaurants = useMemo(() =>
+    (activeRestaurants || []).map(r => ({ id: r.id, name: r.name, city: r.city })),
+    [activeRestaurants]
+  );
 
   // Fetch revenue entries
   const { data: revenueEntries, isLoading: loadingRevenue } = useQuery({
