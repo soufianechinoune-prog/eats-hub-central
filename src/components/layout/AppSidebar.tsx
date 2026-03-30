@@ -181,6 +181,7 @@ export function AppSidebar() {
   const [newChainName, setNewChainName] = useState("");
   const { selectedChainId, setSelectedChainId, setSelectedRestaurants, setVisibleRestaurants } = useAnalyticsContext();
   const { data: isSuperAdmin } = useIsSuperAdmin();
+  const canImport = useCanImport();
 
   // Fetch available chains
   const { data: chains } = useQuery({
