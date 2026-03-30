@@ -306,7 +306,7 @@ export function AppSidebar() {
             )}
           </SidebarGroupLabel>
           {/* Chain selector */}
-          {!collapsed && (
+          {!collapsed && canImport && (
             <div className="px-2 pb-2">
               <Select
                 value={selectedChainId || "all"}
