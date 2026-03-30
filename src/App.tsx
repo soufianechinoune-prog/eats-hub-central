@@ -99,6 +99,7 @@ const App = () => {
                   <Route path="/login" element={<Login />} />
                   <Route path="/auth" element={<Navigate to="/login" replace />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/auth/uber/callback" element={<UberCallback />} />
                   <Route path="/uber-callback" element={<UberCallback />} />
 
