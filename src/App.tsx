@@ -123,7 +123,7 @@ const App = () => {
                   <Route path="/analytics/ranking/:metric" element={<P><RankingDetail /></P>} />
                   <Route path="/menu-items" element={<P><ImportRoute><AppLayout><MenuItems /></AppLayout></ImportRoute></P>} />
                   <Route path="/actions" element={<P><AppLayout><RestaurantActions /></AppLayout></P>} />
-                  <Route path="/menu-history" element={<P><AppLayout><MenuHistory /></AppLayout></P>} />
+                  <Route path="/menu-history" element={<P><ImportRoute><AppLayout><MenuHistory /></AppLayout></ImportRoute></P>} />
                   <Route path="/operations" element={<P><AppLayout><Operations /></AppLayout></P>} />
                   <Route path="/report-import" element={<P><AppLayout><ReportImport /></AppLayout></P>} />
                   <Route path="/cartography" element={<P><Cartography /></P>} />
