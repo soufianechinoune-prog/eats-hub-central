@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { KPICard } from "@/components/dashboard/KPICard";
@@ -25,24 +25,45 @@ import { Button } from "@/components/ui/button";
 import { Euro, ShoppingCart, TrendingUp, Ticket, Percent } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { DateRange, RestaurantPerformance } from "@/types";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { EMPTY_BRAND_SCOPE_RESTAURANT_IDS } from "@/lib/brandScope";
 
 const Dashboard = () => {
   const [dateRange, setDateRange] = useState<DateRange>("7");
   const [activeTab, setActiveTab] = useState("overview");
   const navigate = useNavigate();
+  const { selectedChainId } = useAnalyticsContext();
+  const { data: activeRestaurants } = useActiveRestaurants();
+
+  const scopedRestaurantIds = useMemo(() => {
+    if (!selectedChainId) return null; // no chain filter → global
+    const ids = (activeRestaurants || []).map((r) => r.id);
+    return ids.length > 0 ? ids : EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
+  }, [selectedChainId, activeRestaurants]);
 
   // Fetch KPIs
   const { data: kpis, isLoading: kpisLoading } = useQuery({
-    queryKey: ["dashboard-kpis", dateRange],
+    queryKey: ["dashboard-kpis", dateRange, scopedRestaurantIds],
     queryFn: async () => {
+      if (scopedRestaurantIds && scopedRestaurantIds === EMPTY_BRAND_SCOPE_RESTAURANT_IDS) {
+        return { totalGrossRevenue: 0, totalNetRevenue: 0, totalOrders: 0, averageTicket: 0 };
+      }
+
       const daysAgo = parseInt(dateRange);
       const fromDate = new Date();
       fromDate.setDate(fromDate.getDate() - daysAgo);
 
-      const { data: orders } = await supabase
+      let query = supabase
         .from("orders")
         .select("gross_amount, net_amount")
         .gte("order_datetime", fromDate.toISOString());
+
+      if (scopedRestaurantIds) {
+        query = query.in("restaurant_id", scopedRestaurantIds);
+      }
+
+      const { data: orders } = await query;
 
       const totalGross = orders?.reduce((sum, o) => sum + (o.gross_amount || 0), 0) || 0;
       const totalNet = orders?.reduce((sum, o) => sum + (o.net_amount || 0), 0) || 0;
@@ -60,19 +81,29 @@ const Dashboard = () => {
 
   // Fetch restaurant performance
   const { data: restaurantPerformance, isLoading: perfLoading } = useQuery({
-    queryKey: ["restaurant-performance", dateRange],
+    queryKey: ["restaurant-performance", dateRange, scopedRestaurantIds],
     queryFn: async () => {
+      if (scopedRestaurantIds && scopedRestaurantIds === EMPTY_BRAND_SCOPE_RESTAURANT_IDS) {
+        return [];
+      }
+
       const daysAgo = parseInt(dateRange);
       const fromDate = new Date();
       fromDate.setDate(fromDate.getDate() - daysAgo);
 
-      const { data: restaurants } = await supabase
+      let restaurantQuery = supabase
         .from("restaurants")
         .select(`
           *,
           uber_connections (*)
         `)
         .eq("is_active", true);
+
+      if (scopedRestaurantIds) {
+        restaurantQuery = restaurantQuery.in("id", scopedRestaurantIds);
+      }
+
+      const { data: restaurants } = await restaurantQuery;
 
       if (!restaurants) return [];
 
