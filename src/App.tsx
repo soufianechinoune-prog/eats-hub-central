@@ -139,8 +139,8 @@ const App = () => {
                   <Route path="/item-sales" element={<P><ItemSales /></P>} />
                   <Route path="/marketing-analytics" element={<P><MarketingAnalytics /></P>} />
                   <Route path="/success-score" element={<P><AppLayout><SuccessScore /></AppLayout></P>} />
-                  <Route path="/uber-mapping" element={<P><AppLayout><UberStoreMapping /></AppLayout></P>} />
-                  <Route path="/deliveroo-matching" element={<P><AppLayout><DeliverooMatching /></AppLayout></P>} />
+                  <Route path="/uber-mapping" element={<P><ImportRoute><AppLayout><UberStoreMapping /></AppLayout></ImportRoute></P>} />
+                  <Route path="/deliveroo-matching" element={<P><ImportRoute><AppLayout><DeliverooMatching /></AppLayout></ImportRoute></P>} />
                   <Route path="/admin" element={<P><AppLayout><Admin /></AppLayout></P>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
