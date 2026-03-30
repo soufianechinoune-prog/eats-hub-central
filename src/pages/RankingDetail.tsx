@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,18 +93,8 @@ export default function RankingDetail() {
 
   const prevYear = selectedYear - 1;
 
-  // Fetch restaurants
-  const { data: restaurants } = useQuery({
-    queryKey: ["restaurants"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name, city")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  // Fetch restaurants (filtered by active chain)
+  const { data: restaurants } = useActiveRestaurants();
 
   // Fetch revenue data
   const { data: revenueData } = useQuery({
