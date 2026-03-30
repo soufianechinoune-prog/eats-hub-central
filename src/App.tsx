@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AIAdvisorProvider } from "@/contexts/AIAdvisorContext";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import Login from "./pages/Login";
 import Overview from "./pages/Overview";
 import Dashboard from "./pages/Dashboard";
 import Restaurants from "./pages/Restaurants";
@@ -40,23 +42,27 @@ import TotalDeliveryTimeComparison from "./pages/TotalDeliveryTimeComparison";
 import InaccurateOrdersComparison from "./pages/InaccurateOrdersComparison";
 import UberStoreMapping from "./pages/UberStoreMapping";
 import DeliverooMatching from "./pages/DeliverooMatching";
-
 import ItemSales from "./pages/ItemSales";
 import MarketingAnalytics from "./pages/MarketingAnalytics";
 import SuccessScore from "./pages/SuccessScore";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
+import Reviews from "./pages/Reviews";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 3,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-      staleTime: 2 * 60 * 1000,        // 2 minutes
-      gcTime: 30 * 60 * 1000,          // 30 minutes
+      staleTime: 2 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
       refetchOnWindowFocus: false,
     },
   },
 });
+
+const P = ({ children }: { children: React.ReactNode }) => (
+  <ProtectedRoute>{children}</ProtectedRoute>
+);
 
 const App = () => {
   return (
@@ -68,261 +74,56 @@ const App = () => {
               <Toaster />
               <Sonner />
               <BrowserRouter>
-            <Routes>
-              <Route path="/auth" element={<Navigate to="/" replace />} />
-              <Route
-                path="/"
-                element={
-                  <AppLayout>
-                    <Overview />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/classements"
-                element={
-                  <AppLayout>
-                    <Dashboard />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/restaurants"
-                element={
-                  <AppLayout>
-                    <Restaurants />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/messaging"
-                element={
-                  <AppLayout>
-                    <Messaging />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/restaurants/:id"
-                element={
-                  <AppLayout>
-                    <RestaurantDetail />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/restaurants/:restaurantId/menu"
-                element={<RestaurantMenu />}
-              />
-              <Route
-                path="/uber-connections"
-                element={
-                  <AppLayout>
-                    <UberConnections />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/uber-naming"
-                element={
-                  <AppLayout>
-                    <UberNaming />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/exports"
-                element={
-                  <AppLayout>
-                    <Exports />
-                  </AppLayout>
-                }
-              />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/menu-editor" element={<MenuEditor />} />
-              <Route
-                path="/disputes"
-                element={
-                  <AppLayout>
-                    <Disputes />
-                  </AppLayout>
-                }
-              />
-              <Route path="/auth/uber/callback" element={<UberCallback />} />
-              <Route path="/uber-callback" element={<UberCallback />} />
-              <Route
-                path="/data-entry"
-                element={
-                  <AppLayout>
-                    <DataEntry />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/data-entry/revenue"
-                element={<Navigate to="/data-entry?tab=revenue" replace />}
-              />
-              <Route
-                path="/data-entry/conversion"
-                element={<Navigate to="/data-entry?tab=conversion" replace />}
-              />
-              <Route
-                path="/data-entry/fees"
-                element={<Navigate to="/data-entry?tab=fees" replace />}
-              />
-              <Route
-                path="/analytics"
-                element={<Navigate to="/analytics/overview" replace />}
-              />
-              <Route
-                path="/analytics/:viewMode"
-                element={
-                  <AppLayout>
-                    <Analytics />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/analytics/ranking/:metric"
-                element={<RankingDetail />}
-              />
-              <Route
-                path="/menu-items"
-                element={
-                  <AppLayout>
-                    <MenuItems />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/actions"
-                element={
-                  <AppLayout>
-                    <RestaurantActions />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/menu-history"
-                element={
-                  <AppLayout>
-                    <MenuHistory />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/operations"
-                element={
-                  <AppLayout>
-                    <Operations />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/report-import"
-                element={
-                  <AppLayout>
-                    <ReportImport />
-                  </AppLayout>
-                }
-              />
-              <Route path="/cartography" element={<Cartography />} />
-              <Route
-                path="/import-guide"
-                element={
-                  <AppLayout>
-                    <ImportGuide />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/import-checklist"
-                element={
-                  <AppLayout>
-                    <ImportChecklist />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/compare/downtime"
-                element={
-                  <AppLayout>
-                    <DowntimeComparison />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/compare/ratings"
-                element={
-                  <AppLayout>
-                    <RatingsComparison />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/compare/opening-hours"
-                element={
-                  <AppLayout>
-                    <OpeningHoursComparison />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/compare/prep-time"
-                element={
-                  <AppLayout>
-                    <PrepTimeComparison />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/compare/total-delivery-time"
-                element={
-                  <AppLayout>
-                    <TotalDeliveryTimeComparison />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/compare/inaccurate-orders"
-                element={
-                  <AppLayout>
-                    <InaccurateOrdersComparison />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/compare/profitability"
-                element={<Navigate to="/analytics/finances" replace />}
-              />
-              <Route path="/item-sales" element={<ItemSales />} />
-              <Route path="/marketing-analytics" element={<MarketingAnalytics />} />
-              <Route
-                path="/success-score"
-                element={
-                  <AppLayout>
-                    <SuccessScore />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/uber-mapping"
-                element={
-                  <AppLayout>
-                    <UberStoreMapping />
-                  </AppLayout>
-                }
-              />
-              <Route
-                path="/deliveroo-matching"
-                element={
-                  <AppLayout>
-                    <DeliverooMatching />
-                  </AppLayout>
-                }
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/auth" element={<Navigate to="/login" replace />} />
+                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                  <Route path="/auth/uber/callback" element={<UberCallback />} />
+                  <Route path="/uber-callback" element={<UberCallback />} />
+
+                  {/* Protected routes */}
+                  <Route path="/" element={<P><AppLayout><Overview /></AppLayout></P>} />
+                  <Route path="/classements" element={<P><AppLayout><Dashboard /></AppLayout></P>} />
+                  <Route path="/restaurants" element={<P><AppLayout><Restaurants /></AppLayout></P>} />
+                  <Route path="/messaging" element={<P><AppLayout><Messaging /></AppLayout></P>} />
+                  <Route path="/restaurants/:id" element={<P><AppLayout><RestaurantDetail /></AppLayout></P>} />
+                  <Route path="/restaurants/:restaurantId/menu" element={<P><RestaurantMenu /></P>} />
+                  <Route path="/uber-connections" element={<P><AppLayout><UberConnections /></AppLayout></P>} />
+                  <Route path="/uber-naming" element={<P><AppLayout><UberNaming /></AppLayout></P>} />
+                  <Route path="/exports" element={<P><AppLayout><Exports /></AppLayout></P>} />
+                  <Route path="/reports" element={<P><Reports /></P>} />
+                  <Route path="/menu-editor" element={<P><MenuEditor /></P>} />
+                  <Route path="/disputes" element={<P><AppLayout><Disputes /></AppLayout></P>} />
+                  <Route path="/data-entry" element={<P><AppLayout><DataEntry /></AppLayout></P>} />
+                  <Route path="/data-entry/revenue" element={<Navigate to="/data-entry?tab=revenue" replace />} />
+                  <Route path="/data-entry/conversion" element={<Navigate to="/data-entry?tab=conversion" replace />} />
+                  <Route path="/data-entry/fees" element={<Navigate to="/data-entry?tab=fees" replace />} />
+                  <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
+                  <Route path="/analytics/:viewMode" element={<P><AppLayout><Analytics /></AppLayout></P>} />
+                  <Route path="/analytics/ranking/:metric" element={<P><RankingDetail /></P>} />
+                  <Route path="/menu-items" element={<P><AppLayout><MenuItems /></AppLayout></P>} />
+                  <Route path="/actions" element={<P><AppLayout><RestaurantActions /></AppLayout></P>} />
+                  <Route path="/menu-history" element={<P><AppLayout><MenuHistory /></AppLayout></P>} />
+                  <Route path="/operations" element={<P><AppLayout><Operations /></AppLayout></P>} />
+                  <Route path="/report-import" element={<P><AppLayout><ReportImport /></AppLayout></P>} />
+                  <Route path="/cartography" element={<P><Cartography /></P>} />
+                  <Route path="/import-guide" element={<P><AppLayout><ImportGuide /></AppLayout></P>} />
+                  <Route path="/import-checklist" element={<P><AppLayout><ImportChecklist /></AppLayout></P>} />
+                  <Route path="/compare/downtime" element={<P><AppLayout><DowntimeComparison /></AppLayout></P>} />
+                  <Route path="/compare/ratings" element={<P><AppLayout><RatingsComparison /></AppLayout></P>} />
+                  <Route path="/compare/opening-hours" element={<P><AppLayout><OpeningHoursComparison /></AppLayout></P>} />
+                  <Route path="/compare/prep-time" element={<P><AppLayout><PrepTimeComparison /></AppLayout></P>} />
+                  <Route path="/compare/total-delivery-time" element={<P><AppLayout><TotalDeliveryTimeComparison /></AppLayout></P>} />
+                  <Route path="/compare/inaccurate-orders" element={<P><AppLayout><InaccurateOrdersComparison /></AppLayout></P>} />
+                  <Route path="/compare/profitability" element={<Navigate to="/analytics/finances" replace />} />
+                  <Route path="/item-sales" element={<P><ItemSales /></P>} />
+                  <Route path="/marketing-analytics" element={<P><MarketingAnalytics /></P>} />
+                  <Route path="/success-score" element={<P><AppLayout><SuccessScore /></AppLayout></P>} />
+                  <Route path="/uber-mapping" element={<P><AppLayout><UberStoreMapping /></AppLayout></P>} />
+                  <Route path="/deliveroo-matching" element={<P><AppLayout><DeliverooMatching /></AppLayout></P>} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
               </BrowserRouter>
             </AnalyticsProvider>
           </AIAdvisorProvider>

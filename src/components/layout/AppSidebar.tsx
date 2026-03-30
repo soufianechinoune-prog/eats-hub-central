@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -169,6 +169,7 @@ const analysisItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const collapsed = state === "collapsed";
@@ -241,6 +242,8 @@ export function AppSidebar() {
         description: "Impossible de se déconnecter",
         variant: "destructive",
       });
+    } else {
+      navigate("/login");
     }
   };
 

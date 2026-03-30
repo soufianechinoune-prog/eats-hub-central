@@ -6,9 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { Lock } from "lucide-react";
 
-const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
+const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,40 +20,26 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        toast({
-          title: "Connexion réussie",
-          description: "Bienvenue sur CS Performance",
-        });
-        navigate("/");
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-          },
-        });
-
-        if (error) throw error;
-
-        toast({
-          title: "Compte créé",
-          description: "Vous pouvez maintenant vous connecter",
-        });
-        setIsLogin(true);
-      }
-    } catch (error: any) {
       toast({
-        title: "Erreur",
-        description: error.message,
+        title: "Connexion réussie",
+        description: "Bienvenue sur CS Performance",
+      });
+      navigate("/");
+    } catch (error: any) {
+      let message = error.message;
+      if (message === "Invalid login credentials") {
+        message = "Identifiants incorrects. Vérifiez votre email et mot de passe.";
+      }
+      toast({
+        title: "Erreur de connexion",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -63,13 +49,14 @@ const Auth = () => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl">CS Performance</CardTitle>
+      <Card className="w-full max-w-md border-border">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+            <Lock className="h-6 w-6 text-primary" />
+          </div>
+          <CardTitle className="text-2xl text-foreground">CS Performance</CardTitle>
           <CardDescription>
-            {isLogin
-              ? "Connectez-vous à votre compte"
-              : "Créez votre compte administrateur"}
+            Connectez-vous pour accéder au tableau de bord
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -79,10 +66,11 @@ const Auth = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
+                placeholder="votre@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
               />
             </div>
             <div className="space-y-2">
@@ -93,24 +81,11 @@ const Auth = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading
-                ? "Chargement..."
-                : isLogin
-                ? "Se connecter"
-                : "Créer un compte"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={() => setIsLogin(!isLogin)}
-            >
-              {isLogin
-                ? "Pas encore de compte ? Créer un compte"
-                : "Déjà un compte ? Se connecter"}
+              {loading ? "Connexion en cours..." : "Se connecter"}
             </Button>
           </form>
         </CardContent>
@@ -119,4 +94,4 @@ const Auth = () => {
   );
 };
 
-export default Auth;
+export default Login;
