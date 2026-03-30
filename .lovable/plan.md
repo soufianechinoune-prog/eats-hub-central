@@ -1,76 +1,73 @@
 
 
 ## Objectif
-Sécuriser l'app en ajoutant une authentification obligatoire : page `/login` (login uniquement, pas d'inscription) + protection de toutes les routes via un guard basé sur la session Supabase.
+Créer le système multi-tenant `user_chain_access` avec la correction anti-récursion identifiée par l'ingénieure.
 
-## Problème actuel
-- La route `/auth` redirige vers `/` (ligne 72 de App.tsx) — la page Auth.tsx n'est jamais utilisée
-- Aucune vérification de session nulle part — l'app est accessible sans login
-- Le bouton déconnexion existe dans la sidebar mais ne redirige pas vers `/login`
+## Migration SQL finale
 
-## Plan de correction
+```sql
+-- 1. Table
+CREATE TABLE public.user_chain_access (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  chain_id UUID REFERENCES public.chains(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('super_admin', 'importer', 'client')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, chain_id)
+);
 
-### 1. Créer `src/pages/Login.tsx` (nouveau fichier)
-- Login uniquement (email + mot de passe), PAS d'inscription publique
-- `supabase.auth.signInWithPassword()` 
-- Gestion d'erreurs avec toast
-- Style cohérent : fond sombre, Card centrée, titre "CS Performance"
-- Redirection vers `/` après connexion réussie
+-- 2. RLS
+ALTER TABLE public.user_chain_access ENABLE ROW LEVEL SECURITY;
 
-### 2. Créer `src/components/auth/ProtectedRoute.tsx` (nouveau fichier)
-- Utilise `supabase.auth.getSession()` au montage pour vérifier la session
-- Écoute `supabase.auth.onAuthStateChange()` pour les changements (logout, expiration)
-- 3 états : `loading` (splash/spinner), `authenticated` (render children), `unauthenticated` (Navigate vers `/login`)
-- Stocke la session dans un state React
+-- Lecture propre accès
+CREATE POLICY "Users can read own access"
+  ON public.user_chain_access FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
 
-### 3. Modifier `src/App.tsx`
-- Supprimer l'import de Auth.tsx
-- Importer Login et ProtectedRoute
-- Route `/login` → `<Login />` (publique)
-- Route `/auth` → `<Navigate to="/login" />` (rétrocompat)
-- Wrapper TOUTES les autres routes avec `<ProtectedRoute>` sauf `/login`, `/privacy-policy`, `/auth/uber/callback`, `/uber-callback`
-
-### 4. Modifier `src/components/layout/AppSidebar.tsx`
-- Dans `handleLogout`, après `signOut()` réussi, ajouter `navigate("/login")`
-
-### 5. Supprimer `src/pages/Auth.tsx`
-- Plus utilisé, remplacé par Login.tsx
-
-## Détails techniques
-
-**ProtectedRoute** (pattern) :
-```typescript
-const [session, setSession] = useState<Session | null>(null);
-const [loading, setLoading] = useState(true);
-
-useEffect(() => {
-  // Set up listener FIRST
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    (_event, session) => {
-      setSession(session);
-      setLoading(false);
-    }
+-- 3. Fonction anti-récursion (SECURITY DEFINER → bypasse RLS)
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_chain_access
+    WHERE user_id = auth.uid() AND chain_id IS NULL AND role = 'super_admin'
   );
-  // Then check current session
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    setSession(session);
-    setLoading(false);
-  });
-  return () => subscription.unsubscribe();
-}, []);
+$$;
 
-if (loading) return <LoadingSpinner />;
-if (!session) return <Navigate to="/login" replace />;
-return children;
+-- 4. Policy super_admin SANS récursion
+CREATE POLICY "Super admins can manage all access"
+  ON public.user_chain_access FOR ALL TO authenticated
+  USING (is_super_admin()) WITH CHECK (is_super_admin());
+
+-- 5. Helpers
+CREATE OR REPLACE FUNCTION public.get_user_role()
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT role FROM public.user_chain_access
+  WHERE user_id = auth.uid() AND chain_id IS NULL LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION public.user_has_chain_access(p_chain_id UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_chain_access
+    WHERE user_id = auth.uid()
+    AND (chain_id = p_chain_id OR (chain_id IS NULL AND role = 'super_admin'))
+  );
+$$;
+
+-- 6. Insert super_admin
+INSERT INTO public.user_chain_access (user_id, chain_id, role)
+SELECT id, NULL, 'super_admin'
+FROM auth.users WHERE email = 'soufiane.chinoune@gmail.com';
 ```
 
-**Login.tsx** — login only, no signup toggle, style dark/cohérent.
+## Ce qui change vs plan précédent
+- Ajout de `is_super_admin()` en SECURITY DEFINER
+- La policy "Super admins can manage all access" utilise `is_super_admin()` au lieu d'un sous-SELECT sur sa propre table
 
-**Routes publiques** (non protégées) : `/login`, `/privacy-policy`, `/auth/uber/callback`, `/uber-callback`
-
-## Résultat attendu
-- Tout accès non authentifié redirige vers `/login`
-- Après login, accès normal à l'app
-- Après déconnexion, retour à `/login`
-- Pas d'inscription publique (comptes créés dans le backend)
+## Ce qui ne change pas
+- Table, contraintes, UNIQUE → identiques
+- Policy lecture (`user_id = auth.uid()`) → identique
+- `get_user_role()`, `user_has_chain_access()` → identiques
+- Insert super_admin → identique
+- Aucune table existante modifiée
 
