@@ -1,73 +1,223 @@
 
 
 ## Objectif
-Créer le système multi-tenant `user_chain_access` avec la correction anti-récursion identifiée par l'ingénieure.
+Remplacer les policies RLS "full access" par des policies scopées par marque sur 16 tables, en utilisant `is_super_admin()` et `user_has_chain_access()`.
 
-## Migration SQL finale
+## Migration SQL complète
 
 ```sql
--- 1. Table
-CREATE TABLE public.user_chain_access (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  chain_id UUID REFERENCES public.chains(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK (role IN ('super_admin', 'importer', 'client')),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_id, chain_id)
-);
+-- =============================================
+-- CHAIN-SCOPED RLS — 16 tables
+-- Additive: no schema changes, policies only
+-- =============================================
 
--- 2. RLS
-ALTER TABLE public.user_chain_access ENABLE ROW LEVEL SECURITY;
+-- 1. restaurants (chain_id direct)
+DROP POLICY IF EXISTS "Authenticated full access on restaurants" ON public.restaurants;
+CREATE POLICY "Chain scoped access on restaurants" ON public.restaurants
+  FOR ALL TO authenticated
+  USING (is_super_admin() OR user_has_chain_access(chain_id))
+  WITH CHECK (is_super_admin() OR user_has_chain_access(chain_id));
 
--- Lecture propre accès
-CREATE POLICY "Users can read own access"
-  ON public.user_chain_access FOR SELECT TO authenticated
-  USING (user_id = auth.uid());
+-- 2. chains (id = chain_id)
+DROP POLICY IF EXISTS "Authenticated full access on chains" ON public.chains;
+CREATE POLICY "Chain scoped access on chains" ON public.chains
+  FOR ALL TO authenticated
+  USING (is_super_admin() OR user_has_chain_access(id))
+  WITH CHECK (is_super_admin());
 
--- 3. Fonction anti-récursion (SECURITY DEFINER → bypasse RLS)
-CREATE OR REPLACE FUNCTION public.is_super_admin()
-RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_chain_access
-    WHERE user_id = auth.uid() AND chain_id IS NULL AND role = 'super_admin'
+-- 3. orders
+DROP POLICY IF EXISTS "Authenticated full access on orders" ON public.orders;
+CREATE POLICY "Chain scoped access on orders" ON public.orders
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
   );
-$$;
 
--- 4. Policy super_admin SANS récursion
-CREATE POLICY "Super admins can manage all access"
-  ON public.user_chain_access FOR ALL TO authenticated
-  USING (is_super_admin()) WITH CHECK (is_super_admin());
-
--- 5. Helpers
-CREATE OR REPLACE FUNCTION public.get_user_role()
-RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT role FROM public.user_chain_access
-  WHERE user_id = auth.uid() AND chain_id IS NULL LIMIT 1;
-$$;
-
-CREATE OR REPLACE FUNCTION public.user_has_chain_access(p_chain_id UUID)
-RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_chain_access
-    WHERE user_id = auth.uid()
-    AND (chain_id = p_chain_id OR (chain_id IS NULL AND role = 'super_admin'))
+-- 4. order_items
+DROP POLICY IF EXISTS "Authenticated full access on order_items" ON public.order_items;
+CREATE POLICY "Chain scoped access on order_items" ON public.order_items
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
   );
-$$;
 
--- 6. Insert super_admin
-INSERT INTO public.user_chain_access (user_id, chain_id, role)
-SELECT id, NULL, 'super_admin'
-FROM auth.users WHERE email = 'soufiane.chinoune@gmail.com';
+-- 5. order_history
+DROP POLICY IF EXISTS "Authenticated full access on order_history" ON public.order_history;
+CREATE POLICY "Chain scoped access on order_history" ON public.order_history
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 6. deliveroo_orders
+DROP POLICY IF EXISTS "Authenticated full access on deliveroo_orders" ON public.deliveroo_orders;
+CREATE POLICY "Chain scoped access on deliveroo_orders" ON public.deliveroo_orders
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 7. daily_revenue
+DROP POLICY IF EXISTS "Authenticated full access on daily_revenue" ON public.daily_revenue;
+CREATE POLICY "Chain scoped access on daily_revenue" ON public.daily_revenue
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 8. daily_conversion
+DROP POLICY IF EXISTS "Authenticated full access on daily_conversion" ON public.daily_conversion;
+CREATE POLICY "Chain scoped access on daily_conversion" ON public.daily_conversion
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 9. monthly_revenue
+DROP POLICY IF EXISTS "Authenticated full access on monthly_revenue" ON public.monthly_revenue;
+CREATE POLICY "Chain scoped access on monthly_revenue" ON public.monthly_revenue
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 10. monthly_conversion
+DROP POLICY IF EXISTS "Authenticated full access on monthly_conversion" ON public.monthly_conversion;
+CREATE POLICY "Chain scoped access on monthly_conversion" ON public.monthly_conversion
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 11. monthly_fees
+DROP POLICY IF EXISTS "Authenticated full access on monthly_fees" ON public.monthly_fees;
+CREATE POLICY "Chain scoped access on monthly_fees" ON public.monthly_fees
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 12. payouts
+DROP POLICY IF EXISTS "Authenticated full access on payouts" ON public.payouts;
+CREATE POLICY "Chain scoped access on payouts" ON public.payouts
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 13. payout_adjustments
+DROP POLICY IF EXISTS "Authenticated full access on payout_adjustments" ON public.payout_adjustments;
+DROP POLICY IF EXISTS "Allow authenticated update on payout_adjustments" ON public.payout_adjustments;
+CREATE POLICY "Chain scoped access on payout_adjustments" ON public.payout_adjustments
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 14. uber_connections
+DROP POLICY IF EXISTS "Authenticated full access on uber_connections" ON public.uber_connections;
+CREATE POLICY "Chain scoped access on uber_connections" ON public.uber_connections
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 15. restaurant_uber_ids
+DROP POLICY IF EXISTS "Authenticated full access on restaurant_uber_ids" ON public.restaurant_uber_ids;
+CREATE POLICY "Chain scoped access on restaurant_uber_ids" ON public.restaurant_uber_ids
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
+
+-- 16. restaurant_deliveroo_ids
+DROP POLICY IF EXISTS "Authenticated full access on restaurant_deliveroo_ids" ON public.restaurant_deliveroo_ids;
+CREATE POLICY "Chain scoped access on restaurant_deliveroo_ids" ON public.restaurant_deliveroo_ids
+  FOR ALL TO authenticated
+  USING (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  )
+  WITH CHECK (
+    is_super_admin() OR
+    restaurant_id IN (SELECT id FROM public.restaurants WHERE user_has_chain_access(chain_id))
+  );
 ```
 
-## Ce qui change vs plan précédent
-- Ajout de `is_super_admin()` en SECURITY DEFINER
-- La policy "Super admins can manage all access" utilise `is_super_admin()` au lieu d'un sous-SELECT sur sa propre table
+## Résumé
 
-## Ce qui ne change pas
-- Table, contraintes, UNIQUE → identiques
-- Policy lecture (`user_id = auth.uid()`) → identique
-- `get_user_role()`, `user_has_chain_access()` → identiques
-- Insert super_admin → identique
-- Aucune table existante modifiée
+- **16 tables** mises à jour : 2 avec chain_id direct (`restaurants`, `chains`), 14 avec `restaurant_id` (sous-query vers `restaurants.chain_id`)
+- **`payout_adjustments`** : 2 anciennes policies supprimées (la "full access" + la "update" résiduelle)
+- **`chains`** : lecture scopée, écriture réservée au super_admin uniquement
+- **Tables non touchées** : `weather_data`, `import_guide_screenshots`, `user_chain_access` (déjà sécurisée)
+- **Aucune modification de structure** — policies RLS uniquement
+
+## Point de vigilance performance
+
+Le sous-query `restaurant_id IN (SELECT id FROM restaurants WHERE user_has_chain_access(chain_id))` est évalué par le planificateur PostgreSQL pour chaque ligne. Sur les tables volumineuses (2.9M `orders`, 1.2M `deliveroo_orders`), cela peut impacter les performances. Si des lenteurs apparaissent, on pourra créer un index ou une vue matérialisée dans une étape suivante.
 
