@@ -186,7 +186,10 @@ export function AppSidebar() {
         .from("chains")
         .select("id, name")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching chains:", error);
+        throw error;
+      }
       return data || [];
     },
   });
@@ -296,7 +299,7 @@ export function AppSidebar() {
             )}
           </SidebarGroupLabel>
           {/* Chain selector */}
-          {!collapsed && chains && chains.length > 0 && (
+          {!collapsed && (
             <div className="px-2 pb-2">
               <Select
                 value={selectedChainId || "all"}
