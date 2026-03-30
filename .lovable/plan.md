@@ -1,22 +1,37 @@
 
 
 ## Objectif
-Isoler la liste des restaurants par marque dans `DeliverooMatching.tsx`.
+Ajouter une vérification de marque dans `RestaurantDetail.tsx` : si un `selectedChainId` est actif et que le restaurant chargé n'appartient pas à cette marque, afficher un message de blocage au lieu des données.
 
-## Problème
-Ligne 37-43 : `supabase.from("restaurants").select("id, name, deliveroo_store_id").order("name")` — aucun filtre par marque.
+## Correction dans `src/pages/RestaurantDetail.tsx`
 
-## Correction
+1. **Importer** `useAnalyticsContext` depuis `@/contexts/AnalyticsContext`.
+2. **Extraire** `selectedChainId` du contexte.
+3. **Après le chargement du restaurant** (quand `restaurant` est disponible et `selectedChainId` est non-null), comparer `restaurant.chain_id` avec `selectedChainId`.
+4. **Si mismatch** : afficher un écran simple avec un message "Ce restaurant n'appartient pas à la marque sélectionnée" et un bouton retour vers `/restaurants`.
+5. **Si `selectedChainId === null`** : afficher normalement (pas de filtre marque actif).
 
-### `src/pages/DeliverooMatching.tsx`
-1. Remplacer le `useQuery(["restaurants-for-deliveroo-matching"], ...)` par `useActiveRestaurants()`.
-2. Mapper le résultat avec `useMemo` pour conserver la structure `{ id, name, deliveroo_store_id }` attendue par le composant.
-3. Le champ `deliveroo_store_id` n'est pas dans `useActiveRestaurants()` — il faudra soit l'ajouter au hook, soit faire une query complémentaire scopée. Recommandation : ajouter `deliveroo_store_id` au select de `useActiveRestaurants()` dans `useChainRestaurants.ts` (un seul endroit à maintenir).
+### Code ajouté (après la ligne 67, avant le rendu principal)
 
-### `src/hooks/useChainRestaurants.ts`
-- Ajouter `deliveroo_store_id` au `.select(...)` de `useActiveRestaurants()`.
+```typescript
+const { selectedChainId } = useAnalyticsContext();
+
+// Après le bloc isLoading, avant le rendu principal :
+if (!isLoading && restaurant && selectedChainId && restaurant.chain_id !== selectedChainId) {
+  return (
+    <div className="p-8 text-center space-y-4">
+      <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
+      <h2 className="text-xl font-semibold">Ce restaurant n'appartient pas à la marque sélectionnée</h2>
+      <Button variant="outline" onClick={() => navigate("/restaurants")}>
+        <ArrowLeft className="mr-2 h-4 w-4" /> Retour aux restaurants
+      </Button>
+    </div>
+  );
+}
+```
 
 ## Résultat attendu
-- Le matching Deliveroo ne propose que les restaurants de la marque active.
-- Aucune régression sur les autres pages utilisant `useActiveRestaurants()`.
+- Un utilisateur sur TASTY qui tenterait d'accéder à un restaurant Chicken Street via URL directe verrait le message de blocage.
+- Si aucune marque n'est sélectionnée, tout fonctionne normalement.
+- Aucun impact sur les autres pages.
 
