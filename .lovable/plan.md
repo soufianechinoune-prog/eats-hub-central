@@ -1,41 +1,37 @@
 
 
 ## Objectif
-Remplacer les requêtes directes sur la table `restaurants` dans les 4 pages DataEntry par le hook `useActiveRestaurants()` qui filtre automatiquement par `selectedChainId`.
+Remplacer les queries directes non filtrées sur `restaurants` par `useActiveRestaurants()` dans les pages concernées, pour garantir l'isolation multi-tenant.
 
-## Problème confirmé
-Les 4 fichiers suivants chargent TOUS les restaurants sans filtre de marque :
-- `src/pages/DataEntry.tsx` (lignes 148-158)
-- `src/pages/DataEntryConversion.tsx` (lignes 103-113)
-- `src/pages/DataEntryFees.tsx` (lignes 110-120)
-- `src/pages/DataEntryRevenue.tsx` (lignes 103-113)
+## Fichiers à corriger
 
-Chacun fait `supabase.from("restaurants").select("id, name, city").order("name")` — un utilisateur sur TASTY voit les restaurants Chicken Street dans le sélecteur.
+### 1. `src/pages/Disputes.tsx` (lignes 49-60)
+- Supprimer le `useQuery(["restaurants"], ...)` qui charge tous les restaurants actifs sans filtre.
+- Importer et utiliser `useActiveRestaurants()`.
+- Mapper le résultat pour conserver la structure `{ id, name, city }`.
 
-## Correction (identique sur les 4 fichiers)
+### 2. `src/pages/UberConnections.tsx` (lignes 53-62)
+- Supprimer le `useQuery(["available-restaurants"], ...)`.
+- Utiliser `useActiveRestaurants()` à la place.
 
-### Pour chaque fichier :
-1. **Supprimer** l'import de `supabase` (s'il n'est plus utilisé ailleurs dans le fichier) et le `useQuery` dédié aux restaurants.
-2. **Ajouter** `import { useActiveRestaurants } from "@/hooks/useChainRestaurants"`.
-3. **Remplacer** le bloc `useQuery(["restaurants"], ...)` par :
-   ```typescript
-   const { data: activeRestaurants, isLoading: loadingRestaurants } = useActiveRestaurants();
-   const restaurants = useMemo(() =>
-     (activeRestaurants || []).map(r => ({ id: r.id, name: r.name, city: null as string | null })),
-     [activeRestaurants]
-   );
-   ```
-4. Le reste du code (sélecteur, `selectedRestaurant`, etc.) continue de fonctionner sans modification car la structure `{ id, name }` est conservée.
+### 3. `src/pages/UberNaming.tsx` (lignes 40-49)
+- Supprimer le `useQuery(["available-restaurants-naming"], ...)`.
+- Utiliser `useActiveRestaurants()` à la place.
 
-### Note sur `city`
-`useActiveRestaurants()` ne sélectionne pas `city`. Deux options :
-- Soit on enrichit la query dans `useActiveRestaurants()` pour inclure `city` (meilleure approche, un seul endroit à maintenir).
-- Soit on met `city: null` dans le mapping (fonctionnel mais perd l'affichage ville).
+### 4. `src/pages/RankingDetail.tsx` (lignes 96-106)
+- Supprimer le `useQuery(["restaurants"], ...)` qui charge tous les restaurants sans filtre.
+- Utiliser `useActiveRestaurants()` à la place.
 
-**Recommandation** : enrichir `useActiveRestaurants()` dans `useChainRestaurants.ts` pour sélectionner aussi `city` — un changement d'une ligne.
+### 5. `src/pages/OpeningHoursComparison.tsx` — PAS DE CHANGEMENT
+- Déjà filtré via `activeRestaurantIds` qui proviennent de `useAnalyticsContext()` (scopé par marque).
+- La query `.in("id", activeRestaurantIds)` est correcte.
+
+### 6. `src/pages/RestaurantDetail.tsx` — PAS DE CHANGEMENT
+- Charge un seul restaurant par son ID (paramètre URL).
+- Les mutations (update/delete) opèrent sur cet ID unique.
+- Pas de liste, pas de fuite inter-marque.
 
 ## Résultat attendu
-- Les sélecteurs de restaurant dans DataEntry ne montrent que les restaurants de la marque active.
-- TASTY ne voit que ses propres restaurants, Chicken Street les siens.
-- Scalable pour toute nouvelle marque ajoutée.
+- Disputes, UberConnections, UberNaming et RankingDetail ne montrent que les restaurants de la marque active.
+- Aucune régression sur les pages déjà correctement scopées.
 
