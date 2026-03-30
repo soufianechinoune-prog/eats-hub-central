@@ -48,6 +48,9 @@ import SuccessScore from "./pages/SuccessScore";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 import Reviews from "./pages/Reviews";
 import Admin from "./pages/Admin";
+import { useUserRole } from "./hooks/useUserRole";
+import { useToast } from "./hooks/use-toast";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +67,21 @@ const queryClient = new QueryClient({
 const P = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute>{children}</ProtectedRoute>
 );
+
+const ImportRoute = ({ children }: { children: React.ReactNode }) => {
+  const { data: role, isLoading } = useUserRole();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isLoading && role !== "super_admin" && role !== "importer") {
+      toast({ title: "Accès restreint", description: "Vous n'avez pas accès à cette section.", variant: "destructive" });
+    }
+  }, [isLoading, role]);
+
+  if (isLoading) return null;
+  if (role !== "super_admin" && role !== "importer") return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
 
 const App = () => {
   return (
