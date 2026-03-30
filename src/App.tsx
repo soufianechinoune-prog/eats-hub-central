@@ -121,7 +121,7 @@ const App = () => {
                   <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
                   <Route path="/analytics/:viewMode" element={<P><AppLayout><Analytics /></AppLayout></P>} />
                   <Route path="/analytics/ranking/:metric" element={<P><RankingDetail /></P>} />
-                  <Route path="/menu-items" element={<P><AppLayout><MenuItems /></AppLayout></P>} />
+                  <Route path="/menu-items" element={<P><ImportRoute><AppLayout><MenuItems /></AppLayout></ImportRoute></P>} />
                   <Route path="/actions" element={<P><AppLayout><RestaurantActions /></AppLayout></P>} />
                   <Route path="/menu-history" element={<P><AppLayout><MenuHistory /></AppLayout></P>} />
                   <Route path="/operations" element={<P><AppLayout><Operations /></AppLayout></P>} />
