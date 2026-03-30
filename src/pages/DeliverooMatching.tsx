@@ -26,17 +26,11 @@ export default function DeliverooMatching() {
   const [saving, setSaving] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
 
-  const { data: restaurants = [] } = useQuery({
-    queryKey: ["restaurants-for-deliveroo-matching"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name, deliveroo_store_id")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: activeRestaurants = [] } = useActiveRestaurants();
+  const restaurants = useMemo(() =>
+    activeRestaurants.map(r => ({ id: r.id, name: r.name, deliveroo_store_id: r.deliveroo_store_id })),
+    [activeRestaurants]
+  );
 
   // Load existing multi-mappings from restaurant_deliveroo_ids
   const { data: existingMappings = [] } = useQuery({
