@@ -512,6 +512,23 @@ export function AppSidebar() {
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>
+              {isSuperAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    className={
+                      location.pathname === "/admin"
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : ""
+                    }
+                  >
+                    <NavLink to="/admin">
+                      <Shield className="h-4 w-4" />
+                      {!collapsed && <span>Admin</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
@@ -522,7 +539,7 @@ export function AppSidebar() {
                   }
                 >
                   <NavLink to="/privacy-policy">
-                    <Shield className="h-4 w-4" />
+                    <Eye className="h-4 w-4" />
                     {!collapsed && <span>Confidentialité</span>}
                   </NavLink>
                 </SidebarMenuButton>
