@@ -99,18 +99,12 @@ export default function DataEntryRevenue() {
     }
   }, [restaurantFromUrl]);
 
-  // Fetch restaurants
-  const { data: restaurants, isLoading: loadingRestaurants } = useQuery({
-    queryKey: ["restaurants"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name, city")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  // Fetch restaurants filtered by active brand
+  const { data: activeRestaurants, isLoading: loadingRestaurants } = useActiveRestaurants();
+  const restaurants = useMemo(() =>
+    (activeRestaurants || []).map(r => ({ id: r.id, name: r.name, city: r.city })),
+    [activeRestaurants]
+  );
 
   // Fetch existing entries for selected restaurant and platform
   const { data: entries, isLoading: loadingEntries } = useQuery({
