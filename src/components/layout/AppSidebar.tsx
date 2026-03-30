@@ -241,6 +241,8 @@ export function AppSidebar() {
         description: "Impossible de se déconnecter",
         variant: "destructive",
       });
+    } else {
+      navigate("/login");
     }
   };
 
