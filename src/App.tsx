@@ -18,6 +18,7 @@ import Reports from "./pages/Reports";
 import Disputes from "./pages/Disputes";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import ResetPassword from "./pages/ResetPassword";
 import { AppLayout } from "./components/layout/AppLayout";
 import UberNaming from "./pages/UberNaming";
 import MenuEditor from "./pages/MenuEditor";
@@ -98,6 +99,7 @@ const App = () => {
                   <Route path="/login" element={<Login />} />
                   <Route path="/auth" element={<Navigate to="/login" replace />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/auth/uber/callback" element={<UberCallback />} />
                   <Route path="/uber-callback" element={<UberCallback />} />
 

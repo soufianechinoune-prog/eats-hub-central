@@ -12,8 +12,39 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      toast({
+        title: "Email requis",
+        description: "Entrez votre email d'abord",
+        variant: "destructive",
+      });
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: "https://cs-delivery-performance.com/reset-password",
+      });
+      if (error) throw error;
+      toast({
+        title: "Email envoyé",
+        description: "Un email de réinitialisation a été envoyé à " + email,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +119,15 @@ const Login = () => {
               {loading ? "Connexion en cours..." : "Se connecter"}
             </Button>
           </form>
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline transition-colors"
+            >
+              Mot de passe oublié ?
+            </button>
+          </div>
         </CardContent>
       </Card>
     </div>
