@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { KPICard } from "@/components/dashboard/KPICard";
@@ -25,6 +25,9 @@ import { Button } from "@/components/ui/button";
 import { Euro, ShoppingCart, TrendingUp, Ticket, Percent } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { DateRange, RestaurantPerformance } from "@/types";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { EMPTY_BRAND_SCOPE_RESTAURANT_IDS } from "@/lib/brandScope";
 
 const Dashboard = () => {
   const [dateRange, setDateRange] = useState<DateRange>("7");
