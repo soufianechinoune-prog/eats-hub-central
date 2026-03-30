@@ -179,6 +179,7 @@ export function AppSidebar() {
   const [newChainDialogOpen, setNewChainDialogOpen] = useState(false);
   const [newChainName, setNewChainName] = useState("");
   const { selectedChainId, setSelectedChainId, setSelectedRestaurants, setVisibleRestaurants } = useAnalyticsContext();
+  const { data: isSuperAdmin } = useIsSuperAdmin();
 
   // Fetch available chains
   const { data: chains } = useQuery({
