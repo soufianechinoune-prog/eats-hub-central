@@ -18,6 +18,7 @@ import Reports from "./pages/Reports";
 import Disputes from "./pages/Disputes";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import ResetPassword from "./pages/ResetPassword";
 import { AppLayout } from "./components/layout/AppLayout";
 import UberNaming from "./pages/UberNaming";
 import MenuEditor from "./pages/MenuEditor";
