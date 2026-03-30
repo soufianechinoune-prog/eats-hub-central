@@ -75,6 +75,7 @@ import csLogo from "@/assets/cs-logo.jpeg";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
+import { useCanImport } from "@/hooks/useUserRole";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
@@ -180,6 +181,7 @@ export function AppSidebar() {
   const [newChainName, setNewChainName] = useState("");
   const { selectedChainId, setSelectedChainId, setSelectedRestaurants, setVisibleRestaurants } = useAnalyticsContext();
   const { data: isSuperAdmin } = useIsSuperAdmin();
+  const canImport = useCanImport();
 
   // Fetch available chains
   const { data: chains } = useQuery({
@@ -455,6 +457,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {canImport && (
         <SidebarGroup>
           <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
             {collapsed ? "📊" : "Données"}
@@ -481,6 +484,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        )}
 
         <SidebarGroup>
           <SidebarGroupLabel className={collapsed ? "text-center" : ""}>

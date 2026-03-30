@@ -48,6 +48,9 @@ import SuccessScore from "./pages/SuccessScore";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 import Reviews from "./pages/Reviews";
 import Admin from "./pages/Admin";
+import { useUserRole } from "./hooks/useUserRole";
+import { useToast } from "./hooks/use-toast";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +67,21 @@ const queryClient = new QueryClient({
 const P = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute>{children}</ProtectedRoute>
 );
+
+const ImportRoute = ({ children }: { children: React.ReactNode }) => {
+  const { data: role, isLoading } = useUserRole();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isLoading && role !== "super_admin" && role !== "importer") {
+      toast({ title: "Accès restreint", description: "Vous n'avez pas accès à cette section.", variant: "destructive" });
+    }
+  }, [isLoading, role]);
+
+  if (isLoading) return null;
+  if (role !== "super_admin" && role !== "importer") return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
 
 const App = () => {
   return (
@@ -96,21 +114,21 @@ const App = () => {
                   <Route path="/reports" element={<P><Reports /></P>} />
                   <Route path="/menu-editor" element={<P><MenuEditor /></P>} />
                   <Route path="/disputes" element={<P><AppLayout><Disputes /></AppLayout></P>} />
-                  <Route path="/data-entry" element={<P><AppLayout><DataEntry /></AppLayout></P>} />
+                  <Route path="/data-entry" element={<P><ImportRoute><AppLayout><DataEntry /></AppLayout></ImportRoute></P>} />
                   <Route path="/data-entry/revenue" element={<Navigate to="/data-entry?tab=revenue" replace />} />
                   <Route path="/data-entry/conversion" element={<Navigate to="/data-entry?tab=conversion" replace />} />
                   <Route path="/data-entry/fees" element={<Navigate to="/data-entry?tab=fees" replace />} />
                   <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
                   <Route path="/analytics/:viewMode" element={<P><AppLayout><Analytics /></AppLayout></P>} />
                   <Route path="/analytics/ranking/:metric" element={<P><RankingDetail /></P>} />
-                  <Route path="/menu-items" element={<P><AppLayout><MenuItems /></AppLayout></P>} />
+                  <Route path="/menu-items" element={<P><ImportRoute><AppLayout><MenuItems /></AppLayout></ImportRoute></P>} />
                   <Route path="/actions" element={<P><AppLayout><RestaurantActions /></AppLayout></P>} />
-                  <Route path="/menu-history" element={<P><AppLayout><MenuHistory /></AppLayout></P>} />
+                  <Route path="/menu-history" element={<P><ImportRoute><AppLayout><MenuHistory /></AppLayout></ImportRoute></P>} />
                   <Route path="/operations" element={<P><AppLayout><Operations /></AppLayout></P>} />
-                  <Route path="/report-import" element={<P><AppLayout><ReportImport /></AppLayout></P>} />
+                  <Route path="/report-import" element={<P><ImportRoute><AppLayout><ReportImport /></AppLayout></ImportRoute></P>} />
                   <Route path="/cartography" element={<P><Cartography /></P>} />
-                  <Route path="/import-guide" element={<P><AppLayout><ImportGuide /></AppLayout></P>} />
-                  <Route path="/import-checklist" element={<P><AppLayout><ImportChecklist /></AppLayout></P>} />
+                  <Route path="/import-guide" element={<P><ImportRoute><AppLayout><ImportGuide /></AppLayout></ImportRoute></P>} />
+                  <Route path="/import-checklist" element={<P><ImportRoute><AppLayout><ImportChecklist /></AppLayout></ImportRoute></P>} />
                   <Route path="/compare/downtime" element={<P><AppLayout><DowntimeComparison /></AppLayout></P>} />
                   <Route path="/compare/ratings" element={<P><AppLayout><RatingsComparison /></AppLayout></P>} />
                   <Route path="/compare/opening-hours" element={<P><AppLayout><OpeningHoursComparison /></AppLayout></P>} />
@@ -121,8 +139,8 @@ const App = () => {
                   <Route path="/item-sales" element={<P><ItemSales /></P>} />
                   <Route path="/marketing-analytics" element={<P><MarketingAnalytics /></P>} />
                   <Route path="/success-score" element={<P><AppLayout><SuccessScore /></AppLayout></P>} />
-                  <Route path="/uber-mapping" element={<P><AppLayout><UberStoreMapping /></AppLayout></P>} />
-                  <Route path="/deliveroo-matching" element={<P><AppLayout><DeliverooMatching /></AppLayout></P>} />
+                  <Route path="/uber-mapping" element={<P><ImportRoute><AppLayout><UberStoreMapping /></AppLayout></ImportRoute></P>} />
+                  <Route path="/deliveroo-matching" element={<P><ImportRoute><AppLayout><DeliverooMatching /></AppLayout></ImportRoute></P>} />
                   <Route path="/admin" element={<P><AppLayout><Admin /></AppLayout></P>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
