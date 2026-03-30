@@ -114,7 +114,7 @@ const App = () => {
                   <Route path="/reports" element={<P><Reports /></P>} />
                   <Route path="/menu-editor" element={<P><MenuEditor /></P>} />
                   <Route path="/disputes" element={<P><AppLayout><Disputes /></AppLayout></P>} />
-                  <Route path="/data-entry" element={<P><AppLayout><DataEntry /></AppLayout></P>} />
+                  <Route path="/data-entry" element={<P><ImportRoute><AppLayout><DataEntry /></AppLayout></ImportRoute></P>} />
                   <Route path="/data-entry/revenue" element={<Navigate to="/data-entry?tab=revenue" replace />} />
                   <Route path="/data-entry/conversion" element={<Navigate to="/data-entry?tab=conversion" replace />} />
                   <Route path="/data-entry/fees" element={<Navigate to="/data-entry?tab=fees" replace />} />
