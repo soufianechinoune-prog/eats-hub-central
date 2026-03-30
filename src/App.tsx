@@ -125,7 +125,7 @@ const App = () => {
                   <Route path="/actions" element={<P><AppLayout><RestaurantActions /></AppLayout></P>} />
                   <Route path="/menu-history" element={<P><ImportRoute><AppLayout><MenuHistory /></AppLayout></ImportRoute></P>} />
                   <Route path="/operations" element={<P><AppLayout><Operations /></AppLayout></P>} />
-                  <Route path="/report-import" element={<P><AppLayout><ReportImport /></AppLayout></P>} />
+                  <Route path="/report-import" element={<P><ImportRoute><AppLayout><ReportImport /></AppLayout></ImportRoute></P>} />
                   <Route path="/cartography" element={<P><Cartography /></P>} />
                   <Route path="/import-guide" element={<P><AppLayout><ImportGuide /></AppLayout></P>} />
                   <Route path="/import-checklist" element={<P><AppLayout><ImportChecklist /></AppLayout></P>} />
