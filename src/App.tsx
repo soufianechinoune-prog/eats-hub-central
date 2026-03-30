@@ -127,8 +127,8 @@ const App = () => {
                   <Route path="/operations" element={<P><AppLayout><Operations /></AppLayout></P>} />
                   <Route path="/report-import" element={<P><ImportRoute><AppLayout><ReportImport /></AppLayout></ImportRoute></P>} />
                   <Route path="/cartography" element={<P><Cartography /></P>} />
-                  <Route path="/import-guide" element={<P><AppLayout><ImportGuide /></AppLayout></P>} />
-                  <Route path="/import-checklist" element={<P><AppLayout><ImportChecklist /></AppLayout></P>} />
+                  <Route path="/import-guide" element={<P><ImportRoute><AppLayout><ImportGuide /></AppLayout></ImportRoute></P>} />
+                  <Route path="/import-checklist" element={<P><ImportRoute><AppLayout><ImportChecklist /></AppLayout></ImportRoute></P>} />
                   <Route path="/compare/downtime" element={<P><AppLayout><DowntimeComparison /></AppLayout></P>} />
                   <Route path="/compare/ratings" element={<P><AppLayout><RatingsComparison /></AppLayout></P>} />
                   <Route path="/compare/opening-hours" element={<P><AppLayout><OpeningHoursComparison /></AppLayout></P>} />
