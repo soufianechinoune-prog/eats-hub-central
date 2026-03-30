@@ -41,12 +41,14 @@ import {
   Hash,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 const RestaurantDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { selectedChainId } = useAnalyticsContext();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
 
@@ -269,6 +271,18 @@ const RestaurantDetail = () => {
           Retour aux restaurants
         </Button>
         <div className="text-center text-muted-foreground">Restaurant non trouvé</div>
+      </div>
+    );
+  }
+
+  if (selectedChainId && restaurant.chain_id !== selectedChainId) {
+    return (
+      <div className="p-8 text-center space-y-4">
+        <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
+        <h2 className="text-xl font-semibold">Ce restaurant n'appartient pas à la marque sélectionnée</h2>
+        <Button variant="outline" onClick={() => navigate("/restaurants")}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Retour aux restaurants
+        </Button>
       </div>
     );
   }
