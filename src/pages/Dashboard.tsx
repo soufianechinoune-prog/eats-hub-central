@@ -81,19 +81,29 @@ const Dashboard = () => {
 
   // Fetch restaurant performance
   const { data: restaurantPerformance, isLoading: perfLoading } = useQuery({
-    queryKey: ["restaurant-performance", dateRange],
+    queryKey: ["restaurant-performance", dateRange, scopedRestaurantIds],
     queryFn: async () => {
+      if (scopedRestaurantIds && scopedRestaurantIds === EMPTY_BRAND_SCOPE_RESTAURANT_IDS) {
+        return [];
+      }
+
       const daysAgo = parseInt(dateRange);
       const fromDate = new Date();
       fromDate.setDate(fromDate.getDate() - daysAgo);
 
-      const { data: restaurants } = await supabase
+      let restaurantQuery = supabase
         .from("restaurants")
         .select(`
           *,
           uber_connections (*)
         `)
         .eq("is_active", true);
+
+      if (scopedRestaurantIds) {
+        restaurantQuery = restaurantQuery.in("id", scopedRestaurantIds);
+      }
+
+      const { data: restaurants } = await restaurantQuery;
 
       if (!restaurants) return [];
 
