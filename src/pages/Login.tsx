@@ -88,6 +88,15 @@ const Login = () => {
               {loading ? "Connexion en cours..." : "Se connecter"}
             </Button>
           </form>
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline transition-colors"
+            >
+              Mot de passe oublié ?
+            </button>
+          </div>
         </CardContent>
       </Card>
     </div>
