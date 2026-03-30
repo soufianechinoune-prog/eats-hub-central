@@ -186,7 +186,10 @@ export function AppSidebar() {
         .from("chains")
         .select("id, name")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching chains:", error);
+        throw error;
+      }
       return data || [];
     },
   });
