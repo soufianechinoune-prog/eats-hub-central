@@ -487,6 +487,7 @@ export function AppSidebar() {
         </SidebarGroup>
         )}
 
+        {canImport && (
         <SidebarGroup>
           <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
             {collapsed ? "📈" : "Pilotage"}
