@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2, UserPlus, Plus, Building2, Users, Loader2 } from "lucide-react";
+import AdminBillingSection from "@/components/admin/AdminBillingSection";
 
 interface UserAccess {
   access_id: string;
