@@ -180,9 +180,25 @@ export function EcoContributionSection({
           };
         });
 
+        // Fallback : IDU présent mais pas encore dans le dataset annuel
+        if (!hasResults && iduEntries.length > 0) {
+          for (const idu of iduEntries) {
+            entries.push({
+              filiere: idu.filiere || "—",
+              org: "Non encore enregistré (adhésion en cours)",
+              start: "—",
+              end: null,
+              isActive: true,
+              idu: idu.identifiant_unique,
+            });
+          }
+        }
+
+        const finalStatus = hasResults || iduEntries.length > 0 ? "inscrit" : "non_trouve";
+
         map.set(rId, {
-          status: hasResults ? "inscrit" : "non_trouve",
-          filiereCount: result.count,
+          status: finalStatus,
+          filiereCount: result.count || iduEntries.length,
           orgs: [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))],
           iduEntries,
           entries,
