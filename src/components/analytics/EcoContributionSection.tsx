@@ -169,7 +169,8 @@ export function EcoContributionSection({
         const hasResults = result.count > 0;
         const iduEntries = result.idu_results || [];
         const entries = result.results.map(r => {
-          const matchingIdu = iduEntries.find(i => i.filiere === r.filiere);
+          const matchingIdu = iduEntries.find(i => i.filiere === r.filiere)
+            || (iduEntries.length === 1 ? iduEntries[0] : undefined);
           return {
             filiere: r.filiere,
             org: r.raison_sociale_ecoorganisme,
