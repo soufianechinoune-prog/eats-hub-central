@@ -487,6 +487,7 @@ export function AppSidebar() {
         </SidebarGroup>
         )}
 
+        {canImport && (
         <SidebarGroup>
           <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
             {collapsed ? "📈" : "Pilotage"}
@@ -513,6 +514,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        )}
 
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
