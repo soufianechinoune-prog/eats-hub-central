@@ -18,6 +18,7 @@ import {
   Eye,
   Euro,
   TrendingUp,
+  User,
   Wallet,
   Trophy,
   Home,
