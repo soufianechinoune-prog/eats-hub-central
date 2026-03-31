@@ -313,7 +313,7 @@ export function EcoContributionSection({
     const prevId = prevScanningRef.current;
     if (prevId && prevId !== scanningId) {
       const result = repData[prevId];
-      const status = result && result.count > 0 ? "ok" : "alert";
+      const status = result && (result.count > 0 || (result.idu_results || []).length > 0) ? "ok" : "alert";
       setFlashStatuses(prev => new Map(prev).set(prevId, status));
       // Remove flash after animation
       setTimeout(() => {

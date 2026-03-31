@@ -79,14 +79,30 @@ export function RepMembershipSection({ restaurantIds, restaurantMap }: RepMember
         };
       });
 
+      // Fallback : IDU présent mais pas encore dans le dataset annuel
+      if (!hasResults && iduEntries.length > 0) {
+        for (const idu of iduEntries) {
+          entries.push({
+            filiere: idu.filiere || "—",
+            org: "Non encore enregistré (adhésion en cours)",
+            start: "—",
+            end: null,
+            isActive: true,
+            idu: idu.identifiant_unique,
+          });
+        }
+      }
+
+      const finalStatus = hasResults || iduEntries.length > 0 ? "inscrit" : "non_trouve";
+
       return {
         id: rId,
         name,
-        status: hasResults ? "inscrit" as const : "non_trouve" as const,
+        status: finalStatus as "inscrit" | "non_trouve",
         result,
-        filiereCount: result.count,
+        filiereCount: result.count || iduEntries.length,
         orgs: [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))],
-        filieres: [...new Set(result.results.map(r => r.filiere).filter(Boolean))],
+        filieres: [...new Set([...result.results.map(r => r.filiere), ...iduEntries.map(i => i.filiere)].filter(Boolean))],
         iduEntries,
         entries,
       };

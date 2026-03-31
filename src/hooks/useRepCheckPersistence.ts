@@ -91,12 +91,12 @@ export function useRepCheckPersistence(restaurantIds: string[], chainId?: string
         results[r.id] = { restaurant_id: r.id, status: "non_trouve", filiereCount: 0, orgs: [], idus: [] };
         continue;
       }
-      if (result.count > 0) {
+      if (result.count > 0 || (result.idu_results || []).length > 0) {
         inscrit++;
         results[r.id] = {
           restaurant_id: r.id,
           status: "inscrit",
-          filiereCount: result.count,
+          filiereCount: result.count || (result.idu_results || []).length,
           orgs: [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))],
           idus: (result.idu_results || []).map(i => i.identifiant_unique),
         };
