@@ -2872,6 +2872,38 @@ export type Database = {
           },
         ]
       }
+      restaurant_visibility_grants: {
+        Row: {
+          created_at: string | null
+          granted_by_user_id: string
+          granted_to_user_id: string
+          id: string
+          restaurant_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          granted_by_user_id: string
+          granted_to_user_id: string
+          id?: string
+          restaurant_id: string
+        }
+        Update: {
+          created_at?: string | null
+          granted_by_user_id?: string
+          granted_to_user_id?: string
+          id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_visibility_grants_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurants: {
         Row: {
           account_manager_email: string | null
@@ -3071,6 +3103,50 @@ export type Database = {
           subject?: string | null
         }
         Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          activated_at: string | null
+          created_at: string | null
+          deactivated_at: string | null
+          id: string
+          monthly_price: number
+          notes: string | null
+          payer_user_id: string
+          restaurant_id: string
+          status: string
+        }
+        Insert: {
+          activated_at?: string | null
+          created_at?: string | null
+          deactivated_at?: string | null
+          id?: string
+          monthly_price?: number
+          notes?: string | null
+          payer_user_id: string
+          restaurant_id: string
+          status?: string
+        }
+        Update: {
+          activated_at?: string | null
+          created_at?: string | null
+          deactivated_at?: string | null
+          id?: string
+          monthly_price?: number
+          notes?: string | null
+          payer_user_id?: string
+          restaurant_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       success_scores: {
         Row: {
