@@ -450,6 +450,8 @@ export default function Admin() {
           </div>
         </CardContent>
       </Card>
+      {/* SECTION 3: Billing */}
+      <AdminBillingSection users={users} />
     </div>
   );
 }
