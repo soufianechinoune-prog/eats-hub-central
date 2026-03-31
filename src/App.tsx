@@ -49,6 +49,7 @@ import SuccessScore from "./pages/SuccessScore";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 import Reviews from "./pages/Reviews";
 import Admin from "./pages/Admin";
+import Account from "./pages/Account";
 import { useUserRole } from "./hooks/useUserRole";
 import { useToast } from "./hooks/use-toast";
 import { useEffect } from "react";
