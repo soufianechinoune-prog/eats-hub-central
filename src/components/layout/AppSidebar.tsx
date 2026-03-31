@@ -514,6 +514,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        )}
 
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
