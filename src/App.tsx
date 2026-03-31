@@ -145,6 +145,7 @@ const App = () => {
                   <Route path="/uber-mapping" element={<P><ImportRoute><AppLayout><UberStoreMapping /></AppLayout></ImportRoute></P>} />
                   <Route path="/deliveroo-matching" element={<P><ImportRoute><AppLayout><DeliverooMatching /></AppLayout></ImportRoute></P>} />
                   <Route path="/admin" element={<P><AppLayout><Admin /></AppLayout></P>} />
+                  <Route path="/account" element={<P><AppLayout><Account /></AppLayout></P>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </BrowserRouter>
