@@ -49,6 +49,7 @@ import SuccessScore from "./pages/SuccessScore";
 import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 import Reviews from "./pages/Reviews";
 import Admin from "./pages/Admin";
+import Account from "./pages/Account";
 import { useUserRole } from "./hooks/useUserRole";
 import { useToast } from "./hooks/use-toast";
 import { useEffect } from "react";
@@ -144,6 +145,7 @@ const App = () => {
                   <Route path="/uber-mapping" element={<P><ImportRoute><AppLayout><UberStoreMapping /></AppLayout></ImportRoute></P>} />
                   <Route path="/deliveroo-matching" element={<P><ImportRoute><AppLayout><DeliverooMatching /></AppLayout></ImportRoute></P>} />
                   <Route path="/admin" element={<P><AppLayout><Admin /></AppLayout></P>} />
+                  <Route path="/account" element={<P><AppLayout><Account /></AppLayout></P>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </BrowserRouter>

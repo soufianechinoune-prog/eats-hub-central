@@ -18,6 +18,7 @@ import {
   Eye,
   Euro,
   TrendingUp,
+  User,
   Wallet,
   Trophy,
   Home,
@@ -550,6 +551,20 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <ThemeToggle collapsed={collapsed} />
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  className={
+                    location.pathname === "/account"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : ""
+                  }
+                >
+                  <NavLink to="/account">
+                    <User className="h-4 w-4" />
+                    {!collapsed && <span>Mon compte</span>}
+                  </NavLink>
+                </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout}>
