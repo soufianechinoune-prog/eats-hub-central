@@ -80,6 +80,7 @@ export function useOffersAnalytics(
   // Current period
   const { data: rawData, isLoading, isError, error: queryError } = useQuery({
     queryKey: ["offers-analytics", restaurantIds, startDate, endDate],
+    staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_offers_analytics", {
         p_restaurant_ids: restaurantIds.length > 0 ? restaurantIds : null,
