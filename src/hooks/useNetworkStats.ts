@@ -177,22 +177,8 @@ export function useNetworkStats({
   // WAVE 2: Reviews + Accuracy + Orders payout (wait for wave 1)
   // ═══════════════════════════════════════════════
 
-  const { data: reviewsData, isLoading: reviewsLoading } = useQuery({
-    queryKey: ["overview-reviews", restaurantIds, startDateStr, endDateStr],
-    queryFn: async () => {
-      if (!hasIds) return [];
-      const { data, error } = await supabase
-        .from("customer_reviews")
-        .select("restaurant_id, overall_rating")
-        .gte("review_date", startDateStr)
-        .lte("review_date", endDateStr)
-        .in("restaurant_id", restaurantIds);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: hasIds && wave1Done,
-    ...RETRY_CONFIG,
-  });
+  // Reviews data comes from useOverviewData via props (no duplicate fetch)
+  const reviewsData = externalReviewsData || [];
 
   const { data: accuracyData, isLoading: accuracyLoading } = useQuery({
     queryKey: ["network-stats-accuracy", restaurantIds, startDateStr, endDateStr],
