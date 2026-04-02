@@ -29,7 +29,8 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     enabled: !!selectedChainId,
   });
 
-  const displayName = chainName || "CS Delivery Performance";
+  const displayName = chainData?.name || "CS Delivery Performance";
+  const chainLogoUrl = chainData?.logo_url;
 
   return (
     <SidebarProvider>
@@ -39,9 +40,11 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
           <header className="sticky top-0 z-10 flex h-16 items-center border-b bg-card px-6 shadow-sm">
             <SidebarTrigger className="mr-4" />
             <div className="flex items-center gap-3 flex-1">
-              {!selectedChainId && (
+              {chainLogoUrl ? (
+                <img src={chainLogoUrl} alt={displayName} className="h-9 w-9 rounded-md object-cover" />
+              ) : !selectedChainId ? (
                 <img src={csLogo} alt="CS Delivery Performance" className="h-10 w-10 rounded-full object-cover" />
-              )}
+              ) : null}
               <h1 className="text-xl font-semibold text-foreground">{displayName}</h1>
             </div>
           </header>

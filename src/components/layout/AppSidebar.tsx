@@ -345,7 +345,14 @@ export function AppSidebar() {
                   <SelectItem value="all">Toutes les marques</SelectItem>
                   {chains?.map((chain) => (
                     <SelectItem key={chain.id} value={chain.id}>
-                      {chain.name}
+                      <div className="flex items-center gap-2">
+                        {chain.logo_url ? (
+                          <img src={chain.logo_url} alt="" className="h-4 w-4 rounded object-cover" />
+                        ) : (
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                        {chain.name}
+                      </div>
                     </SelectItem>
                   ))}
                   <div className="border-t my-1" />
