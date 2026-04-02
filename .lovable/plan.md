@@ -1,36 +1,69 @@
 
 
 ## Objectif
-Résoudre les 2 problèmes restants : dédupliquer `customer_reviews` (4 appels → 1) et vérifier pourquoi `get_network_prep_time_summary` reste lent malgré les index existants.
+Le badge "84" dans la sidebar compte les messages non lus de **toutes les marques** (y compris Chicken Street). Il faut filtrer par la chaîne active.
 
 ## Diagnostic
+- `message_history` a une colonne `restaurant_id` (FK vers `restaurants`)
+- `restaurants` a une colonne `chain_id`
+- Le hook `useUnreadMessages` ne filtre pas par chaîne → il compte tout
+- `AppSidebar.tsx` a déjà accès à `selectedChainId` via `useAnalyticsContext()`
 
-### customer_reviews appelé 4 fois
-Le problème : `useNetworkStats` et `useOverviewData` utilisent la même `queryKey` (`"overview-reviews"`) mais des `queryFn` différentes (paginated vs non-paginated, colonnes différentes). React Query ne peut pas dédupliquer quand les fonctions diffèrent.
+## L'ingénieure a raison sur le fond, mais 2 ajustements
 
-**Solution** : Supprimer complètement la requête `customer_reviews` de `useNetworkStats` et passer les données reviews en prop depuis `Overview.tsx` (qui les a déjà via `useOverviewData`).
-
-### get_network_prep_time_summary à 4s
-L'index `idx_order_history_restaurant_date` sur `(restaurant_id, order_datetime)` existe déjà. La RPC a déjà un `statement_timeout` de 10s. Les 4s sont le temps réel de l'agrégation sur un gros volume — pas d'optimisation SQL supplémentaire évidente sans table pré-agrégée. Le timeout protège contre les cas extrêmes.
+1. **Le "force rebuild" avec `// v2`** est inutile — Vite fait du HMR automatique. On ignore cette suggestion.
+2. **Le JOIN via Supabase JS** est la bonne approche. Mais il faut aussi re-déclencher le `useEffect` quand `chainId` change (ajouter dans les deps).
 
 ## Modifications (2 fichiers)
 
-### 1. `src/hooks/useNetworkStats.ts`
-- Ajouter `reviewsData` optionnel dans `UseNetworkStatsParams`
-- Supprimer le `useQuery` pour `customer_reviews` (lignes 178-193)
-- Supprimer `reviewsLoading` de `isLoading`
-- Utiliser `reviewsData` passé en prop au lieu de données fetchées
+### 1. `src/hooks/useUnreadMessages.ts`
+- Accepter un paramètre optionnel `chainId: string | null`
+- Si `chainId` est fourni : utiliser le filtre `restaurants!inner(chain_id)` + `.eq("restaurants.chain_id", chainId)`
+- Si `chainId` est `null` : requête sans filtre chaîne (comportement actuel)
+- Ajouter `chainId` dans les dépendances du `useEffect`
 
-### 2. `src/pages/Overview.tsx`
-- Extraire `reviews.data` depuis `useOverviewData` (déjà disponible dans le retour)
-- Passer `reviewsData` à `useNetworkStats`
+```typescript
+export function useUnreadMessages(chainId?: string | null) {
+  const [unreadCount, setUnreadCount] = useState(0);
 
-### Vérification nécessaire
-Il faut d'abord vérifier si `useOverviewData` expose les reviews dans son retour, ou s'il faut l'ajouter.
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      let query = supabase
+        .from("message_history")
+        .select(
+          chainId ? "*, restaurants!inner(chain_id)" : "*",
+          { count: "exact", head: true }
+        )
+        .eq("direction", "inbound")
+        .is("read_at", null);
+
+      if (chainId) {
+        query = query.eq("restaurants.chain_id", chainId);
+      }
+
+      const { count, error } = await query;
+      if (!error && count !== null) {
+        setUnreadCount(count);
+      }
+    };
+
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 60_000);
+    return () => clearInterval(interval);
+  }, [chainId]);
+
+  return unreadCount;
+}
+```
+
+### 2. `src/components/layout/AppSidebar.tsx` (ligne 179)
+Passer `selectedChainId` au hook :
+```typescript
+const unreadCount = useUnreadMessages(selectedChainId);
+```
 
 ## Impact
-- `customer_reviews` : 4 appels → 1 seul (via `useOverviewData`)
-- `get_network_prep_time_summary` : déjà optimisé avec index + timeout 10s, pas de changement SQL
-
-## Aucune migration SQL nécessaire
+- Le badge ne comptera que les messages non lus des restaurants de la marque active
+- Quand on change de marque, le compteur se met à jour immédiatement
+- Aucune migration SQL nécessaire
 
